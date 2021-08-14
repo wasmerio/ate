@@ -11,4 +11,6 @@ pub struct Group {
     pub gid: u32,
     pub roles: Vec<Role>,
     pub foreign: DaoForeign,
+    pub broker_read: PrivateEncryptKey,
+    pub broker_write: PrivateSignKey,
 }

@@ -132,6 +132,8 @@ impl AuthService
         // Add all the authorizations
         let mut session = compute_user_auth(&user);
         session.user.add_identity(request.email.clone());
+        session.broker_read = Some(user.broker_read.clone());
+        session.broker_write = Some(user.broker_write.clone());
 
         // If a google authenticator code has been supplied then we need to try and load the
         // extra permissions from elevated rights

@@ -123,6 +123,11 @@ impl AuthService
         let observer_read = EncryptKey::generate(key_size);
         let observer_private_read = PrivateEncryptKey::generate(key_size);
         let observer_write = PrivateSignKey::generate(key_size);
+        
+        // Generate the broker encryption keys used to extend trust without composing
+        // the confidentiality of the chain through wide blast radius
+        let broker_read = PrivateEncryptKey::generate(key_size);
+        let broker_write = PrivateSignKey::generate(key_size);
 
         // The super session needs the owner keys so that it can save the records
         let mut super_session = self.master_session.clone();
@@ -140,6 +145,8 @@ impl AuthService
             foreign: DaoForeign::default(),
             gid,
             roles: Vec::new(),
+            broker_read: broker_read.clone(),
+            broker_write: broker_write.clone(),
         };
         let mut group = dio.store_with_key(group, group_key.clone())?;
 
@@ -240,7 +247,9 @@ impl AuthService
             nominal_encrypt: observer_private_read.as_public_key(),
             nominal_auth: contributor_write.as_public_key(),
             sudo_encrypt: owner_private_read.as_public_key(),
-            sudo_auth: owner_write.as_public_key()
+            sudo_auth: owner_write.as_public_key(),
+            broker_auth: broker_write.as_public_key(),
+            broker_encrypt: broker_read.as_public_key(),
         };
         let mut advert = dio.store_with_key(advert, advert_key.clone())?;
         advert.auth_mut().read = ReadOption::Everyone(None);

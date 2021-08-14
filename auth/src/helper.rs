@@ -110,7 +110,14 @@ pub(crate) fn compute_sudo_auth(sudo: &Sudo, session: AteSession) -> AteSession
 
 pub(crate) fn complete_group_auth(group: &Group, mut session: AteSession)
     -> Result<AteSession, LoadError>
-{    
+{
+    // Add the broker keys
+    {
+        let b = session.get_or_create_group(&group.name);
+        b.broker_read = Some(group.broker_read.clone());
+        b.broker_write = Some(group.broker_write.clone());
+    }
+
     // Enter a recursive loop that will expand its authorizations of the roles until
     // it expands no more or all the roles are gained.
     let mut roles = group.roles.iter().collect::<Vec<_>>();

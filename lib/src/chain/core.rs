@@ -1,10 +1,13 @@
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use tracing_futures::Instrument;
+use parking_lot::Mutex as StdMutex;
 
 use crate::error::*;
 
 use crate::comms::NodeId;
+use crate::comms::Metrics;
+use crate::comms::Throttle;
 use crate::transaction::*;
 
 use std::sync::{Arc};
@@ -58,6 +61,8 @@ pub struct Chain
     pub(crate) time: Arc<TimeKeeper>,
     pub(crate) exit: broadcast::Sender<()>,
     pub(crate) decache: broadcast::Sender<Vec<PrimaryKey>>,
+    pub(crate) metrics: Arc<StdMutex<Metrics>>,
+    pub(crate) throttle: Arc<StdMutex<Throttle>>,
 }
 
 impl<'a> Chain
@@ -165,6 +170,16 @@ impl<'a> Chain
     pub(crate) async fn shutdown(&self) -> Result<(), tokio::io::Error>
     {
         self.run_async(self.__shutdown()).await
+    }
+
+    pub fn metrics(&'a self) -> parking_lot::MutexGuard<'_, Metrics>
+    {
+        self.metrics.lock()
+    }
+
+    pub fn throttl(&'a self) -> parking_lot::MutexGuard<'_, Throttle>
+    {
+        self.throttle.lock()
     }
 
     async fn __shutdown(&self) -> Result<(), tokio::io::Error>

@@ -16,6 +16,8 @@ use super::conf::Upstream;
 use super::Packet;
 use super::PacketData;
 use super::PacketWithContext;
+use super::Metrics;
+use super::Throttle;
 
 #[derive(Debug)]
 pub(crate) enum TxDirection
@@ -37,18 +39,20 @@ pub(crate) struct TxRelay
 pub(crate) struct Tx
 {
     pub hello_path: String,
-    pub direction: TxDirection,
+    pub(crate) direction: TxDirection,
     pub wire_format: SerializationFormat,
-    pub relay: Option<TxRelay>,
+    pub(crate) relay: Option<TxRelay>,
+    pub metrics: Arc<StdMutex<Metrics>>,
+    pub throttle: Arc<StdMutex<Throttle>>,
 }
 
 impl Tx
 {
-    #[allow(dead_code)]
     pub async fn send_relay<M, C>(&mut self, pck: PacketWithContext<M, C>) -> Result<(), CommsError>
     where M: Send + Sync + Serialize + DeserializeOwned + Clone,
           C: Send + Sync,
     {
+        let mut total_sent = 0u64;
         if let Some(relay) = self.relay.as_mut() {
             let pck = if self.wire_format == relay.wire_format {
                 pck.data
@@ -58,30 +62,34 @@ impl Tx
             match &mut relay.direction {
                 #[cfg(feature="enable_server")]
                 TxDirection::Downcast(tx) => {
-                    tx.send_reply(pck).await?;
+                    total_sent += tx.send_reply(pck).await?;
                 },
                 TxDirection::Upcast(tx) => {
-                    tx.outbox.send(pck).await?;
+                    total_sent += tx.outbox.send(pck).await?;
                 },
                 TxDirection::Nullcast => {
                 }
             }
         }
+        self.metrics_add_sent(total_sent).await;
         Ok(())
     }
 
-    pub async fn send_reply(&mut self, pck: PacketData) -> Result<(), CommsError> {
-        match &mut self.direction {
+    pub async fn send_reply(&mut self, pck: PacketData) -> Result<(), CommsError>
+    {
+        let total_sent = match &mut self.direction {
             #[cfg(feature="enable_server")]
             TxDirection::Downcast(tx) => {
-                tx.send_reply(pck).await?;
+                tx.send_reply(pck).await?
             },
             TxDirection::Upcast(tx) => {
-                tx.outbox.send(pck).await?;
+                tx.outbox.send(pck).await?
             },
             TxDirection::Nullcast => {
+                0u64
             }
         };
+        self.metrics_add_sent(total_sent).await;
         Ok(())
     }
 
@@ -89,33 +97,39 @@ impl Tx
     where M: Send + Sync + Serialize + DeserializeOwned + Clone
     {
         let pck = Packet::from(msg).to_packet_data(self.wire_format)?;
-        self.send_reply(pck).await
-    }
-
-    #[cfg(feature="enable_server")]
-    pub async fn send_others(&mut self, pck: PacketData) -> Result<(), CommsError> {
-        match &mut self.direction {
-            #[cfg(feature="enable_server")]
-            TxDirection::Downcast(tx) => {
-                tx.send_others(pck).await?;
-            },
-            _ => { }
-        };
+        self.send_reply(pck).await?;
         Ok(())
     }
 
-    pub async fn send_all(&mut self, pck: PacketData) -> Result<(), CommsError> {
-        match &mut self.direction {
+    #[cfg(feature="enable_server")]
+    pub async fn send_others(&mut self, pck: PacketData) -> Result<(), CommsError>
+    {
+        let total_sent = match &mut self.direction {
             #[cfg(feature="enable_server")]
             TxDirection::Downcast(tx) => {
-                tx.send_all(pck).await?;
+                tx.send_others(pck).await?
+            },
+            _ => 0u64
+        };
+        self.metrics_add_sent(total_sent).await;
+        Ok(())
+    }
+
+    pub async fn send_all(&mut self, pck: PacketData) -> Result<(), CommsError>
+    {
+        let total_sent = match &mut self.direction {
+            #[cfg(feature="enable_server")]
+            TxDirection::Downcast(tx) => {
+                tx.send_all(pck).await?
             },
             TxDirection::Upcast(tx) => {
-                tx.outbox.send(pck).await?;
+                tx.outbox.send(pck).await?
             },
             TxDirection::Nullcast => {
+                0u64
             }
         };
+        self.metrics_add_sent(total_sent).await;
         Ok(())
     }
 
@@ -159,6 +173,8 @@ impl Tx
             direction,
             wire_format: self.wire_format.clone(),
             relay: None,
+            metrics: Arc::clone(&self.metrics),
+            throttle: Arc::clone(&self.throttle),
         };
         ret
     }
@@ -172,6 +188,18 @@ impl Tx
             direction,
             wire_format: tx.wire_format
         });
+    }
+
+    pub fn relay_is_some(&self) -> bool
+    {
+        self.relay.is_some()
+    }
+
+    async fn metrics_add_sent(&self, amt: u64)
+    {
+        // Update the metrics with all this received data
+        let mut metrics = self.metrics.lock();
+        metrics.sent += amt;
     }
 }
 
@@ -195,28 +223,31 @@ pub(crate) struct TxGroupSpecific
 
 impl TxGroupSpecific
 {
+    #[must_use="all network communication metrics must be accounted for"]
     #[cfg(feature="enable_server")]
-    pub async fn send_reply(&mut self, pck: PacketData) -> Result<(), CommsError>
+    pub async fn send_reply(&mut self, pck: PacketData) -> Result<u64, CommsError>
     {
         let mut tx = self.me_tx.lock().await;
-        tx.outbox.send(pck).await?;
-        Ok(())
+        let total_sent = tx.outbox.send(pck).await?;
+        Ok(total_sent)
     }
 
+    #[must_use="all network communication metrics must be accounted for"]
     #[cfg(feature="enable_server")]
-    pub async fn send_others(&mut self, pck: PacketData) -> Result<(), CommsError>
+    pub async fn send_others(&mut self, pck: PacketData) -> Result<u64, CommsError>
     {
         let mut group = self.group.lock().await;
-        group.send(pck, Some(self.me_id)).await?;
-        Ok(())
+        let total_sent = group.send(pck, Some(self.me_id)).await?;
+        Ok(total_sent)
     }
 
+    #[must_use="all network communication metrics must be accounted for"]
     #[cfg(feature="enable_server")]
-    pub async fn send_all(&mut self, pck: PacketData) -> Result<(), CommsError>
+    pub async fn send_all(&mut self, pck: PacketData) -> Result<u64, CommsError>
     {
         let mut group = self.group.lock().await;
-        group.send(pck, None).await?;
-        Ok(())
+        let total_sent = group.send(pck, None).await?;
+        Ok(total_sent)
     }
 
     #[cfg(feature="enable_server")]
@@ -234,15 +265,17 @@ pub(crate) struct TxGroup
 
 impl TxGroup
 {
+    #[must_use="all network communication metrics must be accounted for"]
     #[cfg(feature="enable_server")]
-    pub(crate) async fn send(&mut self, pck: PacketData, skip: Option<NodeId>) -> Result<(), CommsError>
+    pub(crate) async fn send(&mut self, pck: PacketData, skip: Option<NodeId>) -> Result<u64, CommsError>
     {
+        let mut total_sent = 0u64;
         match self.all.len() {
             1 => {
                 if let Some(tx) = self.all.values().next().iter().filter_map(|a| Weak::upgrade(a)).next() {
                     let mut tx = tx.lock().await;
                     if Some(tx.id) != skip {
-                        tx.outbox.send(pck).await?;
+                        total_sent += tx.outbox.send(pck).await?;
                     }
                 }
             },
@@ -251,11 +284,11 @@ impl TxGroup
                 for tx in all {
                     let mut tx = tx.lock().await;
                     if Some(tx.id) != skip {
-                        tx.outbox.send(pck.clone()).await?;
+                        total_sent += tx.outbox.send(pck.clone()).await?;
                     }
                 }
             }
         }
-        Ok(())
+        Ok(total_sent)
     }
 }

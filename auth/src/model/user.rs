@@ -25,4 +25,6 @@ pub struct User {
     pub sudo_read: ate::crypto::AteHash,
     pub sudo_public_read: PublicEncryptKey,
     pub sudo_write: PublicSignKey,
+    pub broker_read: PrivateEncryptKey,
+    pub broker_write: PrivateSignKey,
 }

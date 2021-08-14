@@ -6,6 +6,7 @@ use fxhash::FxHashMap;
 #[cfg(feature="enable_tcp")]
 use tokio::{net::{TcpStream}};
 use tokio::time::Duration;
+use tokio::sync::Mutex;
 use std::sync::Arc;
 use send_wrapper::SendWrapper;
 use serde::{Serialize, de::DeserializeOwned};
@@ -13,6 +14,7 @@ use std::net::SocketAddr;
 #[cfg(all(feature="enable_tcp", not(feature="enable_dns")))]
 use std::net::ToSocketAddrs;
 use std::result::Result;
+use parking_lot::Mutex as StdMutex;
 
 #[cfg(feature="enable_web")]
 #[cfg(feature="enable_ws")]
@@ -29,6 +31,8 @@ use crate::conf::*;
 use crate::engine::TaskEngine;
 
 use super::{conf::*, hello::HelloMetadata};
+use super::metrics::*;
+use super::throttle::*;
 use super::rx_tx::*;
 use super::helper::*;
 use super::hello;
@@ -47,7 +51,9 @@ pub(crate) async fn connect<M, C>
     conf: &MeshConfig,
     hello_path: String,
     node_id: NodeId,
-    inbox: impl InboxProcessor<M, C> + 'static
+    inbox: impl InboxProcessor<M, C> + 'static,
+    metrics: Arc<StdMutex<Metrics>>,
+    throttle: Arc<StdMutex<Throttle>>,
 )
 -> Result<Tx, CommsError>
 where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
@@ -56,6 +62,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
     // Create all the outbound connections
     if let Some(target) = &conf.connect_to
     {
+        // Perform the connect operation
         let inbox = Box::new(inbox);
         let upstream = mesh_connect_to::<M, C>(
             target.clone(), 
@@ -67,6 +74,8 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
             conf.cfg_mesh.wire_encryption,
             conf.cfg_mesh.connect_timeout,
             conf.cfg_mesh.fail_fast,
+            Arc::clone(&metrics),
+            Arc::clone(&throttle),
         ).await?;
         
         // Return the mesh
@@ -76,6 +85,8 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
                 hello_path: hello_path.clone(),
                 wire_format: conf.cfg_mesh.wire_format,
                 relay: None,
+                metrics: Arc::clone(&metrics),
+                throttle: Arc::clone(&throttle),
             },
         )
     }
@@ -101,6 +112,8 @@ pub(super) async fn mesh_connect_to<M, C>
     wire_encryption: Option<KeySize>,
     timeout: Duration,
     fail_fast: bool,
+    metrics: Arc<StdMutex<super::metrics::Metrics>>,
+    throttle: Arc<StdMutex<super::throttle::Throttle>>,
 )
 -> Result<Upstream, CommsError>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
@@ -130,7 +143,16 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
     // background thread - connects and then runs inbox and outbox threads
     // if the upstream object signals a termination event it will exit
     TaskEngine::spawn(
-        mesh_connect_worker::<M, C>(worker_connect, addr, ek, node_id, server_id, inbox)
+        mesh_connect_worker::<M, C>(
+            worker_connect,
+            addr,
+            ek,
+            node_id,
+            server_id,
+            inbox,
+            metrics,
+            throttle,
+        )
     );
 
     let stream_tx = StreamTxChannel::new(stream_tx, ek);
@@ -269,7 +291,9 @@ async fn mesh_connect_worker<M, C>
     wire_encryption: Option<EncryptKey>,
     node_id: NodeId,
     peer_id: NodeId,
-    inbox: Box<dyn InboxProcessor<M, C>>
+    inbox: Box<dyn InboxProcessor<M, C>>,
+    metrics: Arc<StdMutex<super::metrics::Metrics>>,
+    throttle: Arc<StdMutex<super::throttle::Throttle>>,
 )
 -> Result<(), CommsError>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
@@ -283,6 +307,8 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
     (
         connect.stream_rx,
         inbox,
+        metrics,
+        throttle,
         node_id,
         peer_id,
         sock_addr,

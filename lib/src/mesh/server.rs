@@ -368,7 +368,7 @@ async fn open_internal<'b>(
     // Perform a clean of any chains that are out of scope
     root.__clean().await;
 
-    // Get the configuration
+    // Get the configuration, metrics and throttle
     let cfg_ate = {
         let route = route.lock().await;
         route.cfg_ate.clone()
@@ -377,7 +377,9 @@ async fn open_internal<'b>(
     // Create a chain builder
     let mut builder = ChainBuilder::new(&cfg_ate)
         .await
-        .node_id(root.server_id.clone());
+        .node_id(root.server_id.clone())
+        .with_metrics(&tx.metrics)
+        .with_throttle(&tx.throttle);
 
     // Postfix the hello_path
     #[cfg(feature = "enable_local_fs")]
@@ -733,7 +735,7 @@ async fn inbox_packet<'b>(
     let span = span!(Level::DEBUG, "server", id=pck.id.to_short_string().as_str(), peer=pck.peer_id.to_short_string().as_str());
 
     // If we are in relay mode the send it on to the other server
-    if tx.relay.is_some() {
+    if tx.relay_is_some() {
         tx.send_relay(pck).await?;
         return Ok(());
     }
@@ -745,6 +747,11 @@ async fn inbox_packet<'b>(
         let pck_data = pck.data;
         let pck = pck.packet;
 
+        let read_only = {
+            let throttle = tx.throttle.lock();
+            throttle.read_only
+        };
+
         match pck.msg {
             Message::Subscribe { chain_key, from, allow_redirect: redirect } => {                    
                     let hello_path = tx.hello_path.clone();
@@ -753,16 +760,24 @@ async fn inbox_packet<'b>(
                         .await?;
                 },
             Message::Events { commit, evts } => {
+                    if read_only {
+                        tx.send_reply_msg(Message::ReadOnly).await?;
+                        return Ok(());
+                    }
                     inbox_event(context, commit, evts, tx, pck_data)
                         .instrument(span!(Level::DEBUG, "event"))
                         .await?;
                 },
             Message::Lock { key } => {
+                    if read_only {
+                        tx.send_reply_msg(Message::ReadOnly).await?;
+                        return Ok(());
+                    }
                     inbox_lock(context, key, tx)
                         .instrument(span!(Level::DEBUG, "lock"))
                         .await?;
                 },
-            Message::Unlock { key }=> {
+            Message::Unlock { key } => {
                     inbox_unlock(context, key, tx)
                         .instrument(span!(Level::DEBUG, "unlock"))
                         .await?;

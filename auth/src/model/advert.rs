@@ -18,4 +18,6 @@ pub struct Advert {
     pub nominal_auth: PublicSignKey,
     pub sudo_encrypt: PublicEncryptKey,
     pub sudo_auth: PublicSignKey,
+    pub broker_encrypt: PublicEncryptKey,
+    pub broker_auth: PublicSignKey,
 }

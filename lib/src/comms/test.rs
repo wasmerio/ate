@@ -15,8 +15,11 @@ use async_trait::async_trait;
 use crate::comms::ServerProcessor;
 use crate::comms::Tx;
 use crate::comms::NodeId;
+use crate::comms::Metrics;
+use crate::comms::Throttle;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use parking_lot::Mutex as StdMutex;
 
 #[cfg(test)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -147,6 +150,8 @@ async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) 
             }
             let inbox = Handler::default();
             let client_id = NodeId::generate_client_id();
+            let metrics = Arc::new(StdMutex::new(Metrics::default()));
+            let throttle = Arc::new(StdMutex::new(Throttle::default()));
             
             let mut cfg = mock_test_mesh(port);
             cfg.wire_protocol = wire_protocol;
@@ -154,7 +159,7 @@ async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) 
             cfg.wire_encryption = Some(KeySize::Bit256);
             let cfg = MeshConfig::new(cfg)
                 .connect_to(MeshAddress { host: IpAddr::from_str("127.0.0.1").unwrap(), port });
-            let mut client_tx = super::connect(&cfg, "/comm-test".to_string(), client_id, inbox)
+            let mut client_tx = super::connect(&cfg, "/comm-test".to_string(), client_id, inbox, metrics, throttle)
                 .await?;
 
             // We need to test it alot

@@ -127,6 +127,8 @@ impl<'a> Chain
                 pointers: BinaryTreeIndexer::default(),
                 compactors: builder.compactors,
             },
+            metrics: Arc::clone(&builder.metrics),
+            throttle: Arc::clone(&builder.throttle),
         };
 
         // Construct all the protected fields that are behind a synchronous critical section
@@ -229,6 +231,8 @@ impl<'a> Chain
             time,
             exit: exit_tx.clone(),
             decache: decache_tx,
+            metrics: Arc::clone(&builder.metrics),
+            throttle: Arc::clone(&builder.throttle)
         };
 
         // If we are to compact the log on bootstrap then do so

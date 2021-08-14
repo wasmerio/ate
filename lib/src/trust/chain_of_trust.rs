@@ -1,6 +1,10 @@
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use parking_lot::Mutex as StdMutex;
+use std::sync::Arc;
 
+use crate::comms::Metrics;
+use crate::comms::Throttle;
 use crate::meta::*;
 use crate::error::*;
 use crate::header::*;
@@ -16,6 +20,8 @@ pub(crate) struct ChainOfTrust
     pub(crate) key: ChainKey,
     pub(crate) timeline: ChainTimeline,
     pub(crate) redo: RedoLog,
+    pub metrics: Arc<StdMutex<Metrics>>,
+    pub throttle: Arc<StdMutex<Throttle>>,
 }
 
 impl std::fmt::Debug
@@ -101,7 +107,13 @@ impl<'a> ChainOfTrust
         self.key.name.clone()
     }
 
-    pub(crate) fn add_history(&mut self, header: EventHeader) {
+    pub(crate) fn add_history(&mut self, header: EventHeader)
+    {
+        {
+            let mut metrics = self.metrics.lock();
+            metrics.chain_size += header.raw.meta_bytes.len() as u64;
+            metrics.chain_size += header.raw.data_size as u64;
+        }
         self.timeline.add_history(header)
     }
 }

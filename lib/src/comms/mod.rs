@@ -14,6 +14,8 @@ mod rx_tx;
 mod test;
 mod stream;
 mod node_id;
+mod metrics;
+mod throttle;
 
 pub use self::node_id::NodeId;
 
@@ -36,6 +38,8 @@ pub(crate) use stream::StreamRx;
 pub(crate) use stream::StreamTx;
 pub(crate) use stream::StreamTxChannel;
 pub use stream::StreamProtocol;
+pub use metrics::Metrics;
+pub use throttle::Throttle;
 
 #[cfg(feature="server")]
 pub(crate) use listener::ServerProcessor;

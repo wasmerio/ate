@@ -282,6 +282,10 @@ impl Listener
             wire_format,
         };
         let tx = Arc::new(Mutex::new(tx));
+
+        // Create the metrics and throttles
+        let metrics = Arc::new(StdMutex::new(super::metrics::Metrics::default()));
+        let throttle = Arc::new(StdMutex::new(super::throttle::Throttle::default()));
         
         // Now lets build a Tx object that is not connected to any of transmit pipes for now
         // (later we will add other ones to create a broadcast group)
@@ -296,6 +300,8 @@ impl Listener
                 group: Arc::new(Mutex::new(group)),
             }),
             relay: None,
+            metrics: Arc::clone(&metrics),
+            throttle: Arc::clone(&throttle),
         };
 
         // The fascade makes the transmit object available
@@ -313,6 +319,8 @@ impl Listener
             (
                 rx,
                 tx,
+                metrics,
+                throttle,
                 server_id,
                 node_id,
                 sock_addr,

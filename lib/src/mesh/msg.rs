@@ -132,6 +132,7 @@ pub(super) enum Message {
     HumanMessage {
         message: String,
     },
+    ReadOnly,
 
     Lock {
         key: PrimaryKey,

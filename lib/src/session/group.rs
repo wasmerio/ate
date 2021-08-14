@@ -10,6 +10,8 @@ pub struct AteGroup
 {
     pub name: String,
     pub roles: Vec<AteGroupRole>,
+    pub broker_read: Option<PrivateEncryptKey>,
+    pub broker_write: Option<PrivateSignKey>,
 }
 
 impl AteGroup

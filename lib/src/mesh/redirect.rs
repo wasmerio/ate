@@ -67,6 +67,8 @@ pub(super) async fn redirect<C>(
 -> Result<Tx, CommsError>
 where C: Send + Sync + Default + 'static,
 {
+    let metrics = Arc::clone(&tx.metrics);
+    let throttle = Arc::clone(&tx.throttle);
     let fascade = Redirect {
         tx,
         _marker1: PhantomData::<C>,
@@ -81,7 +83,15 @@ where C: Send + Sync + Default + 'static,
         .connect_to(node_addr);
 
     // Attempt to connect to the other machine
-    let mut relay_tx = crate::comms::connect(&conf, hello_path.to_string(), root.server_id, fascade).await?;
+    let mut relay_tx = crate::comms::connect
+        (
+            &conf,
+            hello_path.to_string(),
+            root.server_id,
+            fascade,
+            metrics,
+            throttle,
+        ).await?;
 
     // Send a subscribe packet to the server
     relay_tx.send_all_msg(Message::Subscribe {

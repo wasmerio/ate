@@ -121,6 +121,8 @@ impl MeshSession
             builder,
             chain: Arc::clone(&chain_store),
             loader_remote: StdMutex::new(Some(Box::new(loader_remote))),
+            metrics: Arc::clone(&chain.metrics),
+            throttle: Arc::clone(&chain.throttle),
         };
         
         // Add the pipe to the chain and cement it
@@ -369,6 +371,12 @@ impl MeshSession
                     Self::inbox_human_message(self, message, loader)
                         .instrument(span!(Level::DEBUG, "human-message"))
                         .await?;
+                },
+            Message::ReadOnly
+                => {
+                    error!("chain-of-trust is currently read-only - {}", self.key.to_string());
+                    self.cancel_commits().await;
+                    self.cancel_locks();
                 },
             Message::Events { commit: _, evts }
                 => {

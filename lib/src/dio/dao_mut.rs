@@ -236,6 +236,16 @@ where D: Serialize
         self.inner.row.data
     }
 
+    pub fn parent(&self) -> Option<MetaCollection>
+    {
+        self.inner.parent()
+    }
+
+    pub fn parent_id(&self) -> Option<PrimaryKey>
+    {
+        self.inner.parent_id()
+    }
+
     pub fn as_mut<'a>(&'a mut self) -> DaoMutGuard<'a, D>
     {
         DaoMutGuard {

@@ -1,6 +1,7 @@
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use std::sync::Arc;
+use parking_lot::Mutex as StdMutex;
 
 use crate::anti_replay::AntiReplayPlugin;
 use crate::chain::Chain;
@@ -20,6 +21,8 @@ use crate::pipe::*;
 use crate::engine::*;
 use crate::session::AteSession;
 use crate::comms::NodeId;
+use crate::comms::Metrics;
+use crate::comms::Throttle;
 
 use super::*;
 
@@ -43,6 +46,8 @@ pub struct ChainBuilder
     pub(crate) temporal: bool,
     pub(crate) integrity: IntegrityMode,
     pub(crate) session: AteSession,
+    pub(crate) metrics: Arc<StdMutex<Metrics>>,
+    pub(crate) throttle: Arc<StdMutex<Throttle>>,
 }
 
 impl Clone
@@ -65,6 +70,8 @@ for ChainBuilder
             truncate: self.truncate,
             temporal: self.temporal,
             integrity: self.integrity,
+            metrics: Arc::clone(&self.metrics),
+            throttle: Arc::clone(&self.throttle),
         }
     }
 }
@@ -89,6 +96,8 @@ impl ChainBuilder
             truncate: false,
             temporal: false,
             integrity: IntegrityMode::Distributed,
+            metrics: Arc::new(StdMutex::new(Metrics::default())),
+            throttle: Arc::new(StdMutex::new(Throttle::default())),
         }
         .with_defaults()
         .await
@@ -151,6 +160,18 @@ impl ChainBuilder
         self.plugins.clear();
         self.tree = None;
         self.truncate = false;
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn with_metrics(mut self, metrics: &Arc<StdMutex<Metrics>>) -> Self {
+        self.metrics = Arc::clone(metrics);
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn with_throttle(mut self, throttle: &Arc<StdMutex<Throttle>>) -> Self {
+        self.throttle = Arc::clone(throttle);
         self
     }
 

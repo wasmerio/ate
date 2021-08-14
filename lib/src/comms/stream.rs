@@ -276,9 +276,11 @@ impl Stream
 
 impl StreamTx
 {
+    #[must_use="all network communication metrics must be accounted for"]
     #[allow(unused_variables)]
-    pub async fn write_8bit(&mut self, buf: Vec<u8>, delay_flush: bool) -> Result<(), tokio::io::Error>
+    pub async fn write_8bit(&mut self, buf: Vec<u8>, delay_flush: bool) -> Result<u64, tokio::io::Error>
     {
+        let mut total_sent = 0u64;
         match self {
             #[cfg(feature="enable_tcp")]
             StreamTx::Tcp(a) => {
@@ -286,19 +288,23 @@ impl StreamTx
                     return Err(tokio::io::Error::new(tokio::io::ErrorKind::InvalidData, format!("Data is to big to write (len={}, max={})", buf.len(), u8::MAX)));
                 }
                 a.write_u8(buf.len() as u8).await?;
+                total_sent += 1u64;
                 a.write_all(&buf[..]).await?; 
+                total_sent += buf.len() as u64;
             },
             #[cfg(feature="enable_ws")]
             StreamTx::WebSocket(_) => {
-                self.write_32bit(buf, delay_flush).await?;
+                total_sent += self.write_32bit(buf, delay_flush).await?;
             },
         }
-        Ok(())
+        Ok(total_sent)
     }
 
+    #[must_use="all network communication metrics must be accounted for"]
     #[allow(unused_variables)]
-    pub async fn write_16bit(&mut self, buf: Vec<u8>, delay_flush: bool) -> Result<(), tokio::io::Error>
+    pub async fn write_16bit(&mut self, buf: Vec<u8>, delay_flush: bool) -> Result<u64, tokio::io::Error>
     {
+        let mut total_sent = 0u64;
         match self {
             #[cfg(feature="enable_tcp")]
             StreamTx::Tcp(a) => {
@@ -306,19 +312,23 @@ impl StreamTx
                     return Err(tokio::io::Error::new(tokio::io::ErrorKind::InvalidData, format!("Data is to big to write (len={}, max={})", buf.len(), u16::MAX)));
                 }
                 a.write_u16(buf.len() as u16).await?;
+                total_sent += 2u64;
                 a.write_all(&buf[..]).await?; 
+                total_sent += buf.len() as u64;
             },
             #[cfg(feature="enable_ws")]
             StreamTx::WebSocket(_) => {
-                self.write_32bit(buf, delay_flush).await?;
+                total_sent += self.write_32bit(buf, delay_flush).await?;
             },
         }
-        Ok(())
+        Ok(total_sent)
     }
 
+    #[must_use="all network communication metrics must be accounted for"]
     #[allow(unused_variables)]
-    pub async fn write_32bit(&mut self, buf: Vec<u8>, delay_flush: bool) -> Result<(), tokio::io::Error>
+    pub async fn write_32bit(&mut self, buf: Vec<u8>, delay_flush: bool) -> Result<u64, tokio::io::Error>
     {
+        let mut total_sent = 0u64;
         match self {
             #[cfg(feature="enable_tcp")]
             StreamTx::Tcp(a) => {
@@ -326,11 +336,14 @@ impl StreamTx
                     return Err(tokio::io::Error::new(tokio::io::ErrorKind::InvalidData, format!("Data is to big to write (len={}, max={})", buf.len(), u32::MAX)));
                 }
                 a.write_u32(buf.len() as u32).await?;
+                total_sent += 4u64;
                 a.write_all(&buf[..]).await?; 
+                total_sent += buf.len() as u64;
             },
             #[cfg(not(feature="enable_web"))]
             #[cfg(feature="enable_ws")]
             StreamTx::WebSocket(a) => {
+                total_sent += buf.len() as u64;
                 if delay_flush {
                     match a.feed(Message::binary(buf)).await {
                         Ok(a) => a,
@@ -350,6 +363,7 @@ impl StreamTx
             #[cfg(feature="enable_web")]
             #[cfg(feature="enable_ws")]
             StreamTx::WebSocket(a) => {
+                total_sent += buf.len() as u64;
                 if delay_flush {
                     match a.feed(bytes::Bytes::from(buf)).await {
                         Ok(a) => a,
@@ -367,23 +381,25 @@ impl StreamTx
                 }
             },
         }
-        Ok(())
+        Ok(total_sent)
     }
 
+    #[must_use="all network communication metrics must be accounted for"]
     pub(crate) async fn send(&mut self, wire_encryption: &Option<EncryptKey>, pck: PacketData)
-    -> Result<(), tokio::io::Error>
+    -> Result<u64, tokio::io::Error>
     {
+        let mut total_sent = 0u64;
         match wire_encryption {
             Some(key) => {
                 let enc = key.encrypt(&pck.bytes[..]);
-                self.write_8bit(enc.iv.bytes, true).await?;
-                self.write_32bit(enc.data, false).await?;
+                total_sent += self.write_8bit(enc.iv.bytes, true).await?;
+                total_sent += self.write_32bit(enc.data, false).await?;
             },
             None => {
-                self.write_32bit(pck.bytes.to_vec(), false).await?;
+                total_sent += self.write_32bit(pck.bytes.to_vec(), false).await?;
             }
         };
-        Ok(())
+        Ok(total_sent)
     }
 }
 
@@ -404,8 +420,9 @@ impl StreamTxChannel
         }
     }
 
+    #[must_use="all network communication metrics must be accounted for"]
     pub(crate) async fn send(&mut self, pck: PacketData)
-    -> Result<(), tokio::io::Error>
+    -> Result<u64, tokio::io::Error>
     {
         self.tx.send(&self.wire_encryption, pck).await
     }

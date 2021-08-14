@@ -53,6 +53,8 @@ pub(super) struct RecoverableSessionPipe
     pub(super) builder: ChainBuilder,
     pub(super) chain: Arc<StdMutex<Option<Weak<Chain>>>>,
     pub(super) loader_remote: StdMutex<Option<Box<dyn Loader + 'static>>>,
+    pub(crate) metrics: Arc<StdMutex<Metrics>>,
+    pub(crate) throttle: Arc<StdMutex<Throttle>>,
 }
 
 impl RecoverableSessionPipe
@@ -97,6 +99,8 @@ impl RecoverableSessionPipe
                 self.hello_path.clone(),
                 self.node_id.clone(),
                 inbox,
+                Arc::clone(&self.metrics),
+                Arc::clone(&self.throttle)
             ).await?;
 
         // Compute an end time that we will sync from based off whats already in the

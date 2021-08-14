@@ -138,6 +138,11 @@ impl AuthService
         } else {
             None
         };
+
+        // Generate the broker encryption keys used to extend trust without composing
+        // the confidentiality of the chain through wide blast radius
+        let broker_read = PrivateEncryptKey::generate(key_size);
+        let broker_write = PrivateSignKey::generate(key_size);
     
         // Create the user and save it
         let user = User {
@@ -157,7 +162,9 @@ impl AuthService
             nominal_write: write_key.as_public_key(),
             sudo_read: sudo_read_key.hash(),
             sudo_public_read: sudo_private_read_key.as_public_key(),
-            sudo_write: sudo_write_key.as_public_key()
+            sudo_write: sudo_write_key.as_public_key(),
+            broker_read: broker_read.clone(),
+            broker_write: broker_write.clone(),
         };
         let mut user = dio.store_with_key(user, user_key.clone())?;
         
@@ -204,7 +211,9 @@ impl AuthService
             nominal_encrypt: private_read_key.as_public_key(),
             nominal_auth: write_key.as_public_key(),
             sudo_encrypt: sudo_private_read_key.as_public_key(),
-            sudo_auth: sudo_write_key.as_public_key()
+            sudo_auth: sudo_write_key.as_public_key(),
+            broker_encrypt: broker_read.as_public_key(),
+            broker_auth: broker_write.as_public_key(),
         };
         let mut advert = dio.store_with_key(advert, advert_key.clone())?;
         advert.auth_mut().read = ReadOption::Everyone(None);

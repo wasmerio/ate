@@ -30,6 +30,8 @@ pub struct AteSession
     pub user: AteGroupRole,
     pub sudo: Option<AteGroupRole>,
     pub groups: Vec<AteGroup>,
+    pub broker_read: Option<PrivateEncryptKey>,
+    pub broker_write: Option<PrivateSignKey>,
 }
 
 impl Default
@@ -43,7 +45,9 @@ for AteSession
             },
             sudo: None,
             groups: Vec::new(),
-            log_format: None
+            log_format: None,
+            broker_read: None,
+            broker_write: None
         }
     }
 }
@@ -68,7 +72,9 @@ impl AteSession
         if self.groups.iter().any(|r| r.name == *group) == false {
             self.groups.push(AteGroup {
                 name: group.clone(),
-                roles: Vec::new()
+                roles: Vec::new(),
+                broker_read: None,
+                broker_write: None,
             });
         }
 
@@ -87,7 +93,9 @@ impl AteSession
         if self.groups.iter().any(|r| r.name == *group) == false {
             self.groups.push(AteGroup {
                 name: group.clone(),
-                roles: Vec::new()
+                roles: Vec::new(),
+                broker_read: None,
+                broker_write: None,
             });
         }
 
