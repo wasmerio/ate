@@ -10,6 +10,7 @@ error_chain! {
         CommsError(super::CommsError, super::CommsErrorKind);
         SerializationError(super::SerializationError, super::SerializationErrorKind);
         InvokeError(super::InvokeError, super::InvokeErrorKind);
+        LoadError(super::LoadError, super::LoadErrorKind);
     }
     foreign_links {
         IO(::tokio::io::Error);

@@ -18,6 +18,8 @@ pub use crate::crypto::AteHash;
 pub use crate::crypto::KeySize;
 pub use crate::meta::ReadOption;
 pub use crate::meta::WriteOption;
+pub use crate::comms::Metrics as ChainMetrics;
+pub use crate::comms::Throttle as ChainThrottle;
 
 #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
 pub use crate::flow::OpenFlow;

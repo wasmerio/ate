@@ -118,7 +118,7 @@ pub struct OptsMount {
     #[clap(long)]
     pub allow_other: bool,
     /// Mount the file system in readonly mode (`ro` mount option), default is disable.
-    #[clap(short, long)]
+    #[clap(long)]
     pub read_only: bool,
     /// Enable write back cache for buffered writes, default is disable.
     #[clap(short, long)]

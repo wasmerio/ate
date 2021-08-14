@@ -172,14 +172,14 @@ impl<'a> Chain
         self.run_async(self.__shutdown()).await
     }
 
-    pub fn metrics(&'a self) -> parking_lot::MutexGuard<'_, Metrics>
+    pub fn metrics(&'a self) -> &'a Arc<StdMutex<Metrics>>
     {
-        self.metrics.lock()
+        &self.metrics
     }
 
-    pub fn throttl(&'a self) -> parking_lot::MutexGuard<'_, Throttle>
+    pub fn throttle(&'a self) -> &'a Arc<StdMutex<Throttle>>
     {
-        self.throttle.lock()
+        &self.throttle
     }
 
     async fn __shutdown(&self) -> Result<(), tokio::io::Error>
