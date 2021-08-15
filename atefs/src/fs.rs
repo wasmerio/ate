@@ -40,7 +40,8 @@ where Self: Send + Sync
     pub chain: Arc<Chain>,
     pub dio: Arc<Dio>,
     pub no_auth: bool,
-    pub scope: TransactionScope,
+    pub scope_meta: TransactionScope,
+    pub scope_io: TransactionScope,
     pub group: Option<String>,
     pub session: AteSession,
     pub open_handles: Mutex<FxHashMap<u64, Arc<OpenHandle>>>,
@@ -151,7 +152,10 @@ pub(crate) fn conv<T>(r: std::result::Result<T, AteError>) -> std::result::Resul
             error!("atefs::error {}", err);
             match err {
                 AteError(AteErrorKind::CommsError(CommsErrorKind::Disconnected), _) => Err(libc::EBUSY.into()),
+                AteError(AteErrorKind::CommsError(CommsErrorKind::ReadOnly), _) => Err(libc::EPERM.into()),
                 AteError(AteErrorKind::CommitError(CommitErrorKind::CommsError(CommsErrorKind::Disconnected)), _) => Err(libc::EBUSY.into()),
+                AteError(AteErrorKind::CommitError(CommitErrorKind::CommsError(CommsErrorKind::ReadOnly)), _) => Err(libc::EPERM.into()),
+                AteError(AteErrorKind::CommitError(CommitErrorKind::ReadOnly), _) => Err(libc::EPERM.into()),
                 AteError(AteErrorKind::LoadError(LoadErrorKind::NotFound(_)), _) => Err(libc::ENOENT.into()),
                 AteError(AteErrorKind::LoadError(LoadErrorKind::TransformationError(TransformErrorKind::MissingReadKey(_))), _) => Err(libc::EACCES.into()),
                 _ => Err(libc::EIO.into())
@@ -162,7 +166,7 @@ pub(crate) fn conv<T>(r: std::result::Result<T, AteError>) -> std::result::Resul
 
 impl AteFS
 {
-    pub async fn new(chain: Arc<Chain>, group: Option<String>, session: AteSession, scope: TransactionScope, no_auth: bool, impersonate_uid: bool) -> AteFS {
+    pub async fn new(chain: Arc<Chain>, group: Option<String>, session: AteSession, scope_io: TransactionScope, scope_meta: TransactionScope, no_auth: bool, impersonate_uid: bool) -> AteFS {
         let dio = chain.dio(&session).await;
         AteFS {
             chain,
@@ -170,7 +174,8 @@ impl AteFS
             no_auth,
             group,
             session,
-            scope,
+            scope_meta,
+            scope_io,
             open_handles: Mutex::new(FxHashMap::default()),
             elapsed: std::time::Instant::now(),
             last_elapsed: seqlock::SeqLock::new(0),
@@ -274,12 +279,12 @@ impl AteFS
             children.push(FileSpec::FixedFile(fixed));
 
             for child in conv_load(data.children.iter_ext(true, true).await)? {
-                let child_spec = Inode::as_file_spec(child.key().as_u64(), child.when_created(), child.when_updated(), child, self.scope).await;
+                let child_spec = Inode::as_file_spec(child.key().as_u64(), child.when_created(), child.when_updated(), child, self.scope_io).await;
                 children.push(child_spec);
             }
         }
         
-        let spec = Inode::as_file_spec(key.as_u64(), created, updated, data, self.scope).await;
+        let spec = Inode::as_file_spec(key.as_u64(), created, updated, data, self.scope_io).await;
         if flags & libc::O_TRUNC != 0 {
             spec.fallocate(0).await?;
             dirty = true;
@@ -316,9 +321,17 @@ impl AteFS
 
 impl AteFS
 {
-    async fn dio_mut(&self) -> Arc<DioMut>
+    #[allow(dead_code)]
+    async fn dio_mut_io(&self) -> Arc<DioMut>
     {
-        let ret = self.dio.trans(self.scope).await;
+        let ret = self.dio.trans(self.scope_io).await;
+        ret.auto_cancel();
+        ret
+    }
+
+    async fn dio_mut_meta(&self) -> Arc<DioMut>
+    {
+        let ret = self.dio.trans(self.scope_meta).await;
         ret.auto_cancel();
         ret
     }
@@ -333,7 +346,7 @@ impl AteFS
     ) -> Result<DaoMut<Inode>> {
         
         let key = PrimaryKey::from(parent);
-        let dio = self.dio_mut().await;
+        let dio = self.dio_mut_meta().await;
         let data = conv_load(dio.load::<Inode>(&key).await)?;
 
         if data.spec_type != SpecType::Directory {
@@ -569,7 +582,7 @@ for AteFS
 
     async fn init(&self, req: Request) -> Result<()>
     {
-        let dio = self.dio_mut().await;
+        let dio = self.dio_mut_meta().await;
         if let Err(LoadError(LoadErrorKind::NotFound(_), _)) = self.dio.load::<Inode>(&PrimaryKey::from(1)).await {
             info!("atefs::creating-root-node");
             
@@ -633,7 +646,7 @@ for AteFS
         }
 
         let dao = self.load(inode).await?;
-        let spec = Inode::as_file_spec(inode, dao.when_created(), dao.when_updated(), dao, self.scope).await;
+        let spec = Inode::as_file_spec(inode, dao.when_created(), dao.when_updated(), dao, self.scope_meta).await;
         Ok(ReplyAttr {
             ttl: FUSE_TTL,
             attr: match self.impersonate_uid {
@@ -654,7 +667,7 @@ for AteFS
         trace!("setattr inode={}", inode);
 
         let key = PrimaryKey::from(inode);
-        let dio = self.dio_mut().await;
+        let dio = self.dio_mut_meta().await;
         let mut dao = conv_load(dio.load::<Inode>(&key).await)?;            
         
         let mut changed = false;
@@ -688,7 +701,7 @@ for AteFS
             cc(dio.commit().await)?;
         }
 
-        let spec = Inode::as_file_spec(inode, dao.when_created(), dao.when_updated(), dao.into(), self.scope).await;
+        let spec = Inode::as_file_spec(inode, dao.when_created(), dao.when_updated(), dao.into(), self.scope_meta).await;
         Ok(ReplyAttr {
             ttl: FUSE_TTL,
             attr: self.spec_as_attr_reverse(&spec, &req),
@@ -866,12 +879,12 @@ for AteFS
             SpecType::Directory,
         );
 
-        let dio = self.dio_mut().await;
+        let dio = self.dio_mut_meta().await;
         let mut child = cs(data.children.push(&dio, child))?;
         self.update_auth(mode, uid, gid, child.auth_mut())?;
         cc(dio.commit().await)?;
 
-        let child_spec = Inode::as_file_spec(child.key().as_u64(), child.when_created(), child.when_updated(), child.into(), self.scope).await;
+        let child_spec = Inode::as_file_spec(child.key().as_u64(), child.when_created(), child.when_updated(), child.into(), self.scope_meta).await;
 
         Ok(ReplyEntry {
             ttl: FUSE_TTL,
@@ -894,7 +907,7 @@ for AteFS
         if let Some(entry) = open.children_plus.iter().filter(|c| *c.name == *name).next() {
             debug!("atefs::rmdir parent={} name={}: found", parent, name.to_str().unwrap());
 
-            let dio = self.dio.trans(self.scope).await;
+            let dio = self.dio.trans(self.scope_meta).await;
             conv_load(dio.delete(&PrimaryKey::from(entry.inode)).await)?;
             cc(dio.commit().await)?;
             return Ok(())
@@ -925,7 +938,7 @@ for AteFS
         let dao = self.mknod_internal(req, parent, name, mode, rdev).await?;
         cc(dao.trans().commit().await)?;
 
-        let spec = Inode::as_file_spec(dao.key().as_u64(), dao.when_created(), dao.when_updated(), dao.into(), self.scope).await;
+        let spec = Inode::as_file_spec(dao.key().as_u64(), dao.when_created(), dao.when_updated(), dao.into(), self.scope_meta).await;
         Ok(ReplyEntry {
             ttl: FUSE_TTL,
             attr: self.spec_as_attr_reverse(&spec, &req),
@@ -947,7 +960,7 @@ for AteFS
         let data = self.mknod_internal(req, parent, name, mode, 0).await?;
         cc(data.trans().commit().await)?;
 
-        let spec = Inode::as_file_spec(data.key().as_u64(), data.when_created(), data.when_updated(), data.into(), self.scope).await;
+        let spec = Inode::as_file_spec(data.key().as_u64(), data.when_created(), data.when_updated(), data.into(), self.scope_io).await;
         let open = OpenHandle {
             inode: spec.ino(),
             read_only: false,
@@ -993,7 +1006,7 @@ for AteFS
                 return Err(libc::EISDIR.into());
             }
 
-            let dio = self.dio_mut().await;
+            let dio = self.dio_mut_meta().await;
             cl(dio.delete(&data.key()).await)?;
             cc(dio.commit().await)?;
 
@@ -1023,7 +1036,7 @@ for AteFS
         
         if let Some(data) = conv_load(parent_data.children.iter().await)?.filter(|c| *c.dentry.name == *name).next()
         {
-            let dio = self.dio_mut().await;
+            let dio = self.dio_mut_meta().await;
             let mut data = data.as_mut(&dio);
 
             // If the parent has changed then move it
@@ -1196,7 +1209,7 @@ for AteFS
             }
         }
 
-        let dio = self.dio_mut().await;
+        let dio = self.dio_mut_meta().await;
         let mut dao = self.load(inode).await?.as_mut(&dio);
         dao.as_mut().size = offset + length;
         cc(dio.commit().await)?;
@@ -1256,7 +1269,7 @@ for AteFS
             }
             cc(dao.trans().commit().await)?;
 
-            Inode::as_file_spec(dao.key().as_u64(), dao.when_created(), dao.when_updated(), dao.into(), self.scope).await
+            Inode::as_file_spec(dao.key().as_u64(), dao.when_created(), dao.when_updated(), dao.into(), self.scope_meta).await
         };
         
         Ok(ReplyEntry {

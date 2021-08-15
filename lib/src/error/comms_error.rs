@@ -40,6 +40,10 @@ error_chain! {
             description("channel has been disconnected")
             display("channel has been disconnected")
         }
+        ReadOnly {
+            description("the chain is currently read-only")
+            display("the chain is currently read-only")
+        }
         Timeout {
             description("io timeout")
             display("io timeout")

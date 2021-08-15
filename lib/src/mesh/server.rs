@@ -227,7 +227,7 @@ impl MeshRoot
         {
             let mut guard = self.chains.lock().await;
             guard.retain(|_k, v| {
-                if Arc::downgrade(&v.chain).strong_count() <= 1 {
+                if Arc::strong_count(&v.chain) <= 1 {
                     shutdown_me.push(Arc::clone(&v.chain));
                     false
                 } else {
@@ -342,6 +342,9 @@ async fn open_internal<'b>(
 {
     debug!("open_internal {} - {}", route_chain.route, route_chain.chain);
 
+    // Perform a clean of any chains that are out of scope
+    root.__clean().await;
+
     // Determine the route (if any)
     let route = {
         let routes = root.routes.lock();
@@ -364,9 +367,6 @@ async fn open_internal<'b>(
             });
         }
     }
-
-    // Perform a clean of any chains that are out of scope
-    root.__clean().await;
 
     // Get the configuration, metrics and throttle
     let cfg_ate = {
@@ -679,6 +679,10 @@ async fn inbox_subscribe<'b>(
     };
     let chain = opened_chain.chain;
 
+    // Replace the metrics and throttle with the one stored in the chain
+    tx.metrics = Arc::clone(&chain.metrics);
+    tx.throttle = Arc::clone(&chain.throttle);
+
     // If there is a message of the day then transmit it to the caller
     if let Some(message_of_the_day) = opened_chain.message_of_the_day {
         tx.send_reply_msg(Message::HumanMessage {
@@ -761,18 +765,18 @@ async fn inbox_packet<'b>(
                 },
             Message::Events { commit, evts } => {
                     if read_only {
+                        debug!("event aborted - channel is currently read-only");
                         tx.send_reply_msg(Message::ReadOnly).await?;
                         return Ok(());
                     }
+
+                    let num_deletes = evts.iter().filter(|a| a.meta.get_tombstone().is_some()).count();
+                    let num_data = evts.iter().filter(|a| a.data.is_some()).count();
                     inbox_event(context, commit, evts, tx, pck_data)
-                        .instrument(span!(Level::DEBUG, "event"))
+                        .instrument(span!(Level::DEBUG, "event", delete_cnt=num_deletes, data_cnt=num_data))
                         .await?;
                 },
             Message::Lock { key } => {
-                    if read_only {
-                        tx.send_reply_msg(Message::ReadOnly).await?;
-                        return Ok(());
-                    }
                     inbox_lock(context, key, tx)
                         .instrument(span!(Level::DEBUG, "lock"))
                         .await?;

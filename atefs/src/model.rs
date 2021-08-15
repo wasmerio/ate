@@ -61,10 +61,10 @@ impl Inode {
         }
     }
 
-    pub async fn as_file_spec(ino: u64, created: u64, updated: u64, dao: Dao<Inode>, scope: TransactionScope) -> FileSpec {
+    pub async fn as_file_spec(ino: u64, created: u64, updated: u64, dao: Dao<Inode>, scope_io: TransactionScope) -> FileSpec {
         match dao.spec_type {
             SpecType::Directory => FileSpec::Directory(Directory::new(dao, created, updated)),
-            SpecType::RegularFile => FileSpec::RegularFile(RegularFile::new(dao, created, updated, scope).await),
+            SpecType::RegularFile => FileSpec::RegularFile(RegularFile::new(dao, created, updated, scope_io).await),
             SpecType::SymLink => FileSpec::SymLink(SymLink::new(dao, created, updated)),
             SpecType::FixedFile => FileSpec::FixedFile(FixedFile::new(ino, dao.dentry.name.clone(), fuse3::FileType::RegularFile).created(created).updated(updated))
         }

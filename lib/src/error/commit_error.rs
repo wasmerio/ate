@@ -21,6 +21,10 @@ error_chain! {
             description("the transaction aborted before it could be completed"),
             display("the transaction aborted before it could be completed"),
         }
+        ReadOnly {
+            description("the chain of trust is currently read only"),
+            display("the chain of trust is currently read only")
+        }
         LockError(err: super::CommsErrorKind) {
             description("failed to lock the data due to an error in communication"),
             display("failed to lock the data due to an error in communication - {}", err.to_string()),

@@ -40,6 +40,7 @@ pub(super) struct ActiveSessionPipe
     pub(super) mode: RecoveryMode,
     pub(super) session: Arc<MeshSession>,
     pub(super) connected: bool,
+    pub(super) likely_read_only: bool,
     pub(super) commit: Arc<StdMutex<FxHashMap<u64, mpsc::Sender<Result<u64, CommitError>>>>>,
     pub(super) lock_attempt_timeout: Duration,
     pub(super) lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, LockRequest>>>,
@@ -55,6 +56,10 @@ impl ActiveSessionPipe
     pub(super) fn is_connected(&self) -> bool {
         if self.connected == false { return false; }
         true
+    }
+
+    pub(super) fn on_read_only(&mut self) {
+        self.likely_read_only = true;
     }
 
     pub(super) async fn on_disconnect(&self) -> Result<(), CommsError> {
@@ -102,10 +107,19 @@ impl ActiveSessionPipe
         // Only transmit the packet if we are meant to
         if trans.transmit == true
         {
+            // If we are likely in a read only situation then all transactions
+            // should go to the server in synchronous mode until we can confirm
+            // normal writability is restored
+            if self.likely_read_only &&  self.mode.should_go_readonly() {
+                trans.scope = TransactionScope::Full;
+            }
+
             // If we are still connecting then don't do it
             if self.connected == false {
                 if self.mode.should_error_out() {
                     return Err(CommitErrorKind::CommsError(CommsErrorKind::Disconnected).into());
+                } else if self.mode.should_go_readonly() {
+                    return Err(CommitErrorKind::CommsError(CommsErrorKind::ReadOnly).into());
                 } else {
                     return Ok(())
                 }
@@ -119,6 +133,7 @@ impl ActiveSessionPipe
                 trace!("waiting for transaction to commit");
                 match receiver.recv().await {
                     Some(result) => {
+                        self.likely_read_only = false;
                         let commit_id = result?;
                         trace!("transaction committed: {}", commit_id);
                     },
@@ -159,6 +174,7 @@ impl ActiveSessionPipe
         // Wait for the response from the server
         let ret = match tokio::time::timeout(self.lock_attempt_timeout, rx.changed()).await {
             Ok(a) => {
+                self.likely_read_only = false;
                 if let Err(_) = a {
                     bail!(CommitErrorKind::LockError(CommsErrorKind::Disconnected.into()));
                 }

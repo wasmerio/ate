@@ -52,6 +52,7 @@ pub struct MeshSession
     pub(super) lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, LockRequest>>>,
     pub(super) inbound_conversation: Arc<ConversationSession>,
     pub(super) outbound_conversation: Arc<ConversationSession>,
+    pub(crate) status_tx: mpsc::Sender<ConnectionStatusChange>,
 }
 
 impl MeshSession
@@ -375,13 +376,15 @@ impl MeshSession
             Message::ReadOnly
                 => {
                     error!("chain-of-trust is currently read-only - {}", self.key.to_string());
-                    self.cancel_commits().await;
-                    self.cancel_locks();
+                    self.cancel_commits(CommitErrorKind::ReadOnly).await;
+                    let _ = self.status_tx.send(ConnectionStatusChange::ReadOnly).await;
                 },
             Message::Events { commit: _, evts }
                 => {
+                    let num_deletes = evts.iter().filter(|a| a.meta.get_tombstone().is_some()).count();
+                    let num_data = evts.iter().filter(|a| a.data.is_some()).count();
                     Self::inbox_events(self, evts, loader)
-                        .instrument(span!(Level::DEBUG, "event"))
+                        .instrument(span!(Level::DEBUG, "event", delete_cnt=num_deletes, data_cnt=num_data))
                         .await?;
                 },
             Message::Confirmed(id)
@@ -435,7 +438,7 @@ impl MeshSession
         Ok(())
     }
 
-    pub(super) async fn cancel_commits(&self)
+    pub(super) async fn cancel_commits(&self, reason: CommitErrorKind)
     {
         let mut senders = Vec::new();
         {
@@ -446,7 +449,11 @@ impl MeshSession
         }
 
         for sender in senders.into_iter() {
-            if let Err(err) = sender.send(Err(CommitErrorKind::Aborted.into())).await {
+            let reason = match &reason {
+                CommitErrorKind::ReadOnly => CommitErrorKind::ReadOnly,
+                _ => CommitErrorKind::Aborted
+            };
+            if let Err(err) = sender.send(Err(reason.into())).await {
                 warn!("mesh-session-cancel-err: {}", err.to_string());
             }
         }
@@ -501,7 +508,7 @@ for MeshSessionProcessor
     {
         info!("disconnected: {}:{}", self.addr.host, self.addr.port);
         if let Some(session) = self.session.upgrade() {
-            session.cancel_commits().await;
+            session.cancel_commits(CommitErrorKind::Aborted).await;
             session.cancel_sniffers();
             session.cancel_locks();
         }

@@ -10,7 +10,8 @@ use tokio::sync::mpsc;
 
 pub enum ConnectionStatusChange
 {
-    Disconnected
+    Disconnected,
+    ReadOnly
 }
 
 #[async_trait]
@@ -23,6 +24,8 @@ pub(crate) trait EventPipe: Send + Sync
     }
 
     async fn on_disconnect(&self) -> Result<(), CommsError> { Ok(()) }
+
+    async fn on_read_only(&self) -> Result<(), CommsError> { Ok(()) }
     
     async fn feed(&self, work: ChainWork) -> Result<(), CommitError>;
 
@@ -101,6 +104,21 @@ for DuelPipe
     {
         let ret1 = self.first.on_disconnect().await;
         let ret2 = self.second.on_disconnect().await;
+        
+        if let Ok(_) = ret1 {
+            return Ok(())
+        }
+        if let Ok(_) = ret2 {
+            return Ok(())
+        }
+
+        Err(CommsErrorKind::ShouldBlock.into())
+    }
+
+    async fn on_read_only(&self) -> Result<(), CommsError>
+    {
+        let ret1 = self.first.on_read_only().await;
+        let ret2 = self.second.on_read_only().await;
         
         if let Ok(_) = ret1 {
             return Ok(())

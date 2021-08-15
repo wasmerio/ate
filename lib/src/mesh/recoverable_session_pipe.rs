@@ -82,6 +82,7 @@ impl RecoverableSessionPipe
             lock_requests: Arc::clone(&lock_requests),
             inbound_conversation: Arc::clone(&inbound_conversation),
             outbound_conversation: Arc::clone(&outbound_conversation),
+            status_tx: status_tx.clone(),
         });
 
         let inbox = MeshSessionProcessor {
@@ -148,6 +149,7 @@ impl RecoverableSessionPipe
             ActiveSessionPipe {
                 key: self.key.clone(),
                 connected: false,
+                likely_read_only: false,
                 mode: self.mode,
                 session: Arc::clone(&session),
                 tx: node_tx,
@@ -164,20 +166,6 @@ impl RecoverableSessionPipe
         // Enter a loop
         let mut exp_backoff = 1;
         loop {
-            // Wait on it to disconnect
-            let now = Instant::now();
-            match status_change.recv().await {
-                Some(ConnectionStatusChange::Disconnected) => { },
-                None => {
-                    break;
-                }
-            }
-
-            // If we had a good run then reset the exponental backoff
-            if now.elapsed().as_secs() > 60 {
-                exp_backoff = 1;
-            }
-
             // Upgrade to a full reference long enough to get a channel clone
             // if we can not get a full reference then the chain has been destroyed
             // and we should exit
@@ -189,8 +177,25 @@ impl RecoverableSessionPipe
                 Arc::clone(&chain.pipe)
             };
 
-            // Invoke the disconnected callback
-            pipe.on_disconnect().await?;
+            // Wait on it to disconnect
+            let now = Instant::now();
+            match status_change.recv().await {
+                Some(ConnectionStatusChange::Disconnected) => {
+                    pipe.on_disconnect().await?;
+                },
+                Some(ConnectionStatusChange::ReadOnly) => {
+                    pipe.on_read_only().await?;
+                    continue;
+                },
+                None => {
+                    break;
+                }
+            }
+
+            // If we had a good run then reset the exponental backoff
+            if now.elapsed().as_secs() > 60 {
+                exp_backoff = 1;
+            }
 
             // Reconnect
             status_change = pipe.connect().await?;
@@ -228,6 +233,15 @@ for RecoverableSessionPipe
             return pipe.is_connected();
         }
         false
+    }
+
+    async fn on_read_only(&self) -> Result<(), CommsError>
+    {
+        let mut lock = self.active.write().await;
+        if let Some(pipe) = lock.as_mut() {
+            pipe.on_read_only();
+        }
+        Ok(())
     }
 
     async fn on_disconnect(&self) -> Result<(), CommsError>
@@ -358,6 +372,8 @@ for RecoverableSessionPipe
                 pipe.feed(&mut work.trans).await?;
             } else if self.mode.should_error_out() {
                 bail!(CommitErrorKind::CommsError(CommsErrorKind::Disconnected));
+            } else if self.mode.should_go_readonly() {
+                bail!(CommitErrorKind::CommsError(CommsErrorKind::ReadOnly));
             }
         }
 
@@ -383,6 +399,8 @@ for RecoverableSessionPipe
             return pipe.try_lock(key).await;
         } else if self.mode.should_error_out() {
             bail!(CommitErrorKind::CommsError(CommsErrorKind::Disconnected));
+        } else if self.mode.should_go_readonly() {
+            bail!(CommitErrorKind::CommsError(CommsErrorKind::ReadOnly));
         } else {
             return Ok(false);
         }
@@ -406,6 +424,8 @@ for RecoverableSessionPipe
             pipe.unlock(key).await?
         } else if self.mode.should_error_out() {
             bail!(CommitErrorKind::CommsError(CommsErrorKind::Disconnected));
+        } else if self.mode.should_go_readonly() {
+            bail!(CommitErrorKind::CommsError(CommsErrorKind::ReadOnly));
         }
         Ok(())
     }

@@ -326,8 +326,8 @@ impl FileState
 
 impl RegularFile
 {
-    pub async fn new(inode: Dao<Inode>, created: u64, updated: u64, scope: TransactionScope) -> RegularFile {
-        let dio = inode.dio().trans(scope).await;
+    pub async fn new(inode: Dao<Inode>, created: u64, updated: u64, scope_io: TransactionScope) -> RegularFile {
+        let dio = inode.dio().trans(scope_io).await;
         let inode = inode.as_mut(&dio);
         RegularFile {
             uid: inode.dentry.uid,

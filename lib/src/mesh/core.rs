@@ -78,6 +78,15 @@ impl RecoveryMode
             RecoveryMode::ReadOnlySync => true
         }
     }
+
+    pub fn is_meta_sync(&self) -> bool {
+        match self {
+            RecoveryMode::Async => false,
+            RecoveryMode::Sync => true,
+            RecoveryMode::ReadOnlyAsync => true,
+            RecoveryMode::ReadOnlySync => true
+        }
+    }
 }
 
 impl std::str::FromStr

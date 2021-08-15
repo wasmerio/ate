@@ -137,7 +137,11 @@ pub async fn main_mount(mount: OptsMount, conf: ConfAte, group: Option<String>, 
     };
 
     // Compute the scope
-    let scope = match mount.recovery_mode.is_sync() {
+    let scope_meta = match mount.recovery_mode.is_meta_sync() {
+        true => TransactionScope::Full,
+        false => TransactionScope::Local,
+    };
+    let scope_io = match mount.recovery_mode.is_sync() {
         true => TransactionScope::Full,
         false => TransactionScope::Local,
     };
@@ -145,7 +149,7 @@ pub async fn main_mount(mount: OptsMount, conf: ConfAte, group: Option<String>, 
     // Create the mount point
     let mount_path = mount.mount_path.clone();
     let mount_join = Session::new(mount_options)
-        .mount_with_unprivileged(AteFS::new(chain, group, session, scope, no_auth, mount.impersonate_uid).await, mount.mount_path);
+        .mount_with_unprivileged(AteFS::new(chain, group, session, scope_io, scope_meta, no_auth, mount.impersonate_uid).await, mount.mount_path);
 
     // Install a ctrl-c command
     info!("mounting file-system and entering main loop");
