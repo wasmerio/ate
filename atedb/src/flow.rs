@@ -25,7 +25,7 @@ impl ChainFlow
         ChainFlow {
             cfg: cfg.clone(),
             regex_personal: Regex::new("^([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})/([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})/([a-zA-Z0-9_]{1,})$").unwrap(),
-            regex_group: Regex::new("^([a-zA-Z0-9_]{1,})/([a-zA-Z0-9_]{1,})$").unwrap(),
+            regex_group: Regex::new("^([a-zA-Z0-9_\\.-]{1,})/([a-zA-Z0-9_]{1,})$").unwrap(),
             mode,
             url_auth,
             url_db,
@@ -120,7 +120,16 @@ for ChainFlow
         if let Some(captures) = self.regex_group.captures(path.as_str())
         {
             // Get the auth
-            let group = captures.get(0).unwrap().as_str().to_string();
+            let group = captures.get(1).unwrap().as_str().to_string();
+            let dbname = captures.get(2).unwrap().as_str().to_string();
+
+            // Check for very naughty parameters
+            if group.contains("..") || dbname.contains("..") || group.contains("~") || dbname.contains("~") {
+                return Ok(OpenAction::Deny {
+                    reason: format!("The chain-key ({}) contains forbidden characters.", key.to_string()).to_string()
+                });
+            }
+
             let auth = match &self.url_auth {
                 Some(a) => a.clone(),
                 None => {
@@ -208,7 +217,7 @@ for ChainFlow
 
         // Ask the authentication server for the public key for this user
         return Ok(OpenAction::Deny {
-            reason: format!("The chain-key ({}) does not match a valid pattern - for private datachains it must be in the format of /gmail.com/joe.blogs/mydb where the owner of this chain is the user joe.blogs@gmail.com. - for shared datachains you must first create a group with the same name and then use the format /[group-name]/[chain-name].", key.to_string()).to_string()
+            reason: format!("The chain-key ({}) does not match a valid pattern - for private datachains it must be in the format of 'gmail.com/joe.blogs/mydb' where the owner of this chain is the user joe.blogs@gmail.com. - for shared datachains you must first create a group with the same name and then use the format '[group-name]/[chain-name]'.", key.to_string()).to_string()
         });
     }
 }

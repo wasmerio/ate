@@ -118,17 +118,19 @@ async fn main() -> Result<(), CommandError> {
             } else {
                 // Load the session via the token or the authentication server
                 session = ate_auth::main_session(opts.token.clone(), opts.token_path.clone(), Some(opts.auth.clone()), false).await?;
-
+                
                 // Attempt to grab additional permissions for the group (if it has any)
                 if let Some(remote) = &mount.remote_name {
-                    group = Some(remote.clone());
-                    session = match ate_auth::main_gather(group.clone(), session.clone(), opts.auth).await {
-                        Ok(a) => a,
-                        Err(err) => {
-                            debug!("Group authentication failed: {} - falling back to user level authorization", err);
-                            session
-                        }
-                    };
+                    if let Some((group_str, _)) = remote.split_once("/") {
+                        group = Some(group_str.to_string());
+                        session = match ate_auth::main_gather(group.clone(), session.clone(), opts.auth).await {
+                            Ok(a) => a,
+                            Err(err) => {
+                                debug!("Group authentication failed: {} - falling back to user level authorization", err);
+                                session
+                            }
+                        };
+                    }
                 }
             }
 
