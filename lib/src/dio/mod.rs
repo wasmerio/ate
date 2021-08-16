@@ -19,6 +19,8 @@ pub use super::dio::dao_mut::DaoAuthGuard;
 pub use super::dio::dao_mut::DaoMutGuard;
 pub use super::dio::dao_mut::DaoMutGuardOwned;
 pub use super::dio::dio::Dio;
+pub use super::dio::dio::DioSessionGuard;
+pub use super::dio::dio::DioSessionGuardMut;
 pub use super::dio::dio_mut::DioMut;
 
 pub(crate) use self::dio_mut::DioMutState;

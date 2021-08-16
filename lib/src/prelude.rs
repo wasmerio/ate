@@ -54,6 +54,8 @@ pub use crate::dio::DaoMutGuardOwned;
 pub use crate::dio::DaoAuthGuard;
 pub use crate::dio::Dio;
 pub use crate::dio::DioMut;
+pub use crate::dio::DioSessionGuard;
+pub use crate::dio::DioSessionGuardMut;
 
 pub use crate::spec::SerializationFormat;
 pub use crate::multi::ChainMultiUser;

@@ -10,8 +10,10 @@ use multimap::MultiMap;
 use serde::{Deserialize};
 use serde::{Serialize, Serializer, de::Deserializer, de::DeserializeOwned};
 use std::{fmt::Debug, sync::Arc};
-use parking_lot::Mutex;
+use parking_lot::Mutex as StdMutex;
+use parking_lot::RwLock as StdRwLock;
 use std::ops::Deref;
+use std::ops::DerefMut;
 use tokio::sync::mpsc;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -42,16 +44,6 @@ pub(crate) struct DioState
     pub(super) cache_load: FxHashMap<PrimaryKey, (Arc<EventData>, EventLeaf)>,
 }
 
-impl DioState
-{
-    #[allow(dead_code)]
-    fn new() -> DioState {
-        DioState {
-            cache_load: FxHashMap::default(),
-        }
-    }
-}
-
 /// Represents a series of mutations that the user is making on a particular chain-of-trust
 /// with a specific set of facts attached to a session. All changes are stored in memory
 /// until the commit function is invoked which will feed them into the chain.
@@ -69,8 +61,8 @@ pub struct Dio
 {
     pub(super) chain: Arc<Chain>,
     pub(super) multi: ChainMultiUser,
-    pub(super) state: Mutex<DioState>,
-    pub(super) session: AteSession,
+    pub(super) state: StdMutex<DioState>,
+    pub(super) session: StdRwLock<AteSession>,
     pub(super) time: Arc<TimeKeeper>,
 }
 
@@ -248,16 +240,17 @@ impl Dio
     where D: DeserializeOwned,
     {
         let evt = self.multi.load(leaf).await?;
+        let session = self.session();
 
-        Ok(self.load_from_event(evt.data, evt.header.as_header()?, leaf)?)
+        Ok(self.load_from_event(session.as_ref(), evt.data, evt.header.as_header()?, leaf)?)
     }
 
-    pub(crate) fn load_from_event<D>(self: &Arc<Self>, mut data: EventData, header: EventHeader, leaf: EventLeaf)
+    pub(crate) fn load_from_event<D>(self: &Arc<Self>, session: &AteSession, mut data: EventData, header: EventHeader, leaf: EventLeaf)
     -> Result<Dao<D>, LoadError>
     where D: DeserializeOwned,
     {
         data.data_bytes = match data.data_bytes {
-            Some(data) => Some(self.multi.data_as_overlay(&header.meta, data, &self.session)?),
+            Some(data) => Some(self.multi.data_as_overlay(&header.meta, data, session)?),
             None => None,
         };
 
@@ -324,7 +317,7 @@ impl Dio
         let mut ret = Vec::new();
 
         let inside_async = self.multi.inside_async.read().await;
-
+        
         // We either find existing objects in the cache or build a list of objects to load
         let to_load = {
             let mut to_load = Vec::new();
@@ -353,6 +346,7 @@ impl Dio
         // Now process all the objects
         let ret = {
             let mut state = self.state.lock();
+            let session = self.session();
             for mut evt in to_load {
 
                 let mut header = evt.header.as_header()?;
@@ -369,7 +363,7 @@ impl Dio
                     ret.push(Dao::new(self, row_header, row));
                 }
                 
-                let (row_header, row) = match self.__process_load_row(&mut evt, &mut header.meta, allow_missing_keys, allow_serialization_error)? {
+                let (row_header, row) = match self.__process_load_row(session.as_ref(), &mut evt, &mut header.meta, allow_missing_keys, allow_serialization_error)? {
                     Some(a) => a,
                     None => { continue; }
                 };
@@ -384,21 +378,21 @@ impl Dio
         Ok(ret)
     }
 
-    pub(crate) fn data_as_overlay(self: &Arc<Self>, data: &mut EventData) -> Result<(), TransformError>
+    pub(crate) fn data_as_overlay(self: &Arc<Self>, session: &AteSession, data: &mut EventData) -> Result<(), TransformError>
     {
         data.data_bytes = match &data.data_bytes {
-            Some(d) => Some(self.multi.data_as_overlay(&data.meta, d.clone(), &self.session)?),
+            Some(d) => Some(self.multi.data_as_overlay(&data.meta, d.clone(), session)?),
             None => None,
         };
         Ok(())
     }
 
-    pub(super) fn __process_load_row<D>(self: &Arc<Self>, evt: &mut LoadResult, meta: &Metadata, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<Option<(RowHeader, Row<D>)>, LoadError>
+    pub(super) fn __process_load_row<D>(self: &Arc<Self>, session: &AteSession, evt: &mut LoadResult, meta: &Metadata, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<Option<(RowHeader, Row<D>)>, LoadError>
     where D: DeserializeOwned
     {
         evt.data.data_bytes = match &evt.data.data_bytes {
             Some(data) => {
-                let data = match self.multi.data_as_overlay(meta, data.clone(), &self.session) {
+                let data = match self.multi.data_as_overlay(meta, data.clone(), session) {
                     Ok(a) => a,
                     Err(TransformError(TransformErrorKind::MissingReadKey(hash), _)) if allow_missing_keys => {
                         trace!("Missing read key {} - ignoring row", hash);
@@ -426,8 +420,12 @@ impl Dio
         Ok(Some((row_header, row)))
     }
 
-    pub fn session(&self) -> &AteSession {
-        &self.session
+    pub fn session<'a>(&'a self) -> DioSessionGuard<'a> {
+        DioSessionGuard::new(self)
+    }
+
+    pub fn session_mut<'a>(&'a self) -> DioSessionGuardMut<'a> {
+        DioSessionGuardMut::new(self)
     }
 
     pub(crate) fn run_decache(self: &Arc<Dio>, mut decache: broadcast::Receiver<Vec<PrimaryKey>>) {
@@ -458,6 +456,76 @@ impl Dio
     }
 }
 
+pub struct DioSessionGuard<'a>
+{
+    lock: parking_lot::RwLockReadGuard<'a, AteSession>
+}
+
+impl<'a> DioSessionGuard<'a>
+{
+    fn new(dio: &'a Dio) -> DioSessionGuard<'a>
+    {
+        DioSessionGuard {
+            lock: dio.session.read()
+        }
+    }
+
+    pub fn as_ref(&self) -> &AteSession {
+        self.lock.deref()
+    }
+}
+
+impl<'a> Deref
+for DioSessionGuard<'a>
+{
+    type Target = AteSession;
+
+    fn deref(&self) -> &Self::Target {
+        self.lock.deref()
+    }
+}
+
+pub struct DioSessionGuardMut<'a>
+{
+    lock: parking_lot::RwLockWriteGuard<'a, AteSession>
+}
+
+impl<'a> DioSessionGuardMut<'a>
+{
+    fn new(dio: &'a Dio) -> DioSessionGuardMut<'a>
+    {
+        DioSessionGuardMut {
+            lock: dio.session.write()
+        }
+    }
+
+    pub fn as_ref(&self) -> &AteSession {
+        self.lock.deref()
+    }
+
+    pub fn as_mut(&mut self) -> &mut AteSession {
+        self.lock.deref_mut()
+    }
+}
+
+impl<'a> Deref
+for DioSessionGuardMut<'a>
+{
+    type Target = AteSession;
+
+    fn deref(&self) -> &Self::Target {
+        self.lock.deref()
+    }
+}
+
+impl<'a> DerefMut
+for DioSessionGuardMut<'a>
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.lock.deref_mut()
+    }
+}
+
 impl Chain
 {
     /// Opens a data access layer that allows read only access to data within the chain
@@ -471,9 +539,11 @@ impl Chain
         let multi = self.multi().await;
         let ret = Dio {
             chain: Arc::clone(self),
-            state: Mutex::new(DioState::new()),
+            state: StdMutex::new(DioState {
+                cache_load: FxHashMap::default(),
+            }),
+            session: StdRwLock::new(session.clone()),
             multi,
-            session: session.clone(),
             time: Arc::clone(&self.time),
         };
         let ret = Arc::new(ret);

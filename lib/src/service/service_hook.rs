@@ -74,7 +74,7 @@ for ServiceHook
         let mut evt = dio.load_raw(&key).await?;
         
         // Convert the data using the encryption and decryption routines
-        dio.data_as_overlay(&mut evt)?;
+        dio.data_as_overlay(&self.session, &mut evt)?;
         let req = match evt.data_bytes {
             Some(a) => a,
             None => { bail!(InvokeErrorKind::NoData); }

@@ -251,13 +251,13 @@ impl DioMut
     pub fn store<D>(self: &Arc<Self>, data: D) -> Result<DaoMut<D>, SerializationError>
     where D: Serialize + DeserializeOwned,
     {
-        self.store_with_format(data, None, self.session.log_format)
+        self.store_with_format(data, None, self.session().log_format)
     }
     
     pub fn store_with_key<D>(self: &Arc<Self>, data: D, key: PrimaryKey) -> Result<DaoMut<D>, SerializationError>
     where D: Serialize + DeserializeOwned,
     {
-        self.store_with_format(data, Some(key), self.session.log_format)
+        self.store_with_format(data, Some(key), self.session().log_format)
     }
 
     pub fn store_with_format<D>(self: &Arc<Self>, data: D, key: Option<PrimaryKey>, format: Option<MessageFormat>) -> Result<DaoMut<D>, SerializationError>
@@ -444,15 +444,16 @@ impl DioMut
         let mut evts = Vec::new();
         let mut trans_meta = TransactionMetadata::default();
 
-        // Determine the format of the message
-        let format = match self.session.log_format {
-            Some(a) => a,
-            None => self.multi.default_format
-        };
-        
         {
             // Take all the locks we need to perform the commit actions
             let multi_lock = self.multi.lock().await;
+            let session = self.session();
+
+            // Determine the format of the message
+            let format = match session.log_format {
+                Some(a) => a,
+                None => self.multi.default_format
+            };
 
             // Convert all the events that we are storing into serialize data
             for (row_header, row) in rows
@@ -479,7 +480,7 @@ impl DioMut
                 }
 
                 // Compute all the extra metadata for an event
-                let extra_meta = multi_lock.metadata_lint_event(&mut meta, &self.session, &trans_meta)?;
+                let extra_meta = multi_lock.metadata_lint_event(&mut meta, &session, &trans_meta)?;
                 meta.core.extend(extra_meta);
 
                 // Add the data to the transaction metadata object
@@ -499,7 +500,7 @@ impl DioMut
                 }
                 
                 // Perform any transformation (e.g. data encryption and compression)
-                let data = multi_lock.data_as_underlay(&mut meta, row.data.clone(), &self.session, &trans_meta)?;
+                let data = multi_lock.data_as_underlay(&mut meta, row.data.clone(), &session, &trans_meta)?;
                 
                 // Only once all the rows are processed will we ship it to the redo log
                 let evt = EventData {
@@ -525,7 +526,7 @@ impl DioMut
                 meta.add_tombstone(key);
                 
                 // Compute all the extra metadata for an event
-                let extra_meta = multi_lock.metadata_lint_event(&mut meta, &self.session, &trans_meta)?;
+                let extra_meta = multi_lock.metadata_lint_event(&mut meta, &session, &trans_meta)?;
                 meta.core.extend(extra_meta);
 
                 let evt = EventData {
@@ -545,7 +546,7 @@ impl DioMut
                 });
             }
 
-            let meta = multi_lock.metadata_lint_many(&lints, &self.session, self.conversation.as_ref())?;
+            let meta = multi_lock.metadata_lint_many(&lints, &session, self.conversation.as_ref())?;
 
             // If it has data then insert it at the front of these events
             if meta.len() > 0 {
@@ -788,6 +789,7 @@ impl DioMut
         let mut ret = Vec::new();
 
         let inside_async = self.multi.inside_async.read().await;
+        let session = self.session();
 
         // We either find existing objects in the cache or build a list of objects to load
         let to_load = {
@@ -795,7 +797,7 @@ impl DioMut
 
             let state = self.state.lock();
             let inner_state = self.dio.state.lock();
-
+            
             for key in keys
             {
                 if state.is_locked(&key) {
@@ -862,7 +864,7 @@ impl DioMut
                     ret.push(Dao::new(&self.dio, row_header, row));
                 }
 
-                let (row_header, row) = match self.dio.__process_load_row(&mut evt, &mut header.meta, allow_missing_keys, allow_serialization_error)? {
+                let (row_header, row) = match self.dio.__process_load_row(session.as_ref(), &mut evt, &mut header.meta, allow_missing_keys, allow_serialization_error)? {
                     Some(a) => a,
                     None => { continue; }
                 };
@@ -878,13 +880,17 @@ impl DioMut
         Ok(ret.into_iter().map(|a: Dao<D>| a.as_mut(self)).collect::<Vec<_>>())
     }
 
-    pub(crate) fn data_as_overlay(self: &Arc<Self>, data: &mut EventData) -> Result<(), TransformError>
+    pub(crate) fn data_as_overlay(self: &Arc<Self>, session: &AteSession, data: &mut EventData) -> Result<(), TransformError>
     {
-        self.dio.data_as_overlay(data)?;
+        self.dio.data_as_overlay(session, data)?;
         Ok(())
     }
 
-    pub fn session(&self) -> &AteSession {
+    pub fn session<'a>(&'a self) -> DioSessionGuard<'a> {
         self.dio.session()
+    }
+
+    pub fn session_mut<'a>(&'a self) -> DioSessionGuardMut<'a> {
+        self.dio.session_mut()
     }
 }
