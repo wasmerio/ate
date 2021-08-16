@@ -101,9 +101,11 @@ pub(crate) fn compute_sudo_auth(sudo: &Sudo, session: AteSession) -> AteSession
         role.add_private_read_key(&auth.private_read);
         role.add_write_key(&auth.write);
     }
+    role.add_read_key(&sudo.contract_read_key);
     role.add_identity(sudo.email.clone());
     role.add_uid(sudo.uid);
     session.sudo.replace(role);
+    
 
     session
 }
@@ -111,7 +113,7 @@ pub(crate) fn compute_sudo_auth(sudo: &Sudo, session: AteSession) -> AteSession
 pub(crate) fn complete_group_auth(group: &Group, mut session: AteSession)
     -> Result<AteSession, LoadError>
 {
-    // Add the broker keys
+    // Add the broker keys and contract read key
     {
         let b = session.get_or_create_group(&group.name);
         b.broker_read = Some(group.broker_read.clone());

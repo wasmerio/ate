@@ -123,11 +123,24 @@ impl AuthService
         let observer_read = EncryptKey::generate(key_size);
         let observer_private_read = PrivateEncryptKey::generate(key_size);
         let observer_write = PrivateSignKey::generate(key_size);
-        
+
         // Generate the broker encryption keys used to extend trust without composing
         // the confidentiality of the chain through wide blast radius
         let broker_read = PrivateEncryptKey::generate(key_size);
         let broker_write = PrivateSignKey::generate(key_size);
+
+        // We generate a derived contract encryption key which we will give back to the caller
+        let contract_read_key_entropy = AteHash::from_bytes(request.identity.as_bytes());
+        let contract_read_key = match self.compute_super_key_from_hash(contract_read_key_entropy) {
+            Some(a) => a,
+            None => {
+                warn!("no master key - failed to create composite key");
+                return Err(CreateGroupFailed::NoMasterKey);
+            }
+        };
+        let finance_read = contract_read_key;
+        let finance_private_read = PrivateEncryptKey::generate(key_size);
+        let finance_write = PrivateSignKey::generate(key_size);
 
         // The super session needs the owner keys so that it can save the records
         let mut super_session = self.master_session.clone();
@@ -160,6 +173,7 @@ impl AuthService
                 AteRolePurpose::Owner,
                 AteRolePurpose::Delegate,
                 AteRolePurpose::Contributor,
+                AteRolePurpose::Finance,
                 AteRolePurpose::Observer
             ].iter()
             {
@@ -183,6 +197,11 @@ impl AuthService
                         role_private_read = contributor_private_read.clone();
                         role_write = contributor_write.clone();
                     },
+                    AteRolePurpose::Finance => {
+                        role_read = finance_read.clone();
+                        role_private_read = finance_private_read.clone();
+                        role_write = finance_write.clone();
+                    },
                     AteRolePurpose::Observer => {
                         role_read = observer_read.clone();
                         role_private_read = observer_private_read.clone();
@@ -203,6 +222,8 @@ impl AuthService
                 })?;
                 if let AteRolePurpose::Owner = purpose {
                     access.add(&request_sudo_read_key, request.identity.clone(), &owner_private_read)?;
+                } else if let AteRolePurpose::Finance = purpose {
+                    access.add(&request_sudo_read_key, "finance".to_string(), &owner_private_read)?;
                 } else if let AteRolePurpose::Delegate = purpose {
                     access.add(&request_nominal_read_key, request.identity.clone(), &owner_private_read)?;
                 } else if let AteRolePurpose::Observer = purpose {

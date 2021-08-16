@@ -339,7 +339,7 @@ impl Listener
                        err.kind() == std::io::ErrorKind::ConnectionReset ||
                        err.to_string().to_lowercase().contains("connection reset without closing handshake")
                      => debug!("connection-eof(inbox)"),
-                Err(err) => warn!("connection-failed (inbox): {:?}", err)
+                Err(err) => warn!("connection-failed (inbox): {}", err)
             };
             info!("disconnected");
         });

@@ -20,8 +20,8 @@ pub async fn test_create_user_and_group()
     }
     
     // Build a session for service
-    let root_read_key = EncryptKey::generate(KeySize::Bit256);
-    let root_write_key = PrivateSignKey::generate(KeySize::Bit256);
+    let root_read_key = EncryptKey::generate(KeySize::Bit192);
+    let root_write_key = PrivateSignKey::generate(KeySize::Bit192);
     let mut session = AteSession::new(&cfg_ate);
     session.user.add_read_key(&root_read_key);
     session.user.add_write_key(&root_write_key);

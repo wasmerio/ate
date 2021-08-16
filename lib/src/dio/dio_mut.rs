@@ -480,7 +480,7 @@ impl DioMut
                 }
 
                 // Compute all the extra metadata for an event
-                let extra_meta = multi_lock.metadata_lint_event(&mut meta, &session, &trans_meta)?;
+                let extra_meta = multi_lock.metadata_lint_event(&mut meta, &session, &trans_meta, &row.type_name)?;
                 meta.core.extend(extra_meta);
 
                 // Add the data to the transaction metadata object
@@ -526,7 +526,7 @@ impl DioMut
                 meta.add_tombstone(key);
                 
                 // Compute all the extra metadata for an event
-                let extra_meta = multi_lock.metadata_lint_event(&mut meta, &session, &trans_meta)?;
+                let extra_meta = multi_lock.metadata_lint_event(&mut meta, &session, &trans_meta, "[unknown]")?;
                 meta.core.extend(extra_meta);
 
                 let evt = EventData {
@@ -789,8 +789,7 @@ impl DioMut
         let mut ret = Vec::new();
 
         let inside_async = self.multi.inside_async.read().await;
-        let session = self.session();
-
+        
         // We either find existing objects in the cache or build a list of objects to load
         let to_load = {
             let mut to_load = Vec::new();
@@ -835,6 +834,7 @@ impl DioMut
         let ret = {
             let state = self.state.lock();
             let mut inner_state = self.dio.state.lock();
+            let session = self.session();
             for mut evt in to_load {
                 let mut header = evt.header.as_header()?;
 

@@ -49,7 +49,7 @@ for TimestampEnforcer
         Box::new(self.clone())
     }
 
-    fn metadata_lint_event(&self, meta: &Metadata, _session: &AteSession, _trans_meta: &TransactionMetadata)-> Result<Vec<CoreMetadata>, LintError> {
+    fn metadata_lint_event(&self, meta: &Metadata, _session: &AteSession, _trans_meta: &TransactionMetadata, _type_code: &str)-> Result<Vec<CoreMetadata>, LintError> {
         let mut ret = Vec::new();
 
         //println!("TIME: {} with offset of {} and ping of {}", self.current_timestamp()?, self.current_offset_ms(), self.current_ping_ms());

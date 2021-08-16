@@ -29,7 +29,7 @@ for TreeAuthorityPlugin
         Ok(ret)
     }
 
-    fn metadata_lint_event(&self, meta: &Metadata, session: &AteSession, trans_meta: &TransactionMetadata) -> Result<Vec<CoreMetadata>, LintError>
+    fn metadata_lint_event(&self, meta: &Metadata, session: &AteSession, trans_meta: &TransactionMetadata, type_code: &str) -> Result<Vec<CoreMetadata>, LintError>
     {
         let mut ret = Vec::new();
         let mut sign_with = Vec::new();
@@ -54,7 +54,7 @@ for TreeAuthorityPlugin
                 {
                     // This record has no authorization
                     return match meta.get_data_key() {
-                        Some(key) => Err(LintErrorKind::TrustError(TrustErrorKind::NoAuthorizationWrite(key, auth.write)).into()),
+                        Some(key) => Err(LintErrorKind::TrustError(TrustErrorKind::NoAuthorizationWrite(type_code.to_string(), key, auth.write)).into()),
                         None => Err(LintErrorKind::TrustError(TrustErrorKind::NoAuthorizationOrphan).into())
                     };
                 }
@@ -98,7 +98,7 @@ for TreeAuthorityPlugin
                 }
                 if ret.is_none() {
                     if let Some(key) = meta.get_data_key() {
-                        bail!(LintErrorKind::TrustError(TrustErrorKind::NoAuthorizationRead(key, auth.read)));
+                        bail!(LintErrorKind::TrustError(TrustErrorKind::NoAuthorizationRead(type_code.to_string(), key, auth.read)));
                     }
                 }
                 ret
@@ -113,7 +113,7 @@ for TreeAuthorityPlugin
         }
 
         // Now run the signature plugin
-        ret.extend(self.signature_plugin.metadata_lint_event(meta, session, trans_meta)?);
+        ret.extend(self.signature_plugin.metadata_lint_event(meta, session, trans_meta, type_code)?);
 
         // We are done
         Ok(ret)

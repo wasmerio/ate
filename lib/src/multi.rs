@@ -97,9 +97,9 @@ impl ChainMultiUser
     }
 
     #[allow(dead_code)]
-    pub(crate) fn metadata_lint_event(&self, meta: &mut Metadata, session: &AteSession, trans_meta: &TransactionMetadata) -> Result<Vec<CoreMetadata>, LintError> {
+    pub(crate) fn metadata_lint_event(&self, meta: &mut Metadata, session: &AteSession, trans_meta: &TransactionMetadata, type_code: &str) -> Result<Vec<CoreMetadata>, LintError> {
         let guard = self.inside_sync.read();
-        guard.metadata_lint_event(meta, session, trans_meta)
+        guard.metadata_lint_event(meta, session, trans_meta, type_code)
     }
 
     #[allow(dead_code)]
@@ -157,13 +157,13 @@ impl ChainProtectedSync {
         Ok(ret)
     }
 
-    pub(crate) fn metadata_lint_event(&self, meta: &mut Metadata, session: &AteSession, trans_meta: &TransactionMetadata) -> Result<Vec<CoreMetadata>, LintError> {
+    pub(crate) fn metadata_lint_event(&self, meta: &mut Metadata, session: &AteSession, trans_meta: &TransactionMetadata, type_code: &str) -> Result<Vec<CoreMetadata>, LintError> {
         let mut ret = Vec::new();
         for linter in self.linters.iter() {
-            ret.extend(linter.metadata_lint_event(meta, session, trans_meta)?);
+            ret.extend(linter.metadata_lint_event(meta, session, trans_meta, type_code)?);
         }
         for plugin in self.plugins.iter() {
-            ret.extend(plugin.metadata_lint_event(meta, session, trans_meta)?);
+            ret.extend(plugin.metadata_lint_event(meta, session, trans_meta, type_code)?);
         }
         Ok(ret)
     }

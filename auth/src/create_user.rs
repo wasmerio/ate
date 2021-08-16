@@ -132,6 +132,16 @@ impl AuthService
             write: sudo_write_key.clone()
         });
 
+        // We generate a derived contract encryption key which we will give back to the caller
+        let contract_read_key_entropy = AteHash::from_bytes(request.email.as_bytes());
+        let contract_read_key = match self.compute_super_key_from_hash(contract_read_key_entropy) {
+            Some(a) => a,
+            None => {
+                warn!("no master key - failed to create composite key");
+                return Err(CreateUserFailed::NoMasterKey);
+            }
+        };
+
         // Generate a verification code (if the inital state is not nominal)
         let verification_code = if initial_status == UserStatus::Unverified {
             Some(PrimaryKey::generate().as_hex_string().to_uppercase())
@@ -187,6 +197,7 @@ impl AuthService
             secret: secret.clone(),
             groups: Vec::new(),
             access: sudo_access,
+            contract_read_key,
             qr_code: qr_code.clone(),
             failed_attempts: 0u32,
         };

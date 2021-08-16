@@ -99,7 +99,7 @@ fn test_encrypter()
 {
     crate::utils::bootstrap_test_env();
 
-    let key = EncryptKey::from_seed_string("test".to_string(), KeySize::Bit256);
+    let key = EncryptKey::from_seed_string("test".to_string(), KeySize::Bit192);
     let encrypter = StaticEncryptionTransformer::new(&key);
     let cfg = ConfAte::default();
 

@@ -8,6 +8,7 @@ pub enum AteRolePurpose
     Delegate,
     Contributor,
     Observer,
+    Finance,
     Other(String),
 }
 
@@ -20,6 +21,7 @@ for AteRolePurpose
             AteRolePurpose::Delegate => write!(f, "delegate"),
             AteRolePurpose::Contributor => write!(f, "contributor"),
             AteRolePurpose::Observer => write!(f, "observer"),
+            AteRolePurpose::Finance => write!(f, "finance"),
             AteRolePurpose::Other(a) => write!(f, "other-{}", a),
         }
     }
@@ -36,6 +38,7 @@ for AteRolePurpose
             "delegate" => Ok(AteRolePurpose::Delegate),
             "contributor" => Ok(AteRolePurpose::Contributor),
             "observer" => Ok(AteRolePurpose::Observer),
+            "finance" => Ok(AteRolePurpose::Finance),
             a if a.starts_with("other-") && a.len() > 6 => Ok(AteRolePurpose::Other(a["other-".len()..].to_string())),
             _ => Err("valid values are 'owner', 'delegate', 'contributor', 'observer' and 'other-'"),
         }

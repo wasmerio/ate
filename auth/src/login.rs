@@ -34,7 +34,7 @@ impl AuthService
             None => { return None; }
         };
         let super_key = AteHash::from_bytes_twice(master_key.value(), secret.value());
-        let super_key = EncryptKey::from_seed_bytes(super_key.to_bytes(), KeySize::Bit256);
+        let super_key = EncryptKey::from_seed_bytes(super_key.to_bytes(), KeySize::Bit192);
         Some(super_key)
     }
 
@@ -46,7 +46,7 @@ impl AuthService
             None => { return None; }
         };
         let super_key = AteHash::from_bytes_twice(master_key.value(), hash.to_bytes());
-        let super_key = EncryptKey::from_seed_bytes(super_key.to_bytes(), KeySize::Bit256);
+        let super_key = EncryptKey::from_seed_bytes(super_key.to_bytes(), KeySize::Bit192);
         Some(super_key)
     }
 

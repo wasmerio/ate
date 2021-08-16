@@ -88,7 +88,7 @@ async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) 
             let mut cfg = mock_test_mesh(port);
             cfg.wire_protocol = wire_protocol;
             cfg.wire_format = wire_format;
-            cfg.wire_encryption = Some(KeySize::Bit256);
+            cfg.wire_encryption = Some(KeySize::Bit192);
             let cfg = MeshConfig::new(cfg)
                 .listen_on(IpAddr::from_str("127.0.0.1")
                 .unwrap(), port);
@@ -156,7 +156,7 @@ async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) 
             let mut cfg = mock_test_mesh(port);
             cfg.wire_protocol = wire_protocol;
             cfg.wire_format = wire_format;
-            cfg.wire_encryption = Some(KeySize::Bit256);
+            cfg.wire_encryption = Some(KeySize::Bit192);
             let cfg = MeshConfig::new(cfg)
                 .connect_to(MeshAddress { host: IpAddr::from_str("127.0.0.1").unwrap(), port });
             let mut client_tx = super::connect(&cfg, "/comm-test".to_string(), client_id, inbox, metrics, throttle)
