@@ -96,7 +96,7 @@ impl Registry
     {
         let loader_local = loader::DummyLoader::default();
         let loader_remote = loader::DummyLoader::default();
-        Ok(self.open_ext(url, key, loader_local, loader_remote).await?)
+        Ok(self.__open_ext(url, key, loader_local, loader_remote).await?)
     }
 
     pub async fn open_ext(&self, url: &Url, key: &ChainKey, loader_local: impl loader::Loader + 'static, loader_remote: impl loader::Loader + 'static) -> Result<Arc<Chain>, ChainCreationError>
@@ -112,13 +112,13 @@ impl Registry
 
         match lock.get(&url) {
             Some(a) => {
-                Ok(a.open_ext(&key, hello_path, loader_local, loader_remote).await?)
+                Ok(a.__open_ext(&key, hello_path, loader_local, loader_remote).await?)
             },
             None => {
                 let cfg_mesh = self.cfg_for_url(url).await?;
                 let mesh = MeshClient::new(&self.cfg_ate, &cfg_mesh, self.node_id.clone(), self.temporal);
                 lock.insert(url.clone(), Arc::clone(&mesh));
-                Ok(mesh.open_ext(&key, hello_path, loader_local, loader_remote).await?)
+                Ok(mesh.__open_ext(&key, hello_path, loader_local, loader_remote).await?)
             }
         }
     }

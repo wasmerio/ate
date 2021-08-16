@@ -1,4 +1,3 @@
-use tracing::Instrument;
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use fxhash::FxHashSet;
@@ -61,10 +60,6 @@ for ServiceHook
             }
         };
 
-        // Start a span for this notify
-        let span = span!(Level::DEBUG, "service", id=chain.node_id.to_short_string().as_str());
-        let _span = span.enter();
-
         // Build the data access layer
         let dio = chain.dio_trans(&self.session, self.scope).await;
         dio.auto_cancel();
@@ -97,15 +92,13 @@ for ServiceHook
         dio.delete(&key).await?;
 
         // Process the results
-        let reply_ret =   match ret {
+        let reply_ret = match ret {
             Ok(res) => {
-                debug!("service [{}] ok", self.handler.request_type_name());
-                trace!("sending {}", self.handler.response_type_name());
+                debug!("service [{}] sending OK({})", self.handler.request_type_name(), self.handler.response_type_name());
                 self.send_reply(&dio, key, res, self.handler.response_type_name())
             },
             Err(err) => {
-                debug!("service [{}] error", self.handler.request_type_name());
-                trace!("sending {}", self.handler.error_type_name());
+                debug!("service [{}] sending ERR({})", self.handler.request_type_name(), self.handler.error_type_name());
                 self.send_reply(&dio, key, err, self.handler.error_type_name())
             }
         };
@@ -113,9 +106,7 @@ for ServiceHook
         // We commit the transactions that holds the reply message under a concurrent
         // thread to prevent deadlocks
         TaskEngine::spawn(async move {
-            let span = span!(Level::DEBUG, "service", id=chain.node_id.to_short_string().as_str());
             let ret = dio.commit()
-                .instrument(span)
                 .await;
             if let Err(err) = ret {
                 debug!("notify-err - {}", err);

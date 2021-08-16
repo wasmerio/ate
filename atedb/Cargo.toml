@@ -10,9 +10,15 @@ categories = ["database", "cryptography", "database-implementations", "asynchron
 repository = "https://github.com/john-sharratt/ate/atedb"
 readme = "README.md"
 
+[features]
+default = [ "client", "server" ]
+client_web = [ "ate/client_web", "ate-auth/client_web" ]
+client = [ "ate/client", "ate-auth/client" ]
+server = [ "ate/server", "ate-auth/server", "ate/enable_mt" ]
+
 [dependencies]
-ate = { version = "^0.9", path = "../lib", features = [ "server", "enable_mt" ] }
-ate-auth = { version = "^1", path = "../auth" }
+ate = { version = "^0.9", path = "../lib", default_features = false }
+ate-auth = { version = "^1", path = "../auth", default_features = false }
 error-chain = { version = "^0.12", default_features = false }
 tokio = { version = "^1", features = ["full", "signal", "process"] }
 serde = { version = "^1", features = ["derive"] }

@@ -254,6 +254,16 @@ where D: Serialize
         }
     }
 
+    pub fn as_ref<'a>(&'a self) -> &'a D
+    {
+        &self.inner.row.data
+    }
+
+    pub fn as_immutable(&self) -> &Dao<D>
+    {
+        &self.inner
+    }
+
     pub fn as_mut_owned(self) -> DaoMutGuardOwned<D>
     {
         DaoMutGuardOwned {

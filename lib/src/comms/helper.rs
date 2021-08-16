@@ -135,15 +135,19 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
                     total_read += 1u64;
                     match iv_bytes.len() {
                         0 => Err(TError::new(ErrorKind::BrokenPipe, "iv_bytes-len is zero")),
-                        _ => {
-                            total_read += iv_bytes.len() as u64;
+                        l => {
+                            total_read += l as u64;
                             let iv = InitializationVector::from(iv_bytes);
 
                             // Read the cipher text and decrypt it
                             let cipher_bytes = rx.read_32bit().await?;
+                            total_read += 4u64;
                             match cipher_bytes.len() {
                                 0 => Err(TError::new(ErrorKind::BrokenPipe, "cipher_bytes-len is zero")),
-                                _ => Ok(key.decrypt(&iv, &cipher_bytes))
+                                l => {
+                                    total_read += l as u64;
+                                    Ok(key.decrypt(&iv, &cipher_bytes))
+                                }
                             }
                         }
                     }
@@ -154,8 +158,8 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
                     total_read += 4u64;
                     match buf.len() {
                         0 => Err(TError::new(ErrorKind::BrokenPipe, "buf-len is zero")),
-                        _ => {
-                            total_read += buf.len() as u64;
+                        l => {
+                            total_read += l as u64;
                             Ok(buf)
                         }
                     }

@@ -13,7 +13,7 @@ readme = "../README.md"
 [features]
 default = [ "client", "server", "enable_mt" ]
 enable_verbose = []
-enable_super_verbose = [ "backtrace", "enable_verbose" ]
+enable_super_verbose = [ "enable_verbose" ]
 enable_openssl = []
 enable_buffered = []
 enable_local_fs = []
@@ -29,7 +29,7 @@ enable_tcp = [ "tokio-tungstenite", "pnet", "enable_net" ]
 enable_web = [ "ws_stream_wasm", "wasm-bindgen", "wasm-bindgen-test", "async_io_stream", "tokio-util" ]
 enable_basics = [ "enable_ws" ]
 enable_dns = [ "enable_net", "trust-dns-proto", "trust-dns-client" ]
-enable_full = [ "enable_buffered", "enable_local_fs", "enable_rotate", "enable_caching", "enable_ntp", "enable_tcp", "enable_dns" ]
+enable_full = [ "enable_buffered", "enable_local_fs", "enable_rotate", "enable_caching", "enable_ntp", "enable_tcp", "enable_dns", "error-chain/backtrace" ]
 client_web = [ "enable_web", "enable_ws", "enable_client" ]
 client = [ "enable_full", "enable_ws", "enable_client" ]
 server = [ "enable_full", "enable_ws", "enable_server", "enable_client" ]
@@ -92,7 +92,7 @@ pnet = { version = "^0.27", optional = true }
 trust-dns-proto = { version = "^0.20", optional = true }
 trust-dns-client = { version = "^0.20", features = ["dnssec"], optional = true }
 tokio-tungstenite = { version = "^0.14", optional = true }
-backtrace = { version = "^0.3", optional = true }
+backtrace = { version = "^0.3" }
 
 [dev-dependencies]
 ctor = "0.1.*"

@@ -10,8 +10,14 @@ categories = [ "data-structures", "command-line-utilities", "authentication", "c
 repository = "https://github.com/john-sharratt/ate/auth"
 readme = "README.md"
 
+[features]
+default = [ "client", "server" ]
+client_web = [ "ate/client_web" ]
+client = [ "ate/client" ]
+server = [ "ate/server", "ate/enable_mt" ]
+
 [dependencies]
-ate = { version = "^0.9", path = "../lib", features = [ "client", "server" ] }
+ate = { version = "^0.9", path = "../lib", default_features = false }
 error-chain = { version = "^0.12", default_features = false }
 tokio = { version = "^1", features = ["full", "signal", "process"] }
 serde = { version = "^1", features = ["derive"] }

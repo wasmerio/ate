@@ -55,7 +55,7 @@ impl MeshClient {
         ).await
     }
 
-    async fn __open_ext<'a>(&'a self, key: &ChainKey, hello_path: String, loader_local: impl Loader + 'static, loader_remote: impl Loader + 'static)
+    pub(crate) async fn __open_ext<'a>(&'a self, key: &ChainKey, hello_path: String, loader_local: impl Loader + 'static, loader_remote: impl Loader + 'static)
         -> Result<Arc<Chain>, ChainCreationError>
     {
         debug!(key=key.to_string().as_str());

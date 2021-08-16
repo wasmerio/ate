@@ -116,7 +116,7 @@ impl DioMutState
             locked: FxHashSet::default(),
             deleted: FxHashSet::default(),
             pipe_unlock: FxHashSet::default(),
-            auto_cancel: false,
+            auto_cancel: true,
         }
     }
 
@@ -149,6 +149,8 @@ pub struct DioMut
     pub scope: TransactionScope,
     pub(crate) state: Mutex<DioMutState>,
     pub(super) conversation: Option<Arc<ConversationSession>>,
+    #[cfg(all(debug_assertions,not(target_arch = "wasm32")))]
+    pub backtrace_new: backtrace::Backtrace,
 }
 
 pub(crate) struct DioMutScope
@@ -164,7 +166,7 @@ impl DioMutScope
         DioMutScope {
             _inner: DioScope::new(&trans.dio),
             pop: DioMut::current_set(Some(Arc::clone(trans))),
-            _negative: Rc::new(())
+            _negative: Rc::new(()),
         }
     }
 }
@@ -240,6 +242,8 @@ impl DioMut
             scope,
             state: Mutex::new(DioMutState::new()),
             conversation: dio.chain.pipe.conversation().await,
+            #[cfg(all(debug_assertions,not(target_arch = "wasm32")))]
+            backtrace_new: backtrace::Backtrace::new(),
         };
         Arc::new(ret)
     }
@@ -387,6 +391,12 @@ impl DioMut
     {
         let mut state = self.state.lock();
         state.auto_cancel = true;
+    }
+
+    pub fn auto_panic(&self)
+    {
+        let mut state = self.state.lock();
+        state.auto_cancel = false;
     }
 
     pub(crate) fn default_format(&self) -> MessageFormat
@@ -603,6 +613,8 @@ for DioMut
         // Check if auto-cancel is enabled
         if self.has_uncommitted() & self.state.lock().auto_cancel {
             debug!("Data objects have been discarded due to auto-cancel and uncommitted changes");
+            #[cfg(all(debug_assertions,not(target_arch = "wasm32")))]
+            debug!("{:?}", self.backtrace_new);
             self.cancel();
         }
 

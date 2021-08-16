@@ -7,7 +7,7 @@ use url::Url;
 
 #[tokio::main(flavor = "current_thread")]
 #[test]
-pub async fn test_create_user_and_group() -> Result<(), AteError>
+pub async fn test_create_user_and_group()
 {
     ate::utils::bootstrap_test_env();
 
@@ -33,9 +33,10 @@ pub async fn test_create_user_and_group() -> Result<(), AteError>
     let flow = ChainFlow::new(&cfg_ate, root_write_key, session, &auth);
 
     // Create the server and listen on port 5000
-    let cfg_mesh = ConfMesh::solo_from_url(&cfg_ate, &auth, &IpAddr::from_str("::1").unwrap(), None).await?;
-    let server = create_server(&cfg_mesh).await?;
-    server.add_route(Box::new(flow), &cfg_ate).await?;
+    let mut cfg_mesh = ConfMesh::solo_from_url(&cfg_ate, &auth, &IpAddr::from_str("::1").unwrap(), None).await.unwrap();
+    cfg_mesh.wire_protocol = StreamProtocol::WebSocket;
+    let server = create_server(&cfg_mesh).await.unwrap();
+    server.add_route(Box::new(flow), &cfg_ate).await.unwrap();
 
     // Create the user
     let username = "joe.blogs@nowhere.com".to_string();
@@ -43,7 +44,7 @@ pub async fn test_create_user_and_group() -> Result<(), AteError>
     let response = crate::main_create_user(
         Some(username.clone()),
         Some(password.clone()),
-        auth.clone()).await?;
+        auth.clone()).await.unwrap();
     let session = response.authority;
 
     // Get the read key for the user
@@ -51,16 +52,16 @@ pub async fn test_create_user_and_group() -> Result<(), AteError>
 
     // Create the group
     let group = "mygroup".to_string();
-    let _session = crate::main_create_group(Some(group.clone()), auth.clone(), Some(username.clone()), "Group").await?;
+    let _session = crate::main_create_group(Some(group.clone()), auth.clone(), Some(username.clone()), "Group").await.unwrap();
 
     // Compute the code using the returned QR secret
-    let timer = TimeKeeper::new(&cfg_ate, 30000).await?;
+    let timer = TimeKeeper::new(&cfg_ate, 30000).await.unwrap();
     let google_auth = google_authenticator::GoogleAuthenticator::new();
-    let code = google_auth.get_code(response.qr_secret.as_str(), timer.current_timestamp_as_duration()?.as_secs() / 30).unwrap();
+    let code = google_auth.get_code(response.qr_secret.as_str(), timer.current_timestamp_as_duration().unwrap().as_secs() / 30).unwrap();
 
     // Login to the main user and gather the rights to the group (full sudo rights)
-    let session = crate::main_sudo(Some(username.clone()), Some(password.clone()), Some(code), auth.clone()).await?;
-    let session = crate::main_gather(Some(group.clone()), session, auth.clone()).await?;
+    let session = crate::main_sudo(Some(username.clone()), Some(password.clone()), Some(code), auth.clone()).await.unwrap();
+    let session = crate::main_gather(Some(group.clone()), session, auth.clone()).await.unwrap();
 
     // Make sure its got the permission
     let _group_read = session.get_group_role(&group, &AteRolePurpose::Owner)
@@ -71,8 +72,8 @@ pub async fn test_create_user_and_group() -> Result<(), AteError>
         .private_read_keys().next().expect("Should have a private key for the delegate role");
 
     // Login to the main user and gather the rights to the group (we do not have sudo rights)
-    let session = crate::main_login(Some(username.clone()), Some(password.clone()), auth.clone()).await?;
-    let session = crate::main_gather(Some(group.clone()), session, auth.clone()).await?;
+    let session = crate::main_login(Some(username.clone()), Some(password.clone()), auth.clone()).await.unwrap();
+    let session = crate::main_gather(Some(group.clone()), session, auth.clone()).await.unwrap();
 
     // Make sure its got the permission
     let _group_read = session.get_group_role(&group, &AteRolePurpose::Delegate)
@@ -81,13 +82,13 @@ pub async fn test_create_user_and_group() -> Result<(), AteError>
 
     // Create a friend and add it to the new group we just added
     let friend_username = "myfriend@nowhere.come".to_string();
-    let friend = crate::main_create_user(Some(friend_username.clone()), Some(password.clone()), auth.clone()).await?;
+    let friend = crate::main_create_user(Some(friend_username.clone()), Some(password.clone()), auth.clone()).await.unwrap();
     let friend_session = friend.authority;
 
-    crate::main_group_user_add(Some(group.clone()), Some(AteRolePurpose::Contributor), Some(friend_username.clone()), auth.clone(), &session).await?;
+    crate::main_group_user_add(Some(group.clone()), Some(AteRolePurpose::Contributor), Some(friend_username.clone()), auth.clone(), &session).await.unwrap();
 
     // Gather the extra rights for the friend
-    let friend = crate::main_gather(Some(group.clone()), friend_session.clone(), auth.clone()).await?;
+    let friend = crate::main_gather(Some(group.clone()), friend_session.clone(), auth.clone()).await.unwrap();
 
     // Make sure its got the permission
     let _group_read = friend.get_group_role(&group, &AteRolePurpose::Contributor)
@@ -95,14 +96,12 @@ pub async fn test_create_user_and_group() -> Result<(), AteError>
         .private_read_keys().next().expect("Should have a private key for the owner role");
 
     // Load the details of the group
-    crate::main_group_details(Some(group.clone()), auth.clone(), Some(&session)).await?;
+    crate::main_group_details(Some(group.clone()), auth.clone(), Some(&session)).await.unwrap();
 
     // Remove user the role
-    crate::main_group_user_remove(Some(group.clone()), Some(AteRolePurpose::Contributor), Some(friend_username.clone()), auth.clone(), &session).await?;
+    crate::main_group_user_remove(Some(group.clone()), Some(AteRolePurpose::Contributor), Some(friend_username.clone()), auth.clone(), &session).await.unwrap();
 
     // Make sure its got the permission
-    let friend = crate::main_gather(Some(group.clone()), friend_session.clone(), auth.clone()).await?;
+    let friend = crate::main_gather(Some(group.clone()), friend_session.clone(), auth.clone()).await.unwrap();
     assert!(friend.get_group_role(&group, &AteRolePurpose::Contributor).is_none(), "The user should have had this role removed");
-    
-    Ok(())
 }

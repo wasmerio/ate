@@ -19,6 +19,8 @@ pub struct TaskEngine
 {
     #[cfg(not(feature = "enable_mt"))]
     tasks: Vec<Task>,
+    #[cfg(not(feature = "enable_mt"))]
+    driving: bool,
 }
 
 pin_project! {
@@ -89,14 +91,22 @@ impl TaskEngine
     #[cfg(not(feature = "enable_mt"))]
     fn process(cx: &mut std::task::Context<'_>)
     {
-        let mut again = Vec::new();
-        while let Some(mut task) = TaskEngine::instance(|e| e.tasks.pop()).ok().flatten() {
-            let f = task.as_mut();
-            if let Poll::Pending = f.poll(cx) {
-                again.push(task);
+        TaskEngine::instance(|e| {
+            if e.driving == false {
+                e.driving = true;
+
+                let mut again = Vec::new();
+                while let Some(mut task) = e.tasks.pop() {
+                    let f = task.as_mut();
+                    if let Poll::Pending = f.poll(cx) {
+                        again.push(task);
+                    }
+                }
+                e.tasks.append(&mut again);
+
+                e.driving = false;
             }
-        }
-        TaskEngine::instance(|e| e.tasks.append(&mut again)).unwrap();
+        }).unwrap();
     }
 
     #[cfg(not(feature = "enable_mt"))]
