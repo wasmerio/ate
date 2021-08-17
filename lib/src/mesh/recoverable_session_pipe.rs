@@ -192,19 +192,35 @@ impl RecoverableSessionPipe
                 }
             }
 
-            // If we had a good run then reset the exponental backoff
-            if now.elapsed().as_secs() > 60 {
-                exp_backoff = 1;
-            }
+            // Enter a reconnect loop
+            while chain.strong_count() > 0
+            {
+                // If we had a good run then reset the exponental backoff
+                if now.elapsed().as_secs() > 60 {
+                    exp_backoff = 1;
+                }
 
-            // Reconnect
-            status_change = pipe.connect().await?;
+                // Wait a fix amount of time to prevent thrashing and increase the exp backoff
+                tokio::time::sleep(Duration::from_secs(exp_backoff)).await;
+                exp_backoff = (exp_backoff * 2) + 4;
+                if exp_backoff > 60 {
+                    exp_backoff = 60;
+                }
 
-            // Wait a fix amount of time to prevent thrashing and increase the exp backoff
-            tokio::time::sleep(Duration::from_secs(exp_backoff)).await;
-            exp_backoff = (exp_backoff * 2) + 4;
-            if exp_backoff > 60 {
-                exp_backoff = 60;
+                // Reconnect
+                status_change = match pipe.connect().await {
+                    Ok(a) => a,
+                    Err(ChainCreationError(ChainCreationErrorKind::CommsError(CommsErrorKind::Refused), _)) => {
+                        trace!("recoverable_session_pipe reconnect has failed - refused");
+                        exp_backoff = 4;
+                        continue;
+                    }
+                    Err(err) => {
+                        warn!("recoverable_session_pipe reconnect has failed - {}", err);
+                        continue;
+                    }
+                };
+                break;
             }
         }
         

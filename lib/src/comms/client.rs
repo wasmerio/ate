@@ -295,7 +295,6 @@ async fn mesh_connect_worker<M, C>
     metrics: Arc<StdMutex<super::metrics::Metrics>>,
     throttle: Arc<StdMutex<super::throttle::Throttle>>,
 )
--> Result<(), CommsError>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
       C: Send + Sync + Default + 'static,
 {
@@ -334,5 +333,4 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
 
     //#[cfg(feature = "enable_verbose")]
     debug!("disconnected-inbox: {}", connect.addr.to_string());
-    Err(CommsErrorKind::Disconnected.into())
 }
