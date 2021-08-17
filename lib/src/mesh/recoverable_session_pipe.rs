@@ -351,6 +351,7 @@ for RecoverableSessionPipe
                 }
             }
         }
+        trace!("local upload complete {}", self.key.to_string());
 
         // Mark the pipe as connected
         {
@@ -358,6 +359,7 @@ for RecoverableSessionPipe
             if let Some(pipe) = lock.as_mut() {
                 pipe.mark_connected();
             }
+            trace!("pipe connected {}", self.key.to_string());
         }
         
         Ok(status_rx)

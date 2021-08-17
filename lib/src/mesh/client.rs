@@ -27,7 +27,64 @@ pub struct MeshClient {
     lookup: MeshHashTable,
     node_id: NodeId,
     temporal: bool,
-    sessions: Mutex<FxHashMap<ChainKey, Weak<Chain>>>,
+    sessions: Mutex<FxHashMap<ChainKey, Arc<MeshClientSession>>>,
+}
+
+pub struct MeshClientSession
+{
+    key: ChainKey,
+    chain: Mutex<Weak<Chain>>
+}
+
+impl MeshClientSession
+{
+    pub(crate) async fn __open_ext<'a>(&'a self, client: &MeshClient, hello_path: String, loader_local: impl Loader + 'static, loader_remote: impl Loader + 'static)
+        -> Result<Arc<Chain>, ChainCreationError>
+    {
+        let mut chain = self.chain.lock().await;
+        if let Some(chain) = chain.upgrade() {
+            return Ok(chain);
+        }
+
+        let ret = self.__open_ext_internal(client, hello_path, loader_local, loader_remote).await?;
+        *chain = Arc::downgrade(&ret);
+        Ok(ret)
+    }
+
+    async fn __open_ext_internal<'a>(&'a self, client: &MeshClient, hello_path: String, loader_local: impl Loader + 'static, loader_remote: impl Loader + 'static)
+    -> Result<Arc<Chain>, ChainCreationError>
+    {
+        debug!(key=self.key.to_string().as_str());
+        debug!(path=hello_path.as_str());
+
+        let (peer_addr, _) = match client.lookup.lookup(&self.key) {
+            Some(a) => a,
+            None => { bail!(ChainCreationErrorKind::NoRootFoundInConfig); }
+        };
+        let addr = match &client.cfg_mesh.force_connect {
+            Some(a) => a.clone(),
+            None => peer_addr
+        };
+        
+        let builder = ChainBuilder::new(&client.cfg_ate).await
+            .node_id(client.node_id.clone())
+            .temporal(client.temporal);
+
+        let chain = MeshSession::connect
+            (
+                builder,
+                &client.cfg_mesh,
+                &self.key,
+                addr,
+                client.node_id.clone(),
+                hello_path,
+                loader_local,
+                loader_remote
+            )
+            .await?;
+        
+        Ok(chain)
+    }
 }
 
 impl MeshClient {
@@ -58,47 +115,19 @@ impl MeshClient {
     pub(crate) async fn __open_ext<'a>(&'a self, key: &ChainKey, hello_path: String, loader_local: impl Loader + 'static, loader_remote: impl Loader + 'static)
         -> Result<Arc<Chain>, ChainCreationError>
     {
-        debug!(key=key.to_string().as_str());
-        debug!(path=hello_path.as_str());
-
-        let mut sessions = self.sessions.lock().await;
-        let record = match sessions.entry(key.clone()) {
-            Entry::Occupied(o) => o.into_mut(),
-            Entry::Vacant(v) => v.insert(Weak::new())
+        let session = {
+            let mut sessions = self.sessions.lock().await;
+            let record = match sessions.entry(key.clone()) {
+                Entry::Occupied(o) => o.into_mut(),
+                Entry::Vacant(v) => v.insert(Arc::new(MeshClientSession {
+                    key: key.clone(),
+                    chain: Mutex::new(Weak::new()),
+                }))
+            };
+            Arc::clone(record)
         };
 
-        if let Some(ret) = record.upgrade() {
-            return Ok(Arc::clone(&ret));
-        }
-
-        let (peer_addr, _) = match self.lookup.lookup(&key) {
-            Some(a) => a,
-            None => { bail!(ChainCreationErrorKind::NoRootFoundInConfig); }
-        };
-        let addr = match &self.cfg_mesh.force_connect {
-            Some(a) => a.clone(),
-            None => peer_addr
-        };
-        
-        let builder = ChainBuilder::new(&self.cfg_ate).await
-            .node_id(self.node_id.clone())
-            .temporal(self.temporal);
-
-        let chain = MeshSession::connect
-            (
-                builder,
-                &self.cfg_mesh,
-                key,
-                addr,
-                self.node_id.clone(),
-                hello_path,
-                loader_local,
-                loader_remote
-            )
-            .await?;
-        *record = Arc::downgrade(&chain);
-
-        Ok(chain)
+        session.__open_ext(self, hello_path, loader_local, loader_remote).await
     }
 
     pub fn temporal(mut self, val: bool) -> Self

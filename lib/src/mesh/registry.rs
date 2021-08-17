@@ -106,21 +106,26 @@ impl Registry
 
     async fn __open_ext(&self, url: &Url, key: &ChainKey, loader_local: impl loader::Loader + 'static, loader_remote: impl loader::Loader + 'static) -> Result<Arc<Chain>, ChainCreationError>
     {
-        let mut lock = self.chains.lock().await;
+        let client = {
+            let mut lock = self.chains.lock().await;
+            match lock.get(&url) {
+                Some(a) => {
+                    Arc::clone(a)
+                },
+                None => {
+                    trace!("building mesh client for {}", url);
+                    let cfg_mesh = self.cfg_for_url(url).await?;
+                    let mesh = MeshClient::new(&self.cfg_ate, &cfg_mesh, self.node_id.clone(), self.temporal);
+                    lock.insert(url.clone(), Arc::clone(&mesh));
+                    Arc::clone(&mesh)
+                }
+            }
+        };
+
+        trace!("opening chain ({}) on mesh client for {}", key, url);
         
         let hello_path = url.path().to_string();
-
-        match lock.get(&url) {
-            Some(a) => {
-                Ok(a.__open_ext(&key, hello_path, loader_local, loader_remote).await?)
-            },
-            None => {
-                let cfg_mesh = self.cfg_for_url(url).await?;
-                let mesh = MeshClient::new(&self.cfg_ate, &cfg_mesh, self.node_id.clone(), self.temporal);
-                lock.insert(url.clone(), Arc::clone(&mesh));
-                Ok(mesh.__open_ext(&key, hello_path, loader_local, loader_remote).await?)
-            }
-        }
+        Ok(client.__open_ext(&key, hello_path, loader_local, loader_remote).await?)
     }
 
     pub async fn cfg_for_url(&self, url: &Url) -> Result<ConfMesh, ChainCreationError>
@@ -192,6 +197,7 @@ impl Registry
             return Ok(vec![ip]);
         }
 
+        trace!("dns_query for {}", name);
         let mut client = self.dns.lock().await;
 
         let mut addrs = Vec::new();
@@ -213,6 +219,7 @@ impl Registry
                 }
             }
         }
+        trace!("dns_query for {} returned {} addresses", name, addrs.len());
 
         Ok(addrs)
     }

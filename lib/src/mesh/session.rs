@@ -137,12 +137,14 @@ impl MeshSession
 
         // Launch an automatic reconnect thread
         if temporal == false {
+            trace!("launching auto-reconnect thread {}", chain_key.to_string());
             TaskEngine::spawn(
                 RecoverableSessionPipe::auto_reconnect(Arc::downgrade(&chain), on_disconnect)
             );
         }
 
         // Ok we are good!
+        trace!("chain connected {}", chain_key.to_string());
         Ok(chain)
     }
 
