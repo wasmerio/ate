@@ -57,6 +57,7 @@ pub async fn test_create_user_and_group()
     // Compute the code using the returned QR secret
     let timer = TimeKeeper::new(&cfg_ate, 30000).await.unwrap();
     let google_auth = google_authenticator::GoogleAuthenticator::new();
+    timer.wait_for_high_accuracy().await;
     let code = google_auth.get_code(response.qr_secret.as_str(), timer.current_timestamp_as_duration().unwrap().as_secs() / 30).unwrap();
 
     // Login to the main user and gather the rights to the group (full sudo rights)

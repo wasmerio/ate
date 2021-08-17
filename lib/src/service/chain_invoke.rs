@@ -59,6 +59,9 @@ impl Chain
             if let Some(key) = session.read_keys().into_iter().next() {
                 cmd.auth_mut().read = ReadOption::from_key(key);
             }
+            if session.write_keys().any(|_| true) == false {
+                cmd.auth_mut().write = WriteOption::Everyone;
+            }
 
             // Add the extra metadata about the type so the other side can find it
             cmd.add_extra_metadata(CoreMetadata::Type(MetaType {

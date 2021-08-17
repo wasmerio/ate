@@ -1,25 +1,43 @@
 #[allow(unused_imports)]
-use tracing::{error, info, debug};
+use tracing::{error, info, debug, warn, trace};
 use fxhash::FxHashMap;
 
 use crate::error::*;
 use crate::conf::*;
 use crate::engine::TaskEngine;
 
-use std::{ops::Deref, sync::Arc};
-use parking_lot::Mutex as PMutex;
+use std::{sync::Arc};
 use tokio::sync::Mutex;
 use std::time::Duration;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 use once_cell::sync::Lazy;
+use tokio::sync::watch::*;
 
 use super::ntp::NtpResult;
 
 #[derive(Debug)]
 pub struct NtpWorker
 {
-    result: PMutex<NtpResult>
+    result: Receiver<NtpResult>,
+}
+
+pub struct NtpOffset
+{
+    pub offset_ms: i64,
+    pub accurate: bool,
+}
+
+pub struct NtpPing
+{
+    pub roundtrip_ms: u64,
+    pub accurate: bool,
+}
+
+pub struct NtpTimestamp
+{
+    pub since_the_epoch: Duration,
+    pub accurate: bool,
 }
 
 static TIMESTAMP_WORKER: Lazy<Mutex<FxHashMap<String, Arc<NtpWorker>>>> = Lazy::new(|| Mutex::new(FxHashMap::default()));
@@ -30,35 +48,52 @@ impl NtpWorker
     {
         debug!("ntp service started for {}@{}", pool, port);
         let tolerance_ms_loop = tolerance_ms;
-        let tolerance_ms_seed = tolerance_ms * 3;
 
-        let pool = Arc::new(pool.clone());
-        let ntp_result = super::ntp::query_ntp_with_backoff(pool.deref(), port, tolerance_ms_seed, 10).await;
-        
-        let bt_best_ping = Duration::from_micros(ntp_result.roundtrip()).as_millis() as u32;
-        let bt_pool = Arc::new(pool.clone());
-        
+        // Make an inaccure NTP result using the system clock
+        let start = SystemTime::now();
+        let since_the_epoch = start.duration_since(UNIX_EPOCH)?.as_nanos();
+        let ntp_result = NtpResult {
+            sec: (since_the_epoch / 1000000000u128) as u32,
+            nsec: (since_the_epoch % 1000000000u128) as u32,
+            roundtrip: u64::MAX,
+            offset: 0i64,
+            accurate: false
+        };
+
+        let (tx, rx) = channel(ntp_result);
         let ret = Arc::new(NtpWorker {
-            result: PMutex::new(ntp_result)
+            result: rx
         });
 
-        let worker_ret = Arc::clone(&ret);
+        let bt_pool = pool.clone();
         TaskEngine::spawn(async move {
-            let mut best_ping = bt_best_ping;
+            let mut backoff_time = 50;
+            let mut best_ping = u32::MAX;
             loop {
-                match super::ntp::query_ntp_retry(bt_pool.deref(), port, tolerance_ms_loop, 10).await {
+                match super::ntp::query_ntp_retry(&bt_pool, port, tolerance_ms_loop, 10).await {
                     Ok(r) =>
                     {
                         let ping = Duration::from_micros(r.roundtrip()).as_millis() as u32;
-                        if ping < best_ping + 50 {
+                        if best_ping == u32::MAX || ping < best_ping + 50 {
                             best_ping = ping;
-                            *worker_ret.result.lock() = r;
+                            let res = tx.send(r);
+                            if let Err(err) = res {
+                                warn!("{}", err);
+                                break;
+                            }
                         }
+                        tokio::time::sleep(Duration::from_secs(20)).await;
+                        backoff_time = 50;
                     },
-                    _ => { }
+                    _ => {
+                        tokio::time::sleep(Duration::from_millis(backoff_time)).await;
+                        backoff_time = (backoff_time * 120) / 100;
+                        backoff_time = backoff_time + 50;
+                        if backoff_time > 10000 {
+                            backoff_time = 10000;
+                        }
+                    }
                 }
-                
-                tokio::time::sleep(Duration::from_secs(20)).await;
             }
         });
 
@@ -86,26 +121,51 @@ impl NtpWorker
     }
 
     #[allow(dead_code)]
-    fn current_offset_ms(&self) -> i64
+    fn current_offset_ms(&self) -> NtpOffset
     {
-        let ret = self.result.lock().offset() / 1000;
-        ret
+        let guard = self.result.borrow();
+        let ret = guard.offset() / 1000;
+        NtpOffset {
+            offset_ms: ret,
+            accurate: guard.accurate
+        }
     }
 
     #[allow(dead_code)]
-    fn current_ping_ms(&self) -> u64
+    fn current_ping_ms(&self) -> NtpPing
     {
-        let ret = self.result.lock().roundtrip() / 1000;
-        ret
+        let guard = self.result.borrow();
+        let ret = guard.roundtrip() / 1000;
+        NtpPing {
+            roundtrip_ms: ret,
+            accurate: guard.accurate
+        }
     }
 
-    pub fn current_timestamp(&self) -> Result<Duration, TimeError>
+    pub async fn wait_for_high_accuracy(&self)
+    {
+        let mut result = self.result.clone();
+        while result.borrow().accurate == false {
+            if let Err(err) = result.changed().await {
+                error!("{}", err);
+                break;
+            }
+        }
+    }
+
+    pub fn is_accurate(&self) -> bool
+    {
+        self.result.borrow().accurate
+    }
+
+    pub fn current_timestamp(&self) -> Result<NtpTimestamp, TimeError>
     {
         let start = SystemTime::now();
         let mut since_the_epoch = start
             .duration_since(UNIX_EPOCH)?;
 
-        let mut offset = self.result.lock().offset();
+            let guard = self.result.borrow();
+        let mut offset = guard.offset();
         if offset >= 0 {
             since_the_epoch = since_the_epoch + Duration::from_micros(offset as u64);
         } else {
@@ -114,7 +174,10 @@ impl NtpWorker
         }
 
         Ok(
-            since_the_epoch
+            NtpTimestamp {
+                since_the_epoch,
+                accurate: guard.accurate
+            }
         )
     }
 }

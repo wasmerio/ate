@@ -5,3 +5,6 @@ members = [
     "atedb",
     "auth",
 ]
+
+[profile.release]
+debug = true

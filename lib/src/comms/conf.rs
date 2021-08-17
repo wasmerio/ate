@@ -7,6 +7,7 @@ use crate::conf::ConfMesh;
 use crate::conf::MeshAddress;
 use crate::comms::StreamTxChannel;
 use crate::comms::NodeId;
+use crate::crypto::EncryptKey;
 
 #[derive(Debug)]
 pub(crate) struct Upstream
@@ -74,5 +75,13 @@ impl MeshConfig
             self.connect_to.replace(addr);
         }
         self
+    }
+}
+
+impl Upstream
+{
+    pub fn wire_encryption(&self) -> Option<EncryptKey>
+    {
+        self.outbox.wire_encryption.clone()
     }
 }

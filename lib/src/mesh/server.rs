@@ -363,7 +363,7 @@ async fn open_internal<'b>(
             let route = route.lock().await;
             return Ok(OpenedChain {
                 message_of_the_day: route.flow.message_of_the_day(&chain.chain).await?,
-                chain: Arc::clone(&chain.chain),
+                chain: Arc::clone(&chain.chain)
             });
         }
     }
@@ -402,10 +402,11 @@ async fn open_internal<'b>(
     builder = builder.add_pipe(pipe);
 
     // Create the chain using the chain flow builder
+    let wire_encryption = tx.wire_encryption().await.map(|a| a.size());
     let new_chain = {
         let route = route.lock().await;
         debug!("open_flow: {}", route.flow_type);    
-        match route.flow.open(builder, &route_chain.chain).await? {
+        match route.flow.open(builder, &route_chain.chain, wire_encryption).await? {
             OpenAction::PrivateChain { chain, session } => {
                 let msg = Message::SecuredWith(session);
                 let pck = Packet::from(msg).to_packet_data(root.cfg_mesh.wire_format)?;
@@ -449,7 +450,7 @@ async fn open_internal<'b>(
     let route = route.lock().await;
     Ok(OpenedChain {
         message_of_the_day: route.flow.message_of_the_day(&new_chain.chain).await?,
-        chain: Arc::clone(&new_chain.chain),
+        chain: Arc::clone(&new_chain.chain)
     })
 }
 

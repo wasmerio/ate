@@ -47,7 +47,7 @@ for ChainFlow
         Ok(None)
     }
 
-    async fn open(&self, mut builder: ChainBuilder, key: &ChainKey) -> Result<OpenAction, ChainCreationError>
+    async fn open(&self, mut builder: ChainBuilder, key: &ChainKey, _wire_encryption: Option<KeySize>) -> Result<OpenAction, ChainCreationError>
     {
         trace!("open_db: {}", key);
 

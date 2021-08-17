@@ -428,6 +428,11 @@ impl Dio
         DioSessionGuardMut::new(self)
     }
 
+    pub async fn wait_for_accurate_timing(&self)
+    {
+        self.time.wait_for_high_accuracy().await;
+    }
+
     pub(crate) fn run_decache(self: &Arc<Dio>, mut decache: broadcast::Receiver<Vec<PrimaryKey>>) {
         let dio = Arc::downgrade(self);
 

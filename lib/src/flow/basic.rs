@@ -12,6 +12,8 @@ use crate::conf::ChainBuilder;
 use crate::error::*;
 use crate::trust::IntegrityMode;
 use crate::chain::Chain;
+use crate::crypto::EncryptKey;
+use crate::crypto::KeySize;
 
 pub struct OpenStaticBuilder
 {
@@ -67,7 +69,7 @@ for OpenStaticBuilder
         Ok(None)
     }
 
-    async fn open(&self, mut builder: ChainBuilder, key: &ChainKey) -> Result<OpenAction, ChainCreationError> {
+    async fn open(&self, mut builder: ChainBuilder, key: &ChainKey, _wire_encryption: Option<KeySize>) -> Result<OpenAction, ChainCreationError> {
         debug!("open_static: {}", key.to_string());
 
         if let Some(root_key) = &self.root_key {
@@ -83,7 +85,7 @@ for OpenStaticBuilder
                 IntegrityMode::Distributed
             }
         });
-
+        
         Ok(match &self.centralized_integrity {
             true => OpenAction::CentralizedChain
             {

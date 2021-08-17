@@ -156,6 +156,7 @@ impl AuthService
             }
             {
                 // Check the code matches the authenticator code
+                self.time_keeper.wait_for_high_accuracy().await;
                 let time = self.time_keeper.current_timestamp_as_duration()?;
                 let time = time.as_secs() / 30;
                 let google_auth = google_authenticator::GoogleAuthenticator::new();

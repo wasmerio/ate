@@ -120,21 +120,25 @@ for TimestampEnforcer
             },
         };
 
-        // Check its within the time range
-        let timestamp = Duration::from_millis(time.time_since_epoch_ms);
-        //let min_timestamp = self.cursor - self.tolerance;
-        let max_timestamp = self.keeper.current_timestamp_as_duration()? + self.keeper.tolerance;
-        
-        if //timestamp < min_timestamp ||
-           timestamp > max_timestamp
+        // If time is not currently accurate then we can not properly validate
+        if self.keeper.has_converged() == true
         {
-            let cursor = UNIX_EPOCH + self.cursor;
-            let timestamp = UNIX_EPOCH + timestamp;
+            // Check its within the time range
+            let timestamp = Duration::from_millis(time.time_since_epoch_ms);
+            //let min_timestamp = self.cursor - self.tolerance;
+            let max_timestamp = self.keeper.current_timestamp_as_duration()? + self.keeper.tolerance;
+            
+            if //timestamp < min_timestamp ||
+            timestamp > max_timestamp
+            {
+                let cursor = UNIX_EPOCH + self.cursor;
+                let timestamp = UNIX_EPOCH + timestamp;
 
-            let cursor_str = chrono::DateTime::<chrono::Utc>::from(cursor).format("%Y-%m-%d %H:%M:%S.%f").to_string();
-            let timestamp_str = chrono::DateTime::<chrono::Utc>::from(timestamp).format("%Y-%m-%d %H:%M:%S.%f").to_string();
-            debug!("rejected event {:?} due to out-of-bounds timestamp ({} vs {})", header, cursor_str, timestamp_str);
-            bail!(ValidationErrorKind::TrustError(TrustErrorKind::TimeError(TimeErrorKind::OutOfBounds(cursor, timestamp))));
+                let cursor_str = chrono::DateTime::<chrono::Utc>::from(cursor).format("%Y-%m-%d %H:%M:%S.%f").to_string();
+                let timestamp_str = chrono::DateTime::<chrono::Utc>::from(timestamp).format("%Y-%m-%d %H:%M:%S.%f").to_string();
+                debug!("rejected event {:?} due to out-of-bounds timestamp ({} vs {})", header, cursor_str, timestamp_str);
+                bail!(ValidationErrorKind::TrustError(TrustErrorKind::TimeError(TimeErrorKind::OutOfBounds(cursor, timestamp))));
+            }
         }
 
         // All good

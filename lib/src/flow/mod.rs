@@ -3,6 +3,8 @@ use async_trait::async_trait;
 pub mod basic;
 use crate::{crypto::EncryptKey, session::AteSession};
 
+use crate::crypto::KeySize;
+use super::crypto::PrivateSignKey;
 use super::crypto::PublicSignKey;
 use super::chain::Chain;
 use super::chain::ChainKey;
@@ -59,7 +61,7 @@ pub enum OpenAction
 pub trait OpenFlow
 where Self: Send + Sync
 {
-    async fn open(&self, builder: ChainBuilder, key: &ChainKey) -> Result<OpenAction, ChainCreationError>;
+    async fn open(&self, builder: ChainBuilder, key: &ChainKey, wire_encryption: Option<KeySize>) -> Result<OpenAction, ChainCreationError>;
 
     async fn message_of_the_day(&self, chain: &Arc<Chain>) -> Result<Option<String>, ChainCreationError>;
 

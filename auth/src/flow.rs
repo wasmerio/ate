@@ -6,6 +6,8 @@ use async_trait::async_trait;
 use regex::Regex;
 use ate::{error::ChainCreationError, prelude::*};
 use ate::trust::IntegrityMode;
+use ate::crypto::EncryptKey;
+use ate::crypto::KeySize;
 
 use crate::service::*;
 
@@ -46,7 +48,7 @@ for ChainFlow
         Ok(None)
     }
 
-    async fn open(&self, builder: ChainBuilder, key: &ChainKey) -> Result<OpenAction, ChainCreationError>
+    async fn open(&self, mut builder: ChainBuilder, key: &ChainKey, wire_encryption: Option<KeySize>) -> Result<OpenAction, ChainCreationError>
     {
         debug!("open_auth: {}", key);
 
@@ -68,17 +70,29 @@ for ChainFlow
         if self.regex_cmd.is_match(name)
         {
             // Build a secure session
-            let session_root_key = PrivateSignKey::generate(KeySize::Bit128);
             let mut cmd_session = AteSession::default();
             cmd_session.user.add_read_key(&EncryptKey::generate(KeySize::Bit128));
-            cmd_session.user.add_write_key(&session_root_key);
+
+            // For command based chains that are already encryption there is no need
+            // to also add signatures which take lots of CPU power
+            let session_root_key = if wire_encryption.is_none() {
+                let key = PrivateSignKey::generate(KeySize::Bit128);
+                cmd_session.user.add_write_key(&key);
+                Some(key)
+            } else {
+                None
+            };
 
             // Build the chain
-            let chain = builder
+            builder = builder
                 .integrity(IntegrityMode::Distributed)
                 .set_session(cmd_session.clone())
-                .add_root_public_key(&session_root_key.as_public_key())
-                .temporal(true)
+                .temporal(true);
+            if let Some(session_root_key) = &session_root_key {
+                builder = builder.add_root_public_key(&session_root_key.as_public_key())
+            }
+
+            let chain = builder
                 .build()
                 .open(key)
                 .await?;

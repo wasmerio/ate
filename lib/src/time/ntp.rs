@@ -48,6 +48,8 @@ pub(crate) struct NtpResult {
     pub roundtrip: u64,
     /// Offset of the current system time with one received from a NTP server
     pub offset: i64,
+    /// Flag that indicates if this result is likely to be accurate or not
+    pub accurate: bool
 }
 
 impl NtpResult {
@@ -57,7 +59,7 @@ impl NtpResult {
     /// * `nsec` - number of nanoseconds
     /// * `roundtrip` - calculated roundtrip in microseconds
     /// * `offset` - calculated system clock offset in microseconds
-    pub(crate) fn new(sec: u32, nsec: u32, roundtrip: u64, offset: i64) -> Self {
+    pub(crate) fn new(sec: u32, nsec: u32, roundtrip: u64, offset: i64, accurate: bool) -> Self {
         let residue = nsec / NSEC_IN_SEC;
         let nsec = nsec % NSEC_IN_SEC;
         let sec = sec + residue;
@@ -67,6 +69,7 @@ impl NtpResult {
             nsec,
             roundtrip,
             offset,
+            accurate,
         }
     }
     /// Returns number of seconds reported by an NTP server
@@ -89,6 +92,12 @@ impl NtpResult {
     /// Returns system clock offset value in microseconds
     pub(crate) fn offset(&self) -> i64 {
         self.offset
+    }
+
+    /// Returns if the result is accurate or not
+    #[allow(dead_code)]
+    pub(crate) fn accurate(&self) -> bool {
+        self.accurate
     }
 }
 
@@ -352,7 +361,7 @@ fn process_response(
     let nsec = (packet.tx_timestamp & MSEC_MASK) as u32;
     let tx_tm = seconds - NtpPacket::NTP_TIMESTAMP_DELTA;
 
-    Ok(NtpResult::new(tx_tm, nsec, delta.abs() as u64, theta))
+    Ok(NtpResult::new(tx_tm, nsec, delta.abs() as u64, theta, true))
 }
 
 fn convert_from_network(packet: &mut NtpPacket) {
@@ -392,6 +401,7 @@ pub(crate) async fn query_ntp(pool: &String, port: u16, tolerance_ms: u32) -> Re
     Ok(ret)
 }
 
+#[allow(dead_code)]
 pub(crate) async fn query_ntp_with_backoff(pool: &String, port: u16, tolerance_ms: u32, samples: u32) -> NtpResult
 {
     let mut wait_time = 50;

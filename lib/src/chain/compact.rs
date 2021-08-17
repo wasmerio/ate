@@ -33,6 +33,9 @@ impl<'a> Chain
 
     pub(crate) async fn compact_ext(inside_async: Arc<RwLock<ChainProtectedAsync>>, inside_sync: Arc<StdRwLock<ChainProtectedSync>>, pipe: Arc<Box<dyn EventPipe>>, time: Arc<TimeKeeper>) -> Result<(), CompactError>
     {
+        // Compacting requires an accure time
+        time.wait_for_high_accuracy().await;
+
         // compute a cut-off using the current time and the sync tolerance
         let cut_off = {
             let guard = inside_async.read().await;

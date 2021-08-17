@@ -49,6 +49,20 @@ impl TimeKeeper
         )
     }
 
+    pub async fn wait_for_high_accuracy(&self) {
+        if let Some(worker) = &self.ntp_worker {
+            worker.wait_for_high_accuracy().await;
+        }
+    }
+
+    pub fn has_converged(&self) -> bool {
+        if let Some(worker) = &self.ntp_worker {
+            worker.is_accurate()
+        } else {
+            true
+        }
+    }
+
     pub fn current_timestamp_as_duration(&self) -> Result<Duration, TimeError> {
         #[cfg(not(feature = "enable_ntp"))]
         {
@@ -59,7 +73,7 @@ impl TimeKeeper
         }
         #[cfg(feature = "enable_ntp")]
         Ok(match &self.ntp_worker {
-            Some(worker) => worker.current_timestamp()?,
+            Some(worker) => worker.current_timestamp()?.since_the_epoch,
             None => {
                 let start = SystemTime::now();
                 let since_the_epoch = start

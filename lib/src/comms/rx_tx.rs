@@ -10,6 +10,7 @@ use parking_lot::Mutex as StdMutex;
 
 use crate::error::*;
 use crate::prelude::SerializationFormat;
+use crate::crypto::EncryptKey;
 
 use super::NodeId;
 use super::conf::Upstream;
@@ -201,6 +202,11 @@ impl Tx
         let mut metrics = self.metrics.lock();
         metrics.sent += amt;
     }
+
+    pub async fn wire_encryption(&self) -> Option<EncryptKey>
+    {
+        self.direction.wire_encryption().await
+    }
 }
 
 impl Drop
@@ -255,6 +261,12 @@ impl TxGroupSpecific
     {
         std::mem::replace(&mut self.group, group)
     }
+
+    pub async fn wire_encryption(&self) -> Option<EncryptKey>
+    {
+        let guard = self.me_tx.lock().await;
+        guard.wire_encryption()
+    }
 }
 
 #[derive(Debug, Default)]
@@ -290,5 +302,17 @@ impl TxGroup
             }
         }
         Ok(total_sent)
+    }
+}
+
+impl TxDirection
+{
+    pub async fn wire_encryption(&self) -> Option<EncryptKey>
+    {
+        match self {
+            TxDirection::Downcast(a) => a.wire_encryption().await,
+            TxDirection::Nullcast => None,
+            TxDirection::Upcast(a) => a.wire_encryption(),
+        }
     }
 }

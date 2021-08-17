@@ -407,7 +407,7 @@ impl StreamTx
 pub struct StreamTxChannel
 {
     tx: StreamTx,
-    wire_encryption: Option<EncryptKey>,
+    pub(crate) wire_encryption: Option<EncryptKey>,
 }
 
 impl StreamTxChannel
