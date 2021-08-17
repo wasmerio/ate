@@ -149,7 +149,7 @@ pub struct DioMut
     pub scope: TransactionScope,
     pub(crate) state: Mutex<DioMutState>,
     pub(super) conversation: Option<Arc<ConversationSession>>,
-    #[cfg(all(debug_assertions,not(target_arch = "wasm32")))]
+    #[cfg(feature = "enable_dio_backtrace")]
     pub backtrace_new: backtrace::Backtrace,
 }
 
@@ -236,13 +236,13 @@ impl DioMut
         TaskEngine::run_until(DioMut::__new(dio, scope)).await
     }
 
-    async fn __new(dio: &Arc<Dio>, scope: TransactionScope) -> Arc<DioMut> {
+    pub(crate) async fn __new(dio: &Arc<Dio>, scope: TransactionScope) -> Arc<DioMut> {
         let ret = DioMut {
             dio: Arc::clone(dio),
             scope,
             state: Mutex::new(DioMutState::new()),
             conversation: dio.chain.pipe.conversation().await,
-            #[cfg(all(debug_assertions,not(target_arch = "wasm32")))]
+            #[cfg(feature = "enable_dio_backtrace")]
             backtrace_new: backtrace::Backtrace::new(),
         };
         Arc::new(ret)
@@ -345,28 +345,32 @@ impl Chain
     /// Opens a data access layer that allows mutable changes to data.
     /// Transaction consistency on commit will be guarranted for local redo log files
     pub async fn dio_mut(self: &Arc<Chain>, session: &'_ AteSession) -> Arc<DioMut> {
-        let dio = self.dio(session).await;
-        dio.as_mut().await
+        TaskEngine::run_until(self.__dio_trans(session, TransactionScope::Local)).await
     }
 
     /// Opens a data access layer that allows mutable changes to data (in a fire-and-forget mode).
     /// No transaction consistency on commits will be enforced
     pub async fn dio_fire(self: &Arc<Chain>, session: &'_ AteSession) -> Arc<DioMut> {
-        let dio = self.dio(session).await;
-        dio.as_mut().await
+        TaskEngine::run_until(self.__dio_trans(session, TransactionScope::None)).await
     }
 
     /// Opens a data access layer that allows mutable changes to data.
     /// Transaction consistency on commit will be guarranted for all remote replicas
     pub async fn dio_full(self: &Arc<Chain>, session: &'_ AteSession) -> Arc<DioMut> {
-        self.dio_trans(session, TransactionScope::Local).await
+        TaskEngine::run_until(self.__dio_trans(session, TransactionScope::Full)).await
     }
 
     /// Opens a data access layer that allows mutable changes to data.
     /// Transaction consistency on commit must be specified
     pub async fn dio_trans(self: &Arc<Chain>, session: &'_ AteSession, scope: TransactionScope) -> Arc<DioMut> {
-        let dio = self.dio(session).await;
-        dio.trans(scope).await
+        TaskEngine::run_until(self.__dio_trans(session, scope)).await
+    }
+
+    /// Opens a data access layer that allows mutable changes to data.
+    /// Transaction consistency on commit must be specified
+    pub(crate) async fn __dio_trans(self: &Arc<Chain>, session: &'_ AteSession, scope: TransactionScope) -> Arc<DioMut> {
+        let dio = self.__dio(session).await;
+        dio.__trans(scope).await
     }
 }
 
@@ -614,7 +618,7 @@ for DioMut
         // Check if auto-cancel is enabled
         if self.has_uncommitted() & self.state.lock().auto_cancel {
             debug!("Data objects have been discarded due to auto-cancel and uncommitted changes");
-            #[cfg(all(debug_assertions,not(target_arch = "wasm32")))]
+            #[cfg(feature = "enable_dio_backtrace")]
             debug!("{:?}", self.backtrace_new);
             self.cancel();
         }

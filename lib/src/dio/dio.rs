@@ -539,7 +539,7 @@ impl Chain
         TaskEngine::run_until(self.__dio(session)).await
     }
 
-    pub async fn __dio(self: &Arc<Chain>, session: &'_ AteSession) -> Arc<Dio> {
+    pub(crate) async fn __dio(self: &Arc<Chain>, session: &'_ AteSession) -> Arc<Dio> {
         let decache = self.decache.subscribe();
         let multi = self.multi().await;
         let ret = Dio {
@@ -564,6 +564,10 @@ impl Dio
     }
 
     pub async fn trans(self: &Arc<Self>, scope: TransactionScope) -> Arc<DioMut> {
-        DioMut::new(self, scope).await
+        TaskEngine::run_until(self.__trans(scope)).await
+    }
+
+    pub(crate) async fn __trans(self: &Arc<Self>, scope: TransactionScope) -> Arc<DioMut> {
+        DioMut::__new(self, scope).await
     }
 }

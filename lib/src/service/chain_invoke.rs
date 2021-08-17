@@ -6,6 +6,7 @@ use std::{time::Duration};
 use tokio::select;
 use std::sync::Arc;
 
+use crate::transaction::TransactionScope;
 use crate::{error::*, meta::{CoreMetadata}};
 use crate::dio::*;
 use crate::chain::*;
@@ -49,7 +50,7 @@ impl Chain
         };
 
         // Build the command object
-        let dio = self.dio_fire(session).await;
+        let dio = self.__dio_trans(session, TransactionScope::None).await;
         let (join_res, join_err) = {
             dio.auto_cancel();
             
