@@ -21,9 +21,9 @@ pub struct DaoRef<D>
 {
     pub(super) id: Option<PrimaryKey>,
     #[serde(skip)]
-    dio: DioWeak,
+    pub(super) dio: DioWeak,
     #[serde(skip)]
-    _marker: PhantomData<D>,
+    pub(super) _marker: PhantomData<D>,
 }
 
 impl<D> Clone

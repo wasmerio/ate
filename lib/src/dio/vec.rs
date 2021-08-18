@@ -137,6 +137,24 @@ impl<D> DaoVec<D>
         self.vec_id
     }
 
+    pub async fn len(&self) -> Result<usize, LoadError>
+    where D: DeserializeOwned
+    {
+        let len = match &self.state {
+            DaoVecState::Unsaved => 0usize,
+            DaoVecState::Saved(parent_id) =>
+            {
+                let dio = match self.dio() {
+                    Some(a) => a,
+                    None => bail!(LoadErrorKind::WeakDio)
+                };
+                
+                dio.children_keys(parent_id.clone(), self.vec_id).await?.len()
+            },
+        };
+        Ok(len)
+    }
+
     pub async fn iter(&self) -> Result<Iter<D>, LoadError>
     where D: DeserializeOwned
     {

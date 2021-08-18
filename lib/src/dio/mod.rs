@@ -8,6 +8,7 @@ pub(crate) mod test;
 pub(crate) mod dio_mut;
 pub(crate) mod dio;
 pub(crate) mod row;
+pub(crate) mod map;
 
 pub use crate::dio::vec::DaoVec;
 pub use crate::dio::obj::DaoRef;
@@ -22,6 +23,7 @@ pub use super::dio::dio::Dio;
 pub use super::dio::dio::DioSessionGuard;
 pub use super::dio::dio::DioSessionGuardMut;
 pub use super::dio::dio_mut::DioMut;
+pub use super::dio::map::DaoMap;
 
 pub(crate) use self::dio_mut::DioMutState;
 pub(crate) use self::dio::DioScope;

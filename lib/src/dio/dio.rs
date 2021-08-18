@@ -266,6 +266,27 @@ impl Dio
         }
     }
 
+    pub async fn children_keys(self: &Arc<Self>, parent_id: PrimaryKey, collection_id: u64) -> Result<Vec<PrimaryKey>, LoadError>
+    {
+        self.run_async(self.__children_keys(parent_id, collection_id)).await
+    }
+
+    pub async fn __children_keys(self: &Arc<Self>, parent_id: PrimaryKey, collection_id: u64) -> Result<Vec<PrimaryKey>, LoadError>
+    {
+        // Build the secondary index key
+        let collection_key = MetaCollection {
+            parent_id,
+            collection_id,
+        };
+
+        // Build a list of keys
+        let keys = match self.multi.lookup_secondary_raw(&collection_key).await {
+            Some(a) => a,
+            None => return Ok(Vec::new())
+        };
+        Ok(keys)
+    }
+
     pub async fn children<D>(self: &Arc<Self>, parent_id: PrimaryKey, collection_id: u64) -> Result<Vec<Dao<D>>, LoadError>
     where D: DeserializeOwned,
     {
@@ -281,19 +302,8 @@ impl Dio
     pub(super) async fn __children_ext<D>(self: &Arc<Self>, parent_id: PrimaryKey, collection_id: u64, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<Vec<Dao<D>>, LoadError>
     where D: DeserializeOwned,
     {
-        // Build the secondary index key
-        let collection_key = MetaCollection {
-            parent_id,
-            collection_id,
-        };
-
-        // Build a list of keys
-        let keys = match self.multi.lookup_secondary_raw(&collection_key).await {
-            Some(a) => a,
-            None => return Ok(Vec::new())
-        };
-
         // Load all the objects
+        let keys = self.__children_keys(parent_id, collection_id).await?;
         Ok(self.__load_many_ext(keys.into_iter(), allow_missing_keys, allow_serialization_error).await?)
     }
 
