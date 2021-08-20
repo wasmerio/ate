@@ -60,7 +60,7 @@ async fn test_mesh()
             let mut cfg_mesh = cfg_mesh.clone();
             cfg_mesh.force_listen = Some(addr.clone());
 
-            let root_key = root_key.as_public_key();
+            let root_key = root_key.as_public_key().clone();
             let join = async move {
                 let server = create_server(&cfg_mesh).await?;
                 server.add_route(all_ethereal_with_root_key(root_key).await, &cfg_ate).await?;

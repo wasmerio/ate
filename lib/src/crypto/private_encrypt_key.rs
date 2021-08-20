@@ -19,20 +19,17 @@ use super::*;
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub enum PrivateEncryptKey {
     Ntru128 {
-        #[serde(serialize_with = "vec_as_base64", deserialize_with = "vec_from_base64")]
-        pk: Vec<u8>,
+        pk: PublicEncryptKey,
         #[serde(serialize_with = "vec_as_base64", deserialize_with = "vec_from_base64")]
         sk: Vec<u8>,
     },
     Ntru192 {
-        #[serde(serialize_with = "vec_as_base64", deserialize_with = "vec_from_base64")]
-        pk: Vec<u8>,
+        pk: PublicEncryptKey,
         #[serde(serialize_with = "vec_as_base64", deserialize_with = "vec_from_base64")]
         sk: Vec<u8>,
     },
     Ntru256 {
-        #[serde(serialize_with = "vec_as_base64", deserialize_with = "vec_from_base64")]
-        pk: Vec<u8>,
+        pk: PublicEncryptKey,
         #[serde(serialize_with = "vec_as_base64", deserialize_with = "vec_from_base64")]
         sk: Vec<u8>,
     },
@@ -46,21 +43,21 @@ impl PrivateEncryptKey
             KeySize::Bit128 => {
                 let (pk, sk) = ntru128::keypair();
                 PrivateEncryptKey::Ntru128 {
-                    pk: Vec::from(pk.as_bytes()),
+                    pk: PublicEncryptKey::Ntru128 { pk: Vec::from(pk.as_bytes()) },
                     sk: Vec::from(sk.as_bytes()),
                 }
             },
             KeySize::Bit192 => {
                 let (pk, sk) = ntru192::keypair();
                 PrivateEncryptKey::Ntru192 {
-                    pk: Vec::from(pk.as_bytes()),
+                    pk: PublicEncryptKey::Ntru192 { pk: Vec::from(pk.as_bytes()) },
                     sk: Vec::from(sk.as_bytes()),
                 }
             },
             KeySize::Bit256 => {
                 let (pk, sk) = ntru256::keypair();
                 PrivateEncryptKey::Ntru256 {
-                    pk: Vec::from(pk.as_bytes()),
+                    pk: PublicEncryptKey::Ntru256 { pk: Vec::from(pk.as_bytes()) },
                     sk: Vec::from(sk.as_bytes()),
                 }
             }
@@ -68,22 +65,16 @@ impl PrivateEncryptKey
     }
 
     #[allow(dead_code)]
-    pub fn as_public_key(&self) -> PublicEncryptKey {
+    pub fn as_public_key<'a>(&'a self) -> &'a PublicEncryptKey {
         match &self {
             PrivateEncryptKey::Ntru128 { sk: _, pk } => {
-                PublicEncryptKey::Ntru128 {
-                    pk: pk.clone(),
-                }
+                pk
             },
             PrivateEncryptKey::Ntru192 { sk: _, pk } => {
-                PublicEncryptKey::Ntru192 {
-                    pk: pk.clone(),
-                }
+                pk
             },
             PrivateEncryptKey::Ntru256 { sk: _, pk } => {
-                PublicEncryptKey::Ntru256 {
-                    pk: pk.clone(),
-                }
+                pk
             },
         }
     }
@@ -91,27 +82,27 @@ impl PrivateEncryptKey
     #[allow(dead_code)]
     pub fn hash(&self) -> AteHash {
         match &self {
-            PrivateEncryptKey::Ntru128 { pk, sk: _ } => AteHash::from_bytes(&pk[..]),
-            PrivateEncryptKey::Ntru192 { pk, sk: _ } => AteHash::from_bytes(&pk[..]),
-            PrivateEncryptKey::Ntru256 { pk, sk: _ } => AteHash::from_bytes(&pk[..]),
+            PrivateEncryptKey::Ntru128 { pk, sk: _ } => pk.hash(),
+            PrivateEncryptKey::Ntru192 { pk, sk: _ } => pk.hash(),
+            PrivateEncryptKey::Ntru256 { pk, sk: _ } => pk.hash(),
         }
     }
 
     #[allow(dead_code)]
-    pub fn pk(&self) -> Vec<u8> { 
+    pub fn pk<'a>(&'a self) -> &'a [u8] { 
         match &self {
-            PrivateEncryptKey::Ntru128 { pk, sk: _ } => pk.clone(),
-            PrivateEncryptKey::Ntru192 { pk, sk: _ } => pk.clone(),
-            PrivateEncryptKey::Ntru256 { pk, sk: _ } => pk.clone(),
+            PrivateEncryptKey::Ntru128 { pk, sk: _ } => pk.pk(),
+            PrivateEncryptKey::Ntru192 { pk, sk: _ } => pk.pk(),
+            PrivateEncryptKey::Ntru256 { pk, sk: _ } => pk.pk(),
         }
     }
 
     #[allow(dead_code)]
-    pub fn sk(&self) -> Vec<u8> { 
+    pub fn sk<'a>(&'a self) -> &'a [u8] { 
         match &self {
-            PrivateEncryptKey::Ntru128 { pk: _, sk } => sk.clone(),
-            PrivateEncryptKey::Ntru192 { pk: _, sk } => sk.clone(),
-            PrivateEncryptKey::Ntru256 { pk: _, sk } => sk.clone(),
+            PrivateEncryptKey::Ntru128 { pk: _, sk } => &sk[..],
+            PrivateEncryptKey::Ntru192 { pk: _, sk } => &sk[..],
+            PrivateEncryptKey::Ntru256 { pk: _, sk } => &sk[..],
         }
     }
 
@@ -181,12 +172,15 @@ for PrivateEncryptKey
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub enum PublicEncryptKey {
     Ntru128 {
+        #[serde(serialize_with = "vec_as_base64", deserialize_with = "vec_from_base64")]
         pk: Vec<u8>,
     },
     Ntru192 {
+        #[serde(serialize_with = "vec_as_base64", deserialize_with = "vec_from_base64")]
         pk: Vec<u8>,
     },
     Ntru256 {
+        #[serde(serialize_with = "vec_as_base64", deserialize_with = "vec_from_base64")]
         pk: Vec<u8>,
     }
 }
@@ -203,11 +197,11 @@ impl PublicEncryptKey
         }
     }
 
-    pub fn pk(&self) -> Vec<u8> { 
+    pub fn pk<'a>(&'a self) -> &'a [u8] { 
         match &self {
-            PublicEncryptKey::Ntru128 { pk } => pk.clone(),
-            PublicEncryptKey::Ntru192 { pk } => pk.clone(),
-            PublicEncryptKey::Ntru256 { pk } => pk.clone(),
+            PublicEncryptKey::Ntru128 { pk } => &pk[..],
+            PublicEncryptKey::Ntru192 { pk } => &pk[..],
+            PublicEncryptKey::Ntru256 { pk } => &pk[..],
         }
     }
 

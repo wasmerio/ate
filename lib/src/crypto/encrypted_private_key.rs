@@ -29,7 +29,7 @@ impl EncryptedPrivateKey
         let sk = encrypt_key.encrypt(&sk[..]);
         
         EncryptedPrivateKey {
-            pk: pair.as_public_key(),
+            pk: pair.as_public_key().clone(),
             ek_hash: encrypt_key.hash(),
             sk_iv: sk.iv,
             sk_encrypted: sk.data,
@@ -42,13 +42,13 @@ impl EncryptedPrivateKey
         match &self.pk {
             PublicSignKey::Falcon512 { pk } => {
                 PrivateSignKey::Falcon512 {
-                    pk: pk.clone(),
+                    pk: PublicSignKey::Falcon512 { pk: pk.clone() },
                     sk: data,
                 }
             },
             PublicSignKey::Falcon1024{ pk } => {
                 PrivateSignKey::Falcon1024 {
-                    pk: pk.clone(),
+                    pk: PublicSignKey::Falcon1024 { pk: pk.clone() },
                     sk: data,
                 }
             },
@@ -56,8 +56,8 @@ impl EncryptedPrivateKey
     }
 
     #[allow(dead_code)]
-    pub fn as_public_key(&self) -> PublicSignKey {
-        self.pk.clone()
+    pub fn as_public_key<'a>(&'a self) -> &'a PublicSignKey {
+        &self.pk
     }
 
     #[allow(dead_code)]

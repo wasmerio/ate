@@ -47,7 +47,7 @@ pub(super) async fn mesh_hello_exchange_sender(stream_rx: &mut StreamRx, stream_
         key_size,
     };
     let hello_client_bytes = serde_json::to_vec(&hello_client)?;
-    stream_tx.write_16bit(hello_client_bytes, false).await?;
+    stream_tx.write_16bit(&hello_client_bytes[..], false).await?;
 
     // Read the hello message from the other side
     let hello_server_bytes = stream_rx.read_16bit().await?;
@@ -89,7 +89,7 @@ pub(super) async fn mesh_hello_exchange_receiver(stream_rx: &mut StreamRx, strea
         wire_format,
     };
     let hello_server_bytes = serde_json::to_vec(&hello_server)?;
-    stream_tx.write_16bit(hello_server_bytes, false).await?;
+    stream_tx.write_16bit(&hello_server_bytes[..], false).await?;
 
     Ok(HelloMetadata {
         client_id: hello_client.id,

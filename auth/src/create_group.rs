@@ -245,8 +245,8 @@ impl AuthService
                 let role = Role {
                     purpose: purpose.clone(),
                     read: role_read.hash(),
-                    private_read: role_private_read.as_public_key(),
-                    write: role_write.as_public_key(),
+                    private_read: role_private_read.as_public_key().clone(),
+                    write: role_write.as_public_key().clone(),
                     access,
                 };
                 group_mut.roles.push(role);
@@ -265,12 +265,12 @@ impl AuthService
         let advert = Advert {
             identity: request.group.clone(),
             id: AdvertId::GID(gid),
-            nominal_encrypt: observer_private_read.as_public_key(),
-            nominal_auth: contributor_write.as_public_key(),
-            sudo_encrypt: owner_private_read.as_public_key(),
-            sudo_auth: owner_write.as_public_key(),
-            broker_auth: broker_write.as_public_key(),
-            broker_encrypt: broker_read.as_public_key(),
+            nominal_encrypt: observer_private_read.as_public_key().clone(),
+            nominal_auth: contributor_write.as_public_key().clone(),
+            sudo_encrypt: owner_private_read.as_public_key().clone(),
+            sudo_auth: owner_write.as_public_key().clone(),
+            broker_auth: broker_write.as_public_key().clone(),
+            broker_encrypt: broker_read.as_public_key().clone(),
         };
         let mut advert = dio.store_with_key(advert, advert_key.clone())?;
         advert.auth_mut().read = ReadOption::Everyone(None);

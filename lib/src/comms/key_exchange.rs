@@ -43,7 +43,7 @@ pub(super) async fn mesh_key_exchange_sender(stream_rx: &mut StreamRx, stream_tx
 
     // Generate one half of the secret and send the IV so the other side can recreate it
     let (iv2, ek2) = pk2.encapsulate();
-    stream_tx.write_32bit(iv2.bytes, false).await?;
+    stream_tx.write_32bit(&iv2.bytes[..], false).await?;
     trace!("client sending its half of the shared secret");
     
     // Merge the two halfs to make one shared secret
@@ -67,7 +67,7 @@ pub(super) async fn mesh_key_exchange_receiver(stream_rx: &mut StreamRx, stream_
     // Generate one half of the secret and send the IV so the other side can recreate it
     let (iv1, ek1) = pk1.encapsulate();
     trace!("server sending its half of the shared secret");
-    stream_tx.write_32bit(iv1.bytes, true).await?;
+    stream_tx.write_32bit(&iv1.bytes[..], true).await?;
 
     let sk2 = crate::crypto::PrivateEncryptKey::generate(key_size);
     let pk2 = sk2.as_public_key();

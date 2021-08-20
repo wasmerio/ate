@@ -278,7 +278,7 @@ impl StreamTx
 {
     #[must_use="all network communication metrics must be accounted for"]
     #[allow(unused_variables)]
-    pub async fn write_8bit(&mut self, buf: Vec<u8>, delay_flush: bool) -> Result<u64, tokio::io::Error>
+    pub async fn write_8bit(&mut self, buf: &[u8], delay_flush: bool) -> Result<u64, tokio::io::Error>
     {
         let mut total_sent = 0u64;
         match self {
@@ -302,7 +302,7 @@ impl StreamTx
 
     #[must_use="all network communication metrics must be accounted for"]
     #[allow(unused_variables)]
-    pub async fn write_16bit(&mut self, buf: Vec<u8>, delay_flush: bool) -> Result<u64, tokio::io::Error>
+    pub async fn write_16bit(&mut self, buf: &[u8], delay_flush: bool) -> Result<u64, tokio::io::Error>
     {
         let mut total_sent = 0u64;
         match self {
@@ -326,7 +326,7 @@ impl StreamTx
 
     #[must_use="all network communication metrics must be accounted for"]
     #[allow(unused_variables)]
-    pub async fn write_32bit(&mut self, buf: Vec<u8>, delay_flush: bool) -> Result<u64, tokio::io::Error>
+    pub async fn write_32bit(&mut self, buf: &[u8], delay_flush: bool) -> Result<u64, tokio::io::Error>
     {
         let mut total_sent = 0u64;
         match self {
@@ -392,11 +392,11 @@ impl StreamTx
         match wire_encryption {
             Some(key) => {
                 let enc = key.encrypt(&pck.bytes[..]);
-                total_sent += self.write_8bit(enc.iv.bytes, true).await?;
-                total_sent += self.write_32bit(enc.data, false).await?;
+                total_sent += self.write_8bit(&enc.iv.bytes, true).await?;
+                total_sent += self.write_32bit(&enc.data, false).await?;
             },
             None => {
-                total_sent += self.write_32bit(pck.bytes.to_vec(), false).await?;
+                total_sent += self.write_32bit(&pck.bytes[..], false).await?;
             }
         };
         Ok(total_sent)

@@ -24,14 +24,12 @@ use super::*;
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub enum PrivateSignKey {
     Falcon512 {
-        #[serde(serialize_with = "vec_as_base64", deserialize_with = "vec_from_base64")]
-        pk: Vec<u8>,
+        pk: PublicSignKey,
         #[serde(serialize_with = "vec_as_base64", deserialize_with = "vec_from_base64")]
         sk: Vec<u8>,
     },
     Falcon1024 {
-        #[serde(serialize_with = "vec_as_base64", deserialize_with = "vec_from_base64")]
-        pk: Vec<u8>,
+        pk: PublicSignKey,
         #[serde(serialize_with = "vec_as_base64", deserialize_with = "vec_from_base64")]
         sk: Vec<u8>,
     },
@@ -45,14 +43,14 @@ impl PrivateSignKey
             KeySize::Bit128 | KeySize::Bit192 => {
                 let (pk, sk) = falcon512::keypair();
                 PrivateSignKey::Falcon512 {
-                    pk: Vec::from(pk.as_bytes()),
+                    pk: PublicSignKey::Falcon512 { pk: Vec::from(pk.as_bytes()) },
                     sk: Vec::from(sk.as_bytes()),
                 }
             },
             KeySize::Bit256 => {
                 let (pk, sk) = falcon1024::keypair();
                 PrivateSignKey::Falcon1024 {
-                    pk: Vec::from(pk.as_bytes()),
+                    pk: PublicSignKey::Falcon1024 { pk: Vec::from(pk.as_bytes()) },
                     sk: Vec::from(sk.as_bytes()),
                 }
             }
@@ -60,17 +58,13 @@ impl PrivateSignKey
     }
 
     #[allow(dead_code)]
-    pub fn as_public_key(&self) -> PublicSignKey {
+    pub fn as_public_key<'a>(&'a self) -> &'a PublicSignKey {
         match &self {
             PrivateSignKey::Falcon512 { sk: _, pk } => {
-                PublicSignKey::Falcon512 {
-                    pk: pk.clone(),
-                }
+                pk
             },
             PrivateSignKey::Falcon1024 { sk: _, pk } => {
-                PublicSignKey::Falcon1024 {
-                    pk: pk.clone(),
-                }
+                pk
             },
         }
     }
@@ -78,24 +72,24 @@ impl PrivateSignKey
     #[allow(dead_code)]
     pub fn hash(&self) -> AteHash {
         match &self {
-            PrivateSignKey::Falcon512 { pk, sk: _ } => AteHash::from_bytes(&pk[..]),
-            PrivateSignKey::Falcon1024 { pk, sk: _ } => AteHash::from_bytes(&pk[..]),
+            PrivateSignKey::Falcon512 { pk, sk: _ } => pk.hash(),
+            PrivateSignKey::Falcon1024 { pk, sk: _ } => pk.hash(),
         }
     }
 
     #[allow(dead_code)]
-    pub fn pk(&self) -> Vec<u8> { 
+    pub fn pk<'a>(&'a self) -> &'a [u8] { 
         match &self {
-            PrivateSignKey::Falcon512 { pk, sk: _ } => pk.clone(),
-            PrivateSignKey::Falcon1024 { pk, sk: _ } => pk.clone(),
+            PrivateSignKey::Falcon512 { pk, sk: _ } => pk.pk(),
+            PrivateSignKey::Falcon1024 { pk, sk: _ } => pk.pk(),
         }
     }
 
     #[allow(dead_code)]
-    pub fn sk(&self) -> Vec<u8> { 
+    pub fn sk<'a>(&'a self) -> &'a [u8] { 
         match &self {
-            PrivateSignKey::Falcon512 { pk: _, sk } => sk.clone(),
-            PrivateSignKey::Falcon1024 { pk: _, sk } => sk.clone(),
+            PrivateSignKey::Falcon512 { pk: _, sk } => &sk[..],
+            PrivateSignKey::Falcon1024 { pk: _, sk } => &sk[..],
         }
     }
 
@@ -152,9 +146,11 @@ for PrivateSignKey
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub enum PublicSignKey {
     Falcon512 {
+        #[serde(serialize_with = "vec_as_base64", deserialize_with = "vec_from_base64")]
         pk: Vec<u8>,
     },
     Falcon1024 {
+        #[serde(serialize_with = "vec_as_base64", deserialize_with = "vec_from_base64")]
         pk: Vec<u8>,
     }
 }
@@ -162,10 +158,10 @@ pub enum PublicSignKey {
 impl PublicSignKey
 {
     #[allow(dead_code)]
-    pub fn pk(&self) -> Vec<u8> { 
+    pub fn pk<'a>(&'a self) -> &'a [u8] { 
         match &self {
-            PublicSignKey::Falcon512 { pk } => pk.clone(),
-            PublicSignKey::Falcon1024 { pk } => pk.clone(),
+            PublicSignKey::Falcon512 { pk } => &pk[..],
+            PublicSignKey::Falcon1024 { pk } => &pk[..],
         }
     }
 

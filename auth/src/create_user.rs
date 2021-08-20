@@ -168,11 +168,11 @@ impl AuthService
             sudo: DaoRef::new(),
             accepted_terms: DaoRef::new(),
             nominal_read: read_key.hash(),
-            nominal_public_read: private_read_key.as_public_key(),
-            nominal_write: write_key.as_public_key(),
+            nominal_public_read: private_read_key.as_public_key().clone(),
+            nominal_write: write_key.as_public_key().clone(),
             sudo_read: sudo_read_key.hash(),
-            sudo_public_read: sudo_private_read_key.as_public_key(),
-            sudo_write: sudo_write_key.as_public_key(),
+            sudo_public_read: sudo_private_read_key.as_public_key().clone(),
+            sudo_write: sudo_write_key.as_public_key().clone(),
             broker_read: broker_read.clone(),
             broker_write: broker_write.clone(),
         };
@@ -219,12 +219,12 @@ impl AuthService
         let advert = Advert {
             identity: request.email.clone(),
             id: AdvertId::UID(uid),
-            nominal_encrypt: private_read_key.as_public_key(),
-            nominal_auth: write_key.as_public_key(),
-            sudo_encrypt: sudo_private_read_key.as_public_key(),
-            sudo_auth: sudo_write_key.as_public_key(),
-            broker_encrypt: broker_read.as_public_key(),
-            broker_auth: broker_write.as_public_key(),
+            nominal_encrypt: private_read_key.as_public_key().clone(),
+            nominal_auth: write_key.as_public_key().clone(),
+            sudo_encrypt: sudo_private_read_key.as_public_key().clone(),
+            sudo_auth: sudo_write_key.as_public_key().clone(),
+            broker_encrypt: broker_read.as_public_key().clone(),
+            broker_auth: broker_write.as_public_key().clone(),
         };
         let mut advert = dio.store_with_key(advert, advert_key.clone())?;
         advert.auth_mut().read = ReadOption::Everyone(None);

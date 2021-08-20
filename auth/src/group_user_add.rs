@@ -140,8 +140,8 @@ impl AuthService
                     write: role_write.clone()
                 })?,
                 read: role_read.hash(),
-                private_read: role_private_read.as_public_key(),
-                write: role_write.as_public_key(),
+                private_read: role_private_read.as_public_key().clone(),
+                write: role_write.as_public_key().clone(),
             })
         }
 

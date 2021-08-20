@@ -249,7 +249,7 @@ for SignaturePlugin
             
             // Add the public key side into the chain-of-trust if it is not present yet
             if self.pk.get(&auth).is_none() {
-                ret.push(CoreMetadata::PublicKey(sk.as_public_key()));
+                ret.push(CoreMetadata::PublicKey(sk.as_public_key().clone()));
             };
 
             // Next we need to decrypt the private key and use it to sign the hashes
