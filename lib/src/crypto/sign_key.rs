@@ -7,6 +7,8 @@ use pqcrypto_falcon::falcon512;
 use pqcrypto_falcon::falcon1024;
 use pqcrypto_traits::sign::{DetachedSignature, PublicKey as PQCryptoPublicKey};
 use pqcrypto_traits::sign::SecretKey as PQCryptoSecretKey;
+use crate::utils::vec_as_base64;
+use crate::utils::vec_from_base64;
 
 use super::*;
 
@@ -22,11 +24,15 @@ use super::*;
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub enum PrivateSignKey {
     Falcon512 {
+        #[serde(serialize_with = "vec_as_base64", deserialize_with = "vec_from_base64")]
         pk: Vec<u8>,
+        #[serde(serialize_with = "vec_as_base64", deserialize_with = "vec_from_base64")]
         sk: Vec<u8>,
     },
     Falcon1024 {
+        #[serde(serialize_with = "vec_as_base64", deserialize_with = "vec_from_base64")]
         pk: Vec<u8>,
+        #[serde(serialize_with = "vec_as_base64", deserialize_with = "vec_from_base64")]
         sk: Vec<u8>,
     },
 }

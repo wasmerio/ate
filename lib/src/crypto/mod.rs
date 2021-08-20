@@ -1,6 +1,7 @@
 pub mod derived_encrypt_key;
 pub mod double_hash;
 pub mod encrypt_key;
+pub mod public_encrypted_secure_data;
 pub mod encrypted_secure_data;
 pub mod encrypted_private_key;
 pub mod signed_protected_data;
@@ -20,6 +21,7 @@ pub(crate) use random_generator_accessor::*;
 pub use self::hash::*;
 pub use derived_encrypt_key::*;
 pub use encrypt_key::*;
+pub use public_encrypted_secure_data::*;
 pub use encrypted_secure_data::*;
 pub use encrypted_private_key::*;
 pub use signed_protected_data::*;

@@ -148,6 +148,25 @@ fn test_derived_keys() -> Result<(), AteError>
 }
 
 #[test]
+fn test_secure_data() -> Result<(), AteError>
+{
+    crate::utils::bootstrap_test_env();
+
+    static KEY_SIZES: [KeySize; 3] = [KeySize::Bit128, KeySize::Bit192, KeySize::Bit256];
+    for key_size in KEY_SIZES.iter() {
+        let client1 = EncryptKey::generate(key_size.clone());
+        
+        let plain_text1 = "the cat ran up the wall".to_string();
+        let cipher = EncryptedSecureData::new(&client1, plain_text1.clone())?;
+        
+        let plain_text2 = cipher.unwrap(&client1).expect("Should have decrypted.");
+        assert_eq!(plain_text1, plain_text2);
+    }
+
+    Ok(())
+}
+
+#[test]
 fn test_multi_encrypt() -> Result<(), AteError>
 {
     crate::utils::bootstrap_test_env();

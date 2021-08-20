@@ -8,6 +8,8 @@ use fxhash::FxHashMap;
 use crate::crypto::{EncryptedPrivateKey, AteHash, DoubleHash, PublicSignKey};
 #[allow(unused_imports)]
 use crate::session::{AteSession, AteSessionProperty};
+use crate::utils::vec_as_base64;
+use crate::utils::vec_from_base64;
 
 use super::validator::EventValidator;
 use super::lint::EventMetadataLinter;
@@ -27,6 +29,7 @@ use super::transaction::*;
 pub struct MetaSignature
 {
     pub hashes: Vec<AteHash>,
+    #[serde(serialize_with = "vec_as_base64", deserialize_with = "vec_from_base64")]
     pub signature: Vec<u8>,
     pub public_key_hash: AteHash,
 }

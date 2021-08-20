@@ -218,7 +218,7 @@ pub struct Iter<D>
 
 impl<D> Iter<D>
 {
-    fn new(vec: Vec<Dao<D>>) -> Iter<D> {
+    pub(super) fn new(vec: Vec<Dao<D>>) -> Iter<D> {
         Iter {
             vec: VecDeque::from(vec),
         }

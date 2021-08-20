@@ -14,6 +14,7 @@ pub use crate::crypto::PublicEncryptKey;
 pub use crate::crypto::PrivateEncryptKey;
 pub use crate::crypto::EncryptedSecureData;
 pub use crate::crypto::MultiEncryptedSecureData;
+pub use crate::crypto::SignedProtectedData;
 pub use crate::crypto::AteHash;
 pub use crate::crypto::KeySize;
 pub use crate::meta::ReadOption;

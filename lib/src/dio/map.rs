@@ -32,6 +32,7 @@ pub struct DaoMap<K, V>
 where K: Eq + Hash
 {
     lookup: FxHashMap<K, DaoRef<V>>,
+    pub(super) vec_id: u64,
     #[serde(skip)]
     pub(super) state: DaoMapState,
     #[serde(skip)]
@@ -87,6 +88,7 @@ where K: Eq + Hash + Clone
     fn clone(&self) -> DaoMap<K, V>
     {
         DaoMap {
+            vec_id: self.vec_id.clone(),
             lookup: self.lookup.clone(),
             state: self.state.clone(),
             dio: self.dio.clone(),
@@ -100,6 +102,7 @@ where K: Eq + Hash
 {
     pub fn new() -> DaoMap<K, V> {
         DaoMap {
+            vec_id: fastrand::u64(..),
             state: DaoMapState::Unsaved,
             dio: DioWeak::Uninitialized,
             lookup: FxHashMap::default(),
@@ -126,83 +129,33 @@ where K: Eq + Hash
         }
     }
 
-    pub async fn values(&self)
-    -> Result<ValuesIter<V>, LoadError>
-    where V: Serialize + DeserializeOwned
+    pub async fn iter(&self) -> Result<super::vec::Iter<V>, LoadError>
+    where V: DeserializeOwned
     {
-        let mut ret = Vec::new();
-        for value in self.lookup.values() {
-            if let Some(v) = value.load().await? {
-                ret.push(v);
-            }
-        }
-        ret.reverse();
-        Ok(ValuesIter {
-            values: ret
-        })
+        self.iter_ext(false, false).await
     }
 
-    pub async fn values_mut(&self, trans: &Arc<DioMut>)
-    -> Result<ValuesMutIter<V>, LoadError>
-    where V: Serialize + DeserializeOwned
+    pub async fn iter_ext(&self, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<super::vec::Iter<V>, LoadError>
+    where V: DeserializeOwned
     {
-        let mut ret = Vec::new();
-        for value in self.lookup.values() {
-            if let Some(v) = value.load().await? {
-                ret.push(v.as_mut(trans));
-            }
-        }
-        ret.reverse();
-        Ok(ValuesMutIter {
-            values: ret
-        })
-    }
+        let children = match &self.state {
+            DaoMapState::Unsaved => vec![],
+            DaoMapState::Saved(parent_id) =>
+            {
+                let dio = match self.dio() {
+                    Some(a) => a,
+                    None => bail!(LoadErrorKind::WeakDio)
+                };
+                
+                dio.children_ext(parent_id.clone(), self.vec_id, allow_missing_keys, allow_serialization_error).await?
+            },
+        };
 
-    pub async fn iter(&self)
-    -> Result<Iter<'_, K, V>, LoadError>
-    where V: Serialize + DeserializeOwned
-    {
-        let mut ret = Vec::new();
-        for (k, v) in self.lookup.iter() {
-            if let Some(v) = v.load().await? {
-                ret.push((k, v));
-            }
-        }
-        ret.reverse();
-        Ok(Iter {
-            values: ret
-        })
-    }
-
-    pub async fn drain(&mut self) -> Result<Drain<K, V>, LoadError>
-    where V: Serialize + DeserializeOwned
-    {
-        let mut ret = Vec::new();
-        for (k, v) in self.lookup.drain() {
-            if let Some(v) = v.load().await? {
-                ret.push((k, v));
-            }
-        }
-        ret.reverse();
-        Ok(Drain {
-            values: ret
-        })
-    }
-
-    pub async fn iter_mut(&self, trans: &Arc<DioMut>)
-    -> Result<IterMut<'_, K, V>, LoadError>
-    where V: Serialize + DeserializeOwned
-    {
-        let mut ret = Vec::new();
-        for (k, v) in self.lookup.iter() {
-            if let Some(v) = v.load().await? {
-                ret.push((k, v.as_mut(trans)));
-            }
-        }
-        ret.reverse();
-        Ok(IterMut {
-            values: ret
-        })
+        Ok(
+            super::vec::Iter::new(
+            children
+            )
+        )
     }
 
     pub fn len(&self) -> usize {
@@ -210,23 +163,23 @@ where K: Eq + Hash
     }
 
     pub fn is_empty(&self) -> bool {
-        self.lookup.is_empty()
+        self.len() <= 0usize
     }
 
-    pub fn clear(&mut self) {
+    pub async fn clear(&mut self, trans: &Arc<DioMut>) -> Result<(), LoadError> {
+        for (_, v) in self.lookup.drain() {
+            if v.is_some().await? {
+                if let Some(id) = v.id {
+                    trans.delete(&id).await?;
+                }
+            }
+        }
         self.lookup.clear();
+        Ok(())
     }
 
     pub fn reserve(&mut self, additional: usize) {
         self.lookup.reserve(additional);
-    }
-
-    pub fn shrink_to_fit(&mut self) {
-        self.lookup.shrink_to_fit();
-    }
-
-    pub fn entry(&mut self, key: K) -> Entry<'_, K, DaoRef<V>> {
-        self.lookup.entry(key)
     }
 
     pub async fn get(&self, k: &K) -> Result<Option<Dao<V>>, LoadError>
@@ -241,6 +194,21 @@ where K: Eq + Hash
         )
     }
 
+    pub async fn get_mut(&self, k: &K, trans: &Arc<DioMut>) -> Result<Option<DaoMut<V>>, LoadError>
+    where V: Serialize + DeserializeOwned
+    {
+        let val = self.lookup.get(k);
+        Ok(
+            match val {
+                Some(a) => match a.load().await? {
+                    Some(b) => Some(b.as_mut(trans)),
+                    None => None,
+                },
+                None => None
+            }
+        )
+    }
+
     pub async fn get_key_value(&self, k: &K) -> Result<Option<(&K, Dao<V>)>, LoadError>
     where V: Serialize + DeserializeOwned
     {
@@ -249,59 +217,67 @@ where K: Eq + Hash
             match val {
                 Some((k, v)) => match v.load().await? {
                     Some(b) => Some((k, b)),
-                    None => None
+                    None => None,
                 },
                 None => None
             }
         )
     }
 
-    pub fn contains_key(&self, k: &K) -> bool
+    pub async fn contains_key(&self, k: &K) -> Result<bool, LoadError>
     {
-        self.lookup.contains_key(k)
-    }
-
-    pub async fn get_mut(&self, k: &K, trans: &Arc<DioMut>) -> Result<Option<DaoMut<V>>, LoadError>
-    where V: Serialize + DeserializeOwned
-    {
-        let val = self.lookup.get(k);
         Ok(
-            match val {
-                Some(a) => match a.load().await? {
-                    Some(a) => Some(a.as_mut(trans)),
-                    None => None
-                },
-                None => None
+            match self.lookup.get(k) {
+                Some(a) => a.is_some().await?,
+                None => false
             }
         )
     }
 
-    pub fn insert(&mut self, k: K, v: V, trans: &Arc<DioMut>) -> Result<Option<DaoRef<V>>, SerializationError>
+    pub async fn insert(&mut self, k: K, v: V, trans: &Arc<DioMut>) -> Result<(), AteError>
     where V: Serialize + DeserializeOwned
     {
-        let v = trans.store(v)?;
+        self.insert_ret(k, v, trans).await?;
+        Ok(())
+    }
+
+    pub async fn insert_ret(&mut self, k: K, v: V, trans: &Arc<DioMut>) -> Result<DaoMut<V>, AteError>
+    where V: Serialize + DeserializeOwned
+    {
+        let parent_id = match &self.state {
+            DaoMapState::Unsaved => { bail!(AteErrorKind::SerializationError(SerializationErrorKind::SaveParentFirst)); },
+            DaoMapState::Saved(a) => a.clone(),
+        };
+
+        let mut v = trans.store(v)?;
+        v.attach_ext(parent_id, self.vec_id)?;
+
         let old = self.lookup.insert(k, DaoRef {
             id: Some(v.key().clone()),
             dio: DioWeak::Weak(Arc::downgrade(&trans.dio)),
             _marker: PhantomData,
         });
-        Ok(old)
+        if let Some(old) = old {
+            if old.is_some().await? {
+                if let Some(id) = old.id {
+                    trans.delete(&id).await?;
+                }
+            }
+        }
+        Ok(v)
     }
+    
 
-    pub fn remove(&mut self, k: &K) -> Option<DaoRef<V>>
+    pub async fn remove(&mut self, k: &K, trans: &Arc<DioMut>) -> Result<(), LoadError>
     {
-        self.lookup.remove(k)
-    }
-
-    pub fn remove_entry(&mut self, k: &K) -> Option<(K, DaoRef<V>)>
-    {
-        self.lookup.remove_entry(k)
-    }
-
-    pub fn retain<F>(&mut self, f: F)
-    where F: FnMut(&K, &mut DaoRef<V>) -> bool,
-    {
-        self.lookup.retain(f)
+        if let Some(obj) = self.lookup.remove(k) {
+            if obj.is_some().await? {
+                if let Some(id) = obj.id {
+                    trans.delete(&id).await?;
+                }
+            }
+        }
+        Ok(())
     }
 }
 
@@ -318,93 +294,5 @@ for KeysIter<'a, K>
     fn next(&mut self) -> Option<Self::Item>
     {
         self.keys.pop()
-    }
-}
-
-pub struct ValuesIter<V>
-{
-    values: Vec<Dao<V>>
-}
-
-impl<V> Iterator
-for ValuesIter<V>
-{
-    type Item = Dao<V>;
-
-    fn next(&mut self) -> Option<Self::Item>
-    {
-        self.values.pop()
-    }
-}
-
-pub struct ValuesMutIter<V>
-where V: Serialize
-{
-    values: Vec<DaoMut<V>>
-}
-
-impl<V> Iterator
-for ValuesMutIter<V>
-where V: Serialize
-{
-    type Item = DaoMut<V>;
-
-    fn next(&mut self) -> Option<Self::Item>
-    {
-        self.values.pop()
-    }
-}
-
-pub struct Iter<'a, K, V>
-where V: Serialize
-{
-    values: Vec<(&'a K, Dao<V>)>
-}
-
-impl<'a, K, V> Iterator
-for Iter<'a, K, V>
-where V: Serialize
-{
-    type Item = (&'a K, Dao<V>);
-
-    fn next(&mut self) -> Option<Self::Item>
-    {
-        self.values.pop()
-    }
-}
-
-pub struct IterMut<'a, K, V>
-where V: Serialize
-{
-    values: Vec<(&'a K, DaoMut<V>)>
-}
-
-impl<'a, K, V> Iterator
-for IterMut<'a, K, V>
-where V: Serialize
-{
-    type Item = (&'a K, DaoMut<V>);
-
-    fn next(&mut self) -> Option<Self::Item>
-    {
-        self.values.pop()
-    }
-}
-
-pub struct Drain<K, V>
-where V: Serialize
-{
-    values: Vec<(K, Dao<V>)>
-}
-
-impl<K, V> Iterator
-for Drain<K, V>
-where V: Serialize
-{
-    type Item = (K, Dao<V>);
-
-    fn next(&mut self) -> Option<Self::Item>
-    {
-        self.values.pop()
     }
 }

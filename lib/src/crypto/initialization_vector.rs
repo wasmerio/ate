@@ -2,6 +2,8 @@
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use serde::{Serialize, Deserialize};
 use rand::{RngCore};
+use crate::utils::vec_as_base64;
+use crate::utils::vec_from_base64;
 
 use super::*;
 
@@ -12,6 +14,7 @@ use super::*;
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct InitializationVector
 {
+    #[serde(serialize_with = "vec_as_base64", deserialize_with = "vec_from_base64")]
     pub bytes: Vec<u8>,
 }
 
