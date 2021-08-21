@@ -46,7 +46,7 @@ async fn make_account<'a>(conf: &ConfAte, chain: &Arc<Chain>, generator: &mut Ge
         transactions: DaoVec::new(),
         balance: Decimal::default(),
     };
-    let acc = dio.store(acc).unwrap();
+    let mut acc = dio.store(acc).unwrap();
 
     for _ in 0..10 {
         let trans = Transaction {
@@ -55,7 +55,7 @@ async fn make_account<'a>(conf: &ConfAte, chain: &Arc<Chain>, generator: &mut Ge
             description: generator.next().unwrap(),
             amount: Decimal::from_i64(10).unwrap(),
         };
-        acc.transactions.push(&dio, trans).unwrap();
+        acc.as_mut().transactions.push(trans).unwrap();
     }
 
     dio.commit().await?;

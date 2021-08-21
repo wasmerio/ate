@@ -46,7 +46,7 @@ pub struct DaoMutState
 
 pub(crate) trait DaoObjCommit: DaoObj
 {
-    fn commit(&mut self, data_changed: bool) -> std::result::Result<(), SerializationError>;
+    fn commit(&mut self, header_changed: bool, data_changed: bool) -> std::result::Result<(), SerializationError>;
     
     fn auth_set(&mut self, auth: MetaAuthorization) -> std::result::Result<(), SerializationError>;
 }
@@ -70,7 +70,7 @@ pub(crate) trait DaoObjCommit: DaoObj
 pub struct DaoMut<D>
 where D: Serialize
 {
-    inner: Dao<D>,
+    pub(super) inner: Dao<D>,
     trans: Arc<DioMut>,
     state: DaoMutState,
 }
@@ -131,7 +131,7 @@ where D: Serialize
     pub fn detach(&mut self) -> std::result::Result<(), SerializationError>
     {
         self.inner.row_header.parent = None;
-        self.commit(false)
+        self.commit(true, false)
     }
 
     pub fn attach_ext(&mut self, parent: PrimaryKey, collection_id: u64) -> std::result::Result<(), SerializationError>
@@ -144,7 +144,7 @@ where D: Serialize
                 },
             }
         );
-        self.commit(false)
+        self.commit(true, false)
     }
 
     pub fn attach_orphaned(&mut self, parent: &PrimaryKey) -> std::result::Result<(), SerializationError> {
@@ -158,7 +158,7 @@ where D: Serialize
     pub fn add_extra_metadata(&mut self, meta: CoreMetadata) -> std::result::Result<(), SerializationError>
     {
         self.inner.row.extra_meta.push(meta);
-        self.commit(true)
+        self.commit(true, true)
     }
 
     pub fn is_locked(&self) -> bool {
@@ -179,7 +179,7 @@ where D: Serialize
                 },
             }
         );
-        self.commit(false)
+        self.commit(true, false)
     }
 
     async fn try_lock_ext(&mut self, new_state: DaoMutLock) -> Result<bool, LockError> {
@@ -248,9 +248,18 @@ where D: Serialize
 
     pub fn as_mut<'a>(&'a mut self) -> DaoMutGuard<'a, D>
     {
+        {
+            let mut state = self.trans.state.lock();
+            if state.rows.contains_key(self.inner.key()) == false {
+                if let Some(row) = self.inner.row.as_row_data(&self.inner.row_header).ok() {
+                    state.rows.insert(self.inner.key().clone(), row);
+                }                
+            }
+        }
+
         DaoMutGuard {
             dao: self,
-            dirty: false
+            dirty: false,
         }
     }
 
@@ -280,10 +289,10 @@ where D: Serialize
     fn auth_set(&mut self, auth: MetaAuthorization) -> std::result::Result<(), SerializationError>
     {
         self.inner.row_header.auth = auth;
-        self.commit(false)
+        self.commit(true, false)
     }
 
-    fn commit(&mut self, data_changed: bool) -> std::result::Result<(), SerializationError>
+    fn commit(&mut self, header_changed: bool, data_changed: bool) -> std::result::Result<(), SerializationError>
     where D: Serialize
     {
         let mut state = self.trans.state.lock();
@@ -305,15 +314,26 @@ where D: Serialize
             _ => {}
         }
 
-        let mut commit_data = data_changed;
-        if state.dirty_header(self.inner.row_header.clone()) {
-            commit_data = true;
-        }
-        if commit_data {
+        let mut write_header = header_changed;
+        let mut wrote_data = false;
+        if data_changed {
             let row_data = {
                 self.inner.row.as_row_data(&self.inner.row_header)?
             };
-            state.dirty_row(row_data);
+            if state.dirty_row(row_data) {
+                write_header = true;
+                wrote_data = true;
+            }
+        }
+        if write_header {
+            if state.dirty_header(self.inner.row_header.clone()) {
+                if wrote_data == false {
+                    let row_data = {
+                        self.inner.row.as_row_data(&self.inner.row_header)?
+                    };
+                    state.dirty_row(row_data);
+                }
+            }
         }
         Ok(())
     }
@@ -359,7 +379,7 @@ pub struct DaoAuthGuard<'a>
 {
     dao: &'a mut dyn DaoObjCommit,
     auth: MetaAuthorization,
-    dirty: bool
+    dirty: bool,
 }
 
 impl<'a> DaoAuthGuard<'a>
@@ -406,7 +426,23 @@ pub struct DaoMutGuard<'a, D>
 where D: Serialize
 {
     dao: &'a mut DaoMut<D>,
-    dirty: bool
+    dirty: bool,
+}
+
+impl<'a, D> DaoMutGuard<'a, D>
+where D: Serialize
+{
+    pub fn trans(&self) -> Arc<DioMut> {
+        self.dao.trans()
+    }
+    
+    pub fn commit(&mut self) -> Result<(), SerializationError> {
+        if self.dirty {
+            self.dao.commit(false, true)?;
+            self.dirty = false;
+        }
+        Ok(())
+    }
 }
 
 impl<'a, D> Deref
@@ -435,9 +471,7 @@ for DaoMutGuard<'a, D>
 where D: Serialize
 {
     fn drop(&mut self) {
-        if self.dirty {
-            self.dao.commit(true).expect("Failed to commit the data header after accessing it");
-        }
+        self.commit().expect("Failed to commit the data after accessing it");
     }
 }
 
@@ -445,7 +479,7 @@ pub struct DaoMutGuardOwned<D>
 where D: Serialize
 {
     dao: DaoMut<D>,
-    dirty: bool
+    dirty: bool,
 }
 
 impl<D> DaoMutGuardOwned<D>
@@ -453,6 +487,14 @@ where D: Serialize
 {
     pub fn trans(&self) -> Arc<DioMut> {
         self.dao.trans()
+    }
+
+    pub fn commit(&mut self) -> Result<(), SerializationError> {
+        if self.dirty {
+            self.dao.commit(false, true)?;
+            self.dirty = false;
+        }
+        Ok(())
     }
 }
 
@@ -512,9 +554,7 @@ for DaoMutGuardOwned<D>
 where D: Serialize
 {
     fn drop(&mut self) {
-        if self.dirty {
-            self.dao.commit(true).expect("Failed to commit the data header after accessing it");
-        }
+        self.commit().expect("Failed to commit the data header after accessing it");
     }
 }
 

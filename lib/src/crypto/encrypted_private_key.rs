@@ -1,8 +1,8 @@
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use serde::{Serialize, Deserialize};
-use crate::utils::vec_as_base64;
-use crate::utils::vec_from_base64;
+use crate::utils::vec_serialize;
+use crate::utils::vec_deserialize;
 
 use super::*;
 
@@ -11,7 +11,7 @@ pub struct EncryptedPrivateKey {
     pk: PublicSignKey,
     ek_hash: AteHash,
     sk_iv: InitializationVector,
-    #[serde(serialize_with = "vec_as_base64", deserialize_with = "vec_from_base64")]
+    #[serde(serialize_with = "vec_serialize", deserialize_with = "vec_deserialize")]
     sk_encrypted: Vec<u8>
 }
 

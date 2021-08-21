@@ -201,7 +201,7 @@ impl AuthService
             qr_code: qr_code.clone(),
             failed_attempts: 0u32,
         };
-        let mut sudo = user.as_mut().sudo.store(&dio, sudo)?;
+        let mut sudo = user.as_mut().sudo.store(sudo)?;
         sudo.auth_mut().read = ReadOption::from_key(&super_super_key);
         sudo.auth_mut().write = WriteOption::Any(vec![master_write_key.hash(), sudo_write_key.hash()]);
 
@@ -210,7 +210,7 @@ impl AuthService
             let accepted_terms = AcceptedTerms {
                 terms_and_conditions: accepted_terms.clone()
             };
-            user.as_mut().accepted_terms.store(&dio, accepted_terms)?;
+            user.as_mut().accepted_terms.store(accepted_terms)?;
         }
         
         // Create the advert object and save it using public read

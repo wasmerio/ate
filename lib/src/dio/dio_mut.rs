@@ -40,8 +40,8 @@ use crate::{crypto::EncryptKey, session::{AteSession, AteSessionProperty}};
 pub(crate) struct DioMutState
 {
     pub(super) store_ordered: Vec<RowHeader>,
-    pub(super) store_primary: FxHashMap<PrimaryKey, RowData>,
     pub(super) store_secondary: MultiMap<MetaCollection, PrimaryKey>,
+    pub(super) rows: FxHashMap<PrimaryKey, RowData>,
     pub(super) locked: FxHashSet<PrimaryKey>,
     pub(super) deleted: FxHashSet<PrimaryKey>,
     pub(super) pipe_unlock: FxHashSet<PrimaryKey>,
@@ -53,6 +53,13 @@ impl DioMutState
     /// Returns true if the row also needs to be updated
     pub(crate) fn dirty_header(&mut self, header: RowHeader) -> bool
     {
+        if let Some(parent) = &header.parent {
+            let exists = self.store_secondary.get_vec(&parent.vec).iter().map(|a| a.iter()).flatten().any(|a| *a == header.key);
+            if exists == false {
+                self.store_secondary.insert(parent.vec.clone(), header.key);
+            }
+        }
+
         {
             // If the last row is a already there then we only need update it
             // and we don't need to do a complete data save
@@ -68,14 +75,28 @@ impl DioMutState
         return true;
     }
     
-    pub(crate) fn dirty_row(&mut self, row: RowData) {
+    pub(crate) fn dirty_row(&mut self, row: RowData) -> bool
+    {
+        let mut ret = true;
+        if let Some(existing) = self.rows.get(&row.key) {
+            if existing.data_hash == row.data_hash {
+                //trace!("skipping row that has not changed [{}]", row.key);
+                ret = false;
+            }
+        }
+
         let key = row.key.clone();
         let parent = row.parent.clone();
-                
-        self.store_primary.insert(key.clone(), row);
+
+        self.rows.insert(key.clone(), row);
         if let Some(parent) = parent {
-            self.store_secondary.insert(parent.vec, key);
+            let exists = self.store_secondary.get_vec(&parent.vec).iter().map(|a| a.iter()).flatten().any(|a| *a == key);
+            if exists == false {
+                self.store_secondary.insert(parent.vec, key);
+            }
         }
+
+        ret
     }
 
     pub(super) fn lock(&mut self, key: &PrimaryKey) -> bool {
@@ -96,7 +117,7 @@ impl DioMutState
             eprintln!("Detected concurrent write while deleting a data object ({:?}) - the delete operation will override everything else", key);
         }
 
-        self.store_primary.remove(&key);
+        self.rows.remove(&key);
         if let Some(tree) = parent {
             if let Some(y) = self.store_secondary.get_vec_mut(&tree.vec) {
                 y.retain(|x| *x == key);
@@ -111,7 +132,7 @@ impl DioMutState
     fn new() -> DioMutState {
         DioMutState {
             store_ordered: Vec::new(),
-            store_primary: FxHashMap::default(),
+            rows: FxHashMap::default(),
             store_secondary: MultiMap::new(),
             locked: FxHashSet::default(),
             deleted: FxHashSet::default(),
@@ -122,7 +143,7 @@ impl DioMutState
 
     fn clear(&mut self) {
         self.store_ordered.clear();   
-        self.store_primary.clear();
+        self.rows.clear();
         self.store_secondary.clear();
         self.locked.clear();
         self.deleted.clear();
@@ -179,7 +200,6 @@ for DioMutScope
     }
 }
 
-#[derive(Clone)]
 pub(crate) enum DioMutWeak
 {
     Uninitialized,
@@ -194,6 +214,18 @@ for DioMutWeak
         match DioMut::current_get() {
             Some(a) => DioMutWeak::Weak(Arc::downgrade(&a)),
             None => DioMutWeak::Uninitialized
+        }
+    }
+}
+
+impl Clone
+for DioMutWeak
+{
+    fn clone(&self) -> Self
+    {
+        match self {
+            Self::Uninitialized => Self::default(),
+            Self::Weak(a) => Self::Weak(Weak::clone(a))
         }
     }
 }
@@ -249,19 +281,19 @@ impl DioMut
     }
 
     pub fn store<D>(self: &Arc<Self>, data: D) -> Result<DaoMut<D>, SerializationError>
-    where D: Serialize + DeserializeOwned,
+    where D: Clone + Serialize + DeserializeOwned,
     {
         self.store_with_format(data, None, self.session().log_format)
     }
     
     pub fn store_with_key<D>(self: &Arc<Self>, data: D, key: PrimaryKey) -> Result<DaoMut<D>, SerializationError>
-    where D: Serialize + DeserializeOwned,
+    where D: Clone + Serialize + DeserializeOwned,
     {
-        self.store_with_format(data, Some(key), self.session().log_format)
+        self.store_with_format(data, Some(key.clone()), self.session().log_format)
     }
 
     pub fn store_with_format<D>(self: &Arc<Self>, data: D, key: Option<PrimaryKey>, format: Option<MessageFormat>) -> Result<DaoMut<D>, SerializationError>
-    where D: Serialize + DeserializeOwned,
+    where D: Clone + Serialize + DeserializeOwned,
     {
         let format = match format {
             Some(a) => a,
@@ -277,11 +309,7 @@ impl DioMut
         // objects get the proper references needed for the system to work
         let _pop1 = DioMutScope::new(self);
         let _pop2 = PrimaryKeyScope::new(key);
-        let data = {
-            let transmute_format = SerializationFormat::Bincode;
-            let data = transmute_format.serialize(&data)?;
-            transmute_format.deserialize(&data)?
-        };
+        let data = data.clone();
 
         let row_header = RowHeader {
             key: key.clone(),
@@ -303,7 +331,7 @@ impl DioMut
         };
 
         let mut ret: DaoMut<D> = DaoMut::new(Arc::clone(self), Dao::new(&self.dio, row_header, row));
-        ret.commit(true)?;
+        ret.commit(true, true)?;
         Ok(ret)
     }
 
@@ -316,20 +344,20 @@ impl DioMut
         ).await
     }
 
-    pub async fn delete(&self, key: &PrimaryKey) -> Result<(), LoadError>
+    pub async fn delete(&self, key: &PrimaryKey) -> Result<(), SerializationError>
     {
         self.run_async(self.__delete(key)).await
     }
 
-    async fn __delete(&self, key: &PrimaryKey) -> Result<(), LoadError>
+    async fn __delete(&self, key: &PrimaryKey) -> Result<(), SerializationError>
     {
         {
             let mut state = self.state.lock();
             if state.is_locked(key) {
-                bail!(LoadErrorKind::ObjectStillLocked(key.clone()));
+                bail!(SerializationErrorKind::ObjectStillLocked(key.clone()));
             }
             if state.deleted.contains(&key) {
-                bail!(LoadErrorKind::AlreadyDeleted(key.clone()));
+                bail!(SerializationErrorKind::AlreadyDeleted(key.clone()));
             }
             state.store_ordered.retain(|a| a.key != *key);
         }
@@ -427,7 +455,7 @@ impl DioMut
                 .iter()
                 .filter(|a| state.deleted.contains(&a.key) == false)
                 .filter_map(|a| {
-                    match state.store_primary.get(&a.key) {
+                    match state.rows.get(&a.key) {
                         Some(b) => Some((a.clone(), b.clone())),
                         None => None
                     }
@@ -633,34 +661,84 @@ impl DioMut
     pub async fn load<D>(self: &Arc<Self>, key: &PrimaryKey) -> Result<DaoMut<D>, LoadError>
     where D: Serialize + DeserializeOwned,
     {
-        let ret: Dao<D> = TaskEngine::run_until(self.__load(key)).await?;
-        Ok(ret.as_mut(self))
+        let ret: DaoMut<D> = TaskEngine::run_until(self.__load(key)).await?;
+        Ok(ret)
     }
 
-    async fn __load<D>(self: &Arc<Self>, key: &PrimaryKey) -> Result<Dao<D>, LoadError>
+    async fn __load<D>(self: &Arc<Self>, key: &PrimaryKey) -> Result<DaoMut<D>, LoadError>
     where D: Serialize + DeserializeOwned,
     {
         {
             let state = self.state.lock();
+            let _pop1 = DioMutScope::new(self);
+
             if state.is_locked(key) {
                 bail!(LoadErrorKind::ObjectStillLocked(key.clone()));
             }
             if state.deleted.contains(&key) {
                 bail!(LoadErrorKind::AlreadyDeleted(key.clone()));
             }
-            if let Some(dao) = state.store_primary.get(key) {
+            if let Some(dao) = state.rows.get(key) {
                 let (row_header, row) = Row::from_row_data(&self.dio, dao.deref())?;
-                return Ok(Dao::<D>::new(&self.dio, row_header, row));
+                return Ok(DaoMut::new(Arc::clone(self), Dao::<D>::new(&self.dio, row_header, row)));
             }
         }
 
-        let ret: Dao<D> = self.dio.__load(key).await?;
-        Ok(ret)
+        {
+            let state = self.dio.state.lock();
+            let _pop1 = DioMutScope::new(self);
+            if let Some((dao, leaf)) = state.cache_load.get(key) {
+                let (row_header, row) = Row::from_event(&self.dio, dao.deref(), leaf.created, leaf.updated)?;
+                return Ok(DaoMut::new(Arc::clone(self), Dao::new(&self.dio, row_header, row)));
+            }
+        }
+
+        let leaf = match self.multi.lookup_primary(key).await {
+            Some(a) => a,
+            None => bail!(LoadErrorKind::NotFound(key.clone()))
+        };
+        Ok(self.load_from_entry(leaf).await?)
     }
 
-    pub async fn load_raw(self: &Arc<Self>, key: &PrimaryKey) -> Result<EventData, LoadError>
+    pub(crate) async fn load_from_entry<D>(self: &Arc<Self>, leaf: EventLeaf)
+    -> Result<DaoMut<D>, LoadError>
+    where D: Serialize + DeserializeOwned,
     {
-        self.run_async(self.dio.__load_raw(key)).await
+        self.run_async(self.__load_from_entry(leaf)).await
+    }
+
+    pub(super) async fn __load_from_entry<D>(self: &Arc<Self>, leaf: EventLeaf)
+    -> Result<DaoMut<D>, LoadError>
+    where D: Serialize + DeserializeOwned,
+    {
+        let evt = self.multi.load(leaf).await?;
+        let session = self.session();
+
+        let _pop1 = DioMutScope::new(self);
+        Ok(self.load_from_event(session.as_ref(), evt.data, evt.header.as_header()?, leaf)?)
+    }
+
+    pub(crate) fn load_from_event<D>(self: &Arc<Self>, session: &AteSession, mut data: EventData, header: EventHeader, leaf: EventLeaf)
+    -> Result<DaoMut<D>, LoadError>
+    where D: Serialize + DeserializeOwned,
+    {
+        data.data_bytes = match data.data_bytes {
+            Some(data) => Some(self.multi.data_as_overlay(&header.meta, data, session)?),
+            None => None,
+        };
+
+        let mut state = self.dio.state.lock();
+        let _pop1 = DioMutScope::new(self);
+
+        match header.meta.get_data_key() {
+            Some(key) =>
+            {
+                let (row_header, row) = Row::from_event(&self.dio, &data, leaf.created, leaf.updated)?;
+                state.cache_load.insert(key.clone(), (Arc::new(data), leaf));
+                Ok(DaoMut::new(Arc::clone(self), Dao::new(&self.dio, row_header, row)))
+            },
+            None => Err(LoadErrorKind::NoPrimaryKey.into())
+        }
     }
 
     pub async fn load_and_take<D>(self: &Arc<Self>, key: &PrimaryKey) -> Result<D, LoadError>
@@ -672,8 +750,13 @@ impl DioMut
     async fn __load_and_take<D>(self: &Arc<Self>, key: &PrimaryKey) -> Result<D, LoadError>
     where D: Serialize + DeserializeOwned,
     {
-        let ret: Dao<D> = self.__load(key).await?;
+        let ret: DaoMut<D> = self.__load(key).await?;
         Ok(ret.take())
+    }
+
+    pub async fn load_raw(self: &Arc<Self>, key: &PrimaryKey) -> Result<EventData, LoadError>
+    {
+        self.run_async(self.dio.__load_raw(key)).await
     }
 
     pub async fn exists(&self, key: &PrimaryKey) -> bool
@@ -685,11 +768,11 @@ impl DioMut
     {
         {
             let state = self.state.lock();
-            if let Some(_) = state.store_primary.get(key) {
-                return true;
-            }
             if state.deleted.contains(&key) {
                 return false;
+            }
+            if let Some(_) = state.rows.get(key) {
+                return true;
             }
         }
         self.dio.__exists(key).await
@@ -744,6 +827,7 @@ impl DioMut
         // Now we search the secondary local index so any objects we have
         // added in this transaction scope are returned
         let state = self.state.lock();
+        let _pop1 = DioMutScope::new(self);
         if let Some(vec) = state.store_secondary.get_vec(&collection_key) {
             for a in vec {
                 // This is an OR of two lists so its likely that the object
@@ -760,12 +844,12 @@ impl DioMut
                     bail!(LoadErrorKind::ObjectStillLocked(a.clone()));
                 }
 
-                if let Some(dao) = state.store_primary.get(a) {
+                if let Some(dao) = state.rows.get(a) {
                     let (row_header, row) = Row::from_row_data(&self.dio, dao.deref())?;
     
                     already.insert(row.key.clone());
                     let dao: Dao<D> = Dao::new(&self.dio, row_header, row);
-                    ret.push(dao.as_mut(self));
+                    ret.push(DaoMut::new(Arc::clone(self), dao));
                 }
             }
         }
@@ -800,6 +884,7 @@ impl DioMut
 
             let state = self.state.lock();
             let inner_state = self.dio.state.lock();
+            let _pop1 = DioMutScope::new(self);
             
             for key in keys
             {
@@ -809,7 +894,7 @@ impl DioMut
                 if state.deleted.contains(&key) {
                     continue;
                 }
-                if let Some(dao) = state.store_primary.get(&key) {
+                if let Some(dao) = state.rows.get(&key) {
                     let (row_header, row) = Row::from_row_data(&self.dio, dao.deref())?;
                     already.insert(row.key.clone());
                     ret.push(Dao::new(&self.dio, row_header, row));
@@ -838,6 +923,8 @@ impl DioMut
         let ret = {
             let state = self.state.lock();
             let mut inner_state = self.dio.state.lock();
+            let _pop1 = DioMutScope::new(self);
+
             let session = self.session();
             for mut evt in to_load {
                 let mut header = evt.header.as_header()?;
@@ -854,7 +941,7 @@ impl DioMut
                     continue;
                 }
 
-                if let Some(dao) = state.store_primary.get(&key) {
+                if let Some(dao) = state.rows.get(&key) {
                     let (row_header, row) = Row::from_row_data(&self.dio, dao.deref())?;
 
                     already.insert(row.key.clone());
@@ -881,7 +968,7 @@ impl DioMut
             ret
         };
 
-        Ok(ret.into_iter().map(|a: Dao<D>| a.as_mut(self)).collect::<Vec<_>>())
+        Ok(ret.into_iter().map(|a: Dao<D>| DaoMut::new(Arc::clone(self), a)).collect::<Vec<_>>())
     }
 
     pub(crate) fn data_as_overlay(self: &Arc<Self>, session: &AteSession, data: &mut EventData) -> Result<(), TransformError>

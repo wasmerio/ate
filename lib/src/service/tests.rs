@@ -7,7 +7,7 @@ use std::sync::Arc;
 use crate::{error::*};
 use crate::session::*;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 struct Ping
 {
     msg: String

@@ -5,8 +5,8 @@ use std::{io::ErrorKind};
 use std::result::Result;
 use sha3::Digest;
 use std::convert::TryInto;
-use crate::utils::vec_as_base64;
-use crate::utils::vec_from_base64;
+use crate::utils::vec_serialize;
+use crate::utils::vec_deserialize;
 
 #[cfg(feature = "use_openssl")]
 use openssl::symm::{Cipher};
@@ -278,6 +278,6 @@ for EncryptKey
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct EncryptResult {
     pub iv: InitializationVector,
-    #[serde(serialize_with = "vec_as_base64", deserialize_with = "vec_from_base64")]
+    #[serde(serialize_with = "vec_serialize", deserialize_with = "vec_deserialize")]
     pub data: Vec<u8>
 }

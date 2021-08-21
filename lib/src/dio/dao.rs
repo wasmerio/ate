@@ -90,13 +90,6 @@ impl<D> Dao<D>
             row,
         }
     }
-
-    pub fn as_mut(self, trans: &Arc<DioMut>) -> DaoMut<D>
-    where D: Serialize
-    {
-        let trans = Arc::clone(trans);
-        DaoMut::new(trans, self)
-    }
     
     pub fn take(self) -> D {
         self.row.data

@@ -19,7 +19,7 @@ use super::*;
 impl Chain
 {
     pub async fn invoke<REQ, RES, ERR>(self: Arc<Self>, request: REQ) -> Result<Result<RES, ERR>, InvokeError>
-    where REQ: Serialize + DeserializeOwned + Sync + Send + ?Sized,
+    where REQ: Clone + Serialize + DeserializeOwned + Sync + Send + ?Sized,
           RES: Serialize + DeserializeOwned + Sync + Send + ?Sized,
           ERR: Serialize + DeserializeOwned + Sync + Send + ?Sized,
     {
@@ -27,7 +27,7 @@ impl Chain
     }
 
     pub async fn invoke_ext<REQ, RES, ERR>(self: Arc<Self>, session: Option<&AteSession>, request: REQ, timeout: Duration) -> Result<Result<RES, ERR>, InvokeError>
-    where REQ: Serialize + DeserializeOwned + Sync + Send + ?Sized,
+    where REQ: Clone + Serialize + DeserializeOwned + Sync + Send + ?Sized,
           RES: Serialize + DeserializeOwned + Sync + Send + ?Sized,
           ERR: Serialize + DeserializeOwned + Sync + Send + ?Sized,
     {
@@ -35,7 +35,7 @@ impl Chain
     }
 
     pub(crate) async fn __invoke_ext<REQ, RES, ERR>(self: Arc<Self>, session: Option<&AteSession>, request: REQ, timeout: Duration) -> Result<Result<RES, ERR>, InvokeError>
-    where REQ: Serialize + DeserializeOwned + Sync + Send + ?Sized,
+    where REQ: Clone + Serialize + DeserializeOwned + Sync + Send + ?Sized,
           RES: Serialize + DeserializeOwned + Sync + Send + ?Sized,
           ERR: Serialize + DeserializeOwned + Sync + Send + ?Sized,
     {

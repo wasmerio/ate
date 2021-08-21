@@ -74,9 +74,9 @@ async fn main() -> Result<(), AteError>
 
         info!("writing two records ('balls') onto the earlier saved record 'table' from client 2");
         let dio = chain_b.dio_trans(&session, TransactionScope::Full).await;
-        let dao = dio.load::<Table>(&key).await?;
-        dao.ball.push(&dio, BallSound::Ping)?;
-        dao.ball.push(&dio, BallSound::Ping)?;
+        let mut dao = dio.load::<Table>(&key).await?;
+        dao.as_mut().ball.push(BallSound::Ping)?;
+        dao.as_mut().ball.push(BallSound::Ping)?;
         dio.commit().await?;
     }
 

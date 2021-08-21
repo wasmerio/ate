@@ -32,6 +32,19 @@ impl SymLink
             updated,
         }
     }
+
+    pub fn new_mut(inode: DaoMut<Inode>, created: u64, updated: u64) -> SymLink {
+        SymLink {
+            uid: inode.dentry.uid,
+            gid: inode.dentry.gid,
+            mode: inode.dentry.mode,
+            name: inode.dentry.name.clone(),
+            ino: inode.key().as_u64(),
+            link: inode.link.clone(),
+            created,
+            updated,
+        }
+    }
 }
 
 #[async_trait]

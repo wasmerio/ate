@@ -8,6 +8,7 @@ use std::sync::{Arc, Weak};
 use serde::*;
 use serde::de::*;
 use super::dio::DioWeak;
+use super::dio_mut::DioMutWeak;
 use crate::dio::*;
 use crate::dio::dao::*;
 use crate::error::*;
@@ -38,12 +39,13 @@ pub struct DaoVec<D>
     #[serde(skip)]
     pub(super) state: DaoVecState,
     #[serde(skip)]
-    dio: DioWeak,
+    pub(super) dio: DioWeak,
     #[serde(skip)]
-    _phantom1: PhantomData<D>,
+    pub(super) dio_mut: DioMutWeak,
+    #[serde(skip)]
+    pub(super) _phantom1: PhantomData<D>,
 }
 
-#[derive(Clone)]
 pub(super) enum DaoVecState
 {
     Unsaved,
@@ -61,6 +63,18 @@ for DaoVecState
         }
     }
 }
+
+impl Clone
+for DaoVecState
+{
+    fn clone(&self) -> Self
+    {
+        match self {
+            Self::Unsaved => Self::default(),
+            Self::Saved(a) => Self::Saved(a.clone())
+        }
+    }
+}  
 
 impl<D> std::fmt::Debug
 for DaoVec<D>
@@ -89,6 +103,7 @@ for DaoVec<D>
             state: self.state.clone(),
             vec_id: self.vec_id,
             dio: self.dio.clone(),
+            dio_mut: self.dio_mut.clone(),
             _phantom1: PhantomData,
         }
     }
@@ -100,6 +115,7 @@ impl<D> DaoVec<D>
         DaoVec {
             state: DaoVecState::Unsaved,
             dio: DioWeak::Uninitialized,
+            dio_mut: DioMutWeak::Uninitialized,
             vec_id: fastrand::u64(..),
             _phantom1: PhantomData,
         }
@@ -112,6 +128,7 @@ impl<D> DaoVec<D>
         DaoVec {
             state: DaoVecState::Saved(parent),
             dio: DioWeak::from(dio),
+            dio_mut: DioMutWeak::Uninitialized,
             vec_id: vec_id,
             _phantom1: PhantomData,
         }
@@ -121,6 +138,7 @@ impl<D> DaoVec<D>
         DaoVec {
             state: DaoVecState::Saved(parent),
             dio: DioWeak::from(&dio.dio),
+            dio_mut: DioMutWeak::from(dio),
             vec_id: vec_id,
             _phantom1: PhantomData,
         }
@@ -133,12 +151,18 @@ impl<D> DaoVec<D>
         }
     }
 
+    pub fn dio_mut(&self) -> Option<Arc<DioMut>> {
+        match &self.dio_mut {
+            DioMutWeak::Uninitialized => None,
+            DioMutWeak::Weak(a) => Weak::upgrade(a)
+        }
+    }
+
     pub fn vec_id(&self) -> u64 {
         self.vec_id
     }
 
     pub async fn len(&self) -> Result<usize, LoadError>
-    where D: DeserializeOwned
     {
         let len = match &self.state {
             DaoVecState::Unsaved => 0usize,
@@ -156,24 +180,31 @@ impl<D> DaoVec<D>
     }
 
     pub async fn iter(&self) -> Result<Iter<D>, LoadError>
-    where D: DeserializeOwned
+    where D: Serialize + DeserializeOwned
     {
         self.iter_ext(false, false).await
     }
 
     pub async fn iter_ext(&self, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<Iter<D>, LoadError>
-    where D: DeserializeOwned
+    where D: Serialize + DeserializeOwned
     {
         let children = match &self.state {
             DaoVecState::Unsaved => vec![],
             DaoVecState::Saved(parent_id) =>
             {
-                let dio = match self.dio() {
-                    Some(a) => a,
-                    None => bail!(LoadErrorKind::WeakDio)
-                };
-                
-                dio.children_ext(parent_id.clone(), self.vec_id, allow_missing_keys, allow_serialization_error).await?
+                if let Some(dio) = self.dio_mut() {
+                    dio.children_ext(parent_id.clone(), self.vec_id, allow_missing_keys, allow_serialization_error).await?
+                        .into_iter()
+                        .map(|a: DaoMut<D>| a.inner)
+                        .collect::<Vec<_>>()
+                } else {
+                    let dio = match self.dio() {
+                        Some(a) => a,
+                        None => bail!(LoadErrorKind::WeakDio)
+                    };
+                    
+                    dio.children_ext(parent_id.clone(), self.vec_id, allow_missing_keys, allow_serialization_error).await?
+                }
             },
         };
 
@@ -184,28 +215,71 @@ impl<D> DaoVec<D>
         )
     }
 
-    pub fn push(&self, trans: &Arc<DioMut>, data: D) -> Result<DaoMut<D>, SerializationError>
-    where D: Serialize + DeserializeOwned,
+    pub async fn iter_mut(&mut self) -> Result<IterMut<D>, LoadError>
+    where D: Serialize + DeserializeOwned
     {
+        self.iter_mut_ext(false, false).await
+    }
+
+    pub async fn iter_mut_ext(&mut self, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<IterMut<D>, LoadError>
+    where D: Serialize + DeserializeOwned
+    {
+        let children = match &self.state {
+            DaoVecState::Unsaved => vec![],
+            DaoVecState::Saved(parent_id) =>
+            {
+                let dio = match self.dio_mut() {
+                    Some(a) => a,
+                    None => bail!(LoadErrorKind::WeakDio)
+                };
+                
+                let mut ret = Vec::default();
+                for child in dio.children_ext::<D>(parent_id.clone(), self.vec_id, allow_missing_keys, allow_serialization_error).await? {
+                    ret.push(child)
+                }
+                ret
+            },
+        };
+
+        Ok(
+            IterMut::new(
+            children                
+            )
+        )
+    }
+
+    pub fn push(&mut self, data: D) -> Result<DaoMut<D>, SerializationError>
+    where D: Clone + Serialize + DeserializeOwned,
+    {
+        let dio = match self.dio_mut() {
+            Some(a) => a,
+            None => bail!(SerializationErrorKind::WeakDio)
+        };
+
         let parent_id = match &self.state {
             DaoVecState::Unsaved => { bail!(SerializationErrorKind::SaveParentFirst); },
             DaoVecState::Saved(a) => a.clone(),
         };
 
-        let mut ret = trans.store(data)?;
+        let mut ret = dio.store(data)?;
         ret.attach_ext(parent_id, self.vec_id)?;
         Ok(ret)
     }
 
-    pub fn push_with_key(&self, trans: &Arc<DioMut>, data: D, key: PrimaryKey) -> Result<DaoMut<D>, SerializationError>
-    where D: Serialize + DeserializeOwned,
+    pub fn push_with_key(&mut self, data: D, key: PrimaryKey) -> Result<DaoMut<D>, SerializationError>
+    where D: Clone + Serialize + DeserializeOwned,
     {
+        let dio = match self.dio_mut() {
+            Some(a) => a,
+            None => bail!(SerializationErrorKind::WeakDio)
+        };
+
         let parent_id = match &self.state {
             DaoVecState::Unsaved => { bail!(SerializationErrorKind::SaveParentFirst); },
             DaoVecState::Saved(a) => a.clone(),
         };
 
-        let mut ret = trans.store_with_key(data, key)?;
+        let mut ret = dio.store_with_key(data, key)?;
         ret.attach_ext(parent_id, self.vec_id)?;
         Ok(ret)
     }
@@ -231,6 +305,33 @@ for Iter<D>
     type Item = Dao<D>;
 
     fn next(&mut self) -> Option<Dao<D>> {
+        self.vec.pop_front()
+    }
+}
+
+pub struct IterMut<D>
+where D: Serialize
+{
+    vec: VecDeque<DaoMut<D>>,
+}
+
+impl<D> IterMut<D>
+where D: Serialize
+{
+    pub(super) fn new(vec: Vec<DaoMut<D>>) -> IterMut<D> {
+        IterMut {
+            vec: VecDeque::from(vec),
+        }
+    }
+}
+
+impl<D> Iterator
+for IterMut<D>
+where D: Serialize
+{
+    type Item = DaoMut<D>;
+
+    fn next(&mut self) -> Option<DaoMut<D>> {
         self.vec.pop_front()
     }
 }

@@ -5,43 +5,34 @@ use error_chain::bail;
 use std::marker::PhantomData;
 use std::sync::{Arc, Weak};
 use fxhash::FxHashMap;
-use std::hash::Hash;
-use std::fmt;
-use std::collections::hash_map::Keys;
-use std::collections::hash_map::Entry;
-use std::collections::hash_map::OccupiedEntry;
-use std::collections::hash_map::VacantEntry;
 
 use serde::*;
 use serde::de::*;
 use super::dio::DioWeak;
+use super::dio_mut::DioMutWeak;
 use crate::dio::*;
 use crate::dio::dao::*;
+use super::vec::DaoVecState;
 use crate::error::*;
 use std::collections::VecDeque;
 use crate::prelude::*;
 
-/// Rerepresents a map of key and value attached to a parent DAO
-///
-/// This object does not actually store the values which are
-/// actually stored within the chain-of-trust as seperate events
-/// that are indexed by this map
-///
 #[derive(Serialize, Deserialize)]
 pub struct DaoMap<K, V>
-where K: Eq + Hash
+where K: Eq + std::hash::Hash
 {
-    lookup: FxHashMap<K, DaoRef<V>>,
+    pub(super) lookup: FxHashMap<K, PrimaryKey>,
     pub(super) vec_id: u64,
     #[serde(skip)]
     pub(super) state: DaoMapState,
     #[serde(skip)]
     dio: DioWeak,
     #[serde(skip)]
+    dio_mut: DioMutWeak,
+    #[serde(skip)]
     _phantom1: PhantomData<V>,
 }
 
-#[derive(Clone)]
 pub(super) enum DaoMapState
 {
     Unsaved,
@@ -60,21 +51,33 @@ for DaoMapState
     }
 }
 
+impl Clone
+for DaoMapState
+{
+    fn clone(&self) -> Self
+    {
+        match self {
+            Self::Unsaved => Self::default(),
+            Self::Saved(a) => Self::Saved(a.clone())
+        }
+    }
+}  
+
 impl<K, V> std::fmt::Debug
 for DaoMap<K, V>
-where K: Eq + Hash,
+where K: Eq + std::hash::Hash,
       V: std::fmt::Debug
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let type_key_name = std::any::type_name::<K>();
-        let type_value_name = std::any::type_name::<V>();
-        write!(f, "dao-map(key_type={}, value_type={})", type_key_name, type_value_name)
+        let key_type_name = std::any::type_name::<K>();
+        let value_type_name = std::any::type_name::<V>();
+        write!(f, "dao-map(vec_id={}, key-type={}, value-type={}", self.vec_id, key_type_name, value_type_name)
     }
 }
 
 impl<K, V> Default
 for DaoMap<K, V>
-where K: Eq + Hash
+where K: Eq + std::hash::Hash
 {
     fn default() -> Self {
         DaoMap::new()
@@ -83,33 +86,61 @@ where K: Eq + Hash
 
 impl<K, V> Clone
 for DaoMap<K, V>
-where K: Eq + Hash + Clone
+where K: Clone + Eq + std::hash::Hash
 {
     fn clone(&self) -> DaoMap<K, V>
     {
         DaoMap {
-            vec_id: self.vec_id.clone(),
             lookup: self.lookup.clone(),
             state: self.state.clone(),
+            vec_id: self.vec_id,
             dio: self.dio.clone(),
+            dio_mut: self.dio_mut.clone(),
             _phantom1: PhantomData,
         }
     }
 }
 
 impl<K, V> DaoMap<K, V>
-where K: Eq + Hash
+where K: Eq + std::hash::Hash
 {
     pub fn new() -> DaoMap<K, V> {
         DaoMap {
-            vec_id: fastrand::u64(..),
+            lookup: FxHashMap::default(),
             state: DaoMapState::Unsaved,
             dio: DioWeak::Uninitialized,
-            lookup: FxHashMap::default(),
+            dio_mut: DioMutWeak::Uninitialized,
+            vec_id: fastrand::u64(..),
             _phantom1: PhantomData,
         }
     }
-    
+}
+
+impl<K, V> DaoMap<K, V>
+where K: Eq + std::hash::Hash
+{
+    pub fn new_orphaned(dio: &Arc<Dio>, parent: PrimaryKey, vec_id: u64) -> DaoMap<K, V> {
+        DaoMap {
+            lookup: FxHashMap::default(),
+            state: DaoMapState::Saved(parent),
+            dio: DioWeak::from(dio),
+            dio_mut: DioMutWeak::Uninitialized,
+            vec_id: vec_id,
+            _phantom1: PhantomData,
+        }
+    }
+
+    pub fn new_orphaned_mut(dio: &Arc<DioMut>, parent: PrimaryKey, vec_id: u64) -> DaoMap<K, V> {
+        DaoMap {
+            lookup: FxHashMap::default(),
+            state: DaoMapState::Saved(parent),
+            dio: DioWeak::from(&dio.dio),
+            dio_mut: DioMutWeak::from(dio),
+            vec_id: vec_id,
+            _phantom1: PhantomData,
+        }
+    }
+
     pub fn dio(&self) -> Option<Arc<Dio>> {
         match &self.dio {
             DioWeak::Uninitialized => None,
@@ -117,29 +148,34 @@ where K: Eq + Hash
         }
     }
 
-    pub fn capacity(&self) -> usize {
-        self.lookup.capacity()
-    }
-
-    pub fn keys(&self) -> KeysIter<'_, K> {
-        let mut keys = self.lookup.keys().collect::<Vec<_>>();
-        keys.reverse();
-        KeysIter {
-            keys,
+    pub fn dio_mut(&self) -> Option<Arc<DioMut>> {
+        match &self.dio_mut {
+            DioMutWeak::Uninitialized => None,
+            DioMutWeak::Weak(a) => Weak::upgrade(a)
         }
     }
 
-    pub async fn iter(&self) -> Result<super::vec::Iter<V>, LoadError>
-    where V: DeserializeOwned
-    {
-        self.iter_ext(false, false).await
+    pub fn as_vec(&self) -> DaoVec<V> {
+        DaoVec {
+            vec_id: self.vec_id,
+            state: match &self.state {
+                DaoMapState::Saved(a) => DaoVecState::Saved(a.clone()),
+                DaoMapState::Unsaved => DaoVecState::Unsaved,
+            },
+            dio: self.dio.clone(),
+            dio_mut: self.dio_mut.clone(),
+            _phantom1: PhantomData,  
+        }
     }
 
-    pub async fn iter_ext(&self, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<super::vec::Iter<V>, LoadError>
-    where V: DeserializeOwned
+    pub fn vec_id(&self) -> u64 {
+        self.vec_id
+    }
+
+    pub async fn len(&self) -> Result<usize, LoadError>
     {
-        let children = match &self.state {
-            DaoMapState::Unsaved => vec![],
+        let len = match &self.state {
+            DaoMapState::Unsaved => 0usize,
             DaoMapState::Saved(parent_id) =>
             {
                 let dio = match self.dio() {
@@ -147,152 +183,241 @@ where K: Eq + Hash
                     None => bail!(LoadErrorKind::WeakDio)
                 };
                 
-                dio.children_ext(parent_id.clone(), self.vec_id, allow_missing_keys, allow_serialization_error).await?
+                dio.children_keys(parent_id.clone(), self.vec_id).await?.len()
+            },
+        };
+        Ok(len)
+    }
+
+    pub async fn iter<'a>(&'a self) -> Result<Iter<'a, K, V>, LoadError>
+    where V: Serialize + DeserializeOwned
+    {
+        self.iter_ext(false, false).await
+    }
+
+    pub async fn iter_ext<'a>(&'a self, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<Iter<'a, K, V>, LoadError>
+    where V: Serialize + DeserializeOwned
+    {
+        let mut reverse = FxHashMap::default();
+        for (k, v) in self.lookup.iter() {
+            reverse.insert(v, k);
+        }
+
+        let children = match &self.state {
+            DaoMapState::Unsaved => vec![],
+            DaoMapState::Saved(parent_id) =>
+            {
+                if let Some(dio) = self.dio_mut() {
+                    dio.children_ext(parent_id.clone(), self.vec_id, allow_missing_keys, allow_serialization_error).await?
+                        .into_iter()
+                        .map(|a: DaoMut<V>| a.inner)
+                        .collect::<Vec<_>>()
+                } else {
+                    let dio = match self.dio() {
+                        Some(a) => a,
+                        None => bail!(LoadErrorKind::WeakDio)
+                    };
+                    
+                    dio.children_ext(parent_id.clone(), self.vec_id, allow_missing_keys, allow_serialization_error).await?
+                }
             },
         };
 
+        let pairs = children.into_iter()
+            .filter_map(|v| {
+                match reverse.get(v.key()) {
+                    Some(k) => Some((*k, v)),
+                    None => None
+                }
+            })
+            .collect::<Vec<_>>();
+
         Ok(
-            super::vec::Iter::new(
-            children
+            Iter::new(
+            pairs                
             )
         )
     }
 
-    pub fn len(&self) -> usize {
-        self.lookup.len()
+    pub async fn iter_mut(&mut self) -> Result<IterMut<'_, K, V>, LoadError>
+    where V: Serialize + DeserializeOwned
+    {
+        self.iter_mut_ext(false, false).await
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.len() <= 0usize
-    }
-
-    pub async fn clear(&mut self, trans: &Arc<DioMut>) -> Result<(), LoadError> {
-        for (_, v) in self.lookup.drain() {
-            if v.is_some().await? {
-                if let Some(id) = v.id {
-                    trans.delete(&id).await?;
-                }
-            }
+    pub async fn iter_mut_ext<'a>(&'a mut self, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<IterMut<'a, K, V>, LoadError>
+    where V: Serialize + DeserializeOwned
+    {
+        let mut reverse = FxHashMap::default();
+        for (k, v) in self.lookup.iter() {
+            reverse.insert(v, k);
         }
-        self.lookup.clear();
+
+        let children = match &self.state {
+            DaoMapState::Unsaved => vec![],
+            DaoMapState::Saved(parent_id) =>
+            {
+                let dio = match self.dio_mut() {
+                    Some(a) => a,
+                    None => bail!(LoadErrorKind::WeakDio)
+                };
+                
+                let mut ret = Vec::default();
+                for child in dio.children_ext::<V>(parent_id.clone(), self.vec_id, allow_missing_keys, allow_serialization_error).await? {
+                    ret.push(child)
+                }
+                ret
+            },
+        };
+
+        let pairs = children.into_iter()
+            .filter_map(|v| {
+                match reverse.get(v.key()) {
+                    Some(k) => Some((*k, v)),
+                    None => None
+                }
+            })
+            .collect::<Vec<_>>();
+
+        Ok(
+            IterMut::new(
+            pairs                
+            )
+        )
+    }
+
+    pub async fn insert(&mut self, key: K, value: V) -> Result<(), SerializationError>
+    where K: Eq + std::hash::Hash,
+          V: Clone + Serialize + DeserializeOwned,
+    {
+        self.insert_ret(key, value).await?;
         Ok(())
     }
 
-    pub fn reserve(&mut self, additional: usize) {
-        self.lookup.reserve(additional);
-    }
-
-    pub async fn get(&self, k: &K) -> Result<Option<Dao<V>>, LoadError>
-    where V: Serialize + DeserializeOwned
+    pub async fn insert_ret(&mut self, key: K, value: V) -> Result<DaoMut<V>, SerializationError>
+    where K: Eq + std::hash::Hash,
+          V: Clone + Serialize + DeserializeOwned,
     {
-        let val = self.lookup.get(k);
-        Ok(
-            match val {
-                Some(a) => a.load().await?,
-                None => None
-            }
-        )
-    }
+        let dio = match self.dio_mut() {
+            Some(a) => a,
+            None => bail!(SerializationErrorKind::WeakDio)
+        };
 
-    pub async fn get_mut(&self, k: &K, trans: &Arc<DioMut>) -> Result<Option<DaoMut<V>>, LoadError>
-    where V: Serialize + DeserializeOwned
-    {
-        let val = self.lookup.get(k);
-        Ok(
-            match val {
-                Some(a) => match a.load().await? {
-                    Some(b) => Some(b.as_mut(trans)),
-                    None => None,
-                },
-                None => None
-            }
-        )
-    }
-
-    pub async fn get_key_value(&self, k: &K) -> Result<Option<(&K, Dao<V>)>, LoadError>
-    where V: Serialize + DeserializeOwned
-    {
-        let val = self.lookup.get_key_value(k);
-        Ok(
-            match val {
-                Some((k, v)) => match v.load().await? {
-                    Some(b) => Some((k, b)),
-                    None => None,
-                },
-                None => None
-            }
-        )
-    }
-
-    pub async fn contains_key(&self, k: &K) -> Result<bool, LoadError>
-    {
-        Ok(
-            match self.lookup.get(k) {
-                Some(a) => a.is_some().await?,
-                None => false
-            }
-        )
-    }
-
-    pub async fn insert(&mut self, k: K, v: V, trans: &Arc<DioMut>) -> Result<(), AteError>
-    where V: Serialize + DeserializeOwned
-    {
-        self.insert_ret(k, v, trans).await?;
-        Ok(())
-    }
-
-    pub async fn insert_ret(&mut self, k: K, v: V, trans: &Arc<DioMut>) -> Result<DaoMut<V>, AteError>
-    where V: Serialize + DeserializeOwned
-    {
         let parent_id = match &self.state {
-            DaoMapState::Unsaved => { bail!(AteErrorKind::SerializationError(SerializationErrorKind::SaveParentFirst)); },
+            DaoMapState::Unsaved => { bail!(SerializationErrorKind::SaveParentFirst); },
             DaoMapState::Saved(a) => a.clone(),
         };
 
-        let mut v = trans.store(v)?;
-        v.attach_ext(parent_id, self.vec_id)?;
+        let mut ret = dio.store(value)?;
+        ret.attach_ext(parent_id, self.vec_id)?;
 
-        let old = self.lookup.insert(k, DaoRef {
-            id: Some(v.key().clone()),
-            dio: DioWeak::Weak(Arc::downgrade(&trans.dio)),
-            _marker: PhantomData,
-        });
-        if let Some(old) = old {
-            if old.is_some().await? {
-                if let Some(id) = old.id {
-                    trans.delete(&id).await?;
-                }
-            }
+        if let Some(old) = self.lookup.insert(key, ret.key().clone()) {
+            dio.delete(&old).await?;
         }
-        Ok(v)
+
+        Ok(ret)
     }
-    
 
-    pub async fn remove(&mut self, k: &K, trans: &Arc<DioMut>) -> Result<(), LoadError>
+    pub async fn get(&mut self, key: &K) -> Result<Option<DaoMut<V>>, LoadError>
+    where K: Eq + std::hash::Hash,
+          V: Serialize + DeserializeOwned
     {
-        if let Some(obj) = self.lookup.remove(k) {
-            if obj.is_some().await? {
-                if let Some(id) = obj.id {
-                    trans.delete(&id).await?;
-                }
+        let id = match self.lookup.get(key) {
+            Some(a) => a,
+            None => {
+                return Ok(None);
             }
+        };
+
+        let dio = match self.dio_mut() {
+            Some(a) => a,
+            None => bail!(LoadErrorKind::WeakDio)
+        };
+
+        if dio.exists(&id).await == false {
+            return Ok(None);
         }
-        Ok(())
+
+        let ret = match dio.load::<V>(&id).await {
+            Ok(a) => Some(a),
+            Err(LoadError(LoadErrorKind::NotFound(_), _)) => None,
+            Err(err) => { bail!(err); }
+        };
+        Ok(ret)
+    }
+
+    pub async fn delete(&mut self, key: &K) -> Result<bool, SerializationError>
+    where K: Eq + std::hash::Hash,
+          V: Serialize
+    {
+        let id = match self.lookup.get(key) {
+            Some(a) => a,
+            None => {
+                return Ok(false);
+            }
+        };
+
+        let dio = match self.dio_mut() {
+            Some(a) => a,
+            None => bail!(SerializationErrorKind::WeakDio)
+        };
+
+        if dio.exists(&id).await == false {
+            return Ok(false);
+        }
+
+        dio.delete(&id).await?;
+        Ok(true)
     }
 }
 
-pub struct KeysIter<'a, K>
+pub struct Iter<'a, K, V>
 {
-    keys: Vec<&'a K>
+    vec: VecDeque<(&'a K, Dao<V>)>,
 }
 
-impl<'a, K> Iterator
-for KeysIter<'a, K>
+impl<'a, K, V> Iter<'a, K, V>
 {
-    type Item = &'a K;
+    pub(super) fn new(vec: Vec<(&'a K, Dao<V>)>) -> Iter<'a, K, V> {
+        Iter {
+            vec: VecDeque::from(vec),
+        }
+    }
+}
 
-    fn next(&mut self) -> Option<Self::Item>
-    {
-        self.keys.pop()
+impl<'a, K, V> Iterator
+for Iter<'a, K, V>
+{
+    type Item = (&'a K, Dao<V>);
+
+    fn next(&mut self) -> Option<(&'a K, Dao<V>)> {
+        self.vec.pop_front()
+    }
+}
+
+pub struct IterMut<'a, K, V>
+where V: Serialize
+{
+    vec: VecDeque<(&'a K, DaoMut<V>)>,
+}
+
+impl<'a, K, V> IterMut<'a, K, V>
+where V: Serialize
+{
+    pub(super) fn new(vec: Vec<(&'a K, DaoMut<V>)>) -> IterMut<'a, K, V> {
+        IterMut {
+            vec: VecDeque::from(vec),
+        }
+    }
+}
+
+impl<'a, K, V> Iterator
+for IterMut<'a, K, V>
+where V: Serialize
+{
+    type Item = (&'a K, DaoMut<V>);
+
+    fn next(&mut self) -> Option<(&'a K, DaoMut<V>)> {
+        self.vec.pop_front()
     }
 }

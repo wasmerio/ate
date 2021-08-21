@@ -61,11 +61,20 @@ impl Inode {
         }
     }
 
-    pub async fn as_file_spec(ino: u64, created: u64, updated: u64, dao: Dao<Inode>, scope_io: TransactionScope) -> FileSpec {
+    pub async fn as_file_spec(ino: u64, created: u64, updated: u64, dao: Dao<Inode>) -> FileSpec {
         match dao.spec_type {
             SpecType::Directory => FileSpec::Directory(Directory::new(dao, created, updated)),
-            SpecType::RegularFile => FileSpec::RegularFile(RegularFile::new(dao, created, updated, scope_io).await),
+            SpecType::RegularFile => FileSpec::RegularFile(RegularFile::new(dao, created, updated).await),
             SpecType::SymLink => FileSpec::SymLink(SymLink::new(dao, created, updated)),
+            SpecType::FixedFile => FileSpec::FixedFile(FixedFile::new(ino, dao.dentry.name.clone(), fuse3::FileType::RegularFile).created(created).updated(updated))
+        }
+    }
+
+    pub async fn as_file_spec_mut(ino: u64, created: u64, updated: u64, dao: DaoMut<Inode>) -> FileSpec {
+        match dao.spec_type {
+            SpecType::Directory => FileSpec::Directory(Directory::new_mut(dao, created, updated)),
+            SpecType::RegularFile => FileSpec::RegularFile(RegularFile::new_mut(dao, created, updated).await),
+            SpecType::SymLink => FileSpec::SymLink(SymLink::new_mut(dao, created, updated)),
             SpecType::FixedFile => FileSpec::FixedFile(FixedFile::new(ino, dao.dentry.name.clone(), fuse3::FileType::RegularFile).created(created).updated(updated))
         }
     }

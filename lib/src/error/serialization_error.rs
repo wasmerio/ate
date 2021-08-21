@@ -2,6 +2,7 @@ use error_chain::error_chain;
 use rmp_serde::encode::Error as RmpEncodeError;
 use rmp_serde::decode::Error as RmpDecodeError;
 use serde_json::Error as JsonError;
+use crate::prelude::PrimaryKey;
 
 error_chain! {
     types {
@@ -44,6 +45,14 @@ error_chain! {
         SaveParentFirst {
             description("you must save the parent object before attempting to push objects to this vector")
             display("you must save the parent object before attempting to push objects to this vector")
+        }
+        ObjectStillLocked(key: PrimaryKey) {
+            description("data object with key is still being edited in the current scope"),
+            display("data object with key ({}) is still being edited in the current scope", key.as_hex_string()),
+        }
+        AlreadyDeleted(key: PrimaryKey) {
+            description("data object with key has already been deleted"),
+            display("data object with key ({}) has already been deleted", key.as_hex_string()),
         }
     }
 }

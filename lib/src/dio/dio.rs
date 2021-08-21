@@ -90,7 +90,6 @@ for DioScope
     }
 }
 
-#[derive(Clone)]
 pub(crate) enum DioWeak
 {
     Uninitialized,
@@ -105,6 +104,18 @@ for DioWeak
         match Dio::current_get() {
             Some(a) => DioWeak::Weak(Arc::downgrade(&a)),
             None => DioWeak::Uninitialized
+        }
+    }
+}
+
+impl Clone
+for DioWeak
+{
+    fn clone(&self) -> Self
+    {
+        match self {
+            Self::Uninitialized => Self::default(),
+            Self::Weak(a) => Self::Weak(Weak::clone(a))
         }
     }
 }

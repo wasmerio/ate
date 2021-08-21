@@ -140,8 +140,9 @@ impl AuthService
         if let Some(code) = request.authenticator_code {
         
             // Load the sudo object
-            if let Some(mut sudo) = match user.sudo.load().await {
-                Ok(a) => a.map(|a| a.as_mut(&dio)),
+            let mut user = user.as_mut();
+            if let Some(mut sudo) = match user.sudo.load_mut().await {
+                Ok(a) => a,
                 Err(LoadError(LoadErrorKind::NotFound(_), _)) => {
                     warn!("login attempt denied ({}) - user not found", request.email);
                     return Err(LoginFailed::UserNotFound(request.email));
@@ -181,7 +182,7 @@ impl AuthService
                         let local_now = chrono::Local::now();
                         let utc_now = local_now.with_timezone(&chrono::Utc);
                         if let Some(utc_ban) = utc_now.checked_add_signed(ban_time) {
-                            user.as_mut().status = UserStatus::Locked(utc_ban);
+                            user.status = UserStatus::Locked(utc_ban);
                         }
                     }
                     dio.commit().await?;
@@ -195,9 +196,7 @@ impl AuthService
                 if sudo.failed_attempts > 0 {
                     sudo.as_mut().failed_attempts = 0;
                 }
-                if user.status != UserStatus::Nominal {
-                    user.as_mut().status = UserStatus::Nominal;
-                }
+                user.status = UserStatus::Nominal;
 
                 // Add the extra authentication objects from the sudo
                 session = compute_sudo_auth(&sudo.take(), session);

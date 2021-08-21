@@ -8,7 +8,8 @@ use ate::prelude::*;
 #[derive(Debug)]
 pub struct Directory
 {
-    pub inode: Dao<Inode>,
+    pub inode: Inode,
+    pub key: PrimaryKey,
     pub created: u64,
     pub updated: u64,
 }
@@ -17,7 +18,17 @@ impl Directory
 {
     pub fn new(inode: Dao<Inode>, created: u64, updated: u64) -> Directory {
         Directory {
-            inode: inode,
+            key: inode.key().clone(),
+            inode: inode.take(),
+            created,
+            updated,
+        }
+    }
+
+    pub fn new_mut(inode: DaoMut<Inode>, created: u64, updated: u64) -> Directory {
+        Directory {
+            key: inode.key().clone(),
+            inode: inode.take(),
             created,
             updated,
         }
@@ -33,7 +44,7 @@ for Directory
     }
 
     fn ino(&self) -> u64 {
-        self.inode.key().as_u64()
+        self.key.as_u64()
     }
 
     fn kind(&self) -> FileType {

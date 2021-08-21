@@ -6,8 +6,8 @@ use pqcrypto_ntru::ntruhps2048509 as ntru128;
 use pqcrypto_ntru::ntruhps2048677 as ntru192;
 use pqcrypto_ntru::ntruhps4096821 as ntru256;
 use pqcrypto_traits::kem::*;
-use crate::utils::vec_as_base64;
-use crate::utils::vec_from_base64;
+use crate::utils::vec_serialize;
+use crate::utils::vec_deserialize;
 
 use super::*;
 
@@ -20,17 +20,17 @@ use super::*;
 pub enum PrivateEncryptKey {
     Ntru128 {
         pk: PublicEncryptKey,
-        #[serde(serialize_with = "vec_as_base64", deserialize_with = "vec_from_base64")]
+        #[serde(serialize_with = "vec_serialize", deserialize_with = "vec_deserialize")]
         sk: Vec<u8>,
     },
     Ntru192 {
         pk: PublicEncryptKey,
-        #[serde(serialize_with = "vec_as_base64", deserialize_with = "vec_from_base64")]
+        #[serde(serialize_with = "vec_serialize", deserialize_with = "vec_deserialize")]
         sk: Vec<u8>,
     },
     Ntru256 {
         pk: PublicEncryptKey,
-        #[serde(serialize_with = "vec_as_base64", deserialize_with = "vec_from_base64")]
+        #[serde(serialize_with = "vec_serialize", deserialize_with = "vec_deserialize")]
         sk: Vec<u8>,
     },
 }
@@ -172,15 +172,15 @@ for PrivateEncryptKey
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub enum PublicEncryptKey {
     Ntru128 {
-        #[serde(serialize_with = "vec_as_base64", deserialize_with = "vec_from_base64")]
+        #[serde(serialize_with = "vec_serialize", deserialize_with = "vec_deserialize")]
         pk: Vec<u8>,
     },
     Ntru192 {
-        #[serde(serialize_with = "vec_as_base64", deserialize_with = "vec_from_base64")]
+        #[serde(serialize_with = "vec_serialize", deserialize_with = "vec_deserialize")]
         pk: Vec<u8>,
     },
     Ntru256 {
-        #[serde(serialize_with = "vec_as_base64", deserialize_with = "vec_from_base64")]
+        #[serde(serialize_with = "vec_serialize", deserialize_with = "vec_deserialize")]
         pk: Vec<u8>,
     }
 }

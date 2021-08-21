@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use ate::prelude::*;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 struct Ping
 {
     msg: String

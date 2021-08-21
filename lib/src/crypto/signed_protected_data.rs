@@ -4,8 +4,8 @@ use serde::{Serialize, Deserialize};
 use std::io::ErrorKind;
 use std::result::Result;
 use crate::spec::SerializationFormat;
-use crate::utils::vec_as_base64;
-use crate::utils::vec_from_base64;
+use crate::utils::vec_serialize;
+use crate::utils::vec_deserialize;
 
 use super::*;
 
@@ -13,7 +13,7 @@ use super::*;
 pub struct SignedProtectedData<T>
 {
     format: SerializationFormat,
-    #[serde(serialize_with = "vec_as_base64", deserialize_with = "vec_from_base64")]
+    #[serde(serialize_with = "vec_serialize", deserialize_with = "vec_deserialize")]
     sig: Vec<u8>,
     data: T,
 }

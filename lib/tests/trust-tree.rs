@@ -73,7 +73,7 @@ fn test_trust_tree_persistent() -> Result<(), AteError>
                 let mut car = Car::default();
                 car.name = name.clone();
                 
-                let car = garage.cars.push(&dio, car)?;
+                let car = garage.as_mut().cars.push(car)?;
                 assert_eq!(car.name, name);
             }
             dio.commit().await?;
@@ -167,7 +167,7 @@ fn test_trust_tree_memory() -> Result<(), AteError>
                 let mut car = Car::default();
                 car.name = name.clone();
                 
-                let car = garage.cars.push(&dio, car)?;
+                let car = garage.as_mut().cars.push(car)?;
                 assert_eq!(car.name, name);
             }
             dio.commit().await?;

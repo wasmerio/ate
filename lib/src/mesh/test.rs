@@ -96,7 +96,7 @@ async fn test_mesh()
         let mut bus_a;
         let mut bus_b;
 
-        let dao2;
+        let mut dao2;
         {
             let dio = chain_a.dio_trans(&session_a, TransactionScope::Full).await;
             dao2 = dio.store(TestData::default()).unwrap();
@@ -105,7 +105,7 @@ async fn test_mesh()
             info!("commit on chain_a with two rows");
             dio.commit().await.unwrap();
 
-            bus_b = dao2.inner.bus().await.unwrap();
+            bus_b = dao2.as_mut().inner.bus().await.unwrap();
         }
 
         {
@@ -117,7 +117,7 @@ async fn test_mesh()
             let mut session_b = AteSession::new(&cfg_ate);
             session_b.add_user_write_key(&root_key);
 
-            bus_a = dao2.inner.bus().await.unwrap();
+            bus_a = dao2.as_mut().inner.bus().await.unwrap();
             
             {
                 info!("start a DIO session for client B");
@@ -129,12 +129,12 @@ async fn test_mesh()
                 dio.commit().await.unwrap();
 
                 info!("load data object 2");
-                let dao2: DaoMut<TestData> = dio.load(&dao_key2).await.expect("An earlier saved object should have loaded");
+                let mut dao2: DaoMut<TestData> = dio.load(&dao_key2).await.expect("An earlier saved object should have loaded");
                 
                 info!("add to new sub objects to the vector");
-                dao2.inner.push(&dio, "test_string1".to_string()).unwrap();
+                dao2.as_mut().inner.push("test_string1".to_string()).unwrap();
                 dio.commit().await.unwrap();
-                dao2.inner.push(&dio, "test_string2".to_string()).unwrap();
+                dao2.as_mut().inner.push("test_string2".to_string()).unwrap();
                 info!("commit on chain_b with two children");
                 dio.commit().await.unwrap();
             }

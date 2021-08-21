@@ -84,7 +84,7 @@ async fn test_dio() -> Result<(), AteError>
                 mock_dao.hidden = "This text should be hidden".to_string();
                 
                 let mut dao1 = dio.store(mock_dao).unwrap();
-                let dao3 = dao1.as_mut().inner.push(&dio, TestEnumDao::Blah1).unwrap();
+                let dao3 = dao1.as_mut().inner.push(TestEnumDao::Blah1).unwrap();
 
                 key1 = dao1.key().clone();
                 info!("key1: {}", key1.as_hex_string());
