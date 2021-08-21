@@ -7,6 +7,12 @@ use sha3::Digest;
 use std::convert::TryInto;
 use crate::utils::vec_serialize;
 use crate::utils::vec_deserialize;
+use crate::utils::b16_serialize;
+use crate::utils::b16_deserialize;
+use crate::utils::b24_serialize;
+use crate::utils::b24_deserialize;
+use crate::utils::b32_serialize;
+use crate::utils::b32_deserialize;
 
 #[cfg(feature = "use_openssl")]
 use openssl::symm::{Cipher};
@@ -27,9 +33,18 @@ use super::*;
 /// which comes from the `PrivateKey` crypto instead.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum EncryptKey {
-    Aes128([u8; 16]),
-    Aes192([u8; 24]),
-    Aes256([u8; 32]),
+    Aes128(
+        #[serde(serialize_with = "b16_serialize", deserialize_with = "b16_deserialize")]
+        [u8; 16]
+    ),
+    Aes192(
+        #[serde(serialize_with = "b24_serialize", deserialize_with = "b24_deserialize")]
+        [u8; 24]
+    ),
+    Aes256(
+        #[serde(serialize_with = "b32_serialize", deserialize_with = "b32_deserialize")]
+        [u8; 32]
+    ),
 }
 
 impl EncryptKey {

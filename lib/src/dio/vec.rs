@@ -247,6 +247,34 @@ impl<D> DaoVec<D>
             )
         )
     }
+    
+    pub async fn iter_mut_with_dio(&self, dio: &Arc<DioMut>) -> Result<IterMut<D>, LoadError>
+    where D: Serialize + DeserializeOwned
+    {
+        self.iter_mut_ext_with_dio(dio, false, false).await
+    }
+
+    pub async fn iter_mut_ext_with_dio(&self, dio: &Arc<DioMut>, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<IterMut<D>, LoadError>
+    where D: Serialize + DeserializeOwned
+    {
+        let children = match &self.state {
+            DaoVecState::Unsaved => vec![],
+            DaoVecState::Saved(parent_id) =>
+            {
+                let mut ret = Vec::default();
+                for child in dio.children_ext::<D>(parent_id.clone(), self.vec_id, allow_missing_keys, allow_serialization_error).await? {
+                    ret.push(child)
+                }
+                ret
+            },
+        };
+
+        Ok(
+            IterMut::new(
+            children                
+            )
+        )
+    }
 
     pub fn push(&mut self, data: D) -> Result<DaoMut<D>, SerializationError>
     where D: Clone + Serialize + DeserializeOwned,
@@ -274,6 +302,32 @@ impl<D> DaoVec<D>
             None => bail!(SerializationErrorKind::WeakDio)
         };
 
+        let parent_id = match &self.state {
+            DaoVecState::Unsaved => { bail!(SerializationErrorKind::SaveParentFirst); },
+            DaoVecState::Saved(a) => a.clone(),
+        };
+
+        let mut ret = dio.store_with_key(data, key)?;
+        ret.attach_ext(parent_id, self.vec_id)?;
+        Ok(ret)
+    }
+
+    pub fn push_with_dio(&self, dio: &Arc<DioMut>, data: D) -> Result<DaoMut<D>, SerializationError>
+    where D: Clone + Serialize + DeserializeOwned,
+    {
+        let parent_id = match &self.state {
+            DaoVecState::Unsaved => { bail!(SerializationErrorKind::SaveParentFirst); },
+            DaoVecState::Saved(a) => a.clone(),
+        };
+
+        let mut ret = dio.store(data)?;
+        ret.attach_ext(parent_id, self.vec_id)?;
+        Ok(ret)
+    }
+
+    pub fn push_with_dio_and_key(&self, dio: &Arc<DioMut>, data: D, key: PrimaryKey) -> Result<DaoMut<D>, SerializationError>
+    where D: Clone + Serialize + DeserializeOwned,
+    {
         let parent_id = match &self.state {
             DaoVecState::Unsaved => { bail!(SerializationErrorKind::SaveParentFirst); },
             DaoVecState::Saved(a) => a.clone(),

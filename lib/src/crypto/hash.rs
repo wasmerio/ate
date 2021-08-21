@@ -3,6 +3,8 @@ use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use serde::{Serialize, Deserialize};
 use sha3::Digest;
 use std::convert::TryInto;
+use crate::utils::b16_serialize;
+use crate::utils::b16_deserialize;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum HashRoutine
@@ -15,6 +17,7 @@ pub enum HashRoutine
 /// the redo log metadata.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct AteHash {
+    #[serde(serialize_with = "b16_serialize", deserialize_with = "b16_deserialize")]
     pub val: [u8; 16]
 }
 
