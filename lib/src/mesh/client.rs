@@ -7,6 +7,7 @@ use std::{sync::Arc, collections::hash_map::Entry};
 use fxhash::FxHashMap;
 use crate::{header::PrimaryKey, pipe::EventPipe};
 use std::sync::Weak;
+use std::time::Duration;
 
 use super::core::*;
 use super::session::*;
@@ -38,7 +39,7 @@ pub struct MeshClientSession
 
 impl MeshClientSession
 {
-    pub(crate) async fn __open_ext<'a>(&'a self, client: &MeshClient, hello_path: String, loader_local: impl Loader + 'static, loader_remote: impl Loader + 'static)
+    pub(crate) async fn __open_ext<'a>(&'a self, client: &MeshClient, hello_path: String, loader_local: impl Loader + 'static, loader_remote: impl Loader + 'static, keep_alive: Option<Duration>)
         -> Result<Arc<Chain>, ChainCreationError>
     {
         let mut chain = self.chain.lock().await;
@@ -48,6 +49,19 @@ impl MeshClientSession
 
         let ret = self.__open_ext_internal(client, hello_path, loader_local, loader_remote).await?;
         *chain = Arc::downgrade(&ret);
+
+        if let Some(duration) = keep_alive {
+            let chain = Arc::clone(&ret);();
+            let poll = duration.min(Duration::from_secs(10u64));
+            TaskEngine::spawn(async move {
+                while Arc::strong_count(&chain) >= 2 {
+                    tokio::time::sleep(poll).await;
+                }
+                tokio::time::sleep(duration).await;
+                drop(chain);
+            });
+        }
+
         Ok(ret)
     }
 
@@ -103,16 +117,16 @@ impl MeshClient {
         )
     }
 
-    pub async fn open_ext<'a>(&'a self, key: &ChainKey, hello_path: String, loader_local: impl Loader + 'static, loader_remote: impl Loader + 'static)
+    pub async fn open_ext<'a>(&'a self, key: &ChainKey, hello_path: String, loader_local: impl Loader + 'static, loader_remote: impl Loader + 'static, keep_alive: Option<Duration>)
         -> Result<Arc<Chain>, ChainCreationError>
     {
         let span = span!(Level::INFO, "client-open", id=self.node_id.to_short_string().as_str());
-        TaskEngine::run_until(self.__open_ext(key, hello_path, loader_local, loader_remote)
+        TaskEngine::run_until(self.__open_ext(key, hello_path, loader_local, loader_remote, keep_alive)
             .instrument(span)
         ).await
     }
 
-    pub(crate) async fn __open_ext<'a>(&'a self, key: &ChainKey, hello_path: String, loader_local: impl Loader + 'static, loader_remote: impl Loader + 'static)
+    pub(crate) async fn __open_ext<'a>(&'a self, key: &ChainKey, hello_path: String, loader_local: impl Loader + 'static, loader_remote: impl Loader + 'static, keep_alive: Option<Duration>)
         -> Result<Arc<Chain>, ChainCreationError>
     {
         let session = {
@@ -127,7 +141,7 @@ impl MeshClient {
             Arc::clone(record)
         };
 
-        session.__open_ext(self, hello_path, loader_local, loader_remote).await
+        session.__open_ext(self, hello_path, loader_local, loader_remote, keep_alive).await
     }
 
     pub fn temporal(mut self, val: bool) -> Self
@@ -153,14 +167,14 @@ impl MeshClient
 {
     pub async fn open(self: &Arc<MeshClient>, url: &'_ url::Url, key: &'_ ChainKey) -> Result<Arc<Chain>, ChainCreationError>
     {
-        TaskEngine::run_until(self.__open(url, key)).await
+        TaskEngine::run_until(self.__open(url, key, None)).await
     }
 
-    async fn __open(self: &Arc<MeshClient>, url: &'_ url::Url, key: &'_ ChainKey) -> Result<Arc<Chain>, ChainCreationError>
+    async fn __open(self: &Arc<MeshClient>, url: &'_ url::Url, key: &'_ ChainKey, keep_alive: Option<Duration>) -> Result<Arc<Chain>, ChainCreationError>
     {
         let loader_local  = crate::loader::DummyLoader::default();
         let loader_remote  = crate::loader::DummyLoader::default();
         let hello_path = url.path().to_string();
-        self.open_ext(&key, hello_path, loader_local, loader_remote).await
+        self.__open_ext(&key, hello_path, loader_local, loader_remote, keep_alive).await
     }
 }

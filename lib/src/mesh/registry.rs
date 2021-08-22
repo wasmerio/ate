@@ -41,7 +41,6 @@ pub struct Registry
     pub fail_fast: bool,
     pub keep_alive: Option<Duration>,
     
-    cmd_key: StdMutex<Option<(chrono::DateTime<chrono::Utc>, String)>>,
     chains: Mutex<FxHashMap<url::Url, Arc<MeshClient>>>,
     pub(crate) services: StdMutex<Vec<Arc<dyn Service>>>,
 }
@@ -72,7 +71,6 @@ impl Registry
             chains: Mutex::new(FxHashMap::default()),
             services: StdMutex::new(Vec::new()),
             keep_alive: None,
-            cmd_key: StdMutex::new(None),
         }
     }
 
@@ -142,17 +140,7 @@ impl Registry
         trace!("opening chain ({}) on mesh client for {}", key, url);
         
         let hello_path = url.path().to_string();
-        let ret = client.__open_ext(&key, hello_path, loader_local, loader_remote).await?;
-
-        if let Some(duration) = &self.keep_alive {
-            let chain = Arc::clone(&ret);
-            let duration = duration.clone();
-            TaskEngine::spawn(async move {
-                while Arc::strong_count(&chain) > 1 {
-                    tokio::time::sleep(duration).await;
-                }
-            });
-        }
+        let ret = client.__open_ext(&key, hello_path, loader_local, loader_remote, self.keep_alive).await?;
 
         Ok(ret)
     }
@@ -264,17 +252,7 @@ impl Registry
     /// (note: this cache time must be less than the server cache time on commands)
     pub fn chain_key_cmd(&self) -> ChainKey
     {
-        let mut guard = self.cmd_key.lock();
-        let now = chrono::offset::Utc::now();
-        if let Some((last, hex)) = guard.deref() {
-            let cutoff = *last + chrono::Duration::seconds(30i64);
-            if now < cutoff {
-                return chain_key_16hex(hex.as_str(), Some("cmd"));
-            }
-        }
-        
         let hex = PrimaryKey::generate().as_fixed_hex_string();
-        *guard = Some((now, hex.clone()));
         chain_key_16hex(hex.as_str(), Some("cmd"))
     }
 }

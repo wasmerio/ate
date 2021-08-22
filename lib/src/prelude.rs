@@ -40,6 +40,9 @@ pub use crate::flow::all_persistent_and_centralized_with_root_key;
 #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
 pub use crate::flow::all_persistent_and_distributed_with_root_key;
 
+pub use crate::utils::chain_key_4hex;
+pub use crate::utils::chain_key_16hex;
+
 pub use crate::chain::Chain;
 pub use crate::trust::ChainKey;
 pub use crate::trust::ChainRef;
