@@ -10,6 +10,7 @@ use crate::utils::b16_deserialize;
 pub enum HashRoutine
 {
     Sha3,
+    Blake3
 }
 
 /// Represents a hash of a piece of data that is cryptographically secure enough
@@ -31,15 +32,38 @@ impl AteHash {
     fn from_bytes_by_routine(input: &[u8], routine: HashRoutine) -> AteHash {
         match routine {
             HashRoutine::Sha3 => AteHash::from_bytes_sha3(input, 1),
+            HashRoutine::Blake3 => AteHash::from_bytes_blake3(input),
         }
     }
     fn from_bytes_twice_by_routine(input1: &[u8], input2: &[u8], routine: HashRoutine) -> AteHash {
         match routine {
             HashRoutine::Sha3 => AteHash::from_bytes_twice_sha3(input1, input2),
+            HashRoutine::Blake3 => AteHash::from_bytes_twice_blake3(input1, input2),
+        }
+    }
+    pub fn from_bytes_blake3(input: &[u8]) -> AteHash {
+        let hash = blake3::hash(input);
+        let bytes: [u8; 32] = hash.into();
+        let mut bytes16: [u8; 16] = Default::default();
+        bytes16.copy_from_slice(&bytes[0..16]);
+        AteHash {
+            val: bytes16
+        }
+    }
+    fn from_bytes_twice_blake3(input1: &[u8], input2: &[u8]) -> AteHash {
+        let mut hasher = blake3::Hasher::new();
+        hasher.update(input1);
+        hasher.update(input2);
+        let hash = hasher.finalize();
+        let bytes: [u8; 32] = hash.into();
+        let mut bytes16: [u8; 16] = Default::default();
+        bytes16.copy_from_slice(&bytes[0..16]);
+        AteHash {
+            val: bytes16
         }
     }
     pub fn from_bytes_sha3(input: &[u8], repeat: i32) -> AteHash {
-        let mut hasher = sha3::Keccak384::new();
+        let mut hasher = sha3::Keccak384::default();
         for _ in 0..repeat {
             hasher.update(input);
         }
@@ -56,7 +80,7 @@ impl AteHash {
         }
     }
     fn from_bytes_twice_sha3(input1: &[u8], input2: &[u8]) -> AteHash {
-        let mut hasher = sha3::Keccak384::new();
+        let mut hasher = sha3::Keccak384::default();
         hasher.update(input1);
         hasher.update(input2);
         let result = hasher.finalize();

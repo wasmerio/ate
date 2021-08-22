@@ -92,6 +92,7 @@ for ConfAte
             dns_sec: false,
             dns_server: "8.8.8.8".to_string(),
             recovery_mode: RecoveryMode::ReadOnlyAsync,
+            #[cfg(feature = "enable_local_fs")]
             backup_path: None,
             backup_mode: BackupMode::Full,
             compact_mode: CompactMode::Never,

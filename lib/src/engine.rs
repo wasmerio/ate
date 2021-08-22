@@ -71,6 +71,7 @@ impl TaskEngine
         static LOCAL: RefCell<TaskEngine> = RefCell::new(
             TaskEngine {
                 tasks: Vec::new(),
+                driving: false,
             }
         );
     }

@@ -1,4 +1,4 @@
-#[allow(unused_imports)]
+#![allow(unused_imports)]
 use tracing::{error, info, warn, debug};
 use async_trait::async_trait;
 #[cfg(feature = "enable_local_fs")]

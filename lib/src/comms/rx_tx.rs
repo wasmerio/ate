@@ -310,6 +310,7 @@ impl TxDirection
     pub async fn wire_encryption(&self) -> Option<EncryptKey>
     {
         match self {
+            #[cfg(feature="enable_server")]
             TxDirection::Downcast(a) => a.wire_encryption().await,
             TxDirection::Nullcast => None,
             TxDirection::Upcast(a) => a.wire_encryption(),

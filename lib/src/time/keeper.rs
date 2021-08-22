@@ -50,17 +50,18 @@ impl TimeKeeper
     }
 
     pub async fn wait_for_high_accuracy(&self) {
+        #[cfg(feature = "enable_ntp")]
         if let Some(worker) = &self.ntp_worker {
             worker.wait_for_high_accuracy().await;
         }
     }
 
     pub fn has_converged(&self) -> bool {
+        #[cfg(feature = "enable_ntp")]
         if let Some(worker) = &self.ntp_worker {
-            worker.is_accurate()
-        } else {
-            true
+            return worker.is_accurate()
         }
+        true
     }
 
     pub fn current_timestamp_as_duration(&self) -> Result<Duration, TimeError> {

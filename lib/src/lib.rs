@@ -5,7 +5,7 @@
 /// - feature = "use_version1"
 /// - feature = "use_version2"
 
-pub const HASH_ROUTINE: crypto::HashRoutine = crypto::HashRoutine::Sha3;
+pub const HASH_ROUTINE: crypto::HashRoutine = crypto::HashRoutine::Blake3;
 
 pub const LOG_VERSION: spec::EventVersion = spec::EventVersion::V2;
 

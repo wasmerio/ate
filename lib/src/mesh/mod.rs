@@ -14,6 +14,7 @@ mod test;
 mod lock_request;
 mod recoverable_session_pipe;
 mod active_session_pipe;
+#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
 mod redirect;
 
 use async_trait::async_trait;

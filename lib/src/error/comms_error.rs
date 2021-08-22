@@ -129,7 +129,7 @@ impl From<WsErr>
 for CommsError
 {
     fn from(err: WsErr) -> CommsError {
-        CommsErrorKind::WebSocketError(er.to_string()).into()
+        CommsErrorKind::WebSocketError(err.to_string()).into()
     }   
 }
 

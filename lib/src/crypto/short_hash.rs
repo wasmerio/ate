@@ -26,12 +26,37 @@ impl ShortHash {
     fn from_bytes_by_routine(input: &[u8], routine: HashRoutine) -> ShortHash {
         match routine {
             HashRoutine::Sha3 => ShortHash::from_bytes_sha3(input, 1),
+            HashRoutine::Blake3 => ShortHash::from_bytes_blake3(input),
         }
     }
     
     fn from_bytes_twice_by_routine(input1: &[u8], input2: &[u8], routine: HashRoutine) -> ShortHash {
         match routine {
             HashRoutine::Sha3 => ShortHash::from_bytes_twice_sha3(input1, input2),
+            HashRoutine::Blake3 => ShortHash::from_bytes_twice_blake3(input1, input2),
+        }
+    }
+
+    pub fn from_bytes_blake3(input: &[u8]) -> ShortHash {
+        let hash = blake3::hash(input);
+        let bytes: [u8; 32] = hash.into();
+        let mut bytes4: [u8; 4] = Default::default();
+        bytes4.copy_from_slice(&bytes[0..4]);
+        ShortHash {
+            val: u32::from_be_bytes(bytes4)
+        }
+    }
+
+    fn from_bytes_twice_blake3(input1: &[u8], input2: &[u8]) -> ShortHash {
+        let mut hasher = blake3::Hasher::new();
+        hasher.update(input1);
+        hasher.update(input2);
+        let hash = hasher.finalize();
+        let bytes: [u8; 32] = hash.into();
+        let mut bytes4: [u8; 4] = Default::default();
+        bytes4.copy_from_slice(&bytes[0..4]);
+        ShortHash {
+            val: u32::from_be_bytes(bytes4)
         }
     }
 

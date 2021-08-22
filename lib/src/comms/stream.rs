@@ -278,7 +278,7 @@ impl StreamTx
 {
     #[must_use="all network communication metrics must be accounted for"]
     #[allow(unused_variables)]
-    pub async fn write_8bit(&mut self, buf: &[u8], delay_flush: bool) -> Result<u64, tokio::io::Error>
+    pub async fn write_8bit(&mut self, buf: &'_[u8], delay_flush: bool) -> Result<u64, tokio::io::Error>
     {
         let mut total_sent = 0u64;
         match self {
@@ -302,7 +302,7 @@ impl StreamTx
 
     #[must_use="all network communication metrics must be accounted for"]
     #[allow(unused_variables)]
-    pub async fn write_16bit(&mut self, buf: &[u8], delay_flush: bool) -> Result<u64, tokio::io::Error>
+    pub async fn write_16bit(&mut self, buf: &'_ [u8], delay_flush: bool) -> Result<u64, tokio::io::Error>
     {
         let mut total_sent = 0u64;
         match self {
@@ -326,7 +326,7 @@ impl StreamTx
 
     #[must_use="all network communication metrics must be accounted for"]
     #[allow(unused_variables)]
-    pub async fn write_32bit(&mut self, buf: &[u8], delay_flush: bool) -> Result<u64, tokio::io::Error>
+    pub async fn write_32bit(&mut self, buf: &'_[u8], delay_flush: bool) -> Result<u64, tokio::io::Error>
     {
         let mut total_sent = 0u64;
         match self {
@@ -363,6 +363,7 @@ impl StreamTx
             #[cfg(feature="enable_web")]
             #[cfg(feature="enable_ws")]
             StreamTx::WebSocket(a) => {
+                let buf = Vec::from(buf);
                 total_sent += buf.len() as u64;
                 if delay_flush {
                     match a.feed(bytes::Bytes::from(buf)).await {

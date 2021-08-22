@@ -1,4 +1,4 @@
-#[allow(unused_imports)]
+#![allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use std::net::SocketAddr;
 use std::net::ToSocketAddrs;
