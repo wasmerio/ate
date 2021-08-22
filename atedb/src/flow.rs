@@ -140,7 +140,7 @@ for ChainFlow
             };
 
             // Prepare the right chain            
-            let chain_url = ate_auth::chain_key_cmd();
+            let chain_url = self.registry.chain_key_cmd();
             let chain = Arc::clone(&self.registry).open(&auth, &chain_url).await?;
 
             // Grab the public write key from the authentication server for this group

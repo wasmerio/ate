@@ -10,6 +10,7 @@ use std::sync::Arc;
 use ate::prelude::*;
 use ate::error::LoadError;
 use ate::error::TransformError;
+use ate::utils::chain_key_4hex;
 
 use crate::conf_auth;
 use crate::prelude::*;
@@ -72,7 +73,7 @@ pub async fn gather_command(group: String, session: AteSession, auth: Url) -> Re
 {
     // Open a command chain
     let registry = ate::mesh::Registry::new(&conf_cmd()).await.cement();
-    let chain = registry.open(&auth, &chain_key_cmd()).await?;
+    let chain = registry.open(&auth, &registry.chain_key_cmd()).await?;
     
     // Create the gather command
     let gather = GatherRequest {

@@ -16,9 +16,6 @@ pub mod error;
 pub mod commands;
 pub mod prelude;
 
-pub use helper::chain_key_4hex;
-pub use helper::chain_key_16hex;
-pub use helper::chain_key_cmd;
 pub use helper::conf_auth;
 pub use helper::password_to_read_key;
 pub use helper::b64_to_session;

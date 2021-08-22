@@ -14,6 +14,7 @@ use ate::prelude::*;
 use ate::error::LoadError;
 use ate::error::TransformError;
 use ate::session::AteRolePurpose;
+use ate::utils::chain_key_4hex;
 
 use crate::conf_auth;
 use crate::prelude::*;
@@ -294,7 +295,7 @@ pub async fn create_group_command(group: String, auth: Url, username: String) ->
 {
     // Open a command chain
     let registry = ate::mesh::Registry::new( &conf_cmd()).await.cement();
-    let chain = Arc::clone(&registry).open(&auth, &chain_key_cmd()).await?;
+    let chain = Arc::clone(&registry).open(&auth, &registry.chain_key_cmd()).await?;
 
     // Make the create request and fire it over to the authentication server
     let create = CreateGroupRequest {

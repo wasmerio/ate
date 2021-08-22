@@ -11,6 +11,7 @@ use std::sync::Arc;
 
 use ate::prelude::*;
 use ate::error::LoadError;
+use ate::utils::chain_key_4hex;
 
 use crate::conf_auth;
 use crate::prelude::*;
@@ -51,7 +52,7 @@ impl AuthService
 pub async fn query_command(registry: Arc<ate::mesh::Registry>, username: String, auth: Url) -> Result<QueryResponse, QueryError>
 {
     // Open a command chain
-    let chain = registry.open(&auth, &chain_key_cmd()).await?;
+    let chain = registry.open(&auth, &registry.chain_key_cmd()).await?;
     
     // Create the query command
     let query = QueryRequest {

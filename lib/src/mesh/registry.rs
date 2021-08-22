@@ -2,6 +2,7 @@
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use error_chain::bail;
 use async_trait::async_trait;
+use std::ops::Deref;
 use std::{net::IpAddr, sync::Arc};
 use fxhash::FxHashMap;
 use tokio::sync::Mutex;
@@ -28,6 +29,7 @@ use crate::error::*;
 use crate::loader;
 use crate::service::Service;
 use crate::dns::*;
+use crate::utils::chain_key_16hex;
 
 pub struct Registry
 {
@@ -37,7 +39,9 @@ pub struct Registry
     pub temporal: bool,
     pub node_id: NodeId,
     pub fail_fast: bool,
+    pub keep_alive: Option<Duration>,
     
+    cmd_key: StdMutex<Option<(chrono::DateTime<chrono::Utc>, String)>>,
     chains: Mutex<FxHashMap<url::Url, Arc<MeshClient>>>,
     pub(crate) services: StdMutex<Vec<Arc<dyn Service>>>,
 }
@@ -67,7 +71,15 @@ impl Registry
             temporal: true,
             chains: Mutex::new(FxHashMap::default()),
             services: StdMutex::new(Vec::new()),
+            keep_alive: None,
+            cmd_key: StdMutex::new(None),
         }
+    }
+
+    pub fn keep_alive(mut self, duration: Duration) -> Self
+    {
+        self.keep_alive = Some(duration);
+        self
     }
 
     pub fn temporal(mut self, temporal: bool) -> Self
@@ -125,7 +137,18 @@ impl Registry
         trace!("opening chain ({}) on mesh client for {}", key, url);
         
         let hello_path = url.path().to_string();
-        Ok(client.__open_ext(&key, hello_path, loader_local, loader_remote).await?)
+        let ret = client.__open_ext(&key, hello_path, loader_local, loader_remote).await?;
+
+        if let Some(duration) = &self.keep_alive {
+            let ret = ret.clone();
+            let duration = duration.clone();
+            TaskEngine::spawn(async move {
+                tokio::time::sleep(duration).await;
+                drop(ret);
+            })
+        }
+
+        Ok(ret)
     }
 
     pub async fn cfg_for_url(&self, url: &Url) -> Result<ConfMesh, ChainCreationError>
@@ -229,5 +252,23 @@ impl Registry
         let roots = self.cfg_roots(domain_name, port).await?;
         let ret = ConfMesh::new(domain_name, roots.iter());
         Ok(ret)
+    }
+
+    /// Will generate a random command key - reused for 30 seconds to improve performance
+    /// (note: this cache time must be less than the server cache time on commands)
+    pub fn chain_key_cmd(&self) -> ChainKey
+    {
+        let mut guard = self.cmd_key.lock();
+        let now = chrono::offset::Utc::now();
+        if let Some((last, hex)) = guard.deref() {
+            let cutoff = *last + chrono::Duration::seconds(30i64);
+            if now < cutoff {
+                return chain_key_16hex(hex.as_str(), Some("cmd"));
+            }
+        }
+        
+        let hex = PrimaryKey::generate().as_fixed_hex_string();
+        *guard = Some((now, hex.clone()));
+        chain_key_16hex(hex.as_str(), Some("cmd"))
     }
 }
