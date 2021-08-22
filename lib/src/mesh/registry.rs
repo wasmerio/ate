@@ -140,12 +140,13 @@ impl Registry
         let ret = client.__open_ext(&key, hello_path, loader_local, loader_remote).await?;
 
         if let Some(duration) = &self.keep_alive {
-            let ret = ret.clone();
+            let chain = Arc::clone(&ret);
             let duration = duration.clone();
             TaskEngine::spawn(async move {
-                tokio::time::sleep(duration).await;
-                drop(ret);
-            })
+                while Arc::strong_count(&chain) > 1 {
+                    tokio::time::sleep(duration).await;
+                }
+            });
         }
 
         Ok(ret)

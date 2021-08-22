@@ -2,9 +2,6 @@
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use serde::*;
 use std::fs::File;
-use parking_lot::Mutex as StdMutex;
-use std::ops::Deref;
-use once_cell::sync::Lazy;
 
 use ::ate::prelude::*;
 use ::ate::crypto::EncryptKey;
