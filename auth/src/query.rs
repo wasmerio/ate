@@ -52,7 +52,7 @@ impl AuthService
 pub async fn query_command(registry: Arc<ate::mesh::Registry>, username: String, auth: Url) -> Result<QueryResponse, QueryError>
 {
     // Open a command chain
-    let chain = registry.open(&auth, &registry.chain_key_cmd()).await?;
+    let chain = registry.open_cmd(&auth).await?;
     
     // Create the query command
     let query = QueryRequest {

@@ -103,6 +103,11 @@ impl Registry
     {
         TaskEngine::run_until(self.__open(url, key)).await
     }
+    
+    pub async fn open_cmd(self: &Arc<Self>, url: &Url) -> Result<Arc<Chain>, ChainCreationError>
+    {
+        TaskEngine::run_until(self.__open(url, &self.chain_key_cmd())).await
+    }
 
     async fn __open(self: &Arc<Self>, url: &Url, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
     {

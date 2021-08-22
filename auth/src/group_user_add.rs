@@ -165,7 +165,7 @@ pub async fn group_user_add_command(group: String, purpose: AteRolePurpose, user
 {
     // Open a command chain
     let registry = ate::mesh::Registry::new(&conf_cmd()).await.cement();
-    let chain = Arc::clone(&registry).open(&auth, &registry.chain_key_cmd()).await?;
+    let chain = registry.open_cmd(&auth).await?;
     
     // First we query the user that needs to be added so that we can get their public encrypt key
     let query = crate::query_command(Arc::clone(&registry), username.clone(), auth).await?;

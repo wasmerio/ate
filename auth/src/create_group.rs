@@ -295,7 +295,7 @@ pub async fn create_group_command(group: String, auth: Url, username: String) ->
 {
     // Open a command chain
     let registry = ate::mesh::Registry::new( &conf_cmd()).await.cement();
-    let chain = Arc::clone(&registry).open(&auth, &registry.chain_key_cmd()).await?;
+    let chain = registry.open_cmd(&auth).await?;
 
     // Make the create request and fire it over to the authentication server
     let create = CreateGroupRequest {

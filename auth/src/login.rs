@@ -228,7 +228,7 @@ pub async fn login_command(username: String, password: String, authenticator_cod
 {
     // Open a command chain
     let registry = ate::mesh::Registry::new(&conf_cmd()).await.cement();
-    let chain = registry.open(&auth, &registry.chain_key_cmd()).await?;
+    let chain = registry.open_cmd(&auth).await?;
 
     // Generate a read-key using the password and some seed data
     // (this read-key will be mixed with entropy on the server side to decrypt the row
