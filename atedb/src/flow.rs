@@ -69,7 +69,7 @@ for ChainFlow
 
             // Grab the public write key from the authentication server for this user
             if let Some(auth) = &self.url_auth {
-                let advert = match ate_auth::query_command(Arc::clone(&self.registry), email.clone(), auth.clone()).await {
+                let advert = match ate_auth::query_command(&self.registry, email.clone(), auth.clone()).await {
                     Ok(a) => a.advert,
                     Err(err) => {
                         return Ok(OpenAction::Deny {

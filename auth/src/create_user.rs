@@ -250,10 +250,9 @@ impl AuthService
 }
 
 #[allow(dead_code)]
-pub async fn create_user_command(username: String, password: String, auth: Url, accepted_terms: Option<String>) -> Result<CreateUserResponse, CreateError>
+pub async fn create_user_command(registry: &Arc<Registry>, username: String, password: String, auth: Url, accepted_terms: Option<String>) -> Result<CreateUserResponse, CreateError>
 {
     // Open a command chain
-    let registry = ate::mesh::Registry::new(&conf_cmd()).await.cement();
     let chain = registry.open_cmd(&auth).await?;
 
     // Generate a read-key using the password and some seed data
@@ -318,7 +317,9 @@ pub async fn main_create_user(
     };
 
     // Create a user using the authentication server which will give us a session with all the tokens
+    let registry = ate::mesh::Registry::new( &conf_cmd()).await.cement();
     let result = match create_user_command(
+        &registry,
         username.clone(),
         password.clone(),
         auth.clone(),
@@ -351,7 +352,7 @@ pub async fn main_create_user(
             }
 
             // Try again but this time with an aggrement to the terms and conditions
-            create_user_command(username, password, auth, Some(terms)).await?
+            create_user_command(&registry, username, password, auth, Some(terms)).await?
         },
         Err(err) => {
             bail!(err);

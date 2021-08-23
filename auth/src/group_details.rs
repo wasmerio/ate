@@ -93,10 +93,9 @@ impl AuthService
     }
 }
 
-pub async fn group_details_command(group: String, auth: Url, session: Option<&AteSession>) -> Result<GroupDetailsResponse, GroupDetailsError>
+pub async fn group_details_command(registry: &Arc<Registry>, group: String, auth: Url, session: Option<&AteSession>) -> Result<GroupDetailsResponse, GroupDetailsError>
 {
     // Open a command chain
-    let registry = ate::mesh::Registry::new(&conf_cmd()).await.cement();
     let chain = registry.open_cmd(&auth).await?;
     
     // Make the create request and fire it over to the authentication server
@@ -129,7 +128,8 @@ pub async fn main_group_details(
     };
 
     // Looks up the details of a group and prints them to the console
-    let result = group_details_command(group, auth, session).await?;
+    let registry = ate::mesh::Registry::new( &conf_cmd()).await.cement();
+    let result = group_details_command(&registry, group, auth, session).await?;
 
     println!("# Group Details");
     println!("");

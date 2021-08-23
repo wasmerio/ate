@@ -106,8 +106,7 @@ for ServiceHook
         // We commit the transactions that holds the reply message under a concurrent
         // thread to prevent deadlocks
         TaskEngine::spawn(async move {
-            let ret = dio.commit()
-                .await;
+            let ret = dio.commit().await;
             if let Err(err) = ret {
                 debug!("notify-err - {}", err);
             }

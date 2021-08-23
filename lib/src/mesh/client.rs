@@ -39,14 +39,27 @@ pub struct MeshClientSession
 
 impl MeshClientSession
 {
+    pub(crate) async fn __try_open_ext<'a>(&'a self)
+        -> Result<Option<Arc<Chain>>, ChainCreationError>
+    {
+        let chain = self.chain.lock().await;
+        if let Some(chain) = chain.upgrade() {
+            trace!("reusing chain {}", self.key);
+            return Ok(Some(chain));
+        }
+        Ok(None)
+    }
+
     pub(crate) async fn __open_ext<'a>(&'a self, client: &MeshClient, hello_path: String, loader_local: impl Loader + 'static, loader_remote: impl Loader + 'static)
         -> Result<Arc<Chain>, ChainCreationError>
     {
         let mut chain = self.chain.lock().await;
         if let Some(chain) = chain.upgrade() {
+            trace!("reusing chain {}", self.key);
             return Ok(chain);
         }
 
+        trace!("creating chain {}", self.key);
         let ret = self.__open_ext_internal(client, hello_path, loader_local, loader_remote).await?;
         *chain = Arc::downgrade(&ret);
         Ok(ret)
@@ -111,6 +124,23 @@ impl MeshClient {
         TaskEngine::run_until(self.__open_ext(key, hello_path, loader_local, loader_remote)
             .instrument(span)
         ).await
+    }
+
+    pub(crate) async fn __try_open_ext<'a>(&'a self, key: &ChainKey)
+        -> Result<Option<Arc<Chain>>, ChainCreationError>
+    {
+        let session = {
+            let mut sessions = self.sessions.lock().await;
+            let record = match sessions.entry(key.clone()) {
+                Entry::Occupied(o) => o.into_mut(),
+                Entry::Vacant(_) => {
+                    return Ok(None);
+                }
+            };
+            Arc::clone(record)
+        };
+
+        session.__try_open_ext().await
     }
 
     pub(crate) async fn __open_ext<'a>(&'a self, key: &ChainKey, hello_path: String, loader_local: impl Loader + 'static, loader_remote: impl Loader + 'static)

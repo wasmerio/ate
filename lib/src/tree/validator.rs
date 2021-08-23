@@ -65,12 +65,16 @@ for TreeAuthorityPlugin
                             return Ok(ValidationResult::Allow)
                         }
                     }
+
+                    // Otherwise fail
+                    debug!("rejected event which is in a conversation but has no signatures ({})", self.integrity);
+                    bail!(ValidationErrorKind::NoSignatures);
+                } else {
+                    // Otherwise fail
+                    debug!("rejected event as it has no signatures ({})", self.integrity);
+                    bail!(ValidationErrorKind::NoSignatures);
                 }
-                
-                // Otherwise fail
-                debug!("rejected event as it has no signatures (distributed)");
-                bail!(ValidationErrorKind::NoSignatures);
-            },
+           },
         };
         
         // Compute the auth tree and if a signature exists for any of the auths then its allowed

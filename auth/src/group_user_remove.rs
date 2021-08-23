@@ -107,14 +107,13 @@ impl AuthService
     }
 }
 
-pub async fn group_user_remove_command(group: String, purpose: AteRolePurpose, username: String, auth: Url, session: &AteSession) -> Result<GroupUserRemoveResponse, GroupUserRemoveError>
+pub async fn group_user_remove_command(registry: &Arc<Registry>, group: String, purpose: AteRolePurpose, username: String, auth: Url, session: &AteSession) -> Result<GroupUserRemoveResponse, GroupUserRemoveError>
 {
     // Open a command chain
-    let registry = ate::mesh::Registry::new(&conf_cmd()).await.cement();
     let chain = registry.open_cmd(&auth).await?;
     
     // First we query the user that needs to be added so that we can get their public encrypt key
-    let query = crate::query_command(Arc::clone(&registry), username, auth).await?;
+    let query = crate::query_command(registry, username, auth).await?;
 
     // Determine what level of authentication we will associate the role with
     let who = match purpose {
@@ -181,7 +180,8 @@ pub async fn main_group_user_remove(
     };
 
     // Remove a user from a group using the authentication server
-    let result = group_user_remove_command(group, purpose, username, auth, session).await?;
+    let registry = ate::mesh::Registry::new( &conf_cmd()).await.cement();
+    let result = group_user_remove_command(&registry, group, purpose, username, auth, session).await?;
 
     println!("Group user removed (id={})", result.key);
 

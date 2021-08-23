@@ -107,7 +107,13 @@ impl Registry
     
     pub async fn open_cmd(self: &Arc<Self>, url: &Url) -> Result<ChainGuard, ChainCreationError>
     {
-        TaskEngine::run_until(self.__open(url, &self.chain_key_cmd(url))).await
+        TaskEngine::run_until(async {
+            if let Some(a) = self.__try_open(url, &self.chain_key_cmd(url, true)).await? {
+                Ok(a)
+            } else {
+                Ok(self.__open(url, &self.chain_key_cmd(url, false)).await?)
+            }
+        }).await
     }
 
     async fn __open(self: &Arc<Self>, url: &Url, key: &ChainKey) -> Result<ChainGuard, ChainCreationError>
@@ -120,6 +126,43 @@ impl Registry
     pub async fn open_ext(&self, url: &Url, key: &ChainKey, loader_local: impl loader::Loader + 'static, loader_remote: impl loader::Loader + 'static) -> Result<ChainGuard, ChainCreationError>
     {
         TaskEngine::run_until(self.__open_ext(url, key, loader_local, loader_remote)).await
+    }
+
+    async fn __try_open(self: &Arc<Self>, url: &Url, key: &ChainKey) -> Result<Option<ChainGuard>, ChainCreationError>
+    {
+        Ok(self.__try_open_ext(url, key).await?)
+    }
+
+    async fn __try_open_ext(&self, url: &Url, key: &ChainKey) -> Result<Option<ChainGuard>, ChainCreationError>
+    {
+        let client = {
+            let lock = self.chains.lock().await;
+            match lock.get(&url) {
+                Some(a) => {
+                    Arc::clone(a)
+                },
+                None => {
+                    trace!("no chain to reuse for chain ({})", key);
+                    return Ok(None)
+                }
+            }
+        };
+
+        trace!("trying reuse chain ({}) on mesh client for {}", key, url);
+        
+        let ret = client.__try_open_ext(&key).await?;        
+        let ret = match ret {
+            Some(a) => a,
+            None => {
+                trace!("reuse not possible for chain ({})", key);
+                return Ok(None);
+            }
+        };
+
+        Ok(Some(ChainGuard {
+            chain: ret,
+            keep_alive: self.keep_alive.clone(),
+        }))
     }
 
     async fn __open_ext(&self, url: &Url, key: &ChainKey, loader_local: impl loader::Loader + 'static, loader_remote: impl loader::Loader + 'static) -> Result<ChainGuard, ChainCreationError>
@@ -256,11 +299,13 @@ impl Registry
 
     /// Will generate a random command key - reused for 30 seconds to improve performance
     /// (note: this cache time must be less than the server cache time on commands)
-    pub fn chain_key_cmd(&self, url: &url::Url) -> ChainKey
+    fn chain_key_cmd(&self, url: &url::Url, reuse: bool) -> ChainKey
     {
         let mut guard = self.cmd_key.lock();
-        if let Some(hex) = guard.get(url) {
-            return chain_key_16hex(hex.as_str(), Some("cmd"));
+        if reuse {
+            if let Some(hex) = guard.get(url) {
+                return chain_key_16hex(hex.as_str(), Some("cmd"));
+            }
         }
         
         let hex = AteHash::generate().to_hex_string();

@@ -40,6 +40,7 @@ pub use login::main_session;
 pub use login::main_user_details;
 pub use query::main_query;
 pub use gather::main_gather;
+pub use gather::gather_command;
 pub use opts::main_opts_group;
 pub use opts::main_opts_token;
 pub use opts::main_opts_user;

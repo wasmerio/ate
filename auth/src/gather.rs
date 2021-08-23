@@ -69,10 +69,9 @@ impl AuthService
     }
 }
 
-pub async fn gather_command(group: String, session: AteSession, auth: Url) -> Result<AteSession, GatherError>
+pub async fn gather_command(registry: &Arc<Registry>, group: String, session: AteSession, auth: Url) -> Result<AteSession, GatherError>
 {
     // Open a command chain
-    let registry = ate::mesh::Registry::new(&conf_cmd()).await.cement();
     let chain = registry.open_cmd(&auth).await?;
     
     // Create the gather command
@@ -105,6 +104,7 @@ pub async fn main_gather(
     };
 
     // Gather using the authentication server which will give us a new session with the extra tokens
-    let session = gather_command(group, session, auth).await?;
+    let registry = ate::mesh::Registry::new( &conf_cmd()).await.cement();
+    let session = gather_command(&registry, group, session, auth).await?;
     Ok(session)
 }

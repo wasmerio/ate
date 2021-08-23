@@ -161,14 +161,13 @@ impl AuthService
     }
 }
 
-pub async fn group_user_add_command(group: String, purpose: AteRolePurpose, username: String, auth: Url, session: &AteSession) -> Result<GroupUserAddResponse, GroupUserAddError>
+pub async fn group_user_add_command(registry: &Arc<Registry>, group: String, purpose: AteRolePurpose, username: String, auth: Url, session: &AteSession) -> Result<GroupUserAddResponse, GroupUserAddError>
 {
     // Open a command chain
-    let registry = ate::mesh::Registry::new(&conf_cmd()).await.cement();
     let chain = registry.open_cmd(&auth).await?;
     
     // First we query the user that needs to be added so that we can get their public encrypt key
-    let query = crate::query_command(Arc::clone(&registry), username.clone(), auth).await?;
+    let query = crate::query_command(registry, username.clone(), auth).await?;
 
     // Determine what level of authentication we will associate the role with
     let who_key = match purpose {
@@ -236,7 +235,8 @@ pub async fn main_group_user_add(
     };
 
     // Add a user in a group using the authentication server
-    let result = group_user_add_command(group, purpose, username, auth, session).await?;
+    let registry = ate::mesh::Registry::new( &conf_cmd()).await.cement();
+    let result = group_user_add_command(&registry, group, purpose, username, auth, session).await?;
 
     println!("Group user added (id={})", result.key);
 

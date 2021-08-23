@@ -12,7 +12,7 @@ use ate::error::LoadError;
 use ate::error::TransformError;
 use ate::utils::chain_key_4hex;
 
-use crate::conf_auth;
+use crate::helper::conf_cmd;
 use crate::prelude::*;
 use crate::commands::*;
 use crate::service::AuthService;
@@ -224,10 +224,9 @@ impl AuthService
     }
 }
 
-pub async fn login_command(username: String, password: String, authenticator_code: Option<String>, verification_code: Option<String>, auth: Url, print_message_of_the_day: bool) -> Result<AteSession, LoginError>
+pub async fn login_command(registry: &Arc<Registry>, username: String, password: String, authenticator_code: Option<String>, verification_code: Option<String>, auth: Url, print_message_of_the_day: bool) -> Result<AteSession, LoginError>
 {
     // Open a command chain
-    let registry = ate::mesh::Registry::new(&conf_cmd()).await.cement();
     let chain = registry.open_cmd(&auth).await?;
 
     // Generate a read-key using the password and some seed data
@@ -259,7 +258,7 @@ pub async fn login_command(username: String, password: String, authenticator_cod
     Ok(result.authority)
 }
 
-pub async fn load_credentials(username: String, read_key: EncryptKey, _code: Option<String>, auth: Url) -> Result<AteSession, AteError>
+pub async fn load_credentials(registry: &Arc<Registry>, username: String, read_key: EncryptKey, _code: Option<String>, auth: Url) -> Result<AteSession, AteError>
 {
     // Prepare for the load operation
     let key = PrimaryKey::from(username.clone());
@@ -267,7 +266,6 @@ pub async fn load_credentials(username: String, read_key: EncryptKey, _code: Opt
     session.user.add_read_key(&read_key);
 
     // Generate a chain key that matches this username on the authentication server
-    let registry = ate::mesh::Registry::new(&conf_auth()).await.cement();
     let chain_key = chain_key_4hex(username.as_str(), Some("redo"));
     let chain = registry.open(&auth, &chain_key).await?;
 
@@ -370,8 +368,9 @@ pub async fn main_login(
     };
 
     // Login using the authentication server which will give us a session with all the tokens
-    let response = login_command(username.clone(), password.clone(), None, None, auth.clone(), true).await;
-    handle_login_response(response, username, password, None, auth).await
+    let registry = ate::mesh::Registry::new( &conf_cmd()).await.cement();
+    let response = login_command(&registry, username.clone(), password.clone(), None, None, auth.clone(), true).await;
+    handle_login_response(&registry, response, username, password, None, auth).await
 }
 
 pub async fn main_sudo(
@@ -404,15 +403,17 @@ pub async fn main_sudo(
         }
     };
 
-    // Perform a normal login to check everything is working ok
-    // (this will force a check on the verification status)
-    let response = login_command(username.clone(), password.clone(), None, None, auth.clone(), true).await;
-    let _ = handle_login_response(response, username.clone(), password.clone(), None, auth.clone()).await?;
+    let registry = ate::mesh::Registry::new( &conf_cmd()).await.cement();
 
     // Now we get the authenticator code and try again (but this time with sudo)
     let code = match code {
         Some(a) => a,
         None => {
+            // Perform a normal login to check everything is working ok
+            // (this will force a check on the verification status)
+            let response = login_command(&registry, username.clone(), password.clone(), None, None, auth.clone(), true).await;
+            let _ = handle_login_response(&registry, response, username.clone(), password.clone(), None, auth.clone()).await?;
+
             // When no code is supplied we will ask for it
             eprint!("Authenticator Code: ");
             stdout().lock().flush()?;
@@ -423,11 +424,12 @@ pub async fn main_sudo(
     };
 
     // Login using the authentication server which will give us a session with all the tokens
-    let response = login_command(username.clone(), password.clone(), Some(code.clone()), None, auth.clone(), true).await;
-    handle_login_response(response, username, password, Some(code), auth).await
+    let response = login_command(&registry, username.clone(), password.clone(), Some(code.clone()), None, auth.clone(), true).await;
+    handle_login_response(&registry, response, username, password, Some(code), auth).await
 }
 
-async fn handle_login_response(
+pub(crate) async fn handle_login_response(
+    registry: &Arc<Registry>,
     mut response: Result<AteSession, LoginError>,
     username: String,
     password: String,
@@ -449,7 +451,7 @@ async fn handle_login_response(
         let verification_code = s.trim().to_string();
 
         // Perform the login again but also supply the verification code
-        response = login_command(username, password, code, Some(verification_code), auth, true).await;
+        response = login_command(registry, username, password, code, Some(verification_code), auth, true).await;
     }
 
     match response {

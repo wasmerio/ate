@@ -49,7 +49,7 @@ impl AuthService
     }
 }
 
-pub async fn query_command(registry: Arc<ate::mesh::Registry>, username: String, auth: Url) -> Result<QueryResponse, QueryError>
+pub async fn query_command(registry: &Arc<Registry>, username: String, auth: Url) -> Result<QueryResponse, QueryError>
 {
     // Open a command chain
     let chain = registry.open_cmd(&auth).await?;
@@ -82,8 +82,7 @@ pub async fn main_query(
         }
     };
 
-
-    let registry = ate::mesh::Registry::new(&conf_cmd()).await.cement();
-    let result = query_command(registry, username, auth).await?;
+    let registry = ate::mesh::Registry::new( &conf_cmd()).await.cement();
+    let result = query_command(&registry, username, auth).await?;
     Ok(result.advert)
 }

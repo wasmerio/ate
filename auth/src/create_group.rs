@@ -291,10 +291,9 @@ impl AuthService
     }
 }
 
-pub async fn create_group_command(group: String, auth: Url, username: String) -> Result<CreateGroupResponse, CreateError>
+pub async fn create_group_command(registry: &Arc<Registry>, group: String, auth: Url, username: String) -> Result<CreateGroupResponse, CreateError>
 {
     // Open a command chain
-    let registry = ate::mesh::Registry::new( &conf_cmd()).await.cement();
     let chain = registry.open_cmd(&auth).await?;
 
     // Make the create request and fire it over to the authentication server
@@ -350,7 +349,8 @@ pub async fn main_create_group(
     let (group, username) = main_create_group_prelude(group, username, group_hint).await?;
 
     // Create a user using the authentication server which will give us a session with all the tokens
-    let result = match create_group_command(group, auth, username).await {
+    let registry = ate::mesh::Registry::new( &conf_cmd()).await.cement();
+    let result = match create_group_command(&registry, group, auth, username).await {
         Ok(a) => a,
         Err(CreateError(CreateErrorKind::OperatorBanned, _)) => {
             eprintln!("Failed as the callers account is currently banned");

@@ -114,14 +114,22 @@ impl Chain
                     Some(a) => a,
                     None => { bail!(InvokeErrorKind::Aborted); }
                 };
-                Ok(Ok(dio.load_and_take::<RES>(&key).await?))
+                let ret = dio.load_and_take::<RES>(&key).await?;
+                if dio.delete(&key).await.is_ok() {
+                    let _ = dio.commit().await;
+                }
+                Ok(Ok(ret))
             },
             key = join_err => {
                 let key = match key {
                     Some(a) => a,
                     None => { bail!(InvokeErrorKind::Aborted); }
                 };
-                Ok(Err(dio.load_and_take::<ERR>(&key).await?))
+                let ret = dio.load_and_take::<ERR>(&key).await?;
+                if dio.delete(&key).await.is_ok() {
+                    let _ = dio.commit().await;
+                }
+                Ok(Err(ret))
             },
             _ = timeout.tick() => {
                 Err(InvokeErrorKind::Timeout.into())
