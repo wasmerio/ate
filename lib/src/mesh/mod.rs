@@ -56,6 +56,7 @@ pub(crate) use session::MeshSession;
 #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
 pub use crate::mesh::server::MeshRoot;
 pub use crate::mesh::registry::Registry;
+pub use crate::mesh::registry::ChainGuard;
 pub use crate::loader::Loader;
 pub use self::core::RecoveryMode;
 pub use self::core::BackupMode;

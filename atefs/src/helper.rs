@@ -111,7 +111,8 @@ pub async fn main_mount(mount: OptsMount, conf: ConfAte, group: Option<String>, 
             registry = ate::mesh::Registry::new(&conf).await
                 .temporal(mount.temp);
             
-            registry.open_ext(&mount.remote, &ChainKey::from(remote), progress_local, progress_remote).await
+            let guard = registry.open_ext(&mount.remote, &ChainKey::from(remote), progress_local, progress_remote).await?;
+            Ok(guard.as_arc())
         },
     };
 

@@ -117,7 +117,7 @@ impl<'a> Chain
         self.inside_async.read().await.chain.redo.count()
     }
 
-    async fn run_async<F>(&self, future: F) -> F::Output
+    async fn run_async<F>(&'a self, future: F) -> F::Output
     where F: std::future::Future,
     {
         let key_str = self.key().to_string();

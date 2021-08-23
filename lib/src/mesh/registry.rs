@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use error_chain::bail;
 use async_trait::async_trait;
 use std::ops::Deref;
@@ -97,29 +98,29 @@ impl Registry
         Arc::new(self)
     }
     
-    pub async fn open(self: &Arc<Self>, url: &Url, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
+    pub async fn open(self: &Arc<Self>, url: &Url, key: &ChainKey) -> Result<ChainGuard, ChainCreationError>
     {
         TaskEngine::run_until(self.__open(url, key)).await
     }
     
-    pub async fn open_cmd(self: &Arc<Self>, url: &Url) -> Result<Arc<Chain>, ChainCreationError>
+    pub async fn open_cmd(self: &Arc<Self>, url: &Url) -> Result<ChainGuard, ChainCreationError>
     {
         TaskEngine::run_until(self.__open(url, &self.chain_key_cmd())).await
     }
 
-    async fn __open(self: &Arc<Self>, url: &Url, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
+    async fn __open(self: &Arc<Self>, url: &Url, key: &ChainKey) -> Result<ChainGuard, ChainCreationError>
     {
         let loader_local = loader::DummyLoader::default();
         let loader_remote = loader::DummyLoader::default();
         Ok(self.__open_ext(url, key, loader_local, loader_remote).await?)
     }
 
-    pub async fn open_ext(&self, url: &Url, key: &ChainKey, loader_local: impl loader::Loader + 'static, loader_remote: impl loader::Loader + 'static) -> Result<Arc<Chain>, ChainCreationError>
+    pub async fn open_ext(&self, url: &Url, key: &ChainKey, loader_local: impl loader::Loader + 'static, loader_remote: impl loader::Loader + 'static) -> Result<ChainGuard, ChainCreationError>
     {
         TaskEngine::run_until(self.__open_ext(url, key, loader_local, loader_remote)).await
     }
 
-    async fn __open_ext(&self, url: &Url, key: &ChainKey, loader_local: impl loader::Loader + 'static, loader_remote: impl loader::Loader + 'static) -> Result<Arc<Chain>, ChainCreationError>
+    async fn __open_ext(&self, url: &Url, key: &ChainKey, loader_local: impl loader::Loader + 'static, loader_remote: impl loader::Loader + 'static) -> Result<ChainGuard, ChainCreationError>
     {
         let client = {
             let mut lock = self.chains.lock().await;
@@ -140,9 +141,12 @@ impl Registry
         trace!("opening chain ({}) on mesh client for {}", key, url);
         
         let hello_path = url.path().to_string();
-        let ret = client.__open_ext(&key, hello_path, loader_local, loader_remote, self.keep_alive).await?;
+        let ret = client.__open_ext(&key, hello_path, loader_local, loader_remote).await?;
 
-        Ok(ret)
+        Ok(ChainGuard {
+            chain: ret,
+            keep_alive: self.keep_alive.clone(),
+        })
     }
 
     pub async fn cfg_for_url(&self, url: &Url) -> Result<ConfMesh, ChainCreationError>
@@ -254,5 +258,92 @@ impl Registry
     {
         let hex = PrimaryKey::generate().as_fixed_hex_string();
         chain_key_16hex(hex.as_str(), Some("cmd"))
+    }
+}
+
+pub struct ChainGuard
+{
+    keep_alive: Option<Duration>,
+    chain: Arc<Chain>
+}
+
+impl ChainGuard
+{
+    pub fn as_ref(&self) -> &Chain {
+        self.chain.deref()
+    }
+
+    pub fn as_arc(&self) -> Arc<Chain> {
+        Arc::clone(&self.chain)
+    }
+
+    pub async fn dio(&self, session: &'_ AteSession) -> Arc<Dio> {
+        self.chain.dio(session).await
+    }
+
+    /// Opens a data access layer that allows mutable changes to data.
+    /// Transaction consistency on commit will be guarranted for local redo log files
+    pub async fn dio_mut(&self, session: &'_ AteSession) -> Arc<DioMut> {
+        self.chain.dio_mut(session).await
+    }
+
+    /// Opens a data access layer that allows mutable changes to data (in a fire-and-forget mode).
+    /// No transaction consistency on commits will be enforced
+    pub async fn dio_fire(&self, session: &'_ AteSession) -> Arc<DioMut> {
+        self.chain.dio_fire(session).await
+    }
+
+    /// Opens a data access layer that allows mutable changes to data.
+    /// Transaction consistency on commit will be guarranted for all remote replicas
+    pub async fn dio_full(&self, session: &'_ AteSession) -> Arc<DioMut> {
+        self.chain.dio_full(session).await
+    }
+
+    /// Opens a data access layer that allows mutable changes to data.
+    /// Transaction consistency on commit must be specified
+    pub async fn dio_trans(&self, session: &'_ AteSession, scope: TransactionScope) -> Arc<DioMut> {
+        self.chain.dio_trans(session, scope).await
+    }
+
+    pub async fn invoke<REQ, RES, ERR>(&self, request: REQ) -> Result<Result<RES, ERR>, InvokeError>
+    where REQ: Clone + Serialize + DeserializeOwned + Sync + Send + ?Sized,
+          RES: Serialize + DeserializeOwned + Sync + Send + ?Sized,
+          ERR: Serialize + DeserializeOwned + Sync + Send + ?Sized,
+    {
+        self.as_arc().invoke(request).await
+    }
+
+    pub async fn invoke_ext<REQ, RES, ERR>(&self, session: Option<&AteSession>, request: REQ, timeout: Duration) -> Result<Result<RES, ERR>, InvokeError>
+    where REQ: Clone + Serialize + DeserializeOwned + Sync + Send + ?Sized,
+          RES: Serialize + DeserializeOwned + Sync + Send + ?Sized,
+          ERR: Serialize + DeserializeOwned + Sync + Send + ?Sized,
+    {
+        self.as_arc().invoke_ext(session, request, timeout).await
+    }
+}
+
+impl Deref
+for ChainGuard
+{
+    type Target = Chain;
+
+    fn deref(&self) -> &Self::Target {
+        self.chain.deref()
+    }
+}
+
+impl Drop
+for ChainGuard
+{
+    fn drop(&mut self) {
+        if let Some(duration) = &self.keep_alive {
+            let chain = Arc::clone(&self.chain);
+            let duration = duration.clone();
+            TaskEngine::spawn(async move {
+                trace!("keep-alive: warm down for {}", chain.key());
+                tokio::time::sleep(duration).await;
+                drop(chain);
+            });
+        }
     }
 }

@@ -121,6 +121,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
                 // We wait outside the throttle lock otherwise we will break things
                 if let Some(wait_time) = wait_time {
                     if let Ok(wait_time) = wait_time.to_std() {
+                        trace!("trottle wait: {}ms", wait_time.as_millis());
                         tokio::time::sleep(wait_time).await;
                     }
                 }

@@ -3,6 +3,7 @@ use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use async_trait::async_trait;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use std::time::Duration;
 
 use ::ate::prelude::*;
 use ::ate::error::*;
@@ -31,7 +32,9 @@ impl AuthService
                 auth_url,
                 master_session: auth_session,
                 time_keeper:  TimeKeeper::new(cfg, 30000).await?,
-                registry: Registry::new(cfg).await.cement(),
+                registry: Registry::new(cfg).await
+                    .keep_alive(Duration::from_secs(60))
+                    .cement(),
                 terms_and_conditions,
             }
         );

@@ -46,6 +46,7 @@ pub use crate::utils::chain_key_16hex;
 pub use crate::chain::Chain;
 pub use crate::trust::ChainKey;
 pub use crate::trust::ChainRef;
+pub use crate::mesh::ChainGuard;
 pub use crate::conf::ChainBuilder;
 
 pub use crate::dio::DaoForeign;
