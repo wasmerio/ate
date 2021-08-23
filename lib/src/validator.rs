@@ -22,7 +22,7 @@ pub trait EventValidator: Send + Sync
         Ok(ValidationResult::Abstain)
     }
 
-    fn set_integrity_mode(&mut self, _mode: IntegrityMode) {
+    fn set_integrity_mode(&mut self, _mode: IntegrityMode, _is_server: bool) {
     }
 
     fn clone_validator(&self) -> Box<dyn EventValidator>;

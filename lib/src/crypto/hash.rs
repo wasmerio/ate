@@ -5,6 +5,7 @@ use sha3::Digest;
 use std::convert::TryInto;
 use crate::utils::b16_serialize;
 use crate::utils::b16_deserialize;
+use crate::crypto::RandomGeneratorAccessor;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum HashRoutine
@@ -23,6 +24,9 @@ pub struct AteHash {
 }
 
 impl AteHash {
+    pub fn generate() -> AteHash {
+        RandomGeneratorAccessor::generate_hash()
+    }
     pub fn from_bytes(input: &[u8]) -> AteHash {
         Self::from_bytes_by_routine(input, crate::HASH_ROUTINE)
     }

@@ -1,4 +1,5 @@
 use crate::trust::IntegrityMode;
+use crate::crypto::AteHash;
 
 #[derive(Debug, Clone, Copy)]
 pub struct OpenFlags
@@ -22,7 +23,7 @@ impl OpenFlags
         OpenFlags {
             truncate: true,
             temporal: false,
-            integrity: IntegrityMode::Centralized,
+            integrity: IntegrityMode::Centralized(AteHash::generate()),
         }
     }
 
@@ -37,7 +38,7 @@ impl OpenFlags
         OpenFlags {
             truncate: false,
             temporal: false,
-            integrity: IntegrityMode::Centralized,
+            integrity: IntegrityMode::Centralized(AteHash::generate()),
         }
     }
 
@@ -45,7 +46,7 @@ impl OpenFlags
         OpenFlags {
             truncate: false,
             temporal: true,
-            integrity: IntegrityMode::Centralized,
+            integrity: IntegrityMode::Centralized(AteHash::generate()),
         }
     }
 }

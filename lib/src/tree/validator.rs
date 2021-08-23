@@ -50,7 +50,7 @@ for TreeAuthorityPlugin
                 {
                     // If integrity is centrally managed and we have seen this public key before in this
                     // particular conversation then we can trust the rest of the integrity of the chain
-                    if self.integrity == IntegrityMode::Centralized || conversation.force_centralized_mode {
+                    if self.integrity.is_centralized() || conversation.force_centralized_mode {
                         if conversation.other_end_is_server {
                             return Ok(ValidationResult::Allow)
                         }
@@ -96,9 +96,9 @@ for TreeAuthorityPlugin
         Err(ValidationErrorKind::Detached.into())
     }
 
-    fn set_integrity_mode(&mut self, mode: IntegrityMode) {
+    fn set_integrity_mode(&mut self, mode: IntegrityMode, is_server: bool) {
         self.integrity = mode;
-        self.signature_plugin.set_integrity_mode(mode);
+        self.signature_plugin.set_integrity_mode(mode, is_server);
     }
 
     fn validator_name(&self) -> &str {

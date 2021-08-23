@@ -45,6 +45,7 @@ pub struct ChainBuilder
     pub(crate) truncate: bool,
     pub(crate) temporal: bool,
     pub(crate) integrity: IntegrityMode,
+    pub(crate) is_server: bool,
     pub(crate) session: AteSession,
     pub(crate) metrics: Arc<StdMutex<Metrics>>,
     pub(crate) throttle: Arc<StdMutex<Throttle>>,
@@ -70,6 +71,7 @@ for ChainBuilder
             truncate: self.truncate,
             temporal: self.temporal,
             integrity: self.integrity,
+            is_server: self.is_server,
             metrics: Arc::clone(&self.metrics),
             throttle: Arc::clone(&self.throttle),
         }
@@ -96,6 +98,7 @@ impl ChainBuilder
             truncate: false,
             temporal: false,
             integrity: IntegrityMode::Distributed,
+            is_server: false,
             metrics: Arc::new(StdMutex::new(Metrics::default())),
             throttle: Arc::new(StdMutex::new(Throttle::default())),
         }
@@ -295,6 +298,12 @@ impl ChainBuilder
     #[allow(dead_code)]
     pub fn integrity(mut self, mode: IntegrityMode) -> Self {
         self.integrity = mode;
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn set_is_server(mut self, is_server: bool) -> Self {
+        self.is_server = is_server;
         self
     }
 

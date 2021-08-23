@@ -80,6 +80,7 @@ pub struct SignaturePlugin
     pk: FxHashMap<AteHash, PublicSignKey>,
     sigs: MultiMap<AteHash, AteHash>,
     integrity: IntegrityMode,
+    is_server: bool,
 }
 
 impl SignaturePlugin
@@ -90,6 +91,7 @@ impl SignaturePlugin
             pk: FxHashMap::default(),
             sigs: MultiMap::default(),
             integrity: IntegrityMode::Distributed,
+            is_server: false,
         }
     }
 
@@ -128,19 +130,21 @@ for SignaturePlugin
         for m in header.meta.core.iter() {
             match m {
                 CoreMetadata::Signature(sig) => {
-                    let pk = match self.pk.get(&sig.public_key_hash) {
-                        Some(pk) => pk,
-                        None => bail!(SinkErrorKind::MissingPublicKey(sig.public_key_hash))
-                    };
+                    if self.integrity == IntegrityMode::Distributed || self.is_server {
+                        let pk = match self.pk.get(&sig.public_key_hash) {
+                            Some(pk) => pk,
+                            None => bail!(SinkErrorKind::MissingPublicKey(sig.public_key_hash))
+                        };
 
-                    let hashes_bytes: Vec<u8> = sig.hashes.iter().flat_map(|h| { Vec::from(h.val).into_iter() }).collect();
-                    let hash_of_hashes = AteHash::from_bytes(&hashes_bytes[..]);
-                    let result = match pk.verify(&hash_of_hashes.val[..], &sig.signature[..]) {
-                        Ok(r) => r,
-                        Err(err) => bail!(SinkErrorKind::InvalidSignature(sig.public_key_hash, Some(err))),
-                    };
-                    if result == false {
-                        bail!(SinkErrorKind::InvalidSignature(sig.public_key_hash, None));
+                        let hashes_bytes: Vec<u8> = sig.hashes.iter().flat_map(|h| { Vec::from(h.val).into_iter() }).collect();
+                        let hash_of_hashes = AteHash::from_bytes(&hashes_bytes[..]);
+                        let result = match pk.verify(&hash_of_hashes.val[..], &sig.signature[..]) {
+                            Ok(r) => r,
+                            Err(err) => bail!(SinkErrorKind::InvalidSignature(sig.public_key_hash, Some(err))),
+                        };
+                        if result == false {
+                            bail!(SinkErrorKind::InvalidSignature(sig.public_key_hash, None));
+                        }
                     }
 
                     // Add all the validated hashes
@@ -151,10 +155,12 @@ for SignaturePlugin
                     // If we in a conversation and integrity is centrally managed then update the
                     // conversation so that we record that a signature was validated for a hash
                     // which is clear proof of ownershp
-                    if self.integrity == IntegrityMode::Centralized {
+                    if let IntegrityMode::Centralized(session) = &self.integrity {
                         if let Some(conversation) = &conversation {
-                            let mut lock = conversation.signatures.write();
-                            lock.insert(sig.public_key_hash);
+                            if sig.hashes.contains(session) {
+                                let mut lock = conversation.signatures.write();
+                                lock.insert(sig.public_key_hash);
+                            }
                         }
                     }
                 }
@@ -178,8 +184,9 @@ for SignaturePlugin
         Box::new(self.clone())
     }
 
-    fn set_integrity_mode(&mut self, mode: IntegrityMode) {
+    fn set_integrity_mode(&mut self, mode: IntegrityMode, is_server: bool) {
         self.integrity = mode;
+        self.is_server = is_server;
     }
 
     fn validator_name(&self) -> &str {
@@ -213,7 +220,7 @@ for SignaturePlugin
 
         // Check the fast path... if we are under centralized integrity and the destination
         // has already got proof that we own the authentication key then we are done
-        if self.integrity == IntegrityMode::Centralized {
+        if self.integrity.is_centralized() {
             if let Some(conversation) = &conversation {
                 let lock = conversation.signatures.read();
                 auths.retain(|h| lock.contains(h) == false);
@@ -234,6 +241,9 @@ for SignaturePlugin
 
             // Compute a hash of the hashesevt
             let mut data_hashes = Vec::new();
+            if let IntegrityMode::Centralized(session) = &self.integrity {
+                data_hashes.push(session.clone());
+            }
             for e in raw.iter() {
                 if let Some(a) = e.data.meta.get_sign_with() {
                     if a.keys.contains(&auth) == true {
@@ -265,7 +275,7 @@ for SignaturePlugin
 
             // Save signatures we have sent over this specific conversation so that future
             // transmissions do not need to prove it again (this makes the fast path quicker)
-            if self.integrity == IntegrityMode::Centralized {
+            if self.integrity.is_centralized() {
                 if let Some(conversation) = &conversation {
                     let mut lock = conversation.signatures.write();
                     lock.insert((*auth).clone());

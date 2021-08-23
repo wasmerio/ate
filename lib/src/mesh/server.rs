@@ -414,11 +414,12 @@ async fn open_internal<'b>(
                 chain
             },
             OpenAction::DistributedChain { chain } => {
-                chain.single().await.set_integrity(IntegrityMode::Distributed);
+                chain.single().await.set_integrity(IntegrityMode::Distributed, true);
                 chain
             },
             OpenAction::CentralizedChain { chain } => {
-                chain.single().await.set_integrity(IntegrityMode::Centralized);
+                let session_hash = AteHash::generate();
+                chain.single().await.set_integrity(IntegrityMode::Centralized(session_hash), true);
                 chain
             },
             OpenAction::Deny{ reason } => {

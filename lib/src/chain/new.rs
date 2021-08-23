@@ -151,7 +151,7 @@ impl<'a> Chain
         }
 
         // Set the integrity mode on all the validators
-        inside_sync.set_integrity_mode(builder.integrity);
+        inside_sync.set_integrity_mode(builder.integrity, builder.is_server);
 
         // Wrap the sync object
         let inside_sync

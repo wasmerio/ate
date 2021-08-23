@@ -119,16 +119,16 @@ impl ChainProtectedSync
         Ok(ValidationResult::Allow)
     }
 
-    pub fn set_integrity_mode(&mut self, mode: IntegrityMode)
+    pub fn set_integrity_mode(&mut self, mode: IntegrityMode, is_server: bool)
     {
         debug!("switching to {}", mode);
 
         self.integrity = mode;
         for val in self.validators.iter_mut() {
-            val.set_integrity_mode(mode);
+            val.set_integrity_mode(mode, is_server);
         }
         for val in self.plugins.iter_mut() {
-            val.set_integrity_mode(mode);
+            val.set_integrity_mode(mode, is_server);
         }
     }
 }

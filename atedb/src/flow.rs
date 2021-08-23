@@ -84,7 +84,7 @@ for ChainFlow
             builder = builder.integrity(match self.mode {
                 TrustMode::Centralized => {
                     debug!("centralized integrity for {}", key.to_string());
-                    IntegrityMode::Centralized
+                    IntegrityMode::Centralized(AteHash::generate())
                 },
                 TrustMode::Distributed => {
                     debug!("distributed integrity for {}", key.to_string());
@@ -180,7 +180,7 @@ for ChainFlow
             builder = builder.integrity(match self.mode {
                 TrustMode::Centralized => {
                     debug!("centralized integrity for {}", key.to_string());
-                    IntegrityMode::Centralized
+                    IntegrityMode::Centralized(AteHash::generate())
                 },
                 TrustMode::Distributed => {
                     debug!("distributed integrity for {}", key.to_string());

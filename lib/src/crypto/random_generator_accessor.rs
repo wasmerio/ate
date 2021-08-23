@@ -66,4 +66,15 @@ impl RandomGeneratorAccessor {
             }
         })
     }
+
+    pub fn generate_hash() -> AteHash {
+        THREAD_LOCAL_SECURE_AND_FAST_RANDOM.with(|s| {
+            let rng = &mut s.borrow_mut().rng;
+            let mut val = [0; 16];
+            rng.fill_bytes(&mut val);
+            AteHash {
+                val,
+            }
+        })
+    }
 }

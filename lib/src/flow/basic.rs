@@ -14,6 +14,7 @@ use crate::trust::IntegrityMode;
 use crate::chain::Chain;
 use crate::crypto::EncryptKey;
 use crate::crypto::KeySize;
+use crate::crypto::AteHash;
 
 pub struct OpenStaticBuilder
 {
@@ -78,12 +79,12 @@ for OpenStaticBuilder
         builder = builder.integrity(match &self.centralized_integrity {
             true => {
                 debug!("chain-builder: centralized integrity");
-                IntegrityMode::Centralized
+                IntegrityMode::Centralized(AteHash::generate())
             },
             false => {
                 debug!("chain-builder: distributed integrity");
                 IntegrityMode::Distributed
-            }
+            },
         });
         
         Ok(match &self.centralized_integrity {

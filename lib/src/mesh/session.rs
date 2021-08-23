@@ -83,7 +83,7 @@ impl MeshSession
         // While we load the data on disk we run in centralized mode
         // as otherwise there could be errors loading the redo log
         let mut builder = builder.clone();
-        builder = builder.integrity(IntegrityMode::Centralized);
+        builder = builder.integrity(IntegrityMode::Centralized(AteHash::generate()));
 
         // Open the chain and make a sample of the last items so that we can
         // speed up the synchronization by skipping already loaded items
@@ -106,7 +106,7 @@ impl MeshSession
         // While we are running offline we run in full distributed mode until
         // we are reconnect as otherwise if the server is in distributed mode
         // it will immediately reject everything
-        chain.single().await.set_integrity(IntegrityMode::Distributed);
+        chain.single().await.set_integrity(IntegrityMode::Distributed, false);
 
         // Create a session pipe
         let chain_store = Arc::new(StdMutex::new(None));
@@ -302,7 +302,7 @@ impl MeshSession
             {
                 // Setup the chain based on the properties given to us
                 let mut lock = chain.inside_sync.write();
-                lock.set_integrity_mode(integrity);
+                lock.set_integrity_mode(integrity, false);
                 for plugin in lock.plugins.iter_mut() {
                     plugin.set_root_keys(&root_keys);
                 }

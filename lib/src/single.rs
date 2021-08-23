@@ -46,8 +46,8 @@ impl<'a> ChainSingleUser<'a>
         self.inside_async.disable_new_roots = true;
     }
     
-    pub fn set_integrity(&self, mode: IntegrityMode) {
+    pub fn set_integrity(&self, mode: IntegrityMode, is_server: bool) {
         let mut lock = self.inside_sync.write();
-        lock.set_integrity_mode(mode);
+        lock.set_integrity_mode(mode, is_server);
     }
 }
