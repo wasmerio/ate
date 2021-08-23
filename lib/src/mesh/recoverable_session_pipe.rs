@@ -349,6 +349,7 @@ for RecoverableSessionPipe
                         Arc::clone(&chain), 
                         delayed_upload.from..delayed_upload.to, 
                         pipe_tx,
+                        false,
                     ).await?;
 
                     // We complete a dummy transaction to confirm that all the data has been

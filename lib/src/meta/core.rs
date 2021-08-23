@@ -176,6 +176,15 @@ impl Metadata
         false
     }
 
+    pub fn strip_signatures(&mut self) {
+        self.core.retain(|a| {
+            match a {
+                CoreMetadata::Signature(_) => false,
+                _ => true
+            }
+        });
+    }
+
     pub fn get_sign_with(&self) -> Option<&MetaSignWith>
     {
         for core in &self.core {

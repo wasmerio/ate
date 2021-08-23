@@ -152,6 +152,7 @@ for BackupMode
 pub struct OpenedChain
 {
     pub chain: Arc<Chain>,
+    pub integrity: IntegrityMode,
     pub message_of_the_day: Option<String>,
 }
 
@@ -245,6 +246,7 @@ async fn stream_events<R>(
     chain: &Arc<Chain>,
     range: R,
     tx: &mut Tx,
+    strip_signatures: bool,
 )
 -> Result<(), CommsError>
 where R: RangeBounds<ChainTimestamp>
@@ -311,8 +313,13 @@ where R: RangeBounds<ChainTimestamp>
 
         let mut evts = Vec::new();
         for evt in multi.load_many(leafs).await? {
+            let mut meta = evt.data.meta.clone();
+            if strip_signatures {
+                meta.strip_signatures();
+            }
+            
             let evt = MessageEvent {
-                meta: evt.data.meta.clone(),
+                meta,
                 data: match evt.data.data_bytes {
                     Some(a) => Some(a.to_vec()),
                     None => None,
@@ -370,6 +377,7 @@ pub(super) async fn stream_history_range<R>(
     chain: Arc<Chain>,
     range: R,
     tx: &mut Tx,
+    strip_signatures: bool,
 )
 -> Result<(), CommsError>
 where R: RangeBounds<ChainTimestamp>,
@@ -414,7 +422,7 @@ where R: RangeBounds<ChainTimestamp>,
     {
         // Sync the events
         trace!("streaming requested events");
-        stream_events(&chain, range, tx).await?;
+        stream_events(&chain, range, tx, strip_signatures).await?;
     }
 
     // Let caller know we have sent all the events that were requested

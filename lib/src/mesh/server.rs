@@ -57,6 +57,7 @@ pub struct MeshRoute
 pub struct MeshChain
 {
     chain: Arc<Chain>,
+    integrity: IntegrityMode,
     tx_group: Arc<Mutex<TxGroup>>,
 }
 
@@ -362,6 +363,7 @@ async fn open_internal<'b>(
             tx.replace_group(Arc::clone(&chain.tx_group)).await;
             let route = route.lock().await;
             return Ok(OpenedChain {
+                integrity: chain.integrity,
                 message_of_the_day: route.flow.message_of_the_day(&chain.chain).await?,
                 chain: Arc::clone(&chain.chain)
             });
@@ -402,6 +404,7 @@ async fn open_internal<'b>(
     builder = builder.add_pipe(pipe);
 
     // Create the chain using the chain flow builder
+    let integrity;
     let wire_encryption = tx.wire_encryption().await.map(|a| a.size());
     let new_chain = {
         let route = route.lock().await;
@@ -411,15 +414,15 @@ async fn open_internal<'b>(
                 let msg = Message::SecuredWith(session);
                 let pck = Packet::from(msg).to_packet_data(root.cfg_mesh.wire_format)?;
                 tx.send_reply(pck).await?;
+                integrity = IntegrityMode::Centralized(AteHash::generate());
                 chain
             },
             OpenAction::DistributedChain { chain } => {
-                chain.single().await.set_integrity(IntegrityMode::Distributed, true);
+                integrity = IntegrityMode::Distributed;
                 chain
             },
             OpenAction::CentralizedChain { chain } => {
-                let session_hash = AteHash::generate();
-                chain.single().await.set_integrity(IntegrityMode::Centralized(session_hash), true);
+                integrity = IntegrityMode::Centralized(AteHash::generate());
                 chain
             },
             OpenAction::Deny{ reason } => {
@@ -429,6 +432,7 @@ async fn open_internal<'b>(
             }
         }
     };
+    new_chain.single().await.set_integrity(integrity, true);
     
     // Insert it into the cache so future requests can reuse the reference to the chain
     let mut chains = root.chains.lock().await;
@@ -442,6 +446,7 @@ async fn open_internal<'b>(
         {
             tx.replace_group(Arc::clone(&new_tx_group)).await;
             v.insert(MeshChain {
+                integrity,
                 chain: Arc::clone(&new_chain),
                 tx_group: new_tx_group,
             })
@@ -450,6 +455,7 @@ async fn open_internal<'b>(
     
     let route = route.lock().await;
     Ok(OpenedChain {
+        integrity,
         message_of_the_day: route.flow.message_of_the_day(&new_chain.chain).await?,
         chain: Arc::clone(&new_chain.chain)
     })
@@ -700,10 +706,12 @@ async fn inbox_subscribe<'b>(
 
     // Stream the data back to the client
     debug!("starting the streaming process");
+    let strip_signatures = opened_chain.integrity.is_centralized();
     stream_history_range(
         Arc::clone(&chain), 
         from.., 
         tx,
+        strip_signatures
     ).await?;
 
     Ok(())
