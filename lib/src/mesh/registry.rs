@@ -263,7 +263,7 @@ impl Registry
             return chain_key_16hex(hex.as_str(), Some("cmd"));
         }
         
-        let hex = PrimaryKey::generate().as_fixed_hex_string();
+        let hex = AteHash::generate().to_hex_string();
         guard.insert(url.clone(), hex.clone());
         chain_key_16hex(hex.as_str(), Some("cmd"))
     }
