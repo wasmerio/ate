@@ -70,7 +70,9 @@ for TreeAuthorityPlugin
                 bail!(LintErrorKind::TrustError(TrustErrorKind::UnspecifiedWritability));
             },
             WriteOption::Everyone => { },
-            WriteOption::Nobody => { },
+            WriteOption::Nobody => {
+                bail!(LintErrorKind::TrustError(TrustErrorKind::OwnedByNobody(type_code.to_string())));
+            },
         }
 
         // Now lets add all the encryption keys

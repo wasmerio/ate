@@ -18,6 +18,10 @@ error_chain! {
             description("data object with key could not be read as the current session has no encryption key for this authorization"),
             display("data object of type ({}) with key ({}) could not be read as the current session has no encryption key for this authorization ({})", type_code, key.as_hex_string(), read),
         }
+        OwnedByNobody(type_code: String) {
+            description("data object can not be modified or deleted as it is owned by nobody"),
+            display("data object of type ({}) can not be modified or deleted as it is owned by nobody", type_code),
+        }
         NoAuthorizationOrphan {
             description("data objects without a primary key has no write authorization")
             display("data objects without a primary key has no write authorization")

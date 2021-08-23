@@ -67,11 +67,20 @@ for TreeAuthorityPlugin
                     }
 
                     // Otherwise fail
-                    debug!("rejected event which is in a conversation but has no signatures ({})", self.integrity);
+                    if let Some(sig) = header.meta.get_sign_with() {
+                        debug!("rejected event which is in a conversation but is missing signature [{}] ({})", sig, self.integrity);
+                    } else {
+                        debug!("rejected event which is in a conversation but has no signatures ({})", self.integrity);
+                    }
                     bail!(ValidationErrorKind::NoSignatures);
                 } else {
                     // Otherwise fail
-                    debug!("rejected event as it has no signatures ({})", self.integrity);
+                    if let Some(sig) = header.meta.get_sign_with() {
+                        debug!("rejected event as it is missing signautre [{}] no signatures ({})", sig, self.integrity);
+                    } else {
+                        debug!("rejected event as it has no signatures ({})", self.integrity);
+                    }
+                    
                     bail!(ValidationErrorKind::NoSignatures);
                 }
            },

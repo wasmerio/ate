@@ -131,7 +131,7 @@ impl ServiceHook
         if let Some(key) = self.session.read_keys().into_iter().map(|a| a.clone()).next() {
             auth.read = ReadOption::from_key(&key);
         }
-        auth.write = WriteOption::Nobody;
+        auth.write = WriteOption::Inherit;
 
         let mut extra_meta = Vec::new();
         extra_meta.push(CoreMetadata::Type(MetaType {
