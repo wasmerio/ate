@@ -416,7 +416,7 @@ impl Dio
                 let data = match self.multi.data_as_overlay(meta, data.clone(), session) {
                     Ok(a) => a,
                     Err(TransformError(TransformErrorKind::MissingReadKey(hash), _)) if allow_missing_keys => {
-                        trace!("Missing read key {} - ignoring row", hash);
+                        //trace!("Missing read key {} - ignoring row", hash);
                         return Ok(None);
                     }
                     Err(err) => {
@@ -432,7 +432,7 @@ impl Dio
             Ok(a) => a,
             Err(err) => {
                 if allow_serialization_error {
-                    debug!("Serialization error {} - ignoring row", err);
+                    //trace!("Serialization error {} - ignoring row", err);
                     return Ok(None);
                 }
                 bail!(LoadErrorKind::SerializationError(err.0));
