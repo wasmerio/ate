@@ -415,8 +415,8 @@ impl Dio
             Some(data) => {
                 let data = match self.multi.data_as_overlay(meta, data.clone(), session) {
                     Ok(a) => a,
-                    Err(TransformError(TransformErrorKind::MissingReadKey(hash), _)) if allow_missing_keys => {
-                        //trace!("Missing read key {} - ignoring row", hash);
+                    Err(TransformError(TransformErrorKind::MissingReadKey(_hash), _)) if allow_missing_keys => {
+                        //trace!("Missing read key {} - ignoring row", _hash);
                         return Ok(None);
                     }
                     Err(err) => {
