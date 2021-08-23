@@ -41,7 +41,8 @@ pub struct Registry
     pub node_id: NodeId,
     pub fail_fast: bool,
     pub keep_alive: Option<Duration>,
-    
+
+    cmd_key: StdMutex<FxHashMap<url::Url, String>>,    
     chains: Mutex<FxHashMap<url::Url, Arc<MeshClient>>>,
     pub(crate) services: StdMutex<Vec<Arc<dyn Service>>>,
 }
@@ -69,6 +70,7 @@ impl Registry
             dns,
             node_id,
             temporal: true,
+            cmd_key: StdMutex::new(FxHashMap::default()),
             chains: Mutex::new(FxHashMap::default()),
             services: StdMutex::new(Vec::new()),
             keep_alive: None,
@@ -105,7 +107,7 @@ impl Registry
     
     pub async fn open_cmd(self: &Arc<Self>, url: &Url) -> Result<ChainGuard, ChainCreationError>
     {
-        TaskEngine::run_until(self.__open(url, &self.chain_key_cmd())).await
+        TaskEngine::run_until(self.__open(url, &self.chain_key_cmd(url))).await
     }
 
     async fn __open(self: &Arc<Self>, url: &Url, key: &ChainKey) -> Result<ChainGuard, ChainCreationError>
@@ -254,9 +256,15 @@ impl Registry
 
     /// Will generate a random command key - reused for 30 seconds to improve performance
     /// (note: this cache time must be less than the server cache time on commands)
-    pub fn chain_key_cmd(&self) -> ChainKey
+    pub fn chain_key_cmd(&self, url: &url::Url) -> ChainKey
     {
+        let mut guard = self.cmd_key.lock();
+        if let Some(hex) = guard.get(url) {
+            return chain_key_16hex(hex.as_str(), Some("cmd"));
+        }
+        
         let hex = PrimaryKey::generate().as_fixed_hex_string();
+        guard.insert(url.clone(), hex.clone());
         chain_key_16hex(hex.as_str(), Some("cmd"))
     }
 }
