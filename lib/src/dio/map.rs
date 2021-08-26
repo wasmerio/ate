@@ -450,7 +450,7 @@ impl<K, V> DaoMap<K, V>
             Err(LoadError(LoadErrorKind::NotFound(_), _)) =>
             {
                 let parent_id = match &self.state {
-                    DaoMapState::Unsaved => { bail!(SerializationErrorKind::SaveParentFirst); },
+                    DaoMapState::Unsaved => { bail!(LoadErrorKind::SerializationError(SerializationErrorKind::SaveParentFirst)); },
                     DaoMapState::Saved(a) => a.clone(),
                 };
                 
