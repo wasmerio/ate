@@ -447,7 +447,13 @@ impl<K, V> DaoMap<K, V>
 
         let ret = match dio.load::<V>(&id).await {
             Ok(a) => a,
-            Err(LoadError(LoadErrorKind::NotFound(_), _)) => {
+            Err(LoadError(LoadErrorKind::NotFound(_), _)) =>
+            {
+                let parent_id = match &self.state {
+                    DaoMapState::Unsaved => { bail!(SerializationErrorKind::SaveParentFirst); },
+                    DaoMapState::Saved(a) => a.clone(),
+                };
+                
                 let mut ret = dio.store_with_key(default(), id)?;
                 ret.attach_ext(parent_id, self.vec_id)?;
                 ret
