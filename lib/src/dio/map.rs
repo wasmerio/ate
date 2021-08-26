@@ -360,13 +360,48 @@ impl<K, V> DaoMap<K, V>
             None => bail!(LoadErrorKind::WeakDio)
         };
 
-        if dio.exists(&id).await == false {
-            return Ok(None);
-        }
-
         let ret = match dio.load::<V>(&id).await {
             Ok(a) => Some(a),
             Err(LoadError(LoadErrorKind::NotFound(_), _)) => None,
+            Err(err) => { bail!(err); }
+        };
+        Ok(ret)
+    }
+
+    pub async fn get_or_default(&mut self, key: &K) -> Result<DaoMut<V>, LoadError>
+    where K: Serialize,
+          V: Clone + Serialize + DeserializeOwned + Default
+    {
+        self.get_or_insert_with(key, || Default::default()).await
+    }
+
+    pub async fn get_or_insert(&mut self, key: &K, default_val: V) -> Result<DaoMut<V>, LoadError>
+    where K: Serialize,
+          V: Clone + Serialize + DeserializeOwned + Default
+    {
+        self.get_or_insert_with(key, || default_val).await
+    }
+
+
+    pub async fn get_or_insert_with<F>(&mut self, key: &K, default: F) -> Result<DaoMut<V>, LoadError>
+    where F: FnOnce() -> V,
+          K: Serialize,
+          V: Clone + Serialize + DeserializeOwned
+    {
+        let key = base64::encode(&bincode::serialize(key)?[..]);
+
+        let id = self.lookup.entry(key).or_default().clone();
+
+        let dio = match self.dio_mut() {
+            Some(a) => a,
+            None => bail!(LoadErrorKind::WeakDio)
+        };
+
+        let ret = match dio.load::<V>(&id).await {
+            Ok(a) => a,
+            Err(LoadError(LoadErrorKind::NotFound(_), _)) => {
+                dio.store_with_key(default(), id)?
+            },
             Err(err) => { bail!(err); }
         };
         Ok(ret)
