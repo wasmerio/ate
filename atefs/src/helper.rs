@@ -7,10 +7,10 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::select;
 use ate::mesh::FatalTerminate;
+use ate::utils::LoadProgress;
 
 use crate::fs::AteFS;
 use crate::opts::*;
-use crate::progress;
 use crate::umount;
 
 use fuse3::raw::prelude::*;
@@ -86,8 +86,8 @@ pub async fn main_mount(mount: OptsMount, conf: ConfAte, group: Option<String>, 
         .temporal(mount.temp);
 
     // Create a progress bar loader
-    let mut progress_local = progress::LoadProgress::default();
-    let mut progress_remote = progress::LoadProgress::default();
+    let mut progress_local = LoadProgress::default();
+    let mut progress_remote = LoadProgress::default();
     progress_local.units = pbr::Units::Bytes;
     progress_local.msg_done = "Downloading latest events from server...".to_string();
     progress_remote.msg_done = "Loaded the remote chain-of-trust, proceeding to mount the file system.".to_string();

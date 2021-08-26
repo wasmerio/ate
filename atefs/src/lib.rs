@@ -4,7 +4,6 @@ pub mod model;
 pub mod dir;
 pub mod symlink;
 pub mod file;
-pub mod progress;
 pub mod error;
 pub mod fs;
 pub mod umount;

@@ -59,6 +59,7 @@ blake3 = "^1"
 multimap = "^0.8"
 hex = "^0.4"
 chrono = "^0.4"
+pbr = "^1"
 tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
 tracing-futures = { version = "^0.2" }
 tracing-subscriber = { version = "^0.2" }
@@ -100,3 +101,5 @@ backtrace = { version = "^0.3" }
 ctor = "0.1.*"
 rust_decimal = "1.10.*"
 names = "0.11.*"
+clap = "3.0.0-beta.2"
+ascii_tree = "0.1.1"

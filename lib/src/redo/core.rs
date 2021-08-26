@@ -51,6 +51,7 @@ impl RedoLog
                 Some(path_log) => {
                     let mut log_file = LogFileLocalFs::new(
                         flags.temporal,
+                        flags.read_only,
                         path_log,
                         backup_path,
                         restore_path,

@@ -6,6 +6,7 @@ mod log;
 mod test;
 mod b64;
 mod key;
+mod progress;
 
 pub use super::utils::test::*;
 pub use log::log_init;
@@ -21,3 +22,4 @@ pub use b64::b32_serialize;
 pub use b64::b32_deserialize;
 pub use key::chain_key_4hex;
 pub use key::chain_key_16hex;
+pub use progress::LoadProgress;

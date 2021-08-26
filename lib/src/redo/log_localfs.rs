@@ -48,7 +48,7 @@ pub(super) struct LogFileLocalFs
 
 impl LogFileLocalFs
 {
-    pub(super) async fn new(temp_file: bool, path_log: String, backup_path: Option<String>, restore_path: Option<String>, truncate: bool, _cache_size: usize, _cache_ttl: u64, header_bytes: Vec<u8>) -> Result<Box<LogFileLocalFs>>
+    pub(super) async fn new(temp_file: bool, read_only: bool, path_log: String, backup_path: Option<String>, restore_path: Option<String>, truncate: bool, _cache_size: usize, _cache_ttl: u64, header_bytes: Vec<u8>) -> Result<Box<LogFileLocalFs>>
     {
         info!("open at {}", path_log);
 
@@ -123,13 +123,14 @@ impl LogFileLocalFs
         let (appender, archive) = LogAppender::new(
             path_log.clone(),
             truncate,
+            read_only,
             n,
             &header_bytes[..]
         ).await?;
         archives.insert(n, archive);
 
         // If we are temporary log file then kill the file
-        if temp_file {
+        if temp_file && read_only == false {
             let _ = std::fs::remove_file(appender.path());
         }
         
@@ -283,6 +284,7 @@ for LogFileLocalFs
         // Create a new appender
         let (new_appender, new_archive) = LogAppender::new(
             self.log_path.clone(),
+            false,
             false,
             next_index,
             &header_bytes[..]
@@ -673,6 +675,7 @@ for LogFileLocalFs
 
             LogFileLocalFs::new(
                 self.temp, 
+                false,
                 path_flip,
                 self.backup_path.clone(),
                 None,

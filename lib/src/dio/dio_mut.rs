@@ -510,6 +510,13 @@ impl DioMut
                 for extra in row.extra_meta.iter() {
                     meta.core.push(extra.clone());
                 }
+                if self.dio.chain.cfg_ate.record_type_name {
+                    if meta.get_type_name().is_none() {
+                        meta.core.push(CoreMetadata::Type(MetaType {
+                            type_name: row.type_name.clone()
+                        }));
+                    }
+                }
 
                 // Compute all the extra metadata for an event
                 let extra_meta = multi_lock.metadata_lint_event(&mut meta, &session, &trans_meta, &row.type_name)?;

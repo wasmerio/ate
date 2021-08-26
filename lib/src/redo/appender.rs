@@ -30,13 +30,16 @@ pub(crate) struct LogAppender
 
 impl LogAppender
 {
-    pub async fn new(path_log: String, truncate: bool, index: u32, header_bytes: &[u8]) -> Result<(LogAppender, LogArchive)>
+    pub async fn new(path_log: String, truncate: bool, read_only: bool, index: u32, header_bytes: &[u8]) -> Result<(LogAppender, LogArchive)>
     {
         // Compute the log file name
         let log_back_path = format!("{}.{}", path_log.clone(), index);
-        let log_back = match truncate {
-            true => OpenOptions::new().read(true).write(true).truncate(true).create(true).open(log_back_path.clone()).await?,
-               _ => OpenOptions::new().read(true).write(true).create(true).open(log_back_path.clone()).await?,
+        let log_back = match read_only {
+            true => OpenOptions::new().read(true).open(log_back_path.clone()).await?,
+            false => match truncate {
+                true => OpenOptions::new().read(true).write(true).truncate(true).create(true).open(log_back_path.clone()).await?,
+                _ => OpenOptions::new().read(true).write(true).create(true).open(log_back_path.clone()).await?,
+            }
         };
 
         // Build the appender

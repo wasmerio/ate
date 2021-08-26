@@ -48,7 +48,7 @@ impl EventHeaderRaw
         }
     }
 
-    pub(crate) fn as_header(&self) -> Result<EventHeader, SerializationError> {
+    pub fn as_header(&self) -> Result<EventHeader, SerializationError> {
         Ok(
             EventHeader {
                 raw: self.clone(),

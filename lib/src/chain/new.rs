@@ -62,6 +62,7 @@ impl<'a> Chain
             truncate: builder.truncate,
             temporal: builder.temporal,
             integrity: builder.integrity,
+            read_only: false,
         };
         let compact_mode = builder.cfg_ate.compact_mode;
         let compact_bootstrap = builder.cfg_ate.compact_bootstrap;
