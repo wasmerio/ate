@@ -204,6 +204,49 @@ where D: Serialize
         self.try_lock_ext(DaoMutLock::Locked).await
     }
 
+    pub async fn try_lock_with_timeout(&mut self, timeout: std::time::Duration) -> Result<bool, LockError>
+    {
+        if self.try_lock_ext(DaoMutLock::Locked).await? == true {
+            return Ok(true);
+        }
+        
+        let timer = std::time::Instant::now();
+
+        // Use an exponential backoff
+        let mut spin = 3;
+        let mut max_wait = 0u64;
+        while timer.elapsed() < timeout
+        {
+            if self.try_lock_ext(DaoMutLock::Locked).await? == true {
+                return Ok(true);
+            }
+
+            if spin > 0 {
+                spin -= 1;
+                continue;
+            }
+
+            let elapsed = timer.elapsed();
+            let remaining = match timeout.checked_sub(elapsed) {
+                Some(a) => a,
+                None => {
+                    break;
+                }
+            };
+
+            max_wait = ((max_wait * 12u64) / 10u64) + 5u64;
+            max_wait = max_wait.min(500u64);
+            let min_wait = max_wait / 2u64;
+            
+            let random_wait = fastrand::u64(min_wait..max_wait);
+            let mut random_wait = std::time::Duration::from_millis(random_wait);
+            random_wait = random_wait.min(remaining);
+
+            tokio::time::sleep(random_wait).await;
+        }
+        return Ok(false);
+    }
+
     pub async fn unlock(&mut self) -> Result<bool, LockError> {
         match self.state.lock {
             DaoMutLock::Unlocked | DaoMutLock::LockedThenDelete => {

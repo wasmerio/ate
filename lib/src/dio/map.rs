@@ -262,6 +262,25 @@ impl<K, V> DaoMap<K, V>
     where K: DeserializeOwned,
           V: Serialize + DeserializeOwned
     {
+        let dio = match self.dio_mut() {
+            Some(a) => a,
+            None => bail!(LoadErrorKind::WeakDio)
+        };
+
+        self.iter_mut_ext_with_dio(&dio, allow_missing_keys, allow_serialization_error).await
+    }
+    
+    pub async fn iter_mut_with_dio(&self, dio: &Arc<DioMut>) -> Result<IterMut<K, V>, LoadError>
+    where K: DeserializeOwned,
+          V: Serialize + DeserializeOwned
+    {
+        self.iter_mut_ext_with_dio(dio, false, false).await
+    }
+
+    pub async fn iter_mut_ext_with_dio(&self, dio: &Arc<DioMut>, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<IterMut<K, V>, LoadError>
+    where K: DeserializeOwned,
+          V: Serialize + DeserializeOwned
+    {
         let mut reverse = FxHashMap::default();
         for (k, v) in self.lookup.iter() {
             reverse.insert(v, k);
@@ -271,11 +290,6 @@ impl<K, V> DaoMap<K, V>
             DaoMapState::Unsaved => vec![],
             DaoMapState::Saved(parent_id) =>
             {
-                let dio = match self.dio_mut() {
-                    Some(a) => a,
-                    None => bail!(LoadErrorKind::WeakDio)
-                };
-                
                 let mut ret = Vec::default();
                 for child in dio.children_ext::<V>(parent_id.clone(), self.vec_id, allow_missing_keys, allow_serialization_error).await? {
                     ret.push(child)
@@ -342,7 +356,42 @@ impl<K, V> DaoMap<K, V>
         Ok(ret)
     }
 
-    pub async fn get(&mut self, key: &K) -> Result<Option<DaoMut<V>>, LoadError>
+    pub async fn get(&self, key: &K) -> Result<Option<Dao<V>>, LoadError>
+    where K: Serialize,
+          V: Serialize + DeserializeOwned
+    {
+        let key = base64::encode(&bincode::serialize(key)?[..]);
+
+        let id = match self.lookup.get(&key) {
+            Some(a) => a,
+            None => {
+                return Ok(None);
+            }
+        };
+
+        if let Some(dio) = self.dio_mut() {
+            let ret = match dio.load::<V>(&id).await {
+                Ok(a) => Some(a.inner),
+                Err(LoadError(LoadErrorKind::NotFound(_), _)) => None,
+                Err(err) => { bail!(err); }
+            };
+            return Ok(ret)
+        }
+
+        let dio = match self.dio() {
+            Some(a) => a,
+            None => bail!(LoadErrorKind::WeakDio)
+        };
+        
+        let ret = match dio.load::<V>(&id).await {
+            Ok(a) => Some(a),
+            Err(LoadError(LoadErrorKind::NotFound(_), _)) => None,
+            Err(err) => { bail!(err); }
+        };
+        Ok(ret)
+    }
+
+    pub async fn get_mut(&mut self, key: &K) -> Result<Option<DaoMut<V>>, LoadError>
     where K: Serialize,
           V: Serialize + DeserializeOwned
     {
@@ -368,14 +417,14 @@ impl<K, V> DaoMap<K, V>
         Ok(ret)
     }
 
-    pub async fn get_or_default(&mut self, key: &K) -> Result<DaoMut<V>, LoadError>
+    pub async fn get_or_default(&mut self, key: K) -> Result<DaoMut<V>, LoadError>
     where K: Serialize,
           V: Clone + Serialize + DeserializeOwned + Default
     {
         self.get_or_insert_with(key, || Default::default()).await
     }
 
-    pub async fn get_or_insert(&mut self, key: &K, default_val: V) -> Result<DaoMut<V>, LoadError>
+    pub async fn get_or_insert(&mut self, key: K, default_val: V) -> Result<DaoMut<V>, LoadError>
     where K: Serialize,
           V: Clone + Serialize + DeserializeOwned + Default
     {
@@ -383,13 +432,12 @@ impl<K, V> DaoMap<K, V>
     }
 
 
-    pub async fn get_or_insert_with<F>(&mut self, key: &K, default: F) -> Result<DaoMut<V>, LoadError>
+    pub async fn get_or_insert_with<F>(&mut self, key: K, default: F) -> Result<DaoMut<V>, LoadError>
     where F: FnOnce() -> V,
           K: Serialize,
           V: Clone + Serialize + DeserializeOwned
     {
-        let key = base64::encode(&bincode::serialize(key)?[..]);
-
+        let key = base64::encode(&bincode::serialize(&key)?[..]);
         let id = self.lookup.entry(key).or_default().clone();
 
         let dio = match self.dio_mut() {
@@ -400,7 +448,9 @@ impl<K, V> DaoMap<K, V>
         let ret = match dio.load::<V>(&id).await {
             Ok(a) => a,
             Err(LoadError(LoadErrorKind::NotFound(_), _)) => {
-                dio.store_with_key(default(), id)?
+                let mut ret = dio.store_with_key(default(), id)?;
+                ret.attach_ext(parent_id, self.vec_id)?;
+                ret
             },
             Err(err) => { bail!(err); }
         };

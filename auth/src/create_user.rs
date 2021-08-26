@@ -145,7 +145,9 @@ impl AuthService
 
         // Generate a verification code (if the inital state is not nominal)
         let verification_code = if initial_status == UserStatus::Unverified {
-            Some(AteHash::generate().to_hex_string().to_uppercase())
+            let v = AteHash::generate().to_hex_string().to_uppercase();
+            let v = format!("{}-{}-{}", &v[0..4], &v[4..8], &v[8..12]);
+            Some(v)
         } else {
             None
         };
