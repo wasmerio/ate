@@ -19,9 +19,8 @@ use crate::prelude::*;
 
 #[derive(Serialize, Deserialize)]
 pub struct DaoMap<K, V>
-where K: Eq + std::hash::Hash
 {
-    pub(super) lookup: FxHashMap<K, PrimaryKey>,
+    pub(super) lookup: FxHashMap<String, PrimaryKey>,
     pub(super) vec_id: u64,
     #[serde(skip)]
     pub(super) state: DaoMapState,
@@ -30,7 +29,9 @@ where K: Eq + std::hash::Hash
     #[serde(skip)]
     dio_mut: DioMutWeak,
     #[serde(skip)]
-    _phantom1: PhantomData<V>,
+    _phantom1: PhantomData<K>,
+    #[serde(skip)]
+    _phantom2: PhantomData<V>,
 }
 
 pub(super) enum DaoMapState
@@ -65,8 +66,6 @@ for DaoMapState
 
 impl<K, V> std::fmt::Debug
 for DaoMap<K, V>
-where K: Eq + std::hash::Hash,
-      V: std::fmt::Debug
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let key_type_name = std::any::type_name::<K>();
@@ -77,7 +76,6 @@ where K: Eq + std::hash::Hash,
 
 impl<K, V> Default
 for DaoMap<K, V>
-where K: Eq + std::hash::Hash
 {
     fn default() -> Self {
         DaoMap::new()
@@ -86,7 +84,6 @@ where K: Eq + std::hash::Hash
 
 impl<K, V> Clone
 for DaoMap<K, V>
-where K: Clone + Eq + std::hash::Hash
 {
     fn clone(&self) -> DaoMap<K, V>
     {
@@ -97,12 +94,12 @@ where K: Clone + Eq + std::hash::Hash
             dio: self.dio.clone(),
             dio_mut: self.dio_mut.clone(),
             _phantom1: PhantomData,
+            _phantom2: PhantomData,
         }
     }
 }
 
 impl<K, V> DaoMap<K, V>
-where K: Eq + std::hash::Hash
 {
     pub fn new() -> DaoMap<K, V> {
         DaoMap {
@@ -112,12 +109,12 @@ where K: Eq + std::hash::Hash
             dio_mut: DioMutWeak::Uninitialized,
             vec_id: fastrand::u64(..),
             _phantom1: PhantomData,
+            _phantom2: PhantomData,
         }
     }
 }
 
 impl<K, V> DaoMap<K, V>
-where K: Eq + std::hash::Hash
 {
     pub fn new_orphaned(dio: &Arc<Dio>, parent: PrimaryKey, vec_id: u64) -> DaoMap<K, V> {
         DaoMap {
@@ -127,6 +124,7 @@ where K: Eq + std::hash::Hash
             dio_mut: DioMutWeak::Uninitialized,
             vec_id: vec_id,
             _phantom1: PhantomData,
+            _phantom2: PhantomData,
         }
     }
 
@@ -138,6 +136,7 @@ where K: Eq + std::hash::Hash
             dio_mut: DioMutWeak::from(dio),
             vec_id: vec_id,
             _phantom1: PhantomData,
+            _phantom2: PhantomData,
         }
     }
 
@@ -175,7 +174,10 @@ where K: Eq + std::hash::Hash
     pub async fn len(&self) -> Result<usize, LoadError>
     {
         let len = match &self.state {
-            DaoMapState::Unsaved => 0usize,
+            DaoMapState::Unsaved => 
+            {
+                self.lookup.len()
+            },
             DaoMapState::Saved(parent_id) =>
             {
                 let dio = match self.dio() {
@@ -189,14 +191,16 @@ where K: Eq + std::hash::Hash
         Ok(len)
     }
 
-    pub async fn iter<'a>(&'a self) -> Result<Iter<'a, K, V>, LoadError>
-    where V: Serialize + DeserializeOwned
+    pub async fn iter(&self) -> Result<Iter<K, V>, LoadError>
+    where K: DeserializeOwned,
+          V: Serialize + DeserializeOwned
     {
         self.iter_ext(false, false).await
     }
 
-    pub async fn iter_ext<'a>(&'a self, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<Iter<'a, K, V>, LoadError>
-    where V: Serialize + DeserializeOwned
+    pub async fn iter_ext(&self, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<Iter<K, V>, LoadError>
+    where K: DeserializeOwned,
+          V: Serialize + DeserializeOwned
     {
         let mut reverse = FxHashMap::default();
         for (k, v) in self.lookup.iter() {
@@ -226,7 +230,15 @@ where K: Eq + std::hash::Hash
         let pairs = children.into_iter()
             .filter_map(|v| {
                 match reverse.get(v.key()) {
-                    Some(k) => Some((*k, v)),
+                    Some(k) => {
+                        let k = base64::decode(k).ok()
+                            .map(|a| bincode::deserialize(&a[..]).ok())
+                            .flatten();
+                        match k {
+                            Some(k) => Some((k, v)),
+                            None => None
+                        }
+                    },
                     None => None
                 }
             })
@@ -239,14 +251,16 @@ where K: Eq + std::hash::Hash
         )
     }
 
-    pub async fn iter_mut(&mut self) -> Result<IterMut<'_, K, V>, LoadError>
-    where V: Serialize + DeserializeOwned
+    pub async fn iter_mut(&mut self) -> Result<IterMut<K, V>, LoadError>
+    where K: DeserializeOwned,
+          V: Serialize + DeserializeOwned
     {
         self.iter_mut_ext(false, false).await
     }
 
-    pub async fn iter_mut_ext<'a>(&'a mut self, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<IterMut<'a, K, V>, LoadError>
-    where V: Serialize + DeserializeOwned
+    pub async fn iter_mut_ext(&mut self, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<IterMut<K, V>, LoadError>
+    where K: DeserializeOwned,
+          V: Serialize + DeserializeOwned
     {
         let mut reverse = FxHashMap::default();
         for (k, v) in self.lookup.iter() {
@@ -273,7 +287,15 @@ where K: Eq + std::hash::Hash
         let pairs = children.into_iter()
             .filter_map(|v| {
                 match reverse.get(v.key()) {
-                    Some(k) => Some((*k, v)),
+                    Some(k) => {
+                        let k = base64::decode(k).ok()
+                            .map(|a| bincode::deserialize(&a[..]).ok())
+                            .flatten();
+                        match k {
+                            Some(k) => Some((k, v)),
+                            None => None
+                        }
+                    },
                     None => None
                 }
             })
@@ -287,7 +309,7 @@ where K: Eq + std::hash::Hash
     }
 
     pub async fn insert(&mut self, key: K, value: V) -> Result<(), SerializationError>
-    where K: Eq + std::hash::Hash,
+    where K: Serialize,
           V: Clone + Serialize + DeserializeOwned,
     {
         self.insert_ret(key, value).await?;
@@ -295,7 +317,7 @@ where K: Eq + std::hash::Hash
     }
 
     pub async fn insert_ret(&mut self, key: K, value: V) -> Result<DaoMut<V>, SerializationError>
-    where K: Eq + std::hash::Hash,
+    where K: Serialize,
           V: Clone + Serialize + DeserializeOwned,
     {
         let dio = match self.dio_mut() {
@@ -308,6 +330,8 @@ where K: Eq + std::hash::Hash
             DaoMapState::Saved(a) => a.clone(),
         };
 
+        let key = base64::encode(&bincode::serialize(&key)?[..]);
+
         let mut ret = dio.store(value)?;
         ret.attach_ext(parent_id, self.vec_id)?;
 
@@ -319,10 +343,12 @@ where K: Eq + std::hash::Hash
     }
 
     pub async fn get(&mut self, key: &K) -> Result<Option<DaoMut<V>>, LoadError>
-    where K: Eq + std::hash::Hash,
+    where K: Serialize,
           V: Serialize + DeserializeOwned
     {
-        let id = match self.lookup.get(key) {
+        let key = base64::encode(&bincode::serialize(key)?[..]);
+
+        let id = match self.lookup.get(&key) {
             Some(a) => a,
             None => {
                 return Ok(None);
@@ -347,10 +373,12 @@ where K: Eq + std::hash::Hash
     }
 
     pub async fn delete(&mut self, key: &K) -> Result<bool, SerializationError>
-    where K: Eq + std::hash::Hash,
+    where K: Serialize,
           V: Serialize
     {
-        let id = match self.lookup.get(key) {
+        let key = base64::encode(&bincode::serialize(key)?[..]);
+
+        let id = match self.lookup.get(&key) {
             Some(a) => a,
             None => {
                 return Ok(false);
@@ -371,53 +399,53 @@ where K: Eq + std::hash::Hash
     }
 }
 
-pub struct Iter<'a, K, V>
+pub struct Iter<K, V>
 {
-    vec: VecDeque<(&'a K, Dao<V>)>,
+    vec: VecDeque<(K, Dao<V>)>,
 }
 
-impl<'a, K, V> Iter<'a, K, V>
+impl<K, V> Iter<K, V>
 {
-    pub(super) fn new(vec: Vec<(&'a K, Dao<V>)>) -> Iter<'a, K, V> {
+    pub(super) fn new(vec: Vec<(K, Dao<V>)>) -> Iter<K, V> {
         Iter {
             vec: VecDeque::from(vec),
         }
     }
 }
 
-impl<'a, K, V> Iterator
-for Iter<'a, K, V>
+impl<K, V> Iterator
+for Iter<K, V>
 {
-    type Item = (&'a K, Dao<V>);
+    type Item = (K, Dao<V>);
 
-    fn next(&mut self) -> Option<(&'a K, Dao<V>)> {
+    fn next(&mut self) -> Option<(K, Dao<V>)> {
         self.vec.pop_front()
     }
 }
 
-pub struct IterMut<'a, K, V>
+pub struct IterMut<K, V>
 where V: Serialize
 {
-    vec: VecDeque<(&'a K, DaoMut<V>)>,
+    vec: VecDeque<(K, DaoMut<V>)>,
 }
 
-impl<'a, K, V> IterMut<'a, K, V>
+impl<K, V> IterMut<K, V>
 where V: Serialize
 {
-    pub(super) fn new(vec: Vec<(&'a K, DaoMut<V>)>) -> IterMut<'a, K, V> {
+    pub(super) fn new(vec: Vec<(K, DaoMut<V>)>) -> IterMut<K, V> {
         IterMut {
             vec: VecDeque::from(vec),
         }
     }
 }
 
-impl<'a, K, V> Iterator
-for IterMut<'a, K, V>
+impl<K, V> Iterator
+for IterMut<K, V>
 where V: Serialize
 {
-    type Item = (&'a K, DaoMut<V>);
+    type Item = (K, DaoMut<V>);
 
-    fn next(&mut self) -> Option<(&'a K, DaoMut<V>)> {
+    fn next(&mut self) -> Option<(K, DaoMut<V>)> {
         self.vec.pop_front()
     }
 }

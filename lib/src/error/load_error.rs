@@ -86,6 +86,14 @@ for LoadError {
     }
 }
 
+impl From<bincode::Error>
+for LoadError
+{
+    fn from(err: bincode::Error) -> LoadError {
+        LoadErrorKind::SerializationError(super::SerializationErrorKind::BincodeError(err).into()).into()
+    }   
+}
+
 impl From<super::ChainCreationError>
 for LoadError
 {
