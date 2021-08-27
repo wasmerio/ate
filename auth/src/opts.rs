@@ -138,6 +138,9 @@ pub struct GroupDetails {
     /// Name of the group to query
     #[clap(index = 1)]
     pub group: String,
+    /// Determines if sudo permissions should be sought
+    #[clap(long)]
+    pub sudo: bool
 }
 
 #[derive(Clap)]
@@ -198,7 +201,10 @@ pub struct ViewToken {
 pub struct GatherPermissions {
     /// Name of the group to gather the permissions for
     #[clap(index = 1)]
-    pub group: Option<String>,
+    pub group: String,
+    /// Determines if sudo permissions should be sought
+    #[clap(long)]
+    pub sudo: bool
 }
 
 pub async fn main_opts_user(opts_user: OptsUser, token: Option<String>, token_path: Option<String>, auth: url::Url) -> Result<(), AteError>{
@@ -207,30 +213,30 @@ pub async fn main_opts_user(opts_user: OptsUser, token: Option<String>, token_pa
             let _session = crate::main_create_user(action.email, action.password, auth).await?;
         },
         UserAction::Details => {
-            let session = crate::main_session(token.clone(), token_path.clone(), Some(auth.clone()), false).await?;
+            let session = crate::main_session_user(token.clone(), token_path.clone(), Some(auth.clone())).await?;
             crate::main_user_details(session).await?;
         }
     }
     Ok(())
 }
 
-pub async fn main_opts_group(opts_group: OptsGroup, token: Option<String>, token_path: Option<String>, auth: url::Url, group_hint: &str) -> Result<(), AteError>{
+pub async fn main_opts_group(opts_group: OptsGroup, token: Option<String>, token_path: Option<String>, auth: url::Url) -> Result<(), AteError>{
     match opts_group.action {
         GroupAction::Create(action) => {
-            let session = crate::main_session(token.clone(), token_path.clone(), Some(auth.clone()), true).await?;
-            let _session = crate::main_create_group(Some(action.group), auth, session.user.identity().map(|i| i.clone()), group_hint).await?;
+            let session = crate::main_session_user(token.clone(), token_path.clone(), Some(auth.clone())).await?;
+            crate::main_create_group(Some(action.group), auth, Some(session.identity().to_string())).await?;
         },
         GroupAction::AddUser(action) => {
-            let session = crate::main_session(token.clone(), token_path.clone(), Some(auth.clone()), true).await?;
-            let _session = crate::main_group_user_add(Some(action.group), Some(action.role), Some(action.username), auth, &session).await?;
+            let session = crate::main_session_group(token.clone(), token_path.clone(), action.group.clone(), true, None, Some(auth.clone())).await?;
+            crate::main_group_user_add(Some(action.role), Some(action.username), auth, &session).await?;
         },
         GroupAction::RemoveUser(action) => {
-            let session = crate::main_session(token.clone(), token_path.clone(), Some(auth.clone()), true).await?;
-            let _session = crate::main_group_user_remove(Some(action.group), Some(action.role), Some(action.username), auth, &session).await?;
+            let session = crate::main_session_group(token.clone(), token_path.clone(), action.group.clone(), true, None, Some(auth.clone())).await?;
+            crate::main_group_user_remove(Some(action.role), Some(action.username), auth, &session).await?;
         },
         GroupAction::Details(action) => {
             if token.is_some() || token_path.is_some() {
-                let session = crate::main_session(token.clone(), token_path.clone(), Some(auth.clone()), false).await?;
+                let session = crate::main_session_group(token.clone(), token_path.clone(), action.group.clone(), action.sudo, None, Some(auth.clone())).await?;
                 crate::main_group_details(Some(action.group), auth, Some(&session)).await?;
             } else {
                 crate::main_group_details(Some(action.group), auth, None).await?;
@@ -245,21 +251,27 @@ pub async fn main_opts_token(opts_token: OptsToken, token: Option<String>, token
         TokenAction::Generate(action) => {
             let session = crate::main_login(action.email, action.password, auth).await?;
             eprintln!("The token string below can be used to secure your file system.\n");
-            println!("{}", crate::session_to_b64(session.clone()).unwrap());
+            
+            let session: AteSessionType = session.into();
+            println!("{}", crate::session_to_b64(session).unwrap());
         },
         TokenAction::Sudo(action) => {
-            let session = crate::main_sudo(action.email, action.password, action.code, auth).await?;
+            let session = crate::main_login(action.email, action.password, auth.clone()).await?;
+            let session = crate::main_sudo(session, action.code, auth).await?;
             eprintln!("The token string below can be used to secure your file system.\n");
-            println!("{}", crate::session_to_b64(session.clone()).unwrap());
+
+            let session: AteSessionType = session.into();
+            println!("{}", crate::session_to_b64(session).unwrap());
         },
         TokenAction::Gather(action) => {
-            let session = crate::main_session(token.clone(), token_path.clone(), Some(auth.clone()), false).await?;
-            let session = crate::main_gather(action.group, session, auth).await?;
+            let session = crate::main_session_group(token.clone(), token_path.clone(), action.group, action.sudo, None, Some(auth.clone())).await?;
             eprintln!("The token string below can be used to secure your file system.\n");
-            println!("{}", crate::session_to_b64(session.clone()).unwrap());
+            
+            let session: AteSessionType = session.into();
+            println!("{}", crate::session_to_b64(session).unwrap());
         },
         TokenAction::View(_action) => {
-            let session = crate::main_session(token.clone(), token_path.clone(), Some(auth.clone()), false).await?;
+            let session = crate::main_session_user(token.clone(), token_path.clone(), Some(auth.clone())).await?;
             eprintln!("The token contains the following claims.\n");
             println!("{}", session);
         },

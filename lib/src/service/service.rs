@@ -25,7 +25,7 @@ where Self: Send + Sync
 
 impl Chain
 {
-    pub fn add_service<CTX, REQ, RES, ERR, C, F>(self: &Arc<Self>, session: &AteSession, context: Arc<CTX>, callback: C)
+    pub fn add_service<CTX, REQ, RES, ERR, C, F>(self: &Arc<Self>, session: &'_ dyn AteSession, context: Arc<CTX>, callback: C)
     -> Arc<ServiceHook>
     where CTX: Send + Sync + 'static,
           REQ: DeserializeOwned + Send + Sync + Sized + 'static,
@@ -36,10 +36,10 @@ impl Chain
     {
         let svr = ServiceHandler::new(context, callback);
         let svr: Arc<dyn ServiceInvoker> = svr;
-        self.add_generic_service(session.clone(), &svr)
+        self.add_generic_service(session.clone_session(), &svr)
     }
     
-    pub fn add_generic_service(self: &Arc<Self>, session: AteSession, handler: &Arc<dyn ServiceInvoker>)
+    pub fn add_generic_service(self: &Arc<Self>, session: Box<dyn AteSession>, handler: &Arc<dyn ServiceInvoker>)
     -> Arc<ServiceHook>
     {
         let ret = Arc::new(ServiceHook::new(

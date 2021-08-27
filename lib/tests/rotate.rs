@@ -30,7 +30,7 @@ fn rotate_test() -> Result<(), AteError>
         {
             // We create a chain with a specific key (this is used for the file name it creates)
             let chain = builder.open(&ChainKey::from("rotate")).await?;
-            let session = AteSession::new(&conf);
+            let session = AteSessionUser::new();
 
             {
                 // Write a test object
@@ -57,7 +57,7 @@ fn rotate_test() -> Result<(), AteError>
         {
             let chain = builder.open(&ChainKey::from("rotate")).await?;
 
-            let session = AteSession::new(&conf);
+            let session = AteSessionUser::new();
             let dio = chain.dio(&session).await;
             assert_eq!(*dio.load::<String>(&key1).await?, "blah!".to_string());
             assert_eq!(*dio.load::<String>(&key2).await?, "haha!".to_string());

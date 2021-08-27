@@ -44,7 +44,7 @@ async fn main() -> Result<(), AteError>
     let client_b = create_temporal_client(&cfg_ate, &cfg_mesh);
 
     // Create a session
-    let session = AteSession::new(&cfg_ate);
+    let session = AteSessionUser::new();
 
     // Setup a BUS that we will listen on
     info!("opening a chain on called 'ping-pong-table' using client 1");

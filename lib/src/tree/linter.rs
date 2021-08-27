@@ -19,7 +19,7 @@ for TreeAuthorityPlugin
         Box::new(self.clone())
     }
 
-    fn metadata_lint_many<'a>(&self, headers: &Vec<LintData<'a>>, session: &AteSession, conversation: Option<&Arc<ConversationSession>>) -> Result<Vec<CoreMetadata>, LintError>
+    fn metadata_lint_many<'a>(&self, headers: &Vec<LintData<'a>>, session: &'_ dyn AteSession, conversation: Option<&Arc<ConversationSession>>) -> Result<Vec<CoreMetadata>, LintError>
     {
         let mut ret = Vec::new();
 
@@ -29,7 +29,7 @@ for TreeAuthorityPlugin
         Ok(ret)
     }
 
-    fn metadata_lint_event(&self, meta: &Metadata, session: &AteSession, trans_meta: &TransactionMetadata, type_code: &str) -> Result<Vec<CoreMetadata>, LintError>
+    fn metadata_lint_event(&self, meta: &Metadata, session: &'_ dyn AteSession, trans_meta: &TransactionMetadata, type_code: &str) -> Result<Vec<CoreMetadata>, LintError>
     {
         let mut ret = Vec::new();
         let mut sign_with = Vec::new();

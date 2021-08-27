@@ -5,6 +5,7 @@ use serde::{Serialize, de::DeserializeOwned};
 use std::{time::Duration};
 use tokio::select;
 use std::sync::Arc;
+use std::ops::Deref;
 
 use crate::transaction::TransactionScope;
 use crate::{error::*, meta::{CoreMetadata}};
@@ -26,7 +27,7 @@ impl Chain
         self.invoke_ext(None, request, std::time::Duration::from_secs(30)).await
     }
 
-    pub async fn invoke_ext<REQ, RES, ERR>(self: Arc<Self>, session: Option<&AteSession>, request: REQ, timeout: Duration) -> Result<Result<RES, ERR>, InvokeError>
+    pub async fn invoke_ext<REQ, RES, ERR>(self: Arc<Self>, session: Option<&'_ dyn AteSession>, request: REQ, timeout: Duration) -> Result<Result<RES, ERR>, InvokeError>
     where REQ: Clone + Serialize + DeserializeOwned + Sync + Send + ?Sized,
           RES: Serialize + DeserializeOwned + Sync + Send + ?Sized,
           ERR: Serialize + DeserializeOwned + Sync + Send + ?Sized,
@@ -34,7 +35,7 @@ impl Chain
         TaskEngine::run_until(self.__invoke_ext(session, request, timeout)).await
     }
 
-    pub(crate) async fn __invoke_ext<REQ, RES, ERR>(self: Arc<Self>, session: Option<&AteSession>, request: REQ, timeout: Duration) -> Result<Result<RES, ERR>, InvokeError>
+    pub(crate) async fn __invoke_ext<REQ, RES, ERR>(self: Arc<Self>, session: Option<&'_ dyn AteSession>, request: REQ, timeout: Duration) -> Result<Result<RES, ERR>, InvokeError>
     where REQ: Clone + Serialize + DeserializeOwned + Sync + Send + ?Sized,
           RES: Serialize + DeserializeOwned + Sync + Send + ?Sized,
           ERR: Serialize + DeserializeOwned + Sync + Send + ?Sized,
@@ -44,8 +45,8 @@ impl Chain
         let session = match session {
             Some(a) => a,
             None => {
-                session_store = self.inside_sync.read().default_session.clone();
-                &session_store
+                session_store = self.inside_sync.read().default_session.clone_session();
+                session_store.deref()
             }
         };
 

@@ -1,7 +1,7 @@
 #![allow(unused_imports)]
 use async_trait::async_trait;
 pub mod basic;
-use crate::{crypto::EncryptKey, session::AteSession};
+use crate::{crypto::EncryptKey, session::AteSessionUser};
 
 use crate::crypto::KeySize;
 use super::crypto::PrivateSignKey;
@@ -39,7 +39,7 @@ pub enum OpenAction
     /// the caller has a copy of the encryption key
     PrivateChain {
         chain: Arc<Chain>,
-        session: AteSession,
+        session: AteSessionUser,
     },
 }
 

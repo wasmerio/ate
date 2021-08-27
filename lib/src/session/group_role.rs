@@ -53,10 +53,6 @@ impl AteGroupRole
         });
     }
 
-    pub fn add_identity(&mut self, identity: String) {
-        self.properties.push(AteSessionProperty::Identity(identity));
-    }
-
     pub fn add_uid(&mut self, uid: u32) {
         self.properties.push(AteSessionProperty::Uid(uid));
     }
@@ -111,19 +107,6 @@ impl AteGroupRole
                     _ => None
                 }
             )
-    }
-
-    pub fn identity<'a>(&'a self) -> Option<&'a String> {
-        self.properties
-            .iter()
-            .filter_map(
-                |p| match p
-                {
-                    AteSessionProperty::Identity(k) => Some(k),
-                    _ => None
-                }
-            )
-            .next()
     }
 
     pub fn uid<'a>(&'a self) -> Option<u32> {

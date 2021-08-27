@@ -14,7 +14,7 @@ use ::ate::dio::DaoObj;
 use ::ate::error::*;
 use ::ate::chain::*;
 use ::ate::crypto::*;
-use ::ate::session::AteSession;
+use ::ate::session::AteSessionUser;
 use ::ate::header::PrimaryKey;
 use ::ate::prelude::*;
 use ::ate::prelude::AteRolePurpose;
@@ -43,7 +43,7 @@ where Self: Send + Sync
     pub scope_meta: TransactionScope,
     pub scope_io: TransactionScope,
     pub group: Option<String>,
-    pub session: AteSession,
+    pub session: AteSessionType,
     pub open_handles: Mutex<FxHashMap<u64, Arc<OpenHandle>>>,
     pub elapsed: std::time::Instant,
     pub last_elapsed: seqlock::SeqLock<u64>,
@@ -159,7 +159,7 @@ pub(crate) fn conv<T>(r: std::result::Result<T, AteError>) -> std::result::Resul
 
 impl AteFS
 {
-    pub async fn new(chain: Arc<Chain>, group: Option<String>, session: AteSession, scope_io: TransactionScope, scope_meta: TransactionScope, no_auth: bool, impersonate_uid: bool) -> AteFS {
+    pub async fn new(chain: Arc<Chain>, group: Option<String>, session: AteSessionType, scope_io: TransactionScope, scope_meta: TransactionScope, no_auth: bool, impersonate_uid: bool) -> AteFS {
         let dio = chain.dio(&session).await;
         AteFS {
             chain,
@@ -177,57 +177,50 @@ impl AteFS
         }
     }
 
-    fn get_group_gid(&self) -> Option<u32> {
-        if let Some(group) = &self.group {
-            self.session.get_group(group)
-                .iter()
-                .flat_map(|g| g.roles.iter())
-                .filter_map(|r| r.gid())
-                .map(|gid| gid.clone())
-                .next()
-        } else {
-            None
-        }
-    }
-
     fn get_group_read_key<'a>(&'a self, gid: u32) -> Option<&'a EncryptKey> {
-        self.session.groups.iter()
-            .flat_map(|g| g.roles.iter())
-            .filter(|r| r.purpose == AteRolePurpose::Observer)
-            .filter(|g| g.gid().iter().any(|gid2| *gid2 == gid))
+        self.session.role(&AteRolePurpose::Observer)
+            .iter()
+            .filter(|g| g.gid() == Some(gid))
             .flat_map(|r| r.read_keys())
             .next()
     }
 
     fn get_group_write_key<'a>(&'a self, gid: u32) -> Option<&'a PrivateSignKey> {
-        self.session.groups.iter()
-            .flat_map(|g| g.roles.iter())
-            .filter(|r| r.purpose == AteRolePurpose::Contributor)
-            .filter(|g| g.gid().iter().any(|gid2| *gid2 == gid))
+        self.session.role(&AteRolePurpose::Contributor)
+            .iter()
+            .filter(|g| g.gid() == Some(gid))
             .flat_map(|r| r.write_keys())
             .next()
     }
 
     fn get_user_read_key<'a>(&'a self, uid: u32) -> Option<&'a EncryptKey> {
-        match self.session.user.uid() {
-            Some(a) if a == uid => {
-                self.session.user
-                    .read_keys()
-                    .next()
-            },
-            _ => None
-        }        
+        if self.session.uid() == Some(uid) {
+            match &self.session {
+                AteSessionType::User(a) => a.read_keys().next(),
+                AteSessionType::Sudo(a) => a.inner.read_keys().next(),
+                AteSessionType::Group(a) => match &a.inner {
+                    AteSessionInner::User(a) => a.read_keys().next(),
+                    AteSessionInner::Sudo(a) => a.inner.read_keys().next(),
+                },
+            }
+        } else {
+            None
+        }
     }
 
     fn get_user_write_key<'a>(&'a self, uid: u32) -> Option<&'a PrivateSignKey> {
-        match self.session.user.uid() {
-            Some(a) if a == uid => {
-                self.session.user
-                    .write_keys()
-                    .next()
-            },
-            _ => None
-        } 
+        if self.session.uid() == Some(uid) {
+            match &self.session {
+                AteSessionType::User(a) => a.write_keys().next(),
+                AteSessionType::Sudo(a) => a.inner.write_keys().next(),
+                AteSessionType::Group(a) => match &a.inner {
+                    AteSessionInner::User(a) => a.write_keys().next(),
+                    AteSessionInner::Sudo(a) => a.inner.write_keys().next(),
+                },
+            }
+        } else {
+            None
+        }
     }
 
     pub async fn load(&self, inode: u64) -> Result<Dao<Inode>> {
@@ -524,32 +517,28 @@ impl AteFS
 
     fn translate_uid(&self, uid: u32, req: &Request) -> u32 {
         if uid == 0 || uid == req.uid {
-            return self.session.user.uid().unwrap_or_else(|| uid);
+            return self.session.uid().unwrap_or_else(|| uid);
         }
         uid
     }
 
     fn translate_gid(&self, gid: u32, req: &Request) -> u32 {
         if gid == 0 || gid == req.gid {
-            return self.get_group_gid().unwrap_or_else(|| gid);
+            return self.session.gid().unwrap_or_else(|| gid);
         }
         gid
     }
 
     fn reverse_uid(&self, uid: u32, req: &Request) -> u32 {
-        if let Some(uid2) = self.session.user.uid() {
-            if uid == uid2 {
-                return req.uid;
-            }
+        if self.session.uid() == Some(uid) {
+            return req.uid;
         }
         uid
     }
 
     fn reverse_gid(&self, gid: u32, req: &Request) -> u32 {
-        if let Some(gid2) = self.get_group_gid() {
-            if gid == gid2 {
-                return req.gid;
-            }
+        if self.session.gid() == Some(gid) {
+            return req.gid;
         }
         gid
     }
@@ -583,7 +572,7 @@ impl AteFS
         }
 
         let gid = self.translate_gid(req.gid, &req);
-        if gid == dao.dentry.gid && self.session.groups.iter().any(|g| g.roles.iter().any(|r| r.gid().iter().any(|gid2| *gid2 == gid))) {
+        if gid == dao.dentry.gid && self.session.gid() == Some(gid) {
             trace!("access has_group");
             let mask_shift = mask << 3;
             if (dao.dentry.mode & mask_shift) != 0

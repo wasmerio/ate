@@ -5,6 +5,7 @@ use error_chain::bail;
 use async_trait::async_trait;
 use std::sync::{Arc, Weak};
 use bytes::Bytes;
+use std::ops::Deref;
 
 use crate::{crypto::AteHash, error::*, event::*, meta::{CoreMetadata}, spec::MessageFormat};
 use crate::chain::*;
@@ -21,7 +22,7 @@ use super::*;
 
 pub struct ServiceHook
 {
-    pub session: AteSession,
+    pub session: Box<dyn AteSession>,
     pub scope: TransactionScope,
     handler: Arc<dyn ServiceInvoker>,
     chain: Weak<Chain>,
@@ -29,10 +30,10 @@ pub struct ServiceHook
 
 impl ServiceHook
 {
-    pub(crate) fn new(chain: &Arc<Chain>, session: AteSession, handler: &Arc<dyn ServiceInvoker>) -> ServiceHook {
+    pub(crate) fn new(chain: &Arc<Chain>, session: Box<dyn AteSession>, handler: &Arc<dyn ServiceInvoker>) -> ServiceHook {
         ServiceHook {
             chain: Arc::downgrade(chain),
-            session: session.clone(),
+            session,
             handler: Arc::clone(handler),
             scope: TransactionScope::None,
         }
@@ -61,7 +62,7 @@ for ServiceHook
         };
 
         // Build the data access layer
-        let dio = chain.dio_trans(&self.session, self.scope).await;
+        let dio = chain.dio_trans(self.session.deref(), self.scope).await;
         dio.auto_cancel();
 
         // Lock the data row
@@ -74,7 +75,7 @@ for ServiceHook
         let mut evt = dio.load_raw(&key).await?;
         
         // Convert the data using the encryption and decryption routines
-        dio.data_as_overlay(&self.session, &mut evt)?;
+        dio.data_as_overlay(self.session.deref(), &mut evt)?;
         let req = match evt.data_bytes {
             Some(a) => a,
             None => { bail!(InvokeErrorKind::NoData); }

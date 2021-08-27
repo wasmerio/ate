@@ -6,6 +6,7 @@ pub mod group_user_add;
 pub mod group_user_remove;
 pub mod login;
 pub mod query;
+pub mod sudo;
 
 pub use create_group::*;
 pub use create_user::*;
@@ -15,3 +16,4 @@ pub use group_user_add::*;
 pub use group_user_remove::*;
 pub use login::*;
 pub use query::*;
+pub use sudo::*;

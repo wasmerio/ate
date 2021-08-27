@@ -16,7 +16,7 @@ use crate::model::*;
 pub struct AuthService
 {
     pub auth_url: url::Url,
-    pub master_session: AteSession,
+    pub master_session: AteSessionUser,
     pub time_keeper: TimeKeeper,
     pub terms_and_conditions: Option<String>,
     pub registry: Arc<Registry>,
@@ -24,7 +24,7 @@ pub struct AuthService
 
 impl AuthService
 {
-    pub async fn new(cfg: &ConfAte, auth_url: url::Url, auth_session: AteSession, terms_and_conditions: Option<String>) -> Result<Arc<AuthService>, TimeError>
+    pub async fn new(cfg: &ConfAte, auth_url: url::Url, auth_session: AteSessionUser, terms_and_conditions: Option<String>) -> Result<Arc<AuthService>, TimeError>
     {
         let service = Arc::new(
             AuthService
@@ -42,7 +42,7 @@ impl AuthService
     }
 }
 
-pub async fn service_auth_handlers(cfg: &ConfAte, cmd_session: AteSession, auth_url: url::Url, auth_session: AteSession, terms_and_conditions: Option<String>, chain: &Arc<Chain>)
+pub async fn service_auth_handlers(cfg: &ConfAte, cmd_session: AteSessionUser, auth_url: url::Url, auth_session: AteSessionUser, terms_and_conditions: Option<String>, chain: &Arc<Chain>)
 -> Result<(), TimeError>
 {
     let service = AuthService::new(cfg, auth_url, auth_session, terms_and_conditions).await?;

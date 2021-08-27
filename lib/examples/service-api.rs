@@ -48,7 +48,7 @@ async fn main() -> Result<(), AteError>
     let chain = builder.open(&ChainKey::from("cmd")).await?;
     
     info!("start the service on the chain");
-    let session = AteSession::new(&conf);
+    let session = AteSessionUser::new();
     chain.add_service(&session, Arc::new(PingPongTable::default()), PingPongTable::process);
     
     info!("sending ping");

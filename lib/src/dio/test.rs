@@ -51,12 +51,11 @@ async fn test_dio() -> Result<(), AteError>
     let root_public_key = write_key.as_public_key();
     
     info!("building the session");
-    let cfg = ConfAte::default();
-    let mut session = AteSession::new(&cfg);
+    let mut session = AteSessionUser::new();
     session.user.properties.push(AteSessionProperty::WriteKey(write_key.clone()));
     session.user.properties.push(AteSessionProperty::WriteKey(write_key2.clone()));
     session.user.properties.push(AteSessionProperty::ReadKey(read_key.clone()));
-    session.user.properties.push(AteSessionProperty::Identity("author@here.com".to_string()));
+    session.identity = "author@here.com".to_string();
     info!("{}", session);
 
     let key1;

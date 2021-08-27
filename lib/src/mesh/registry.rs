@@ -330,31 +330,31 @@ impl ChainGuard
         Arc::clone(&self.chain)
     }
 
-    pub async fn dio(&self, session: &'_ AteSession) -> Arc<Dio> {
+    pub async fn dio(&self, session: &'_ dyn AteSession) -> Arc<Dio> {
         self.chain.dio(session).await
     }
 
     /// Opens a data access layer that allows mutable changes to data.
     /// Transaction consistency on commit will be guarranted for local redo log files
-    pub async fn dio_mut(&self, session: &'_ AteSession) -> Arc<DioMut> {
+    pub async fn dio_mut(&self, session: &'_ dyn AteSession) -> Arc<DioMut> {
         self.chain.dio_mut(session).await
     }
 
     /// Opens a data access layer that allows mutable changes to data (in a fire-and-forget mode).
     /// No transaction consistency on commits will be enforced
-    pub async fn dio_fire(&self, session: &'_ AteSession) -> Arc<DioMut> {
+    pub async fn dio_fire(&self, session: &'_ dyn AteSession) -> Arc<DioMut> {
         self.chain.dio_fire(session).await
     }
 
     /// Opens a data access layer that allows mutable changes to data.
     /// Transaction consistency on commit will be guarranted for all remote replicas
-    pub async fn dio_full(&self, session: &'_ AteSession) -> Arc<DioMut> {
+    pub async fn dio_full(&self, session: &'_ dyn AteSession) -> Arc<DioMut> {
         self.chain.dio_full(session).await
     }
 
     /// Opens a data access layer that allows mutable changes to data.
     /// Transaction consistency on commit must be specified
-    pub async fn dio_trans(&self, session: &'_ AteSession, scope: TransactionScope) -> Arc<DioMut> {
+    pub async fn dio_trans(&self, session: &'_ dyn AteSession, scope: TransactionScope) -> Arc<DioMut> {
         self.chain.dio_trans(session, scope).await
     }
 
@@ -366,7 +366,7 @@ impl ChainGuard
         self.as_arc().invoke(request).await
     }
 
-    pub async fn invoke_ext<REQ, RES, ERR>(&self, session: Option<&AteSession>, request: REQ, timeout: Duration) -> Result<Result<RES, ERR>, InvokeError>
+    pub async fn invoke_ext<REQ, RES, ERR>(&self, session: Option<&'_ dyn AteSession>, request: REQ, timeout: Duration) -> Result<Result<RES, ERR>, InvokeError>
     where REQ: Clone + Serialize + DeserializeOwned + Sync + Send + ?Sized,
           RES: Serialize + DeserializeOwned + Sync + Send + ?Sized,
           ERR: Serialize + DeserializeOwned + Sync + Send + ?Sized,

@@ -48,11 +48,6 @@ impl AteGroup
         role.properties.push(AteSessionProperty::WriteKey(key.clone()));
     }
 
-    pub fn add_identity(&mut self, purpose: &AteRolePurpose, identity: String) {
-        let role = self.get_or_create_role(purpose);
-        role.properties.push(AteSessionProperty::Identity(identity));
-    }
-
     pub fn read_keys<'a>(&'a self) -> impl Iterator<Item = &'a EncryptKey> {
         self.roles
             .iter()

@@ -18,6 +18,7 @@ use crate::crypto::PublicSignKey;
 use crate::error::*;
 use crate::pipe::*;
 use crate::engine::*;
+use crate::session::AteSessionUser;
 use crate::session::AteSession;
 use crate::comms::NodeId;
 use crate::comms::Metrics;
@@ -43,7 +44,7 @@ pub struct ChainBuilder
     pub(crate) tree: Option<TreeAuthorityPlugin>,
     pub(crate) truncate: bool,
     pub(crate) temporal: bool,
-    pub(crate) session: AteSession,
+    pub(crate) session: Box<dyn AteSession>,
     pub(crate) metrics: Arc<StdMutex<Metrics>>,
     pub(crate) throttle: Arc<StdMutex<Throttle>>,
 }
@@ -64,7 +65,7 @@ for ChainBuilder
             plugins: self.plugins.iter().map(|a| a.clone_plugin()).collect::<Vec<_>>(),
             pipes: self.pipes.clone(),
             tree: self.tree.clone(),
-            session: self.session.clone(),
+            session: self.session.clone_session(),
             truncate: self.truncate,
             temporal: self.temporal,
             metrics: Arc::clone(&self.metrics),
@@ -89,7 +90,7 @@ impl ChainBuilder
             plugins: Vec::new(),
             pipes: None,
             tree: None,
-            session: AteSession::new(&cfg_ate),
+            session: AteSessionUser::new().into(),
             truncate: false,
             temporal: false,
             metrics: Arc::new(StdMutex::new(Metrics::default())),
@@ -266,7 +267,7 @@ impl ChainBuilder
     }
 
     #[allow(dead_code)]
-    pub fn set_session(mut self, session: AteSession) -> Self {
+    pub fn set_session(mut self, session: Box<dyn AteSession>) -> Self {
         self.session = session;
         self
     }

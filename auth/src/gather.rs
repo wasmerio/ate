@@ -19,6 +19,10 @@ use crate::service::AuthService;
 use crate::helper::*;
 use crate::error::*;
 use crate::helper::*;
+use super::login::main_session_start;
+use super::main_session_user;
+use super::main_session_sudo;
+use super::main_sudo;
 
 impl AuthService
 {
@@ -33,7 +37,7 @@ impl AuthService
             None => { return Err(GatherFailed::NoMasterKey); }
         };
 
-        let mut super_session = request.session.clone();
+        let mut super_session = AteSessionUser::default();
         super_session.user.add_read_key(&master_key);
 
         // Compute which chain the group should exist within
@@ -57,7 +61,7 @@ impl AuthService
         };
 
         // Now go into a loading loop on the session
-        let session = complete_group_auth(group.deref(), request.session.clone())?;
+        let session = complete_group_auth(group.deref(), request.session)?;
         
         // Return the session that can be used to access this user
         Ok(GatherResponse {
@@ -69,7 +73,7 @@ impl AuthService
     }
 }
 
-pub async fn gather_command(registry: &Arc<Registry>, group: String, session: AteSession, auth: Url) -> Result<AteSession, GatherError>
+pub async fn gather_command(registry: &Arc<Registry>, group: String, session: AteSessionInner, auth: Url) -> Result<AteSessionGroup, GatherError>
 {
     // Open a command chain
     let chain = registry.open_cmd(&auth).await?;
@@ -86,11 +90,46 @@ pub async fn gather_command(registry: &Arc<Registry>, group: String, session: At
     Ok(result.authority)
 }
 
+pub async fn main_session_group(token_string: Option<String>, token_file_path: Option<String>, group: String, sudo: bool, code: Option<String>, auth_url: Option<url::Url>) -> Result<AteSessionGroup, GatherError>
+{
+    let session = main_session_start(token_string, token_file_path, auth_url.clone()).await?;
+
+    let mut session = match session {
+        AteSessionType::Group(a) => {
+            if a.group.name == group {
+                return Ok(a);
+            }
+            a.inner
+        },
+        AteSessionType::User(a) => AteSessionInner::User(a),
+        AteSessionType::Sudo(a) => AteSessionInner::Sudo(a),
+    };
+
+    if sudo {
+        session = match session {
+            AteSessionInner::User(a) => {
+                if let Some(auth) = auth_url.clone() {
+                    AteSessionInner::Sudo(main_sudo(a, code, auth).await?)
+                } else {
+                    AteSessionInner::User(a)
+                }
+            },
+            a => a
+        };
+    }
+
+    if let Some(auth) = auth_url {
+        Ok(main_gather(Some(group), session, auth).await?)
+    } else {
+        Ok(AteSessionGroup::new(session, group))
+    }
+}
+
 pub async fn main_gather(
     group: Option<String>,
-    session: AteSession,
+    session: AteSessionInner,
     auth: Url
-) -> Result<AteSession, GatherError>
+) -> Result<AteSessionGroup, GatherError>
 {
     let group = match group {
         Some(a) => a,

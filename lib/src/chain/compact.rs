@@ -163,7 +163,7 @@ impl<'a> Chain
                     linters: Vec::new(),
                     validators: guard_sync.validators.iter().map(|a| a.clone_validator()).collect::<Vec<_>>(),
                     transformers: Vec::new(),
-                    default_session: AteSession::default(),
+                    default_session: AteSessionUser::default().into(),
                     integrity: guard_sync.integrity,
                 }
             };

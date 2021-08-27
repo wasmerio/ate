@@ -104,7 +104,7 @@ async fn test_mesh_internal(centralized: bool)
     let chain_a = Arc::clone(&client_a).open(&test_url, &ChainKey::from("test-chain")).await.unwrap();
     info!("connected with client 1");
 
-    let mut session_a = AteSession::new(&cfg_ate);
+    let mut session_a = AteSessionUser::new();
     session_a.add_user_write_key(&root_key);
     
     let dao_key1;
@@ -131,7 +131,7 @@ async fn test_mesh_internal(centralized: bool)
             let client_b = create_temporal_client(&cfg_ate, &cfg_mesh);
 
             let chain_b = client_b.open(&test_url, &ChainKey::new("test-chain".to_string())).await.unwrap();
-            let mut session_b = AteSession::new(&cfg_ate);
+            let mut session_b = AteSessionUser::new();
             session_b.add_user_write_key(&root_key);
 
             bus_a = dao2.as_mut().inner.bus().await.unwrap();
@@ -200,7 +200,7 @@ async fn test_mesh_internal(centralized: bool)
 
         info!("reconnecting the client");
         let chain = client.open(&test_url, &ChainKey::from("test-chain")).await.unwrap();
-        let session = AteSession::new(&cfg_ate);
+        let session = AteSessionUser::new();
         {
             info!("loading data object 1");
             let dio = chain.dio(&session).await;

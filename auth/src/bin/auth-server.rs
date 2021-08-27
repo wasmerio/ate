@@ -91,7 +91,7 @@ async fn main() -> Result<(), AteError>
             }
             cfg_ate.compact_mode = CompactMode::Never;
             
-            let mut session = AteSession::new(&cfg_ate);
+            let mut session = AteSessionUser::new();
             session.user.add_read_key(&root_read_key);
             session.user.add_write_key(&root_write_key);
 

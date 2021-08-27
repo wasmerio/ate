@@ -19,7 +19,7 @@ for TreeAuthorityPlugin
     }
 
     #[allow(unused_variables)]
-    fn data_as_underlay(&self, meta: &mut Metadata, with: Bytes, session: &AteSession, trans_meta: &TransactionMetadata) -> Result<Bytes, TransformError>
+    fn data_as_underlay(&self, meta: &mut Metadata, with: Bytes, session: &'_ dyn AteSession, trans_meta: &TransactionMetadata) -> Result<Bytes, TransformError>
     {
         let mut with = self.signature_plugin.data_as_underlay(meta, with, session, trans_meta)?;
 
@@ -47,7 +47,7 @@ for TreeAuthorityPlugin
     }
 
     #[allow(unused_variables)]
-    fn data_as_overlay(&self, meta: &Metadata, with: Bytes, session: &AteSession) -> Result<Bytes, TransformError>
+    fn data_as_overlay(&self, meta: &Metadata, with: Bytes, session: &'_ dyn AteSession) -> Result<Bytes, TransformError>
     {
         let mut with = self.signature_plugin.data_as_overlay(meta, with, session)?;
 

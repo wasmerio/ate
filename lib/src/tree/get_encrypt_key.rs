@@ -11,7 +11,7 @@ use super::*;
 
 impl TreeAuthorityPlugin
 {
-    pub(super) fn get_encrypt_key(&self, meta: &Metadata, confidentiality: &MetaConfidentiality, iv: Option<&InitializationVector>, session: &AteSession) -> Result<Option<EncryptKey>, TransformError>
+    pub(super) fn get_encrypt_key(&self, meta: &Metadata, confidentiality: &MetaConfidentiality, iv: Option<&InitializationVector>, session: &'_ dyn AteSession) -> Result<Option<EncryptKey>, TransformError>
     {
         let trans_meta = TransactionMetadata::default();
         let auth_store;

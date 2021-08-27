@@ -7,7 +7,7 @@ use ate::prelude::*;
 pub struct GroupUserRemoveRequest
 {
     pub group: String,
-    pub session: AteSession,
+    pub session: AteSessionGroup,
     pub who: AteHash,
     pub purpose: AteRolePurpose
 }

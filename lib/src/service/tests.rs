@@ -50,7 +50,7 @@ async fn test_service() -> Result<(), AteError>
     
     info!("start the service on the chain");
     
-    let session = AteSession::new(&mock_cfg);
+    let session = AteSessionUser::new();
     
     chain.add_service(&session, Arc::new(PingPongTable::default()), PingPongTable::process);
     

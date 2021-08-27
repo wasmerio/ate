@@ -10,7 +10,7 @@ use std::sync::Arc;
 use parking_lot::{Mutex, MutexGuard};
 
 use crate::crypto::{EncryptedPrivateKey, PrivateSignKey};
-use crate::{crypto::EncryptKey, session::{AteSession, AteSessionProperty}};
+use crate::{crypto::EncryptKey, session::{AteSessionProperty}};
 
 use super::dio_mut::*;
 use crate::header::*;

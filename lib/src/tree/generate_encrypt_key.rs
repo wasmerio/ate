@@ -10,7 +10,7 @@ use super::*;
 
 impl TreeAuthorityPlugin
 {
-    pub(super) fn generate_encrypt_key(&self, auth: &ReadOption, session: &AteSession) -> Result<Option<(InitializationVector, EncryptKey)>, TransformError>
+    pub(super) fn generate_encrypt_key(&self, auth: &ReadOption, session: &'_ dyn AteSession) -> Result<Option<(InitializationVector, EncryptKey)>, TransformError>
     {
         match auth {
             ReadOption::Inherit => {

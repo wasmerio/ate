@@ -9,7 +9,6 @@ pub struct LoginRequest
 {
     pub email: String,
     pub secret: EncryptKey,
-    pub authenticator_code: Option<String>,
     pub verification_code: Option<String>,
 }
 
@@ -21,7 +20,7 @@ pub struct LoginResponse
     pub nominal_write: PublicSignKey,
     pub sudo_read: ate::crypto::AteHash,
     pub sudo_write: PublicSignKey,
-    pub authority: AteSession,
+    pub authority: AteSessionUser,
     pub message_of_the_day: Option<String>,
 }
 
@@ -29,7 +28,7 @@ pub struct LoginResponse
 pub enum LoginFailed
 {
     UserNotFound(String),
-    WrongPasswordOrCode,
+    WrongPassword,
     AccountLocked(Duration),
     Unverified(String),
     NoMasterKey,

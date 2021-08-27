@@ -24,7 +24,7 @@ fn ctrl_channel() -> tokio::sync::watch::Receiver<bool> {
     receiver
 }
 
-pub async fn main_mount(mount: OptsMount, conf: ConfAte, group: Option<String>, session: AteSession, no_auth: bool)
+pub async fn main_mount(mount: OptsMount, conf: ConfAte, group: Option<String>, session: AteSessionType, no_auth: bool)
 -> Result<(), AteError>
 {
     let uid = match mount.uid {

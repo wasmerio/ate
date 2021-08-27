@@ -7,7 +7,7 @@ use ate::prelude::*;
 pub struct GroupDetailsRequest
 {
     pub group: String,
-    pub session: Option<AteSession>,
+    pub session: Option<AteSessionGroup>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

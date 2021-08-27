@@ -2,37 +2,38 @@
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use serde::*;
 use ate::prelude::*;
+use std::time::Duration;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct GatherRequest
+pub struct SudoRequest
 {
-    pub session: AteSessionInner,
-    pub group: String,
+    pub session: AteSessionUser,
+    pub authenticator_code: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct GatherResponse
+pub struct SudoResponse
 {
-    pub group_name: String,
-    pub gid: u32,
-    pub group_key: PrimaryKey,
-    pub authority: AteSessionGroup
+    pub authority: AteSessionSudo,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum GatherFailed
+pub enum SudoFailed
 {
-    GroupNotFound(String),
-    NoAccess,
+    UserNotFound(String),
+    MissingToken,
+    WrongCode,
+    AccountLocked(Duration),
+    Unverified(String),
     NoMasterKey,
     InternalError(u16),
 }
 
 impl<E> From<E>
-for GatherFailed
+for SudoFailed
 where E: std::error::Error + Sized
 {
     fn from(err: E) -> Self {
-        GatherFailed::InternalError(ate::utils::obscure_error(err))
+        SudoFailed::InternalError(ate::utils::obscure_error(err))
     }
 }

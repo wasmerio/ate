@@ -20,7 +20,7 @@ use crate::session::AteSession;
 pub(crate) struct ChainProtectedSync
 {
     pub(crate) integrity: TrustMode,
-    pub(crate) default_session: AteSession,
+    pub(crate) default_session: Box<dyn AteSession>,
     pub(crate) sniffers: Vec<ChainSniffer>,
     pub(crate) plugins: Vec<Box<dyn EventPlugin>>,
     pub(crate) indexers: Vec<Box<dyn EventIndexer>>,

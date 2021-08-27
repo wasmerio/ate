@@ -9,6 +9,7 @@ use qrcode::QrCode;
 use qrcode::render::unicode;
 use regex::Regex;
 use std::sync::Arc;
+use once_cell::sync::Lazy;
 
 use ate::prelude::*;
 use ate::error::LoadError;
@@ -21,6 +22,8 @@ use crate::service::AuthService;
 use crate::helper::*;
 use crate::error::*;
 use crate::model::*;
+
+static BANNED_USERNAMES: Lazy<Vec<&'static str>> = Lazy::new(|| vec!["nobody", "admin", "support", "help", "root"]);
 
 impl AuthService
 {
@@ -49,19 +52,25 @@ impl AuthService
             }
         };
 
+        // If the username is on the banned list then dont allow it
+        if BANNED_USERNAMES.contains(&request.email.as_str()) {
+            return Err(CreateUserFailed::InvalidEmail);
+        }
+
         // Compute the super_key, super_super_key (elevated rights) and the super_session
         let key_size = request.secret.size();
-        let super_key = match self.compute_super_key(request.secret) {
+        let (super_key, token) = match self.compute_super_key(request.secret) {
             Some(a) => a,
             None => { return Err(CreateUserFailed::NoMasterKey); }
         };
-        let super_super_key = match self.compute_super_key(super_key.clone()) {
+        let (super_super_key, super_token) = match self.compute_super_key(super_key.clone()) {
             Some(a) => a,
             None => { return Err(CreateUserFailed::NoMasterKey); }
         };
         let mut super_session = self.master_session.clone();
         super_session.user.add_read_key(&super_key);
         super_session.user.add_read_key(&super_super_key);
+        super_session.token = Some(super_token);
 
         // Create the access object
         let read_key = EncryptKey::generate(key_size);
@@ -79,6 +88,7 @@ impl AuthService
         session.user.add_read_key(&read_key);
         session.user.add_private_read_key(&private_read_key);
         session.user.add_write_key(&write_key);
+        session.token = Some(token.clone());
 
         // Compute which chain the user should exist within
         let user_chain_key = chain_key_4hex(&request.email, Some("redo"));
@@ -237,8 +247,10 @@ impl AuthService
         dio.commit().await?;
 
         // Create the authorizations and return them
-        let session = compute_user_auth(user.deref());
-        let session = compute_sudo_auth(&sudo, session);
+        let mut session = compute_user_auth(user.deref());
+        session.token = Some(token);
+
+        let sudo_session = compute_sudo_auth(&sudo, session.clone());
 
         // Return success to the caller
         Ok((CreateUserResponse {
@@ -246,6 +258,7 @@ impl AuthService
             qr_code: qr_code,
             qr_secret: secret.clone(),
             authority: session,
+            sudo_authority: sudo_session,
             message_of_the_day: None,
         }, user))
     }

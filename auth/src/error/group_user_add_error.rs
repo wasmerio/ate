@@ -13,6 +13,7 @@ error_chain! {
         ChainCreationError(::ate::error::ChainCreationError, ::ate::error::ChainCreationErrorKind);
         SerializationError(::ate::error::SerializationError, ::ate::error::SerializationErrorKind);
         InvokeError(::ate::error::InvokeError, ::ate::error::InvokeErrorKind);
+        GatherError(super::GatherError, super::GatherErrorKind);
     }
     foreign_links {
         IO(tokio::io::Error);

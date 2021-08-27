@@ -22,47 +22,34 @@ use crate::service::AuthService;
 use crate::helper::*;
 use crate::error::*;
 use crate::model::*;
+use super::gather_command;
 
 impl AuthService
 {
-    pub fn get_delegate_write(mut request_session: AteSession, group: &Group, needed_role: AteRolePurpose) -> Result<Option<(PrivateEncryptKey, AteSession)>, LoadError>
+    pub fn get_delegate_write(request_session: &AteSessionGroup, needed_role: AteRolePurpose) -> Result<Option<PrivateEncryptKey>, LoadError>
     {
-        let group_name = group.name.clone();
-        let mut delegate_check_first_time = true;
-        let delegate_write;
-        loop {
-            let val = {
-                request_session
-                    .get_group_role(&group_name, &needed_role)
-                    .iter()
-                    .flat_map(|r| r.private_read_keys())
-                    .map(|a| a.clone())
-                    .next()
-            };
+        let val = {
+            request_session
+                .get_group_role(&needed_role)
+                .iter()
+                .flat_map(|r| r.private_read_keys())
+                .map(|a| a.clone())
+                .next()
+        };
 
-            // Extract the controlling role as this is what we will use to create the role
-            delegate_write = match val
+        // Extract the controlling role as this is what we will use to create the role
+        let delegate_write = match val
+        {
+            Some(a) => a,
+            None =>
             {
-                Some(a) => a,
-                None =>
-                {
-                    if delegate_check_first_time {
-                        delegate_check_first_time = false;
+                // If it fails again then give up
+                debug!("group-user-add-failed with {}", request_session);
+                return Ok(None);
+            }
+        };
 
-                        // Attempt to get the access via the gather call
-                        request_session = complete_group_auth(group.deref(), request_session)?;
-                        continue;
-                    }
-
-                    // If it fails again then give up
-                    debug!("group-user-add-failed with {}", request_session);
-                    return Ok(None);
-                }
-            };
-            break;
-        }
-
-        Ok(Some((delegate_write, request_session)))
+        Ok(Some(delegate_write))
     }
 
     pub async fn process_group_user_add(self: Arc<Self>, request: GroupUserAddRequest) -> Result<GroupUserAddResponse, GroupUserAddFailed>
@@ -83,7 +70,7 @@ impl AuthService
 
         // Create the super session that has all the rights we need
         let mut super_session = self.master_session.clone();
-        super_session.append(request_session.clone());
+        super_session.append(request_session.properties());
 
         // Load the group
         let group_key = PrimaryKey::from(request.group.clone());
@@ -109,8 +96,8 @@ impl AuthService
         };
 
         // Get the delegate write key
-        let (delegate_write, request_session) = match AuthService::get_delegate_write(request_session, group.deref(), needed_role)? {
-            Some((a, b)) => (a, b),
+        let delegate_write = match AuthService::get_delegate_write(&request_session, needed_role)? {
+            Some(a) => a,
             None => {
                 return Err(GroupUserAddFailed::NoAccess);
             }
@@ -120,12 +107,7 @@ impl AuthService
         if group.roles.iter().any(|r| r.purpose == request_purpose) == false
         {
             // Get our own identity
-            let referrer_identity = match request_session.user.identity() {
-                Some(a) => a.clone(),
-                None => {
-                    return Err(GroupUserAddFailed::UnknownIdentity);
-                }
-            };
+            let referrer_identity = request_session.inner.identity().to_string();
 
             // Generate the role keys
             let role_read = EncryptKey::generate(key_size);
@@ -161,9 +143,10 @@ impl AuthService
     }
 }
 
-pub async fn group_user_add_command(registry: &Arc<Registry>, group: String, purpose: AteRolePurpose, username: String, auth: Url, session: &AteSession) -> Result<GroupUserAddResponse, GroupUserAddError>
+pub async fn group_user_add_command(registry: &Arc<Registry>, session: &AteSessionGroup, purpose: AteRolePurpose, username: String, auth: Url) -> Result<GroupUserAddResponse, GroupUserAddError>
 {
     // Open a command chain
+    let group = session.identity().to_string();
     let chain = registry.open_cmd(&auth).await?;
     
     // First we query the user that needs to be added so that we can get their public encrypt key
@@ -191,24 +174,12 @@ pub async fn group_user_add_command(registry: &Arc<Registry>, group: String, pur
 }
 
 pub async fn main_group_user_add(
-    group: Option<String>,
     purpose: Option<AteRolePurpose>,
     username: Option<String>,
     auth: Url,
-    session: &AteSession
+    session: &AteSessionGroup
 ) -> Result<(), GroupUserAddError>
 {
-    let group = match group {
-        Some(a) => a,
-        None => {
-            print!("Group: ");
-            stdout().lock().flush()?;
-            let mut s = String::new();
-            std::io::stdin().read_line(&mut s).expect("Did not enter a valid group");
-            s.trim().to_string()
-        }
-    };
-
     let purpose = match purpose {
         Some(a) => a,
         None => {
@@ -236,7 +207,7 @@ pub async fn main_group_user_add(
 
     // Add a user in a group using the authentication server
     let registry = ate::mesh::Registry::new( &conf_cmd()).await.cement();
-    let result = group_user_add_command(&registry, group, purpose, username, auth, session).await?;
+    let result = group_user_add_command(&registry, &session, purpose, username, auth).await?;
 
     println!("Group user added (id={})", result.key);
 

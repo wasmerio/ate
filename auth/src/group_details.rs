@@ -93,7 +93,7 @@ impl AuthService
     }
 }
 
-pub async fn group_details_command(registry: &Arc<Registry>, group: String, auth: Url, session: Option<&AteSession>) -> Result<GroupDetailsResponse, GroupDetailsError>
+pub async fn group_details_command(registry: &Arc<Registry>, group: String, auth: Url, session: Option<&AteSessionGroup>) -> Result<GroupDetailsResponse, GroupDetailsError>
 {
     // Open a command chain
     let chain = registry.open_cmd(&auth).await?;
@@ -113,7 +113,7 @@ pub async fn group_details_command(registry: &Arc<Registry>, group: String, auth
 pub async fn main_group_details(
     group: Option<String>,
     auth: Url,
-    session: Option<&AteSession>
+    session: Option<&AteSessionGroup>,
 ) -> Result<(), GroupDetailsError>
 {
     let group = match group {

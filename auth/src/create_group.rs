@@ -164,9 +164,6 @@ impl AuthService
         };
         let mut group = dio.store_with_key(group, group_key.clone())?;
 
-        // Create the session that we will return to the call
-        let mut session = AteSession::default();
-
         // Add the other roles
         {
             let mut group_mut = group.as_mut();
@@ -234,12 +231,6 @@ impl AuthService
                     access.add(&delegate_private_read.as_public_key(), "delegate".to_string(), &owner_private_read)?;
                 }
 
-                // Add the rights to the session we will return
-                let role = session.get_or_create_group_role(&request.group, &purpose);
-                role.add_read_key(&role_read.clone());
-                role.add_private_read_key(&role_private_read.clone());
-                role.add_write_key(&role_write.clone());
-
                 // Add the owner role to the group (as its a super_key the authentication server
                 // is required to read the group records and load them, while the authentication
                 // server can run in a distributed mode it is a centralized authority)
@@ -281,7 +272,7 @@ impl AuthService
         dio.commit().await?;
 
         // Add the group credentials to the response
-        let session = complete_group_auth(group.deref(), session)?;
+        let session = complete_group_auth(group.deref(), AteSessionUser::default().into())?;
 
         // Return success to the caller
         Ok(CreateGroupResponse {
@@ -311,13 +302,12 @@ pub async fn create_group_command(registry: &Arc<Registry>, group: String, auth:
 pub async fn main_create_group_prelude(
     group: Option<String>,
     username: Option<String>,
-    group_hint: &str,
 ) -> Result<(String, String), CreateError>
 {
     let group = match group {
         Some(a) => a,
         None => {
-            print!("{}: ", group_hint);
+            print!("Group: ");
             stdout().lock().flush()?;
             let mut s = String::new();
             std::io::stdin().read_line(&mut s).expect("Did not enter a valid group");
@@ -343,10 +333,9 @@ pub async fn main_create_group(
     group: Option<String>,
     auth: Url,
     username: Option<String>,
-    group_hint: &str,
-) -> Result<AteSession, CreateError>
+) -> Result<AteSessionGroup, CreateError>
 {
-    let (group, username) = main_create_group_prelude(group, username, group_hint).await?;
+    let (group, username) = main_create_group_prelude(group, username).await?;
 
     // Create a user using the authentication server which will give us a session with all the tokens
     let registry = ate::mesh::Registry::new( &conf_cmd()).await.cement();

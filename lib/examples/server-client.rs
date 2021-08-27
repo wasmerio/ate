@@ -27,7 +27,7 @@ async fn main() -> Result<(), AteError>
     let key = {
         let registry = Registry::new(&cfg_ate).await.cement();
         let chain = registry.open(&url::Url::from_str("ws://localhost:5000/").unwrap(), &ChainKey::from("test-chain")).await?;
-        let session = AteSession::new(&cfg_ate);
+        let session = AteSessionUser::new();
         let dio = chain.dio_mut(&session).await;
         let dao = dio.store("my test string".to_string())?;
         dio.commit().await?;
@@ -39,7 +39,7 @@ async fn main() -> Result<(), AteError>
     {
         let registry = Registry::new(&cfg_ate).await.cement();
         let chain = registry.open(&url::Url::from_str("ws://localhost:5000/").unwrap(), &ChainKey::from("test-chain")).await?;
-        let session = AteSession::new(&cfg_ate);
+        let session = AteSessionUser::new();
         let dio = chain.dio(&session).await;
         let dao = dio.load::<String>(&key).await?;
 

@@ -28,7 +28,7 @@ pub async fn test_create_user_and_group()
     info!("building session for service");
     let root_read_key = EncryptKey::generate(KeySize::Bit192);
     let root_write_key = PrivateSignKey::generate(KeySize::Bit192);
-    let mut session = AteSession::new(&cfg_ate);
+    let mut session = AteSessionUser::new();
     session.user.add_read_key(&root_read_key);
     session.user.add_write_key(&root_write_key);
 
@@ -63,7 +63,7 @@ pub async fn test_create_user_and_group()
     // Create the group
     info!("creating group 'mygroup'");
     let group = "mygroup".to_string();
-    let _session = crate::main_create_group(Some(group.clone()), auth.clone(), Some(username.clone()), "Group").await.unwrap();
+    let _session = crate::main_create_group(Some(group.clone()), auth.clone(), Some(username.clone())).await.unwrap();
 
     // Compute the code using the returned QR secret
     info!("computing login code");
@@ -79,25 +79,26 @@ pub async fn test_create_user_and_group()
             .cement();
         for n in 0..10 {
             info!("login request for joe.blogs [n={}]", n);
-            let response = login_command(&registry, username.clone(), password.clone(), None, None, auth.clone(), true).await;
+            let response = login_command(&registry, username.clone(), password.clone(), None, auth.clone(), true).await;
             info!("login completed for joe.blogs [n={}]", n);
-            let _ = handle_login_response(&registry, response, username.clone(), password.clone(), None, auth.clone()).await.unwrap();
+            let _ = handle_login_response(&registry, response, username.clone(), password.clone(), auth.clone()).await.unwrap();
         }
     }
             
 
     // Login to the main user and gather the rights to the group (full sudo rights)
     info!("sudo login for 'joe.blogs'");
-    let session = crate::main_sudo(Some(username.clone()), Some(password.clone()), Some(code), auth.clone()).await.unwrap();
+    let session = crate::main_login(Some(username.clone()), Some(password.clone()), auth.clone()).await.unwrap();
+    let session = crate::main_sudo(session, Some(code), auth.clone()).await.unwrap();
     info!("gather permissions for group 'mygroup'");
-    let session = crate::main_gather(Some(group.clone()), session, auth.clone()).await.unwrap();
+    let session = crate::main_gather(Some(group.clone()), session.into(), auth.clone()).await.unwrap();
 
     // Make sure its got the permission
     info!("test we have group roles");
-    let _group_read = session.get_group_role(&group, &AteRolePurpose::Owner)
+    let _group_read = session.get_group_role(&AteRolePurpose::Owner)
         .expect("Should have the owner role")
         .private_read_keys().next().expect("Should have a private key for the owner role");
-    let _group_read = session.get_group_role(&group, &AteRolePurpose::Delegate)
+    let _group_read = session.get_group_role(&AteRolePurpose::Delegate)
         .expect("Should have the delegate role")
         .private_read_keys().next().expect("Should have a private key for the delegate role");
 
@@ -105,14 +106,14 @@ pub async fn test_create_user_and_group()
     info!("login without sudo 'joe.blogs'");
     let session = crate::main_login(Some(username.clone()), Some(password.clone()), auth.clone()).await.unwrap();
     info!("gather permissions for group 'mygroup'");
-    let session = crate::main_gather(Some(group.clone()), session, auth.clone()).await.unwrap();
+    let session = crate::main_gather(Some(group.clone()), session.into(), auth.clone()).await.unwrap();
 
     // Make sure its got the permission
     info!("test we at have delegate and not owner");
-    let _group_read = session.get_group_role(&group, &AteRolePurpose::Delegate)
+    let _group_read = session.get_group_role(&AteRolePurpose::Delegate)
         .expect("Should have the delegate role")
         .private_read_keys().next().expect("Should have a private key for the delegate role");
-    assert!(session.get_group_role(&group, &AteRolePurpose::Owner).is_none(), "The user should have had this role");
+    assert!(session.get_group_role(&AteRolePurpose::Owner).is_none(), "The user should have had this role");
 
     // Create a friend and add it to the new group we just added
     info!("create a friend account 'myfriend'");
@@ -121,19 +122,19 @@ pub async fn test_create_user_and_group()
     let friend_session = friend.authority;
 
     info!("add friend to the group 'mygroup'");
-    crate::main_group_user_add(Some(group.clone()), Some(AteRolePurpose::Contributor), Some(friend_username.clone()), auth.clone(), &session).await.unwrap();
+    crate::main_group_user_add(Some(AteRolePurpose::Contributor), Some(friend_username.clone()), auth.clone(), &session).await.unwrap();
 
     // Gather the extra rights for the friend
     info!("gather extra rights for friend");
-    let friend = crate::main_gather(Some(group.clone()), friend_session.clone(), auth.clone()).await.unwrap();
+    let friend = crate::main_gather(Some(group.clone()), friend_session.clone().into(), auth.clone()).await.unwrap();
 
     // Make sure its got the permission
     info!("test the friend got the 'contributor' role");
-    let _group_read = friend.get_group_role(&group, &AteRolePurpose::Contributor)
+    let _group_read = friend.get_group_role(&AteRolePurpose::Contributor)
         .expect("Should have the contributor role")
         .private_read_keys().next().expect("Should have a private key for the owner role");
-    assert!(friend.get_group_role(&group, &AteRolePurpose::Owner).is_none(), "The user should have had this role");
-    assert!(friend.get_group_role(&group, &AteRolePurpose::Delegate).is_none(), "The user should have had this role");
+    assert!(friend.get_group_role(&AteRolePurpose::Owner).is_none(), "The user should have had this role");
+    assert!(friend.get_group_role(&AteRolePurpose::Delegate).is_none(), "The user should have had this role");
 
     // Load the details of the group
     info!("get the group details");
@@ -141,10 +142,10 @@ pub async fn test_create_user_and_group()
 
     // Remove user the role
     info!("remove the 'friend' from the group");
-    crate::main_group_user_remove(Some(group.clone()), Some(AteRolePurpose::Contributor), Some(friend_username.clone()), auth.clone(), &session).await.unwrap();
+    crate::main_group_user_remove(Some(AteRolePurpose::Contributor), Some(friend_username.clone()), auth.clone(), &session).await.unwrap();
 
     // Make sure its got the permission
     info!("gather permissions and make sure they dont have contributor anymore");
-    let friend = crate::main_gather(Some(group.clone()), friend_session.clone(), auth.clone()).await.unwrap();
-    assert!(friend.get_group_role(&group, &AteRolePurpose::Contributor).is_none(), "The user should have had this role removed");
+    let friend = crate::main_gather(Some(group.clone()), friend_session.clone().into(), auth.clone()).await.unwrap();
+    assert!(friend.get_group_role(&AteRolePurpose::Contributor).is_none(), "The user should have had this role removed");
 }

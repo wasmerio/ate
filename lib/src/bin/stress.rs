@@ -32,7 +32,7 @@ async fn main() -> Result<(), AteError> {
         let chain = builder.open(&ChainKey::from("stress")).await?;
         
         // Prepare
-        let session = AteSession::new(&cfg_ate);
+        let session = AteSessionUser::new();
 
         let mut test_obj = MyTestObject {
             firstname: "Joe".to_string(),

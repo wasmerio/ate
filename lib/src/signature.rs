@@ -201,7 +201,7 @@ for SignaturePlugin
         Box::new(self.clone())
     }
 
-    fn metadata_lint_many<'a>(&self, raw: &Vec<LintData<'a>>, session: &AteSession, conversation: Option<&Arc<ConversationSession>>) -> Result<Vec<CoreMetadata>, LintError>
+    fn metadata_lint_many<'a>(&self, raw: &Vec<LintData<'a>>, session: &'_ dyn AteSession, conversation: Option<&Arc<ConversationSession>>) -> Result<Vec<CoreMetadata>, LintError>
     {
         // If there is no data then we are already done
         let mut ret = Vec::new();

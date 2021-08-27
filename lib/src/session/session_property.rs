@@ -12,7 +12,6 @@ pub enum AteSessionProperty
     PrivateReadKey(PrivateEncryptKey),
     PublicReadKey(PublicEncryptKey),
     WriteKey(PrivateSignKey),
-    Identity(String),
     Uid(u32),
     Gid(u32)
 }
@@ -33,7 +32,6 @@ for AteSessionProperty
             AteSessionProperty::PrivateReadKey(a) => write!(f, "private-read-key:{}", a),
             AteSessionProperty::PublicReadKey(a) => write!(f, "public-read-key:{}", a),
             AteSessionProperty::WriteKey(a) => write!(f, "write-key:{}", a),
-            AteSessionProperty::Identity(a) => write!(f, "identity:{}", a),
             AteSessionProperty::Uid(a) => write!(f, "uid:{}", a),
             AteSessionProperty::Gid(a) => write!(f, "gid:{}", a),
         }

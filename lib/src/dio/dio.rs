@@ -62,8 +62,9 @@ pub struct Dio
     pub(super) chain: Arc<Chain>,
     pub(super) multi: ChainMultiUser,
     pub(super) state: StdMutex<DioState>,
-    pub(super) session: StdRwLock<AteSession>,
+    pub(super) session: StdRwLock<Box<dyn AteSession>>,
     pub(super) time: Arc<TimeKeeper>,
+    pub(crate) log_format: Option<MessageFormat>,
 }
 
 pub(crate) struct DioScope
@@ -256,7 +257,7 @@ impl Dio
         Ok(self.load_from_event(session.as_ref(), evt.data, evt.header.as_header()?, leaf)?)
     }
 
-    pub(crate) fn load_from_event<D>(self: &Arc<Self>, session: &AteSession, mut data: EventData, header: EventHeader, leaf: EventLeaf)
+    pub(crate) fn load_from_event<D>(self: &Arc<Self>, session: &'_ dyn AteSession, mut data: EventData, header: EventHeader, leaf: EventLeaf)
     -> Result<Dao<D>, LoadError>
     where D: DeserializeOwned,
     {
@@ -399,7 +400,7 @@ impl Dio
         Ok(ret)
     }
 
-    pub(crate) fn data_as_overlay(self: &Arc<Self>, session: &AteSession, data: &mut EventData) -> Result<(), TransformError>
+    pub(crate) fn data_as_overlay(self: &Arc<Self>, session: &'_ dyn AteSession, data: &mut EventData) -> Result<(), TransformError>
     {
         data.data_bytes = match &data.data_bytes {
             Some(d) => Some(self.multi.data_as_overlay(&data.meta, d.clone(), session)?),
@@ -408,7 +409,7 @@ impl Dio
         Ok(())
     }
 
-    pub(super) fn __process_load_row<D>(self: &Arc<Self>, session: &AteSession, evt: &mut LoadResult, meta: &Metadata, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<Option<(RowHeader, Row<D>)>, LoadError>
+    pub(super) fn __process_load_row<D>(self: &Arc<Self>, session: &'_ dyn AteSession, evt: &mut LoadResult, meta: &Metadata, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<Option<(RowHeader, Row<D>)>, LoadError>
     where D: DeserializeOwned
     {
         evt.data.data_bytes = match &evt.data.data_bytes {
@@ -484,7 +485,7 @@ impl Dio
 
 pub struct DioSessionGuard<'a>
 {
-    lock: parking_lot::RwLockReadGuard<'a, AteSession>
+    lock: parking_lot::RwLockReadGuard<'a, Box<dyn AteSession>>
 }
 
 impl<'a> DioSessionGuard<'a>
@@ -496,24 +497,24 @@ impl<'a> DioSessionGuard<'a>
         }
     }
 
-    pub fn as_ref(&self) -> &AteSession {
-        self.lock.deref()
+    pub fn as_ref(&self) -> &dyn AteSession {
+        self.lock.deref().deref()
     }
 }
 
 impl<'a> Deref
 for DioSessionGuard<'a>
 {
-    type Target = AteSession;
+    type Target = dyn AteSession;
 
     fn deref(&self) -> &Self::Target {
-        self.lock.deref()
+        self.lock.deref().deref()
     }
 }
 
 pub struct DioSessionGuardMut<'a>
 {
-    lock: parking_lot::RwLockWriteGuard<'a, AteSession>
+    lock: parking_lot::RwLockWriteGuard<'a, Box<dyn AteSession>>
 }
 
 impl<'a> DioSessionGuardMut<'a>
@@ -525,22 +526,22 @@ impl<'a> DioSessionGuardMut<'a>
         }
     }
 
-    pub fn as_ref(&self) -> &AteSession {
-        self.lock.deref()
+    pub fn as_ref(&self) -> &dyn AteSession{
+        self.lock.deref().deref()
     }
 
-    pub fn as_mut(&mut self) -> &mut AteSession {
-        self.lock.deref_mut()
+    pub fn as_mut(&mut self) -> &mut dyn AteSession {
+        self.lock.deref_mut().deref_mut()
     }
 }
 
 impl<'a> Deref
 for DioSessionGuardMut<'a>
 {
-    type Target = AteSession;
+    type Target = dyn AteSession;
 
     fn deref(&self) -> &Self::Target {
-        self.lock.deref()
+        self.lock.deref().deref()
     }
 }
 
@@ -548,7 +549,7 @@ impl<'a> DerefMut
 for DioSessionGuardMut<'a>
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.lock.deref_mut()
+        self.lock.deref_mut().deref_mut()
     }
 }
 
@@ -556,11 +557,11 @@ impl Chain
 {
     /// Opens a data access layer that allows read only access to data within the chain
     /// In order to make changes to data you must use '.dio_mut', '.dio_fire', '.dio_full' or '.dio_trans'
-    pub async fn dio(self: &Arc<Chain>, session: &'_ AteSession) -> Arc<Dio> {
+    pub async fn dio(self: &Arc<Chain>, session: &'_ dyn AteSession) -> Arc<Dio> {
         TaskEngine::run_until(self.__dio(session)).await
     }
 
-    pub(crate) async fn __dio(self: &Arc<Chain>, session: &'_ AteSession) -> Arc<Dio> {
+    pub(crate) async fn __dio(self: &Arc<Chain>, session: &'_ dyn AteSession) -> Arc<Dio> {
         let decache = self.decache.subscribe();
         let multi = self.multi().await;
         let ret = Dio {
@@ -568,7 +569,8 @@ impl Chain
             state: StdMutex::new(DioState {
                 cache_load: FxHashMap::default(),
             }),
-            session: StdRwLock::new(session.clone()),
+            session: StdRwLock::new(session.clone_session()),
+            log_format: Some(multi.default_format.clone()),
             multi,
             time: Arc::clone(&self.time),
         };

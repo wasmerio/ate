@@ -49,24 +49,24 @@ pub fn conf_cmd() -> ConfAte
     cfg_cmd
 }
 
-pub(crate) fn compute_user_auth(user: &User) -> AteSession
+pub(crate) fn compute_user_auth(user: &User) -> AteSessionUser
 {
-    let mut session = AteSession::default();
+    let mut session = AteSessionUser::default();
     for auth in user.access.iter() {
         session.user.add_read_key(&auth.read);
         session.user.add_private_read_key(&auth.private_read);
         session.user.add_write_key(&auth.write);
     }
-    session.user.add_identity(user.email.clone());
     session.user.add_uid(user.uid);
+    session.identity = user.email.clone();
+    session.broker_read = Some(user.broker_read.clone());
+    session.broker_write = Some(user.broker_write.clone());
 
     session
 }
 
-pub(crate) fn compute_sudo_auth(sudo: &Sudo, session: AteSession) -> AteSession
+pub(crate) fn compute_sudo_auth(sudo: &Sudo, session: AteSessionUser) -> AteSessionSudo
 {
-    let mut session = session.clone();
-
     let mut role = AteGroupRole {
         purpose: AteRolePurpose::Owner,
         properties: Vec::new()
@@ -77,24 +77,24 @@ pub(crate) fn compute_sudo_auth(sudo: &Sudo, session: AteSession) -> AteSession
         role.add_write_key(&auth.write);
     }
     role.add_read_key(&sudo.contract_read_key);
-    role.add_identity(sudo.email.clone());
     role.add_uid(sudo.uid);
-    session.sudo.replace(role);
-    
 
-    session
+    AteSessionSudo {
+        inner: session,
+        sudo: role
+    }
 }
 
-pub(crate) fn complete_group_auth(group: &Group, mut session: AteSession)
-    -> Result<AteSession, LoadError>
+pub(crate) fn complete_group_auth(group: &Group, inner: AteSessionInner)
+    -> Result<AteSessionGroup, LoadError>
 {
-    // Add the broker keys and contract read key
-    {
-        let b = session.get_or_create_group(&group.name);
-        b.broker_read = Some(group.broker_read.clone());
-        b.broker_write = Some(group.broker_write.clone());
-    }
+    // Create the session that we will return to the call
+    let mut session = AteSessionGroup::new(inner, group.name.clone());
 
+    // Add the broker keys and contract read key
+    session.group.broker_read = Some(group.broker_read.clone());
+    session.group.broker_write = Some(group.broker_write.clone());
+    
     // Enter a recursive loop that will expand its authorizations of the roles until
     // it expands no more or all the roles are gained.
     let mut roles = group.roles.iter().collect::<Vec<_>>();
@@ -112,11 +112,10 @@ pub(crate) fn complete_group_auth(group: &Group, mut session: AteSession)
                 if let Some(a) = role.access.unwrap(&read_key)?
                 {
                     // Add access rights to the session                    
-                    let b = session.get_or_create_group_role(&group.name, &role.purpose);
+                    let b = session.get_or_create_group_role(&role.purpose);
                     b.add_read_key(&a.read);
                     b.add_private_read_key(&a.private_read);
                     b.add_write_key(&a.write);
-                    b.add_identity(group.name.clone());
                     b.add_gid(group.gid);
                     added = true;
                     break;
@@ -141,14 +140,14 @@ pub(crate) fn complete_group_auth(group: &Group, mut session: AteSession)
     Ok(session)
 }
 
-pub fn session_to_b64(session: AteSession) -> Result<String, SerializationError>
+pub fn session_to_b64(session: AteSessionType) -> Result<String, SerializationError>
 {
     let format = SerializationFormat::MessagePack;
     let bytes = format.serialize(&session)?;
     Ok(base64::encode(bytes))
 }
 
-pub fn b64_to_session(val: String) -> AteSession
+pub fn b64_to_session(val: String) -> AteSessionType
 {
     let val = val.trim().to_string();
     let format = SerializationFormat::MessagePack;

@@ -7,18 +7,15 @@ use snap::read::FrameDecoder;
 use snap::read::FrameEncoder;
 use bytes::{Bytes, Buf};
 
-#[cfg(test)]
-use super::conf::ConfAte;
-
 pub trait EventDataTransformer: Send + Sync
 {
     /// Callback when data is stored in the event 
-    fn data_as_underlay(&self, _meta: &mut Metadata, with: Bytes, _session: &AteSession, _trans_meta: &TransactionMetadata) -> Result<Bytes, TransformError> {
+    fn data_as_underlay(&self, _meta: &mut Metadata, with: Bytes, _session: &'_ dyn AteSession, _trans_meta: &TransactionMetadata) -> Result<Bytes, TransformError> {
         Ok(with)
     }
 
     /// Callback before data in an event is actually used by an actual user
-    fn data_as_overlay(&self, _meta: &Metadata, with: Bytes, _session: &AteSession) -> Result<Bytes, TransformError> {
+    fn data_as_overlay(&self, _meta: &Metadata, with: Bytes, _session: &'_ dyn AteSession) -> Result<Bytes, TransformError> {
         Ok(with)
     }
 
@@ -38,7 +35,7 @@ for CompressorWithSnapTransformer
     }
 
     #[allow(unused_variables)]
-    fn data_as_underlay(&self, meta: &mut Metadata, with: Bytes, _session: &AteSession, _trans_meta: &TransactionMetadata) -> Result<Bytes, TransformError> {
+    fn data_as_underlay(&self, meta: &mut Metadata, with: Bytes, _session: &'_ dyn AteSession, _trans_meta: &TransactionMetadata) -> Result<Bytes, TransformError> {
         let mut reader = FrameEncoder::new(with.reader());
         let mut compressed = Vec::new();
         std::io::copy(&mut reader, &mut compressed)?;
@@ -46,7 +43,7 @@ for CompressorWithSnapTransformer
     }
 
     #[allow(unused_variables)]
-    fn data_as_overlay(&self, meta: &Metadata, with: Bytes, _session: &AteSession) -> Result<Bytes, TransformError> {
+    fn data_as_overlay(&self, meta: &Metadata, with: Bytes, _session: &'_ dyn AteSession) -> Result<Bytes, TransformError> {
         let mut reader = FrameDecoder::new(with.reader());
         let mut decompressed = Vec::new();
         std::io::copy(&mut reader, &mut decompressed)?;
@@ -78,7 +75,7 @@ for StaticEncryptionTransformer
     }
     
     #[allow(unused_variables)]
-    fn data_as_underlay(&self, meta: &mut Metadata, with: Bytes, _session: &AteSession, _trans_meta: &TransactionMetadata) -> Result<Bytes, TransformError>
+    fn data_as_underlay(&self, meta: &mut Metadata, with: Bytes, _session: &'_ dyn AteSession, _trans_meta: &TransactionMetadata) -> Result<Bytes, TransformError>
     {
         let iv = meta.generate_iv();
         let encrypted = self.key.encrypt_with_iv(&iv, &with[..]);
@@ -86,7 +83,7 @@ for StaticEncryptionTransformer
     }
 
     #[allow(unused_variables)]
-    fn data_as_overlay(&self, meta: &Metadata, with: Bytes, _session: &AteSession) -> Result<Bytes, TransformError>
+    fn data_as_overlay(&self, meta: &Metadata, with: Bytes, _session: &'_ dyn AteSession) -> Result<Bytes, TransformError>
     {
         let iv = meta.get_iv()?;
         let decrypted = self.key.decrypt(&iv, &with[..]);
@@ -101,19 +98,18 @@ fn test_encrypter()
 
     let key = EncryptKey::from_seed_string("test".to_string(), KeySize::Bit192);
     let encrypter = StaticEncryptionTransformer::new(&key);
-    let cfg = ConfAte::default();
-
+    
     let trans_meta = TransactionMetadata::default();
     let test_bytes = Bytes::from_static(b"Some Crypto Text");
     let mut meta = Metadata::default();
-    let encrypted = encrypter.data_as_underlay(&mut meta, test_bytes.clone(), &AteSession::new(&cfg), &trans_meta).unwrap();
+    let encrypted = encrypter.data_as_underlay(&mut meta, test_bytes.clone(), &AteSessionUser::new(), &trans_meta).unwrap();
 
     println!("metadata: {:?}", meta);
     println!("data_test: {:X}", &test_bytes);
     println!("data_encrypted: {:X}", &encrypted);
     assert_ne!(&test_bytes, &encrypted);
     
-    let decrypted = encrypter.data_as_overlay(&mut meta, encrypted, &AteSession::new(&cfg)).unwrap();
+    let decrypted = encrypter.data_as_overlay(&mut meta, encrypted, &AteSessionUser::new()).unwrap();
 
     println!("data_decrypted: {:X}", &decrypted);
     assert_eq!(&test_bytes, &decrypted);
@@ -125,19 +121,18 @@ fn test_compressor()
     crate::utils::bootstrap_test_env();
 
     let compressor = CompressorWithSnapTransformer::default();
-    let cfg = ConfAte::default();
-
+    
     let trans_meta = TransactionMetadata::default();
     let test_bytes = Bytes::from("test".as_bytes());
     let mut meta = Metadata::default();
-    let compressed = compressor.data_as_underlay(&mut meta, test_bytes.clone(), &AteSession::new(&cfg), &trans_meta).unwrap();
+    let compressed = compressor.data_as_underlay(&mut meta, test_bytes.clone(), &AteSessionUser::new(), &trans_meta).unwrap();
 
     println!("metadata: {:?}", meta);
     println!("data_test: {:X}", &test_bytes);
     println!("data_compressed: {:X}", &compressed);
     assert_ne!(&test_bytes, &compressed);
     
-    let decompressed = compressor.data_as_overlay(&mut meta, compressed, &AteSession::new(&cfg)).unwrap();
+    let decompressed = compressor.data_as_overlay(&mut meta, compressed, &AteSessionUser::new()).unwrap();
 
     println!("data_decompressed: {:X}", &decompressed);
     assert_eq!(&test_bytes, &decompressed);

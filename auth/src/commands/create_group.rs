@@ -14,7 +14,7 @@ pub struct CreateGroupRequest
 pub struct CreateGroupResponse
 {
     pub key: PrimaryKey,
-    pub session: AteSession,
+    pub session: AteSessionGroup,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

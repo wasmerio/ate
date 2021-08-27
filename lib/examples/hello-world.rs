@@ -20,7 +20,7 @@ async fn main() -> Result<(), AteError>
     let chain = builder.open(&ChainKey::from("universe")).await?;
     
     // We interact with the data stored in the chain-of-trust using a DIO
-    let session = AteSession::new(&conf);
+    let session = AteSessionUser::new();
     let dio = chain.dio_mut(&session).await;
     
     // In this example we store some data in the "World" object

@@ -20,6 +20,8 @@ use crate::helper::*;
 use crate::error::*;
 use crate::helper::*;
 
+use super::sudo::*;
+
 impl AuthService
 {
     pub(crate) fn master_key(&self) -> Option<EncryptKey>
@@ -27,7 +29,7 @@ impl AuthService
         self.master_session.read_keys().map(|a| a.clone()).next()
     }
 
-    pub fn compute_super_key(&self, secret: EncryptKey) -> Option<EncryptKey>
+    pub fn compute_super_key(&self, secret: EncryptKey) -> Option<(EncryptKey, EncryptedSecureData<EncryptKey>)>
     {
         // Create a session with crypto keys based off the username and password
         let master_key = match self.master_session.read_keys().next() {
@@ -36,7 +38,9 @@ impl AuthService
         };
         let super_key = AteHash::from_bytes_twice(master_key.value(), secret.value());
         let super_key = EncryptKey::from_seed_bytes(super_key.to_bytes(), KeySize::Bit192);
-        Some(super_key)
+        let token = EncryptedSecureData::new(&master_key, super_key).unwrap();
+        
+        Some((super_key, token))
     }
 
     pub fn compute_super_key_from_hash(&self, hash: AteHash) -> Option<EncryptKey>
@@ -55,25 +59,18 @@ impl AuthService
     {
         info!("login attempt: {}", request.email);
 
-        let super_key = match self.compute_super_key(request.secret) {
+        // Create the super key and token
+        let (super_key, token) = match self.compute_super_key(request.secret) {
             Some(a) => a,
             None => {
                 warn!("login attempt denied ({}) - no master key", request.email);
                 return Err(LoginFailed::NoMasterKey);
             }
         };
+
+        // Create the super session
         let mut super_session = self.master_session.clone();
         super_session.user.add_read_key(&super_key);
-        if request.authenticator_code.is_some() {
-            let super_super_key = match self.compute_super_key(super_key.clone()) {
-                Some(a) => a,
-                None => {
-                    warn!("login attempt denied ({}) - no master key (sudo)", request.email);
-                    return Err(LoginFailed::NoMasterKey);
-                }
-            };
-            super_session.user.add_read_key(&super_super_key);
-        }
 
         // Compute which chain the user should exist within
         let chain_key = chain_key_4hex(request.email.as_str(), Some("redo"));
@@ -90,7 +87,7 @@ impl AuthService
             },
             Err(LoadError(LoadErrorKind::TransformationError(TransformErrorKind::MissingReadKey(_)), _)) => {
                 warn!("login attempt denied ({}) - wrong password", request.email);
-                return Err(LoginFailed::WrongPasswordOrCode);
+                return Err(LoginFailed::WrongPassword);
             },
             Err(err) => {
                 warn!("login attempt denied ({}) - error - ", err);
@@ -115,10 +112,11 @@ impl AuthService
                     Some(a) => {
                         if Some(a.to_lowercase()) != user.verification_code.clone().map(|a| a.to_lowercase()) {
                             warn!("login attempt denied ({}) - wrong password", request.email);
-                            return Err(LoginFailed::WrongPasswordOrCode);
+                            return Err(LoginFailed::WrongPassword);
                         } else {
-                            user.as_mut().verification_code = None;
-                            user.as_mut().status = UserStatus::Nominal;
+                            let mut user = user.as_mut();
+                            user.verification_code = None;
+                            user.status = UserStatus::Nominal;
                         }
                     },
                     None => {
@@ -129,85 +127,11 @@ impl AuthService
             },
             UserStatus::Nominal => { },
         };
+        dio.commit().await?;
 
         // Add all the authorizations
         let mut session = compute_user_auth(&user);
-        session.user.add_identity(request.email.clone());
-        session.broker_read = Some(user.broker_read.clone());
-        session.broker_write = Some(user.broker_write.clone());
-
-        // If a google authenticator code has been supplied then we need to try and load the
-        // extra permissions from elevated rights
-        if let Some(code) = request.authenticator_code {
-        
-            // Load the sudo object
-            let mut user = user.as_mut();
-            if let Some(mut sudo) = match user.sudo.load_mut().await {
-                Ok(a) => a,
-                Err(LoadError(LoadErrorKind::NotFound(_), _)) => {
-                    warn!("login attempt denied ({}) - user not found", request.email);
-                    return Err(LoginFailed::UserNotFound(request.email));
-                },
-                Err(LoadError(LoadErrorKind::TransformationError(TransformErrorKind::MissingReadKey(_)), _)) => {
-                    warn!("login attempt denied ({}) - wrong password (sudo)", request.email);
-                    return Err(LoginFailed::WrongPasswordOrCode);
-                },
-                Err(err) => {
-                    bail!(err);
-                }
-            }
-            {
-                // Check the code matches the authenticator code
-                self.time_keeper.wait_for_high_accuracy().await;
-                let time = self.time_keeper.current_timestamp_as_duration()?;
-                let time = time.as_secs() / 30;
-                let google_auth = google_authenticator::GoogleAuthenticator::new();
-                if google_auth.verify_code(sudo.secret.as_str(), code.as_str(), 3, time) {
-                    debug!("code authenticated");
-                }
-                else
-                {
-                    // Increment the failed count - every 5 failed attempts then
-                    // ban the user for 30 mins to 1 day depending on severity.
-                    sudo.as_mut().failed_attempts = sudo.failed_attempts + 1;
-                    if sudo.failed_attempts % 5 == 0 {
-                        let ban_time = if sudo.failed_attempts <= 5 {
-                            Duration::seconds(30)
-                        } else  if sudo.failed_attempts <= 10 {
-                            Duration::minutes(5)
-                        } else  if sudo.failed_attempts <= 15 {
-                            Duration::hours(1)
-                        } else {
-                            Duration::days(1)
-                        };
-                        let local_now = chrono::Local::now();
-                        let utc_now = local_now.with_timezone(&chrono::Utc);
-                        if let Some(utc_ban) = utc_now.checked_add_signed(ban_time) {
-                            user.status = UserStatus::Locked(utc_ban);
-                        }
-                    }
-                    dio.commit().await?;
-                    
-                    // Notify the caller that the login attempt has failed
-                    warn!("login attempt denied ({}) - wrong code - attempts={}", request.email, sudo.failed_attempts);
-                    return Err(LoginFailed::WrongPasswordOrCode);
-                }
-
-                // If there are any failed attempts to login then clear them
-                if sudo.failed_attempts > 0 {
-                    sudo.as_mut().failed_attempts = 0;
-                }
-                user.status = UserStatus::Nominal;
-
-                // Add the extra authentication objects from the sudo
-                session = compute_sudo_auth(&sudo.take(), session);
-                
-            } else {
-                warn!("login attempt denied ({}) - user not found (sudo)", request.email);
-                return Err(LoginFailed::UserNotFound(request.email));
-            }
-        }
-        dio.commit().await?;
+        session.token = Some(token.clone());
 
         // Return the session that can be used to access this user
         let user = user.take();
@@ -224,7 +148,7 @@ impl AuthService
     }
 }
 
-pub async fn login_command(registry: &Arc<Registry>, username: String, password: String, authenticator_code: Option<String>, verification_code: Option<String>, auth: Url, print_message_of_the_day: bool) -> Result<AteSession, LoginError>
+pub async fn login_command(registry: &Arc<Registry>, username: String, password: String, verification_code: Option<String>, auth: Url, print_message_of_the_day: bool) -> Result<AteSessionUser, LoginError>
 {
     // Open a command chain
     let chain = registry.open_cmd(&auth).await?;
@@ -239,7 +163,6 @@ pub async fn login_command(registry: &Arc<Registry>, username: String, password:
     let login = LoginRequest {
         email: username.clone(),
         secret: read_key,
-        authenticator_code,
         verification_code
     };
 
@@ -258,11 +181,11 @@ pub async fn login_command(registry: &Arc<Registry>, username: String, password:
     Ok(result.authority)
 }
 
-pub async fn load_credentials(registry: &Arc<Registry>, username: String, read_key: EncryptKey, _code: Option<String>, auth: Url) -> Result<AteSession, AteError>
+pub async fn load_credentials(registry: &Arc<Registry>, username: String, read_key: EncryptKey, _code: Option<String>, auth: Url) -> Result<AteSessionUser, AteError>
 {
     // Prepare for the load operation
     let key = PrimaryKey::from(username.clone());
-    let mut session = AteSession::new(&conf_auth());
+    let mut session = AteSessionUser::new();
     session.user.add_read_key(&read_key);
 
     // Generate a chain key that matches this username on the authentication server
@@ -274,7 +197,7 @@ pub async fn load_credentials(registry: &Arc<Registry>, username: String, read_k
     let user = dio.load::<User>(&key).await?;
 
     // Build a new session
-    let mut session = AteSession::new(&conf_auth());
+    let mut session = AteSessionUser::new();
     for access in user.access.iter() {
         session.user.add_read_key(&access.read);
         session.user.add_write_key(&access.write);
@@ -282,7 +205,7 @@ pub async fn load_credentials(registry: &Arc<Registry>, username: String, read_k
     Ok(session)
 }
 
-pub async fn main_session(token_string: Option<String>, token_file_path: Option<String>, auth_url: Option<url::Url>, sudo: bool) -> Result<AteSession, LoginError>
+pub(crate) async fn main_session_start(token_string: Option<String>, token_file_path: Option<String>, auth_url: Option<url::Url>) -> Result<AteSessionType, LoginError>
 {
     // The session might come from a token_file
     let mut session = None;
@@ -305,32 +228,43 @@ pub async fn main_session(token_string: Option<String>, token_file_path: Option<
         }
     }
 
-    // If we don't have a session but an authentication server was provided then lets use that to get one
-    if session.is_none() {
-        if let Some(auth) = auth_url {
-            session = match sudo {
-                false => Some(main_login(None, None, auth).await?),
-                true => Some(main_sudo(None, None, None, auth).await?)
-            };
+    let session = match session {
+        Some(a) => a,
+        None => {
+            if let Some(auth) = auth_url.clone() {
+                AteSessionType::User(main_login(None, None, auth).await?)
+            } else {
+                AteSessionType::User(AteSessionUser::default())
+            }
         }
-    }
+    };
 
-    // Otherwise just create an empty session
+    Ok(session)
+}
+
+pub async fn main_session_user(token_string: Option<String>, token_file_path: Option<String>, auth_url: Option<url::Url>) -> Result<AteSessionUser, LoginError>
+{
+    let session = main_session_start(token_string, token_file_path, auth_url.clone()).await?;
+
+    let session = match session {
+        AteSessionType::Group(a) => a.inner,
+        AteSessionType::User(a) => AteSessionInner::User(a),
+        AteSessionType::Sudo(a) => AteSessionInner::Sudo(a),
+    };
+
     Ok(
         match session {
-            Some(a) => a,
-            None => AteSession::default()
+            AteSessionInner::User(a) => a,
+            AteSessionInner::Sudo(a) => a.inner,
         }
     )
 }
 
-pub async fn main_user_details(session: AteSession) -> Result<(), LoginError>
+pub async fn main_user_details(session: AteSessionUser) -> Result<(), LoginError>
 {
     println!("# User Details");
     println!("");
-    if let Some(name) = session.user.identity() {
-        println!("Name: {}", name);
-    }
+    println!("Name: {}", session.identity);
     if let Some(uid) = session.user.uid() {
         println!("UID: {}", uid);
     }
@@ -342,7 +276,7 @@ pub async fn main_login(
     username: Option<String>,
     password: Option<String>,
     auth: Url
-) -> Result<AteSession, LoginError>
+) -> Result<AteSessionUser, LoginError>
 {
     let username = match username {
         Some(a) => a,
@@ -369,75 +303,19 @@ pub async fn main_login(
 
     // Login using the authentication server which will give us a session with all the tokens
     let registry = ate::mesh::Registry::new( &conf_cmd()).await.cement();
-    let response = login_command(&registry, username.clone(), password.clone(), None, None, auth.clone(), true).await;
-    handle_login_response(&registry, response, username, password, None, auth).await
-}
-
-pub async fn main_sudo(
-    username: Option<String>,
-    password: Option<String>,
-    code: Option<String>,
-    auth: Url
-) -> Result<AteSession, LoginError>
-{
-    let username = match username {
-        Some(a) => a,
-        None => {
-            eprint!("Username: ");
-            stdout().lock().flush()?;
-            let mut s = String::new();
-            std::io::stdin().read_line(&mut s).expect("Did not enter a valid username");
-            s.trim().to_string()
-        }
-    };
-
-    let password = match password {
-        Some(a) => a,
-        None => {
-            // When no password is supplied we will ask for it
-            eprint!("Password: ");
-            stdout().lock().flush()?;
-            let pass = rpassword::read_password().unwrap();
-
-            pass.trim().to_string()
-        }
-    };
-
-    let registry = ate::mesh::Registry::new( &conf_cmd()).await.cement();
-
-    // Now we get the authenticator code and try again (but this time with sudo)
-    let code = match code {
-        Some(a) => a,
-        None => {
-            // Perform a normal login to check everything is working ok
-            // (this will force a check on the verification status)
-            let response = login_command(&registry, username.clone(), password.clone(), None, None, auth.clone(), true).await;
-            let _ = handle_login_response(&registry, response, username.clone(), password.clone(), None, auth.clone()).await?;
-
-            // When no code is supplied we will ask for it
-            eprint!("Authenticator Code: ");
-            stdout().lock().flush()?;
-            let mut s = String::new();
-            std::io::stdin().read_line(&mut s).expect("Did not enter a valid code");
-            s.trim().to_string()
-        }
-    };
-
-    // Login using the authentication server which will give us a session with all the tokens
-    let response = login_command(&registry, username.clone(), password.clone(), Some(code.clone()), None, auth.clone(), true).await;
-    handle_login_response(&registry, response, username, password, Some(code), auth).await
+    let response = login_command(&registry, username.clone(), password.clone(), None, auth.clone(), true).await;
+    let ret = handle_login_response(&registry, response, username, password, auth).await?;
+    Ok(ret)
 }
 
 pub(crate) async fn handle_login_response(
     registry: &Arc<Registry>,
-    mut response: Result<AteSession, LoginError>,
+    mut response: Result<AteSessionUser, LoginError>,
     username: String,
     password: String,
-    code: Option<String>,
-    auth: Url) -> Result<AteSession, LoginError>
+    auth: Url) -> Result<AteSessionUser, LoginError>
 {
     // If we are currently unverified then prompt for the verification code
-    let gave_code = code.is_some();
     let mut was_unverified = false;
     if let Err(LoginError(LoginErrorKind::Unverified(_), _)) = &response {
         was_unverified = true;
@@ -451,7 +329,7 @@ pub(crate) async fn handle_login_response(
         let verification_code = s.trim().to_string();
 
         // Perform the login again but also supply the verification code
-        response = login_command(registry, username, password, code, Some(verification_code), auth, true).await;
+        response = login_command(registry, username, password, Some(verification_code), auth, true).await;
     }
 
     match response {
@@ -468,19 +346,11 @@ pub(crate) async fn handle_login_response(
             }
             std::process::exit(1);
         },
-        Err(LoginError(LoginErrorKind::WrongPasswordOrCode, _)) => {
+        Err(LoginError(LoginErrorKind::WrongPassword, _)) => {
             if was_unverified {
-                if gave_code {
-                    eprintln!("Either the password, authenticator code or verification code was incorrect");
-                } else {
-                    eprintln!("Either the password or verification code was incorrect");
-                }
+                eprintln!("Either the password or verification code was incorrect");
             } else {
-                if gave_code {
-                    eprintln!("Either the password or authenticator code was incorrect");
-                } else {
-                    eprintln!("The password was incorrect");
-                }
+                eprintln!("The password was incorrect");
             }
             eprintln!("(Warning! Repeated failed attempts will trigger a short ban)");
             std::process::exit(1);

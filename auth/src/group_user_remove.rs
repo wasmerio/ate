@@ -22,6 +22,7 @@ use crate::service::AuthService;
 use crate::helper::*;
 use crate::error::*;
 use crate::model::*;
+use super::gather_command;
 
 impl AuthService
 {
@@ -39,7 +40,7 @@ impl AuthService
 
         // Create the super session that has all the rights we need
         let mut super_session = self.master_session.clone();
-        super_session.append(request_session.clone());
+        super_session.append(request_session.properties());
 
         // Load the group
         let group_key = PrimaryKey::from(request.group.clone());
@@ -65,8 +66,8 @@ impl AuthService
         };
 
         // Extract the controlling role as this is what we will use to create the role
-        let (delegate_write, _request_session) = match AuthService::get_delegate_write(request_session, group.deref(), needed_role)? {
-            Some((a, b)) => (a, b),
+        let delegate_write = match AuthService::get_delegate_write(&request_session, needed_role)? {
+            Some(a) => a,
             None => {
                 return Err(GroupUserRemoveFailed::NoAccess);
             }
@@ -107,9 +108,10 @@ impl AuthService
     }
 }
 
-pub async fn group_user_remove_command(registry: &Arc<Registry>, group: String, purpose: AteRolePurpose, username: String, auth: Url, session: &AteSession) -> Result<GroupUserRemoveResponse, GroupUserRemoveError>
+pub async fn group_user_remove_command(registry: &Arc<Registry>, session: &AteSessionGroup, purpose: AteRolePurpose, username: String, auth: Url) -> Result<GroupUserRemoveResponse, GroupUserRemoveError>
 {
     // Open a command chain
+    let group = session.identity().to_string();
     let chain = registry.open_cmd(&auth).await?;
     
     // First we query the user that needs to be added so that we can get their public encrypt key
@@ -136,24 +138,12 @@ pub async fn group_user_remove_command(registry: &Arc<Registry>, group: String, 
 }
 
 pub async fn main_group_user_remove(
-    group: Option<String>,
     purpose: Option<AteRolePurpose>,
     username: Option<String>,
     auth: Url,
-    session: &AteSession
+    session: &AteSessionGroup
 ) -> Result<(), GroupUserRemoveError>
 {
-    let group = match group {
-        Some(a) => a,
-        None => {
-            print!("Group: ");
-            stdout().lock().flush()?;
-            let mut s = String::new();
-            std::io::stdin().read_line(&mut s).expect("Did not enter a valid group");
-            s.trim().to_string()
-        }
-    };
-
     let purpose = match purpose {
         Some(a) => a,
         None => {
@@ -181,7 +171,7 @@ pub async fn main_group_user_remove(
 
     // Remove a user from a group using the authentication server
     let registry = ate::mesh::Registry::new( &conf_cmd()).await.cement();
-    let result = group_user_remove_command(&registry, group, purpose, username, auth, session).await?;
+    let result = group_user_remove_command(&registry, &session, purpose, username, auth).await?;
 
     println!("Group user removed (id={})", result.key);
 

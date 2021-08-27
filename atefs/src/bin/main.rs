@@ -84,14 +84,21 @@ async fn main() -> Result<(), CommandError> {
                 eprintln!("In order to create groups you must use some form of authentication.");
                 std::process::exit(1);
             }
-            ate_auth::main_opts_group(opts_group, opts.token, opts.token_path, opts.auth, "Group").await?;
+            ate_auth::main_opts_group(opts_group, opts.token, opts.token_path, opts.auth).await?;
         },
         SubCommand::Mount(mount) =>
         {
-            // Create a default empty session
+            // Derive the group from the mount address
             let mut group = None;
-            let mut session = AteSession::default();
+            if let Some(remote) = &mount.remote_name {
+                if let Some((group_str, _)) = remote.split_once("/") {
+                    group = Some(group_str.to_string());
+                }
+            }
 
+            
+            let mut session: AteSessionType = AteSessionUser::default().into();
+            
             // If a passcode is supplied then use this
             if let Some(pass) = &mount.passcode
             {
@@ -106,7 +113,10 @@ async fn main() -> Result<(), CommandError> {
 
                 let prefix = "ate:".to_string();
                 let key = ate_auth::password_to_read_key(&prefix, &pass, 15, KeySize::Bit192);
-                session.user.add_read_key(&key);
+
+                let mut session_user = AteSessionUser::default();
+                session_user.user.add_read_key(&key);
+                session = session_user.into();
 
             } else if opts.no_auth {
                 if mount.remote_name.is_some() {
@@ -117,20 +127,19 @@ async fn main() -> Result<(), CommandError> {
                 // We do not put anything in the session as no authentication method nor a passcode was supplied
             } else {
                 // Load the session via the token or the authentication server
-                session = ate_auth::main_session(opts.token.clone(), opts.token_path.clone(), Some(opts.auth.clone()), false).await?;
+                let session_user = ate_auth::main_session_user(opts.token.clone(), opts.token_path.clone(), Some(opts.auth.clone())).await?;
                 
                 // Attempt to grab additional permissions for the group (if it has any)
-                if let Some(remote) = &mount.remote_name {
-                    if let Some((group_str, _)) = remote.split_once("/") {
-                        group = Some(group_str.to_string());
-                        session = match ate_auth::main_gather(group.clone(), session.clone(), opts.auth).await {
-                            Ok(a) => a,
-                            Err(err) => {
-                                debug!("Group authentication failed: {} - falling back to user level authorization", err);
-                                session
-                            }
-                        };
+                session = if group.is_some() {
+                    match ate_auth::main_gather(group.clone(), session_user.clone().into(), opts.auth).await {
+                        Ok(a) => a.into(),
+                        Err(err) => {
+                            debug!("Group authentication failed: {} - falling back to user level authorization", err);
+                            session_user.into()
+                        }
                     }
+                } else {
+                    session_user.into()
                 }
             }
 

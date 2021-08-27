@@ -283,13 +283,13 @@ impl DioMut
     pub fn store<D>(self: &Arc<Self>, data: D) -> Result<DaoMut<D>, SerializationError>
     where D: Clone + Serialize + DeserializeOwned,
     {
-        self.store_with_format(data, None, self.session().log_format)
+        self.store_with_format(data, None, self.dio.log_format)
     }
     
     pub fn store_with_key<D>(self: &Arc<Self>, data: D, key: PrimaryKey) -> Result<DaoMut<D>, SerializationError>
     where D: Clone + Serialize + DeserializeOwned,
     {
-        self.store_with_format(data, Some(key.clone()), self.session().log_format)
+        self.store_with_format(data, Some(key.clone()), self.dio.log_format)
     }
 
     pub fn store_with_format<D>(self: &Arc<Self>, data: D, key: Option<PrimaryKey>, format: Option<MessageFormat>) -> Result<DaoMut<D>, SerializationError>
@@ -372,31 +372,31 @@ impl Chain
 {
     /// Opens a data access layer that allows mutable changes to data.
     /// Transaction consistency on commit will be guarranted for local redo log files
-    pub async fn dio_mut(self: &Arc<Chain>, session: &'_ AteSession) -> Arc<DioMut> {
+    pub async fn dio_mut(self: &Arc<Chain>, session: &'_ dyn AteSession) -> Arc<DioMut> {
         TaskEngine::run_until(self.__dio_trans(session, TransactionScope::Local)).await
     }
 
     /// Opens a data access layer that allows mutable changes to data (in a fire-and-forget mode).
     /// No transaction consistency on commits will be enforced
-    pub async fn dio_fire(self: &Arc<Chain>, session: &'_ AteSession) -> Arc<DioMut> {
+    pub async fn dio_fire(self: &Arc<Chain>, session: &'_ dyn AteSession) -> Arc<DioMut> {
         TaskEngine::run_until(self.__dio_trans(session, TransactionScope::None)).await
     }
 
     /// Opens a data access layer that allows mutable changes to data.
     /// Transaction consistency on commit will be guarranted for all remote replicas
-    pub async fn dio_full(self: &Arc<Chain>, session: &'_ AteSession) -> Arc<DioMut> {
+    pub async fn dio_full(self: &Arc<Chain>, session: &'_ dyn AteSession) -> Arc<DioMut> {
         TaskEngine::run_until(self.__dio_trans(session, TransactionScope::Full)).await
     }
 
     /// Opens a data access layer that allows mutable changes to data.
     /// Transaction consistency on commit must be specified
-    pub async fn dio_trans(self: &Arc<Chain>, session: &'_ AteSession, scope: TransactionScope) -> Arc<DioMut> {
+    pub async fn dio_trans(self: &Arc<Chain>, session: &'_ dyn AteSession, scope: TransactionScope) -> Arc<DioMut> {
         TaskEngine::run_until(self.__dio_trans(session, scope)).await
     }
 
     /// Opens a data access layer that allows mutable changes to data.
     /// Transaction consistency on commit must be specified
-    pub(crate) async fn __dio_trans(self: &Arc<Chain>, session: &'_ AteSession, scope: TransactionScope) -> Arc<DioMut> {
+    pub(crate) async fn __dio_trans(self: &Arc<Chain>, session: &'_ dyn AteSession, scope: TransactionScope) -> Arc<DioMut> {
         let dio = self.__dio(session).await;
         dio.__trans(scope).await
     }
@@ -482,7 +482,7 @@ impl DioMut
             let session = self.session();
 
             // Determine the format of the message
-            let format = match session.log_format {
+            let format = match self.log_format {
                 Some(a) => a,
                 None => self.multi.default_format
             };
@@ -519,7 +519,7 @@ impl DioMut
                 }
 
                 // Compute all the extra metadata for an event
-                let extra_meta = multi_lock.metadata_lint_event(&mut meta, &session, &trans_meta, &row.type_name)?;
+                let extra_meta = multi_lock.metadata_lint_event(&mut meta, session.deref(), &trans_meta, &row.type_name)?;
                 meta.core.extend(extra_meta);
 
                 // Add the data to the transaction metadata object
@@ -539,7 +539,7 @@ impl DioMut
                 }
                 
                 // Perform any transformation (e.g. data encryption and compression)
-                let data = multi_lock.data_as_underlay(&mut meta, row.data.clone(), &session, &trans_meta)?;
+                let data = multi_lock.data_as_underlay(&mut meta, row.data.clone(), session.deref(), &trans_meta)?;
                 
                 // Only once all the rows are processed will we ship it to the redo log
                 let evt = EventData {
@@ -565,7 +565,7 @@ impl DioMut
                 meta.add_tombstone(key);
                 
                 // Compute all the extra metadata for an event
-                let extra_meta = multi_lock.metadata_lint_event(&mut meta, &session, &trans_meta, "[unknown]")?;
+                let extra_meta = multi_lock.metadata_lint_event(&mut meta, session.deref(), &trans_meta, "[unknown]")?;
                 meta.core.extend(extra_meta);
 
                 let evt = EventData {
@@ -585,7 +585,7 @@ impl DioMut
                 });
             }
 
-            let meta = multi_lock.metadata_lint_many(&lints, &session, self.conversation.as_ref())?;
+            let meta = multi_lock.metadata_lint_many(&lints, session.deref(), self.conversation.as_ref())?;
 
             // If it has data then insert it at the front of these events
             if meta.len() > 0 {
@@ -725,7 +725,7 @@ impl DioMut
         Ok(self.load_from_event(session.as_ref(), evt.data, evt.header.as_header()?, leaf)?)
     }
 
-    pub(crate) fn load_from_event<D>(self: &Arc<Self>, session: &AteSession, mut data: EventData, header: EventHeader, leaf: EventLeaf)
+    pub(crate) fn load_from_event<D>(self: &Arc<Self>, session: &'_ dyn AteSession, mut data: EventData, header: EventHeader, leaf: EventLeaf)
     -> Result<DaoMut<D>, LoadError>
     where D: Serialize + DeserializeOwned,
     {
@@ -978,7 +978,7 @@ impl DioMut
         Ok(ret.into_iter().map(|a: Dao<D>| DaoMut::new(Arc::clone(self), a)).collect::<Vec<_>>())
     }
 
-    pub(crate) fn data_as_overlay(self: &Arc<Self>, session: &AteSession, data: &mut EventData) -> Result<(), TransformError>
+    pub(crate) fn data_as_overlay(self: &Arc<Self>, session: &'_ dyn AteSession, data: &mut EventData) -> Result<(), TransformError>
     {
         self.dio.data_as_overlay(session, data)?;
         Ok(())

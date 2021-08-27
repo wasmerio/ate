@@ -16,13 +16,13 @@ pub struct ChainFlow {
     root_key: PrivateSignKey,
     regex_auth: Regex,
     regex_cmd: Regex,
-    session: AteSession,
+    session: AteSessionUser,
     pub terms_and_conditions: Option<String>,
 }
 
 impl ChainFlow
 {
-    pub fn new(cfg: &ConfAte, root_key: PrivateSignKey, session: AteSession, auth_url: &url::Url) -> Self {        
+    pub fn new(cfg: &ConfAte, root_key: PrivateSignKey, session: AteSessionUser, auth_url: &url::Url) -> Self {        
         ChainFlow {
             cfg: cfg.clone(),
             root_key,
@@ -56,7 +56,7 @@ for ChainFlow
         if self.regex_auth.is_match(name)
         {
             let chain = builder
-                .set_session(self.session.clone())
+                .set_session(self.session.clone_session())
                 .add_root_public_key(&self.root_key.as_public_key())
                 .build()
                 .open(key)
@@ -69,7 +69,7 @@ for ChainFlow
         if self.regex_cmd.is_match(name)
         {
             // Build a secure session
-            let mut cmd_session = AteSession::default();
+            let mut cmd_session = AteSessionUser::default();
             cmd_session.user.add_read_key(&EncryptKey::generate(KeySize::Bit128));
 
             // For command based chains that are already encryption there is no need
@@ -84,7 +84,7 @@ for ChainFlow
 
             // Build the chain
             builder = builder
-                .set_session(cmd_session.clone())
+                .set_session(cmd_session.clone_session())
                 .temporal(true);
             if let Some(session_root_key) = &session_root_key {
                 builder = builder.add_root_public_key(&session_root_key.as_public_key())

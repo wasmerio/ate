@@ -7,7 +7,7 @@ use ate::prelude::*;
 pub struct GroupUserAddRequest
 {
     pub group: String,
-    pub session: AteSession,
+    pub session: AteSessionGroup,
     pub who_key: PublicEncryptKey,
     pub who_name: String,
     pub purpose: AteRolePurpose

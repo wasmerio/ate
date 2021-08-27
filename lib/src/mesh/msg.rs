@@ -12,7 +12,7 @@ use crate::chain::Chain;
 use crate::error::*;
 use crate::header::PrimaryKey;
 use crate::spec::*;
-use crate::session::AteSession;
+use crate::session::AteSessionUser;
 use crate::crypto::PublicSignKey;
 use crate::time::ChainTimestamp;
 
@@ -170,7 +170,7 @@ pub(super) enum Message {
 
     FatalTerminate(FatalTerminate),
 
-    SecuredWith(AteSession),
+    SecuredWith(AteSessionUser),
 }
 
 impl Default

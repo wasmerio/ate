@@ -47,11 +47,11 @@ fn test_trust_tree_persistent() -> Result<(), AteError>
         let key1;
         {
             info!("building the session");
-            let mut session = AteSession::new(&conf);    
+            let mut session = AteSessionUser::new();    
             session.user.properties.push(AteSessionProperty::WriteKey(write_key.clone()));
             session.user.properties.push(AteSessionProperty::WriteKey(write_key2.clone()));
             session.user.properties.push(AteSessionProperty::ReadKey(read_key.clone()));
-            session.user.properties.push(AteSessionProperty::Identity("author@here.com".to_string()));
+            session.identity = "author@here.com".to_string();
 
             info!("creating the chain-of-trust");
             let builder = ChainBuilder::new(&conf)
@@ -84,10 +84,10 @@ fn test_trust_tree_persistent() -> Result<(), AteError>
 
         {
             info!("building the session");
-            let mut session = AteSession::new(&conf);    
+            let mut session = AteSessionUser::new();    
             session.user.properties.push(AteSessionProperty::WriteKey(write_key2.clone()));
             session.user.properties.push(AteSessionProperty::ReadKey(read_key.clone()));
-            session.user.properties.push(AteSessionProperty::Identity("author@here.com".to_string()));
+            session.identity = "author@here.com".to_string();
 
             let chain = {
                 info!("loading the chain-of-trust again");
@@ -141,11 +141,11 @@ fn test_trust_tree_memory() -> Result<(), AteError>
         let key1;
         {
             info!("building the session");
-            let mut session = AteSession::new(&conf);    
+            let mut session = AteSessionUser::new();    
             session.user.properties.push(AteSessionProperty::WriteKey(write_key.clone()));
             session.user.properties.push(AteSessionProperty::WriteKey(write_key2.clone()));
             session.user.properties.push(AteSessionProperty::ReadKey(read_key.clone()));
-            session.user.properties.push(AteSessionProperty::Identity("author@here.com".to_string()));
+            session.identity = "author@here.com".to_string();
 
             info!("creating the chain-of-trust");
             let builder = ChainBuilder::new(&conf)
@@ -176,10 +176,10 @@ fn test_trust_tree_memory() -> Result<(), AteError>
             key1 = garage.key().clone();
 
             info!("building the session");
-            let mut session = AteSession::new(&conf);    
+            let mut session = AteSessionUser::new();    
             session.user.properties.push(AteSessionProperty::WriteKey(write_key2.clone()));
             session.user.properties.push(AteSessionProperty::ReadKey(read_key.clone()));
-            session.user.properties.push(AteSessionProperty::Identity("author@here.com".to_string()));
+            session.identity = "author@here.com".to_string();
 
             // Load the garage
             let dio = chain.dio(&session).await;
