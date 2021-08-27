@@ -17,7 +17,20 @@ struct TestData {
 
 #[tokio::main(flavor = "current_thread")]
 #[test]
-async fn test_mesh()
+async fn test_mesh_distributed()
+{
+    test_mesh_internal(false).await
+}
+
+#[tokio::main(flavor = "current_thread")]
+#[test]
+async fn test_mesh_centralized()
+{
+    test_mesh_internal(true).await
+}
+
+#[cfg(test)]
+async fn test_mesh_internal(centralized: bool)
 {
     crate::utils::bootstrap_test_env();
 
@@ -63,7 +76,11 @@ async fn test_mesh()
             let root_key = root_key.as_public_key().clone();
             let join = async move {
                 let server = create_server(&cfg_mesh).await?;
-                server.add_route(all_ethereal_with_root_key(root_key).await, &cfg_ate).await?;
+                if centralized {
+                    server.add_route(all_ethereal_centralized_with_root_key(root_key).await, &cfg_ate).await?;
+                } else {
+                    server.add_route(all_ethereal_distributed_with_root_key(root_key).await, &cfg_ate).await?;
+                }
                 Result::<Arc<MeshRoot>, CommsError>::Ok(server)
             };
             mesh_root_joins.push((addr, join));

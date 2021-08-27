@@ -1,5 +1,4 @@
-use crate::trust::IntegrityMode;
-use crate::crypto::AteHash;
+use crate::spec::*;
 
 #[derive(Debug, Clone, Copy)]
 pub struct OpenFlags
@@ -7,7 +6,7 @@ pub struct OpenFlags
     pub read_only: bool,
     pub truncate: bool,
     pub temporal: bool,
-    pub integrity: IntegrityMode,
+    pub integrity: TrustMode,
 }
 
 impl OpenFlags
@@ -17,16 +16,25 @@ impl OpenFlags
             read_only: false,
             truncate: true,
             temporal: false,
-            integrity: IntegrityMode::Distributed,
+            integrity: TrustMode::Distributed,
         }
     }
     
-    pub fn create_centralized() -> OpenFlags {
+    pub fn create_centralized_server() -> OpenFlags {
         OpenFlags {
             read_only: false,
             truncate: true,
             temporal: false,
-            integrity: IntegrityMode::Centralized(AteHash::generate()),
+            integrity: TrustMode::Centralized(CentralizedRole::Server),
+        }
+    }
+    
+    pub fn create_centralized_client() -> OpenFlags {
+        OpenFlags {
+            read_only: false,
+            truncate: true,
+            temporal: false,
+            integrity: TrustMode::Centralized(CentralizedRole::Client),
         }
     }
 
@@ -35,24 +43,52 @@ impl OpenFlags
             read_only: false,
             truncate: false,
             temporal: false,
-            integrity: IntegrityMode::Distributed,
+            integrity: TrustMode::Distributed,
         }
     }
-    pub fn open_centralized() -> OpenFlags {
+
+    pub fn open_centralized_server() -> OpenFlags {
         OpenFlags {
             read_only: false,
             truncate: false,
             temporal: false,
-            integrity: IntegrityMode::Centralized(AteHash::generate()),
+            integrity: TrustMode::Centralized(CentralizedRole::Server),
         }
     }
 
-    pub fn ethereal() -> OpenFlags {
+    pub fn open_centralized_client() -> OpenFlags {
+        OpenFlags {
+            read_only: false,
+            truncate: false,
+            temporal: false,
+            integrity: TrustMode::Centralized(CentralizedRole::Client),
+        }
+    }
+
+    pub fn ethereal_distributed() -> OpenFlags {
         OpenFlags {
             read_only: false,
             truncate: false,
             temporal: true,
-            integrity: IntegrityMode::Centralized(AteHash::generate()),
+            integrity: TrustMode::Distributed,
+        }
+    }
+
+    pub fn ethereal_centralized_server() -> OpenFlags {
+        OpenFlags {
+            read_only: false,
+            truncate: false,
+            temporal: true,
+            integrity: TrustMode::Centralized(CentralizedRole::Server),
+        }
+    }
+
+    pub fn ethereal_centralized_client() -> OpenFlags {
+        OpenFlags {
+            read_only: false,
+            truncate: false,
+            temporal: true,
+            integrity: TrustMode::Centralized(CentralizedRole::Client),
         }
     }
 }

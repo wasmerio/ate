@@ -14,20 +14,6 @@ use super::error::ChainCreationError;
 use std::sync::Arc;
 use super::spec::TrustMode;
 
-impl std::str::FromStr
-for TrustMode
-{
-    type Err = &'static str;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "distributed" => Ok(TrustMode::Distributed),
-            "centralized" => Ok(TrustMode::Centralized),
-            _ => Err("valid values are 'distributed', 'centralized'"),
-        }
-    }
-}
-
 pub type MessageOfTheDay = Option<String>;
 
 pub enum OpenAction
@@ -76,8 +62,12 @@ pub async fn all_persistent_and_distributed() -> Box<basic::OpenStaticBuilder> {
     Box::new(basic::OpenStaticBuilder::all_persistent_and_distributed().await)
 }
 
-pub async fn all_ethereal() -> Box<basic::OpenStaticBuilder> {
-    Box::new(basic::OpenStaticBuilder::all_ethereal().await)
+pub async fn all_ethereal_distributed() -> Box<basic::OpenStaticBuilder> {
+    Box::new(basic::OpenStaticBuilder::all_ethereal_distributed().await)
+}
+
+pub async fn all_ethereal_centralized() -> Box<basic::OpenStaticBuilder> {
+    Box::new(basic::OpenStaticBuilder::all_ethereal_centralized().await)
 }
 
 pub async fn all_persistent_and_centralized_with_root_key(root_key: PublicSignKey) -> Box<basic::OpenStaticBuilder> {
@@ -88,6 +78,10 @@ pub async fn all_persistent_and_distributed_with_root_key(root_key: PublicSignKe
     Box::new(basic::OpenStaticBuilder::all_persistent_and_distributed_with_root_key(root_key).await)
 }
 
-pub async fn all_ethereal_with_root_key(root_key: PublicSignKey) -> Box<basic::OpenStaticBuilder> {
-    Box::new(basic::OpenStaticBuilder::all_ethereal_with_root_key(root_key).await)
+pub async fn all_ethereal_centralized_with_root_key(root_key: PublicSignKey) -> Box<basic::OpenStaticBuilder> {
+    Box::new(basic::OpenStaticBuilder::all_ethereal_centralized_with_root_key(root_key).await)
+}
+
+pub async fn all_ethereal_distributed_with_root_key(root_key: PublicSignKey) -> Box<basic::OpenStaticBuilder> {
+    Box::new(basic::OpenStaticBuilder::all_ethereal_distributed_with_root_key(root_key).await)
 }

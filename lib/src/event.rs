@@ -70,6 +70,16 @@ impl EventHeader {
     pub fn hash(&self) -> AteHash {
         self.raw.event_hash
     }
+
+    pub fn is_empty(&self) -> bool {
+        if self.meta.is_empty() == false {
+            return false;
+        }
+        if self.raw.data_size > 0 {
+            return false;
+        }
+        return true;
+    }
 }
 
 /// Represents an event that has not yet been stored anywhere

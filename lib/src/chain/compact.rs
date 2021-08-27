@@ -171,8 +171,8 @@ impl<'a> Chain
 
             // step5 - run all the validators over the events to make sure only a valid
             //         chain of trust will be stored
-            let mut conversation = ConversationSession::new(true);
-            conversation.force_centralized_mode = true;
+            let mut conversation = ConversationSession::default();
+            conversation.weaken_validation = true;
             let conversation = Arc::new(conversation);
             for (header, keep) in headers.iter_mut().filter(|a| a.1) {
                 if let Ok(_err) = sync.validate_event(&header, Some(&conversation)) {

@@ -97,11 +97,82 @@ pub struct MessageFormat
     pub data: SerializationFormat,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CentralizedRole
+{
+    Server,
+    Client
+}
+
+impl std::fmt::Display
+for CentralizedRole {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            CentralizedRole::Server => write!(f, "server"),
+            CentralizedRole::Client => write!(f, "client")
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TrustMode
 {
     Distributed,
-    Centralized
+    Centralized(CentralizedRole)
+}
+
+impl TrustMode
+{
+    pub fn is_centralized(&self) -> bool
+    {
+        if let TrustMode::Centralized(_) = self {
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn as_client(&self) -> TrustMode
+    {
+        match self {
+            TrustMode::Centralized(_) => TrustMode::Centralized(CentralizedRole::Client),
+            a => a.clone()
+        }
+    }
+
+    pub fn as_server(&self) -> TrustMode
+    {
+        match self {
+            TrustMode::Centralized(_) => TrustMode::Centralized(CentralizedRole::Server),
+            a => a.clone()
+        }
+    }
+}
+
+impl std::fmt::Display
+for TrustMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            TrustMode::Centralized(a) => write!(f, "centralized({})", a),
+            TrustMode::Distributed => write!(f, "distributed")
+        }
+    }
+}
+
+impl std::str::FromStr
+for TrustMode
+{
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "distributed" => Ok(TrustMode::Distributed),
+            "centralized" => Ok(TrustMode::Centralized(CentralizedRole::Server)),
+            "centralized(client)" => Ok(TrustMode::Centralized(CentralizedRole::Client)),
+            "centralized(server)" => Ok(TrustMode::Centralized(CentralizedRole::Server)),
+            _ => Err("valid values are 'distributed', 'centralized'"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, IntoPrimitive, TryFromPrimitive)]

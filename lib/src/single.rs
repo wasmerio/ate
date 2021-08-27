@@ -6,7 +6,7 @@ use parking_lot::RwLock as StdRwLock;
 use std::sync::Arc;
 
 use super::chain::*;
-use super::trust::IntegrityMode;
+use crate::spec::TrustMode;
 
 /// Represents an exclusive lock on a chain-of-trust that allows the
 /// user to execute mutations that would otherwise have an immedaite
@@ -46,8 +46,10 @@ impl<'a> ChainSingleUser<'a>
         self.inside_async.disable_new_roots = true;
     }
     
-    pub fn set_integrity(&self, mode: IntegrityMode, is_server: bool) {
+    pub fn set_integrity(&mut self, mode: TrustMode) {
+        self.inside_async.set_integrity_mode(mode);
+        
         let mut lock = self.inside_sync.write();
-        lock.set_integrity_mode(mode, is_server);
+        lock.set_integrity_mode(mode);
     }
 }

@@ -27,6 +27,7 @@ use crate::pipe::*;
 use crate::loader::*;
 use crate::event::EventHeader;
 use crate::engine::TaskEngine;
+use crate::spec::TrustMode;
 
 use crate::trust::ChainKey;
 
@@ -39,7 +40,7 @@ impl<'a> Chain
     #[allow(dead_code)]
     pub(crate) async fn new(
         builder: ChainBuilder,
-        key: &ChainKey,
+        key: &ChainKey
     ) -> Result<Chain, ChainCreationError>
     {
         Chain::new_ext(builder, key.clone(), None, true)
@@ -56,12 +57,16 @@ impl<'a> Chain
     {
         debug!("open: {}", key);
 
+        // The trust mode initially starts as distributed trust but the mesh
+        // server could change this after (i.e. to centralized trust)
+        let integrity = TrustMode::Distributed;
+
         // Compute the open flags
         #[cfg(feature = "enable_local_fs")]
         let flags = OpenFlags {
             truncate: builder.truncate,
             temporal: builder.temporal,
-            integrity: builder.integrity,
+            integrity: integrity,
             read_only: false,
         };
         let compact_mode = builder.cfg_ate.compact_mode;
@@ -143,7 +148,7 @@ impl<'a> Chain
             validators: builder.validators,
             transformers: builder.transformers,
             default_session: builder.session,
-            integrity: builder.integrity,
+            integrity: integrity,
         };
 
         // Add a tree authority plug if one is in the builder
@@ -152,7 +157,7 @@ impl<'a> Chain
         }
 
         // Set the integrity mode on all the validators
-        inside_sync.set_integrity_mode(builder.integrity, builder.is_server);
+        inside_sync.set_integrity_mode(integrity);
 
         // Wrap the sync object
         let inside_sync
@@ -170,8 +175,9 @@ impl<'a> Chain
             sync_tolerance: builder.cfg_ate.sync_tolerance,
             listeners: MultiMap::new(),
             is_shutdown: false,
+            integrity: integrity
         };
-
+        
         // Check all the process events
         #[cfg(feature = "enable_verbose")]
         for a in headers.iter() {
@@ -182,7 +188,7 @@ impl<'a> Chain
         }
         
         // Process all the events in the chain-of-trust
-        let conversation = Arc::new(ConversationSession::new(true));
+        let conversation = Arc::new(ConversationSession::default());
         if let Err(err) = inside_async.process(inside_sync.write(), headers, Some(&conversation)) {
             if allow_process_errors == false {
                 return Err(err);

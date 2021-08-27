@@ -5,6 +5,7 @@ use fxhash::FxHashMap;
 use fxhash::FxHashSet;
 use std::sync::Arc;
 use parking_lot::RwLock as StdRwLock;
+use rcu_cell::RcuCell;
 
 use super::crypto::AteHash;
 use super::event::*;
@@ -47,16 +48,18 @@ for TransactionScope
 #[derive(Debug, Default)]
 pub struct ConversationSession
 {
-    pub force_centralized_mode: bool,
-    pub other_end_is_server: bool,
+    pub id: RcuCell<AteHash>,
+    pub weaken_validation: bool,
     pub signatures: StdRwLock<FxHashSet<AteHash>>,
 }
 
 impl ConversationSession {
-    pub fn new(other_end_is_server: bool) -> ConversationSession {
-        let mut ret = ConversationSession::default();
-        ret.other_end_is_server = other_end_is_server;
-        ret
+    pub fn clear(&self) {
+        if let Some(mut guard) = self.id.try_lock() {
+            guard.update(None);
+        }
+        let mut guard = self.signatures.write();
+        guard.clear();
     }
 }
 

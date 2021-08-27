@@ -14,7 +14,6 @@ use crate::header::PrimaryKey;
 use crate::spec::*;
 use crate::session::AteSession;
 use crate::crypto::PublicSignKey;
-use crate::trust::IntegrityMode;
 use crate::time::ChainTimestamp;
 
 use super::NodeId;
@@ -145,11 +144,15 @@ pub(super) enum Message {
         is_locked: bool
     },
 
+    NewConversation {
+        conversation_id: AteHash,
+    },
+
     StartOfHistory {
         size: usize,
         from: Option<ChainTimestamp>,
         to: Option<ChainTimestamp>,
-        integrity: IntegrityMode,
+        integrity: TrustMode,
         root_keys: Vec<PublicSignKey>,
     },
     Events {

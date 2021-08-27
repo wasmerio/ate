@@ -32,6 +32,7 @@ pub(crate) struct ChainProtectedAsync
     pub(crate) sync_tolerance: Duration,
     pub(crate) listeners: MultiMap<MetaCollection, ChainListener>,
     pub(crate) is_shutdown: bool,
+    pub(crate) integrity: TrustMode,
 }
 
 impl ChainProtectedAsync
@@ -114,9 +115,16 @@ impl ChainProtectedAsync
             }
         }
 
-        for (evt, header) in validated_evts.into_iter() {
-            let _lookup = self.chain.redo.write(evt).await?;
-            self.chain.add_history(header);
+        for (evt, mut header) in validated_evts.into_iter() {
+            if self.integrity.is_centralized() {
+                header.meta.strip_signatures();
+                header.meta.strip_public_keys();
+            }
+            
+            if header.is_empty() == false {
+                let _lookup = self.chain.redo.write(evt).await?;
+                self.chain.add_history(header);
+            }
         }
 
         if errors.len() > 0 {
@@ -197,5 +205,11 @@ impl ChainProtectedAsync
                 }
             } 
         }
+    }
+
+    pub fn set_integrity_mode(&mut self, mode: TrustMode)
+    {
+        debug!("switching to {}", mode);
+        self.integrity = mode;
     }
 }

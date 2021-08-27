@@ -70,8 +70,8 @@ impl RecoverableSessionPipe
         let node_cfg = MeshConfig::new(self.cfg_mesh.clone())
             .connect_to(self.addr.clone());
 
-        let inbound_conversation = Arc::new(ConversationSession::new(true));
-        let outbound_conversation = Arc::new(ConversationSession::new(true));
+        let inbound_conversation = Arc::new(ConversationSession::default());
+        let outbound_conversation = Arc::new(ConversationSession::default());
 
         let session = Arc::new(MeshSession {
             addr: self.addr.clone(),

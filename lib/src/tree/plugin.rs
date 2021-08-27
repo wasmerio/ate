@@ -12,7 +12,7 @@ use crate::plugin::*;
 use crate::event::*;
 use crate::header::*;
 use crate::transaction::*;
-use crate::trust::*;
+use crate::spec::*;
 
 #[derive(Debug, Clone)]
 pub struct TreeAuthorityPlugin
@@ -22,7 +22,7 @@ pub struct TreeAuthorityPlugin
     pub(super) auth: FxHashMap<PrimaryKey, MetaAuthorization>,
     pub(super) parents: FxHashMap<PrimaryKey, MetaParent>,
     pub(super) signature_plugin: SignaturePlugin,
-    pub(super) integrity: IntegrityMode,
+    pub(super) integrity: TrustMode,
 }
 
 impl TreeAuthorityPlugin
@@ -34,7 +34,7 @@ impl TreeAuthorityPlugin
             signature_plugin: SignaturePlugin::new(),
             auth: FxHashMap::default(),
             parents: FxHashMap::default(),
-            integrity: IntegrityMode::Distributed,
+            integrity: TrustMode::Distributed,
         }
     }
 

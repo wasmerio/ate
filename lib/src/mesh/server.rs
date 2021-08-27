@@ -57,7 +57,7 @@ pub struct MeshRoute
 pub struct MeshChain
 {
     chain: Arc<Chain>,
-    integrity: IntegrityMode,
+    integrity: TrustMode,
     tx_group: Arc<Mutex<TxGroup>>,
 }
 
@@ -169,9 +169,31 @@ impl MeshRoot
         {
             let mut guard = root.listener.lock();
             guard.replace(listener);
-        }        
+        }
+
+        {
+            let root = Arc::clone(&root);
+            TaskEngine::spawn(async move {
+                root.auto_clean().await;
+            })
+        }
 
         Ok(root)
+    }
+
+    async fn auto_clean(self: Arc<Self>)
+    {
+        let chain = Arc::downgrade(&self);
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            
+            let chain = match Weak::upgrade(&chain) {
+                Some(a) => a,
+                None => { break; }
+            };
+
+            chain.clean().await;
+        }
     }
 
     pub async fn add_route<F>(self: &Arc<Self>, open_flow: Box<F>, cfg_ate: &ConfAte)
@@ -414,15 +436,15 @@ async fn open_internal<'b>(
                 let msg = Message::SecuredWith(session);
                 let pck = Packet::from(msg).to_packet_data(root.cfg_mesh.wire_format)?;
                 tx.send_reply(pck).await?;
-                integrity = IntegrityMode::Centralized(AteHash::generate());
+                integrity = TrustMode::Centralized(CentralizedRole::Server);
                 chain
             },
             OpenAction::DistributedChain { chain } => {
-                integrity = IntegrityMode::Distributed;
+                integrity = TrustMode::Distributed;
                 chain
             },
             OpenAction::CentralizedChain { chain } => {
-                integrity = IntegrityMode::Centralized(AteHash::generate());
+                integrity = TrustMode::Centralized(CentralizedRole::Server);
                 chain
             },
             OpenAction::Deny{ reason } => {
@@ -432,7 +454,7 @@ async fn open_internal<'b>(
             }
         }
     };
-    new_chain.single().await.set_integrity(integrity, true);
+    new_chain.single().await.set_integrity(integrity);
     
     // Insert it into the cache so future requests can reuse the reference to the chain
     let mut chains = root.chains.lock().await;
@@ -621,6 +643,22 @@ async fn inbox_subscribe<'b>(
 -> Result<(), CommsError>
 {
     trace!("subscribe: {}", chain_key.to_string());
+
+    // Randomize the conversation ID and clear its state
+    context.conversation.clear();
+    let conv_id = AteHash::generate();
+    let conv_updated = if let Some(mut a) = context.conversation.id.try_lock() {
+        a.update(Some(conv_id));
+        true
+    } else {
+        false
+    };
+    if conv_updated {
+        tx.send_reply_msg(Message::NewConversation { conversation_id: conv_id }).await?;
+    } else {
+        tx.send_reply_msg(Message::FatalTerminate(FatalTerminate::Other { err: "failed to generate a new conversation id".to_string() })).await?;
+        return Ok(());
+    }
 
     // First lets check if this connection is meant for this server
     let (node_addr, node_id) = match root.lookup.lookup(&chain_key) {

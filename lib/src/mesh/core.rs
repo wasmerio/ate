@@ -17,7 +17,7 @@ use crate::conf::*;
 use crate::mesh::msg::*;
 use crate::mesh::MeshSession;
 use crate::comms::PacketData;
-use crate::spec::SerializationFormat;
+use crate::spec::*;
 use crate::redo::LogLookup;
 use crate::time::ChainTimestamp;
 use crate::comms::StreamTx;
@@ -152,7 +152,7 @@ for BackupMode
 pub struct OpenedChain
 {
     pub chain: Arc<Chain>,
-    pub integrity: IntegrityMode,
+    pub integrity: TrustMode,
     pub message_of_the_day: Option<String>,
 }
 
@@ -414,7 +414,7 @@ where R: RangeBounds<ChainTimestamp>,
                 Bound::Included(a) | Bound::Excluded(a) => Some(a.clone())
             },
             root_keys,
-            integrity,
+            integrity: integrity.as_client(),
         }).await?;
 
     // Only if there are things to send

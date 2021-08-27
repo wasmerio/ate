@@ -67,7 +67,7 @@ impl ActiveSessionPipe
         // state we need to make sure we sign all the records. Its only the server
         // and the fact we trust it that we can omit signatures
         if let Some(chain) = self.session.chain.upgrade() {
-            chain.single().await.set_integrity(IntegrityMode::Distributed, false);
+            chain.single().await.set_integrity(TrustMode::Distributed);
         }
         Ok(())
     }

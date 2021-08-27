@@ -6,7 +6,7 @@ use super::event::*;
 use super::signature::MetaSignature;
 use super::error::*;
 use super::transaction::*;
-use super::trust::IntegrityMode;
+use crate::spec::TrustMode;
 
 #[derive(Debug)]
 pub enum ValidationResult {
@@ -22,7 +22,7 @@ pub trait EventValidator: Send + Sync
         Ok(ValidationResult::Abstain)
     }
 
-    fn set_integrity_mode(&mut self, _mode: IntegrityMode, _is_server: bool) {
+    fn set_integrity_mode(&mut self, _mode: TrustMode) {
     }
 
     fn clone_validator(&self) -> Box<dyn EventValidator>;

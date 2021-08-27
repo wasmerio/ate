@@ -167,7 +167,7 @@ impl<'a> Chain
         guard.chain.timeline.pointers.get_pending_uploads()
     }
 
-    pub(crate) async fn shutdown(&self) -> Result<(), tokio::io::Error>
+    pub async fn shutdown(&self) -> Result<(), CompactError>
     {
         self.run_async(self.__shutdown()).await
     }
@@ -182,7 +182,7 @@ impl<'a> Chain
         &self.throttle
     }
 
-    async fn __shutdown(&self) -> Result<(), tokio::io::Error>
+    async fn __shutdown(&self) -> Result<(), CompactError>
     {
         let include_active_files = match self.cfg_ate.backup_mode {
             BackupMode::None => { return Ok(()); },
@@ -192,11 +192,22 @@ impl<'a> Chain
         };
         
         let mut single = self.single().await;
-        if single.inside_async.is_shutdown == false {
+        let we_are_the_one = if single.inside_async.is_shutdown == false {
             single.inside_async.is_shutdown = true;
             
             single.inside_async.chain.redo.backup(include_active_files)?.await?;
+            true
+        } else {
+            false
+        };
+        drop(single);
+
+        if we_are_the_one {
+            if self.cfg_ate.log_path.is_some() && self.cfg_ate.compact_cleanup {
+                self.compact().await?;
+            }
         }
+
         Ok(())
     }
 }

@@ -11,7 +11,7 @@ use crate::transaction::*;
 
 use std::sync::Arc;
 
-use crate::trust::*;
+use crate::spec::*;
 use crate::lint::*;
 use crate::transform::*;
 use crate::service::*;
@@ -19,7 +19,7 @@ use crate::session::AteSession;
 
 pub(crate) struct ChainProtectedSync
 {
-    pub(crate) integrity: IntegrityMode,
+    pub(crate) integrity: TrustMode,
     pub(crate) default_session: AteSession,
     pub(crate) sniffers: Vec<ChainSniffer>,
     pub(crate) plugins: Vec<Box<dyn EventPlugin>>,
@@ -119,16 +119,16 @@ impl ChainProtectedSync
         Ok(ValidationResult::Allow)
     }
 
-    pub fn set_integrity_mode(&mut self, mode: IntegrityMode, is_server: bool)
+    pub fn set_integrity_mode(&mut self, mode: TrustMode)
     {
         debug!("switching to {}", mode);
 
         self.integrity = mode;
         for val in self.validators.iter_mut() {
-            val.set_integrity_mode(mode, is_server);
+            val.set_integrity_mode(mode);
         }
         for val in self.plugins.iter_mut() {
-            val.set_integrity_mode(mode, is_server);
+            val.set_integrity_mode(mode);
         }
     }
 }

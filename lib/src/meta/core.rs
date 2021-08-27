@@ -185,6 +185,15 @@ impl Metadata
         });
     }
 
+    pub fn strip_public_keys(&mut self) {
+        self.core.retain(|a| {
+            match a {
+                CoreMetadata::PublicKey(_) => false,
+                _ => true
+            }
+        });
+    }
+
     pub fn get_sign_with(&self) -> Option<&MetaSignWith>
     {
         for core in &self.core {
@@ -210,6 +219,18 @@ impl Metadata
             .filter_map(|m| {
                 match m {
                     CoreMetadata::Type(t) => Some(t),
+                    _ => None,
+                }
+            })
+            .next()
+    }
+
+    pub fn get_public_key(&self) -> Option<&PublicSignKey> {
+        self.core
+            .iter()
+            .filter_map(|m| {
+                match m {
+                    CoreMetadata::PublicKey(t) => Some(t),
                     _ => None,
                 }
             })
@@ -286,5 +307,9 @@ impl Metadata
             return false;
         }
         true
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.core.is_empty()
     }
 }

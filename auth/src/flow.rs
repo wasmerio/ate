@@ -5,7 +5,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use regex::Regex;
 use ate::{error::ChainCreationError, prelude::*};
-use ate::trust::IntegrityMode;
 use ate::crypto::EncryptKey;
 use ate::crypto::KeySize;
 
@@ -58,7 +57,6 @@ for ChainFlow
         {
             let chain = builder
                 .set_session(self.session.clone())
-                .set_is_server(true)
                 .add_root_public_key(&self.root_key.as_public_key())
                 .build()
                 .open(key)
@@ -86,8 +84,6 @@ for ChainFlow
 
             // Build the chain
             builder = builder
-                .integrity(IntegrityMode::Distributed)
-                .set_is_server(true)
                 .set_session(cmd_session.clone())
                 .temporal(true);
             if let Some(session_root_key) = &session_root_key {

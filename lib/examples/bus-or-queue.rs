@@ -34,7 +34,7 @@ async fn main() -> Result<(), AteError>
     let mut cfg_mesh = ConfMesh::solo(&cfg_ate, &IpAddr::from_str("127.0.0.1").unwrap(), "localhost".to_string(), 5001, None).await?;
     #[cfg(not(feature="enable_dns"))]
     let mut cfg_mesh = ConfMesh::solo("localhost".to_string(), 5001)?;
-    let _root = create_ethereal_server(&cfg_ate, &cfg_mesh).await?;
+    let _root = create_ethereal_distributed_server(&cfg_ate, &cfg_mesh).await?;
 
     // Connect to the server from a client
     info!("connection two clients to the mesh server");

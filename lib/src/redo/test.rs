@@ -92,7 +92,7 @@ fn test_redo_log() {
             // Open the log once for writing
             println!("test_redo_log - creating the redo log");
             #[cfg(feature = "enable_local_fs")]
-            let (mut rl, _) = RedoLog::open(&mock_cfg, &mock_chain_key, OpenFlags::create_centralized(), Vec::new()).await.expect("Failed to load the redo log");
+            let (mut rl, _) = RedoLog::open(&mock_cfg, &mock_chain_key, OpenFlags::create_centralized_server(), Vec::new()).await.expect("Failed to load the redo log");
             #[cfg(not(feature = "enable_local_fs"))]
             let mut rl = RedoLog::open(Vec::new()).await.expect("Failed to load the redo log");
             
@@ -162,7 +162,7 @@ fn test_redo_log() {
             // Open it up again which should check that it loads data properly
             println!("test_redo_log - reopening the redo log");
             #[cfg(feature = "enable_local_fs")]
-            let (mut rl, mut loader) = RedoLog::open(&mock_cfg, &mock_chain_key, OpenFlags::open_centralized(), Vec::new()).await.expect("Failed to load the redo log");
+            let (mut rl, mut loader) = RedoLog::open(&mock_cfg, &mock_chain_key, OpenFlags::open_centralized_server(), Vec::new()).await.expect("Failed to load the redo log");
             #[cfg(not(feature = "enable_local_fs"))]
             let mut rl = RedoLog::open(Vec::new()).await.expect("Failed to load the redo log");
             

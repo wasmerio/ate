@@ -28,9 +28,13 @@ pub use crate::flow::OpenFlow;
 #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
 pub use crate::flow::OpenAction;
 #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
-pub use crate::flow::all_ethereal;
+pub use crate::flow::all_ethereal_distributed;
 #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
-pub use crate::flow::all_ethereal_with_root_key;
+pub use crate::flow::all_ethereal_centralized;
+#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+pub use crate::flow::all_ethereal_distributed_with_root_key;
+#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+pub use crate::flow::all_ethereal_centralized_with_root_key;
 #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
 pub use crate::flow::all_persistent_and_centralized;
 #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
@@ -79,6 +83,7 @@ pub use crate::service::ServiceHandler;
 pub use crate::engine::TaskEngine;
 pub use crate::comms::StreamProtocol;
 pub use crate::spec::TrustMode;
+pub use crate::spec::CentralizedRole;
 pub use crate::comms::NodeId;
 pub use crate::mesh::RecoveryMode;
 pub use crate::mesh::BackupMode;
@@ -91,7 +96,9 @@ pub use crate::mesh::create_persistent_centralized_server;
 #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
 pub use crate::mesh::create_persistent_distributed_server;
 #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
-pub use crate::mesh::create_ethereal_server;
+pub use crate::mesh::create_ethereal_centralized_server;
+#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+pub use crate::mesh::create_ethereal_distributed_server;
 #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
 pub use crate::mesh::create_server;
 #[cfg(feature = "enable_client")]

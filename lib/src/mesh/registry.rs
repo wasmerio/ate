@@ -395,6 +395,14 @@ for ChainGuard
             TaskEngine::spawn(async move {
                 trace!("keep-alive: warm down for {}", chain.key());
                 tokio::time::sleep(duration).await;
+
+                // If we are the last then do a cleanup
+                if Arc::strong_count(&chain) <= 1 {
+                    let ret = chain.shutdown().await;
+                    if let Err(err) = ret {
+                        error!("shutdown failed during guard drop - {}", err);
+                    }
+                }
                 drop(chain);
             });
         }

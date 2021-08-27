@@ -6,6 +6,7 @@ pub mod remove_duplicates;
 pub mod tombstone_compactor;
 pub mod cut_off_compactor;
 pub mod sig_compactor;
+pub mod public_key_compactor;
 mod tests;
 
 pub(crate) use compact_state::*;
@@ -17,3 +18,4 @@ pub use remove_duplicates::*;
 pub use tombstone_compactor::*;
 pub use cut_off_compactor::*;
 pub use sig_compactor::*;
+pub use public_key_compactor::*;

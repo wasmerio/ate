@@ -8,7 +8,7 @@ use crate::meta::*;
 use crate::validator::*;
 use crate::event::*;
 use crate::transaction::*;
-use crate::trust::*;
+use crate::spec::*;
 
 use super::*;
 
@@ -48,10 +48,15 @@ for TreeAuthorityPlugin
             {
                 if let Some(conversation) = conversation
                 {
+                    // If we are to skip validation then do so
+                    if conversation.weaken_validation {
+                        return Ok(ValidationResult::Allow)
+                    }
+
                     // If integrity is centrally managed and we have seen this public key before in this
                     // particular conversation then we can trust the rest of the integrity of the chain
-                    if self.integrity.is_centralized() || conversation.force_centralized_mode {
-                        if conversation.other_end_is_server {
+                    if self.integrity.is_centralized() {
+                        if self.integrity == TrustMode::Centralized(CentralizedRole::Client) {
                             return Ok(ValidationResult::Allow)
                         }
 
@@ -109,9 +114,9 @@ for TreeAuthorityPlugin
         Err(ValidationErrorKind::Detached.into())
     }
 
-    fn set_integrity_mode(&mut self, mode: IntegrityMode, is_server: bool) {
+    fn set_integrity_mode(&mut self, mode: TrustMode) {
         self.integrity = mode;
-        self.signature_plugin.set_integrity_mode(mode, is_server);
+        self.signature_plugin.set_integrity_mode(mode);
     }
 
     fn validator_name(&self) -> &str {

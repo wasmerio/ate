@@ -10,7 +10,7 @@ use super::OpenFlow;
 use crate::chain::ChainKey;
 use crate::conf::ChainBuilder;
 use crate::error::*;
-use crate::trust::IntegrityMode;
+use crate::spec::*;
 use crate::chain::Chain;
 use crate::crypto::EncryptKey;
 use crate::crypto::KeySize;
@@ -41,8 +41,12 @@ impl OpenStaticBuilder
         OpenStaticBuilder::new(false, false, None)
     }
 
-    pub async fn all_ethereal() -> OpenStaticBuilder {
+    pub async fn all_ethereal_centralized() -> OpenStaticBuilder {
         OpenStaticBuilder::new(true, true, None)
+    }
+
+    pub async fn all_ethereal_distributed() -> OpenStaticBuilder {
+        OpenStaticBuilder::new(true, false, None)
     }
 
     pub async fn all_persistent_and_centralized_with_root_key(root_key: PublicSignKey) -> OpenStaticBuilder {
@@ -53,8 +57,12 @@ impl OpenStaticBuilder
         OpenStaticBuilder::new(false, false, Some(root_key))
     }
 
-    pub async fn all_ethereal_with_root_key(root_key: PublicSignKey) -> OpenStaticBuilder {
+    pub async fn all_ethereal_centralized_with_root_key(root_key: PublicSignKey) -> OpenStaticBuilder {
         OpenStaticBuilder::new(true, true, Some(root_key))
+    }
+
+    pub async fn all_ethereal_distributed_with_root_key(root_key: PublicSignKey) -> OpenStaticBuilder {
+        OpenStaticBuilder::new(true, false, Some(root_key))
     }
 }
 
@@ -76,25 +84,20 @@ for OpenStaticBuilder
         if let Some(root_key) = &self.root_key {
             builder = builder.add_root_public_key(root_key);
         }
-        builder = builder.integrity(match &self.centralized_integrity {
+        Ok(match self.centralized_integrity {
             true => {
                 debug!("chain-builder: centralized integrity");
-                IntegrityMode::Centralized(AteHash::generate())
+                OpenAction::CentralizedChain
+                {
+                    chain: builder.temporal(self.temporal).build().open(&key).await?,
+                }
             },
             false => {
                 debug!("chain-builder: distributed integrity");
-                IntegrityMode::Distributed
-            },
-        });
-        
-        Ok(match &self.centralized_integrity {
-            true => OpenAction::CentralizedChain
-            {
-                chain: builder.temporal(self.temporal).build().open(&key).await?,
-            },
-            false => OpenAction::DistributedChain
-            {
-                chain: builder.temporal(self.temporal).build().open(&key).await?,
+                OpenAction::DistributedChain
+                {
+                    chain: builder.temporal(self.temporal).build().open(&key).await?,
+                }
             },
         })
     }

@@ -5,7 +5,7 @@ use regex::Regex;
 
 use async_trait::async_trait;
 use ate::{error::ChainCreationError, prelude::*};
-use ate::trust::IntegrityMode;
+use ate::spec::TrustMode;
 use ate_auth::commands::*;
 
 pub struct ChainFlow {
@@ -81,17 +81,6 @@ for ChainFlow
                 builder = builder.add_root_public_key(&root_key);
             }
 
-            builder = builder.integrity(match self.mode {
-                TrustMode::Centralized => {
-                    debug!("centralized integrity for {}", key.to_string());
-                    IntegrityMode::Centralized(AteHash::generate())
-                },
-                TrustMode::Distributed => {
-                    debug!("distributed integrity for {}", key.to_string());
-                    IntegrityMode::Distributed
-                }
-            });
-
             // Prefix the name with 'redo'
             let mut key_name = key.name.clone();
             if key_name.starts_with("/") {
@@ -106,13 +95,19 @@ for ChainFlow
                 .await?;
 
             // We have opened the chain
-            return match self.mode {
-                TrustMode::Centralized => Ok(OpenAction::CentralizedChain {
-                    chain
-                }),
-                TrustMode::Distributed => Ok(OpenAction::DistributedChain {
-                    chain
-                }),
+            return match self.mode.is_centralized() {
+                true => {
+                    debug!("centralized integrity for {}", key.to_string());
+                    Ok(OpenAction::CentralizedChain {
+                        chain
+                    })
+                },
+                false => {
+                    debug!("distributed integrity for {}", key.to_string());
+                    Ok(OpenAction::DistributedChain {
+                        chain
+                    })
+                },
             };
         }
 
@@ -177,16 +172,6 @@ for ChainFlow
             };
 
             builder = builder.add_root_public_key(&role.write);
-            builder = builder.integrity(match self.mode {
-                TrustMode::Centralized => {
-                    debug!("centralized integrity for {}", key.to_string());
-                    IntegrityMode::Centralized(AteHash::generate())
-                },
-                TrustMode::Distributed => {
-                    debug!("distributed integrity for {}", key.to_string());
-                    IntegrityMode::Distributed
-                }
-            });
             
             // Prefix the name with 'redo'
             let mut key_name = key.name.clone();
@@ -202,13 +187,19 @@ for ChainFlow
                 .await?;
 
             // We have opened the chain
-            return match self.mode {
-                TrustMode::Centralized => Ok(OpenAction::CentralizedChain {
-                    chain
-                }),
-                TrustMode::Distributed => Ok(OpenAction::DistributedChain {
-                    chain
-                }),
+            return match self.mode.is_centralized() {
+                true => {
+                    debug!("centralized integrity for {}", key.to_string());
+                    Ok(OpenAction::CentralizedChain {
+                        chain
+                    })
+                },
+                false => {
+                    debug!("distributed integrity for {}", key.to_string());
+                    Ok(OpenAction::DistributedChain {
+                        chain
+                    })
+                },
             };
         }
 

@@ -39,6 +39,7 @@ pub fn conf_auth() -> ConfAte
     cfg_ate.configured_for(ConfiguredFor::BestSecurity);
     cfg_ate.log_format.meta = SerializationFormat::Json;
     cfg_ate.log_format.data = SerializationFormat::Json;
+    cfg_ate.record_type_name = true;
     cfg_ate
 }
 

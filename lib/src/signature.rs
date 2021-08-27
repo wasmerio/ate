@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use multimap::MultiMap;
+use std::ops::Deref;
 use error_chain::bail;
 #[allow(unused_imports)]
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
@@ -10,13 +11,13 @@ use crate::crypto::{EncryptedPrivateKey, AteHash, DoubleHash, PublicSignKey};
 use crate::session::{AteSession, AteSessionProperty};
 use crate::utils::vec_serialize;
 use crate::utils::vec_deserialize;
+use crate::spec::*;
 
 use super::validator::EventValidator;
 use super::lint::EventMetadataLinter;
 use super::transform::EventDataTransformer;
 #[allow(unused_imports)]
 use super::sink::{EventSink};
-use super::trust::IntegrityMode;
 
 use super::event::*;
 use super::error::*;
@@ -79,8 +80,7 @@ pub struct SignaturePlugin
 {
     pk: FxHashMap<AteHash, PublicSignKey>,
     sigs: MultiMap<AteHash, AteHash>,
-    integrity: IntegrityMode,
-    is_server: bool,
+    integrity: TrustMode,
 }
 
 impl SignaturePlugin
@@ -90,8 +90,7 @@ impl SignaturePlugin
         SignaturePlugin {
             pk: FxHashMap::default(),
             sigs: MultiMap::default(),
-            integrity: IntegrityMode::Distributed,
-            is_server: false,
+            integrity: TrustMode::Distributed,
         }
     }
 
@@ -130,7 +129,7 @@ for SignaturePlugin
         for m in header.meta.core.iter() {
             match m {
                 CoreMetadata::Signature(sig) => {
-                    if self.integrity == IntegrityMode::Distributed || self.is_server {
+                    if self.integrity == TrustMode::Distributed || self.integrity == TrustMode::Centralized(CentralizedRole::Server) {
                         let pk = match self.pk.get(&sig.public_key_hash) {
                             Some(pk) => pk,
                             None => bail!(SinkErrorKind::MissingPublicKey(sig.public_key_hash))
@@ -155,11 +154,13 @@ for SignaturePlugin
                     // If we in a conversation and integrity is centrally managed then update the
                     // conversation so that we record that a signature was validated for a hash
                     // which is clear proof of ownershp
-                    if let IntegrityMode::Centralized(session) = &self.integrity {
+                    if self.integrity.is_centralized() {
                         if let Some(conversation) = &conversation {
-                            if sig.hashes.contains(session) {
-                                let mut lock = conversation.signatures.write();
-                                lock.insert(sig.public_key_hash);
+                            if let Some(conv_id) = conversation.id.read() {
+                                if sig.hashes.contains(conv_id.deref()) {
+                                    let mut lock = conversation.signatures.write();
+                                    lock.insert(sig.public_key_hash);
+                                }
                             }
                         }
                     }
@@ -184,9 +185,8 @@ for SignaturePlugin
         Box::new(self.clone())
     }
 
-    fn set_integrity_mode(&mut self, mode: IntegrityMode, is_server: bool) {
+    fn set_integrity_mode(&mut self, mode: TrustMode) {
         self.integrity = mode;
-        self.is_server = is_server;
     }
 
     fn validator_name(&self) -> &str {
@@ -241,8 +241,13 @@ for SignaturePlugin
 
             // Compute a hash of the hashesevt
             let mut data_hashes = Vec::new();
-            if let IntegrityMode::Centralized(session) = &self.integrity {
-                data_hashes.push(session.clone());
+            if self.integrity.is_centralized() {
+                if let Some(conversation) = &conversation {
+                    if let Some(conv_id) = conversation.id.read() {
+                        let conv_id = conv_id.deref().clone();
+                        data_hashes.push(conv_id);
+                    }
+                }
             }
             for e in raw.iter() {
                 if let Some(a) = e.data.meta.get_sign_with() {

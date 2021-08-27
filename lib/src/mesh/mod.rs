@@ -112,10 +112,18 @@ pub async fn create_persistent_distributed_server(cfg_ate: &ConfAte, cfg_mesh: &
 }
 
 #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
-pub async fn create_ethereal_server(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Result<Arc<MeshRoot>, CommsError>
+pub async fn create_ethereal_centralized_server(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Result<Arc<MeshRoot>, CommsError>
 {
     let ret = create_server(cfg_mesh).await?;
-    ret.add_route(super::flow::all_ethereal().await, cfg_ate).await?;
+    ret.add_route(super::flow::all_ethereal_centralized().await, cfg_ate).await?;
+    Ok(ret)
+}
+
+#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+pub async fn create_ethereal_distributed_server(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Result<Arc<MeshRoot>, CommsError>
+{
+    let ret = create_server(cfg_mesh).await?;
+    ret.add_route(super::flow::all_ethereal_distributed().await, cfg_ate).await?;
     Ok(ret)
 }
 

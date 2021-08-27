@@ -14,7 +14,6 @@ use crate::lint::*;
 use crate::transform::*;
 use crate::plugin::*;
 use crate::trust::ChainKey;
-use crate::trust::IntegrityMode;
 use crate::crypto::PublicSignKey;
 use crate::error::*;
 use crate::pipe::*;
@@ -44,8 +43,6 @@ pub struct ChainBuilder
     pub(crate) tree: Option<TreeAuthorityPlugin>,
     pub(crate) truncate: bool,
     pub(crate) temporal: bool,
-    pub(crate) integrity: IntegrityMode,
-    pub(crate) is_server: bool,
     pub(crate) session: AteSession,
     pub(crate) metrics: Arc<StdMutex<Metrics>>,
     pub(crate) throttle: Arc<StdMutex<Throttle>>,
@@ -70,8 +67,6 @@ for ChainBuilder
             session: self.session.clone(),
             truncate: self.truncate,
             temporal: self.temporal,
-            integrity: self.integrity,
-            is_server: self.is_server,
             metrics: Arc::clone(&self.metrics),
             throttle: Arc::clone(&self.throttle),
         }
@@ -97,8 +92,6 @@ impl ChainBuilder
             session: AteSession::new(&cfg_ate),
             truncate: false,
             temporal: false,
-            integrity: IntegrityMode::Distributed,
-            is_server: false,
             metrics: Arc::new(StdMutex::new(Metrics::default())),
             throttle: Arc::new(StdMutex::new(Throttle::default())),
         }
@@ -295,18 +288,6 @@ impl ChainBuilder
         self
     }
 
-    #[allow(dead_code)]
-    pub fn integrity(mut self, mode: IntegrityMode) -> Self {
-        self.integrity = mode;
-        self
-    }
-
-    #[allow(dead_code)]
-    pub fn set_is_server(mut self, is_server: bool) -> Self {
-        self.is_server = is_server;
-        self
-    }
-
     pub fn cfg_ate(&self) -> &ConfAte {
         &self.cfg_ate
     }
@@ -321,12 +302,16 @@ impl ChainBuilder
         Arc::new(self)
     }
 
-    pub async fn open(self: &Arc<Self>, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
+    pub async fn open(self: &Arc<Self>,
+                      key: &ChainKey
+    ) -> Result<Arc<Chain>, ChainCreationError>
     {
         TaskEngine::run_until(self.__open(key)).await
     }
     
-    async fn __open(self: &Arc<Self>, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
+    async fn __open(self: &Arc<Self>,
+                    key: &ChainKey
+    ) -> Result<Arc<Chain>, ChainCreationError>
     {
         let ret = Arc::new(Chain::new((**self).clone(), key).await?);
         Ok(ret)

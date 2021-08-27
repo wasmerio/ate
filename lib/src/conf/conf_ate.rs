@@ -22,9 +22,10 @@ pub struct ConfAte
 
     /// Specifies the log compaction mode for the redo log.
     pub compact_mode: CompactMode,
-
     /// Compacts the redo log on bootstrapping of the program.
     pub compact_bootstrap: bool,
+    /// Compacts the redo log on cleanup
+    pub compact_cleanup: bool,
 
     /// Directory path that the redo logs will be stored.
     /// (if this option is none then the logs will be stored in memory)
@@ -101,6 +102,7 @@ for ConfAte
             backup_mode: BackupMode::Full,
             compact_mode: CompactMode::Never,
             compact_bootstrap: false,
+            compact_cleanup: false,
             sync_tolerance: Duration::from_secs(30),
             #[cfg(feature = "enable_ntp")]
             ntp_sync: true,

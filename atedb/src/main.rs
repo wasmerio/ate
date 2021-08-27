@@ -111,14 +111,14 @@ async fn main() -> Result<(), AteError> {
     let wire_encryption = match opts.wire_encryption {
         Some(a) => Some(a),
         None => {
-            match opts.trust {
-                TrustMode::Centralized => {
+            match opts.trust.is_centralized() {
+                true => {
                     match opts.no_wire_encryption {
                         false => Some(KeySize::Bit128),
                         true => None,
                     }
                 },
-                TrustMode::Distributed => None
+                false => None
             }
         }
     };
@@ -128,7 +128,7 @@ async fn main() -> Result<(), AteError> {
     conf.dns_server = opts.dns_server;
 
     let auth = match opts.no_auth {
-        false if opts.trust == TrustMode::Centralized => Some(opts.auth),
+        false if opts.trust.is_centralized() => Some(opts.auth),
         _ => None,
     };
     
