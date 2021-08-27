@@ -47,6 +47,7 @@ pub async fn service_auth_handlers(cfg: &ConfAte, cmd_session: AteSessionUser, a
 {
     let service = AuthService::new(cfg, auth_url, auth_session, terms_and_conditions).await?;
     chain.add_service(&cmd_session, service.clone(), AuthService::process_login);
+    chain.add_service(&cmd_session, service.clone(), AuthService::process_sudo);
     chain.add_service(&cmd_session, service.clone(), AuthService::process_create_user);
     chain.add_service(&cmd_session, service.clone(), AuthService::process_create_group);
     chain.add_service(&cmd_session, service.clone(), AuthService::process_query);
