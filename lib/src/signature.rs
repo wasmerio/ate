@@ -1,3 +1,5 @@
+#[allow(unused_imports)]
+use tracing::{error, info, warn, debug, trace};
 use std::sync::Arc;
 use multimap::MultiMap;
 use std::ops::Deref;
@@ -132,16 +134,23 @@ for SignaturePlugin
                     if self.integrity == TrustMode::Distributed || self.integrity == TrustMode::Centralized(CentralizedRole::Server) {
                         let pk = match self.pk.get(&sig.public_key_hash) {
                             Some(pk) => pk,
-                            None => bail!(SinkErrorKind::MissingPublicKey(sig.public_key_hash))
+                            None => {
+                                trace!("signature missing public key: {}", sig.public_key_hash);
+                                bail!(SinkErrorKind::MissingPublicKey(sig.public_key_hash))
+                            }
                         };
 
                         let hashes_bytes: Vec<u8> = sig.hashes.iter().flat_map(|h| { Vec::from(h.val).into_iter() }).collect();
                         let hash_of_hashes = AteHash::from_bytes(&hashes_bytes[..]);
                         let result = match pk.verify(&hash_of_hashes.val[..], &sig.signature[..]) {
                             Ok(r) => r,
-                            Err(err) => bail!(SinkErrorKind::InvalidSignature(sig.public_key_hash, Some(err))),
+                            Err(err) => {
+                                trace!("signature is invalid: {}", err);
+                                bail!(SinkErrorKind::InvalidSignature(sig.public_key_hash, Some(err)))
+                            },
                         };
                         if result == false {
+                            trace!("signature failed validate - {}", sig.public_key_hash);
                             bail!(SinkErrorKind::InvalidSignature(sig.public_key_hash, None));
                         }
                     }

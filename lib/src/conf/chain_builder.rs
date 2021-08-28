@@ -123,6 +123,7 @@ impl ChainBuilder
             return self;
         }
 
+        self.compactors.push(Box::new(PublicKeyCompactor::default()));
         self.compactors.push(Box::new(SignatureCompactor::default()));
         self.compactors.push(Box::new(RemoveDuplicatesCompactor::default()));
         self.compactors.push(Box::new(TombstoneCompactor::default()));

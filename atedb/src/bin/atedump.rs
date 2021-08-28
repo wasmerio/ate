@@ -15,8 +15,10 @@ use async_trait::async_trait;
 use ate::utils::LoadProgress;
 use tokio::sync::mpsc;
 use fxhash::FxHashMap;
+use fxhash::FxHashSet;
 use ascii_tree::Tree;
 use std::collections::HashMap;
+use colored::*;
 
 #[derive(Clap)]
 #[clap(version = "1.4", author = "John S. <johnathan.sharratt@gmail.com>")]
@@ -51,8 +53,19 @@ for DumpLoader
 struct EventNode
 {
     name: String,
-    versions: Vec<String>,
+    versions: Vec<AteHash>,
     children: Vec<PrimaryKey>,
+}
+
+#[derive(Default)]
+struct EventData
+{
+    data: Option<String>,
+    data_hash: Option<AteHash>,
+    event_hash: Option<AteHash>,
+    sig: Option<AteHash>,
+    bad_order: bool,
+    bad_pk: bool,
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -91,7 +104,11 @@ async fn main() -> Result<(), AteError> {
     RedoLog::open_ext(&cfg_ate, &key, flags, loader, header_bytes).await?;
     
     // Build a tree and dump it to console
+    let mut hash_pk = FxHashSet::default();
+    let mut tree_pks = Vec::new();
+    let mut tree_sigs = Vec::new();
     let mut tree_roots: Vec<PrimaryKey> = Vec::new();
+    let mut tree_event: FxHashMap<AteHash, EventData> = FxHashMap::default();
     let mut tree_lookup: FxHashMap<PrimaryKey, EventNode> = FxHashMap::default();
     while let Some(evt) = rx.recv().await
     {
@@ -103,6 +120,21 @@ async fn main() -> Result<(), AteError> {
             }
         };
 
+        // Get the signature and record it for the different data nodes
+        if let Some(pk) = header.meta.get_public_key() {
+            hash_pk.insert(pk.hash());
+            tree_pks.push(pk.hash());
+        }
+
+        // Get the signature and record it for the different data nodes
+        if let Some(sig) = header.meta.get_signature() {
+            for hash in &sig.hashes {
+                tree_event.entry(hash.clone()).or_default().sig = Some(sig.public_key_hash);
+            }
+            tree_sigs.push(sig.clone());
+            continue;
+        }
+
         // Build a name for the node
         let name = if let Some(type_name) = header.meta.get_type_name() {
             let mut name = type_name.type_name.clone();
@@ -112,22 +144,20 @@ async fn main() -> Result<(), AteError> {
                 }
             }
             if let Some(key) = header.meta.get_data_key() {
-                format!("{}({})", name, key)
+                format!("{}(key={})", name.bold(), key)
             } else {
-                name
+                name.as_str().bold().to_string()
             }
         } else if let Some(tombstone) = header.meta.get_tombstone() {
             if opts.no_compact == false {
                 tree_lookup.remove(&tombstone);
                 continue;
             }
-            format!("tombstone({})", tombstone)
+            format!("{}({})", "tombstone".yellow(), tombstone)
         } else if let Some(pk) = header.meta.get_public_key() {
             format!("public-key({})", pk.hash())
-        } else if let Some(sig) = header.meta.get_signature() {
-            format!("signature(key={}, for {} records)", sig.public_key_hash, sig.hashes.len())
         } else {
-            "unknown".to_string()
+            "unknown".bold().to_string()
         };
         
         // Insert some data into the node
@@ -141,19 +171,35 @@ async fn main() -> Result<(), AteError> {
             node
         });
 
+        // Put the actual data in the node
         if opts.no_compact == false {
             node.versions.clear();
         }
-        if header.raw.data_size > 0 {
-            node.versions.push(format!("data({} bytes)", header.raw.data_size));
-        } else if header.meta.get_tombstone().is_some() {
+        if header.meta.get_tombstone().is_some() {
             if opts.no_compact == false {
                 drop(node);
                 tree_lookup.remove(&key);
-            } else {
-                node.versions.push(name);
+                continue;
             }
         }
+
+        // Put the actual data in the node
+        let d = tree_event.entry(header.raw.event_hash.clone()).or_default();
+        d.data = if header.raw.data_size > 0 {
+            Some(format!("{}({} bytes)", "data", header.raw.data_size))
+        } else {
+            Some(format!("{}", name))
+        };
+        d.data_hash = header.raw.data_hash;
+        d.event_hash = Some(header.raw.event_hash);
+        if let Some(sig) = &d.sig {
+            if hash_pk.contains(sig) == false {
+                d.bad_pk = true;
+            }
+        } else {
+            d.bad_order = true;
+        }
+        node.versions.push(header.raw.event_hash.clone());
 
         // Put the node in the right place
         match header.meta.get_parent() {
@@ -174,8 +220,37 @@ async fn main() -> Result<(), AteError> {
 
     // Turn it into ascii-tree
     let mut output = String::new();
+    for tree_pk in tree_pks {
+        let tree = Tree::Node(format!("public-key({})", tree_pk.to_8hex()), Vec::default());
+        ascii_tree::write_tree(&mut output, &tree).unwrap();
+    }
+    for tree_sig in tree_sigs {
+        let no_compact = opts.no_compact;
+        let mut data = tree_sig.hashes.into_iter()
+            .filter_map(|d| {
+                if tree_event.contains_key(&d) {
+                    match no_compact {
+                        true => Some(format!("{}({})", "event", d.to_8hex())),
+                        false => None
+                    }
+                } else {
+                    Some(format!("{}({}) {}", "event", d.to_8hex(), "missing".red()))
+                }
+            })
+            .collect::<Vec<_>>();
+        if data.len() <= 0 {
+            continue;
+        }
+        data.insert(0, format!("sig-data({} bytes)", tree_sig.signature.len()));
+        let name = match hash_pk.contains(&tree_sig.public_key_hash) {
+            true => format!("signature({}) {}", "pk-ref".green(), tree_sig.public_key_hash.to_8hex()),
+            false => format!("signature({}) {}", "pk-missing".red(), tree_sig.public_key_hash.to_8hex()),
+        };
+        let tree = Tree::Node(name, vec![Tree::Leaf(data)]);
+        ascii_tree::write_tree(&mut output, &tree).unwrap();
+    }
     for root in tree_roots.iter() {
-        let tree = build_tree(root, &tree_lookup);
+        let tree = build_tree(root, &tree_lookup, &tree_event);
         if let Some(tree) = tree {
             ascii_tree::write_tree(&mut output, &tree).unwrap();
         }
@@ -185,16 +260,41 @@ async fn main() -> Result<(), AteError> {
     Ok(())
 }
 
-fn build_tree(key: &PrimaryKey, tree_lookup: &FxHashMap<PrimaryKey, EventNode>) -> Option<Tree>
+fn build_tree(key: &PrimaryKey, tree_lookup: &FxHashMap<PrimaryKey, EventNode>, tree_data: &FxHashMap<AteHash, EventData>) -> Option<Tree>
 {
     if let Some(node) = tree_lookup.get(&key) {
         let mut children = Vec::new();
         if node.versions.len() > 0 {
-            let leaf = Tree::Leaf(node.versions.clone());
+            let versions = node.versions.iter()
+                .filter_map(|a| tree_data.get(a))
+                .map(|a| {
+                    let e = a.event_hash.map_or_else(|| "none".to_string(), |f| f.to_8hex());
+                    match &a.data {
+                        Some(b) => (b.clone(), a, a.data_hash.clone(), e),
+                        None => ("missing".to_string(), a, a.data_hash.clone(), e)
+                    }
+                })
+                .map(|(d, a, h, e)| {
+                    if let Some(s) = a.sig.clone() {
+                        if a.bad_order {
+                            format!("{} {}({}) evt={}", d.yellow(), "sig-bad-order".red(), s.to_8hex(), e)    
+                        } else if a.bad_pk {
+                            format!("{} {}({}) evt={}", d.yellow(), "sig-bad-pk".red(), s.to_8hex(), e)    
+                        } else {
+                            format!("{} {}({}) evt={}", d, "sig".green(), s.to_8hex(), e)
+                        }
+                    } else if let Some(h) = h {
+                        format!("{} {}({}) evt={}", d.yellow(), "no-sig".red(), h.to_8hex(), e)
+                    } else {
+                        format!("{} {}, evt={}", d.yellow(), "no-sig".red(), e)
+                    }
+                })
+                .collect::<Vec<_>>();
+            let leaf = Tree::Leaf(versions);
             children.push(leaf);
         }
         for c in &node.children {
-            if let Some(c) = build_tree(c, tree_lookup) {
+            if let Some(c) = build_tree(c, tree_lookup, tree_data) {
                 children.push(c);
             }
         }

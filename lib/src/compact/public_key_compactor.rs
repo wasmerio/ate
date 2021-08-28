@@ -47,6 +47,9 @@ for PublicKeyCompactor
                     self.sign_with.insert(*key);
                 }
             }
+            if let Some(sign) = header.meta.get_signature() {
+                self.sign_with.insert(sign.public_key_hash);
+            }
         }
     }
 
