@@ -41,6 +41,7 @@ impl AuthService
         // Check the username matches the regex
         let regex = Regex::new("^([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})@([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,}).([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})$").unwrap();
         if regex.is_match(request.email.as_str()) == false {
+            warn!("invalid email address - {}", request.email);
             return Err(CreateUserFailed::InvalidEmail);
         }
 
@@ -48,12 +49,14 @@ impl AuthService
         let master_write_key = match self.master_session.user.write_keys().next() {
             Some(a) => a.clone(),
             None => {
+                warn!("no master write key");
                 return Err(CreateUserFailed::NoMasterKey);
             }
         };
 
         // If the username is on the banned list then dont allow it
         if BANNED_USERNAMES.contains(&request.email.as_str()) {
+            warn!("banned username - {}", request.email);
             return Err(CreateUserFailed::InvalidEmail);
         }
 
@@ -61,11 +64,17 @@ impl AuthService
         let key_size = request.secret.size();
         let (super_key, token) = match self.compute_super_key(request.secret) {
             Some(a) => a,
-            None => { return Err(CreateUserFailed::NoMasterKey); }
+            None => { 
+                warn!("failed to generate super key");
+                return Err(CreateUserFailed::NoMasterKey);
+            }
         };
         let (super_super_key, super_token) = match self.compute_super_key(super_key.clone()) {
             Some(a) => a,
-            None => { return Err(CreateUserFailed::NoMasterKey); }
+            None => { 
+                warn!("failed to generate super super key");
+                return Err(CreateUserFailed::NoMasterKey);
+            }
         };
         let mut super_session = self.master_session.clone();
         super_session.user.add_read_key(&super_key);
@@ -117,12 +126,14 @@ impl AuthService
         // If it already exists then fail
         let user_key = PrimaryKey::from(request.email.clone());
         if dio.exists(&user_key).await {
+            warn!("username already exists: {}", request.email);
             return Err(CreateUserFailed::AlreadyExists("an account already exists for this username".to_string()));
         }
 
         // If the terms and conditions don't match then reject it
         if request.accepted_terms != self.terms_and_conditions {
             if let Some(terms) = &self.terms_and_conditions {
+                warn!("did not accept terms and conditions");
                 return Err(CreateUserFailed::TermsAndConditions(terms.clone()));
             }
         }

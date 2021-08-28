@@ -135,7 +135,7 @@ async fn main() -> Result<(), AteError> {
             Some(a) => a,
             None => PrimaryKey::generate(),
         };
-        let node = tree_lookup.entry(key).or_insert_with(|| {
+        let node = tree_lookup.entry(key.clone()).or_insert_with(|| {
             let mut node = EventNode::default();
             node.name = name.clone();
             node
@@ -147,7 +147,12 @@ async fn main() -> Result<(), AteError> {
         if header.raw.data_size > 0 {
             node.versions.push(format!("data({} bytes)", header.raw.data_size));
         } else if header.meta.get_tombstone().is_some() {
-            node.versions.push(name);
+            if opts.no_compact == false {
+                drop(node);
+                tree_lookup.remove(&key);
+            } else {
+                node.versions.push(name);
+            }
         }
 
         // Put the node in the right place
