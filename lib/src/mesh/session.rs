@@ -95,7 +95,7 @@ impl MeshSession
             // Generate the chain object
             // While we load the data on disk we run in centralized mode
             // as otherwise there could be errors loading the redo log
-            let mut chain = Chain::new_ext(builder.clone(), chain_key, Some(Box::new(loader_local)), true).await?;
+            let mut chain = Chain::new_ext(builder.clone(), chain_key, Some(Box::new(loader_local)), true, TrustMode::Centralized(CentralizedRole::Server), TrustMode::Distributed).await?;
             chain.remote_addr = Some(addr.clone());
             chain
         };

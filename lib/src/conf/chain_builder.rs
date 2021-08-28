@@ -23,6 +23,8 @@ use crate::session::AteSession;
 use crate::comms::NodeId;
 use crate::comms::Metrics;
 use crate::comms::Throttle;
+use crate::prelude::TrustMode;
+use crate::prelude::CentralizedRole;
 
 use super::*;
 
@@ -47,6 +49,8 @@ pub struct ChainBuilder
     pub(crate) session: Box<dyn AteSession>,
     pub(crate) metrics: Arc<StdMutex<Metrics>>,
     pub(crate) throttle: Arc<StdMutex<Throttle>>,
+    pub(crate) load_integrity: TrustMode,
+    pub(crate) idle_integrity: TrustMode,
 }
 
 impl Clone
@@ -70,6 +74,8 @@ for ChainBuilder
             temporal: self.temporal,
             metrics: Arc::clone(&self.metrics),
             throttle: Arc::clone(&self.throttle),
+            load_integrity: self.load_integrity,
+            idle_integrity: self.idle_integrity,
         }
     }
 }
@@ -95,6 +101,8 @@ impl ChainBuilder
             temporal: false,
             metrics: Arc::new(StdMutex::new(Metrics::default())),
             throttle: Arc::new(StdMutex::new(Throttle::default())),
+            load_integrity: TrustMode::Centralized(CentralizedRole::Server),
+            idle_integrity: TrustMode::Distributed
         }
         .with_defaults()
         .await
@@ -169,6 +177,18 @@ impl ChainBuilder
     #[allow(dead_code)]
     pub fn with_throttle(mut self, throttle: &Arc<StdMutex<Throttle>>) -> Self {
         self.throttle = Arc::clone(throttle);
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn load_integrity(mut self, trust: TrustMode) -> Self {
+        self.load_integrity = trust;
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn idle_integrity(mut self, trust: TrustMode) -> Self {
+        self.idle_integrity = trust;
         self
     }
 
@@ -314,7 +334,7 @@ impl ChainBuilder
                     key: &ChainKey
     ) -> Result<Arc<Chain>, ChainCreationError>
     {
-        let ret = Arc::new(Chain::new((**self).clone(), key).await?);
+        let ret = Arc::new(Chain::new((**self).clone(), key, self.load_integrity, self.idle_integrity).await?);
         Ok(ret)
     }
 }

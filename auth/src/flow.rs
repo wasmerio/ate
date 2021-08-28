@@ -58,6 +58,7 @@ for ChainFlow
             let chain = builder
                 .set_session(self.session.clone_session())
                 .add_root_public_key(&self.root_key.as_public_key())
+                .load_integrity(TrustMode::Distributed)
                 .build()
                 .open(key)
                 .await?;

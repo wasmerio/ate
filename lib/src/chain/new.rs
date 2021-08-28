@@ -40,10 +40,12 @@ impl<'a> Chain
     #[allow(dead_code)]
     pub(crate) async fn new(
         builder: ChainBuilder,
-        key: &ChainKey
+        key: &ChainKey,
+        load_integrity: TrustMode,
+        idle_integrity: TrustMode,
     ) -> Result<Chain, ChainCreationError>
     {
-        Chain::new_ext(builder, key.clone(), None, true)
+        Chain::new_ext(builder, key.clone(), None, true, load_integrity, idle_integrity)
             .await
     }
 
@@ -53,20 +55,18 @@ impl<'a> Chain
         key: ChainKey,
         extra_loader: Option<Box<dyn Loader>>,
         allow_process_errors: bool,
+        load_integrity: TrustMode,
+        idle_integrity: TrustMode,
     ) -> Result<Chain, ChainCreationError>
     {
         debug!("open: {}", key);
-
-        // The trust mode initially starts as distributed trust but the mesh
-        // server could change this after (i.e. to centralized trust)
-        let integrity = TrustMode::Distributed;
 
         // Compute the open flags
         #[cfg(feature = "enable_local_fs")]
         let flags = OpenFlags {
             truncate: builder.truncate,
             temporal: builder.temporal,
-            integrity: integrity,
+            integrity: load_integrity,
             read_only: false,
         };
         let compact_mode = builder.cfg_ate.compact_mode;
@@ -148,7 +148,7 @@ impl<'a> Chain
             validators: builder.validators,
             transformers: builder.transformers,
             default_session: builder.session,
-            integrity: integrity,
+            integrity: load_integrity,
         };
 
         // Add a tree authority plug if one is in the builder
@@ -157,7 +157,7 @@ impl<'a> Chain
         }
 
         // Set the integrity mode on all the validators
-        inside_sync.set_integrity_mode(integrity);
+        inside_sync.set_integrity_mode(load_integrity);
 
         // Wrap the sync object
         let inside_sync
@@ -175,7 +175,7 @@ impl<'a> Chain
             sync_tolerance: builder.cfg_ate.sync_tolerance,
             listeners: MultiMap::new(),
             is_shutdown: false,
-            integrity: integrity
+            integrity: load_integrity
         };
         
         // Check all the process events
@@ -194,6 +194,9 @@ impl<'a> Chain
                 return Err(err);
             }
         }
+
+        // Now switch to the integrity mode we will use after loading
+        inside_sync.write().set_integrity_mode(idle_integrity);
         
         // Create the compaction state (which later we will pass to the compaction thread)
         let (compact_tx, compact_rx) = CompactState::new(compact_mode, inside_async.chain.redo.size() as u64);

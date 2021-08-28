@@ -80,6 +80,9 @@ for ChainFlow
                 let root_key = advert.nominal_auth;
                 builder = builder.add_root_public_key(&root_key);
             }
+            
+            // Set the load integrity to match what the database will run as
+            builder = builder.load_integrity(self.mode);
 
             // Prefix the name with 'redo'
             let mut key_name = key.name.clone();

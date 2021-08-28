@@ -98,12 +98,21 @@ pub async fn main_mount(mount: OptsMount, conf: ConfAte, group: Option<String>, 
     let registry;
     let chain = match mount.remote_name {
         None => {
+            let trust = match &mount.configured_for {
+                ConfiguredFor::BestSecurity |
+                ConfiguredFor::SmallestSize => {
+                    TrustMode::Centralized(CentralizedRole::Server)
+                },
+                _ => TrustMode::Distributed
+            };
             Ok(Arc::new(
                 Chain::new_ext(
                     builder.clone(),
                     ChainKey::from("root"),
                     Some(Box::new(progress_local)),
-                    true
+                    true,
+                    trust,
+                    trust
                 ).await?
             ))
         },
