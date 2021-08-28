@@ -18,7 +18,7 @@ use crate::header::*;
 /// type linting to make the model more solidified
 ///
 #[derive(Serialize, Deserialize)]
-pub struct DaoRef<D>
+pub struct DaoWeak<D>
 {
     pub(super) id: Option<PrimaryKey>,
     #[serde(skip)]
@@ -30,11 +30,11 @@ pub struct DaoRef<D>
 }
 
 impl<D> Clone
-for DaoRef<D>
+for DaoWeak<D>
 {
     fn clone(&self) -> Self
     {
-        DaoRef {
+        DaoWeak {
             id: self.id.clone(),
             dio: self.dio.clone(),
             dio_mut: self.dio_mut.clone(),
@@ -44,30 +44,30 @@ for DaoRef<D>
 }
 
 impl<D> Default
-for DaoRef<D>
+for DaoWeak<D>
 {
     fn default() -> Self {
-        DaoRef::new()
+        DaoWeak::new()
     }
 }
 
 impl<D> std::fmt::Debug
-for DaoRef<D>
+for DaoWeak<D>
 where D: std::fmt::Debug
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let type_name = std::any::type_name::<D>();
         match self.id {
-            Some(id) => write!(f, "dao-ref(key={}, type={})", id, type_name),
-            None => write!(f, "dao-ref(type={})", type_name)
+            Some(id) => write!(f, "dao-weak(key={}, type={})", id, type_name),
+            None => write!(f, "dao-weak(type={})", type_name)
         }
     }
 }
 
-impl<D> DaoRef<D>
+impl<D> DaoWeak<D>
 {
-    pub fn new() -> DaoRef<D> {
-        DaoRef {
+    pub fn new() -> DaoWeak<D> {
+        DaoWeak {
             id: None,
             dio: DioWeak::Uninitialized,
             dio_mut: DioMutWeak::Uninitialized,
@@ -75,8 +75,8 @@ impl<D> DaoRef<D>
         }
     }
 
-    pub fn from_key(dio: &Arc<DioMut>, key: PrimaryKey) -> DaoRef<D> {
-        DaoRef {
+    pub fn from_key(dio: &Arc<DioMut>, key: PrimaryKey) -> DaoWeak<D> {
+        DaoWeak {
             id: Some(key),
             dio: DioWeak::from(&dio.dio),
             dio_mut: DioMutWeak::from(dio),

@@ -202,7 +202,7 @@ impl AuthService
             
                 // Create the user and save it
                 let user = User {
-                    person: DaoRef::new(),
+                    person: DaoChild::new(),
                     email: request.email.clone(),
                     uid,
                     role: UserRole::Human,
@@ -211,8 +211,9 @@ impl AuthService
                     last_login: None,
                     access: access,
                     foreign: DaoForeign::default(),
-                    sudo: DaoRef::new(),
-                    accepted_terms: DaoRef::new(),
+                    sudo: DaoChild::new(),
+                    advert: DaoChild::new(),
+                    accepted_terms: DaoChild::new(),
                     nominal_read: read_key.hash(),
                     nominal_public_read: private_read_key.as_public_key().clone(),
                     nominal_write: write_key.as_public_key().clone(),
@@ -256,11 +257,11 @@ impl AuthService
                     qr_code: qr_code.clone(),
                     failed_attempts: 0u32,
                 };
-                user.sudo.store(sudo)?
+                user.sudo.store(sudo).await?
             }
         };
         sudo.auth_mut().read = ReadOption::from_key(&super_super_key);
-        sudo.auth_mut().write = WriteOption::Any(vec![master_write_key.hash(), sudo_write_key.hash()]);
+        sudo.auth_mut().write = WriteOption::Inherit;
 
         // Add the accepted terms and conditions to the datachain rrecord
         if let Some(accepted_terms) = request.accepted_terms.as_ref() {
@@ -268,9 +269,11 @@ impl AuthService
             if let Some(mut terms) = user.accepted_terms.load_mut().await? {
                 terms.as_mut().terms_and_conditions = accepted_terms.clone();
             } else {
-                user.accepted_terms.store(AcceptedTerms {
+                let mut terms = user.accepted_terms.store(AcceptedTerms {
                     terms_and_conditions: accepted_terms.clone()
-                })?;
+                }).await?;
+                terms.auth_mut().read = ReadOption::Everyone(None);
+                terms.auth_mut().write = WriteOption::Specific(master_write_key.hash());
             }
         }
         
@@ -302,7 +305,7 @@ impl AuthService
                     broker_encrypt: user.broker_read.as_public_key().clone(),
                     broker_auth: user.broker_write.as_public_key().clone(),
                 };
-                dio.store_with_key(advert, advert_key.clone())?
+                user.as_mut().advert.store_with_key(advert, advert_key.clone()).await?
             }
         };
         advert.auth_mut().read = ReadOption::Everyone(None);

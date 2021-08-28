@@ -16,7 +16,7 @@ struct Person
 struct Transaction
 {
     from: PrimaryKey,
-    to: DaoRef<Person>,
+    to: DaoWeak<Person>,
     description: String,
     amount: Decimal,
 }
@@ -49,7 +49,7 @@ async fn make_account<'a>(chain: &Arc<Chain>, generator: &mut Generator<'a>) -> 
 
     for _ in 0..10 {
         let trans = Transaction {
-            to: DaoRef::from_key(&dio, acc.key().clone()),
+            to: DaoWeak::from_key(&dio, acc.key().clone()),
             from: PrimaryKey::generate(),
             description: generator.next().unwrap(),
             amount: Decimal::from_i64(10).unwrap(),

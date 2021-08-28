@@ -1,7 +1,8 @@
 pub(crate) mod dao;
 pub(crate) mod dao_mut;
 pub(crate) mod vec;
-pub(crate) mod obj;
+pub(crate) mod weak;
+pub(crate) mod child;
 pub(crate) mod bus;
 pub(crate) mod foreign;
 pub(crate) mod test;
@@ -11,7 +12,8 @@ pub(crate) mod row;
 pub(crate) mod map;
 
 pub use crate::dio::vec::DaoVec;
-pub use crate::dio::obj::DaoRef;
+pub use crate::dio::weak::DaoWeak;
+pub use crate::dio::child::DaoChild;
 pub use crate::dio::foreign::DaoForeign;
 pub use crate::dio::dao::Dao;
 pub use crate::dio::dao::DaoObj;
