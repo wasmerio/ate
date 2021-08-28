@@ -58,7 +58,7 @@ pub async fn test_create_user_and_group()
 
     // Get the read key for the user
     info!("checking we have a read key");
-    let _read_key = session.read_keys().next().unwrap().clone();
+    let _read_key = session.read_keys(AteSessionKeyCategory::AllKeys).next().unwrap().clone();
 
     // Create the group
     info!("creating group 'mygroup'");

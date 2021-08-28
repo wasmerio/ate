@@ -72,30 +72,34 @@ for AteSessionGroup
         self.get_group_role(purpose)
     }
 
-    fn read_keys<'a>(&'a self) -> Box<dyn Iterator<Item = &'a EncryptKey> + 'a> {
-        let ret1 = self.inner.read_keys();
+    fn read_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a EncryptKey> + 'a> {
+        let ret1 = self.inner.read_keys(category);
         let ret2 = self.group.roles.iter()
+            .filter(move |_| category.includes_group_keys())
             .flat_map(|a| a.read_keys());
         Box::new(ret1.chain(ret2))
     }
 
-    fn write_keys<'a>(&'a self) -> Box<dyn Iterator<Item = &'a PrivateSignKey> + 'a> {
-        let ret1 = self.inner.write_keys();
+    fn write_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a PrivateSignKey> + 'a> {
+        let ret1 = self.inner.write_keys(category);
         let ret2 = self.group.roles.iter()
+            .filter(move |_| category.includes_group_keys())
             .flat_map(|a| a.write_keys());
         Box::new(ret1.chain(ret2))
     }
 
-    fn public_read_keys<'a>(&'a self) -> Box<dyn Iterator<Item = &'a PublicEncryptKey> + 'a> {
-        let ret1 = self.inner.public_read_keys();
+    fn public_read_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a PublicEncryptKey> + 'a> {
+        let ret1 = self.inner.public_read_keys(category);
         let ret2 = self.group.roles.iter()
+            .filter(move |_| category.includes_group_keys())
             .flat_map(|a| a.public_read_keys());
         Box::new(ret1.chain(ret2))
     }
 
-    fn private_read_keys<'a>(&'a self) -> Box<dyn Iterator<Item = &'a PrivateEncryptKey> + 'a> {
-        let ret1 = self.inner.private_read_keys();
+    fn private_read_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a PrivateEncryptKey> + 'a> {
+        let ret1 = self.inner.private_read_keys(category);
         let ret2 = self.group.roles.iter()
+            .filter(move |_| category.includes_group_keys())
             .flat_map(|a| a.private_read_keys());
         Box::new(ret1.chain(ret2))
     }

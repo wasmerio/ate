@@ -58,10 +58,10 @@ impl Chain
             let mut cmd = dio.store(request)?;
             
             // Add an encryption key on the command (if the session has one)
-            if let Some(key) = session.read_keys().into_iter().next() {
+            if let Some(key) = session.read_keys(AteSessionKeyCategory::AllKeys).into_iter().next() {
                 cmd.auth_mut().read = ReadOption::from_key(key);
             }
-            if session.write_keys().any(|_| true) == false {
+            if session.write_keys(AteSessionKeyCategory::AllKeys).next().is_none() {
                 cmd.auth_mut().write = WriteOption::Everyone;
             }
 

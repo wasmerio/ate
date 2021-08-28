@@ -129,7 +129,7 @@ impl ServiceHook
         let data_hash = AteHash::from_bytes(&data[..]);
 
         let mut auth = MetaAuthorization::default();
-        if let Some(key) = self.session.read_keys().into_iter().map(|a| a.clone()).next() {
+        if let Some(key) = self.session.read_keys(AteSessionKeyCategory::AllKeys).into_iter().map(|a| a.clone()).next() {
             auth.read = ReadOption::from_key(&key);
         }
         auth.write = WriteOption::Inherit;

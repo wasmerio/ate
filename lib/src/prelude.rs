@@ -78,6 +78,7 @@ pub use crate::session::AteSessionUser;
 pub use crate::session::AteSessionSudo;
 pub use crate::session::AteSessionGroup;
 pub use crate::session::AteSessionProperty;
+pub use crate::session::AteSessionKeyCategory;
 pub use crate::session::AteGroup;
 pub use crate::session::AteGroupRole;
 pub use crate::session::AteRolePurpose;

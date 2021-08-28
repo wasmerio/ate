@@ -32,13 +32,13 @@ pub trait AteSession: Send + Sync + std::fmt::Display
 {
     fn role<'a>(&'a self, purpose: &AteRolePurpose) -> Option<&'a AteGroupRole>;
 
-    fn read_keys<'a>(&'a self) -> Box<dyn Iterator<Item = &'a EncryptKey> + 'a>;
+    fn read_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a EncryptKey> + 'a>;
 
-    fn write_keys<'a>(&'a self) -> Box<dyn Iterator<Item = &'a PrivateSignKey> + 'a>;
+    fn write_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a PrivateSignKey> + 'a>;
 
-    fn public_read_keys<'a>(&'a self) -> Box<dyn Iterator<Item = &'a PublicEncryptKey> + 'a>;
+    fn public_read_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a PublicEncryptKey> + 'a>;
 
-    fn private_read_keys<'a>(&'a self) -> Box<dyn Iterator<Item = &'a PrivateEncryptKey> + 'a>;
+    fn private_read_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a PrivateEncryptKey> + 'a>;
 
     fn identity<'a>(&'a self) -> &'a str;
 
@@ -90,5 +90,41 @@ for Box<dyn AteSession>
 {
     fn from(session: AteSessionType) -> Self {
         Box::new(session)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub enum AteSessionKeyCategory
+{
+    UserKeys,
+    SudoKeys,
+    GroupKeys,
+    NonGroupKeys,
+    AllKeys,
+}
+
+impl AteSessionKeyCategory {
+    pub fn includes_user_keys(&self) -> bool {
+        match self {
+            AteSessionKeyCategory::UserKeys => true,
+            AteSessionKeyCategory::NonGroupKeys => true,
+            AteSessionKeyCategory::AllKeys => true,
+            _ => false
+        }
+    }
+    pub fn includes_sudo_keys(&self) -> bool {
+        match self {
+            AteSessionKeyCategory::SudoKeys => true,
+            AteSessionKeyCategory::NonGroupKeys => true,
+            AteSessionKeyCategory::AllKeys => true,
+            _ => false
+        }
+    }
+    pub fn includes_group_keys(&self) -> bool {
+        match self {
+            AteSessionKeyCategory::GroupKeys => true,
+            AteSessionKeyCategory::AllKeys => true,
+            _ => false
+        }
     }
 }

@@ -45,7 +45,7 @@ impl AuthService
         }
 
         // Get the master write key
-        let master_write_key = match self.master_session.write_keys().next() {
+        let master_write_key = match self.master_session.user.write_keys().next() {
             Some(a) => a.clone(),
             None => {
                 return Err(CreateUserFailed::NoMasterKey);

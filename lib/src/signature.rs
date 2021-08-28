@@ -8,7 +8,7 @@ use fxhash::FxHashMap;
 #[allow(unused_imports)]
 use crate::crypto::{EncryptedPrivateKey, AteHash, DoubleHash, PublicSignKey};
 #[allow(unused_imports)]
-use crate::session::{AteSession, AteSessionProperty};
+use crate::session::{AteSession, AteSessionProperty, AteSessionKeyCategory};
 use crate::utils::vec_serialize;
 use crate::utils::vec_deserialize;
 use crate::spec::*;
@@ -231,7 +231,7 @@ for SignaturePlugin
         for auth in auths.into_iter()
         {
             // Find the session key for it (if one does not exist we have a problem!)
-            let sk = match session.write_keys()
+            let sk = match session.write_keys(AteSessionKeyCategory::AllKeys)
                 .filter(|k| k.hash() == *auth)
                 .next()
             {

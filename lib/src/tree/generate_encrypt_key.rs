@@ -20,7 +20,7 @@ impl TreeAuthorityPlugin
                 Ok(None)
             },
             ReadOption::Specific(key_hash, derived) => {
-                for key in session.read_keys() {
+                for key in session.read_keys(AteSessionKeyCategory::AllKeys) {
                     if key.hash() == *key_hash {
                         return Ok(Some((
                             InitializationVector::generate(),
@@ -28,7 +28,7 @@ impl TreeAuthorityPlugin
                         )));
                     }
                 }
-                for key in session.private_read_keys() {
+                for key in session.private_read_keys(AteSessionKeyCategory::AllKeys) {
                     if key.hash() == *key_hash {
                         return Ok(Some((
                             InitializationVector::generate(),

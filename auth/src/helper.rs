@@ -103,7 +103,7 @@ pub(crate) fn complete_group_auth(group: &Group, inner: AteSessionInner)
         let mut next = Vec::new();
 
         // Process all the roles
-        let super_keys = session.private_read_keys().map(|a| a.clone()).collect::<Vec<_>>();
+        let super_keys = session.private_read_keys(AteSessionKeyCategory::AllKeys).map(|a| a.clone()).collect::<Vec<_>>();
         for role in roles.into_iter()
         {
             // Attempt to gain access to the role using the access rights of the super session

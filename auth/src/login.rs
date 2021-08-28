@@ -26,13 +26,13 @@ impl AuthService
 {
     pub(crate) fn master_key(&self) -> Option<EncryptKey>
     {
-        self.master_session.read_keys().map(|a| a.clone()).next()
+        self.master_session.user.read_keys().map(|a| a.clone()).next()
     }
 
     pub fn compute_super_key(&self, secret: EncryptKey) -> Option<(EncryptKey, EncryptedSecureData<EncryptKey>)>
     {
         // Create a session with crypto keys based off the username and password
-        let master_key = match self.master_session.read_keys().next() {
+        let master_key = match self.master_session.user.read_keys().next() {
             Some(a) => a.clone(),
             None => { return None; }
         };
@@ -46,7 +46,7 @@ impl AuthService
     pub fn compute_super_key_from_hash(&self, hash: AteHash) -> Option<EncryptKey>
     {
         // Create a session with crypto keys based off the username and password
-        let master_key = match self.master_session.read_keys().next() {
+        let master_key = match self.master_session.user.read_keys().next() {
             Some(a) => a.clone(),
             None => { return None; }
         };

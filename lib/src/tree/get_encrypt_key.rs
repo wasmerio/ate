@@ -36,7 +36,7 @@ impl TreeAuthorityPlugin
                 Ok(None)
             },
             ReadOption::Specific(key_hash, derived) => {
-                for key in session.read_keys() {
+                for key in session.read_keys(AteSessionKeyCategory::AllKeys) {
                     if key.hash() == *key_hash {
                         let inner = derived.transmute(key)?;
                         if inner.short_hash() == confidentiality.hash {
@@ -44,7 +44,7 @@ impl TreeAuthorityPlugin
                         }
                     }
                 }
-                for key in session.private_read_keys() {
+                for key in session.private_read_keys(AteSessionKeyCategory::AllKeys) {
                     if key.hash() == *key_hash {
                         let inner = derived.transmute_private(key)?;
                         if inner.short_hash() == confidentiality.hash {

@@ -19,31 +19,31 @@ for AteSessionInner
         }
     }
 
-    fn read_keys<'a>(&'a self) -> Box<dyn Iterator<Item = &'a EncryptKey> + 'a> {
+    fn read_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a EncryptKey> + 'a> {
         match self {
-            AteSessionInner::User(a) => a.read_keys(),
-            AteSessionInner::Sudo(a) => a.read_keys(),
+            AteSessionInner::User(a) => a.read_keys(category),
+            AteSessionInner::Sudo(a) => a.read_keys(category),
         }
     }
 
-    fn write_keys<'a>(&'a self) -> Box<dyn Iterator<Item = &'a PrivateSignKey> + 'a> {
+    fn write_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a PrivateSignKey> + 'a> {
         match self {
-            AteSessionInner::User(a) => a.write_keys(),
-            AteSessionInner::Sudo(a) => a.write_keys(),
+            AteSessionInner::User(a) => a.write_keys(category),
+            AteSessionInner::Sudo(a) => a.write_keys(category),
         }
     }
 
-    fn public_read_keys<'a>(&'a self) -> Box<dyn Iterator<Item = &'a PublicEncryptKey> + 'a> {
+    fn public_read_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a PublicEncryptKey> + 'a> {
         match self {
-            AteSessionInner::User(a) => a.public_read_keys(),
-            AteSessionInner::Sudo(a) => a.public_read_keys(),
+            AteSessionInner::User(a) => a.public_read_keys(category),
+            AteSessionInner::Sudo(a) => a.public_read_keys(category),
         }
     }
 
-    fn private_read_keys<'a>(&'a self) -> Box<dyn Iterator<Item = &'a PrivateEncryptKey> + 'a> {
+    fn private_read_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a PrivateEncryptKey> + 'a> {
         match self {
-            AteSessionInner::User(a) => a.private_read_keys(),
-            AteSessionInner::Sudo(a) => a.private_read_keys(),
+            AteSessionInner::User(a) => a.private_read_keys(category),
+            AteSessionInner::Sudo(a) => a.private_read_keys(category),
         }
     }
 

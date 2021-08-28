@@ -52,7 +52,7 @@ impl AuthService
         // Check that we actually have the rights to view the details of this group
         let has_access = match &request.session {
             Some(session) => {
-                let hashes = session.private_read_keys().map(|k| k.hash()).collect::<Vec<_>>();
+                let hashes = session.private_read_keys(AteSessionKeyCategory::AllKeys).map(|k| k.hash()).collect::<Vec<_>>();
                 group.roles.iter().filter(|r| r.purpose == AteRolePurpose::Owner || r.purpose == AteRolePurpose::Delegate)
                     .any(|r| {
                         for hash in hashes.iter() {

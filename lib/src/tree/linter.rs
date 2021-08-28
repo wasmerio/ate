@@ -43,7 +43,7 @@ for TreeAuthorityPlugin
                 {
                     // Add any signing keys that we have
                     sign_with.append(
-                        &mut session.write_keys()
+                        &mut session.write_keys(AteSessionKeyCategory::AllKeys)
                             .filter(|p| p.hash() == *write_hash)
                             .map(|p| p.hash())
                             .collect::<Vec<_>>()
@@ -86,13 +86,13 @@ for TreeAuthorityPlugin
             }
             ReadOption::Specific(read_hash, derived) =>
             {
-                let mut ret = session.read_keys()
+                let mut ret = session.read_keys(AteSessionKeyCategory::AllKeys)
                         .filter(|p| p.hash() == *read_hash)
                         .filter_map(|p| derived.transmute(p).ok())
                         .map(|p| p.short_hash())
                         .next();
                 if ret.is_none() {
-                    ret = session.private_read_keys()
+                    ret = session.private_read_keys(AteSessionKeyCategory::AllKeys)
                         .filter(|p| p.hash() == *read_hash)
                         .filter_map(|p| derived.transmute_private(p).ok())
                         .map(|p| p.short_hash())

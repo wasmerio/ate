@@ -21,35 +21,35 @@ for AteSessionType
         }
     }
 
-    fn read_keys<'a>(&'a self) -> Box<dyn Iterator<Item = &'a EncryptKey> + 'a> {
+    fn read_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a EncryptKey> + 'a> {
         match self {
-            AteSessionType::User(a) => a.read_keys(),
-            AteSessionType::Sudo(a) => a.read_keys(),
-            AteSessionType::Group(a) => a.read_keys()
+            AteSessionType::User(a) => a.read_keys(category),
+            AteSessionType::Sudo(a) => a.read_keys(category),
+            AteSessionType::Group(a) => a.read_keys(category)
         }
     }
 
-    fn write_keys<'a>(&'a self) -> Box<dyn Iterator<Item = &'a PrivateSignKey> + 'a> {
+    fn write_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a PrivateSignKey> + 'a> {
         match self {
-            AteSessionType::User(a) => a.write_keys(),
-            AteSessionType::Sudo(a) => a.write_keys(),
-            AteSessionType::Group(a) => a.write_keys()
+            AteSessionType::User(a) => a.write_keys(category),
+            AteSessionType::Sudo(a) => a.write_keys(category),
+            AteSessionType::Group(a) => a.write_keys(category)
         }
     }
 
-    fn public_read_keys<'a>(&'a self) -> Box<dyn Iterator<Item = &'a PublicEncryptKey> + 'a> {
+    fn public_read_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a PublicEncryptKey> + 'a> {
         match self {
-            AteSessionType::User(a) => a.public_read_keys(),
-            AteSessionType::Sudo(a) => a.public_read_keys(),
-            AteSessionType::Group(a) => a.public_read_keys()
+            AteSessionType::User(a) => a.public_read_keys(category),
+            AteSessionType::Sudo(a) => a.public_read_keys(category),
+            AteSessionType::Group(a) => a.public_read_keys(category)
         }
     }
 
-    fn private_read_keys<'a>(&'a self) -> Box<dyn Iterator<Item = &'a PrivateEncryptKey> + 'a> {
+    fn private_read_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a PrivateEncryptKey> + 'a> {
         match self {
-            AteSessionType::User(a) => a.private_read_keys(),
-            AteSessionType::Sudo(a) => a.private_read_keys(),
-            AteSessionType::Group(a) => a.private_read_keys()
+            AteSessionType::User(a) => a.private_read_keys(category),
+            AteSessionType::Sudo(a) => a.private_read_keys(category),
+            AteSessionType::Group(a) => a.private_read_keys(category)
         }
     }
 

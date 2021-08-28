@@ -79,23 +79,27 @@ for AteSessionUser
         None
     }
 
-    fn read_keys<'a>(&'a self) -> Box<dyn Iterator<Item = &'a EncryptKey> + 'a> {
-        let ret1 = self.user.read_keys();
+    fn read_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a EncryptKey> + 'a> {
+        let ret1 = self.user.read_keys()
+            .filter(move |_| category.includes_user_keys());
         Box::new(ret1)
     }
 
-    fn write_keys<'a>(&'a self) -> Box<dyn Iterator<Item = &'a PrivateSignKey> + 'a> {
-        let ret1 = self.user.write_keys();
+    fn write_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a PrivateSignKey> + 'a> {
+        let ret1 = self.user.write_keys()
+            .filter(move |_| category.includes_user_keys());
         Box::new(ret1)
     }
 
-    fn public_read_keys<'a>(&'a self) -> Box<dyn Iterator<Item = &'a PublicEncryptKey> + 'a> {
-        let ret1 = self.user.public_read_keys();
+    fn public_read_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a PublicEncryptKey> + 'a> {
+        let ret1 = self.user.public_read_keys()
+            .filter(move |_| category.includes_user_keys());
         Box::new(ret1)
     }
 
-    fn private_read_keys<'a>(&'a self) -> Box<dyn Iterator<Item = &'a PrivateEncryptKey> + 'a> {
-        let ret1 = self.user.private_read_keys();
+    fn private_read_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a PrivateEncryptKey> + 'a> {
+        let ret1 = self.user.private_read_keys()
+            .filter(move |_| category.includes_user_keys());
         Box::new(ret1)
     }
 

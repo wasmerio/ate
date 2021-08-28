@@ -62,7 +62,7 @@ impl AuthService
 
         // Load the master key which will be used to encrypt the group so that only
         // the authentication server can access it
-        let key_size = request_session.read_keys().map(|k| k.size()).next().unwrap_or_else(|| KeySize::Bit192);
+        let key_size = request_session.read_keys(AteSessionKeyCategory::AllKeys).map(|k| k.size()).next().unwrap_or_else(|| KeySize::Bit192);
 
         // Compute which chain the group should exist within
         let group_chain_key = chain_key_4hex(&request.group, Some("redo"));

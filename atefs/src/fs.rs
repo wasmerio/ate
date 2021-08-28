@@ -196,11 +196,11 @@ impl AteFS
     fn get_user_read_key<'a>(&'a self, uid: u32) -> Option<&'a EncryptKey> {
         if self.session.uid() == Some(uid) {
             match &self.session {
-                AteSessionType::User(a) => a.read_keys().next(),
-                AteSessionType::Sudo(a) => a.inner.read_keys().next(),
+                AteSessionType::User(a) => a.user.read_keys().next(),
+                AteSessionType::Sudo(a) => a.inner.user.read_keys().next(),
                 AteSessionType::Group(a) => match &a.inner {
-                    AteSessionInner::User(a) => a.read_keys().next(),
-                    AteSessionInner::Sudo(a) => a.inner.read_keys().next(),
+                    AteSessionInner::User(a) => a.user.read_keys().next(),
+                    AteSessionInner::Sudo(a) => a.inner.user.read_keys().next(),
                 },
             }
         } else {
@@ -211,11 +211,11 @@ impl AteFS
     fn get_user_write_key<'a>(&'a self, uid: u32) -> Option<&'a PrivateSignKey> {
         if self.session.uid() == Some(uid) {
             match &self.session {
-                AteSessionType::User(a) => a.write_keys().next(),
-                AteSessionType::Sudo(a) => a.inner.write_keys().next(),
+                AteSessionType::User(a) => a.user.write_keys().next(),
+                AteSessionType::Sudo(a) => a.inner.user.write_keys().next(),
                 AteSessionType::Group(a) => match &a.inner {
-                    AteSessionInner::User(a) => a.write_keys().next(),
-                    AteSessionInner::Sudo(a) => a.inner.write_keys().next(),
+                    AteSessionInner::User(a) => a.user.write_keys().next(),
+                    AteSessionInner::Sudo(a) => a.inner.user.write_keys().next(),
                 },
             }
         } else {
@@ -446,7 +446,7 @@ impl AteFS
                     },
                 },
                 ReadOption::Specific(hash, derived) => {
-                    let key = match self.session.read_keys()
+                    let key = match self.session.read_keys(AteSessionKeyCategory::AllKeys)
                         .filter(|k| k.hash() == *hash)
                         .next()
                     {
