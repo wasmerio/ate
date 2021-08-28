@@ -141,7 +141,8 @@ pub async fn main_group_user_remove(
     purpose: Option<AteRolePurpose>,
     username: Option<String>,
     auth: Url,
-    session: &AteSessionGroup
+    session: &AteSessionGroup,
+    hint_group: &str
 ) -> Result<(), GroupUserRemoveError>
 {
     let purpose = match purpose {
@@ -173,7 +174,7 @@ pub async fn main_group_user_remove(
     let registry = ate::mesh::Registry::new( &conf_cmd()).await.cement();
     let result = group_user_remove_command(&registry, &session, purpose, username, auth).await?;
 
-    println!("Group user removed (id={})", result.key);
+    println!("{} user removed (id={})", hint_group, result.key);
 
     Ok(())
 }

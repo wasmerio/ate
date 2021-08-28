@@ -90,7 +90,7 @@ pub async fn gather_command(registry: &Arc<Registry>, group: String, session: At
     Ok(result.authority)
 }
 
-pub async fn main_session_group(token_string: Option<String>, token_file_path: Option<String>, group: String, sudo: bool, code: Option<String>, auth_url: Option<url::Url>) -> Result<AteSessionGroup, GatherError>
+pub async fn main_session_group(token_string: Option<String>, token_file_path: Option<String>, group: String, sudo: bool, code: Option<String>, auth_url: Option<url::Url>, hint_group: &str) -> Result<AteSessionGroup, GatherError>
 {
     let session = main_session_start(token_string, token_file_path, auth_url.clone()).await?;
 
@@ -119,7 +119,7 @@ pub async fn main_session_group(token_string: Option<String>, token_file_path: O
     }
 
     if let Some(auth) = auth_url {
-        Ok(main_gather(Some(group), session, auth).await?)
+        Ok(main_gather(Some(group), session, auth, hint_group).await?)
     } else {
         Ok(AteSessionGroup::new(session, group))
     }
@@ -128,16 +128,17 @@ pub async fn main_session_group(token_string: Option<String>, token_file_path: O
 pub async fn main_gather(
     group: Option<String>,
     session: AteSessionInner,
-    auth: Url
+    auth: Url,
+    hint_group: &str
 ) -> Result<AteSessionGroup, GatherError>
 {
     let group = match group {
         Some(a) => a,
         None => {
-            eprint!("Group: ");
+            eprint!("{}: ", hint_group);
             stdout().lock().flush()?;
             let mut s = String::new();
-            std::io::stdin().read_line(&mut s).expect("Did not enter a valid group");
+            std::io::stdin().read_line(&mut s).expect(format!("Did not enter a valid {}", hint_group.to_lowercase()).as_str());
             s.trim().to_string()
         }
     };

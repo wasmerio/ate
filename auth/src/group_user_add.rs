@@ -177,7 +177,8 @@ pub async fn main_group_user_add(
     purpose: Option<AteRolePurpose>,
     username: Option<String>,
     auth: Url,
-    session: &AteSessionGroup
+    session: &AteSessionGroup,
+    hint_group: &str
 ) -> Result<(), GroupUserAddError>
 {
     let purpose = match purpose {
@@ -209,7 +210,7 @@ pub async fn main_group_user_add(
     let registry = ate::mesh::Registry::new( &conf_cmd()).await.cement();
     let result = group_user_add_command(&registry, &session, purpose, username, auth).await?;
 
-    println!("Group user added (id={})", result.key);
+    println!("{} user added (id={})", result.key, hint_group);
 
     Ok(())
 }

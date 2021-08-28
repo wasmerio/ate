@@ -74,7 +74,7 @@ async fn main() -> Result<(), CommandError> {
     
     match opts.subcmd {
         SubCommand::Token(opts_token) => {
-            ate_auth::main_opts_token(opts_token, opts.token, opts.token_path, opts.auth).await?;
+            ate_auth::main_opts_token(opts_token, opts.token, opts.token_path, opts.auth, "Group").await?;
         },
         SubCommand::User(opts_user) => {
             ate_auth::main_opts_user(opts_user, opts.token, opts.token_path, opts.auth).await?;
@@ -84,7 +84,7 @@ async fn main() -> Result<(), CommandError> {
                 eprintln!("In order to create groups you must use some form of authentication.");
                 std::process::exit(1);
             }
-            ate_auth::main_opts_group(opts_group, opts.token, opts.token_path, opts.auth).await?;
+            ate_auth::main_opts_group(opts_group, opts.token, opts.token_path, opts.auth, "Group").await?;
         },
         SubCommand::Mount(mount) =>
         {
@@ -131,7 +131,7 @@ async fn main() -> Result<(), CommandError> {
                 
                 // Attempt to grab additional permissions for the group (if it has any)
                 session = if group.is_some() {
-                    match ate_auth::main_gather(group.clone(), session_user.clone().into(), opts.auth).await {
+                    match ate_auth::main_gather(group.clone(), session_user.clone().into(), opts.auth, "Group").await {
                         Ok(a) => a.into(),
                         Err(err) => {
                             debug!("Group authentication failed: {} - falling back to user level authorization", err);

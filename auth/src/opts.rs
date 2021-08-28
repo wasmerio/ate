@@ -220,33 +220,33 @@ pub async fn main_opts_user(opts_user: OptsUser, token: Option<String>, token_pa
     Ok(())
 }
 
-pub async fn main_opts_group(opts_group: OptsGroup, token: Option<String>, token_path: Option<String>, auth: url::Url) -> Result<(), AteError>{
+pub async fn main_opts_group(opts_group: OptsGroup, token: Option<String>, token_path: Option<String>, auth: url::Url, hint_group: &str) -> Result<(), AteError>{
     match opts_group.action {
         GroupAction::Create(action) => {
             let session = crate::main_session_user(token.clone(), token_path.clone(), Some(auth.clone())).await?;
-            crate::main_create_group(Some(action.group), auth, Some(session.identity().to_string())).await?;
+            crate::main_create_group(Some(action.group), auth, Some(session.identity().to_string()), hint_group).await?;
         },
         GroupAction::AddUser(action) => {
-            let session = crate::main_session_group(token.clone(), token_path.clone(), action.group.clone(), true, None, Some(auth.clone())).await?;
-            crate::main_group_user_add(Some(action.role), Some(action.username), auth, &session).await?;
+            let session = crate::main_session_group(token.clone(), token_path.clone(), action.group.clone(), true, None, Some(auth.clone()), hint_group).await?;
+            crate::main_group_user_add(Some(action.role), Some(action.username), auth, &session, hint_group).await?;
         },
         GroupAction::RemoveUser(action) => {
-            let session = crate::main_session_group(token.clone(), token_path.clone(), action.group.clone(), true, None, Some(auth.clone())).await?;
-            crate::main_group_user_remove(Some(action.role), Some(action.username), auth, &session).await?;
+            let session = crate::main_session_group(token.clone(), token_path.clone(), action.group.clone(), true, None, Some(auth.clone()), hint_group).await?;
+            crate::main_group_user_remove(Some(action.role), Some(action.username), auth, &session, hint_group).await?;
         },
         GroupAction::Details(action) => {
             if token.is_some() || token_path.is_some() {
-                let session = crate::main_session_group(token.clone(), token_path.clone(), action.group.clone(), action.sudo, None, Some(auth.clone())).await?;
-                crate::main_group_details(Some(action.group), auth, Some(&session)).await?;
+                let session = crate::main_session_group(token.clone(), token_path.clone(), action.group.clone(), action.sudo, None, Some(auth.clone()), hint_group).await?;
+                crate::main_group_details(Some(action.group), auth, Some(&session), hint_group).await?;
             } else {
-                crate::main_group_details(Some(action.group), auth, None).await?;
+                crate::main_group_details(Some(action.group), auth, None, hint_group).await?;
             }
         }
     }
     Ok(())
 }
 
-pub async fn main_opts_token(opts_token: OptsToken, token: Option<String>, token_path: Option<String>, auth: url::Url) -> Result<(), AteError>{
+pub async fn main_opts_token(opts_token: OptsToken, token: Option<String>, token_path: Option<String>, auth: url::Url, hint_group: &str) -> Result<(), AteError>{
     match opts_token.action {
         TokenAction::Generate(action) => {
             let session = crate::main_login(action.email, action.password, auth).await?;
@@ -264,7 +264,7 @@ pub async fn main_opts_token(opts_token: OptsToken, token: Option<String>, token
             println!("{}", crate::session_to_b64(session).unwrap());
         },
         TokenAction::Gather(action) => {
-            let session = crate::main_session_group(token.clone(), token_path.clone(), action.group, action.sudo, None, Some(auth.clone())).await?;
+            let session = crate::main_session_group(token.clone(), token_path.clone(), action.group, action.sudo, None, Some(auth.clone()), hint_group).await?;
             eprintln!("The token string below can be used to secure your file system.\n");
             
             let session: AteSessionType = session.into();

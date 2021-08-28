@@ -302,12 +302,13 @@ pub async fn create_group_command(registry: &Arc<Registry>, group: String, auth:
 pub async fn main_create_group_prelude(
     group: Option<String>,
     username: Option<String>,
+    hint_group: &str
 ) -> Result<(String, String), CreateError>
 {
     let group = match group {
         Some(a) => a,
         None => {
-            print!("Group: ");
+            print!("{}: ", hint_group);
             stdout().lock().flush()?;
             let mut s = String::new();
             std::io::stdin().read_line(&mut s).expect("Did not enter a valid group");
@@ -333,9 +334,10 @@ pub async fn main_create_group(
     group: Option<String>,
     auth: Url,
     username: Option<String>,
+    hint_group: &str
 ) -> Result<AteSessionGroup, CreateError>
 {
-    let (group, username) = main_create_group_prelude(group, username).await?;
+    let (group, username) = main_create_group_prelude(group, username, hint_group).await?;
 
     // Create a user using the authentication server which will give us a session with all the tokens
     let registry = ate::mesh::Registry::new( &conf_cmd()).await.cement();
@@ -370,6 +372,6 @@ pub async fn main_create_group(
         }
     };
 
-    println!("Group created (id={})", result.key);
+    println!("{} created (id={})", hint_group, result.key);
     Ok(result.session)
 }

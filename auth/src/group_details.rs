@@ -114,15 +114,16 @@ pub async fn main_group_details(
     group: Option<String>,
     auth: Url,
     session: Option<&AteSessionGroup>,
+    hint_group: &str
 ) -> Result<(), GroupDetailsError>
 {
     let group = match group {
         Some(a) => a,
         None => {
-            print!("Group: ");
+            print!("{}: ", hint_group);
             stdout().lock().flush()?;
             let mut s = String::new();
-            std::io::stdin().read_line(&mut s).expect("Did not enter a valid group");
+            std::io::stdin().read_line(&mut s).expect(format!("Did not enter a valid {}", hint_group.to_lowercase()).as_str());
             s.trim().to_string()
         }
     };
