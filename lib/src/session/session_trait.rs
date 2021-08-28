@@ -7,6 +7,9 @@ use super::session_sudo::*;
 use super::AteSessionProperty;
 use super::AteRolePurpose;
 use super::AteGroupRole;
+use super::AteSessionInner;
+use super::AteSessionGroup;
+use super::AteSessionType;
 
 pub type SessionToken = Option<EncryptedSecureData<EncryptKey>>;
 
@@ -50,22 +53,6 @@ pub trait AteSession: Send + Sync + std::fmt::Display
     fn append<'a, 'b>(&'a mut self, properties: Box<dyn Iterator<Item = &'b AteSessionProperty> + 'b>);
 }
 
-impl From<&dyn AteSession>
-for Box<dyn AteSession>
-{
-    fn from(session: &dyn AteSession) -> Self {
-        session.clone_session()
-    }
-}
-
-impl From<&Box<dyn AteSession>>
-for Box<dyn AteSession>
-{
-    fn from(session: &Box<dyn AteSession>) -> Self {
-        session.clone_session()
-    }
-}
-
 impl From<AteSessionUser>
 for Box<dyn AteSession>
 {
@@ -78,6 +65,30 @@ impl From<AteSessionSudo>
 for Box<dyn AteSession>
 {
     fn from(session: AteSessionSudo) -> Self {
+        Box::new(session)
+    }
+}
+
+impl From<AteSessionGroup>
+for Box<dyn AteSession>
+{
+    fn from(session: AteSessionGroup) -> Self {
+        Box::new(session)
+    }
+}
+
+impl From<AteSessionInner>
+for Box<dyn AteSession>
+{
+    fn from(session: AteSessionInner) -> Self {
+        Box::new(session)
+    }
+}
+
+impl From<AteSessionType>
+for Box<dyn AteSession>
+{
+    fn from(session: AteSessionType) -> Self {
         Box::new(session)
     }
 }
