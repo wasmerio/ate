@@ -53,11 +53,43 @@ for AteSessionType
         }
     }
 
+    fn broker_read<'a>(&'a self) -> Option<&'a PrivateEncryptKey> {
+        match self {
+            AteSessionType::User(a) => a.broker_read(),
+            AteSessionType::Sudo(a) => a.broker_read(),
+            AteSessionType::Group(a) => a.broker_read()
+        }
+    }
+    
+    fn broker_write<'a>(&'a self) -> Option<&'a PrivateSignKey> {
+        match self {
+            AteSessionType::User(a) => a.broker_write(),
+            AteSessionType::Sudo(a) => a.broker_write(),
+            AteSessionType::Group(a) => a.broker_write()
+        }
+    }
+
     fn identity<'a>(&'a self) -> &'a str {
         match self {
             AteSessionType::User(a) => a.identity(),
             AteSessionType::Sudo(a) => a.identity(),
             AteSessionType::Group(a) => a.identity()
+        }
+    }
+
+    fn user<'a>(&'a self) -> &'a AteSessionUser {
+        match self {
+            AteSessionType::User(a) => a.user(),
+            AteSessionType::Sudo(a) => a.user(),
+            AteSessionType::Group(a) => a.user()
+        }
+    }
+
+    fn user_mut<'a>(&'a mut self) -> &'a mut AteSessionUser {
+        match self {
+            AteSessionType::User(a) => a.user_mut(),
+            AteSessionType::Sudo(a) => a.user_mut(),
+            AteSessionType::Group(a) => a.user_mut()
         }
     }
 
@@ -79,6 +111,14 @@ for AteSessionType
 
     fn clone_session(&self) -> Box<dyn AteSession> {
         Box::new(self.clone())
+    }
+
+    fn clone_inner(&self) -> AteSessionInner {
+        match self {
+            AteSessionType::User(a) => a.clone_inner(),
+            AteSessionType::Sudo(a) => a.clone_inner(),
+            AteSessionType::Group(a) => a.clone_inner()
+        }
     }
 
     fn properties<'a>(&'a self) -> Box<dyn Iterator<Item = &'a AteSessionProperty> + 'a> {

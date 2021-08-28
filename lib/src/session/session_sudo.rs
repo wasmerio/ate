@@ -61,6 +61,9 @@ for AteSessionSudo
     }
 
     fn read_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a EncryptKey> + 'a> {
+        if category == AteSessionKeyCategory::UpperKeys {
+            return Box::new(self.sudo.read_keys());
+        }
         let ret1 = self.inner.read_keys(category);
         let ret2 = self.sudo.read_keys()
             .filter(move |_| category.includes_sudo_keys());
@@ -68,6 +71,9 @@ for AteSessionSudo
     }
 
     fn write_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a PrivateSignKey> + 'a> {
+        if category == AteSessionKeyCategory::UpperKeys {
+            return Box::new(self.sudo.write_keys());
+        }
         let ret1 = self.inner.write_keys(category);
         let ret2 = self.sudo.write_keys()
             .filter(move |_| category.includes_sudo_keys());
@@ -75,6 +81,9 @@ for AteSessionSudo
     }
 
     fn public_read_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a PublicEncryptKey> + 'a> {
+        if category == AteSessionKeyCategory::UpperKeys {
+            return Box::new(self.sudo.public_read_keys());
+        }
         let ret1 = self.inner.public_read_keys(category);
         let ret2 = self.sudo.public_read_keys()
             .filter(move |_| category.includes_sudo_keys());
@@ -82,14 +91,33 @@ for AteSessionSudo
     }
 
     fn private_read_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a PrivateEncryptKey> + 'a> {
+        if category == AteSessionKeyCategory::UpperKeys {
+            return Box::new(self.sudo.private_read_keys());
+        }
         let ret1 = self.inner.private_read_keys(category);
         let ret2 = self.sudo.private_read_keys()
             .filter(move |_| category.includes_sudo_keys());
         Box::new(ret1.chain(ret2))
     }
 
+    fn broker_read<'a>(&'a self) -> Option<&'a PrivateEncryptKey> {
+        self.inner.broker_read()
+    }
+    
+    fn broker_write<'a>(&'a self) -> Option<&'a PrivateSignKey> {
+        self.inner.broker_write()
+    }
+
     fn identity<'a>(&'a self) -> &'a str {
         self.inner.identity.as_str()
+    }
+
+    fn user<'a>(&'a self) -> &'a AteSessionUser {
+        self.inner.user()
+    }
+
+    fn user_mut<'a>(&'a mut self) -> &'a mut AteSessionUser {
+        self.inner.user_mut()
     }
 
     fn uid<'a>(&'a self) -> Option<u32> {
@@ -102,6 +130,10 @@ for AteSessionSudo
 
     fn clone_session(&self) -> Box<dyn AteSession> {
         Box::new(self.clone())
+    }
+
+    fn clone_inner(&self) -> AteSessionInner {
+        AteSessionInner::Sudo(self.clone())
     }
 
     fn properties<'a>(&'a self) -> Box<dyn Iterator<Item = &'a AteSessionProperty> + 'a> {

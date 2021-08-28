@@ -40,17 +40,27 @@ pub trait AteSession: Send + Sync + std::fmt::Display
 
     fn private_read_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a PrivateEncryptKey> + 'a>;
 
+    fn broker_read<'a>(&'a self) -> Option<&'a PrivateEncryptKey>;
+    
+    fn broker_write<'a>(&'a self) -> Option<&'a PrivateSignKey>;
+
     fn identity<'a>(&'a self) -> &'a str;
+
+    fn user<'a>(&'a self) -> &'a AteSessionUser;
+
+    fn user_mut<'a>(&'a mut self) -> &'a mut AteSessionUser;
 
     fn uid<'a>(&'a self) -> Option<u32>;
 
     fn gid<'a>(&'a self) -> Option<u32>;
 
-    fn clone_session(&self) -> Box<dyn AteSession>;
-
     fn properties<'a>(&'a self) -> Box<dyn Iterator<Item = &'a AteSessionProperty> + 'a>;
 
     fn append<'a, 'b>(&'a mut self, properties: Box<dyn Iterator<Item = &'b AteSessionProperty> + 'b>);
+
+    fn clone_session(&self) -> Box<dyn AteSession>;
+
+    fn clone_inner(&self) -> AteSessionInner;
 }
 
 impl From<AteSessionUser>
@@ -93,9 +103,10 @@ for Box<dyn AteSession>
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AteSessionKeyCategory
 {
+    UpperKeys,
     UserKeys,
     SudoKeys,
     GroupKeys,

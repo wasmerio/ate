@@ -73,6 +73,9 @@ for AteSessionGroup
     }
 
     fn read_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a EncryptKey> + 'a> {
+        if category == AteSessionKeyCategory::UpperKeys {
+            return Box::new(self.group.roles.iter().flat_map(|a| a.read_keys()));
+        }
         let ret1 = self.inner.read_keys(category);
         let ret2 = self.group.roles.iter()
             .filter(move |_| category.includes_group_keys())
@@ -81,6 +84,9 @@ for AteSessionGroup
     }
 
     fn write_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a PrivateSignKey> + 'a> {
+        if category == AteSessionKeyCategory::UpperKeys {
+            return Box::new(self.group.roles.iter().flat_map(|a| a.write_keys()));
+        }
         let ret1 = self.inner.write_keys(category);
         let ret2 = self.group.roles.iter()
             .filter(move |_| category.includes_group_keys())
@@ -89,6 +95,9 @@ for AteSessionGroup
     }
 
     fn public_read_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a PublicEncryptKey> + 'a> {
+        if category == AteSessionKeyCategory::UpperKeys {
+            return Box::new(self.group.roles.iter().flat_map(|a| a.public_read_keys()));
+        }
         let ret1 = self.inner.public_read_keys(category);
         let ret2 = self.group.roles.iter()
             .filter(move |_| category.includes_group_keys())
@@ -97,6 +106,9 @@ for AteSessionGroup
     }
 
     fn private_read_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a PrivateEncryptKey> + 'a> {
+        if category == AteSessionKeyCategory::UpperKeys {
+            return Box::new(self.group.roles.iter().flat_map(|a| a.private_read_keys()));
+        }
         let ret1 = self.inner.private_read_keys(category);
         let ret2 = self.group.roles.iter()
             .filter(move |_| category.includes_group_keys())
@@ -104,8 +116,24 @@ for AteSessionGroup
         Box::new(ret1.chain(ret2))
     }
 
+    fn broker_read<'a>(&'a self) -> Option<&'a PrivateEncryptKey> {
+        self.group.broker_read.as_ref()
+    }
+    
+    fn broker_write<'a>(&'a self) -> Option<&'a PrivateSignKey> {
+        self.group.broker_write.as_ref()
+    }
+
     fn identity<'a>(&'a self) -> &'a str {
         self.group.name.as_str()
+    }
+
+    fn user<'a>(&'a self) -> &'a AteSessionUser {
+        self.inner.user()
+    }
+
+    fn user_mut<'a>(&'a mut self) -> &'a mut AteSessionUser {
+        self.inner.user_mut()
     }
 
     fn uid<'a>(&'a self) -> Option<u32> {
@@ -124,6 +152,10 @@ for AteSessionGroup
 
     fn clone_session(&self) -> Box<dyn AteSession> {
         Box::new(self.clone())
+    }
+
+    fn clone_inner(&self) -> AteSessionInner {
+        self.inner.clone()
     }
 
     fn properties<'a>(&'a self) -> Box<dyn Iterator<Item = &'a AteSessionProperty> + 'a> {
