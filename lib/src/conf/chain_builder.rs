@@ -101,7 +101,7 @@ impl ChainBuilder
             temporal: false,
             metrics: Arc::new(StdMutex::new(Metrics::default())),
             throttle: Arc::new(StdMutex::new(Throttle::default())),
-            load_integrity: TrustMode::Centralized(CentralizedRole::Server),
+            load_integrity: TrustMode::Centralized(CentralizedRole::Client),
             idle_integrity: TrustMode::Distributed
         }
         .with_defaults()

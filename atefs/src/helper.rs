@@ -101,7 +101,7 @@ pub async fn main_mount(mount: OptsMount, conf: ConfAte, group: Option<String>, 
             let trust = match &mount.configured_for {
                 ConfiguredFor::BestSecurity |
                 ConfiguredFor::SmallestSize => {
-                    TrustMode::Centralized(CentralizedRole::Server)
+                    TrustMode::Centralized(CentralizedRole::Client)
                 },
                 _ => TrustMode::Distributed
             };
