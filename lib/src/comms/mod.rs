@@ -16,6 +16,7 @@ mod stream;
 mod node_id;
 mod metrics;
 mod throttle;
+mod certificate_validation;
 
 pub use self::node_id::NodeId;
 
@@ -40,6 +41,7 @@ pub(crate) use stream::StreamTxChannel;
 pub use stream::StreamProtocol;
 pub use metrics::Metrics;
 pub use throttle::Throttle;
+pub use certificate_validation::*;
 
 #[cfg(feature="server")]
 pub(crate) use listener::ServerProcessor;

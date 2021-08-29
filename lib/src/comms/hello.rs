@@ -1,5 +1,6 @@
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use error_chain::bail;
 
 use crate::error::*;
 use serde::{Serialize, Deserialize};
@@ -53,6 +54,15 @@ pub(super) async fn mesh_hello_exchange_sender(stream_rx: &mut StreamRx, stream_
     let hello_server_bytes = stream_rx.read_16bit().await?;
     trace!("client received hello from server");
     let hello_server: ReceiverHello = serde_json::from_slice(&hello_server_bytes[..])?;
+
+    // Validate the encryption is strong enough
+    if let Some(needed_size) = &key_size {
+        match &hello_server.encryption {
+            None => { bail!(CommsErrorKind::ServerEncryptionWeak); },
+            Some(a) if *a < *needed_size => { bail!(CommsErrorKind::ServerEncryptionWeak); },
+            _ => { }
+        }
+    }
 
     // Upgrade the key_size if the server is bigger
     trace!("client encryption={}", match &hello_server.encryption {

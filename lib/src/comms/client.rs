@@ -37,6 +37,7 @@ use super::rx_tx::*;
 use super::helper::*;
 use super::hello;
 use super::key_exchange;
+use super::CertificateValidation;
 #[allow(unused_imports)]
 use {
     super::Stream,
@@ -74,6 +75,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
             conf.cfg_mesh.wire_encryption,
             conf.cfg_mesh.connect_timeout,
             conf.cfg_mesh.fail_fast,
+            conf.cfg_mesh.certificate_validation.clone(),
             Arc::clone(&metrics),
             Arc::clone(&throttle),
         ).await?;
@@ -112,6 +114,7 @@ pub(super) async fn mesh_connect_to<M, C>
     wire_encryption: Option<KeySize>,
     timeout: Duration,
     fail_fast: bool,
+    validation: CertificateValidation,
     metrics: Arc<StdMutex<super::metrics::Metrics>>,
     throttle: Arc<StdMutex<super::throttle::Throttle>>,
 )
@@ -136,7 +139,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
 
     // If we are using wire encryption then exchange secrets
     let ek = match wire_encryption {
-        Some(key_size) => Some(key_exchange::mesh_key_exchange_sender(&mut worker_connect.stream_rx, &mut stream_tx, key_size).await?),
+        Some(key_size) => Some(key_exchange::mesh_key_exchange_sender(&mut worker_connect.stream_rx, &mut stream_tx, key_size, validation).await?),
         None => None,
     };
 

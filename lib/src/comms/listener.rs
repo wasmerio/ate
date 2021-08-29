@@ -1,6 +1,7 @@
 #![allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use tracing_futures::{Instrument, WithSubscriber};
+use error_chain::bail;
 use tokio::{net::{TcpListener}};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
@@ -37,6 +38,7 @@ use crate::engine::TaskEngine;
 use super::stream::*;
 use super::helper::InboxProcessor;
 use crate::comms::NodeId;
+use crate::crypto::PrivateEncryptKey;
 
 #[derive(Debug)]
 struct ListenerNode
@@ -107,6 +109,15 @@ impl Listener
             ))
         };
 
+        // If wire encryption is required then make sure a certificate of sufficient size was supplied
+        if let Some(size) = &conf.cfg_mesh.wire_encryption {
+            match conf.listen_cert.as_ref() {
+                None => { bail!(CommsErrorKind::MissingCertificate); },
+                Some(a) if a.size() < *size => { bail!(CommsErrorKind::CertificateTooWeak(size.clone(), a.size())); },
+                _ => {}
+            }
+        }
+
         // Create all the listeners
         for target in conf.listen_on.iter() {
             let inbox = Arc::clone(&inbox);
@@ -116,7 +127,7 @@ impl Listener
                 Arc::downgrade(&listener),
                 conf.cfg_mesh.wire_protocol,
                 conf.cfg_mesh.wire_format,
-                conf.cfg_mesh.wire_encryption,
+                conf.listen_cert.clone(),
                 conf.cfg_mesh.accept_timeout,
                 inbox
             ).await;
@@ -142,7 +153,7 @@ impl Listener
         listener: Weak<StdMutex<Listener>>,
         wire_protocol: StreamProtocol,
         wire_format: SerializationFormat,
-        wire_encryption: Option<KeySize>,
+        certificate: Option<PrivateEncryptKey>,
         accept_timeout: Duration,
         inbox: Arc<dyn ServerProcessor<M, C>>
     )
@@ -192,7 +203,7 @@ impl Listener
                         listener,
                         wire_protocol,
                         wire_format,
-                        wire_encryption,
+                        certificate.clone(),
                         accept_timeout,
                         Arc::clone(&inbox)
                     )
@@ -221,7 +232,7 @@ impl Listener
         listener: Arc<StdMutex<Listener>>,
         wire_protocol: StreamProtocol,
         wire_format: SerializationFormat,
-        wire_encryption: Option<KeySize>,
+        server_cert: Option<PrivateEncryptKey>,
         timeout: Duration,
         handler: Arc<dyn ServerProcessor<M, C>>
     ) -> Result<(), CommsError>
@@ -240,21 +251,30 @@ impl Listener
             &mut rx,
             &mut tx,
             server_id,
-            wire_encryption,
+            server_cert.as_ref().map(|a| a.size()),
             wire_format
         ).await?;
         let wire_encryption = hello_meta.encryption;
         let node_id = hello_meta.client_id;
         //debug!("{:?}", hello_meta);
 
+        // If wire encryption is required then make sure a certificate of sufficient size was supplied
+        if let Some(size) = &wire_encryption {
+            match server_cert.as_ref() {
+                None => { bail!(CommsErrorKind::MissingCertificate); },
+                Some(a) if a.size() < *size => { bail!(CommsErrorKind::CertificateTooWeak(size.clone(), a.size())); },
+                _ => {}
+            }
+        }
+
         // If we are using wire encryption then exchange secrets
-        let ek = match wire_encryption {
-            Some(key_size) => Some(
+        let ek = match server_cert {
+            Some(server_key) => Some(
                 key_exchange::mesh_key_exchange_receiver
                 (
                     &mut rx,
                     &mut tx,
-                    key_size
+                    server_key
                 ).await?
             ),
             None => None,

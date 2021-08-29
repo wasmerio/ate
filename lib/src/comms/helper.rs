@@ -202,12 +202,27 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
                 Err(CommsError(CommsErrorKind::Disconnected, _)) => { break; }
                 Err(CommsError(CommsErrorKind::ReadOnly, _)) => { continue; }
                 Err(CommsError(CommsErrorKind::NotYetSubscribed, _)) => {
-                    let err = CommsErrorKind::NotYetSubscribed;
-                    warn!("inbox-err: {}", err);
+                    error!("inbox-err: {}", CommsErrorKind::NotYetSubscribed);
+                    break;
+                }
+                Err(CommsError(CommsErrorKind::CertificateTooWeak(needed, actual), _)) => {
+                    error!("inbox-err: {}", CommsErrorKind::CertificateTooWeak(needed, actual));
+                    break;
+                }
+                Err(CommsError(CommsErrorKind::MissingCertificate, _)) => {
+                    error!("inbox-err: {}", CommsErrorKind::MissingCertificate);
+                    break;
+                }
+                Err(CommsError(CommsErrorKind::ServerCertificateValidation, _)) => {
+                    error!("inbox-err: {}", CommsErrorKind::ServerCertificateValidation);
+                    break;
+                }
+                Err(CommsError(CommsErrorKind::ServerEncryptionWeak, _)) => {
+                    error!("inbox-err: {}", CommsErrorKind::ServerEncryptionWeak);
                     break;
                 }
                 Err(CommsError(CommsErrorKind::FatalError(err), _)) => {
-                    warn!("inbox-err: {}", err);
+                    error!("inbox-err: {}", err);
                     break;
                 }
                 Err(CommsError(CommsErrorKind::SendError(err), _)) => {

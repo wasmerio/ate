@@ -174,6 +174,19 @@ pub fn is_public_domain(domain: &str) -> bool {
     }
 }
 
+pub fn try_load_key<T>(key_path: String) -> Option<T>
+where T: serde::de::DeserializeOwned
+{
+    let path = shellexpand::tilde(&key_path).to_string();
+    debug!("loading key: {}", path);
+    let path = std::path::Path::new(&path);
+    File::open(path)
+        .ok()
+        .map(|file| {
+            bincode::deserialize_from(&file).unwrap()
+        })
+}
+
 pub fn load_key<T>(key_path: String, postfix: &str) -> T
 where T: serde::de::DeserializeOwned
 {

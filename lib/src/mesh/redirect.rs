@@ -79,6 +79,11 @@ where C: Send + Sync + Default + 'static,
     // Build a configuration that forces connecting to a specific ndoe
     let mut conf = root.cfg_mesh.clone();
     conf.force_connect = Some(node_addr.clone());
+    if let Some(cert) = &root.cfg_mesh.listen_certificate {
+        conf.certificate_validation = CertificateValidation::AllowedCertificates(vec![cert.hash()]);
+    } else {
+        conf.certificate_validation = CertificateValidation::AllowAll;
+    }
     let conf = MeshConfig::new(conf)
         .connect_to(node_addr);
 

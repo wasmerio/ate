@@ -16,6 +16,8 @@ use url::Url;
 use std::net::Ipv4Addr;
 use std::net::Ipv6Addr;
 use std::str::FromStr;
+use once_cell::sync::Lazy;
+use parking_lot::RwLock as StdRwLock;
 
 use crate::prelude::*;
 use crate::{
@@ -32,6 +34,10 @@ use crate::service::Service;
 use crate::dns::*;
 use crate::utils::chain_key_16hex;
 
+static GLOBAL_CERTIFICATES: Lazy<StdRwLock<Vec<AteHash>>> = Lazy::new(|| {
+    StdRwLock::new(Vec::new())
+});
+
 pub struct Registry
 {
     pub cfg_ate: ConfAte,
@@ -41,6 +47,7 @@ pub struct Registry
     pub node_id: NodeId,
     pub fail_fast: bool,
     pub keep_alive: Option<Duration>,
+    pub ignore_certificates: bool,
 
     cmd_key: StdMutex<FxHashMap<url::Url, String>>,    
     chains: Mutex<FxHashMap<url::Url, Arc<MeshClient>>>,
@@ -70,6 +77,7 @@ impl Registry
             dns,
             node_id,
             temporal: true,
+            ignore_certificates: false,
             cmd_key: StdMutex::new(FxHashMap::default()),
             chains: Mutex::new(FxHashMap::default()),
             services: StdMutex::new(Vec::new()),
@@ -92,6 +100,12 @@ impl Registry
     pub fn fail_fast(mut self, fail_fast: bool) -> Self
     {
         self.fail_fast = fail_fast;
+        self
+    }
+
+    pub fn ignore_certificates(mut self) -> Self
+    {
+        self.ignore_certificates = true;
         self
     }
 
@@ -212,6 +226,25 @@ impl Registry
         // Set the fail fast
         ret.fail_fast = self.fail_fast;
 
+        // Set the ignore certificates
+        if self.ignore_certificates {
+            ret.certificate_validation = CertificateValidation::AllowAll;
+        }
+
+        // Add all the global certificates
+        if let CertificateValidation::AllowedCertificates(allowed) = &mut ret.certificate_validation {
+            for cert in GLOBAL_CERTIFICATES.read().iter() {
+                allowed.push(cert.clone());
+            }
+        }
+
+        // Perform a DNS query on the domain and pull down TXT records
+        #[cfg(feature="enable_dns")]
+        if let CertificateValidation::AllowedCertificates(allowed) = &mut ret.certificate_validation {
+            let mut certs = self.dns_certs(domain).await?;
+            allowed.append(&mut certs);
+        }
+
         Ok(ret)
     }
 
@@ -252,7 +285,52 @@ impl Registry
     }
 
     #[cfg(feature="enable_dns")]
-    async fn dns_query(&self, name: &str) -> Result<Vec<IpAddr>, ClientError>
+    pub async fn dns_certs(&self, name: &str) -> Result<Vec<AteHash>, ClientError>
+    {
+        match name.to_lowercase().as_str() {
+            "localhost" => { return Ok(Vec::new()); },
+            _ => { }
+        };
+
+        if let Ok(_) = IpAddr::from_str(name) {
+            return Ok(Vec::new());
+        }
+
+        trace!("dns_query for {}", name);
+        let mut client = self.dns.lock().await;
+
+        let mut txts = Vec::new();
+        if let Some(response)
+            = client.query(Name::from_str(name).unwrap(), DNSClass::IN, RecordType::TXT).await.ok()
+        {
+            for answer in response.answers() {
+                if let RData::TXT(ref txt) = *answer.rdata() {
+                    txts.push(txt.to_string());
+                }
+            }
+        }
+
+        let prefix = "ate-cert-";
+
+        let mut certs = Vec::new();
+        for txt in txts {
+            let txt = txt.replace(" ", "");
+            if txt.trim().starts_with(prefix) {
+                let start = prefix.len();
+                let hash = &txt.trim()[start..];
+                if let Some(hash) = AteHash::from_hex_string(hash) {
+                    trace!("found certificate({}) for {}", hash, name);
+                    certs.push(hash);
+                }
+            }
+        }
+        trace!("dns_query for {} returned {} certificates", name, certs.len());
+
+        Ok(certs)
+    }
+
+    #[cfg(feature="enable_dns")]
+    pub async fn dns_query(&self, name: &str) -> Result<Vec<IpAddr>, ClientError>
     {
         match name.to_lowercase().as_str() {
             "localhost" => { return Ok(vec![IpAddr::V4(Ipv4Addr::from_str("127.0.0.1").unwrap())]) },
@@ -311,6 +389,10 @@ impl Registry
         let hex = AteHash::generate().to_hex_string();
         guard.insert(url.clone(), hex.clone());
         chain_key_16hex(hex.as_str(), Some("cmd"))
+    }
+
+    pub fn add_global_certificate(cert: &AteHash) {
+        GLOBAL_CERTIFICATES.write().push(cert.clone());
     }
 }
 

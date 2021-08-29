@@ -82,6 +82,7 @@ async fn main() -> Result<(), AteError>
             // Open the key file
             let root_write_key: PrivateSignKey = ate_auth::load_key(run.key_path.clone(), ".write");
             let root_read_key: EncryptKey = ate_auth::load_key(run.key_path.clone(), ".read");
+            let root_cert_key: PrivateEncryptKey = ate_auth::load_key(run.key_path.clone(), ".cert");
             
             // Build a session for service
             let mut cfg_ate = ate_auth::conf_auth();
@@ -100,6 +101,7 @@ async fn main() -> Result<(), AteError>
             flow.terms_and_conditions = Some(ate_auth::GENERIC_TERMS_AND_CONDITIONS.to_string());
             let mut cfg_mesh = ConfMesh::solo_from_url(&cfg_ate, &run.url, &run.listen, run.node_id).await?;
             cfg_mesh.wire_protocol = StreamProtocol::parse(&run.url)?;
+            cfg_mesh.listen_certificate = Some(root_cert_key);
 
             let server = create_server(&cfg_mesh).await?;
             server.add_route(Box::new(flow), &cfg_ate).await?;
@@ -120,6 +122,9 @@ async fn main() -> Result<(), AteError>
 
             let write_key = PrivateSignKey::generate(generate.strength);
             ate_auth::save_key(generate.key_path.clone(), write_key, ".write");
+
+            let cert_key = PrivateEncryptKey::generate(generate.strength);
+            ate_auth::save_key(generate.key_path.clone(), cert_key, ".cert");
         },
     }
 

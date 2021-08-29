@@ -143,7 +143,11 @@ impl MeshRoot
         listen_ports.dedup();
         for port in listen_ports.iter() {
             cfg = cfg
-                .listen_on(IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0)), port.clone());                
+                .listen_on(IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0)), port.clone());
+        }
+
+        if let Some(cert) = cfg.listen_cert.as_ref() {
+            trace!("using certificate: {}", cert.hash());
         }
 
         let server_id = NodeId::generate_server_id(node_id);
@@ -670,6 +674,7 @@ async fn inbox_subscribe<'b>(
     };
     
     // Reject the request if its from the wrong machine
+    // Or... if we can perform a redirect then do so
     if root.node_id != node_id
     {
         if redirect {

@@ -10,6 +10,7 @@ use crate::conf::ConfAte;
 use crate::prelude::*;
 use crate::crypto::KeySize;
 use crate::{comms::StreamProtocol, error::CommsError};
+use crate::comms::CertificateValidation;
 
 use super::*;
 
@@ -25,6 +26,9 @@ pub struct ConfMesh
     /// Domain name that this mesh is running on
     pub domain_name: String,
 
+    /// List of all the allowed certificates for authenticated servers
+    pub certificate_validation: CertificateValidation,
+
     /// List of all the addresses that the root nodes exists on
     pub roots: Vec<MeshAddress>,
     
@@ -37,6 +41,10 @@ pub struct ConfMesh
     /// the address is not in the list of cluster nodes.
     #[cfg(feature="enable_server")]
     pub force_listen: Option<MeshAddress>,
+    /// When listening for connections the server will use the certificate
+    /// below when establishing secure connections.
+    #[cfg(feature="enable_server")]
+    pub listen_certificate: Option<PrivateEncryptKey>,
     /// Forces ATE to process all requests related to this particular node_id.
     /// Use this property when the node_id can not be derived from the list
     /// of addresses and your listen address. For instance when behind a load
@@ -162,6 +170,8 @@ impl ConfMesh
         ConfMesh {
             roots: roots.map(|a| a.clone()).collect::<Vec<_>>(),
             domain_name: domain_name.to_string(),
+            certificate_validation: CertificateValidation::AllowedCertificates(Vec::new()),
+            listen_certificate: None,
             #[cfg(feature="enable_client")]
             force_client_only: false,
             #[cfg(feature="enable_server")]

@@ -81,6 +81,7 @@ async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) 
         
         let listener;
         let wire_format = SerializationFormat::MessagePack;
+        let cert = PrivateEncryptKey::generate(KeySize::Bit192);
         {
             // Start the server
             info!("starting listen server on 127.0.0.1");
@@ -90,8 +91,8 @@ async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) 
             cfg.wire_format = wire_format;
             cfg.wire_encryption = Some(KeySize::Bit192);
             let cfg = MeshConfig::new(cfg)
-                .listen_on(IpAddr::from_str("127.0.0.1")
-                .unwrap(), port);
+                .listen_on(IpAddr::from_str("127.0.0.1").unwrap(), port)
+                .listen_cert(cert.clone());
 
             #[derive(Debug, Clone, Default)]
             struct Handler {
@@ -157,6 +158,7 @@ async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) 
             cfg.wire_protocol = wire_protocol;
             cfg.wire_format = wire_format;
             cfg.wire_encryption = Some(KeySize::Bit192);
+            cfg.certificate_validation = CertificateValidation::AllowedCertificates(vec![cert.hash()]);
             let cfg = MeshConfig::new(cfg)
                 .connect_to(MeshAddress { host: IpAddr::from_str("127.0.0.1").unwrap(), port });
             let mut client_tx = super::connect(&cfg, "/comm-test".to_string(), client_id, inbox, metrics, throttle)

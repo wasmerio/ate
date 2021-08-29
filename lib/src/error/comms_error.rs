@@ -5,6 +5,8 @@ use tokio::sync::mpsc as mpsc;
 #[cfg(feature="enable_web")]
 use ws_stream_wasm::WsErr;
 
+use crate::crypto::KeySize;
+
 error_chain! {
     types {
         CommsError, CommsErrorKind, ResultExt, Result;
@@ -28,9 +30,21 @@ error_chain! {
             description("receiving error while processing communication"),
             display("receiving error while processing communication - {}", err),
         }
-        NoReplyChannel {
-            description("message has no reply channel attached to it")
-            display("message has no reply channel attached to it")
+        MissingCertificate {
+            description("the server requires wire encryption but you did not supply a certificate"),
+            display("the server requires wire encryption but you did not supply a certificate"),
+        }
+        CertificateTooWeak(needed: KeySize, actual: KeySize) {
+            description("the server requires strong wire encryption then available in the certificate you supplied"),
+            display("the server requires strong wire encryption({}) then available in the certificate you supplied({})", needed, actual),
+        }
+        ServerCertificateValidation {
+            description("the server certificate failed the clients validation check"),
+            display("the server certificate failed the clients validation check"),
+        }
+        ServerEncryptionWeak {
+            description("the server encryption strength is too weak"),
+            display("the server encryption strength is too weak"),
         }
         RedirectNotSupported {
             description("redirecting to another address is not supported by this process")

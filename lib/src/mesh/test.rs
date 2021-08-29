@@ -57,6 +57,7 @@ async fn test_mesh_internal(centralized: bool)
         let mut mesh_root_joins = Vec::new();
 
         // Create the first cluster of mesh root nodes
+        let certificate = PrivateEncryptKey::generate(KeySize::Bit192);
         #[allow(unused_variables)]
         let mut index: i32 = 0;
         for n in (5100+port_offset)..(5105+port_offset) {
@@ -72,6 +73,7 @@ async fn test_mesh_internal(centralized: bool)
             }
             let mut cfg_mesh = cfg_mesh.clone();
             cfg_mesh.force_listen = Some(addr.clone());
+            cfg_mesh.listen_certificate = Some(certificate.clone());
 
             let root_key = root_key.as_public_key().clone();
             let join = async move {
@@ -90,10 +92,11 @@ async fn test_mesh_internal(centralized: bool)
         // Wait for all the servers to start
         for (addr, join) in mesh_root_joins {
             info!("creating server on {:?}", addr);
-            let join = join.await;
+            let join = join.await.unwrap();
             mesh_roots.push(join);
         }
 
+        cfg_mesh.certificate_validation = CertificateValidation::AllowedCertificates(vec![certificate.hash()]);
         cfg_mesh
     };
 

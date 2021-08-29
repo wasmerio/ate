@@ -8,6 +8,7 @@ use crate::conf::MeshAddress;
 use crate::comms::StreamTxChannel;
 use crate::comms::NodeId;
 use crate::crypto::EncryptKey;
+use crate::crypto::PrivateEncryptKey;
 
 #[derive(Debug)]
 pub(crate) struct Upstream
@@ -37,6 +38,8 @@ pub(crate) struct MeshConfig
 {
     #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
     pub listen_on: Vec<SocketAddr>,
+    #[cfg(feature="enable_server")]
+    pub listen_cert: Option<PrivateEncryptKey>,
     #[cfg(feature="enable_dns")]
     pub connect_to: Option<SocketAddr>,
     #[cfg(not(feature="enable_dns"))]
@@ -50,17 +53,27 @@ impl MeshConfig
         MeshConfig {
             #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
             listen_on: Vec::new(),
+            #[cfg(feature="enable_server")]
+            listen_cert: cfg_mesh.listen_certificate.clone(),
             #[cfg(feature="enable_dns")]
             connect_to: None,
             #[cfg(not(feature="enable_dns"))]
             connect_to: None,
-            cfg_mesh: cfg_mesh.clone(),
+            cfg_mesh: cfg_mesh,
         }
     }
 
     #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
     pub(crate) fn listen_on(mut self, ip: IpAddr, port: u16) -> Self {
         self.listen_on.push(SocketAddr::from(NodeTarget{ip, port}));
+        self
+    }
+
+    #[allow(dead_code)]
+    #[cfg(feature="enable_server")]
+    pub(crate) fn listen_cert(mut self, certificate: PrivateEncryptKey) -> Self {
+        self.cfg_mesh.listen_certificate = Some(certificate.clone());
+        self.listen_cert = Some(certificate);
         self
     }
 

@@ -89,6 +89,7 @@ pub use crate::service::ServiceHandler;
 
 pub use crate::engine::TaskEngine;
 pub use crate::comms::StreamProtocol;
+pub use crate::comms::CertificateValidation;
 pub use crate::spec::TrustMode;
 pub use crate::spec::CentralizedRole;
 pub use crate::comms::NodeId;

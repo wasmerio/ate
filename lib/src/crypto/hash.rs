@@ -27,6 +27,20 @@ impl AteHash {
     pub fn generate() -> AteHash {
         RandomGeneratorAccessor::generate_hash()
     }
+    pub fn from_hex_string(input: &str) -> Option<AteHash> {
+        hex::decode(input.trim())
+            .ok()
+            .map(|a| {
+                let bytes16: Option<[u8; 16]> = a.try_into().ok();
+                bytes16
+            })
+            .flatten()
+            .map(|a| {
+                AteHash {
+                    val: a
+                }
+            })
+    }
     pub fn from_bytes(input: &[u8]) -> AteHash {
         Self::from_bytes_by_routine(input, crate::HASH_ROUTINE)
     }

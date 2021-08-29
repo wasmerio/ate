@@ -23,6 +23,10 @@ pub async fn test_create_user_and_group()
     {
         cfg_ate.log_path = Some(format!("/tmp/ate/test/{}", fastrand::u64(..)));
     }
+
+    // Create the certificate
+    let cert = PrivateEncryptKey::generate(KeySize::Bit192);
+    Registry::add_global_certificate(&cert.hash());
     
     // Build a session for service
     info!("building session for service");
@@ -43,6 +47,7 @@ pub async fn test_create_user_and_group()
     info!("creating server and listening on ports with routes");
     let mut cfg_mesh = ConfMesh::solo_from_url(&cfg_ate, &auth, &IpAddr::from_str("::1").unwrap(), None).await.unwrap();
     cfg_mesh.wire_protocol = StreamProtocol::WebSocket;
+    cfg_mesh.listen_certificate = Some(cert);
     let server = create_server(&cfg_mesh).await.unwrap();
     server.add_route(Box::new(flow), &cfg_ate).await.unwrap();
 

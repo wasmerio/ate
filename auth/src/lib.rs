@@ -25,6 +25,7 @@ pub use helper::session_to_b64;
 pub use helper::estimate_user_name_as_uid;
 pub use helper::estimate_group_name_as_gid;
 pub use helper::load_key;
+pub use helper::try_load_key;
 pub use helper::save_key;
 pub use login::load_credentials;
 pub use query::query_command;

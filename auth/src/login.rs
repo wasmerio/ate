@@ -24,37 +24,6 @@ use super::sudo::*;
 
 impl AuthService
 {
-    pub(crate) fn master_key(&self) -> Option<EncryptKey>
-    {
-        self.master_session.user.read_keys().map(|a| a.clone()).next()
-    }
-
-    pub fn compute_super_key(&self, secret: EncryptKey) -> Option<(EncryptKey, EncryptedSecureData<EncryptKey>)>
-    {
-        // Create a session with crypto keys based off the username and password
-        let master_key = match self.master_session.user.read_keys().next() {
-            Some(a) => a.clone(),
-            None => { return None; }
-        };
-        let super_key = AteHash::from_bytes_twice(master_key.value(), secret.value());
-        let super_key = EncryptKey::from_seed_bytes(super_key.to_bytes(), KeySize::Bit192);
-        let token = EncryptedSecureData::new(&master_key, super_key).unwrap();
-        
-        Some((super_key, token))
-    }
-
-    pub fn compute_super_key_from_hash(&self, hash: AteHash) -> Option<EncryptKey>
-    {
-        // Create a session with crypto keys based off the username and password
-        let master_key = match self.master_session.user.read_keys().next() {
-            Some(a) => a.clone(),
-            None => { return None; }
-        };
-        let super_key = AteHash::from_bytes_twice(master_key.value(), hash.to_bytes());
-        let super_key = EncryptKey::from_seed_bytes(super_key.to_bytes(), KeySize::Bit192);
-        Some(super_key)
-    }
-
     pub async fn process_login(self: Arc<Self>, request: LoginRequest) -> Result<LoginResponse, LoginFailed>
     {
         info!("login attempt: {}", request.email);
@@ -145,6 +114,37 @@ impl AuthService
             authority: session,
             message_of_the_day: None,
         })
+    }
+
+    pub(crate) fn master_key(&self) -> Option<EncryptKey>
+    {
+        self.master_session.user.read_keys().map(|a| a.clone()).next()
+    }
+
+    pub fn compute_super_key(&self, secret: EncryptKey) -> Option<(EncryptKey, EncryptedSecureData<EncryptKey>)>
+    {
+        // Create a session with crypto keys based off the username and password
+        let master_key = match self.master_session.user.read_keys().next() {
+            Some(a) => a.clone(),
+            None => { return None; }
+        };
+        let super_key = AteHash::from_bytes_twice(master_key.value(), secret.value());
+        let super_key = EncryptKey::from_seed_bytes(super_key.to_bytes(), KeySize::Bit192);
+        let token = EncryptedSecureData::new(&master_key, super_key).unwrap();
+        
+        Some((super_key, token))
+    }
+
+    pub fn compute_super_key_from_hash(&self, hash: AteHash) -> Option<EncryptKey>
+    {
+        // Create a session with crypto keys based off the username and password
+        let master_key = match self.master_session.user.read_keys().next() {
+            Some(a) => a.clone(),
+            None => { return None; }
+        };
+        let super_key = AteHash::from_bytes_twice(master_key.value(), hash.to_bytes());
+        let super_key = EncryptKey::from_seed_bytes(super_key.to_bytes(), KeySize::Bit192);
+        Some(super_key)
     }
 }
 
