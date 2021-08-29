@@ -84,7 +84,8 @@ impl AuthService
         // Generate the recovery code
         let recovery_code = AteHash::generate().to_hex_string().to_uppercase();
         let recovery_code = format!("{}-{}-{}-{}-{}", &recovery_code[0..4], &recovery_code[4..8], &recovery_code[8..12], &recovery_code[12..16], &recovery_code[16..20]);
-        let recovery_key = EncryptKey::from_bytes(recovery_code.as_bytes())?;
+        let recovery_prefix = format!("recover-login:{}:", request.email);
+        let recovery_key = super::password_to_read_key(&recovery_prefix, &recovery_code, 15, KeySize::Bit192);
         let (super_recovery_key, _) = match self.compute_super_key(recovery_key) {
             Some(a) => a,
             None => { 

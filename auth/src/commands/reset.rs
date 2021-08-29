@@ -9,7 +9,7 @@ pub struct ResetRequest
     pub auth: String,
     pub email: String,
     pub new_secret: EncryptKey,
-    pub recovery_code: String,    
+    pub recovery_key: EncryptKey,
     pub sudo_code: String,
     pub sudo_code_2: String,
 }
@@ -30,6 +30,7 @@ pub enum ResetFailed
     InvalidEmail(String),
     InvalidRecoveryCode,
     InvalidAuthenticatorCode,
+    RecoveryImpossible,
     NoMasterKey,
     InternalError(u16),
 }

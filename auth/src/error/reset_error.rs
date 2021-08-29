@@ -31,6 +31,10 @@ error_chain! {
             description("reset failed as you entered the same authenticator code twice")
             display("reset failed as you entered the same authenticator code twice")
         }
+        RecoveryImpossible {
+            description("recovery of this account is impossible")
+            display("recovery of this account is impossible")
+        }
         InvalidRecoveryCode {
             description("the supplied recovery code was not valid")
             display("the supplied recovery code was not valid")
@@ -65,6 +69,7 @@ for ResetError {
             ResetFailed::InvalidEmail(email) => ResetErrorKind::NotFound(email).into(),
             ResetFailed::InvalidRecoveryCode => ResetErrorKind::InvalidRecoveryCode.into(),
             ResetFailed::InvalidAuthenticatorCode => ResetErrorKind::InvalidAuthenticatorCode.into(),
+            ResetFailed::RecoveryImpossible => ResetErrorKind::RecoveryImpossible.into(),
             ResetFailed::NoMasterKey => ResetErrorKind::NoMasterKey.into(),
             ResetFailed::InternalError(code) => ResetErrorKind::InternalError(code).into(),
         }

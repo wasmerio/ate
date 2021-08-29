@@ -43,8 +43,7 @@ impl AuthService
         super_session.token = Some(super_token);
 
         // Convert the recovery code
-        let recovery_key = EncryptKey::from_bytes(request.recovery_code.as_bytes())?;
-        let (super_recovery_key, _) = self.compute_super_key(recovery_key).ok_or_else(|| ResetFailed::NoMasterKey)?;
+        let (super_recovery_key, _) = self.compute_super_key(request.recovery_key).ok_or_else(|| ResetFailed::NoMasterKey)?;
         super_session.user.add_read_key(&super_recovery_key);
 
         // Create the super key and token
@@ -55,9 +54,6 @@ impl AuthService
                 return Err(ResetFailed::NoMasterKey);
             }
         };
-
-        // Create the super session
-        let mut super_session = self.master_session.clone();
         super_session.user.add_read_key(&super_key);
 
         // Compute which chain the user should exist within
@@ -82,7 +78,7 @@ impl AuthService
                 return Err(ResetFailed::InvalidRecoveryCode);
             },
             Err(LoadError(LoadErrorKind::TransformationError(TransformErrorKind::MissingReadKey(_)), _)) => {
-                warn!("reset attempt denied ({}) - wrong password", request.email);
+                warn!("reset attempt denied ({}) - invalid recovery code", request.email);
                 return Err(ResetFailed::InvalidRecoveryCode);
             },
             Err(err) => {
@@ -126,8 +122,8 @@ impl AuthService
                 return Err(ResetFailed::InvalidEmail(request.email));
             },
             Err(LoadError(LoadErrorKind::TransformationError(TransformErrorKind::MissingReadKey(_)), _)) => {
-                warn!("reset attempt denied ({}) - wrong password", request.email);
-                return Err(ResetFailed::InvalidRecoveryCode);
+                warn!("reset attempt denied ({}) - recovery is not possible", request.email);
+                return Err(ResetFailed::RecoveryImpossible);
             },
             Err(err) => {
                 warn!("reset attempt denied ({}) - error - ", err);
@@ -149,7 +145,7 @@ impl AuthService
             }
             Err(LoadError(LoadErrorKind::TransformationError(TransformErrorKind::MissingReadKey(_)), _)) => {
                 warn!("reset attempt denied ({}) - wrong password", request.email);
-                return Err(ResetFailed::InvalidRecoveryCode);
+                return Err(ResetFailed::RecoveryImpossible);
             },
             Err(err) => {
                 warn!("reset attempt denied ({}) - error - ", err);
@@ -190,6 +186,9 @@ impl AuthService
             recovery_mut.qr_code = qr_code.clone();
         }
 
+        // Commit the transaction
+        dio.commit().await?;
+
         // Create the authorizations and return them
         let mut session = compute_user_auth(user.deref());
         session.token = Some(token);
@@ -205,7 +204,7 @@ impl AuthService
     }
 }
 
-pub async fn reset_command(registry: &Arc<Registry>, email: String, new_password: String, recovery_code: String, sudo_code: String, sudo_code_2: String, auth: Url) -> Result<ResetResponse, ResetError>
+pub async fn reset_command(registry: &Arc<Registry>, email: String, new_password: String, recovery_key: EncryptKey, sudo_code: String, sudo_code_2: String, auth: Url) -> Result<ResetResponse, ResetError>
 {
     // Open a command chain
     let chain = registry.open_cmd(&auth).await?;
@@ -225,7 +224,7 @@ pub async fn reset_command(registry: &Arc<Registry>, email: String, new_password
         email,
         auth,
         new_secret,
-        recovery_code,
+        recovery_key,
         sudo_code,
         sudo_code_2,
     };
@@ -249,7 +248,8 @@ pub async fn main_reset(
         eprintln!(r#"# Account Reset Process
 
 You will need *both* of the following to reset your account:
-- Your 'recovery code' that you saved during account creation.
+- Your 'recovery code' that you saved during account creation - if not - then
+  the recovery code is likely still in your email inbox.
 - Two sequential 'authenticator code' response challenges from your mobile app.
 "#);
     }
@@ -275,6 +275,8 @@ You will need *both* of the following to reset your account:
             s.trim().to_string()
         }
     };
+    let recovery_prefix = format!("recover-login:{}:", username);
+    let recovery_key = super::password_to_read_key(&recovery_prefix, &recovery_code, 15, KeySize::Bit192);
 
     let new_password = match new_password {
         Some(a) => a,
@@ -328,7 +330,7 @@ You will need *both* of the following to reset your account:
         &registry,
         username,
         new_password,
-        recovery_code,
+        recovery_key,
         sudo_code,
         sudo_code_2,
         auth
