@@ -23,6 +23,10 @@ error_chain! {
             description("login failed as the server has not been properly initialized")
             display("login failed as the server has not been properly initialized")
         }
+        InvalidArguments {
+            description("you did not provide the right type or quantity of arguments")
+            display("you did not provide the right type or quantity of arguments")
+        }
         Timeout {
             description("login failed due to a timeout"),
             display("login failed due to a timeout"),

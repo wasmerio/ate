@@ -81,6 +81,19 @@ impl AuthService
         super_session.user.add_read_key(&super_super_key);
         super_session.token = Some(super_token);
 
+        // Generate the recovery code
+        let recovery_code = AteHash::generate().to_hex_string().to_uppercase();
+        let recovery_code = format!("{}-{}-{}-{}-{}", &recovery_code[0..4], &recovery_code[4..8], &recovery_code[8..12], &recovery_code[12..16], &recovery_code[16..20]);
+        let recovery_key = EncryptKey::from_bytes(recovery_code.as_bytes())?;
+        let (super_recovery_key, _) = match self.compute_super_key(recovery_key) {
+            Some(a) => a,
+            None => { 
+                warn!("failed to generate recovery key");
+                return Err(CreateUserFailed::NoMasterKey);
+            }
+        };
+        super_session.user.add_read_key(&super_recovery_key);
+
         // Create the access object
         let read_key = EncryptKey::generate(key_size);
         let private_read_key = PrivateEncryptKey::generate(key_size);
@@ -213,6 +226,7 @@ impl AuthService
                     foreign: DaoForeign::default(),
                     sudo: DaoChild::new(),
                     advert: DaoChild::new(),
+                    recovery: DaoChild::new(),
                     accepted_terms: DaoChild::new(),
                     nominal_read: read_key.hash(),
                     nominal_public_read: private_read_key.as_public_key().clone(),
@@ -228,6 +242,34 @@ impl AuthService
         };
         user.auth_mut().read = ReadOption::from_key(&super_key);
         user.auth_mut().write = WriteOption::Any(vec![master_write_key.hash(), sudo_write_key.hash()]);
+
+        // Generate the account recovery object
+        let recovery_key_entropy = format!("recovery:{}", request.email.clone()).to_string();
+        let recovery_key = PrimaryKey::from(recovery_key_entropy);
+        let mut recovery = {
+            let mut user = user.as_mut();
+            if let Some(mut recovery) = user.recovery.load_mut().await? {
+                let mut recovery_mut = recovery.as_mut();
+                recovery_mut.email = request.email.clone();
+                recovery_mut.login_secret = request.secret.clone();
+                recovery_mut.sudo_secret = secret.clone();
+                recovery_mut.google_auth = google_auth_secret.clone();
+                recovery_mut.qr_code = qr_code.clone();
+                drop(recovery_mut);
+                recovery
+            } else {
+                let recovery = UserRecovery {
+                    email: request.email.clone(),
+                    login_secret: request.secret.clone(),
+                    sudo_secret: secret.clone(),
+                    google_auth: google_auth_secret.clone(),
+                    qr_code: qr_code.clone(),
+                };
+                user.recovery.store_with_key(recovery, recovery_key).await?
+            }
+        };
+        recovery.auth_mut().read = ReadOption::from_key(&super_recovery_key);
+        recovery.auth_mut().write = WriteOption::Specific(master_write_key.hash());
 
         // Get or create the sudo object and save it using another elevation of the key
         let mut sudo = {
@@ -278,7 +320,7 @@ impl AuthService
         }
         
         // Create the advert object and save it using public read
-        let advert_key_entropy = format!("advert@{}", request.email.clone()).to_string();
+        let advert_key_entropy = format!("advert:{}", request.email.clone()).to_string();
         let advert_key = PrimaryKey::from(advert_key_entropy);
         let mut advert = match dio.load::<Advert>(&advert_key).await.ok() {
             Some(mut advert) => {
@@ -323,6 +365,7 @@ impl AuthService
             key: user.key().clone(),
             qr_code: qr_code,
             qr_secret: secret.clone(),
+            recovery_code,
             authority: session,
             message_of_the_day: None,
         }, user))
@@ -369,6 +412,10 @@ pub async fn main_create_user(
     let username = match username {
         Some(a) => a,
         None => {
+            if !atty::is(atty::Stream::Stdin) {
+                bail!(CreateErrorKind::InvalidArguments);
+            }
+
             print!("Username: ");
             stdout().lock().flush()?;
             let mut s = String::new();
@@ -380,6 +427,10 @@ pub async fn main_create_user(
     let password = match password {
         Some(a) => a,
         None => {
+            if !atty::is(atty::Stream::Stdin) {
+                bail!(CreateErrorKind::InvalidArguments);
+            }
+
             print!("Password: ");
             stdout().lock().flush()?;
             let ret1 = rpassword::read_password().unwrap();
@@ -413,6 +464,10 @@ pub async fn main_create_user(
         }
         Err(CreateError(CreateErrorKind::TermsAndConditions(terms), _)) =>
         {
+            if !atty::is(atty::Stream::Stdin) {
+                bail!(CreateErrorKind::InvalidArguments);
+            }
+
             // We need an agreement to the terms and conditions from the caller
             println!("");
             println!("{}", terms);
@@ -438,18 +493,21 @@ pub async fn main_create_user(
             bail!(err);
         }
     };
-    println!("User created (id={})", result.key);
 
-    // Display the QR code
-    println!("");
-    if let Some(message_of_the_day) = &result.message_of_the_day {
-        println!("{}", message_of_the_day.as_str());
+    if atty::is(atty::Stream::Stdout) {
+        println!("User created (id={})", result.key);
+
+        // Display the QR code
         println!("");
+        if let Some(message_of_the_day) = &result.message_of_the_day {
+            println!("{}", message_of_the_day.as_str());
+            println!("");
+        }
+        println!("Below is your Google Authenticator QR code - scan it on your phone and");
+        println!("save it as this code is the only way you can recover the account.");
+        println!("");
+        println!("{}", result.qr_code);
     }
-    println!("Below is your Google Authenticator QR code - scan it on your phone and");
-    println!("save it as this code is the only way you can recover the account.");
-    println!("");
-    println!("{}", result.qr_code);
 
     Ok(result)
 }

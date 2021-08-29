@@ -13,6 +13,7 @@ mod ssh_key_type;
 mod sudo;
 mod user_role;
 mod user_status;
+mod user_recovery;
 mod user;
 
 pub use advert::*;
@@ -30,4 +31,5 @@ pub use ssh_key_type::*;
 pub use sudo::*;
 pub use user_role::*;
 pub use user_status::*;
+pub use user_recovery::*;
 pub use user::*;

@@ -173,7 +173,9 @@ pub async fn login_command(registry: &Arc<Registry>, username: String, password:
     // Display the message of the day
     if print_message_of_the_day {
         if let Some(message_of_the_day) = result.message_of_the_day {
-            eprintln!("{}", message_of_the_day);
+            if atty::is(atty::Stream::Stderr) {
+                eprintln!("{}", message_of_the_day);
+            }
         }
     }
 
@@ -281,6 +283,10 @@ pub async fn main_login(
     let username = match username {
         Some(a) => a,
         None => {
+            if !atty::is(atty::Stream::Stdin) {
+                bail!(LoginErrorKind::InvalidArguments);
+            }
+
             eprint!("Username: ");
             stdout().lock().flush()?;
             let mut s = String::new();
@@ -292,6 +298,10 @@ pub async fn main_login(
     let password = match password {
         Some(a) => a,
         None => {
+            if !atty::is(atty::Stream::Stdin) {
+                bail!(LoginErrorKind::InvalidArguments);
+            }
+
             // When no password is supplied we will ask for both the password and the code
             eprint!("Password: ");
             stdout().lock().flush()?;
@@ -319,6 +329,10 @@ pub(crate) async fn handle_login_response(
     let mut was_unverified = false;
     if let Err(LoginError(LoginErrorKind::Unverified(_), _)) = &response {
         was_unverified = true;
+
+        if !atty::is(atty::Stream::Stdin) {
+            bail!(LoginErrorKind::InvalidArguments);
+        }
 
         // When no code is supplied we will ask for it
         eprintln!("Check your email for a verification code and enter it below");

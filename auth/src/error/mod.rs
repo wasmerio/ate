@@ -6,6 +6,7 @@ pub mod group_user_remove_error;
 pub mod login_error;
 pub mod query_error;
 pub mod sudo_error;
+pub mod reset_error;
 
 pub use create_error::CreateError as CreateError;
 pub use create_error::CreateErrorKind as CreateErrorKind;
@@ -23,3 +24,5 @@ pub use query_error::QueryError as QueryError;
 pub use query_error::QueryErrorKind as QueryErrorKind;
 pub use sudo_error::SudoError as SudoError;
 pub use sudo_error::SudoErrorKind as SudoErrorKind;
+pub use reset_error::ResetError as ResetError;
+pub use reset_error::ResetErrorKind as ResetErrorKind;

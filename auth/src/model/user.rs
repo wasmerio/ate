@@ -20,6 +20,7 @@ pub struct User {
     pub foreign: DaoForeign,
     pub sudo: DaoChild<Sudo>,
     pub advert: DaoChild<Advert>,
+    pub recovery: DaoChild<UserRecovery>,
     pub nominal_read: ate::crypto::AteHash,
     pub nominal_public_read: PublicEncryptKey,
     pub nominal_write: PublicSignKey,

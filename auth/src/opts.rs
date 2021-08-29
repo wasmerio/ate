@@ -54,6 +54,9 @@ pub enum UserAction {
     /// Returns all the details about a specific user
     #[clap()]
     Details,
+    /// Recovers a lost account using your recovery code
+    #[clap()]
+    Recover(ResetUser),
 }
 
 /// Creates a new user and login credentials on the authentication server
@@ -65,6 +68,26 @@ pub struct CreateUser {
     /// New password to be associated with this account
     #[clap(index = 2)]
     pub password: Option<String>,
+}
+
+/// Recovers a lost account using the recovery code that you stored somewhere safely when you created your account
+#[derive(Clap)]
+pub struct ResetUser {
+    /// Email address of the user to be recovered
+    #[clap(index = 1)]
+    pub email: Option<String>,
+    /// Recovery code that you stored somewhere safely when you created your account
+    #[clap(index = 2)]
+    pub recovery_code: Option<String>,
+    /// New password for the user
+    #[clap(index = 3)]
+    pub new_password: Option<String>,
+    /// The authenticator code from your mobile authenticator
+    #[clap(index = 4)]
+    pub auth_code: Option<String>,
+    /// The next authenticator code from your mobile authenticator
+    #[clap(index = 5)]
+    pub next_auth_code: Option<String>,
 }
 
 #[derive(Clap)]
@@ -216,6 +239,9 @@ pub async fn main_opts_user(opts_user: OptsUser, token: Option<String>, token_pa
             let session = crate::main_session_user(token.clone(), token_path.clone(), Some(auth.clone())).await?;
             crate::main_user_details(session).await?;
         }
+        UserAction::Recover(action) => {
+            let _session = crate::main_reset(action.email, action.recovery_code, action.auth_code, action.next_auth_code, action.new_password, auth).await?;
+        }
     }
     Ok(())
 }
@@ -250,7 +276,10 @@ pub async fn main_opts_token(opts_token: OptsToken, token: Option<String>, token
     match opts_token.action {
         TokenAction::Generate(action) => {
             let session = crate::main_login(action.email, action.password, auth).await?;
-            eprintln!("The token string below can be used to secure your file system.\n");
+
+            if atty::is(atty::Stream::Stdout) {
+                eprintln!("The token string below can be used to secure your file system.\n");
+            }
             
             let session: AteSessionType = session.into();
             println!("{}", crate::session_to_b64(session).unwrap());
@@ -258,14 +287,20 @@ pub async fn main_opts_token(opts_token: OptsToken, token: Option<String>, token
         TokenAction::Sudo(action) => {
             let session = crate::main_login(action.email, action.password, auth.clone()).await?;
             let session = crate::main_sudo(session, action.code, auth).await?;
-            eprintln!("The token string below can be used to secure your file system.\n");
+
+            if atty::is(atty::Stream::Stdout) {
+                eprintln!("The token string below can be used to secure your file system.\n");
+            }
 
             let session: AteSessionType = session.into();
             println!("{}", crate::session_to_b64(session).unwrap());
         },
         TokenAction::Gather(action) => {
             let session = crate::main_session_group(token.clone(), token_path.clone(), action.group, action.sudo, None, Some(auth.clone()), hint_group).await?;
-            eprintln!("The token string below can be used to secure your file system.\n");
+
+            if atty::is(atty::Stream::Stdout) {
+                eprintln!("The token string below can be used to secure your file system.\n");
+            }
             
             let session: AteSessionType = session.into();
             println!("{}", crate::session_to_b64(session).unwrap());

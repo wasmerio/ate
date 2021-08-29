@@ -33,7 +33,7 @@ impl AuthService
         let dio = chain.dio(&self.master_session).await;
 
         // If it does not exist then fail
-        let user_key_entropy = format!("advert@{}", request.identity).to_string();
+        let user_key_entropy = format!("advert:{}", request.identity).to_string();
         let user_key = PrimaryKey::from(user_key_entropy);
         if dio.exists(&user_key).await == false {
             return Err(QueryFailed::NotFound);

@@ -74,7 +74,7 @@ for DaoVecState
             Self::Saved(a) => Self::Saved(a.clone())
         }
     }
-}  
+}
 
 impl<D> std::fmt::Debug
 for DaoVec<D>
@@ -120,10 +120,7 @@ impl<D> DaoVec<D>
             _phantom1: PhantomData,
         }
     }
-}
-
-impl<D> DaoVec<D>
-{
+    
     pub fn new_orphaned(dio: &Arc<Dio>, parent: PrimaryKey, vec_id: u64) -> DaoVec<D> {
         DaoVec {
             state: DaoVecState::Saved(parent),
@@ -271,7 +268,7 @@ impl<D> DaoVec<D>
 
         Ok(
             IterMut::new(
-            children                
+            children
             )
         )
     }

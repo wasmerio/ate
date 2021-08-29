@@ -225,6 +225,10 @@ pub async fn main_sudo(
     let code = match code {
         Some(a) => a,
         None => {
+            if !atty::is(atty::Stream::Stdin) {
+                bail!(SudoErrorKind::InvalidArguments);
+            }
+
             // When no code is supplied we will ask for it
             eprint!("Authenticator Code: ");
             stdout().lock().flush()?;

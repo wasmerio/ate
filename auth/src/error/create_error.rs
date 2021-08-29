@@ -26,6 +26,10 @@ error_chain! {
             description("create failed as the operator could not be found")
             display("create failed as the operator could not be found")
         }
+        InvalidArguments {
+            description("you did not provide the right type or quantity of arguments")
+            display("you did not provide the right type or quantity of arguments")
+        }
         AccountSuspended {
             description("create failed as the account is currently suspended")
             display("create failed as the account is currently suspended")

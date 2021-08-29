@@ -252,7 +252,7 @@ impl AuthService
         group.auth_mut().write = WriteOption::Any(vec![master_write_key.hash(), owner_write.hash()]);
 
         // Create the advert object and save it using public read
-        let advert_key_entropy = format!("advert@{}", request.group.clone()).to_string();
+        let advert_key_entropy = format!("advert:{}", request.group.clone()).to_string();
         let advert_key = PrimaryKey::from(advert_key_entropy);
         let advert = Advert {
             identity: request.group.clone(),
@@ -308,6 +308,10 @@ pub async fn main_create_group_prelude(
     let group = match group {
         Some(a) => a,
         None => {
+            if !atty::is(atty::Stream::Stdin) {
+                bail!(CreateErrorKind::InvalidArguments);
+            }
+
             print!("{}: ", hint_group);
             stdout().lock().flush()?;
             let mut s = String::new();
@@ -319,6 +323,10 @@ pub async fn main_create_group_prelude(
     let username = match username {
         Some(a) => a,
         None => {
+            if !atty::is(atty::Stream::Stdin) {
+                bail!(CreateErrorKind::InvalidArguments);
+            }
+
             print!("Username: ");
             stdout().lock().flush()?;
             let mut s = String::new();

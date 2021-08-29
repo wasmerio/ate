@@ -9,6 +9,7 @@ mod group_details;
 mod group_user_add;
 mod group_user_remove;
 mod gather;
+mod reset;
 mod test;
 pub mod model;
 pub mod service;
@@ -47,5 +48,7 @@ pub use gather::gather_command;
 pub use opts::main_opts_group;
 pub use opts::main_opts_token;
 pub use opts::main_opts_user;
+pub use reset::main_reset;
+pub use reset::reset_command;
 
 pub static GENERIC_TERMS_AND_CONDITIONS: &str = include_str!("generic_terms.txt");
