@@ -974,7 +974,7 @@ for AteFS
         let data = self.mknod_internal(req, parent, name, mode, 0).await?;
         cc(data.trans().commit().await)?;
 
-        let spec = Inode::as_file_spec(data.key().as_u64(), data.when_created(), data.when_updated(), data.into()).await;
+        let spec = Inode::as_file_spec_mut(data.key().as_u64(), data.when_created(), data.when_updated(), data.into()).await;
         let open = OpenHandle {
             inode: spec.ino(),
             read_only: false,

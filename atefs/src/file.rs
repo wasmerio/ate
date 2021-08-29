@@ -462,7 +462,7 @@ impl FileState
             FileState::Mutable { dirty, inode, bundles, pages} =>
                 (dirty, inode, bundles, pages),
             FileState::Immutable {  inode: _, bundles: _, pages: _ } => {
-                return Err(libc::EACCES.into());
+                return Ok(());
             }
         };
 
