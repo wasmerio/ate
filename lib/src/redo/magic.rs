@@ -11,11 +11,6 @@ static LOG_MAGIC: &'static [u8; 3] = b"RED";
 #[repr(u8)]
 pub enum RedoMagic
 {
-    #[deprecated(
-        since = "0.6.1",
-        note = "This redo magic header is deprecated and will be removed in a future release."
-    )]
-    V1 = b'O',
     V2 = b'1',
 }
 
@@ -88,7 +83,6 @@ impl RedoHeader
                     Ok(a) => {
                         let inner = match a {
                             #[allow(deprecated)]
-                            RedoMagic::V1 => Vec::new(),
                             RedoMagic::V2 => {
                                 let inner_size = api.read_u32().await?;
                                 let mut inner = vec![0 as u8; inner_size as usize];
@@ -124,7 +118,6 @@ impl RedoHeader
                 api.write_u32(self.inner.len() as u32).await?;
                 api.write_exact(&self.inner[..]).await?;
             }
-            _ => { }
         }
 
         Ok(())

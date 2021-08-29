@@ -134,7 +134,6 @@ impl<'a> Chain
                 compactors: builder.compactors,
             },
             metrics: Arc::clone(&builder.metrics),
-            throttle: Arc::clone(&builder.throttle),
         };
 
         // Construct all the protected fields that are behind a synchronous critical section

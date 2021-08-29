@@ -4,7 +4,6 @@ use parking_lot::Mutex as StdMutex;
 use std::sync::Arc;
 
 use crate::comms::Metrics;
-use crate::comms::Throttle;
 use crate::meta::*;
 use crate::error::*;
 use crate::header::*;
@@ -21,7 +20,6 @@ pub(crate) struct ChainOfTrust
     pub(crate) timeline: ChainTimeline,
     pub(crate) redo: RedoLog,
     pub metrics: Arc<StdMutex<Metrics>>,
-    pub throttle: Arc<StdMutex<Throttle>>,
 }
 
 impl std::fmt::Debug
