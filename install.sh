@@ -1,5 +1,6 @@
 #!/bin/bash -e
-cp -f target/release/atedb /usr/bin/
-cp -f target/release/atefs /usr/bin/
-cp -f target/release/auth-server /usr/bin
-cp -f target/release/auth-tools /usr/bin
+cargo build --release
+sudo cp -f target/release/atedb /usr/bin/
+sudo cp -f target/release/atefs /usr/bin/
+sudo cp -f target/release/auth-server /usr/bin
+sudo cp -f target/release/auth-tools /usr/bin
