@@ -41,6 +41,9 @@ pub struct ConfMesh
     /// the address is not in the list of cluster nodes.
     #[cfg(feature="enable_server")]
     pub force_listen: Option<MeshAddress>,
+    /// Forces ATE to listen on a specific port
+    #[cfg(feature="enable_server")]
+    pub force_port: Option<u16>,
     /// When listening for connections the server will use the certificate
     /// below when establishing secure connections.
     #[cfg(feature="enable_server")]
@@ -176,6 +179,8 @@ impl ConfMesh
             force_client_only: false,
             #[cfg(feature="enable_server")]
             force_listen: None,
+            #[cfg(feature="enable_server")]
+            force_port: None,
             #[cfg(feature="enable_server")]
             force_node_id: None,
             #[cfg(feature="enable_client")]

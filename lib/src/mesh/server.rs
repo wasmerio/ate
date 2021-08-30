@@ -139,6 +139,11 @@ impl MeshRoot
             .map(|a| a.port)
             .collect::<Vec<_>>();
 
+        if let Some(port) = cfg.cfg_mesh.force_port {
+            listen_ports.clear();
+            listen_ports.push(port);
+        }
+
         listen_ports.sort();
         listen_ports.dedup();
         for port in listen_ports.iter() {
