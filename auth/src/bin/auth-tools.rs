@@ -4,7 +4,9 @@ use url::Url;
 use ate::{prelude::*};
 use ate_auth::prelude::*;
 use clap::Clap;
-use ate_auth::opts::*;
+use ate_auth::cmd::*;
+use ate_auth::opt::*;
+use ate_auth::prelude::*;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), AteError>
@@ -16,13 +18,13 @@ async fn main() -> Result<(), AteError>
     // Determine what we need to do
     match opts.subcmd {
         SubCommand::User(opts_user) => {
-            ate_auth::main_opts_user(opts_user, opts.token, opts.token_path, opts.auth).await?;
+            main_opts_user(opts_user, opts.token, opts.token_path, opts.auth).await?;
         },
         SubCommand::Group(opts_group) => {
-            ate_auth::main_opts_group(opts_group, opts.token, opts.token_path, opts.auth, "Group").await?;
+            main_opts_group(opts_group, opts.token, opts.token_path, opts.auth, "Group").await?;
         },
         SubCommand::Token(opts_token) => {
-            ate_auth::main_opts_token(opts_token, opts.token, opts.token_path, opts.auth, "Group").await?;
+            main_opts_token(opts_token, opts.token, opts.token_path, opts.auth, "Group").await?;
         }
     }
 

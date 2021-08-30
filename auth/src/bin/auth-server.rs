@@ -80,12 +80,12 @@ async fn main() -> Result<(), AteError>
         SubCommand::Run(run) =>
         {
             // Open the key file
-            let root_write_key: PrivateSignKey = ate_auth::load_key(run.key_path.clone(), ".write");
-            let root_read_key: EncryptKey = ate_auth::load_key(run.key_path.clone(), ".read");
-            let root_cert_key: PrivateEncryptKey = ate_auth::load_key(run.key_path.clone(), ".cert");
+            let root_write_key: PrivateSignKey = load_key(run.key_path.clone(), ".write");
+            let root_read_key: EncryptKey = load_key(run.key_path.clone(), ".read");
+            let root_cert_key: PrivateEncryptKey = load_key(run.key_path.clone(), ".cert");
             
             // Build a session for service
-            let mut cfg_ate = ate_auth::conf_auth();
+            let mut cfg_ate = conf_auth();
             cfg_ate.log_path = Some(shellexpand::tilde(&run.logs_path).to_string());
             if let Some(backup_path) = run.backup_path {
                 cfg_ate.backup_path = Some(shellexpand::tilde(&backup_path).to_string());
@@ -118,13 +118,13 @@ async fn main() -> Result<(), AteError>
 
         SubCommand::Generate(generate) => {
             let read_key = EncryptKey::generate(generate.strength);
-            ate_auth::save_key(generate.key_path.clone(), read_key, ".read");
+            save_key(generate.key_path.clone(), read_key, ".read");
 
             let write_key = PrivateSignKey::generate(generate.strength);
-            ate_auth::save_key(generate.key_path.clone(), write_key, ".write");
+            save_key(generate.key_path.clone(), write_key, ".write");
 
             let cert_key = PrivateEncryptKey::generate(generate.strength);
-            ate_auth::save_key(generate.key_path.clone(), cert_key, ".cert");
+            save_key(generate.key_path.clone(), cert_key, ".cert");
         },
     }
 

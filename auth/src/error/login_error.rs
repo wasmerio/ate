@@ -2,7 +2,7 @@ use error_chain::error_chain;
 use std::time::Duration;
 
 use ::ate::prelude::*;
-use crate::commands::*;
+use crate::request::*;
 
 error_chain! {
     types {

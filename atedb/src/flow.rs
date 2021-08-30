@@ -6,7 +6,7 @@ use regex::Regex;
 use async_trait::async_trait;
 use ate::{error::ChainCreationError, prelude::*};
 use ate::spec::TrustMode;
-use ate_auth::commands::*;
+use ate_auth::request::*;
 
 pub struct ChainFlow {
     pub cfg: ConfAte,

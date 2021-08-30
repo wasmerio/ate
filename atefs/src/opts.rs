@@ -1,7 +1,7 @@
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use ate::prelude::*;
-use ate_auth::opts::*;
+use ate_auth::opt::*;
 use url::Url;
 
 use ate::compact::CompactMode;

@@ -1,13 +1,13 @@
-pub mod create_group;
-pub mod create_user;
-pub mod gather;
-pub mod group_details;
-pub mod group_user_add;
-pub mod group_user_remove;
-pub mod login;
-pub mod query;
-pub mod sudo;
-pub mod reset;
+mod create_group;
+mod create_user;
+mod gather;
+mod group_details;
+mod group_user_add;
+mod group_user_remove;
+mod login;
+mod query;
+mod sudo;
+mod reset;
 
 pub use create_group::*;
 pub use create_user::*;

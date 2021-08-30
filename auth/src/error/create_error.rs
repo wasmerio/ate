@@ -1,7 +1,7 @@
 use error_chain::error_chain;
 
 use ate::prelude::*;
-use crate::commands::*;
+use crate::request::*;
 
 error_chain! {
     types {

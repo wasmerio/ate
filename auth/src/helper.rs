@@ -2,6 +2,8 @@
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use serde::*;
 use std::fs::File;
+use std::sync::Arc;
+use url::Url;
 
 use ::ate::prelude::*;
 use ::ate::crypto::EncryptKey;
@@ -211,4 +213,28 @@ where T: Serialize
     print!("Generating secret key at {}...", key_path);
     bincode::serialize_into(&mut file, &key).unwrap();
     println!("Done");
+}
+
+pub async fn load_credentials(registry: &Arc<Registry>, username: String, read_key: EncryptKey, _code: Option<String>, auth: Url) -> Result<AteSessionUser, AteError>
+{
+    // Prepare for the load operation
+    let key = PrimaryKey::from(username.clone());
+    let mut session = AteSessionUser::new();
+    session.user.add_read_key(&read_key);
+
+    // Generate a chain key that matches this username on the authentication server
+    let chain_key = chain_key_4hex(username.as_str(), Some("redo"));
+    let chain = registry.open(&auth, &chain_key).await?;
+
+    // Load the user
+    let dio = chain.dio(&session).await;
+    let user = dio.load::<User>(&key).await?;
+
+    // Build a new session
+    let mut session = AteSessionUser::new();
+    for access in user.access.iter() {
+        session.user.add_read_key(&access.read);
+        session.user.add_write_key(&access.write);
+    }
+    Ok(session)
 }
