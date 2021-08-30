@@ -24,15 +24,26 @@
 
 0.8.3   Tokera release.
 
+0.8.4   Backport Wallet Functionality
+        + Change license on 'ateauth' to a proprietory license
+        + Copy over the wallet request objects and model
+          (but not the coins!)
+
+-----------------------------------------------------------------------------------
+ATE RELEASE 1.0
+----------------
+
+1.1.0   Implement the 'ateweb' project
+        + Uses a new 
+
+0.8.
+
 0.8.4   Publish ATE on webassembly.sh
         + Publish the module on the WebAssembly package manager
           (see https://wapm.io/)
         + Should be able to execute commands on the webassembly shell emulator with ATE
           (see https://webassembly.sh/)
 
------------------------------------------------------------------------------------
-ATE RELEASE 1.0
-----------------
 
 0.8.5   Tokera release.
 

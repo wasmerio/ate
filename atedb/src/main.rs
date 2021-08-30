@@ -157,7 +157,7 @@ async fn main_solo(solo: Solo, mut cfg_ate: ConfAte, auth: Option<url::Url>, tru
     let flow = ChainFlow::new(&cfg_ate, auth, solo.url.clone(), trust).await;
 
     // Create the server and listen on the port
-    let mut cfg_mesh = ConfMesh::solo_from_url(&cfg_ate, &solo.url, &solo.listen, solo.node_id).await?;
+    let mut cfg_mesh = ConfMesh::solo_from_url(&cfg_ate, &solo.url, &solo.listen, None, solo.node_id).await?;
     cfg_mesh.wire_protocol = StreamProtocol::parse(&solo.url)?;
     cfg_mesh.wire_encryption = wire_encryption;
 

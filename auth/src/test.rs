@@ -45,7 +45,7 @@ pub async fn test_create_user_and_group()
 
     // Create the server and listen on port 5000
     info!("creating server and listening on ports with routes");
-    let mut cfg_mesh = ConfMesh::solo_from_url(&cfg_ate, &auth, &IpAddr::from_str("::1").unwrap(), None).await.unwrap();
+    let mut cfg_mesh = ConfMesh::solo_from_url(&cfg_ate, &auth, &IpAddr::from_str("::1").unwrap(), None, None).await.unwrap();
     cfg_mesh.wire_protocol = StreamProtocol::WebSocket;
     cfg_mesh.listen_certificate = Some(cert);
     let server = create_server(&cfg_mesh).await.unwrap();

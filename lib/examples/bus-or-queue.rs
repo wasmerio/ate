@@ -31,7 +31,7 @@ async fn main() -> Result<(), AteError>
     let mesh_url = url::Url::parse("ws://localhost:5001/").unwrap();
     let cfg_ate = ConfAte::default();
     #[cfg(feature="enable_dns")]
-    let mut cfg_mesh = ConfMesh::solo(&cfg_ate, &IpAddr::from_str("127.0.0.1").unwrap(), "localhost".to_string(), 5001, None).await?;
+    let mut cfg_mesh = ConfMesh::solo(&cfg_ate, &IpAddr::from_str("127.0.0.1").unwrap(), None, "localhost".to_string(), 5001, None).await?;
     #[cfg(not(feature="enable_dns"))]
     let mut cfg_mesh = ConfMesh::solo("localhost".to_string(), 5001)?;
     let _root = create_ethereal_distributed_server(&cfg_ate, &cfg_mesh).await?;

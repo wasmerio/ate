@@ -99,14 +99,15 @@ impl ConfMesh
     /// will be stored locally to this server and there is no replication
     #[cfg(feature="enable_dns")]
     #[cfg(feature="enable_server")]
-    pub async fn solo(cfg_ate: &ConfAte, listen: &IpAddr, domain: String, port: u16, node_id: Option<u32>) -> Result<ConfMesh, CommsError>
+    pub async fn solo(cfg_ate: &ConfAte, listen: &IpAddr, listen_port: Option<u16>, domain: String, connect_port: u16, node_id: Option<u32>) -> Result<ConfMesh, CommsError>
     {
         let registry = Registry::new(cfg_ate).await;
-        let addr = MeshAddress::new(listen.clone(), port);
-        let mut cfg_mesh = registry.cfg_for_domain(domain.as_str(), port).await?;
+        let addr = MeshAddress::new(listen.clone(), connect_port);
+        let mut cfg_mesh = registry.cfg_for_domain(domain.as_str(), connect_port).await?;
         cfg_mesh.force_client_only = false;
         cfg_mesh.force_listen = Some(addr.clone());
         cfg_mesh.force_node_id = node_id;
+        cfg_mesh.force_port = listen_port;
         
         Ok(cfg_mesh)
     }
@@ -115,7 +116,7 @@ impl ConfMesh
     /// will be stored locally to this server and there is no replication
     #[cfg(not(feature="enable_dns"))]
     #[cfg(feature="enable_server")]
-    pub async fn solo(cfg_ate: &ConfAte, domain: String, port: u16, node_id: Option<u32>) -> Result<ConfMesh, CommsError>
+    pub async fn solo(cfg_ate: &ConfAte, domain: String, listen_port: Option<u16>, connect_port: u16, node_id: Option<u32>) -> Result<ConfMesh, CommsError>
     {
         let registry = Registry::new(cfg_ate).await;
         let addr = MeshAddress::new(domain.as_str(), port);
@@ -129,7 +130,7 @@ impl ConfMesh
 
     #[cfg(feature="enable_dns")]
     #[cfg(feature="enable_server")]
-    pub async fn solo_from_url(cfg_ate: &ConfAte, url :&url::Url, listen: &IpAddr, node_id: Option<u32>) -> Result<ConfMesh, CommsError>
+    pub async fn solo_from_url(cfg_ate: &ConfAte, url :&url::Url, listen: &IpAddr, listen_port: Option<u16>, node_id: Option<u32>) -> Result<ConfMesh, CommsError>
     {
         let protocol = StreamProtocol::parse(url)?;
         let port = url.port().unwrap_or(protocol.default_port());
@@ -140,7 +141,7 @@ impl ConfMesh
             }
         };
 
-        let mut ret = ConfMesh::solo(cfg_ate, listen, domain, port, node_id).await?;
+        let mut ret = ConfMesh::solo(cfg_ate, listen, listen_port, domain, port, node_id).await?;
         ret.force_node_id = match node_id {
             Some(a) => Some(a),
             None => {
