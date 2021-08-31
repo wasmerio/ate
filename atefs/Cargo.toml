@@ -13,14 +13,16 @@ build = "build.rs"
 links = "fuse"
 
 [features]
-default = [ "client", "server" ]
+default = [ "client", "server", "enable_tokera" ]
 client_web = [ "ate/client_web", "ate-auth/client_web" ]
 client = [ "ate/client", "ate-auth/client" ]
 server = [ "ate/server", "ate-auth/server", "ate/enable_mt" ]
+enable_tokera = []
 
 [dependencies]
 ate = { version = "^0.9", path = "../lib", default_features = false }
 ate-auth = { version = "^1", path = "../auth", default_features = false }
+tokera = { version = "^1", path = "../../tokera/lib", optional = true }
 error-chain = { version = "^0.12", default_features = false }
 tokio = { version = "^1", features = ["full", "signal", "process"] }
 serde = { version = "^1", features = ["derive"] }

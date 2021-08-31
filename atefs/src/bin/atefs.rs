@@ -8,6 +8,9 @@ use atefs::opts::*;
 use atefs::main_mount;
 use ate::compact::CompactMode;
 
+use ate_auth::cmd::*;
+use ate_auth::helper::*;
+
 use clap::Clap;
 
 #[allow(dead_code)]
@@ -74,17 +77,17 @@ async fn main() -> Result<(), CommandError> {
     
     match opts.subcmd {
         SubCommand::Token(opts_token) => {
-            ate_auth::main_opts_token(opts_token, opts.token, opts.token_path, opts.auth, "Group").await?;
+            main_opts_token(opts_token, opts.token, opts.token_path, opts.auth, "Group").await?;
         },
         SubCommand::User(opts_user) => {
-            ate_auth::main_opts_user(opts_user, opts.token, opts.token_path, opts.auth).await?;
+            main_opts_user(opts_user, opts.token, opts.token_path, opts.auth).await?;
         },
         SubCommand::Group(opts_group) => {
             if opts.no_auth {
                 eprintln!("In order to create groups you must use some form of authentication.");
                 std::process::exit(1);
             }
-            ate_auth::main_opts_group(opts_group, opts.token, opts.token_path, opts.auth, "Group").await?;
+            main_opts_group(opts_group, opts.token, opts.token_path, opts.auth, "Group").await?;
         },
         SubCommand::Mount(mount) =>
         {
@@ -112,7 +115,7 @@ async fn main() -> Result<(), CommandError> {
                 }
 
                 let prefix = "ate:".to_string();
-                let key = ate_auth::password_to_read_key(&prefix, &pass, 15, KeySize::Bit192);
+                let key = password_to_read_key(&prefix, &pass, 15, KeySize::Bit192);
 
                 let mut session_user = AteSessionUser::default();
                 session_user.user.add_read_key(&key);
@@ -127,11 +130,11 @@ async fn main() -> Result<(), CommandError> {
                 // We do not put anything in the session as no authentication method nor a passcode was supplied
             } else {
                 // Load the session via the token or the authentication server
-                let session_user = ate_auth::main_session_user(opts.token.clone(), opts.token_path.clone(), Some(opts.auth.clone())).await?;
+                let session_user = main_session_user(opts.token.clone(), opts.token_path.clone(), Some(opts.auth.clone())).await?;
                 
                 // Attempt to grab additional permissions for the group (if it has any)
                 session = if group.is_some() {
-                    match ate_auth::main_gather(group.clone(), session_user.clone().into(), opts.auth, "Group").await {
+                    match main_gather(group.clone(), session_user.clone().into(), opts.auth, "Group").await {
                         Ok(a) => a.into(),
                         Err(err) => {
                             debug!("Group authentication failed: {} - falling back to user level authorization", err);

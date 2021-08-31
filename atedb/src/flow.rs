@@ -7,6 +7,8 @@ use async_trait::async_trait;
 use ate::{error::ChainCreationError, prelude::*};
 use ate::spec::TrustMode;
 use ate_auth::request::*;
+use ate_auth::helper::conf_auth;
+use ate_auth::cmd::query_command;
 
 pub struct ChainFlow {
     pub cfg: ConfAte,
@@ -21,7 +23,7 @@ pub struct ChainFlow {
 impl ChainFlow
 {
     pub async fn new(cfg: &ConfAte, url_auth: Option<url::Url>, url_db: url::Url, mode: TrustMode) -> Self {
-        let registry = ate::mesh::Registry::new(&ate_auth::conf_auth()).await.cement();
+        let registry = ate::mesh::Registry::new(&conf_auth()).await.cement();
         ChainFlow {
             cfg: cfg.clone(),
             regex_personal: Regex::new("^([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})/([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})/([a-zA-Z0-9_]{1,})$").unwrap(),
@@ -69,7 +71,7 @@ for ChainFlow
 
             // Grab the public write key from the authentication server for this user
             if let Some(auth) = &self.url_auth {
-                let advert = match ate_auth::query_command(&self.registry, email.clone(), auth.clone()).await {
+                let advert = match query_command(&self.registry, email.clone(), auth.clone()).await {
                     Ok(a) => a.advert,
                     Err(err) => {
                         return Ok(OpenAction::Deny {

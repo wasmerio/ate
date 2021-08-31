@@ -6,6 +6,12 @@ use url::Url;
 
 use ate::compact::CompactMode;
 
+#[cfg(feature = "enable_tokera")]
+use {
+    tokera::cmd::*,
+    tokera::opt::*
+};
+
 use clap::Clap;
 
 #[derive(Clap)]
@@ -55,18 +61,55 @@ pub struct Opts {
 
 #[derive(Clap)]
 pub enum SubCommand {
-    /// Mounts a local or remote file system
-    #[clap()]
-    Mount(OptsMount),
-    /// Users are needed to access any remote file systems
+    /// Users are personal accounts and services that have an authentication context.
+    /// Every user comes with a personal wallet that can hold commodities.
     #[clap()]
     User(OptsUser),
     /// Groups are collections of users that share same remote file system
+    #[cfg(not(feature = "enable_tokera"))]
     #[clap()]
     Group(OptsGroup),
-    /// Tokens are needed to mount file systems without prompting for credentials
+    /// Domain groups are collections of users that share something together in association
+    /// with an internet domain name. Every group has a built in wallet(s) that you can
+    /// use instead of a personal wallet. In order to claim a domain group you will need
+    /// DNS access to an owned internet domain that can be validated.
+    #[cfg(feature = "enable_tokera")]
+    #[clap()]
+    Domain(OptsGroup),
+    /// Tokens are stored authentication and authorization secrets used by other processes.
+    /// Using this command you may generate a custom token however the usual method for
+    /// authentication is to use the login command instead.
     #[clap()]
     Token(OptsToken),
+    /// Services offered by Tokera (and other 3rd parties) are accessible via this
+    /// sub command menu, including viewing the available services and subscribing
+    /// to them.
+    #[cfg(feature = "enable_tokera")]
+    #[clap()]
+    Service(OptsService),
+    /// Contracts represent all the subscriptions you have made to specific services
+    /// you personally consume or a group consume that you act on your authority on
+    /// behalf of. This sub-menu allows you to perform actions such as cancel said
+    /// contracts.
+    #[cfg(feature = "enable_tokera")]
+    #[clap()]
+    Contract(OptsContract),
+    /// Wallets are directly attached to groups and users - they hold a balance,
+    /// store transaction history and facilitate transfers, deposits and withdraws.
+    #[cfg(feature = "enable_tokera")]
+    #[clap()]
+    Wallet(OptsWallet),
+    /// Login to an account and store the token locally for reuse.
+    #[cfg(feature = "enable_tokera")]
+    #[clap()]
+    Login(OptsLogin),
+    /// Logout of the account by deleting the local token.
+    #[cfg(feature = "enable_tokera")]
+    #[clap()]
+    Logout(OptsLogout),
+    /// Mounts a local or remote file system
+    #[clap()]
+    Mount(OptsMount),
 }
 
 /// Mounts a particular directory as an ATE file system
