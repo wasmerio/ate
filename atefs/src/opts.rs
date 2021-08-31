@@ -8,7 +8,6 @@ use ate::compact::CompactMode;
 
 #[cfg(feature = "enable_tokera")]
 use {
-    tokera::cmd::*,
     tokera::opt::*
 };
 
@@ -33,8 +32,13 @@ pub struct Opts {
     pub token: Option<String>,
     /// Token file to read that holds a previously created token to be used to access your encrypted
     /// file-system (if you do not supply a token then you will be prompted for a username and password)
+    #[cfg(not(feature = "enable_tokera"))]
     #[clap(long)]
     pub token_path: Option<String>,
+    /// Token file to read that holds a previously created token to be used for this operation
+    #[cfg(feature = "enable_tokera")]
+    #[clap(long, default_value = "~/tok/token")]
+    pub token_path: String,
     /// No NTP server will be used to synchronize the time thus the server time
     /// will be used instead
     #[clap(long)]
@@ -107,7 +111,9 @@ pub enum SubCommand {
     #[cfg(feature = "enable_tokera")]
     #[clap()]
     Logout(OptsLogout),
-    /// Mounts a local or remote file system
+    /// Mounts a local or a remote file system (e.g. ws://tokera.com/db). When
+    /// using a Tokera remote you can either use the default free hosting or subscribe
+    /// to the service which will consume funds from the wallet.
     #[clap()]
     Mount(OptsMount),
 }

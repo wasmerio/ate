@@ -17,7 +17,7 @@ default = [ "client", "server", "enable_tokera" ]
 client_web = [ "ate/client_web", "ate-auth/client_web" ]
 client = [ "ate/client", "ate-auth/client" ]
 server = [ "ate/server", "ate-auth/server", "ate/enable_mt" ]
-enable_tokera = []
+enable_tokera = [ "tokera" ]
 
 [dependencies]
 ate = { version = "^0.9", path = "../lib", default_features = false }

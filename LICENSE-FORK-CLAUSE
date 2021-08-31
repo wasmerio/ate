@@ -1,0 +1,37 @@
+“Fork Clause” License Condition v1.0
+
+The Software is provided to you by the Licensor under the License, as defined
+below, subject to the following condition.
+
+Without limiting other conditions in the License (^1), the grant of rights under
+the License will not include, and the License does not grant to you, the
+right to Fork the Software.
+
+For purposes of the foregoing, “Fork” means modified copies of the Software
+source code outside of the direct Control of the Licensor either with or
+without their consent. "Control" includes, but is not limited to, access
+rights, ownership, visibility and any other form of authentication or
+authorization to read, write or modify the copied source code.
+
+This clause is exempt in the scenario that you are developing a patch to be
+contributed back to source code that remains under the direct control of
+the Licensor, this exemption is under the strict condition that contribution
+is the sole and only purpose of modification and that use of the uncontrolled
+modified software be only for testing purposes related to the patch that will be
+contributed back to the Licensor.
+
+The Licensor reserves the right, that upon request, you permanently delete
+any Modified copies of this software at any time without notice, except for
+copies that are considered unmodified copies of the original source code in
+its current or previous form. "Previous Form" means the source code that is
+or was under the direct control of the licensor when it was copied. "Modified"
+means all files that make up this specific source code collection, whereas new
+or unrelated files are exempt from the definition of Modified.
+
+^1: In the scenario that this Clause and other licenses are found to be in
+conflict then the Fork Clause will override and take preference over any
+conflict of interests and/or conditions.
+
+License: Apache 2.0 OR MIT
+
+Licensor: Tokera Pty Ltd

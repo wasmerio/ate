@@ -1,63 +1,22 @@
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use ate::prelude::*;
-use url::Url;
 
-use atefs::error::CommandError;
 use atefs::opts::*;
 use atefs::main_mount;
-use ate::compact::CompactMode;
 
 use ate_auth::cmd::*;
 use ate_auth::helper::*;
 
+#[cfg(feature = "enable_tokera")]
+use {
+    tokera::cmd::*,
+};
+
 use clap::Clap;
 
-#[allow(dead_code)]
-fn test_opts() -> Opts {
-    Opts {
-        verbose: 0,
-        auth: Url::parse("ws://tokera.com/auth").unwrap(),
-        no_auth: false,
-        token: None,
-        token_path: Some("~/token".to_string()),
-        no_ntp: false,
-        ntp_pool: None,
-        ntp_port: None,
-        debug: false,
-        dns_sec: false,
-        dns_server: "8.8.8.8".to_string(),
-        subcmd: SubCommand::Mount(OptsMount {
-            mount_path: "/mnt/ate".to_string(),
-            remote: Url::parse("ws://tokera.com/db/").unwrap(),
-            remote_name: Some("myfs".to_string()),
-            log_path: Some("~/ate/fs".to_string()),
-            backup_path: None,
-            recovery_mode: RecoveryMode::ReadOnlyAsync,
-            passcode: None,
-            temp: false,
-            uid: None,
-            gid: None,
-            allow_root: false,
-            allow_other: false,
-            read_only: false,
-            write_back: false,
-            non_empty: false,
-            impersonate_uid: true,
-            configured_for: ate::conf::ConfiguredFor::BestPerformance,
-            meta_format: SerializationFormat::Bincode,
-            data_format: SerializationFormat::Bincode,
-            compact_now: false,
-            compact_mode: CompactMode::Never,
-            compact_timer: 3600,
-            compact_threshold_factor: 0.2,
-            compact_threshold_size: 104857600
-        })
-    }
-}
-
 #[tokio::main(flavor = "current_thread")]
-async fn main() -> Result<(), CommandError> {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let opts: Opts = Opts::parse();
     //let opts = test_opts();
     
@@ -74,21 +33,61 @@ async fn main() -> Result<(), CommandError> {
     if let Some(port) = opts.ntp_port {
         conf.ntp_port = port;
     }
+
+    #[cfg(feature = "enable_tokera")]
+    let token_path = {
+        Some(opts.token_path.clone())
+    };
+    #[cfg(not(feature = "enable_tokera"))]
+    let token_path = opts.token_path.clone();
     
     match opts.subcmd {
         SubCommand::Token(opts_token) => {
-            main_opts_token(opts_token, opts.token, opts.token_path, opts.auth, "Group").await?;
+            main_opts_token(opts_token, opts.token, token_path, opts.auth, "Group").await?;
         },
         SubCommand::User(opts_user) => {
-            main_opts_user(opts_user, opts.token, opts.token_path, opts.auth).await?;
+            main_opts_user(opts_user, opts.token, token_path, opts.auth).await?;
         },
+        #[cfg(not(feature = "enable_tokera"))]
         SubCommand::Group(opts_group) => {
             if opts.no_auth {
                 eprintln!("In order to create groups you must use some form of authentication.");
                 std::process::exit(1);
             }
-            main_opts_group(opts_group, opts.token, opts.token_path, opts.auth, "Group").await?;
+            main_opts_group(opts_group, opts.token, token_path, opts.auth, "Group").await?;
         },
+        #[cfg(feature = "enable_tokera")]
+        SubCommand::Domain(opts_group) => {
+            main_opts_group(opts_group, None, token_path, opts.auth, "Domain name").await?;
+        },
+        #[cfg(feature = "enable_tokera")]
+        SubCommand::Wallet(opts_wallet) =>
+        {
+            // Make sure the token exists
+            let token_path = shellexpand::tilde(&opts.token_path).to_string();
+            if std::path::Path::new(&token_path).exists() == false {
+                eprintln!("Token not found - please first login.");
+                std::process::exit(1);
+            }
+
+            main_opts_wallet(opts_wallet.source, opts.token_path, opts.auth).await?
+        },
+        #[cfg(feature = "enable_tokera")]
+        SubCommand::Contract(opts_contract) => {
+            main_opts_contract(opts_contract.purpose, opts.token_path, opts.auth).await?;
+        },
+        #[cfg(feature = "enable_tokera")]
+        SubCommand::Service(opts_service) => {
+            main_opts_service(opts_service.purpose, opts.token_path, opts.auth).await?;
+        },
+        #[cfg(feature = "enable_tokera")]
+        SubCommand::Login(opts_login) => {
+            main_opts_login(opts_login, opts.token_path, opts.auth).await?
+        },
+        #[cfg(feature = "enable_tokera")]
+        SubCommand::Logout(opts_logout) => {
+            main_opts_logout(opts_logout, opts.token_path).await?
+        }
         SubCommand::Mount(mount) =>
         {
             // Derive the group from the mount address
@@ -105,7 +104,7 @@ async fn main() -> Result<(), CommandError> {
             // If a passcode is supplied then use this
             if let Some(pass) = &mount.passcode
             {
-                if opts.token.is_some() || opts.token_path.is_some() {
+                if opts.token.is_some() || token_path.is_some() {
                     eprintln!("You can not supply both a passcode and a token, either drop the --token arguments or the --passcode argument");
                     std::process::exit(1);
                 }
@@ -130,7 +129,7 @@ async fn main() -> Result<(), CommandError> {
                 // We do not put anything in the session as no authentication method nor a passcode was supplied
             } else {
                 // Load the session via the token or the authentication server
-                let session_user = main_session_user(opts.token.clone(), opts.token_path.clone(), Some(opts.auth.clone())).await?;
+                let session_user = main_session_user(opts.token.clone(), token_path.clone(), Some(opts.auth.clone())).await?;
                 
                 // Attempt to grab additional permissions for the group (if it has any)
                 session = if group.is_some() {
