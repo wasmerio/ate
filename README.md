@@ -91,54 +91,54 @@ This library is a way of working with data in modern distributed computing.
 ## Changelog
 
 ```
-0.8.0  -= Stability Release =-
+1.0.0  -= Major Release =-
 
-       + Fixed an infinite loop and locked-up bug for certain scenarios that have
-         a tree structure of data objects
-       + Added more helper functions that make the library more extendable
-       + Removed the log file ".redo" prefix, this may require you to rename your
-         log files after upgrading
-       + Added default ports on all the URL's to reduce boiletplate and help
-         prevent easily avoidable configuration errors
-       + Some minor changes in the structure of the library to help with extendability
-       + Improved DaoRef object that works across chains
-       + Added additional error handling for certain failure modes
-       + Fixed a bug where commands were not aborting when the connection fails with the server
-       + Refactoring of the data model behind ATE's key authentication objects
-       + Added a regex to check the email address is valid
-       + The wire-format of connections will now properly negotiate even if they are
-         configured differently between server and client.
-       + Fixed a bug where compacting events would sometimes lose data in scenarios where
-         connectivity was lost during the compact processing.
-       + Fixed a bug where worker threads were not properly exiting which prevented a
-         graceful shutdown of the process.
+       + Major compatibility breaking refactor of the code to bring it up to
+         production grade. All future changes will be fully forwards compatible
+         for all versions calling within version 1.
+       + Added support for WASM with wasm32-wasi as a build target. This will
+         allow ATE to be compiled and used directly within WebAssembly. More on
+         this new feature coming soon!
+       + Added full support for multiplexed WebSockets (ws://) which allows ATE
+         to be consumed via HTTP calls including directly from the browser.
+       + Added 'path' awareness to the hello messages so that multiple ATE servers
+         can listen on the same port.
+       + Implemented full support for async single threaded clients and servers
+         which will allow ATE to run at high performance in a browser sandbox.
+       + Commands will now reuse connects thus lowering the connection negotiation
+         frequence and improving performance.
+       + Registries will now keep chains alive for a fixed period of time (60s)
+         to improve responsiveness and performance.
+       + Added the ability to throttle or rate-limit connections.
+       + Major improvements the DAO and DIO access objects that make them much
+         easier to use and provide a full feature set.
+       + Implemented DaoMap that allows for fast access to hashed map objects.
+       + Improved the serialization code to produce smaller log files and improve
+         the performance during loading.
+       + Switched from SHA3 to Blade3 as the default hasher to improve performance
+         but retain cryptographic security.
+       + Added Client and Server certificates so that chains running in centralized
+         trust mode and resistant to man-in-the-middle denial of service attacks.
+       + Implemented an automatic backup and restore capability.
+       + Implemented a log dump helper utility useful for debugging purposes.
+       + Added a user account recovery process for when users lose their password
+         without compromising on the core values of ATE.
+       + All user accounts created now include an email verification step.
+       + Creating (domain) groups they are now validated against TXT DNS records
+         for proof of ownership.
+       + Linked in tokera functionality that allows for wallets and contracts.
+       + Implemented free and paid hosting of ATE databases on tokera.com
+       + Switched to a new error handling framework (crate error_chain) to reduce
+         code bloat and make better errors.
+       + Switched to a new logging (tracing) framework (crate tracing) which
+         allows for much better debugger and operations.
+       + Chain compacting no longer breaks the trust chains on centralized trees
+         and hence now using compacting on authentication objects.
+       + Many significant performance enhancements.
+       + Fixed quite a number of major and minor bugs and improved the stability
+         to the point that this is now a major release.
 
-0.7.0  -= Compacting Chains =-
-
-       + ATE now fully supports compacting chains - compacting chains works both
-         client side and server side completely independently which allows either
-         the server or client to compress down redo-logs by removing all duplicate
-         events and anything that has been tombstoned (a bit like Kafka compacting
-         topics does but with more intelligence in the process - e.g. validators)
-       + Made the local file storage of redo logs optional rather than mandatory
-         thus users of ATE can now run entirely in memory (this is in preparation
-         for refactoring ATE for use in WebAssembly)
-       + Chain history now uses the NTP clock for building its timelines thus
-         with a bit of tolerance added into the mix it becomes possible to make
-         a more stable sync process between multiple clients and servers
-       
-       -= Bug Fixes =-
-
-       + Fixed a bug where connections were left open even when the chains went out
-         of scope (e.g. short commands) - this was leaking thus hurted stability
-       + Fixed a major bug where the redo-logs would become corrupted in specific
-         scenarios where the log is reloaded but the offsets were not updated.
-       + Fixed a security flaw in the events streamed from the servers which
-         included the computed hash for the data however this needs to be recomputed
-         client-side in case someone tries to spoof the event.
-       + Fixed various other minor bugs
-
-<=0.6.0 See commit history
+<=0.8.0 See commit history
 ```
 
 ## High Level Design

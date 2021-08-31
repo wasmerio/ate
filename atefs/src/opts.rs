@@ -37,7 +37,7 @@ pub struct Opts {
     pub token_path: Option<String>,
     /// Token file to read that holds a previously created token to be used for this operation
     #[cfg(feature = "enable_tokera")]
-    #[clap(long, default_value = "~/tok/token")]
+    #[clap(long, default_value = "~/ate/token")]
     pub token_path: String,
     /// No NTP server will be used to synchronize the time thus the server time
     /// will be used instead

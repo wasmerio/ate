@@ -1,6 +1,6 @@
 [package]
 name = "atefs"
-version = "1.7.0"
+version = "1.8.0"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 description = "Distributed filesystem built on an immutable data store with strong encryption and authentication"
@@ -20,7 +20,7 @@ server = [ "ate/server", "ate-auth/server", "ate/enable_mt" ]
 enable_tokera = [ "tokera" ]
 
 [dependencies]
-ate = { version = "^0.9", path = "../lib", default_features = false }
+ate = { version = "^1", path = "../lib", default_features = false }
 ate-auth = { version = "^1", path = "../auth", default_features = false }
 tokera = { version = "^1", path = "../../tokera/lib", optional = true }
 error-chain = { version = "^0.12", default_features = false }
