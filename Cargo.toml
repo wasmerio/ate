@@ -4,6 +4,7 @@ members = [
     "atefs",
     "atedb",
     "auth",
+    "tok",
 ]
 
 [profile.release]
