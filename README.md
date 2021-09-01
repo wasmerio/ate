@@ -48,6 +48,7 @@ This library is a way of working with data in modern distributed computing.
 
 ## Examples
 
+- [Typical Client](auth/examples/client.rs)
 - [Hello World](lib/examples/hello-world.rs)
 - [Server/Client](lib/examples/server-client.rs)
 - [Publish/Subscribe](lib/examples/bus-or-queue.rs)
@@ -68,8 +69,8 @@ This library is a way of working with data in modern distributed computing.
      |   Server    |              Server
      |             | .. .. .. |             | .. .. ..
      | >atedb solo |
-     '------|----\-'          '- - | - - - -'
-            |     \                |
+     '------|----\-'          '- - - - - - -'
+            |     \                 
         ws://yourserver.com/db
             |       \
      .------|------. \
@@ -80,15 +81,19 @@ This library is a way of working with data in modern distributed computing.
      '-------------'  |'---------------'|
                       '-----------------'
 
-- Server runs the 'atedb' process on some network reachable location
-- Create several records for each IP address under the same A-record in your DNS
-- Either create your own authentication server (auth-server) or just use
-  ws://tokera.com/auth
-- Create a user programatically or using 'atefs create user' and 'atefs create token'
-- Build your model in RUST and add ATE as a dependency
-- Deploy your client on native apps or as WebAssembly browser apps.
+The easiest way to get up and running is to just build your app and point the
+database URL at ws://tokera.com/db. You will need to register an account and verify
+your identity however after this you can use the free databases and/or paid option.
 
-(See the 'atefs' source-code for examples on how to do all this)
+Alternatively, if you wish to host your own ATE servers in infrastructure that you
+manage and run then follow these high-level steps.
+
+1. Server runs the 'atedb' process on some network reachable location
+2. Create several records for each IP address under the same A-record in your DNS
+3. Either create your own authentication server as well using the ate_auth library
+   or just use the authentication servers hosted at ws://tokera.com/auth.
+4. Create a user programatically or using 'atefs user create'
+   and 'atefs token generate'
 ```
 
 ## Quick Start
