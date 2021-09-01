@@ -90,7 +90,7 @@ manage and run then follow these high-level steps.
 
 1. Server runs the 'atedb' process on some network reachable location
 2. Create several records for each IP address under the same A-record in your DNS
-3. Either create your own authentication server as well using [auth-server](auth/src/bin/auth-server.rs)
+3. Either create your own authentication server as well using the auth-server binary
    or just use the authentication servers hosted at Tokera by pointing to
    ws://tokera.com/auth.
 4. Create a user programatically or using 'atefs user create'
