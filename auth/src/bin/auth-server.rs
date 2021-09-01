@@ -1,8 +1,10 @@
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use ate::{prelude::*};
-use ate_auth::prelude::*;
 use clap::Clap;
+
+use ate_auth::prelude::*;
+use ate_auth::helper::*;
 
 #[derive(Clap)]
 #[clap(version = "1.5", author = "John S. <johnathan.sharratt@gmail.com>")]

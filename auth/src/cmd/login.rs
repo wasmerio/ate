@@ -14,7 +14,7 @@ use crate::error::*;
 use crate::request::*;
 use crate::opt::*;
 
-pub async fn login_command(registry: &Arc<Registry>, username: String, password: String, verification_code: Option<String>, auth: Url, print_message_of_the_day: bool) -> Result<AteSessionUser, LoginError>
+pub async fn login_command(registry: &Registry, username: String, password: String, verification_code: Option<String>, auth: Url, print_message_of_the_day: bool) -> Result<AteSessionUser, LoginError>
 {
     // Open a command chain
     let chain = registry.open_cmd(&auth).await?;
@@ -84,6 +84,11 @@ pub(crate) async fn main_session_start(token_string: Option<String>, token_file_
     };
 
     Ok(session)
+}
+
+pub async fn main_session_prompt(auth_url: url::Url) -> Result<AteSessionUser, LoginError>
+{
+    main_session_user(None, None, Some(auth_url)).await
 }
 
 pub async fn main_session_user(token_string: Option<String>, token_file_path: Option<String>, auth_url: Option<url::Url>) -> Result<AteSessionUser, LoginError>
@@ -161,7 +166,7 @@ pub async fn main_login(
 }
 
 pub(crate) async fn handle_login_response(
-    registry: &Arc<Registry>,
+    registry: &Registry,
     mut response: Result<AteSessionUser, LoginError>,
     username: String,
     password: String,

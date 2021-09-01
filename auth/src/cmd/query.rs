@@ -14,7 +14,7 @@ use crate::error::*;
 use crate::request::*;
 use crate::opt::*;
 
-pub async fn query_command(registry: &Arc<Registry>, username: String, auth: Url) -> Result<QueryResponse, QueryError>
+pub async fn query_command(registry: &Registry, username: String, auth: Url) -> Result<QueryResponse, QueryError>
 {
     // Open a command chain
     let chain = registry.open_cmd(&auth).await?;

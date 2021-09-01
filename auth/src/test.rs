@@ -7,8 +7,7 @@ use url::Url;
 use std::time::Duration;
 
 use crate::prelude::*;
-use crate::cmd::login_command;
-use crate::cmd::handle_login_response;
+use crate::cmd::*;
 
 #[tokio::main(flavor = "current_thread")]
 #[test]

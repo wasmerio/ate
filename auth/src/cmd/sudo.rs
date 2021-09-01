@@ -40,7 +40,7 @@ pub async fn main_session_sudo(token_string: Option<String>, token_file_path: Op
     )
 }
 
-pub async fn sudo_command(registry: &Arc<Registry>, session: &AteSessionUser, authenticator_code: String, auth: Url) -> Result<AteSessionSudo, SudoError>
+pub async fn sudo_command(registry: &Registry, session: &AteSessionUser, authenticator_code: String, auth: Url) -> Result<AteSessionSudo, SudoError>
 {
     // Open a command chain
     let chain = registry.open_cmd(&auth).await?;

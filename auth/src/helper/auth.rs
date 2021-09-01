@@ -1,55 +1,11 @@
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use serde::*;
-use std::fs::File;
-use std::sync::Arc;
 use url::Url;
 
 use ::ate::prelude::*;
 use ::ate::crypto::EncryptKey;
 
 use crate::model::*;
-
-pub fn password_to_read_key(seed: &String, password: &String, repeat: i32, key_size: KeySize) -> EncryptKey
-{
-    let mut bytes = Vec::from(seed.as_bytes());
-    bytes.extend(Vec::from(password.as_bytes()).iter());
-    while bytes.len() < 1000 {
-        bytes.push(0);
-    }
-    let hash = AteHash::from_bytes_sha3(password.as_bytes(), repeat);
-    EncryptKey::from_seed_bytes(hash.to_bytes(), key_size)
-}
-
-pub fn estimate_user_name_as_uid(email: String) -> u32
-{
-    let min = ((u32::MAX as u64) * 2) / 4;
-    let max = ((u32::MAX as u64) * 3) / 4;
-    PrimaryKey::from_ext(AteHash::from(email), min as u64, max as u64).as_u64() as u32
-}
-
-pub fn estimate_group_name_as_gid(group: String) -> u32
-{
-    let min = ((u32::MAX as u64) * 3) / 4;
-    let max = ((u32::MAX as u64) * 4) / 4;
-    PrimaryKey::from_ext(AteHash::from(group), min as u64, max as u64).as_u64() as u32
-}
-
-pub fn conf_auth() -> ConfAte
-{
-    let mut cfg_ate = ConfAte::default();
-    cfg_ate.configured_for(ConfiguredFor::BestSecurity);
-    cfg_ate.log_format.meta = SerializationFormat::Json;
-    cfg_ate.log_format.data = SerializationFormat::Json;
-    cfg_ate.record_type_name = true;
-    cfg_ate
-}
-
-pub fn conf_cmd() -> ConfAte
-{
-    let cfg_cmd = conf_auth();
-    cfg_cmd
-}
 
 pub(crate) fn compute_user_auth(user: &User) -> AteSessionUser
 {
@@ -142,80 +98,7 @@ pub(crate) fn complete_group_auth(group: &Group, inner: AteSessionInner)
     Ok(session)
 }
 
-pub fn session_to_b64(session: AteSessionType) -> Result<String, SerializationError>
-{
-    let format = SerializationFormat::MessagePack;
-    let bytes = format.serialize(&session)?;
-    Ok(base64::encode(bytes))
-}
-
-pub fn b64_to_session(val: String) -> AteSessionType
-{
-    let val = val.trim().to_string();
-    let format = SerializationFormat::MessagePack;
-    let bytes = base64::decode(val).unwrap();
-    format.deserialize( &bytes).unwrap()
-}
-
-#[allow(dead_code)]
-pub fn is_public_domain(domain: &str) -> bool {
-    match domain {
-        "gmail.com" => true,
-        "zoho.com" => true,
-        "outlook.com" => true,
-        "hotmail.com" => true,
-        "mail.com" => true,
-        "yahoo.com" => true,
-        "gmx.com" => true,
-        "hushmail.com" => true,
-        "hush.com" => true,
-        "inbox.com" => true,
-        "aol.com" => true,
-        "yandex.com" => true,
-        _ => false
-    }
-}
-
-pub fn try_load_key<T>(key_path: String) -> Option<T>
-where T: serde::de::DeserializeOwned
-{
-    let path = shellexpand::tilde(&key_path).to_string();
-    debug!("loading key: {}", path);
-    let path = std::path::Path::new(&path);
-    File::open(path)
-        .ok()
-        .map(|file| {
-            bincode::deserialize_from(&file).unwrap()
-        })
-}
-
-pub fn load_key<T>(key_path: String, postfix: &str) -> T
-where T: serde::de::DeserializeOwned
-{
-    let key_path = format!("{}{}", key_path, postfix).to_string();
-    let path = shellexpand::tilde(&key_path).to_string();
-    debug!("loading key: {}", path);
-    let path = std::path::Path::new(&path);
-    let file = File::open(path).unwrap();
-    bincode::deserialize_from(&file).unwrap()
-}
-
-pub fn save_key<T>(key_path: String, key: T, postfix: &str)
-where T: Serialize
-{
-    let key_path = format!("{}{}", key_path, postfix).to_string();
-    let path = shellexpand::tilde(&key_path).to_string();
-    debug!("saving key: {}", path);
-    let path = std::path::Path::new(&path);
-    let _ = std::fs::create_dir_all(path.parent().unwrap().clone());
-    let mut file = File::create(path).unwrap();
-    
-    print!("Generating secret key at {}...", key_path);
-    bincode::serialize_into(&mut file, &key).unwrap();
-    println!("Done");
-}
-
-pub async fn load_credentials(registry: &Arc<Registry>, username: String, read_key: EncryptKey, _code: Option<String>, auth: Url) -> Result<AteSessionUser, AteError>
+pub async fn load_credentials(registry: &Registry, username: String, read_key: EncryptKey, _code: Option<String>, auth: Url) -> Result<AteSessionUser, AteError>
 {
     // Prepare for the load operation
     let key = PrimaryKey::from(username.clone());

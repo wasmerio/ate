@@ -13,7 +13,7 @@ use crate::error::*;
 use crate::request::*;
 use crate::opt::*;
 
-pub async fn reset_command(registry: &Arc<Registry>, email: String, new_password: String, recovery_key: EncryptKey, sudo_code: String, sudo_code_2: String, auth: Url) -> Result<ResetResponse, ResetError>
+pub async fn reset_command(registry: &Registry, email: String, new_password: String, recovery_key: EncryptKey, sudo_code: String, sudo_code_2: String, auth: Url) -> Result<ResetResponse, ResetError>
 {
     // Open a command chain
     let chain = registry.open_cmd(&auth).await?;

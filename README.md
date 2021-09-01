@@ -68,22 +68,25 @@ This library is a way of working with data in modern distributed computing.
      |   Server    |              Server
      |             | .. .. .. |             | .. .. ..
      | >atedb solo |
-     '------|------'          '- - | - - - -'
-            |                      |
+     '------|----\-'          '- - | - - - -'
+            |     \                |
         ws://yourserver.com/db/yourdb
-            |
-     .------|------.
-     |   Client    |
-     |             |                 
-     | >program    |
-     |  \ate.so    |
-     '-------------'
+            |       \
+     .------|------. \
+     |Native Client|  .-----Browser-----.
+     |             |  |.---------------.|
+     | >program    |  || >wasm32-wasi  ||
+     |  \ate.so    |  ||  \ate.wasm    ||
+     '-------------'  |'---------------'|
+                      '-----------------'
 
-- Server runs the 'atedb' process on some network reachable
+- Server runs the 'atedb' process on some network reachable location
 - Create several records for each IP address under the same A-record in your DNS
+- Either create your own authentication server (auth-server) or just use
+  ws://tokera.com/auth
+- Create a user programatically or using 'atefs create user' and 'atefs create token'
 - Build your model in RUST and add ATE as a dependency
-- Either create your own authentication server (auth-server) or use ws://tokera.com/auth
-- Create a user programatically or using 'atefs create-user' and 'atefs create-token'
+- Deploy your client on native apps or as WebAssembly browser apps.
 
 (See the 'atefs' source-code for examples on how to do all this)
 ```
@@ -156,12 +159,12 @@ This library is a way of working with data in modern distributed computing.
     |  >local redo-log                                   
     |  >Crypto-Graph Materiaized View< (in memory)       
     |  .----------------------------------.      session 
-    |  |             root                 |   .-----------.
+    |  |             root(hash)           |   .-----------.
     |  |              |                   |   |  -token   |
-    |  |      dao----dao                  |---|  -claims  |
+    |  |      dao----dao(aes)             |---|  -claims  |
     |  |              \                   |   |  -keys    |
-    |  |               dao                |   |  -timeout |
-    |  |                                  |   *-----------*
+    |  |               dao                |   *-----------*
+    |  |                                  |
 
 
 ## Feature Flags
@@ -173,9 +176,54 @@ This library is a way of working with data in modern distributed computing.
 - 'client_web' - Client functionality designed for running within a browser sandbox
                  (--target=wasm32-wasi)
 
+## WebAssembly
+
+When compiling for WASM use the following command:
+
+```sh
+cargo build --target wasm32-wasi --no-default-features --features client_web
+```
+
 ## Quick Start
 
 Add ate, serde and tokio to your dependency list in Cargo.toml
+
+```toml
+[dependencies]
+tokio = { version = "*", features = ["full", "signal", "process"] }
+serde = { version = "*", features = ["derive"] }
+ate = { version = "*" }
+ate_auth = { version = "*" }
+```
+
+```rust
+use serde::{Serialize, Deserialize};
+use ate_auth::prelude::*;
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct MyData
+{
+    pi: String,
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>>
+{
+    let dio = DioBuilder::default()
+        .with_session_prompt().await?
+        .build("mychain")
+        .await?;
+
+    dio.store(MyData {
+        pi: "3.14159265359".to_string(),
+    })?;
+    dio.commit().await?;
+
+    Ok(())
+}
+```
+
+## Lower Level Example
 
 ```toml
 [dependencies]
@@ -187,9 +235,6 @@ ate = { version = "*" }
 Create a main.rs file
 
 ```rust
-extern crate tokio;
-extern crate serde;
-
 use serde::{Serialize, Deserialize};
 use ate::prelude::*;
 
@@ -225,12 +270,6 @@ async fn main() -> Result<(), AteError>
     // All errors in ATE will convert into the AteError
     Ok(())
 }
-```
-
-When compiling for WASM use the following command:
-
-```sh
-cargo build --target wasm32-wasi --no-default-features --features client_web
 ```
 
 ## Contribution

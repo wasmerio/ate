@@ -1,12 +1,12 @@
-pub mod create_error;
-pub mod gather_error;
-pub mod group_details_error;
-pub mod group_user_add_error;
-pub mod group_user_remove_error;
-pub mod login_error;
-pub mod query_error;
-pub mod sudo_error;
-pub mod reset_error;
+mod create_error;
+mod gather_error;
+mod group_details_error;
+mod group_user_add_error;
+mod group_user_remove_error;
+mod login_error;
+mod query_error;
+mod sudo_error;
+mod reset_error;
 
 pub use create_error::CreateError as CreateError;
 pub use create_error::CreateErrorKind as CreateErrorKind;

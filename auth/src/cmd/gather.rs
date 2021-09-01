@@ -15,7 +15,7 @@ use crate::opt::*;
 
 use super::*;
 
-pub async fn gather_command(registry: &Arc<Registry>, group: String, session: AteSessionInner, auth: Url) -> Result<AteSessionGroup, GatherError>
+pub async fn gather_command(registry: &Registry, group: String, session: AteSessionInner, auth: Url) -> Result<AteSessionGroup, GatherError>
 {
     // Open a command chain
     let chain = registry.open_cmd(&auth).await?;

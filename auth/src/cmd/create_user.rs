@@ -14,7 +14,7 @@ use crate::request::*;
 use crate::opt::*;
 
 #[allow(dead_code)]
-pub async fn create_user_command(registry: &Arc<Registry>, username: String, password: String, auth: Url, accepted_terms: Option<String>) -> Result<CreateUserResponse, CreateError>
+pub async fn create_user_command(registry: &Registry, username: String, password: String, auth: Url, accepted_terms: Option<String>) -> Result<CreateUserResponse, CreateError>
 {
     // Open a command chain
     let chain = registry.open_cmd(&auth).await?;

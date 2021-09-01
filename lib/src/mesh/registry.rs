@@ -114,12 +114,12 @@ impl Registry
         Arc::new(self)
     }
     
-    pub async fn open(self: &Arc<Self>, url: &Url, key: &ChainKey) -> Result<ChainGuard, ChainCreationError>
+    pub async fn open(&self, url: &Url, key: &ChainKey) -> Result<ChainGuard, ChainCreationError>
     {
         TaskEngine::run_until(self.__open(url, key)).await
     }
     
-    pub async fn open_cmd(self: &Arc<Self>, url: &Url) -> Result<ChainGuard, ChainCreationError>
+    pub async fn open_cmd(&self, url: &Url) -> Result<ChainGuard, ChainCreationError>
     {
         TaskEngine::run_until(async {
             if let Some(a) = self.__try_open(url, &self.chain_key_cmd(url, true)).await? {
@@ -130,7 +130,7 @@ impl Registry
         }).await
     }
 
-    async fn __open(self: &Arc<Self>, url: &Url, key: &ChainKey) -> Result<ChainGuard, ChainCreationError>
+    async fn __open(&self, url: &Url, key: &ChainKey) -> Result<ChainGuard, ChainCreationError>
     {
         let loader_local = loader::DummyLoader::default();
         let loader_remote = loader::DummyLoader::default();
@@ -142,7 +142,7 @@ impl Registry
         TaskEngine::run_until(self.__open_ext(url, key, loader_local, loader_remote)).await
     }
 
-    async fn __try_open(self: &Arc<Self>, url: &Url, key: &ChainKey) -> Result<Option<ChainGuard>, ChainCreationError>
+    async fn __try_open(&self, url: &Url, key: &ChainKey) -> Result<Option<ChainGuard>, ChainCreationError>
     {
         Ok(self.__try_open_ext(url, key).await?)
     }

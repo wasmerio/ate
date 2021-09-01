@@ -13,7 +13,7 @@ use crate::error::*;
 use crate::request::*;
 use crate::opt::*;
 
-pub async fn group_details_command(registry: &Arc<Registry>, group: String, auth: Url, session: Option<&AteSessionGroup>) -> Result<GroupDetailsResponse, GroupDetailsError>
+pub async fn group_details_command(registry: &Registry, group: String, auth: Url, session: Option<&AteSessionGroup>) -> Result<GroupDetailsResponse, GroupDetailsError>
 {
     // Open a command chain
     let chain = registry.open_cmd(&auth).await?;

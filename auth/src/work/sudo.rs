@@ -13,6 +13,7 @@ use ate::error::TransformError;
 
 use crate::prelude::*;
 use crate::request::*;
+use crate::model::*;
 use crate::service::AuthService;
 use crate::helper::*;
 use crate::error::*;

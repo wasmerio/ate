@@ -42,7 +42,7 @@ for AteSessionUser
                 properties: Vec::new()
             },
             token: None,
-            identity: "nobody".to_string(),
+            identity: "nobody@nowhere.com".to_string(),
             broker_read: None,
             broker_write: None,
         }

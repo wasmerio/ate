@@ -12,6 +12,7 @@ use crate::helper::*;
 use crate::error::*;
 use crate::request::*;
 use crate::opt::*;
+use crate::cmd::*;
 
 pub async fn main_opts_user(opts_user: OptsUser, token: Option<String>, token_path: Option<String>, auth: url::Url) -> Result<(), AteError>{
     match opts_user.action {

@@ -14,6 +14,7 @@ use ate::utils::chain_key_4hex;
 
 use crate::helper::conf_cmd;
 use crate::prelude::*;
+use crate::model::*;
 use crate::request::*;
 use crate::service::AuthService;
 use crate::helper::*;

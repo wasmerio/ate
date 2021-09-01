@@ -13,6 +13,7 @@ use ate::error::TransformError;
 use ate::utils::chain_key_4hex;
 
 use crate::prelude::*;
+use crate::model::*;
 use crate::request::*;
 use crate::service::AuthService;
 use crate::helper::*;

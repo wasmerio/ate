@@ -12,8 +12,9 @@ use crate::helper::*;
 use crate::error::*;
 use crate::request::*;
 use crate::opt::*;
+use crate::cmd::*;
 
-pub async fn group_user_add_command(registry: &Arc<Registry>, session: &AteSessionGroup, purpose: AteRolePurpose, username: String, auth: Url) -> Result<GroupUserAddResponse, GroupUserAddError>
+pub async fn group_user_add_command(registry: &Registry, session: &AteSessionGroup, purpose: AteRolePurpose, username: String, auth: Url) -> Result<GroupUserAddResponse, GroupUserAddError>
 {
     // Open a command chain
     let group = session.identity().to_string();
