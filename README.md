@@ -91,6 +91,47 @@ This library is a way of working with data in modern distributed computing.
 (See the 'atefs' source-code for examples on how to do all this)
 ```
 
+## Quick Start
+
+Cargo.toml
+
+```toml
+[dependencies]
+tokio = { version = "*", features = ["full", "signal", "process"] }
+serde = { version = "*", features = ["derive"] }
+ate = { version = "*" }
+ate_auth = { version = "*" }
+```
+
+main.rs
+
+```rust
+use serde::{Serialize, Deserialize};
+use ate_auth::prelude::*;
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct MyData
+{
+    pi: String,
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>>
+{
+    let dio = DioBuilder::default()
+        .with_session_prompt().await?
+        .build("mychain")
+        .await?;
+
+    dio.store(MyData {
+        pi: "3.14159265359".to_string(),
+    })?;
+    dio.commit().await?;
+
+    Ok(())
+}
+```
+
 ## Changelog
 
 ```
@@ -184,47 +225,10 @@ When compiling for WASM use the following command:
 cargo build --target wasm32-wasi --no-default-features --features client_web
 ```
 
-## Quick Start
-
-Add ate, serde and tokio to your dependency list in Cargo.toml
-
-```toml
-[dependencies]
-tokio = { version = "*", features = ["full", "signal", "process"] }
-serde = { version = "*", features = ["derive"] }
-ate = { version = "*" }
-ate_auth = { version = "*" }
-```
-
-```rust
-use serde::{Serialize, Deserialize};
-use ate_auth::prelude::*;
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-struct MyData
-{
-    pi: String,
-}
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>>
-{
-    let dio = DioBuilder::default()
-        .with_session_prompt().await?
-        .build("mychain")
-        .await?;
-
-    dio.store(MyData {
-        pi: "3.14159265359".to_string(),
-    })?;
-    dio.commit().await?;
-
-    Ok(())
-}
-```
-
 ## Lower Level Example
 
+Cargo.toml
+
 ```toml
 [dependencies]
 tokio = { version = "*", features = ["full", "signal", "process"] }
@@ -232,7 +236,7 @@ serde = { version = "*", features = ["derive"] }
 ate = { version = "*" }
 ```
 
-Create a main.rs file
+main.rs
 
 ```rust
 use serde::{Serialize, Deserialize};
