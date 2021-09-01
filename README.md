@@ -93,8 +93,6 @@ manage and run then follow these high-level steps.
 3. Either create your own authentication server as well using the auth-server binary
    or just use the authentication servers hosted at Tokera by pointing to
    ws://tokera.com/auth.
-4. Create a user programatically or using 'atefs user create'
-   and 'atefs token generate'
 ```
 
 ## Quick Start
