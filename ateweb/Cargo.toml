@@ -1,0 +1,54 @@
+[package]
+name = "ateweb"
+version = "1.0.0"
+authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
+edition = "2018"
+description = "High performance web server built on top of atefs"
+license = "MIT OR Apache-2.0"
+keywords = [
+    "static-web-server",
+    "file-server",
+    "http-server",
+]
+categories = ["network-programming", "web-programming::http-server"]
+repository = "https://github.com/john-sharratt/ate/tree/master/atefs"
+readme = "README.md"
+
+[features]
+default = []
+
+[dependencies]
+ate = { version = "^1", path = "../lib", default_features = false }
+ate-auth = { version = "^1", path = "../auth", default_features = false }
+ate-files = { version = "^1", path = "../files" }
+hyper = { version = "^0.14", features = ["stream", "http1", "http2", "tcp", "server"] }
+async-compression = { version = "0.3", features = ["brotli", "deflate", "gzip", "tokio"] }
+http = { version = "0.2" }
+mime_guess = { version = "2.0"}
+error-chain = { version = "^0.12", default_features = false }
+tokio = { version = "^1", features = [ "full", "signal", "process"] }
+serde = { version = "^1", features = [ "derive"] }
+tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
+tracing-futures = { version = "^0.2" }
+tracing-subscriber = { version = "^0.2" }
+parking_lot = "^0.11"
+futures = "^0.3"
+futures-util = "^0.3"
+async-trait = "^0.1"
+bytes = "^1"
+fxhash = "^0.2"
+fastrand = "^1.4"
+ctrlc = { version = "^3" }
+directories = { version = "^3" }
+libc = { version = "^0.2" }
+enum_dispatch = { version = "^0.3" }
+clap = "3.0.0-beta.2"
+shellexpand = "^2"
+cached = "^0.23"
+seqlock = "^0.1"
+xarc = "^0.2"
+lockfree = "^0.5"
+array-init = "^1"
+rpassword = "0.0.*"
+url = "^2"
+pbr = "^1"
