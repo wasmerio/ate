@@ -34,14 +34,17 @@ pub struct Server
 }
 
 async fn process(server: Arc<Server>, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
+    let path = req.uri().path().to_string();
     match server.process(req).await {
         Ok(a) => Ok(a),
+        Err(WebServerError(WebServerErrorKind::FileSystemError(FileSystemErrorKind::NoAccess), _)) => {
+            let err = format!("Access Denied - {}\n", path);
+            let mut resp = Response::new(Body::from(err));
+            *resp.status_mut() = StatusCode::FORBIDDEN;
+            return Ok(resp);
+        }
         Err(err) => {
-            let mut err_str = err.to_string();
-            if err_str.ends_with("\n") == false {
-                err_str.push_str("\n");
-            }
-            let mut resp = Response::new(Body::from(err_str));
+            let mut resp = Response::new(Body::from(err.response_body()));
             *resp.status_mut() = err.status_code();
             return Ok(resp);
         }

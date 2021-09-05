@@ -159,7 +159,16 @@ pub async fn main_mount(mount: OptsMount, conf: ConfAte, group: Option<String>, 
     // Create the mount point
     let mount_path = mount.mount_path.clone();
     let mount_join = Session::new(mount_options)
-        .mount_with_unprivileged(AteFS::new(chain, group, session, scope_io, scope_meta, no_auth, mount.impersonate_uid).await, mount.mount_path);
+        .mount_with_unprivileged(AteFS::new(
+            chain,
+            group,
+            session,
+            scope_io,
+            scope_meta,
+            no_auth,
+            mount.impersonate_uid,
+            mount.umask,
+        ).await, mount.mount_path);
 
     // Install a ctrl-c command
     info!("mounting file-system and entering main loop");

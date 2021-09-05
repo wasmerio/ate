@@ -75,7 +75,7 @@ impl FileAccessor
         if let Err(LoadError(LoadErrorKind::NotFound(_), _)) = self.dio.load::<Inode>(&PrimaryKey::from(1)).await {
             info!("creating-root-node");
             
-            let mode = 0o755;
+            let mode = 0o770;
             let uid = self.translate_uid(req.uid, req);
             let gid = self.translate_gid(req.gid, req);
             let root = Inode::new(
@@ -396,10 +396,10 @@ impl FileAccessor
                     self.get_user_read_key(uid)
                 }
             };
-            if let Some(inner_key) = inner_key {
-                let new_key = match new_key {
+            if let Some(new_key) = new_key {
+                let inner_key = match inner_key {
                     Some(a) => a.clone(),
-                    None => EncryptKey::generate(inner_key.size())
+                    None => EncryptKey::generate(new_key.size())
                 };
                 auth.read = ReadOption::Specific(new_key.hash(), DerivedEncryptKey::reverse(&new_key, &inner_key));
             } else if self.no_auth == false {
@@ -685,7 +685,6 @@ impl FileAccessor
         parent: u64,
         name: &str,
         mode: u32,
-        _umask: u32,
     ) -> Result<FileAttr> {
         self.tick().await?;
         debug!("atefs::mkdir parent={}", parent);
@@ -1064,7 +1063,7 @@ impl FileAccessor
 
         let link = link.to_string();
         let spec = {
-            let mut dao = self.mknod_internal(req, parent, name, 0o755).await?;
+            let mut dao = self.mknod_internal(req, parent, name, 0o770).await?;
             {
                 let mut dao = dao.as_mut();
                 dao.kind = FileKind::SymLink;

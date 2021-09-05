@@ -327,7 +327,8 @@ impl DioMut
             format,
             created: 0,
             updated: 0,
-            extra_meta: Vec::new()
+            extra_meta: Vec::new(),
+            is_new: true,
         };
 
         let mut ret: DaoMut<D> = DaoMut::new(Arc::clone(self), Dao::new(&self.dio, row_header, row));
@@ -503,7 +504,9 @@ impl DioMut
                 if let Some(parent) = &row_header.parent {
                     meta.core.push(CoreMetadata::Parent(parent.clone()))
                 } else {
-                    if multi_lock.inside_async.disable_new_roots == true {
+                    if multi_lock.inside_async.disable_new_roots == true &&
+                       row.is_new == true
+                    {
                         bail!(CommitErrorKind::NewRootsAreDisabled);
                     }
                 }

@@ -42,6 +42,7 @@ pub(super) struct Row<D>
     pub(super) data: D,
     pub(super) collections: FxHashSet<MetaCollection>,
     pub(super) extra_meta: Vec<CoreMetadata>,
+    pub(super) is_new: bool,
 }
 
 impl<D> Clone
@@ -59,6 +60,7 @@ where D: Clone,
             data: self.data.clone(),
             collections: self.collections.clone(),
             extra_meta: self.extra_meta.clone(),
+            is_new: self.is_new.clone(),
         }
     }
 }
@@ -118,6 +120,7 @@ impl<D> Row<D>
                         created,
                         updated,
                         extra_meta: Vec::new(),
+                        is_new: false,
                     }
                 ))
             }
@@ -150,6 +153,7 @@ impl<D> Row<D>
                 created: row.created,
                 updated: row.updated,
                 extra_meta: row.extra_meta.clone(),
+                is_new: false,
             }
         ))
     }
@@ -173,6 +177,7 @@ impl<D> Row<D>
                 created: self.created,
                 updated: self.updated,
                 extra_meta: self.extra_meta.clone(),
+                is_new: self.is_new,
             }
         )
     }
@@ -192,4 +197,5 @@ pub(crate) struct RowData
     pub extra_meta: Vec<CoreMetadata>,
     pub parent: Option<MetaParent>,
     pub auth: MetaAuthorization,
+    pub is_new: bool,
 }

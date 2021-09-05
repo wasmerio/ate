@@ -161,6 +161,7 @@ impl ServiceHook
             extra_meta,
             parent: None,
             auth,
+            is_new: true,
         });
         Ok(())
     }

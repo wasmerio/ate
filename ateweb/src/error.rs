@@ -43,4 +43,15 @@ impl WebServerError
             _ => StatusCode::INTERNAL_SERVER_ERROR
         }
     }
+
+    pub fn response_body(&self) -> String
+    {
+        let mut ret = match self {
+            err => err.to_string()
+        };
+        if ret.ends_with("\n") == false {
+            ret.push_str("\n");
+        }
+        ret
+    }
 }

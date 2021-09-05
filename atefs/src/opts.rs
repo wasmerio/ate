@@ -172,6 +172,10 @@ pub struct OptsMount {
     /// Enable write back cache for buffered writes, default is disable.
     #[clap(short, long)]
     pub write_back: bool,
+    /// By default this process will perform an extra umask(0o007) to prevent everything being public by default,
+    /// you can prevent this behaviour by selecting another umask (32bit) or just passing 0
+    #[clap(long, default_value = "7")]
+    pub umask: u32,
     /// Allow fuse filesystem mount on a non-empty directory, default is not allowed.
     #[clap(long)]
     pub non_empty: bool,

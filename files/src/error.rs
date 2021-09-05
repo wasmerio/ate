@@ -1,4 +1,4 @@
-use ate::error::{AteError, AteErrorKind};
+use ate::error::*;
 use error_chain::error_chain;
 
 error_chain! {
@@ -7,9 +7,6 @@ error_chain! {
     }
     links {
         AteError(::ate::error::AteError, ::ate::error::AteErrorKind);
-        LoadError(::ate::error::LoadError, ::ate::error::LoadErrorKind);
-        SerializationError(::ate::error::SerializationError, ::ate::error::SerializationErrorKind);
-        CommitError(::ate::error::CommitError, ::ate::error::CommitErrorKind);
         LoginError(::ate_auth::error::LoginError, ::ate_auth::error::LoginErrorKind);
         CreateError(::ate_auth::error::CreateError, ::ate_auth::error::CreateErrorKind);
     }
@@ -33,9 +30,9 @@ error_chain! {
             description("no access allowed to this entry"),
             display("no access allowed to this entry")
         }
-        MissingPermissions {
-            description("missing permissions for this entry"),
-            display("missing permissions for this entry")
+        PermissionDenied {
+            description("missing permissions for this operation"),
+            display("missing permissions for this operation")
         }
         ReadOnly {
             description("read only"),
@@ -56,6 +53,86 @@ error_chain! {
         NotImplemented {
             description("the function is not implemented"),
             display("the function is not implemented")
+        }
+    }
+}
+
+impl From<LoadError>
+for FileSystemError
+{
+    fn from(err: LoadError) -> FileSystemError {
+        FileSystemError::from_kind(err.0.into())
+    }
+}
+
+impl From<LoadErrorKind>
+for FileSystemErrorKind
+{
+    fn from(err: LoadErrorKind) -> FileSystemErrorKind {
+        match err {
+            LoadErrorKind::NotFound(_) => FileSystemErrorKind::NoEntry,
+            LoadErrorKind::SerializationError(err) => err.into(),
+            LoadErrorKind::TransformationError(err) => err.into(),
+            err => FileSystemErrorKind::AteError(AteErrorKind::LoadError(err))
+        }
+    }
+}
+
+impl From<TransformError>
+for FileSystemError
+{
+    fn from(err: TransformError) -> FileSystemError {
+        FileSystemError::from_kind(err.0.into())
+    }
+}
+
+impl From<TransformErrorKind>
+for FileSystemErrorKind
+{
+    fn from(err: TransformErrorKind) -> FileSystemErrorKind {
+        match err {
+            TransformErrorKind::MissingReadKey(_) => FileSystemErrorKind::NoAccess,
+            err => FileSystemErrorKind::AteError(AteErrorKind::TransformError(err))
+        }
+    }
+}
+
+impl From<SerializationError>
+for FileSystemError
+{
+    fn from(err: SerializationError) -> FileSystemError {
+        FileSystemError::from_kind(err.0.into())
+    }
+}
+
+impl From<SerializationErrorKind>
+for FileSystemErrorKind
+{
+    fn from(err: SerializationErrorKind) -> FileSystemErrorKind {
+        match err {
+            err => FileSystemErrorKind::AteError(AteErrorKind::SerializationError(err))
+        }
+    }
+}
+
+impl From<CommitError>
+for FileSystemError
+{
+    fn from(err: CommitError) -> FileSystemError {
+        FileSystemError::from_kind(err.0.into())
+    }
+}
+
+impl From<CommitErrorKind>
+for FileSystemErrorKind
+{
+    fn from(err: CommitErrorKind) -> FileSystemErrorKind {
+        match err {
+            CommitErrorKind::CommsError(CommsErrorKind::ReadOnly) => FileSystemErrorKind::NoAccess,
+            CommitErrorKind::ReadOnly => FileSystemErrorKind::NoAccess,
+            CommitErrorKind::SerializationError(err) => err.into(),
+            CommitErrorKind::TransformError(err) => err.into(),
+            err => FileSystemErrorKind::AteError(AteErrorKind::CommitError(err))
         }
     }
 }

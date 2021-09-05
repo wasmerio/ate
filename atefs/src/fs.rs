@@ -39,6 +39,7 @@ pub struct AteFS
 where Self: Send + Sync
 {
     accessor: FileAccessor,
+    umask: u32,
 }
 
 pub fn conv_attr(attr: &FileAttr) -> fuse::FileAttr {
@@ -74,7 +75,7 @@ fn conv_kind(kind: FileKind) -> fuse::FileType {
 
 impl AteFS
 {
-    pub async fn new(chain: Arc<Chain>, group: Option<String>, session: AteSessionType, scope_io: TransactionScope, scope_meta: TransactionScope, no_auth: bool, impersonate_uid: bool) -> AteFS {
+    pub async fn new(chain: Arc<Chain>, group: Option<String>, session: AteSessionType, scope_io: TransactionScope, scope_meta: TransactionScope, no_auth: bool, impersonate_uid: bool, umask: u32) -> AteFS {
         AteFS {
             accessor: FileAccessor::new(
                 chain,
@@ -85,6 +86,7 @@ impl AteFS
                 no_auth,
                 impersonate_uid
             ).await,
+            umask
         }
     }
 
@@ -335,10 +337,15 @@ for AteFS
         parent: u64,
         name: &OsStr,
         mode: u32,
-        umask: u32,
+        _umask: u32,
     ) -> fuse::Result<fuse::ReplyEntry> {
         let req = req_ctx(&req);
-        let attr = conv_result(self.accessor.mkdir(&req, parent, name.to_str().unwrap(), mode, umask).await)?;
+        let mode = if self.umask != 0o0000 {
+            0o777 & !self.umask
+        } else {
+            mode
+        };
+        let attr = conv_result(self.accessor.mkdir(&req, parent, name.to_str().unwrap(), mode).await)?;
         Ok(fuse::ReplyEntry {
             ttl: FUSE_TTL,
             attr: conv_attr(&attr),
@@ -365,6 +372,11 @@ for AteFS
         _rdev: u32,
     ) -> fuse::Result<fuse::ReplyEntry> {
         let req = req_ctx(&req);
+        let mode = if self.umask != 0o0000 {
+            0o666 & !self.umask
+        } else {
+            mode
+        };
         let node = self.accessor.mknod(&req, parent, name.to_str().unwrap(), mode).await;
         Ok(
             fuse::ReplyEntry {
@@ -384,6 +396,11 @@ for AteFS
         flags: u32,
     ) -> fuse::Result<fuse::ReplyCreated> {
         let req = req_ctx(&req);
+        let mode = if self.umask != 0o0000 {
+            0o666 & !self.umask
+        } else {
+            mode
+        };
         let handle = conv_result(self.accessor.create(&req, parent, name.to_str().unwrap(), mode).await)?;
         Ok(
             fuse::ReplyCreated {

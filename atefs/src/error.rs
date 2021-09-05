@@ -13,7 +13,7 @@ pub(crate) fn conv_result<T>(r: std::result::Result<T, FileSystemError>) -> std:
             error!("atefs::error {}", err);
             match err {
                 FileSystemError(FileSystemErrorKind::NoAccess, _) => Err(libc::EACCES.into()),
-                FileSystemError(FileSystemErrorKind::MissingPermissions, _) => Err(libc::EPERM.into()),
+                FileSystemError(FileSystemErrorKind::PermissionDenied, _) => Err(libc::EPERM.into()),
                 FileSystemError(FileSystemErrorKind::ReadOnly, _) => Err(libc::EPERM.into()),
                 FileSystemError(FileSystemErrorKind::InvalidArguments, _) => Err(libc::EINVAL.into()),
                 FileSystemError(FileSystemErrorKind::NoEntry, _) => Err(libc::ENOENT.into()),
@@ -22,11 +22,8 @@ pub(crate) fn conv_result<T>(r: std::result::Result<T, FileSystemError>) -> std:
                 FileSystemError(FileSystemErrorKind::NotDirectory, _) => Err(libc::ENOTDIR.into()),
                 FileSystemError(FileSystemErrorKind::IsDirectory, _) => Err(libc::EISDIR.into()),
                 FileSystemError(FileSystemErrorKind::NotImplemented, _) => Err(libc::ENOSYS.into()),
-                FileSystemError(FileSystemErrorKind::CommitError(CommitErrorKind::CommsError(CommsErrorKind::Disconnected)), _) => Err(libc::EBUSY.into()),
-                FileSystemError(FileSystemErrorKind::CommitError(CommitErrorKind::CommsError(CommsErrorKind::ReadOnly)), _) => Err(libc::EPERM.into()),
-                FileSystemError(FileSystemErrorKind::CommitError(CommitErrorKind::ReadOnly), _) => Err(libc::EPERM.into()),
-                FileSystemError(FileSystemErrorKind::LoadError(LoadErrorKind::NotFound(_)), _) => Err(libc::ENOENT.into()),
-                FileSystemError(FileSystemErrorKind::LoadError(LoadErrorKind::TransformationError(TransformErrorKind::MissingReadKey(_))), _) => Err(libc::EACCES.into()),
+                FileSystemError(FileSystemErrorKind::AteError(AteErrorKind::CommitError(CommitErrorKind::CommsError(CommsErrorKind::Disconnected))), _) => Err(libc::EBUSY.into()),
+                FileSystemError(FileSystemErrorKind::AteError(AteErrorKind::CommsError(CommsErrorKind::Disconnected)), _) => Err(libc::EBUSY.into()),
                 _ => Err(libc::EIO.into())
             }
         }
