@@ -1,6 +1,7 @@
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use url::Url;
+use std::net::IpAddr;
 
 use clap::Clap;
 
@@ -41,6 +42,15 @@ pub struct Opts {
 /// Runs a web server that will serve content from a Tokera file system
 #[derive(Clap)]
 pub struct OptsRun {
+    /// IP address that the datachain server will isten on
+    #[clap(short, long, default_value = "::")]
+    pub listen: IpAddr,
+    /// Port that the server will listen on for HTTP requests
+    #[clap(long, default_value = "80")]
+    pub port_http: u16,
+    /// Port that the server will listen on for HTTPS requests
+    #[clap(long, default_value = "443")]
+    pub port_https: u16,
     /// URL where the data is remotely stored on a distributed commit log.
     #[clap(short, long, default_value = "ws://tokera.com/db")]
     pub remote: Url,

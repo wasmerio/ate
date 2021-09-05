@@ -628,6 +628,22 @@ impl FileAccessor
         Ok(None)
     }
 
+    pub async fn search(&self, req: &RequestContext, path: &str) -> Result<Option<FileAttr>> {
+        let mut ret = self.getattr(req, 1u64, None, 0u32).await?;
+        for comp in path.split("/") {
+            if comp.len() <= 0 {
+                continue;
+            }
+            ret = match self.lookup(req, ret.ino, comp).await? {
+                Some(a) => a,
+                None => {
+                    return Ok(None);
+                }
+            }
+        }
+        Ok(Some(ret))
+    }
+
     pub async fn forget(&self, _req: &RequestContext, _inode: u64, _nlookup: u64) {
         let _ = self.tick().await;
     }
