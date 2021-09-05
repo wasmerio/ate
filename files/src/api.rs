@@ -5,9 +5,10 @@ use super::dir::Directory;
 use super::file::RegularFile;
 use super::fixed::FixedFile;
 use super::symlink::SymLink;
-use fuse3::FileType;
 use bytes::Bytes;
-use fuse3::{Result};
+use fxhash::FxHashMap;
+
+use crate::error::*;
 
 #[enum_dispatch(FileApi)]
 pub enum FileSpec
@@ -23,8 +24,8 @@ pub enum FileSpec
     FixedFile,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum SpecType
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum FileKind
 {
     Directory,
     RegularFile,
@@ -40,9 +41,7 @@ pub trait FileApi
 
     fn name(&self) -> String;
 
-    fn spec(&self) -> SpecType;
-
-    fn kind(&self) -> FileType;
+    fn kind(&self) -> FileKind;
 
     fn uid(&self) -> u32 { 0 }
 
@@ -67,4 +66,12 @@ pub trait FileApi
     fn link(&self) -> Option<String> { None }
 
     async fn commit(&self) -> Result<()> { Ok(())}
+
+    async fn set_xattr(&mut self, _name: &str, _value: &str) -> Result<()> { Err(FileSystemErrorKind::NotImplemented.into()) }
+
+    async fn remove_xattr(&mut self, _name: &str) -> Result<bool> { Ok(false) }
+
+    async fn get_xattr(&self, _name: &str) -> Result<Option<String>> { Ok(None) }
+
+    async fn list_xattr(&self) -> Result<FxHashMap<String, String>> { Ok(FxHashMap::default()) }
 }

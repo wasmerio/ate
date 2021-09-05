@@ -34,18 +34,19 @@ pub struct Dentry {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Inode {
-    pub spec_type: SpecType,
+    pub kind: FileKind,
     pub dentry: Dentry,
     pub size: u64,
     pub bundles: Vec<Option<PrimaryKey>>,
     pub children: DaoVec<Inode>,
     pub link: Option<String>,
+    pub xattr: DaoMap<String, String>,
 }
 
 impl Inode {
-    pub fn new(name: String, mode: u32, uid: u32, gid: u32, spec_type: SpecType) -> Inode {
+    pub fn new(name: String, mode: u32, uid: u32, gid: u32, kind: FileKind) -> Inode {
         Inode {
-            spec_type,
+            kind,
             dentry: Dentry {
                 name,
                 mode,
@@ -58,24 +59,25 @@ impl Inode {
             bundles: Vec::default(),
             children: DaoVec::new(),
             link: None,
+            xattr: DaoMap::default(),
         }
     }
 
     pub async fn as_file_spec(ino: u64, created: u64, updated: u64, dao: Dao<Inode>) -> FileSpec {
-        match dao.spec_type {
-            SpecType::Directory => FileSpec::Directory(Directory::new(dao, created, updated)),
-            SpecType::RegularFile => FileSpec::RegularFile(RegularFile::new(dao, created, updated).await),
-            SpecType::SymLink => FileSpec::SymLink(SymLink::new(dao, created, updated)),
-            SpecType::FixedFile => FileSpec::FixedFile(FixedFile::new(ino, dao.dentry.name.clone(), fuse3::FileType::RegularFile).created(created).updated(updated))
+        match dao.kind {
+            FileKind::Directory => FileSpec::Directory(Directory::new(dao, created, updated)),
+            FileKind::RegularFile => FileSpec::RegularFile(RegularFile::new(dao, created, updated).await),
+            FileKind::SymLink => FileSpec::SymLink(SymLink::new(dao, created, updated)),
+            FileKind::FixedFile => FileSpec::FixedFile(FixedFile::new(ino, dao.dentry.name.clone(), FileKind::RegularFile).created(created).updated(updated))
         }
     }
 
     pub async fn as_file_spec_mut(ino: u64, created: u64, updated: u64, dao: DaoMut<Inode>) -> FileSpec {
-        match dao.spec_type {
-            SpecType::Directory => FileSpec::Directory(Directory::new_mut(dao, created, updated)),
-            SpecType::RegularFile => FileSpec::RegularFile(RegularFile::new_mut(dao, created, updated).await),
-            SpecType::SymLink => FileSpec::SymLink(SymLink::new_mut(dao, created, updated)),
-            SpecType::FixedFile => FileSpec::FixedFile(FixedFile::new(ino, dao.dentry.name.clone(), fuse3::FileType::RegularFile).created(created).updated(updated))
+        match dao.kind {
+            FileKind::Directory => FileSpec::Directory(Directory::new_mut(dao, created, updated)),
+            FileKind::RegularFile => FileSpec::RegularFile(RegularFile::new_mut(dao, created, updated).await),
+            FileKind::SymLink => FileSpec::SymLink(SymLink::new_mut(dao, created, updated)),
+            FileKind::FixedFile => FileSpec::FixedFile(FixedFile::new(ino, dao.dentry.name.clone(), FileKind::RegularFile).created(created).updated(updated))
         }
     }
 }

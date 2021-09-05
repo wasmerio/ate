@@ -1,34 +1,20 @@
 #![allow(dead_code)]
-#![allow(unused_imports)]
+#[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use std::sync::Arc;
+use error_chain::bail;
 use std::ops::Deref;
-use std::ops::DerefMut;
 use async_trait::async_trait;
 use crate::api::FileApi;
-use serde::*;
-use fuse3::FileType;
 use super::model::*;
-use ate::prelude::PrimaryKey;
-use super::api::SpecType;
+use super::api::FileKind;
 use ate::prelude::*;
-use bytes::{Bytes, BytesMut, Buf, BufMut};
-use tokio::io::AsyncReadExt;
-use tokio::io::AsyncWriteExt;
-use fuse3::{Errno, Result};
-use super::fs::conv;
-use super::fs::conv_load;
-use super::fs::cc;
-use super::fs::cs;
+use bytes::{Bytes};
 use tokio::sync::Mutex;
-use parking_lot::{Mutex as PMutex, RwLock};
-use fxhash::FxHashMap;
-use cached::Cached;
 use seqlock::SeqLock;
-use xarc::{AtomicXarc, Xarc};
-use lockfree::prelude::*;
-use core::sync::atomic::{AtomicPtr, Ordering};
 use std::io::Cursor;
+use fxhash::FxHashMap;
+
+use crate::error::*;
 
 const CACHED_BUNDLES: usize = 10;      // Number of cached bundles per open file
 const CACHED_PAGES: usize = 80;       // Number of cached pages per open file
@@ -127,7 +113,7 @@ impl FileState
             FileState::Mutable { dirty, inode, bundles, pages} =>
                 (dirty, inode, bundles, pages),
             FileState::Immutable {  inode: _, bundles: _, pages: _ } => {
-                return Err(libc::EACCES.into());
+                bail!(FileSystemErrorKind::NoAccess);
             }
         };
 
@@ -176,7 +162,7 @@ impl FileState
                     },
                     _ => {
                         // Cache-miss - load the bundle into the cacheline and return its pages
-                        let dao = conv_load(dio.load::<PageBundle>(&bundle).await)?;
+                        let dao = dio.load::<PageBundle>(&bundle).await?;
                         cache_line.replace(dao);
                         cache_line.as_mut().unwrap()
                     }
@@ -211,7 +197,7 @@ impl FileState
                     },
                     _ => {
                         // Cache-miss - load the bundle into the cacheline and return its pages
-                        let dao = conv_load(dio.load::<Page>(&page).await)?;
+                        let dao = dio.load::<Page>(&page).await?;
                         cache_line.replace(dao.as_mut_owned());
                         cache_line.as_mut().unwrap()
                     }
@@ -240,7 +226,7 @@ impl FileState
                     },
                     _ => {
                         // Cache-miss - load the bundle into the cacheline and return its pages
-                        let dao = conv_load(dio.load::<PageBundle>(&bundle).await)?;
+                        let dao = dio.load::<PageBundle>(&bundle).await?;
                         cache_line.replace(dao);
                         cache_line.as_mut().unwrap()
                     }
@@ -275,7 +261,7 @@ impl FileState
                     },
                     _ => {
                         // Cache-miss - load the bundle into the cacheline and return its pages
-                        let dao = conv_load(dio.load::<Page>(&page).await)?;
+                        let dao = dio.load::<Page>(&page).await?;
                         cache_line.replace(dao);
                         cache_line.as_mut().unwrap()
                     }
@@ -317,7 +303,7 @@ impl FileState
             FileState::Mutable { dirty, inode, bundles, pages} =>
                 (dirty, inode, bundles, pages),
             FileState::Immutable {  inode: _, bundles: _, pages: _ } => {
-                return Err(libc::EACCES.into());
+                bail!(FileSystemErrorKind::NoAccess);
             }
         };
 
@@ -337,7 +323,7 @@ impl FileState
                 guard.bundles.push(None);
             }
             drop(guard);
-            cc(dio.commit().await)?;
+            dio.commit().await?;
         }
         offset = offset - (index * stride_bundle);
 
@@ -346,11 +332,11 @@ impl FileState
             Some(a) => a,
             None => {
                 // Create the bundle
-                let mut bundle = cs(dio.store( 
+                let mut bundle = dio.store( 
                     PageBundle {
                             pages: Vec::new(),
-                        }))?;
-                cs(bundle.attach_orphaned(&inode_key))?;
+                        })?;
+                bundle.attach_orphaned(&inode_key)?;
                 
                 let key = bundle.key().clone();
 
@@ -362,7 +348,7 @@ impl FileState
 
                 // Write the entry to the inode and return its reference
                 inode.as_mut().bundles.insert(index as usize, Some(key));
-                cc(dio.commit().await)?;
+                dio.commit().await?;
                 key
             }
         };
@@ -378,7 +364,7 @@ impl FileState
             },
             _ => {
                 // Cache-miss - load the bundle into the cacheline and return its pages
-                let dao = conv_load(dio.load::<PageBundle>(&bundle).await)?;
+                let dao = dio.load::<PageBundle>(&bundle).await?;
                 cache_line.replace(dao);
                 cache_line.as_mut().unwrap()
             }
@@ -395,7 +381,7 @@ impl FileState
                 guard.pages.push(None);
             }
             drop(guard);
-            cc(dio.commit().await)?;
+            dio.commit().await?;
         }
         offset = offset - (index * stride_page);
 
@@ -406,11 +392,11 @@ impl FileState
             Some(a) => a.clone(),
             None => {
                 // Create the page (and commit it for reference integrity)
-                let mut page = cs(dio.store(Page {
+                let mut page = dio.store(Page {
                         buf: Vec::new(),
                     },
-                ))?;
-                cs(page.attach_orphaned(&bundle_key))?;
+                )?;
+                page.attach_orphaned(&bundle_key)?;
                 let key = page.key().clone();
 
                 // Replace the cache-line with this new one (if something was left behind then commit it)
@@ -421,7 +407,7 @@ impl FileState
 
                 // Write the entry to the inode and return its reference
                 bundle.as_mut().pages.insert(index as usize, Some(key));
-                cc(dio.commit().await)?;
+                dio.commit().await?;
                 key
             }
         };
@@ -437,7 +423,7 @@ impl FileState
             },
             _ => {
                 // Cache-miss - load the page into the cacheline and return its pages
-                let dao = conv_load(dio.load::<Page>(&page).await)?;
+                let dao = dio.load::<Page>(&page).await?;
                 let dao = dao.as_mut_owned();
                 cache_line.replace(dao);
                 cache_line.as_mut().unwrap()
@@ -471,10 +457,63 @@ impl FileState
                 page.take();
             }
             let dio = inode.trans();
-            cc(dio.commit().await)?;
+            dio.commit().await?;
             *dirty = false;
         }
         Ok(())
+    }
+
+    pub async fn set_xattr(&mut self, name: &str, value: &str) -> Result<()> {
+        match self {
+            FileState::Mutable { dirty: _, inode, bundles: _, pages: _ } =>
+                inode.as_mut().xattr.insert(name.to_string(), value.to_string()).await?,
+            FileState::Immutable {  inode: _, bundles: _, pages: _ } => {
+                bail!(FileSystemErrorKind::NoAccess);
+            }
+        };
+        Ok(())
+    }
+
+    pub async fn remove_xattr(&mut self, name: &str) -> Result<bool> {
+        let name = name.to_string();
+        let ret = match self {
+            FileState::Mutable { dirty: _, inode, bundles: _, pages: _ } =>
+                inode.as_mut().xattr.delete(&name).await?,
+            FileState::Immutable {  inode: _, bundles: _, pages: _ } => {
+                bail!(FileSystemErrorKind::NoAccess);
+            }
+        };
+        Ok(ret)
+    }
+
+    pub async fn get_xattr(&self, name: &str) -> Result<Option<String>> {
+        let name = name.to_string();
+        let ret = match self {
+            FileState::Mutable { dirty: _, inode, bundles: _, pages: _ } => {
+                inode.xattr.get(&name).await?.map(|a| a.deref().clone())
+            },
+            FileState::Immutable { inode, bundles: _, pages: _ } => {
+                inode.xattr.get(&name).await?.map(|a| a.deref().clone())
+            }
+        };
+        Ok(ret)
+    }
+
+    pub async fn list_xattr(&self) -> Result<FxHashMap<String, String>> {
+        let mut ret = FxHashMap::default();
+        match self {
+            FileState::Mutable { dirty: _, inode, bundles: _, pages: _ } => {
+                for (k, v) in inode.xattr.iter().await? {
+                    ret.insert(k, v.deref().clone());
+                }
+            },
+            FileState::Immutable {  inode, bundles: _, pages: _ } => {
+                for (k, v) in inode.xattr.iter().await? {
+                    ret.insert(k, v.deref().clone());
+                }
+            }
+        }
+        Ok(ret)
     }
 }
 
@@ -482,16 +521,12 @@ impl FileState
 impl FileApi
 for RegularFile
 {
-    fn spec(&self) -> SpecType {
-        SpecType::RegularFile
+    fn kind(&self) -> FileKind {
+        FileKind::RegularFile
     }
 
     fn ino(&self) -> u64 {
         self.ino
-    }
-
-    fn kind(&self) -> FileType {
-        FileType::RegularFile
     }
 
     fn uid(&self) -> u32 {
@@ -614,5 +649,25 @@ for RegularFile
         let mut state = self.state.lock().await;
         state.commit().await?;
         Ok(())
+    }
+
+    async fn set_xattr(&mut self, name: &str, value: &str) -> Result<()> {
+        let mut state = self.state.lock().await;
+        state.set_xattr(name, value).await
+    }
+
+    async fn remove_xattr(&mut self, name: &str) -> Result<bool> {
+        let mut state = self.state.lock().await;
+        state.remove_xattr(name).await
+    }
+
+    async fn get_xattr(&self, name: &str) -> Result<Option<String>> {
+        let state = self.state.lock().await;
+        state.get_xattr(name).await
+    }
+
+    async fn list_xattr(&self) -> Result<FxHashMap<String, String>> {
+        let state = self.state.lock().await;
+        state.list_xattr().await
     }
 }

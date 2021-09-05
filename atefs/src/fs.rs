@@ -1,4 +1,5 @@
 #![allow(unused_imports)]
+use ate_files::accessor::FileAccessor;
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 
 use std::ffi::{OsStr, OsString};
@@ -19,760 +20,225 @@ use ::ate::header::PrimaryKey;
 use ::ate::prelude::*;
 use ::ate::prelude::AteRolePurpose;
 use ::ate::prelude::ReadOption;
-use crate::fixed::FixedFile;
 
-use super::model::*;
-use super::api::*;
+use ate_files::prelude::*;
 
 use async_trait::async_trait;
 use futures_util::stream;
 use futures_util::stream::{Iter};
 use fxhash::FxHashMap;
 
-use fuse3::raw::prelude::*;
-use fuse3::{Errno, Result};
-
 const FUSE_TTL: Duration = Duration::from_secs(1);
+
+use ate_files::model;
+
+use super::fuse;
+use super::error::conv_result;
 
 pub struct AteFS
 where Self: Send + Sync
 {
-    pub chain: Arc<Chain>,
-    pub dio: Arc<Dio>,
-    pub no_auth: bool,
-    pub scope_meta: TransactionScope,
-    pub scope_io: TransactionScope,
-    pub group: Option<String>,
-    pub session: AteSessionType,
-    pub open_handles: Mutex<FxHashMap<u64, Arc<OpenHandle>>>,
-    pub elapsed: std::time::Instant,
-    pub last_elapsed: seqlock::SeqLock<u64>,
-    pub commit_lock: tokio::sync::Mutex<()>,
-    pub impersonate_uid: bool,
+    accessor: FileAccessor,
 }
 
-pub struct OpenHandle
-where Self: Send + Sync
-{
-    pub dirty: seqlock::SeqLock<bool>,
+pub fn conv_attr(attr: &FileAttr) -> fuse::FileAttr {
+    let size = attr.size;
+    let blksize = model::PAGE_SIZE as u64;
 
-    pub inode: u64,
-    pub fh: u64,
-    pub attr: FileAttr,
-    pub spec: FileSpec,
-    pub read_only: bool,
-    
-    pub children: Vec<DirectoryEntry>,
-    pub children_plus: Vec<DirectoryEntryPlus>,
-}
-
-impl OpenHandle
-{
-    fn add_child(&mut self, spec: &FileSpec, uid: u32, gid: u32) {
-        let attr = spec_as_attr(spec, uid, gid).clone();
-
-        self.children.push(DirectoryEntry {
-            inode: spec.ino(),
-            kind: spec.kind(),
-            name: OsString::from(spec.name()),
-        });
-        self.children_plus.push(DirectoryEntryPlus {
-            inode: spec.ino(),
-            kind: spec.kind(),
-            name: OsString::from(spec.name().clone()),
-            generation: 0,
-            attr,
-            entry_ttl: FUSE_TTL,
-            attr_ttl: FUSE_TTL,
-        });
-    }
-}
-
-pub fn spec_as_attr(spec: &FileSpec, uid: u32, gid: u32) -> FileAttr {
-    let size = spec.size();
-    let blksize = super::model::PAGE_SIZE as u64;
-
-    FileAttr {
-        ino: spec.ino(),
+    fuse::FileAttr {
+        ino: attr.ino,
         generation: 0,
-        size,
+        size: attr.size,
         blocks: (size / blksize),
-        atime: SystemTime::UNIX_EPOCH + Duration::from_millis(spec.accessed()),
-        mtime: SystemTime::UNIX_EPOCH + Duration::from_millis(spec.updated()),
-        ctime: SystemTime::UNIX_EPOCH + Duration::from_millis(spec.created()),
-        kind: spec.kind(),
-        perm: fuse3::perm_from_mode_and_kind(spec.kind(), spec.mode()),
+        atime: SystemTime::UNIX_EPOCH + Duration::from_millis(attr.accessed),
+        mtime: SystemTime::UNIX_EPOCH + Duration::from_millis(attr.updated),
+        ctime: SystemTime::UNIX_EPOCH + Duration::from_millis(attr.created),
+        kind: conv_kind(attr.kind),
+        perm: fuse3::perm_from_mode_and_kind(conv_kind(attr.kind), attr.mode),
         nlink: 0,
-        uid,
-        gid,
+        uid: attr.uid,
+        gid: attr.gid,
         rdev: 0,
         blksize: blksize as u32,
     }
 }
 
-pub(crate) fn conv_load<T>(r: std::result::Result<T, LoadError>) -> std::result::Result<T, Errno> {
-    conv(match r {
-        Ok(a) => Ok(a),
-        Err(err) => Err(AteErrorKind::LoadError(err.0).into()),
-    })
-}
-
-pub(crate) fn conv_io<T>(r: std::result::Result<T, tokio::io::Error>) -> std::result::Result<T, Errno> {
-    conv(match r {
-        Ok(a) => Ok(a),
-        Err(err) => Err(AteErrorKind::IO(err).into()),
-    })
-}
-
-pub(crate) fn cc<T>(r: std::result::Result<T, CommitError>) -> std::result::Result<T, Errno> {
-    conv(match r {
-        Ok(a) => Ok(a),
-        Err(err) => Err(AteErrorKind::CommitError(err.0).into()),
-    })
-}
-
-pub(crate) fn cs<T>(r: std::result::Result<T, SerializationError>) -> std::result::Result<T, Errno> {
-    conv(match r {
-        Ok(a) => Ok(a),
-        Err(err) => Err(AteErrorKind::SerializationError(err.0).into()),
-    })
-}
-
-pub(crate) fn conv<T>(r: std::result::Result<T, AteError>) -> std::result::Result<T, Errno> {
-    match r {
-        Ok(a) => Ok(a),
-        Err(err) => {
-            error!("atefs::error {}", err);
-            match err {
-                AteError(AteErrorKind::CommsError(CommsErrorKind::Disconnected), _) => Err(libc::EBUSY.into()),
-                AteError(AteErrorKind::CommsError(CommsErrorKind::ReadOnly), _) => Err(libc::EPERM.into()),
-                AteError(AteErrorKind::CommitError(CommitErrorKind::CommsError(CommsErrorKind::Disconnected)), _) => Err(libc::EBUSY.into()),
-                AteError(AteErrorKind::CommitError(CommitErrorKind::CommsError(CommsErrorKind::ReadOnly)), _) => Err(libc::EPERM.into()),
-                AteError(AteErrorKind::CommitError(CommitErrorKind::ReadOnly), _) => Err(libc::EPERM.into()),
-                AteError(AteErrorKind::LoadError(LoadErrorKind::NotFound(_)), _) => Err(libc::ENOENT.into()),
-                AteError(AteErrorKind::LoadError(LoadErrorKind::TransformationError(TransformErrorKind::MissingReadKey(_))), _) => Err(libc::EACCES.into()),
-                _ => Err(libc::EIO.into())
-            }
-        }
+fn conv_kind(kind: FileKind) -> fuse::FileType {
+    match kind {
+        FileKind::Directory => fuse::FileType::Directory,
+        FileKind::FixedFile => fuse::FileType::RegularFile,
+        FileKind::RegularFile => fuse::FileType::RegularFile,
+        FileKind::SymLink => fuse::FileType::Symlink,
     }
 }
 
 impl AteFS
 {
     pub async fn new(chain: Arc<Chain>, group: Option<String>, session: AteSessionType, scope_io: TransactionScope, scope_meta: TransactionScope, no_auth: bool, impersonate_uid: bool) -> AteFS {
-        let dio = chain.dio(&session).await;
         AteFS {
-            chain,
-            dio,
-            no_auth,
-            group,
-            session,
-            scope_meta,
-            scope_io,
-            open_handles: Mutex::new(FxHashMap::default()),
-            elapsed: std::time::Instant::now(),
-            last_elapsed: seqlock::SeqLock::new(0),
-            commit_lock: tokio::sync::Mutex::new(()),
-            impersonate_uid,
+            accessor: FileAccessor::new(
+                chain,
+                group,
+                session,
+                scope_io,
+                scope_meta,
+                no_auth,
+                impersonate_uid
+            ).await,
         }
     }
 
-    fn get_group_read_key<'a>(&'a self, gid: u32) -> Option<&'a EncryptKey> {
-        self.session.role(&AteRolePurpose::Observer)
-            .iter()
-            .filter(|g| g.gid() == Some(gid))
-            .flat_map(|r| r.read_keys())
-            .next()
+    pub async fn load(&self, inode: u64) -> fuse::Result<Dao<Inode>> {
+        conv_result(self.accessor.load(inode).await)
     }
 
-    fn get_group_write_key<'a>(&'a self, gid: u32) -> Option<&'a PrivateSignKey> {
-        self.session.role(&AteRolePurpose::Contributor)
-            .iter()
-            .filter(|g| g.gid() == Some(gid))
-            .flat_map(|r| r.write_keys())
-            .next()
+    pub async fn load_mut(&self, inode: u64) -> fuse::Result<DaoMut<Inode>> {
+        conv_result(self.accessor.load_mut(inode).await)
     }
 
-    fn get_user_read_key<'a>(&'a self, uid: u32) -> Option<&'a EncryptKey> {
-        if self.session.uid() == Some(uid) {
-            match &self.session {
-                AteSessionType::User(a) => a.user.read_keys().next(),
-                AteSessionType::Sudo(a) => a.inner.user.read_keys().next(),
-                AteSessionType::Group(a) => match &a.inner {
-                    AteSessionInner::User(a) => a.user.read_keys().next(),
-                    AteSessionInner::Sudo(a) => a.inner.user.read_keys().next(),
-                },
-            }
-        } else {
-            None
-        }
+    pub async fn load_mut_io(&self, inode: u64) -> fuse::Result<DaoMut<Inode>> {
+        conv_result(self.accessor.load_mut_io(inode).await)
     }
 
-    fn get_user_write_key<'a>(&'a self, uid: u32) -> Option<&'a PrivateSignKey> {
-        if self.session.uid() == Some(uid) {
-            match &self.session {
-                AteSessionType::User(a) => a.user.write_keys().next(),
-                AteSessionType::Sudo(a) => a.inner.user.write_keys().next(),
-                AteSessionType::Group(a) => match &a.inner {
-                    AteSessionInner::User(a) => a.user.write_keys().next(),
-                    AteSessionInner::Sudo(a) => a.inner.user.write_keys().next(),
-                },
-            }
-        } else {
-            None
-        }
-    }
-
-    pub async fn load(&self, inode: u64) -> Result<Dao<Inode>> {
-        let dao = conv_load(self.dio.load::<Inode>(&PrimaryKey::from(inode)).await)?;
-        Ok(dao)
-    }
-
-    pub async fn load_mut(&self, inode: u64) -> Result<DaoMut<Inode>> {
-        let dio = self.dio.trans(self.scope_meta).await;
-        let dao = conv_load(dio.load::<Inode>(&PrimaryKey::from(inode)).await)?;
-        Ok(dao)
-    }
-
-    pub async fn load_mut_io(&self, inode: u64) -> Result<DaoMut<Inode>> {
-        let dio = self.dio.trans(self.scope_io).await;
-        let dao = conv_load(dio.load::<Inode>(&PrimaryKey::from(inode)).await)?;
-        Ok(dao)
-    }
-
-    async fn create_open_handle(&self, inode: u64, req: &Request, flags: i32) -> Result<OpenHandle>
-    {
-        let mut writable = false;
-        if flags & libc::O_TRUNC != 0 || flags & libc::O_RDWR != 0 || flags & libc::O_WRONLY != 0 {
-            self.access_internal(&req, inode, 0o2).await?;
-            writable = true;
-        }
-
-        if flags & libc::O_RDWR != 0 || flags & libc::O_RDONLY != 0 {
-            self.access_internal(&req, inode, 0o4).await?;
-        }
-
-        let data = self.load(inode).await?;
-        let created = data.when_created();
-        let updated = data.when_updated();
-        let read_only = flags & libc::O_RDONLY != 0;
-
-        let uid = data.dentry.uid;
-        let gid = data.dentry.gid;
-
-        let mut dirty = false;
-        
-        let mut children = Vec::new();
-        if data.spec_type == SpecType::Directory {
-            let fixed = FixedFile::new(data.key().as_u64(), ".".to_string(), FileType::Directory)
-                .uid(uid)
-                .gid(gid)
-                .created(created)
-                .updated(updated);
-            children.push(FileSpec::FixedFile(fixed));
-
-            let fixed = FixedFile::new(data.key().as_u64(), "..".to_string(), FileType::Directory)
-                .uid(uid)
-                .gid(gid)
-                .created(created)
-                .updated(updated);
-            children.push(FileSpec::FixedFile(fixed));
-
-            match writable {
-                true => {
-                    let mut data = self.load_mut_io(inode).await?;
-                    let mut data = data.as_mut();
-                    for child in conv_load(data.children.iter_mut_ext(true, true).await)? {
-                        let child_spec = Inode::as_file_spec_mut(child.key().as_u64(), child.when_created(), child.when_updated(), child).await;
-                        children.push(child_spec);
-                    }
-                }
-                false => {
-                    for child in conv_load(data.children.iter_ext(true, true).await)? {
-                        let child_spec = Inode::as_file_spec(child.key().as_u64(), child.when_created(), child.when_updated(), child).await;
-                        children.push(child_spec);
-                    }
-                }
-            }
-        }
-        
-        let spec = match writable {
-            true => {
-                let data = self.load_mut_io(inode).await?;
-                Inode::as_file_spec_mut(data.key().as_u64(), created, updated, data).await
-            }
-            false => Inode::as_file_spec(data.key().as_u64(), created, updated, data).await
-        };
-        if flags & libc::O_TRUNC != 0 {
-            spec.fallocate(0).await?;
-            dirty = true;
-        }
-
-        let mut open = OpenHandle {
-            inode,
-            read_only,
-            fh: fastrand::u64(..),
-            attr: self.spec_as_attr_reverse(&spec, req),
-            spec: spec,
-            children: Vec::new(),
-            children_plus: Vec::new(),
-            dirty: seqlock::SeqLock::new(dirty),
-        };
-
-        for child in children.into_iter() {
-            let (uid, gid) = match self.impersonate_uid {
-                true => {
-                    let uid = self.reverse_uid(child.uid(), req);
-                    let gid = self.reverse_gid(child.gid(), req);
-                    (uid, gid)
-                },
-                false => {
-                    (child.uid(), child.gid())
-                }
-            };            
-            open.add_child(&child, uid, gid);
-        }
-
-        Ok(open)
+    async fn create_open_handle(&self, inode: u64, req: &fuse::Request, flags: i32) -> fuse::Result<OpenHandle> {
+        let req = req_ctx(req);
+        conv_result(self.accessor.create_open_handle(inode, &req, flags).await)
     }
 }
 
 impl AteFS
 {
-    #[allow(dead_code)]
-    async fn dio_mut_io(&self) -> Arc<DioMut>
-    {
-        let ret = self.dio.trans(self.scope_io).await;
-        ret.auto_cancel();
-        ret
+    async fn tick(&self) -> fuse::Result<()> {
+        conv_result(self.accessor.tick().await)
     }
+}
 
-    async fn dio_mut_meta(&self) -> Arc<DioMut>
-    {
-        let ret = self.dio.trans(self.scope_meta).await;
-        ret.auto_cancel();
-        ret
-    }
-
-    async fn mknod_internal(
-        &self,
-        req: Request,
-        parent: u64,
-        name: &OsStr,
-        mode: u32,
-        _rdev: u32,
-    ) -> Result<DaoMut<Inode>> {
-        
-        let key = PrimaryKey::from(parent);
-        let dio = self.dio_mut_meta().await;
-        let mut data = conv_load(dio.load::<Inode>(&key).await)?;
-
-        if data.spec_type != SpecType::Directory {
-            trace!("atefs::create parent={} not-a-directory", parent);
-            return Err(libc::ENOTDIR.into());
-        }
-        
-        if let Some(_) = conv_load(data.children.iter().await)?.filter(|c| *c.dentry.name == *name).next() {
-            trace!("atefs::create parent={} name={}: already-exists", parent, name.to_str().unwrap());
-            return Err(libc::EEXIST.into());
-        }
-
-        let uid = self.translate_uid(req.uid, &req);
-        let gid = self.translate_gid(req.gid, &req);
-        let child = Inode::new(
-            name.to_str().unwrap().to_string(),
-            mode, 
-            uid,
-            gid,
-            SpecType::RegularFile,
-        );
-
-        let mut child = cs(data.as_mut().children.push(child))?;
-        self.update_auth(mode, uid, gid, child.auth_mut())?;
-        return Ok(child);
-    }
-
-    async fn tick(&self) -> Result<()> {
-        let secs = self.elapsed.elapsed().as_secs();
-        if secs > self.last_elapsed.read() {
-            let _ = self.commit_lock.lock();
-            if secs > self.last_elapsed.read() {
-                *self.last_elapsed.lock_write() = secs;
-                self.commit_internal().await?;
-            }
-        }
-        Ok(())
-    }
-
-    async fn commit(&self) -> Result<()> {
-        let _ = self.commit_lock.lock();
-        self.commit_internal().await?;
-        Ok(())
-    }
-
-    async fn commit_internal(&self) -> Result<()> {
-        trace!("commit");
-        let open_handles = {
-            let lock = self.open_handles.lock();
-            lock.values()
-                .filter(|a| a.dirty.read())
-                .map(|v| {
-                    *v.dirty.lock_write() = false;
-                    Arc::clone(v)
-                })
-                .collect::<Vec<_>>()
-        };
-        for open in open_handles {
-            open.spec.commit().await?;
-        }
-        Ok(())
-    }
-
-    fn update_auth(&self, mode: u32, uid: u32, gid: u32, mut auth: DaoAuthGuard<'_>) -> Result<()> {
-        let inner_key = {
-            match &auth.read {
-                ReadOption::Inherit => None,
-                ReadOption::Everyone(old) => match old.clone() {
-                    Some(a) => Some(a),
-                    None => {
-                        let keysize = match self.get_group_read_key(gid) {
-                            Some(a) => a.size(),
-                            None => match self.get_user_read_key(uid) {
-                                Some(a) => a.size(),
-                                None => KeySize::Bit192,
-                            }
-                        };
-                        Some(EncryptKey::generate(keysize))
-                    },
-                },
-                ReadOption::Specific(hash, derived) => {
-                    let key = match self.session.read_keys(AteSessionKeyCategory::AllKeys)
-                        .filter(|k| k.hash() == *hash)
-                        .next()
-                    {
-                        Some(a) => a.clone(),
-                        None => { return Err(libc::EACCES.into()); }
-                    };
-                    Some(derived.transmute(&key)?)
-                }
-            }
-        };
-
-        if mode & 0o004 != 0 {
-            auth.read = ReadOption::Everyone(inner_key);
-        } else {
-            let new_key = {
-                if mode & 0o040 != 0 {
-                    self.get_group_read_key(gid)
-                } else {
-                    self.get_user_read_key(uid)
-                }
-            };
-            if let Some(inner_key) = inner_key {
-                let new_key = match new_key {
-                    Some(a) => a.clone(),
-                    None => EncryptKey::generate(inner_key.size())
-                };
-                auth.read = ReadOption::Specific(new_key.hash(), DerivedEncryptKey::reverse(&new_key, &inner_key));
-            } else if self.no_auth == false {
-                if mode & 0o040 != 0 {
-                    error!("Session does not have the required group ({}) read key embedded within it", gid);
-                } else {
-                    error!("Session does not have the required user ({}) read key embedded within it", uid);
-                }
-                debug!("...we have...{}", self.session);
-                return Err(libc::EACCES.into());
-            } else {
-                auth.read = ReadOption::Inherit;
-            }
-        }
-
-        if mode & 0o002 != 0 {
-            auth.write = WriteOption::Everyone;
-        } else {
-            let new_key = {
-                if mode & 0o020 != 0 {
-                    self.get_group_write_key(gid)
-                } else {
-                    self.get_user_write_key(uid)
-                }
-            };
-            if let Some(key) = new_key {
-                auth.write = WriteOption::Specific(key.hash());
-            } else if self.no_auth == false {
-                if mode & 0o020 != 0 {
-                    error!("Session does not have the required group ({}) write key embedded within it", gid);
-                } else {
-                    error!("Session does not have the required user ({}) write key embedded within it", uid);
-                }
-                debug!("...we have...{}", self.session);
-                return Err(libc::EACCES.into());
-            } else {
-                auth.write = WriteOption::Inherit;
-            }
-        }
-
-        Ok(())
-    }
-
-    fn translate_uid(&self, uid: u32, req: &Request) -> u32 {
-        if uid == 0 || uid == req.uid {
-            return self.session.uid().unwrap_or_else(|| uid);
-        }
-        uid
-    }
-
-    fn translate_gid(&self, gid: u32, req: &Request) -> u32 {
-        if gid == 0 || gid == req.gid {
-            return self.session.gid().unwrap_or_else(|| gid);
-        }
-        gid
-    }
-
-    fn reverse_uid(&self, uid: u32, req: &Request) -> u32 {
-        if self.session.uid() == Some(uid) {
-            return req.uid;
-        }
-        uid
-    }
-
-    fn reverse_gid(&self, gid: u32, req: &Request) -> u32 {
-        if self.session.gid() == Some(gid) {
-            return req.gid;
-        }
-        gid
-    }
-
-    fn spec_as_attr_reverse(&self, spec: &FileSpec, req: &Request) -> FileAttr {
-        let uid = self.reverse_uid(spec.uid(), req);
-        let gid = self.reverse_gid(spec.gid(), req);
-        spec_as_attr(spec, uid, gid)
-    }
-
-    async fn access_internal(&self, req: &Request, inode: u64, mask: u32) -> Result<()> {
-        self.tick().await?;
-        trace!("access inode={} mask={:#02x}", inode, mask);
-        
-        let dao = self.load(inode).await?;
-        if (dao.dentry.mode & mask) != 0
-        {
-            trace!("access mode={:#02x} - ok", dao.dentry.mode);
-            return Ok(());
-        }
-
-        let uid = self.translate_uid(req.uid, &req);
-        if uid == dao.dentry.uid {
-            trace!("access has_user");
-            let mask_shift = mask << 6;
-            if (dao.dentry.mode & mask_shift) != 0
-            {
-                trace!("access mode={:#02x} - ok", dao.dentry.mode);
-                return Ok(());
-            }
-        }
-
-        let gid = self.translate_gid(req.gid, &req);
-        if gid == dao.dentry.gid && self.session.gid() == Some(gid) {
-            trace!("access has_group");
-            let mask_shift = mask << 3;
-            if (dao.dentry.mode & mask_shift) != 0
-            {
-                trace!("access mode={:#02x} - ok", dao.dentry.mode);
-                return Ok(());
-            }
-        }
-
-        trace!("access mode={:#02x} - EACCES", dao.dentry.mode);
-        Err(libc::EACCES.into())
+fn req_ctx(req: &fuse::Request) -> RequestContext {
+    RequestContext {
+        uid: req.uid,
+        gid: req.gid
     }
 }
 
 #[async_trait]
-impl Filesystem
+impl fuse::Filesystem
 for AteFS
 {
-    type DirEntryStream = Iter<IntoIter<Result<DirectoryEntry>>>;
-    type DirEntryPlusStream = Iter<IntoIter<Result<DirectoryEntryPlus>>>;
+    type DirEntryStream = Iter<IntoIter<fuse::Result<fuse3::raw::prelude::DirectoryEntry>>>;
+    type DirEntryPlusStream = Iter<IntoIter<fuse::Result<fuse3::raw::prelude::DirectoryEntryPlus>>>;
 
-    async fn init(&self, req: Request) -> Result<()>
+    async fn init(&self, req: fuse::Request) -> fuse::Result<()>
     {
-        let dio = self.dio_mut_meta().await;
-        if let Err(LoadError(LoadErrorKind::NotFound(_), _)) = self.dio.load::<Inode>(&PrimaryKey::from(1)).await {
-            info!("atefs::creating-root-node");
-            
-            let mode = 0o755;
-            let uid = self.translate_uid(req.uid, &req);
-            let gid = self.translate_gid(req.gid, &req);
-            let root = Inode::new(
-                "/".to_string(),
-                mode,
-                uid,
-                gid,
-                SpecType::Directory
-            );
-            match dio.store_with_key(root, PrimaryKey::from(1))
-            {
-                Ok(mut root) => {
-                    self.update_auth(mode, uid, gid, root.auth_mut())?;
-                },
-                Err(err) => {
-                    error!("atefs::error {}", err);
-                }
-            }     
-        };
-        debug!("init");
-        
-        // All good
-        self.tick().await?;
-        self.commit().await?;
-        cc(dio.commit().await)?;
-
-        // Disable any more root nodes from being created (only the single root node is allowed)
-        self.chain.single().await.disable_new_roots();
-
-        Ok(())
+        let req = req_ctx(&req);
+        conv_result(self.accessor.init(&req).await)
     }
 
-    async fn destroy(&self, _req: Request) {
-        self.tick().await.unwrap();
-        self.commit().await.unwrap();
-        debug!("destroy");
+    async fn destroy(&self, req: fuse::Request) {
+        let _req = req_ctx(&req);
     }
 
     async fn getattr(
         &self,
-        req: Request,
+        req: fuse::Request,
         inode: u64,
         fh: Option<u64>,
-        _flags: u32,
-    ) -> Result<ReplyAttr> {
-        self.tick().await?;
-        trace!("getattr inode={}", inode);
-
-        if let Some(fh) = fh {
-            let lock = self.open_handles.lock();
-            if let Some(open) = lock.get(&fh) {
-                return Ok(ReplyAttr {
-                    ttl: FUSE_TTL,
-                    attr: open.attr,
-                })
+        flags: u32,
+    ) -> fuse::Result<fuse::ReplyAttr> {
+        let req = req_ctx(&req);
+        Ok(
+            fuse::ReplyAttr {
+                ttl: FUSE_TTL,
+                attr: conv_attr(&conv_result(self.accessor.getattr(&req, inode, fh, flags).await)?),
             }
-        }
-
-        let dao = self.load(inode).await?;
-        let spec = Inode::as_file_spec(inode, dao.when_created(), dao.when_updated(), dao).await;
-        Ok(ReplyAttr {
-            ttl: FUSE_TTL,
-            attr: match self.impersonate_uid {
-                true => self.spec_as_attr_reverse(&spec, &req),
-                false => spec_as_attr(&spec, spec.uid(), spec.gid())
-            },
-        })
+        )
     }
 
     async fn setattr(
         &self,
-        req: Request,
+        req: fuse::Request,
         inode: u64,
-        _fh: Option<u64>,
-        set_attr: SetAttr,
-    ) -> Result<ReplyAttr> {
-        self.tick().await?;
-        trace!("setattr inode={}", inode);
+        fh: Option<u64>,
+        set_attr: fuse::SetAttr,
+    ) -> fuse::Result<fuse::ReplyAttr> {
+        let req = req_ctx(&req);
 
-        let key = PrimaryKey::from(inode);
-        let dio = self.dio_mut_meta().await;
-        let mut dao = conv_load(dio.load::<Inode>(&key).await)?;            
-        
-        let mut changed = false;
-        if let Some(uid) = set_attr.uid {
-            let new_uid = self.translate_uid(uid, &req);
-            if dao.dentry.uid != new_uid {
-                let mut dao = dao.as_mut();
-                dao.dentry.uid = new_uid;
-                changed = true;
+        let set_attr = SetAttr {
+            mode: set_attr.mode,
+            uid: set_attr.uid,
+            gid: set_attr.gid,
+            size: set_attr.size,
+            lock_owner: set_attr.lock_owner,
+            accessed: set_attr.atime.iter().filter_map(|a| a.duration_since(SystemTime::UNIX_EPOCH).ok().map(|a| a.as_millis() as u64)).next(),
+            updated: set_attr.mtime.iter().filter_map(|a| a.duration_since(SystemTime::UNIX_EPOCH).ok().map(|a| a.as_millis() as u64)).next(),
+            created: set_attr.ctime.iter().filter_map(|a| a.duration_since(SystemTime::UNIX_EPOCH).ok().map(|a| a.as_millis() as u64)).next(),
+        };
+        let attr = conv_attr(&conv_result(self.accessor.setattr(&req, inode, fh, set_attr).await)?);
+        Ok(
+            fuse::ReplyAttr {
+                ttl: FUSE_TTL,
+                attr,
             }
-        }
-        if let Some(gid) = set_attr.gid {
-            let new_gid = self.translate_gid(gid, &req);
-            if dao.dentry.gid != new_gid {
-                let mut dao = dao.as_mut();
-                dao.dentry.gid = new_gid;
-                changed = true;
-            }
-        }
-        if let Some(mode) = set_attr.mode {
-            if dao.dentry.mode != mode {
-                let mut dao = dao.as_mut();
-                dao.dentry.mode = mode;
-                dao.dentry.uid = self.translate_uid(req.uid, &req);
-                changed = true;
-            }
-        }
+        )
+    }
 
-        if changed == true {
-            self.update_auth(dao.dentry.mode, dao.dentry.uid, dao.dentry.gid, dao.auth_mut())?;
-            cc(dio.commit().await)?;
-        }
-
-        let spec = Inode::as_file_spec(inode, dao.when_created(), dao.when_updated(), dao.into()).await;
-        Ok(ReplyAttr {
-            ttl: FUSE_TTL,
-            attr: self.spec_as_attr_reverse(&spec, &req),
+    async fn opendir(&self, req: fuse::Request, inode: u64, flags: u32) -> fuse::Result<fuse::ReplyOpen> {
+        let req = req_ctx(&req);
+        Ok(fuse::ReplyOpen {
+            fh: conv_result(self.accessor.opendir(&req, inode, flags).await)?.fh,
+            flags: 0,
         })
     }
 
-    async fn opendir(&self, req: Request, inode: u64, flags: u32) -> Result<ReplyOpen> {
-        self.tick().await?;
-        debug!("atefs::opendir inode={}", inode);
-
-        let open = self.create_open_handle(inode, &req, flags as i32).await?;
-
-        if open.attr.kind != FileType::Directory {
-            debug!("atefs::opendir not-a-directory");
-            return Err(libc::ENOTDIR.into());
-        }
-
-        let fh = open.fh;
-        self.open_handles.lock().insert(open.fh, Arc::new(open));
-
-        Ok(ReplyOpen { fh, flags: 0 })
-    }
-
-    async fn releasedir(&self, _req: Request, inode: u64, fh: u64, _flags: u32) -> Result<()> {
-        self.tick().await?;
-        debug!("atefs::releasedir inode={}", inode);
-
-        let open = self.open_handles.lock().remove(&fh);
-        if let Some(open) = open {
-            open.spec.commit().await?
-        }
-        Ok(())
+    async fn releasedir(&self, req: fuse::Request, inode: u64, fh: u64, flags: u32) -> fuse::Result<()> {
+        let req = req_ctx(&req);
+        conv_result(self.accessor.releasedir(&req, inode, fh, flags).await)
     }
 
     async fn readdirplus(
         &self,
-        req: Request,
+        req: fuse::Request,
         parent: u64,
         fh: u64,
         offset: u64,
         _lock_owner: u64,
-    ) -> Result<ReplyDirectoryPlus<Self::DirEntryPlusStream>> {
+    ) -> fuse::Result<fuse::ReplyDirectoryPlus<Self::DirEntryPlusStream>> {
         self.tick().await?;
         debug!("atefs::readdirplus id={} offset={}", parent, offset);
 
         if fh == 0 {
             let open = self.create_open_handle(parent, &req, libc::O_RDONLY).await?;
-            let entries = open.children_plus.iter().skip(offset as usize).map(|a| Ok(a.clone())).collect::<Vec<_>>();
-            return Ok(ReplyDirectoryPlus {
+            let entries = open.children.iter().skip(offset as usize)
+                .map(|a| Ok(fuse::DirectoryEntryPlus {
+                    inode: a.inode,
+                    kind: conv_kind(a.kind),
+                    name: OsString::from(a.name.as_str()),
+                    generation: 0,
+                    attr: conv_attr(&a.attr),
+                    entry_ttl: FUSE_TTL,
+                    attr_ttl: FUSE_TTL,
+                }))
+                .map(|a| conv_result(a))
+                .collect::<Vec<_>>();
+            return Ok(fuse::ReplyDirectoryPlus {
                 entries: stream::iter(entries.into_iter())
             });
         }
 
-        let lock = self.open_handles.lock();
+        let lock = self.accessor.open_handles.lock();
         if let Some(open) = lock.get(&fh) {
-            let entries = open.children_plus.iter().skip(offset as usize).map(|a| Ok(a.clone())).collect::<Vec<_>>();
-            Ok(ReplyDirectoryPlus {
+            let entries = open.children.iter().skip(offset as usize)
+                .map(|a| Ok(fuse::DirectoryEntryPlus {
+                    inode: a.inode,
+                    kind: conv_kind(a.kind),
+                    name: OsString::from(a.name.as_str()),
+                    generation: 0,
+                    attr: conv_attr(&a.attr),
+                    entry_ttl: FUSE_TTL,
+                    attr_ttl: FUSE_TTL,
+                }))
+                .map(|a| conv_result(a))
+                .collect::<Vec<_>>();
+            Ok(fuse::ReplyDirectoryPlus {
                 entries: stream::iter(entries.into_iter())
             })
         } else {
@@ -782,26 +248,42 @@ for AteFS
 
     async fn readdir(
         &self,
-        req: Request,
+        req: fuse::Request,
         parent: u64,
         fh: u64,
         offset: i64,
-    ) -> Result<ReplyDirectory<Self::DirEntryStream>> {
+    ) -> fuse::Result<fuse::ReplyDirectory<Self::DirEntryStream>> {
         self.tick().await?;
         debug!("atefs::readdir parent={}", parent);
 
         if fh == 0 {
             let open = self.create_open_handle(parent, &req, libc::O_RDONLY).await?;
-            let entries = open.children.iter().skip(offset as usize).map(|a| Ok(a.clone())).collect::<Vec<_>>();
-            return Ok(ReplyDirectory {
+            let entries = open.children.iter()
+                .skip(offset as usize)
+                .map(|a| Ok(fuse::DirectoryEntry {
+                    inode: a.inode,
+                    kind: conv_kind(a.kind),
+                    name: OsString::from(a.name.as_str()),
+                }))
+                .map(|a| conv_result(a))
+                .collect::<Vec<_>>();
+            return Ok(fuse::ReplyDirectory {
                 entries: stream::iter(entries.into_iter())
             });
         }
 
-        let lock = self.open_handles.lock();
+        let lock = self.accessor.open_handles.lock();
         if let Some(open) = lock.get(&fh) {
-            let entries = open.children.iter().skip(offset as usize).map(|a| Ok(a.clone())).collect::<Vec<_>>();
-            Ok(ReplyDirectory {
+            let entries = open.children.iter()
+                .skip(offset as usize)
+                .map(|a| Ok(fuse::DirectoryEntry {
+                    inode: a.inode,
+                    kind: conv_kind(a.kind),
+                    name: OsString::from(a.name.as_str()),
+                }))
+                .map(|a| conv_result(a))
+                .collect::<Vec<_>>();
+            Ok(fuse::ReplyDirectory {
                 entries: stream::iter(entries.into_iter())
             })
         } else {
@@ -809,589 +291,344 @@ for AteFS
         }
     }
 
-    async fn lookup(&self, req: Request, parent: u64, name: &OsStr) -> Result<ReplyEntry> {
-        self.tick().await?;
-        let open = self.create_open_handle(parent, &req, libc::O_RDONLY).await?;
-
-        if open.attr.kind != FileType::Directory {
-            debug!("atefs::lookup parent={} not-a-directory", parent);
-            return Err(libc::ENOTDIR.into());
-        }
-        
-        if let Some(entry) = open.children_plus.iter().filter(|c| *c.name == *name).next() {
-            debug!("atefs::lookup parent={} name={}: found", parent, name.to_str().unwrap());
-            return Ok(ReplyEntry {
+    async fn lookup(&self, req: fuse::Request, parent: u64, name: &OsStr) -> fuse::Result<fuse::ReplyEntry> {
+        let req = req_ctx(&req);
+        let name = name.to_str().unwrap();
+        Ok(
+            fuse::ReplyEntry
+            {
                 ttl: FUSE_TTL,
-                attr: entry.attr,
+                attr: match conv_result(self.accessor.lookup(&req, parent, name).await)? {
+                    Some(a) => conv_attr(&a),
+                    None => {
+                        return Err(libc::ENOENT.into());
+                    }
+                },
                 generation: 0,
-            });
-        }
-
-        debug!("atefs::lookup parent={} name={}: not found", parent, name.to_str().unwrap());
-        Err(libc::ENOENT.into())
-    }
-
-    async fn forget(&self, _req: Request, _inode: u64, _nlookup: u64) {
-        let _ = self.tick().await;
-    }
-
-    async fn fsync(&self, _req: Request, inode: u64, _fh: u64, _datasync: bool) -> Result<()> {
-        self.tick().await?;
-        debug!("atefs::fsync inode={}", inode);
-
-        Ok(())
-    }
-
-    async fn flush(&self, _req: Request, inode: u64, fh: u64, _lock_owner: u64) -> Result<()> {
-        self.tick().await?;
-        self.commit().await?;
-        debug!("atefs::flush inode={}", inode);
-
-        let open = {
-            let lock = self.open_handles.lock();
-            match lock.get(&fh) {
-                Some(open) => Some(Arc::clone(&open)),
-                _ => None,
             }
-        };
-        if let Some(open) = open {
-            open.spec.commit().await?
-        }
-
-        conv_io(self.chain.flush().await)?;
-        Ok(())
+        )
     }
 
-    async fn access(&self, req: Request, inode: u64, mask: u32) -> Result<()> {
-        self.access_internal(&req, inode, mask).await
+    async fn forget(&self, req: fuse::Request, inode: u64, nlookup: u64) {
+        let req = req_ctx(&req);
+        self.accessor.forget(&req, inode, nlookup).await;
+    }
+
+    async fn fsync(&self, req: fuse::Request, inode: u64, fh: u64, datasync: bool) -> fuse::Result<()> {
+        let req = req_ctx(&req);
+        conv_result(self.accessor.fsync(&req, inode, fh, datasync).await)
+    }
+
+    async fn flush(&self, req: fuse::Request, inode: u64, fh: u64, lock_owner: u64) -> fuse::Result<()> {
+        let req = req_ctx(&req);
+        conv_result(self.accessor.flush(&req, inode, fh, lock_owner).await)
+    }
+
+    async fn access(&self, req: fuse::Request, inode: u64, mask: u32) -> fuse::Result<()> {
+        let req = req_ctx(&req);
+        conv_result(self.accessor.access(&req, inode, mask).await)
     }
 
     async fn mkdir(
         &self,
-        req: Request,
+        req: fuse::Request,
         parent: u64,
         name: &OsStr,
         mode: u32,
-        _umask: u32,
-    ) -> Result<ReplyEntry> {
-        self.tick().await?;
-        debug!("atefs::mkdir parent={}", parent);
-
-        let dio = self.dio.trans(self.scope_meta).await;
-        let mut data = conv_load(dio.load::<Inode>(&PrimaryKey::from(parent)).await)?;
-        
-        if data.spec_type != SpecType::Directory {
-            return Err(libc::ENOTDIR.into());
-        }
-
-        let uid = self.translate_uid(req.uid, &req);
-        let gid = self.translate_gid(req.gid, &req);
-        let child = Inode::new(
-            name.to_str().unwrap().to_string(),
-            mode, 
-            uid,
-            gid,
-            SpecType::Directory,
-        );
-
-        let mut child = cs(data.as_mut().children.push(child))?;
-        self.update_auth(mode, uid, gid, child.auth_mut())?;
-        cc(dio.commit().await)?;
-
-        let child_spec = Inode::as_file_spec(child.key().as_u64(), child.when_created(), child.when_updated(), child.into()).await;
-
-        Ok(ReplyEntry {
+        umask: u32,
+    ) -> fuse::Result<fuse::ReplyEntry> {
+        let req = req_ctx(&req);
+        let attr = conv_result(self.accessor.mkdir(&req, parent, name.to_str().unwrap(), mode, umask).await)?;
+        Ok(fuse::ReplyEntry {
             ttl: FUSE_TTL,
-            attr: self.spec_as_attr_reverse(&child_spec, &req),
+            attr: conv_attr(&attr),
             generation: 0,
         })
     }
 
-    async fn rmdir(&self, req: Request, parent: u64, name: &OsStr) -> Result<()> {
-        self.tick().await?;
-        debug!("atefs::rmdir parent={}", parent);
-
-        let open = self.create_open_handle(parent, &req, libc::O_RDONLY).await?;
-
-        if open.attr.kind != FileType::Directory {
-            debug!("atefs::rmdir parent={} not-a-directory", parent);
-            return Err(libc::ENOTDIR.into());
-        }
-        
-        if let Some(entry) = open.children_plus.iter().filter(|c| *c.name == *name).next() {
-            debug!("atefs::rmdir parent={} name={}: found", parent, name.to_str().unwrap());
-
-            let dio = self.dio.trans(self.scope_meta).await;
-            cs(dio.delete(&PrimaryKey::from(entry.inode)).await)?;
-            cc(dio.commit().await)?;
-            return Ok(())
-        }
-
-        debug!("atefs::rmdir parent={} name={}: not found", parent, name.to_str().unwrap());
-        Err(libc::ENOENT.into())
+    async fn rmdir(&self, req: fuse::Request, parent: u64, name: &OsStr) -> fuse::Result<()> {
+        let req = req_ctx(&req);
+        conv_result(self.accessor.rmdir(&req, parent, name.to_str().unwrap()).await)
     }
 
-    async fn interrupt(&self, _req: Request, unique: u64) -> Result<()> {
-        self.tick().await?;
-        debug!("atefs::interrupt unique={}", unique);
-
-        Ok(())
+    async fn interrupt(&self, req: fuse::Request, unique: u64) -> fuse::Result<()> {
+        let req = req_ctx(&req);
+        conv_result(self.accessor.interrupt(&req, unique).await)
     }
 
     async fn mknod(
         &self,
-        req: Request,
+        req: fuse::Request,
         parent: u64,
         name: &OsStr,
         mode: u32,
-        rdev: u32,
-    ) -> Result<ReplyEntry> {
-        self.tick().await?;
-        debug!("atefs::mknod parent={} name={}", parent, name.to_str().unwrap().to_string());
-
-        let dao = self.mknod_internal(req, parent, name, mode, rdev).await?;
-        cc(dao.trans().commit().await)?;
-
-        let spec = Inode::as_file_spec(dao.key().as_u64(), dao.when_created(), dao.when_updated(), dao.into()).await;
-        Ok(ReplyEntry {
-            ttl: FUSE_TTL,
-            attr: self.spec_as_attr_reverse(&spec, &req),
-            generation: 0,
-        })
+        _rdev: u32,
+    ) -> fuse::Result<fuse::ReplyEntry> {
+        let req = req_ctx(&req);
+        let node = self.accessor.mknod(&req, parent, name.to_str().unwrap(), mode).await;
+        Ok(
+            fuse::ReplyEntry {
+                ttl: FUSE_TTL,
+                attr: conv_attr(&conv_result(node)?),
+                generation: 0,
+            }
+        )
     }
 
     async fn create(
         &self,
-        req: Request,
+        req: fuse::Request,
         parent: u64,
         name: &OsStr,
         mode: u32,
         flags: u32,
-    ) -> Result<ReplyCreated> {
-        self.tick().await?;
-        debug!("atefs::create parent={} name={}", parent, name.to_str().unwrap().to_string());
-
-        let data = self.mknod_internal(req, parent, name, mode, 0).await?;
-        cc(data.trans().commit().await)?;
-
-        let spec = Inode::as_file_spec_mut(data.key().as_u64(), data.when_created(), data.when_updated(), data.into()).await;
-        let open = OpenHandle {
-            inode: spec.ino(),
-            read_only: false,
-            fh: fastrand::u64(..),
-            attr: self.spec_as_attr_reverse(&spec, &req),
-            spec: spec,
-            children: Vec::new(),
-            children_plus: Vec::new(),
-            dirty: seqlock::SeqLock::new(false),
-        };
-
-        let fh = open.fh;
-        let attr = open.attr.clone();
-
-        self.open_handles.lock().insert(open.fh, Arc::new(open));
-
-        Ok(ReplyCreated {
-            ttl: FUSE_TTL,
-            attr: attr,
-            generation: 0,
-            fh,
-            flags,
-        })
+    ) -> fuse::Result<fuse::ReplyCreated> {
+        let req = req_ctx(&req);
+        let handle = conv_result(self.accessor.create(&req, parent, name.to_str().unwrap(), mode).await)?;
+        Ok(
+            fuse::ReplyCreated {
+                ttl: FUSE_TTL,
+                attr: conv_attr(&handle.attr),
+                generation: 0,
+                fh: handle.fh,
+                flags,
+            }
+        )
     }
 
-    async fn unlink(&self, _req: Request, parent: u64, name: &OsStr) -> Result<()> {
-        self.tick().await?;
-        debug!("atefs::unlink parent={} name={}", parent, name.to_str().unwrap().to_string());
-
-        let parent_key = PrimaryKey::from(parent);
-        
-        let data_parent = conv_load(self.dio.load::<Inode>(&parent_key).await)?;
-
-        if data_parent.spec_type != SpecType::Directory {
-            debug!("atefs::unlink parent={} not-a-directory", parent);
-            return Err(libc::ENOTDIR.into());
-        }
-        
-        if let Some(data) = conv_load(data_parent.children.iter().await)?.filter(|c| *c.dentry.name == *name).next()
-        {
-            if data.spec_type == SpecType::Directory {
-                debug!("atefs::unlink parent={} name={} is-a-directory", parent, name.to_str().unwrap().to_string());
-                return Err(libc::EISDIR.into());
-            }
-
-            let dio = self.dio_mut_meta().await;
-            cs(dio.delete(&data.key()).await)?;
-            cc(dio.commit().await)?;
-
-            return Ok(());
-        }
-        Err(libc::ENOENT.into())
+    async fn unlink(&self, req: fuse::Request, parent: u64, name: &OsStr) -> fuse::Result<()> {
+        let req = req_ctx(&req);
+        conv_result(self.accessor.unlink(&req, parent, name.to_str().unwrap()).await)
     }
 
     async fn rename(
         &self,
-        _req: Request,
+        req: fuse::Request,
         parent: u64,
         name: &OsStr,
         new_parent: u64,
         new_name: &OsStr,
-    ) -> Result<()> {
-        self.tick().await?;
-        debug!("atefs::rename name={} new_name={}", name.to_str().unwrap().to_string(), new_name.to_str().unwrap().to_string());
-        
-        let mut parent_data = self.load_mut(parent).await?;
-        if parent_data.spec_type != SpecType::Directory {
-            debug!("atefs::rename parent={} not-a-directory", parent);
-            return Err(libc::ENOTDIR.into());
-        }
-        
-        let mut parent_data = parent_data.as_mut();
-        if let Some(mut data) = conv_load(parent_data.children.iter_mut().await)?.filter(|c| *c.dentry.name == *name).next()
-        {
-            let dio = self.dio_mut_meta().await;
-
-            // If the parent has changed then move it
-            if parent != new_parent
-            {
-                let new_parent_key = PrimaryKey::from(new_parent);
-                let new_parent_data = conv_load(self.dio.load::<Inode>(&new_parent_key).await)?;
-                
-                if new_parent_data.spec_type != SpecType::Directory {
-                    debug!("atefs::rename new_parent={} not-a-directory", new_parent);
-                    return Err(libc::ENOTDIR.into());
-                }
-
-                if conv_load(new_parent_data.children.iter().await)?.filter(|c| *c.dentry.name == *new_name).next().is_some() {
-                    debug!("atefs::rename new_name={} already exists", new_name.to_str().unwrap().to_string());
-                    return Err(libc::EEXIST.into());
-                }
-
-                cs(data.detach())?;
-                cs(data.attach(&new_parent_data, &new_parent_data.children))?;
-            }
-            else
-            {
-                if conv_load(parent_data.children.iter().await)?.filter(|c| *c.dentry.name == *new_name).next().is_some() {
-                    debug!("atefs::rename new_name={} already exists", new_name.to_str().unwrap().to_string());
-                    return Err(libc::ENOTDIR.into());
-                }
-            }
-
-            data.as_mut().dentry.name = new_name.to_str().unwrap().to_string();
-            cc(dio.commit().await)?;
-            return Ok(());
-        }
-        Err(libc::ENOENT.into())
+    ) -> fuse::Result<()> {
+        let req = req_ctx(&req);
+        conv_result(self.accessor.rename(&req, parent, name.to_str().unwrap(), new_parent, new_name.to_str().unwrap()).await)
     }
 
-    async fn open(&self, req: Request, inode: u64, flags: u32) -> Result<ReplyOpen> {
-        self.tick().await?;
-        debug!("atefs::open inode={}", inode);
-
-        let open = self.create_open_handle(inode, &req, flags as i32).await?;
-
-        if open.attr.kind == FileType::Directory {
-            debug!("atefs::open is-a-directory");
-            return Err(libc::EISDIR.into());
-        }
-
-        let fh = open.fh;
-        self.open_handles.lock().insert(open.fh, Arc::new(open));
-
-        Ok(ReplyOpen { fh, flags })
+    async fn open(&self, req: fuse::Request, inode: u64, flags: u32) -> fuse::Result<fuse::ReplyOpen> {
+        let req = req_ctx(&req);
+        let handle = conv_result(self.accessor.open(&req, inode, flags).await)?;
+        Ok(
+            fuse::ReplyOpen {
+                fh: handle.fh,
+                flags
+            }
+        )
     }
 
     async fn release(
         &self,
-        _req: Request,
+        req: fuse::Request,
         inode: u64,
         fh: u64,
-        _flags: u32,
-        _lock_owner: u64,
+        flags: u32,
+        lock_owner: u64,
         flush: bool,
-    ) -> Result<()> {
-        self.tick().await?;
-        debug!("atefs::release inode={}", inode);
-        
-        
-        let open = self.open_handles.lock().remove(&fh);
-        if let Some(open) = open {
-            open.spec.commit().await?
-        }
-
-        if flush {
-            self.chain.flush().await?;
-        }
-
-        Ok(())
+    ) -> fuse::Result<()> {
+        let req = req_ctx(&req);
+        conv_result(self.accessor.release(&req, inode, fh, flags, lock_owner, flush).await)
     }
 
     async fn read(
         &self,
-        _req: Request,
+        req: fuse::Request,
         inode: u64,
         fh: u64,
         offset: u64,
         size: u32,
-    ) -> Result<ReplyData> {
-        self.tick().await?;
-        debug!("atefs::read inode={} offset={} size={}", inode, offset, size);
-        
-        let open = {
-            let lock = self.open_handles.lock();
-            match lock.get(&fh) {
-                Some(a) => Arc::clone(a),
-                None => {
-                    return Err(libc::ENOSYS.into());
-                },
+    ) -> fuse::Result<fuse::ReplyData> {
+        let req = req_ctx(&req);
+        let data = conv_result(self.accessor.read(&req, inode, fh, offset, size).await)?;
+        Ok(
+            fuse::ReplyData {
+                data
             }
-        };
-        Ok(ReplyData { data: open.spec.read(offset, size as u64).await?,  })
+        )
     }
 
     async fn write(
         &self,
-        _req: Request,
+        req: fuse::Request,
         inode: u64,
         fh: u64,
         offset: u64,
         data: &[u8],
-        _flags: u32,
-    ) -> Result<ReplyWrite> {
-        self.tick().await?;
-        debug!("atefs::write inode={} offset={} size={}", inode, offset, data.len());
-
-        let open = {
-            let lock = self.open_handles.lock();
-            match lock.get(&fh) {
-                Some(a) => Arc::clone(a),
-                None => {
-                    debug!("atefs::write-failed inode={} offset={} size={}", inode, offset, data.len());
-                    return Err(libc::ENOSYS.into());
-                },
+        flags: u32,
+    ) -> fuse::Result<fuse::ReplyWrite> {
+        let req = req_ctx(&req);
+        let wrote = conv_result(self.accessor.write(&req, inode, fh, offset, data, flags).await)?;
+        Ok(
+            fuse::ReplyWrite {
+                written: wrote,
             }
-        };
-
-        if open.read_only {
-            return Err(libc::EPERM.into());
-        }
-
-        let wrote = open.spec.write(offset, data).await?;
-        if open.dirty.read() == false {
-            *open.dirty.lock_write() = true;
-        }
-
-        debug!("atefs::wrote inode={} offset={} size={}", inode, offset, wrote);
-        Ok(ReplyWrite {
-            written: wrote,
-        })
+        )
     }
 
     async fn fallocate(
         &self,
-        _req: Request,
+        req: fuse::Request,
         inode: u64,
         fh: u64,
         offset: u64,
         length: u64,
-        _mode: u32,
-    ) -> Result<()> {
-        self.tick().await?;
-        debug!("atefs::fallocate inode={}", inode);
-
-        if fh > 0 {
-            let open = {
-                let lock = self.open_handles.lock();
-                match lock.get(&fh) {
-                    Some(a) => Some(Arc::clone(a)),
-                    None => None,
-                }
-            };
-            if let Some(open) = open {
-                if open.read_only {
-                    return Err(libc::EPERM.into());
-                }
-                
-                open.spec.fallocate(offset + length).await?;
-                if open.dirty.read() == false {
-                    *open.dirty.lock_write() = true;
-                }
-                return Ok(());
-            }
-        }
-
-        let mut dao = self.load_mut(inode).await?;
-        dao.as_mut().size = offset + length;
-        cc(dao.trans().commit().await)?;
-
-        return Ok(());
+        mode: u32,
+    ) -> fuse::Result<()> {
+        let req = req_ctx(&req);
+        conv_result(self.accessor.fallocate(&req, inode, fh, offset, length, mode).await)
     }
 
     async fn lseek(
         &self,
-        _req: Request,
+        req: fuse::Request,
         inode: u64,
         fh: u64,
         offset: u64,
         whence: u32,
-    ) -> Result<ReplyLSeek> {
-        self.tick().await?;
-        debug!("atefs::lseek inode={}", inode);
-
-        let offset = if whence == libc::SEEK_CUR as u32 || whence == libc::SEEK_SET as u32 {
-            offset
-        } else if whence == libc::SEEK_END as u32 {
-            let mut size = None;
-            if fh > 0 {
-                let lock = self.open_handles.lock();
-                if let Some(open) = lock.get(&fh) {
-                    size = Some(open.spec.size());
-                }
+    ) -> fuse::Result<fuse::ReplyLSeek> {
+        let req = req_ctx(&req);
+        let offset = conv_result(self.accessor.lseek(&req, inode, fh, offset, whence).await)?;
+        Ok(
+            fuse::ReplyLSeek {
+                offset
             }
-            let size = match size {
-                Some(a) => a,
-                None => self.load(inode).await?.size
-            };
-            offset + size
-        } else {
-            return Err(libc::EINVAL.into());
-        };
-        Ok(ReplyLSeek { offset })
+        )
     }
 
     async fn symlink(
         &self,
-        req: Request,
+        req: fuse::Request,
         parent: u64,
         name: &OsStr,
         link: &OsStr,
-    ) -> Result<ReplyEntry> {
-        self.tick().await?;
-        debug!("atefs::symlink parent={}, name={}, link={}", parent, name.to_str().unwrap().to_string(), link.to_str().unwrap().to_string());
-
-        let link = link.to_str().unwrap().to_string();
-        let spec = {
-            let mut dao = self.mknod_internal(req, parent, name, 0o755, 0).await?;
-            {
-                let mut dao = dao.as_mut();
-                dao.spec_type = SpecType::SymLink;
-                dao.link = Some(link);
+    ) -> fuse::Result<fuse::ReplyEntry> {
+        let req = req_ctx(&req);
+        let attr = conv_result(self.accessor.symlink(&req, parent, name.to_str().unwrap(), link.to_str().unwrap()).await)?;
+        Ok(
+            fuse::ReplyEntry {
+                ttl: FUSE_TTL,
+                attr: conv_attr(&attr),
+                generation: 0,
             }
-            cc(dao.trans().commit().await)?;
-
-            Inode::as_file_spec(dao.key().as_u64(), dao.when_created(), dao.when_updated(), dao.into()).await
-        };
-        
-        Ok(ReplyEntry {
-            ttl: FUSE_TTL,
-            attr: self.spec_as_attr_reverse(&spec, &req),
-            generation: 0,
-        })
+        )
     }
 
     /// read symbolic link.
     async fn readlink(
         &self,
-        _req: Request,
-        inode: u64
-    ) -> Result<ReplyData> {
-        self.tick().await?;
-        debug!("atefs::readlink inode={}", inode);
-
-        let dao = self.load(inode).await?;
-        match &dao.link {
-            Some(l) => {
-                Ok(ReplyData {
-                    data: bytes::Bytes::from(l.clone().into_bytes()),
-                })
-            },
-            None => Err(libc::ENOSYS.into())
-        }
+        req: fuse::Request,
+        _inode: u64
+    ) -> fuse::Result<fuse::ReplyData> {
+        let _req = req_ctx(&req);
+        Err(libc::ENOSYS.into())
     }
 
     /// create a hard link.
     async fn link(
         &self,
-        _req: Request,
+        req: fuse::Request,
         _inode: u64,
         _new_parent: u64,
         _new_name: &OsStr,
-    ) -> Result<ReplyEntry> {
-        self.tick().await?;
-        debug!("atefs::link not-implemented");
-
+    ) -> fuse::Result<fuse::ReplyEntry> {
+        let _req = req_ctx(&req);
         Err(libc::ENOSYS.into())
     }
 
     /// get filesystem statistics.
     async fn statsfs(
         &self,
-        _req: Request,
+        req: fuse::Request,
         _inode: u64
-    ) -> Result<ReplyStatFs> {
-        self.tick().await?;
-        debug!("atefs::statsfs not-implemented");
-
+    ) -> fuse::Result<fuse::ReplyStatFs> {
+        let _req = req_ctx(&req);
         Err(libc::ENOSYS.into())
     }
 
     /// set an extended attribute.
     async fn setxattr(
         &self,
-        _req: Request,
-        _inode: u64,
-        _name: &OsStr,
-        _value: &OsStr,
+        req: fuse::Request,
+        inode: u64,
+        name: &OsStr,
+        value: &OsStr,
         _flags: u32,
         _position: u32,
-    ) -> Result<()> {
-        self.tick().await?;
-        debug!("atefs::setxattr not-implemented");
-        
-        Err(libc::ENOSYS.into())
+    ) -> fuse::Result<()> {
+        let req = req_ctx(&req);
+        conv_result(self.accessor.setxattr(&req, inode, name.to_str().unwrap(), value.to_str().unwrap()).await)
     }
 
     /// get an extended attribute. If size is too small, use [`ReplyXAttr::Size`] to return correct
     /// size. If size is enough, use [`ReplyXAttr::Data`] to send it, or return error.
     async fn getxattr(
         &self,
-        _req: Request,
-        _inode: u64,
-        _name: &OsStr,
-        _size: u32,
-    ) -> Result<ReplyXAttr> {
-        self.tick().await?;
-        debug!("atefs::getxattr not-implemented");
+        req: fuse::Request,
+        inode: u64,
+        name: &OsStr,
+        size: u32,
+    ) -> fuse::Result<fuse::ReplyXAttr> {
+        let req = req_ctx(&req);
+        let ret = match conv_result(self.accessor.getxattr(&req, inode, name.to_str().unwrap()).await)? {
+            Some(a) => a,
+            None => {
+                return Err(libc::ENODATA.into());
+            }
+        };
 
-        Err(libc::ENOSYS.into())
+        let ret = {
+            let mut r = ret;
+            r.push('\0');
+            r
+        };
+        let ret = ret.into_bytes();
+        if ret.len() as u32 > size {
+            Ok(fuse::ReplyXAttr::Size(ret.len() as u32))    
+        } else {
+            Ok(fuse::ReplyXAttr::Data(bytes::Bytes::from(ret)))
+        }
     }
 
     /// list extended attribute names. If size is too small, use [`ReplyXAttr::Size`] to return
     /// correct size. If size is enough, use [`ReplyXAttr::Data`] to send it, or return error.
     async fn listxattr(
         &self,
-        _req: Request,
-        _inode: u64,
-        _size: u32
-    ) -> Result<ReplyXAttr> {
-        self.tick().await?;
-        debug!("atefs::listxattr not-implemented");
-
-        Err(libc::ENOSYS.into())
+        req: fuse::Request,
+        inode: u64,
+        size: u32
+    ) -> fuse::Result<fuse::ReplyXAttr> {
+        let req = req_ctx(&req);
+        let attr = conv_result(self.accessor.listxattr(&req, inode).await)?;
+        let mut ret = String::new();
+        for (k, _) in attr {
+            ret.push_str(k.as_str());
+            ret.push('\0');
+        }
+        let ret = ret.into_bytes();
+        if ret.len() as u32 > size {
+            Ok(fuse::ReplyXAttr::Size(ret.len() as u32))    
+        } else {
+            Ok(fuse::ReplyXAttr::Data(bytes::Bytes::from(ret)))
+        }
     }
 
     /// remove an extended attribute.
     async fn removexattr(
         &self,
-        _req: Request,
-        _inode: u64,
-        _name: &OsStr
-    ) -> Result<()> {
-        self.tick().await?;
-        debug!("atefs::removexattr not-implemented");
-
-        Err(libc::ENOSYS.into())
+        req: fuse::Request,
+        inode: u64,
+        name: &OsStr
+    ) -> fuse::Result<()> {
+        let req = req_ctx(&req);
+        conv_result(self.accessor.removexattr(&req, inode, name.to_str().unwrap()).await)?;
+        Ok(())
     }
 
     /// map block index within file to block index within device.
@@ -1401,59 +638,53 @@ for AteFS
     /// This may not works because currently this crate doesn't support fuseblk mode yet.
     async fn bmap(
         &self,
-        _req: Request,
+        req: fuse::Request,
         _inode: u64,
         _blocksize: u32,
         _idx: u64,
-    ) -> Result<ReplyBmap> {
-        self.tick().await?;
-        debug!("atefs::bmap not-implemented");
-
+    ) -> fuse::Result<fuse::ReplyBmap> {
+        let _req = req_ctx(&req);
         Err(libc::ENOSYS.into())
     }
 
     async fn poll(
         &self,
-        _req: Request,
+        req: fuse::Request,
         _inode: u64,
         _fh: u64,
         _kh: Option<u64>,
         _flags: u32,
         _events: u32,
-        _notify: &Notify,
-    ) -> Result<ReplyPoll> {
-        self.tick().await?;
-        debug!("atefs::poll not-implemented");
-
+        _notify: &fuse::Notify,
+    ) -> fuse::Result<fuse::ReplyPoll> {
+        let _req = req_ctx(&req);
         Err(libc::ENOSYS.into())
     }
 
     async fn notify_reply(
         &self,
-        _req: Request,
+        req: fuse::Request,
         _inode: u64,
         _offset: u64,
         _data: bytes::Bytes,
-    ) -> Result<()> {
-        self.tick().await?;
-        debug!("atefs::notify_reply not-implemented");
-
+    ) -> fuse::Result<()> {
+        let _req = req_ctx(&req);
         Err(libc::ENOSYS.into())
     }
 
     /// forget more than one inode. This is a batch version [`forget`][Filesystem::forget]
     async fn batch_forget(
         &self,
-        _req: Request,
-        _inodes: &[u64])
+        req: fuse::Request,
+        _inodes: &[u64]
+    )
     {
-        let _ = self.tick().await;
-        debug!("atefs::batch_forget not-implemented");
+        let _req = req_ctx(&req);
     }
 
     async fn copy_file_range(
         &self,
-        _req: Request,
+        req: fuse::Request,
         _inode: u64,
         _fh_in: u64,
         _off_in: u64,
@@ -1462,10 +693,8 @@ for AteFS
         _off_out: u64,
         _length: u64,
         _flags: u64,
-    ) -> Result<ReplyCopyFileRange> {
-        self.tick().await?;
-        debug!("atefs::copy_file_range not-implemented");
-
+    ) -> fuse::Result<fuse::ReplyCopyFileRange> {
+        let _req = req_ctx(&req);
         Err(libc::ENOSYS.into())
     }
 }

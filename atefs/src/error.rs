@@ -1,59 +1,34 @@
-use ate::error::{AteError, AteErrorKind};
-use ate_auth::error::*;
+#[allow(unused_imports)]
+use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use ate::error::*;
 
-#[derive(Debug)]
-pub enum CommandError
-{
-    LoginError(LoginError),
-    CreateError(CreateError),
-    AteError(AteError),
-}
+use ate_files::error::FileSystemError;
+use ate_files::error::FileSystemErrorKind;
+use fuse3::Errno;
 
-impl From<LoginError>
-for CommandError
-{
-    fn from(err: LoginError) -> CommandError {
-        CommandError::LoginError(err)
-    }
-}
-
-impl From<CreateError>
-for CommandError
-{
-    fn from(err: CreateError) -> CommandError {
-        CommandError::CreateError(err)
-    }
-}
-
-impl From<std::io::Error>
-for CommandError
-{
-    fn from(err: std::io::Error) -> CommandError {
-        CommandError::AteError(AteErrorKind::IO(err).into())
-    }
-}
-
-impl From<AteError>
-for CommandError
-{
-    fn from(err: AteError) -> CommandError {
-        CommandError::AteError(err)
-    }
-}
-
-impl std::fmt::Display
-for CommandError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            CommandError::LoginError(err) => {
-                write!(f, "{}", err)
-            },
-            CommandError::CreateError(err) => {
-                write!(f, "{}", err)
-            },
-            CommandError::AteError(err) => {
-                write!(f, "{}", err)
-            },
+pub(crate) fn conv_result<T>(r: std::result::Result<T, FileSystemError>) -> std::result::Result<T, Errno> {
+    match r {
+        Ok(a) => Ok(a),
+        Err(err) => {
+            error!("atefs::error {}", err);
+            match err {
+                FileSystemError(FileSystemErrorKind::NoAccess, _) => Err(libc::EACCES.into()),
+                FileSystemError(FileSystemErrorKind::MissingPermissions, _) => Err(libc::EPERM.into()),
+                FileSystemError(FileSystemErrorKind::ReadOnly, _) => Err(libc::EPERM.into()),
+                FileSystemError(FileSystemErrorKind::InvalidArguments, _) => Err(libc::EINVAL.into()),
+                FileSystemError(FileSystemErrorKind::NoEntry, _) => Err(libc::ENOENT.into()),
+                FileSystemError(FileSystemErrorKind::DoesNotExist, _) => Err(libc::ENOENT.into()),
+                FileSystemError(FileSystemErrorKind::AlreadyExists, _) => Err(libc::EEXIST.into()),
+                FileSystemError(FileSystemErrorKind::NotDirectory, _) => Err(libc::ENOTDIR.into()),
+                FileSystemError(FileSystemErrorKind::IsDirectory, _) => Err(libc::EISDIR.into()),
+                FileSystemError(FileSystemErrorKind::NotImplemented, _) => Err(libc::ENOSYS.into()),
+                FileSystemError(FileSystemErrorKind::CommitError(CommitErrorKind::CommsError(CommsErrorKind::Disconnected)), _) => Err(libc::EBUSY.into()),
+                FileSystemError(FileSystemErrorKind::CommitError(CommitErrorKind::CommsError(CommsErrorKind::ReadOnly)), _) => Err(libc::EPERM.into()),
+                FileSystemError(FileSystemErrorKind::CommitError(CommitErrorKind::ReadOnly), _) => Err(libc::EPERM.into()),
+                FileSystemError(FileSystemErrorKind::LoadError(LoadErrorKind::NotFound(_)), _) => Err(libc::ENOENT.into()),
+                FileSystemError(FileSystemErrorKind::LoadError(LoadErrorKind::TransformationError(TransformErrorKind::MissingReadKey(_))), _) => Err(libc::EACCES.into()),
+                _ => Err(libc::EIO.into())
+            }
         }
     }
 }

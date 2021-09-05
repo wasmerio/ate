@@ -15,7 +15,7 @@ use {
 
 use clap::Clap;
 
-#[tokio::main(flavor = "current_thread")]
+#[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let opts: Opts = Opts::parse();
     //let opts = test_opts();

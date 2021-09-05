@@ -2,16 +2,15 @@
 use async_trait::async_trait;
 use crate::api::FileApi;
 use serde::*;
-use fuse3::FileType;
 use super::model::*;
 use ate::prelude::PrimaryKey;
-use super::api::SpecType;
+use super::api::FileKind;
 
 #[derive(Debug, Clone)]
 pub struct FixedFile
 {
     ino: u64,
-    kind: FileType,
+    kind: FileKind,
     uid: u32,
     gid: u32,
     size: u64,
@@ -23,7 +22,7 @@ pub struct FixedFile
 
 impl FixedFile
 {
-    pub fn new(ino: u64, name: String, kind: FileType) -> FixedFile {
+    pub fn new(ino: u64, name: String, kind: FileKind) -> FixedFile {
         FixedFile {
             ino,
             kind,
@@ -76,16 +75,12 @@ impl FixedFile
 impl FileApi
 for FixedFile
 {
-    fn spec(&self) -> SpecType {
-        SpecType::FixedFile
+    fn kind(&self) -> FileKind {
+        FileKind::FixedFile
     }
 
     fn ino(&self) -> u64 {
         self.ino
-    }
-
-    fn kind(&self) -> FileType {
-        self.kind
     }
 
     fn uid(&self) -> u32 {

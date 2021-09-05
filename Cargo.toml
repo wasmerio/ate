@@ -1,9 +1,11 @@
 [workspace]
 members = [
     "lib",
+    "ateweb",
     "atefs",
     "atedb",
     "auth",
+    "files",
 ]
 
 [profile.release]

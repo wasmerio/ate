@@ -1,8 +1,7 @@
 use async_trait::async_trait;
 use crate::api::FileApi;
-use fuse3::FileType;
 use super::model::*;
-use super::api::SpecType;
+use super::api::FileKind;
 use ate::prelude::*;
 
 #[derive(Debug)]
@@ -51,16 +50,12 @@ impl SymLink
 impl FileApi
 for SymLink
 {
-    fn spec(&self) -> SpecType {
-        SpecType::SymLink
+    fn kind(&self) -> FileKind {
+        FileKind::SymLink
     }
 
     fn ino(&self) -> u64 {
         self.ino
-    }
-
-    fn kind(&self) -> FileType {
-        FileType::Symlink
     }
 
     fn uid(&self) -> u32 {

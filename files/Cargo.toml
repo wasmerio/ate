@@ -1,29 +1,18 @@
 [package]
-name = "atefs"
-version = "1.8.0"
+name = "ate-files"
+version = "1.0.0"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
-description = "Distributed filesystem built on an immutable data store with strong encryption and authentication"
+description = "Model and helper functions for access files stored in ATEs"
 license = "MIT OR Apache-2.0"
-keywords = ["immutable", "filesystem", "fuse", "fs" ]
+keywords = ["immutable", "filesystem", "fs" ]
 categories = ["filesystem", "database", "development-tools"]
 repository = "https://github.com/john-sharratt/ate/tree/master/atefs"
 readme = "README.md"
-build = "build.rs"
-links = "fuse"
-
-[features]
-default = [ "client", "server", "enable_tokera" ]
-client_web = [ "ate/client_web", "ate-auth/client_web" ]
-client = [ "ate/client", "ate-auth/client" ]
-server = [ "ate/server", "ate-auth/server", "ate/enable_mt" ]
-enable_tokera = [ "tokera" ]
 
 [dependencies]
 ate = { version = "^1", path = "../lib", default_features = false }
 ate-auth = { version = "^1", path = "../auth", default_features = false }
-ate-files = { version = "^1", path = "../files" }
-tokera = { version = "^1", path = "../../tokera/lib", optional = true }
 error-chain = { version = "^0.12", default_features = false }
 tokio = { version = "^1", features = ["full", "signal", "process"] }
 serde = { version = "^1", features = ["derive"] }
@@ -40,7 +29,6 @@ fastrand = "^1.4"
 ctrlc = { version = "^3" }
 directories = { version = "^3" }
 libc = { version = "^0.2" }
-fuse3 = { version = "0.2.0-beta.4", features = ["tokio-runtime", "unprivileged"] }
 enum_dispatch = { version = "^0.3" }
 clap = "3.0.0-beta.2"
 shellexpand = "^2"
