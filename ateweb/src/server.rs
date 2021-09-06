@@ -9,6 +9,7 @@ use std::collections::hash_map::Entry;
 use url::Url;
 use bytes::Bytes;
 use std::time::Instant;
+use std::ops::Deref;
 
 use hyper;
 use hyper::service::{make_service_fn, service_fn};
@@ -44,9 +45,9 @@ pub struct Server
     server_conf: ServerConf,
 }
 
-async fn process(server: Arc<Server>, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
+async fn process(server: Arc<Server>, listen: Arc<ServerListen>, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
     let path = req.uri().path().to_string();
-    match server.process(req).await {
+    match server.process(&req, listen.deref()).await {
         Ok(resp) => {
             trace!("res: status={}", resp.status().as_u16());
             Ok(resp)
@@ -86,11 +87,15 @@ impl Server
     {
         let mut joins = Vec::new();
         for listen in self.server_conf.listen.iter() {
-            let server = Arc::clone(self);
-            let make_service = make_service_fn(move |_| {
-                let server = server.clone();
-                async move { Ok::<_, Infallible>(service_fn(move |req| process(server.clone(), req))) }
-            });
+            let make_service = {
+                let server = Arc::clone(self);
+                let listen = Arc::new(listen.clone());
+                make_service_fn(move |_| {
+                    let server = server.clone();
+                    let listen = listen.clone();
+                    async move { Ok::<_, Infallible>(service_fn(move |req| process(server.clone(), listen.clone(), req))) }
+                })
+            };
 
             let server = hyper::Server::bind(&listen.addr)
                 .http1_preserve_header_case(true)
@@ -221,14 +226,16 @@ impl Server
         }
     }
 
-    pub(crate) async fn process_redirect(&self, req: &Request<Body>, redirect: &str) -> Result<Response<Body>, WebServerError>
+    pub(crate) async fn process_redirect(&self, req: &Request<Body>, listen: &ServerListen, redirect: &str) -> Result<Response<Body>, WebServerError>
     {
         let mut uri = http::Uri::builder()
             .authority(redirect);
         if let Some(scheme) = req.uri().scheme() {
             uri = uri.scheme(scheme.clone());
-        } else {
+        } else if listen.tls {
             uri = uri.scheme("https");
+        } else {
+            uri = uri.scheme("http");
         }
         if let Some(path_and_query) = req.uri().path_and_query() {
             uri = uri.path_and_query(path_and_query.clone());
@@ -284,17 +291,17 @@ impl Server
         Ok(resp)
     }
 
-    pub(crate) async fn process(&self, req: Request<Body>) -> Result<Response<Body>, WebServerError> {
+    pub(crate) async fn process(&self, req: &Request<Body>, listen: &ServerListen) -> Result<Response<Body>, WebServerError> {
         trace!("req: {:?}", req);
 
-        let conf = self.get_conf(&req).await?;
-        let ret = self.process_internal(&req, &conf).await;
+        let conf = self.get_conf(req).await?;
+        let ret = self.process_internal(req, listen, &conf).await;
         match ret {
             Ok(a) => Ok(a),
             Err(err) => {
                 let page = conf.status_pages.get(&err.status_code().as_u16()).map(|a| a.clone());
                 if let Some(page) = page {
-                    if let Some(ret) = self.process_get(&req, page.as_str()).await? {
+                    if let Some(ret) = self.process_get(req, page.as_str()).await? {
                         return Ok(ret);
                     }
                 }
@@ -303,9 +310,9 @@ impl Server
         }
     }
 
-    pub(crate) async fn process_internal(&self, req: &Request<Body>, conf: &WebConf) -> Result<Response<Body>, WebServerError> {
+    pub(crate) async fn process_internal(&self, req: &Request<Body>, listen: &ServerListen, conf: &WebConf) -> Result<Response<Body>, WebServerError> {
         if let Some(redirect) = conf.redirect.as_ref() {
-            return self.process_redirect(&req, &redirect).await;
+            return self.process_redirect(req, listen, &redirect).await;
         }
 
         match req.method() {

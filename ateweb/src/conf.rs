@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 
 use ate::prelude::*;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ServerListen
 {
     pub addr: SocketAddr,
