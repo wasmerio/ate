@@ -25,6 +25,14 @@ error_chain! {
             description("Bad Host"),
             display("Bad Host - {}", host),
         }
+        BadConfiguration(err: String) {
+            description("Bad Configuration"),
+            display("Bad Configuration - {}", err),
+        }
+        BadRequest(err: String) {
+            description("Bad Request"),
+            display("Bad Request - {}", err),
+        }
         UnknownHost {
             description("Unknown Host"),
             display("Unknown Host"),
@@ -38,6 +46,7 @@ impl WebServerError
     {
         match self {
             WebServerError(WebServerErrorKind::BadHost(_), _) => StatusCode::BAD_GATEWAY,
+            WebServerError(WebServerErrorKind::BadRequest(_), _) => StatusCode::BAD_REQUEST,
             WebServerError(WebServerErrorKind::UnknownHost, _) => StatusCode::BAD_REQUEST,
             WebServerError(WebServerErrorKind::FileSystemError(FileSystemErrorKind::DoesNotExist), _) => StatusCode::NOT_FOUND,
             _ => StatusCode::INTERNAL_SERVER_ERROR

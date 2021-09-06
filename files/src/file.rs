@@ -66,8 +66,8 @@ impl RegularFile
             state: Mutex::new(FileState::Mutable {
                 inode,
                 dirty: false,
-                bundles: array_init::array_init(|_| None),
-                pages: array_init::array_init(|_| None),
+                bundles: Box::new(array_init::array_init(|_| None)),
+                pages: Box::new(array_init::array_init(|_| None)),
             }),
         }
     }
@@ -85,8 +85,8 @@ pub enum FileState
     {
         dirty: bool,
         inode: DaoMut<Inode>,
-        bundles: [Option<DaoMut<PageBundle>>; CACHED_BUNDLES],
-        pages: [Option<DaoMutGuardOwned<Page>>; CACHED_PAGES],
+        bundles: Box<[Option<DaoMut<PageBundle>>; CACHED_BUNDLES]>,
+        pages: Box<[Option<DaoMutGuardOwned<Page>>; CACHED_PAGES]>,
     }
 }
 

@@ -841,11 +841,10 @@ impl FileAccessor
             bail!(FileSystemErrorKind::NotDirectory);
         }
         
+        let dio = parent_data.trans();
         let mut parent_data = parent_data.as_mut();
         if let Some(mut data) = parent_data.children.iter_mut().await?.filter(|c| c.dentry.name.as_str() == name).next()
         {
-            let dio = self.dio_mut_meta().await;
-
             // If the parent has changed then move it
             if parent != new_parent
             {
@@ -874,6 +873,8 @@ impl FileAccessor
             }
 
             data.as_mut().dentry.name = new_name.to_string();
+            drop(parent_data);
+            
             dio.commit().await?;
             return Ok(());
         }

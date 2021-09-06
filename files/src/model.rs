@@ -9,6 +9,7 @@ use super::symlink::SymLink;
 
 pub const PAGES_PER_BUNDLE: usize = 1024;
 pub const PAGE_SIZE: usize = 131072;
+pub const WEB_CONFIG_ID: u64 = 0xb709d79e5cf6dd64u64;
 
 /// Represents a block of data
 #[derive(Debug, Serialize, Deserialize, Clone)]
