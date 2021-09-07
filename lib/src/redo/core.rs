@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-use tracing::{error, info, warn, debug};
+use tracing::{error, info, warn, debug, trace};
 use async_trait::async_trait;
 #[cfg(feature = "enable_local_fs")]
 use std::{collections::VecDeque};
@@ -213,6 +213,7 @@ impl RedoLog
             key_name = key_name[1..].to_string();
         }
 
+        trace!("temporal: {}", flags.temporal);
         let path_log = match flags.temporal
         {
             false => {
@@ -226,8 +227,11 @@ impl RedoLog
         };
         
         if let Some(path_log) = path_log.as_ref() {
+            trace!("log-path: {}", path_log);
             let path = std::path::Path::new(path_log);
             let _ = std::fs::create_dir_all(path.parent().unwrap().clone());
+        } else {
+            trace!("log-path: (memory)");
         }
 
         let mut backup_path = {

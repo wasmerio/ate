@@ -2,14 +2,17 @@
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use error_chain::bail;
 use std::sync::Arc;
+use std::sync::Weak;
 use std::convert::Infallible;
 use fxhash::FxHashMap;
 use tokio::sync::Mutex;
-use std::collections::hash_map::Entry;
 use url::Url;
 use bytes::Bytes;
 use std::time::Instant;
 use std::ops::Deref;
+use std::collections::hash_map::Entry as StdEntry;
+use ttl_cache::TtlCache;
+use std::time::Duration;
 
 use hyper;
 use hyper::service::{make_service_fn, service_fn};
@@ -39,7 +42,7 @@ pub struct ServerWebConf
 pub struct Server
 {
     remote: Url,
-    chains: Mutex<FxHashMap<String, Arc<FileAccessor>>>,
+    chains: Mutex<TtlCache<String, Arc<FileAccessor>>>,
     registry: Registry,
     web_conf: Mutex<FxHashMap<String, ServerWebConf>>,
     server_conf: ServerConf,
@@ -76,7 +79,7 @@ impl Server
             Server {
                 registry: Registry::new(&builder.conf.cfg_ate).await,
                 remote: builder.remote,
-                chains: Mutex::new(FxHashMap::default()),
+                chains: Mutex::new(TtlCache::new(usize::MAX)),
                 web_conf: Mutex::new(FxHashMap::default()),
                 server_conf: builder.conf,
             }
@@ -105,6 +108,30 @@ impl Server
             joins.push(server);
         }
 
+        {
+            let server = Arc::clone(self);
+            TaskEngine::spawn(async move {
+                let server = {
+                    let s = Arc::downgrade(&server);
+                    drop(server);
+                    s
+                };
+                let mut n = 0u32;
+                loop {
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    let server = match Weak::upgrade(&server) {
+                        Some(a) => a,
+                        None => break
+                    };
+                    n += 1;
+                    if n > 30 {
+                        server.house_keeping().await;
+                        n = 0;
+                    }
+                }
+            })
+        }
+
         for res in futures::future::join_all(joins).await
         {
             if let Err(e) = res {
@@ -112,6 +139,11 @@ impl Server
             }
         }
         Ok(())
+    }
+
+    async fn house_keeping(&self) {
+        let mut lock = self.chains.lock().await;
+        lock.iter();    // this will run the remove_expired function
     }
 
     pub(crate) fn get_host(&self, req: &Request<Body>) -> Result<String, WebServerError>
@@ -130,27 +162,25 @@ impl Server
         // Now get the chain for this host
         let chain = {
             let mut chains = self.chains.lock().await;
-            match chains.entry(host.to_string()) {
-                Entry::Occupied(a) => {
-                    Arc::clone(a.get())
-                },
-                Entry::Vacant(a) => {
-                    let key = ChainKey::from(format!("{}/www", host));
-                    let chain = self.registry.open(&self.remote, &key).await?;
-                    let accessor = Arc::new(
-                        FileAccessor::new(
-                            chain.as_arc(),
-                            Some(host.to_string()),
-                            AteSessionType::User(AteSessionUser::default()),
-                            TransactionScope::Local,
-                            TransactionScope::None,
-                            false,
-                            false
-                        ).await
-                    );
-                    a.insert(Arc::clone(&accessor));
-                    accessor
-                }
+            if let Some(ret) = chains.remove(&host) {
+                chains.insert(host, Arc::clone(&ret), self.server_conf.ttl);
+                ret
+            } else {
+                let key = ChainKey::from(format!("{}/www", host));
+                let chain = self.registry.open(&self.remote, &key).await?;
+                let accessor = Arc::new(
+                    FileAccessor::new(
+                        chain.as_arc(),
+                        Some(host.to_string()),
+                        AteSessionType::User(AteSessionUser::default()),
+                        TransactionScope::Local,
+                        TransactionScope::None,
+                        false,
+                        false
+                    ).await
+                );
+                chains.insert(host, Arc::clone(&accessor), self.server_conf.ttl);
+                accessor
             }
         };
 
@@ -183,8 +213,8 @@ impl Server
     pub(crate) async fn get_conf(&self, req: &Request<Body>) -> Result<WebConf, WebServerError> {
         let mut lock = self.web_conf.lock().await;
         let lock = match lock.entry(self.get_host(req)?) {
-            Entry::Occupied(a) => a.into_mut(),
-            Entry::Vacant(a) => {
+            StdEntry::Occupied(a) => a.into_mut(),
+            StdEntry::Vacant(a) => {
                 a.insert(ServerWebConf {
                     web_conf: None,
                     web_conf_when: None

@@ -1,5 +1,6 @@
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use std::time::Duration;
 
 use clap::Clap;
 
@@ -24,13 +25,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(port) = opts.ntp_port {
         conf.ntp_port = port;
     }
-    
+
     match opts.subcmd {
         SubCommand::Run(run) =>
         {
+            conf.log_path = Some(run.log_path);
             let server = ServerBuilder::new(run.remote)
-                .add_listener(run.listen, run.port_http, false, true)
-                .add_listener(run.listen, run.port_https, true, true)
+                .with_conf(&conf)
+                .ttl(Duration::from_secs(run.ttl))
+                .add_listener(run.listen, run.port, run.port == 443u16)
                 .build().await;
             server.run().await?;
         }

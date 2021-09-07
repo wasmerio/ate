@@ -47,17 +47,16 @@ pub struct OptsRun {
     pub listen: IpAddr,
     /// Port that the server will listen on for HTTP requests
     #[clap(long, default_value = "80")]
-    pub port_http: u16,
-    /// Port that the server will listen on for HTTPS requests
-    #[clap(long, default_value = "443")]
-    pub port_https: u16,
+    pub port: u16,
+    /// Number of seconds that a website will remain idle in memory before it is evicted
+    #[clap(long, default_value = "60")]
+    pub ttl: u64,
     /// URL where the data is remotely stored on a distributed commit log.
     #[clap(short, long, default_value = "ws://tokera.com/db")]
     pub remote: Url,
-    /// (Optional) Location of the local persistent redo log (e.g. ~/ate/fs")
-    /// If this parameter is not specified then chain-of-trust will cache in memory rather than disk
-    #[clap(long)]
-    pub log_path: Option<String>,
+    /// Location where all the websites will be cached
+    #[clap(long, default_value = "/tmp/www")]
+    pub log_path: String,
 }
 
 #[derive(Clap)]

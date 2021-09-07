@@ -76,7 +76,7 @@ impl Registry
             #[cfg(feature="enable_dns")]
             dns,
             node_id,
-            temporal: true,
+            temporal: cfg_ate.log_path.is_none(),
             ignore_certificates: false,
             cmd_key: StdMutex::new(FxHashMap::default()),
             chains: Mutex::new(FxHashMap::default()),
