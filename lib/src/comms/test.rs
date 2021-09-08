@@ -117,7 +117,7 @@ async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) 
             }
             
             let server_id = NodeId::generate_server_id(0);
-            listener = Listener::new(&cfg, server_id, Handler::default()).await?;
+            listener = Listener::new(&cfg, server_id, Arc::new(Handler::default())).await?;
             {
                 let mut guard = listener.lock();
                 guard.add_route("/comm-test")?;

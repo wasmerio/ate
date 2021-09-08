@@ -69,7 +69,7 @@ pub struct MeshRoot
     pub(super) lookup: MeshHashTable,
     pub(super) addrs: Vec<MeshAddress>,
     pub(super) chains: Mutex<FxHashMap<RouteChain, MeshChain>>,
-    pub(super) listener: StdMutex<Option<Arc<StdMutex<Listener>>>>,
+    pub(super) listener: StdMutex<Option<Arc<StdMutex<Listener<Message, SessionContext>>>>>,
     pub(super) routes: StdMutex<FxHashMap<String, Arc<Mutex<MeshRoute>>>>,
 }
 
@@ -170,9 +170,9 @@ impl MeshRoot
             }
         );
 
-        let processor = MeshRootProcessor {
+        let processor = Arc::new(MeshRootProcessor {
             root: Arc::downgrade(&root)
-        };
+        });
 
         let listener = crate::comms::Listener::new(&cfg, server_id, processor).await?;
         {
@@ -188,6 +188,25 @@ impl MeshRoot
         }
 
         Ok(root)
+    }
+
+    pub async fn accept_stream(
+        &self,
+        stream: Stream,
+        sock_addr: SocketAddr,
+    ) -> Result<(), CommsError>
+    {
+        let listener = {
+            let guard = self.listener.lock();
+            if let Some(listener) = guard.as_ref() {
+                Arc::clone(&listener)
+            } else {
+                warn!("listener is inactive - lost stream");
+                bail!(CommsErrorKind::Refused);
+            }
+        };
+        Listener::accept_stream(listener, stream, sock_addr).await?;
+        Ok(())
     }
 
     async fn auto_clean(self: Arc<Self>)

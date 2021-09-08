@@ -34,10 +34,10 @@ pub(crate) use listener::Listener;
 #[allow(unused_imports)]
 pub(crate) use client::connect;
 
-pub(crate) use stream::Stream;
-pub(crate) use stream::StreamRx;
-pub(crate) use stream::StreamTx;
-pub(crate) use stream::StreamTxChannel;
+pub use stream::Stream;
+pub use stream::StreamRx;
+pub use stream::StreamTx;
+pub use stream::StreamTxChannel;
 pub use stream::StreamProtocol;
 pub use metrics::Metrics;
 pub use throttle::Throttle;

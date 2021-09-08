@@ -26,7 +26,7 @@ enable_dio_backtrace = []
 enable_net = [ "tokio/net" ]
 enable_ntp = [ "enable_net" ]
 enable_mt = [ "tokio/rt-multi-thread" ]
-enable_tcp = [ "tokio-tungstenite", "pnet", "enable_net" ]
+enable_tcp = [ "tokio-tungstenite", "hyper-tungstenite", "pnet", "enable_net" ]
 enable_web = [ "ws_stream_wasm", "wasm-bindgen", "wasm-bindgen-test", "async_io_stream", "tokio-util" ]
 enable_basics = [ "enable_ws" ]
 enable_dns = [ "enable_net", "trust-dns-proto", "trust-dns-client" ]
@@ -96,6 +96,7 @@ pnet = { version = "^0.27", optional = true }
 trust-dns-proto = { version = "^0.20", optional = true }
 trust-dns-client = { version = "^0.20", features = ["dnssec"], optional = true }
 tokio-tungstenite = { version = "^0.14", optional = true }
+hyper-tungstenite = { version = "^0.4", optional = true }
 backtrace = { version = "^0.3" }
 
 [dev-dependencies]

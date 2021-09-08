@@ -1,6 +1,7 @@
 #[allow(unused_imports, dead_code)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use error_chain::bail;
+use async_trait::async_trait;
 use std::sync::Arc;
 use std::sync::Weak;
 use std::convert::Infallible;
@@ -13,6 +14,7 @@ use std::ops::Deref;
 use std::collections::hash_map::Entry as StdEntry;
 use ttl_cache::TtlCache;
 use std::time::Duration;
+use std::net::SocketAddr;
 
 use hyper;
 use hyper::service::{make_service_fn, service_fn};
@@ -21,7 +23,10 @@ use hyper::Response;
 use hyper::Body;
 use hyper::Method;
 use hyper::StatusCode;
+use hyper::server::conn::AddrStream;
+use hyper::upgrade::Upgraded;
 use hyper::header::HeaderValue;
+use hyper_tungstenite::WebSocketStream;
 
 use ate::prelude::*;
 use ate_files::prelude::*;
@@ -39,6 +44,15 @@ pub struct ServerWebConf
     web_conf_when: Option<Instant>,
 }
 
+#[async_trait]
+pub trait ServerCallback: Send + Sync
+{
+    async fn web_socket(&self, _ws: WebSocketStream<Upgraded>, _sock_addr: SocketAddr) -> Result<(), Box<dyn std::error::Error>>
+    {
+        Ok(())
+    }
+}
+
 pub struct Server
 {
     remote: Url,
@@ -46,11 +60,12 @@ pub struct Server
     registry: Registry,
     web_conf: Mutex<FxHashMap<String, ServerWebConf>>,
     server_conf: ServerConf,
+    callback: Option<Arc<dyn ServerCallback>>,
 }
 
-async fn process(server: Arc<Server>, listen: Arc<ServerListen>, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
+async fn process(server: Arc<Server>, listen: Arc<ServerListen>, req: Request<Body>, sock_addr: SocketAddr) -> Result<Response<Body>, hyper::Error> {
     let path = req.uri().path().to_string();
-    match server.process(&req, listen.deref()).await {
+    match server.process(req, sock_addr, listen.deref()).await {
         Ok(resp) => {
             trace!("res: status={}", resp.status().as_u16());
             Ok(resp)
@@ -82,6 +97,7 @@ impl Server
                 chains: Mutex::new(TtlCache::new(usize::MAX)),
                 web_conf: Mutex::new(FxHashMap::default()),
                 server_conf: builder.conf,
+                callback: builder.callback,
             }
         )
     }
@@ -93,10 +109,11 @@ impl Server
             let make_service = {
                 let server = Arc::clone(self);
                 let listen = Arc::new(listen.clone());
-                make_service_fn(move |_| {
+                make_service_fn(move |conn: &AddrStream| {
+                    let addr = conn.remote_addr();
                     let server = server.clone();
                     let listen = listen.clone();
-                    async move { Ok::<_, Infallible>(service_fn(move |req| process(server.clone(), listen.clone(), req))) }
+                    async move { Ok::<_, Infallible>(service_fn(move |req| process(server.clone(), listen.clone(), req, addr))) }
                 })
             };
 
@@ -154,12 +171,10 @@ impl Server
         }
     }
 
-    pub(crate) async fn get_chain(&self, req: &Request<Body>) -> Result<Arc<FileAccessor>, WebServerError>
+    pub(crate) async fn get_chain(&self, host: &str) -> Result<Arc<FileAccessor>, WebServerError>
     {
-        // Determine the host that this method relates to
-        let host = self.get_host(req)?;
-
         // Now get the chain for this host
+        let host = host.to_string();
         let chain = {
             let mut chains = self.chains.lock().await;
             if let Some(ret) = chains.remove(&host) {
@@ -171,7 +186,7 @@ impl Server
                 let accessor = Arc::new(
                     FileAccessor::new(
                         chain.as_arc(),
-                        Some(host.to_string()),
+                        Some(host.clone()),
                         AteSessionType::User(AteSessionUser::default()),
                         TransactionScope::Local,
                         TransactionScope::None,
@@ -187,14 +202,14 @@ impl Server
         Ok(chain)
     }
 
-    pub(crate) async fn get_file(&self, req: &Request<Body>, path: &str) -> Result<Option<Bytes>, WebServerError> {
+    pub(crate) async fn get_file(&self, host: &str, path: &str) -> Result<Option<Bytes>, WebServerError> {
         let path = path.to_string();
         let context = RequestContext {
             uid: 0u32,
             gid: 0u32,
         };
         
-        let chain = self.get_chain(req).await?;
+        let chain = self.get_chain(host).await?;
         Ok(
             match chain.search(&context, path.as_str()).await? {
                 Some(a) => {
@@ -210,9 +225,11 @@ impl Server
         )
     }
 
-    pub(crate) async fn get_conf(&self, req: &Request<Body>) -> Result<WebConf, WebServerError> {
+    pub(crate) async fn get_conf(&self, host: &str) -> Result<WebConf, WebServerError> {
+        let host = host.to_string();
+
         let mut lock = self.web_conf.lock().await;
-        let lock = match lock.entry(self.get_host(req)?) {
+        let lock = match lock.entry(host.clone()) {
             StdEntry::Occupied(a) => a.into_mut(),
             StdEntry::Vacant(a) => {
                 a.insert(ServerWebConf {
@@ -230,7 +247,7 @@ impl Server
         if trigger {
             lock.web_conf_when = Some(Instant::now());
             lock.web_conf =
-                match self.get_file(req, "web.yaml")
+                match self.get_file(host.as_str(), "web.yaml")
                     .await.ok().flatten()
                 {
                     Some(data) => {
@@ -256,7 +273,7 @@ impl Server
         }
     }
 
-    pub(crate) async fn process_redirect(&self, req: &Request<Body>, listen: &ServerListen, redirect: &str) -> Result<Response<Body>, WebServerError>
+    pub(crate) async fn process_redirect(&self, req: Request<Body>, listen: &ServerListen, redirect: &str) -> Result<Response<Body>, WebServerError>
     {
         let mut uri = http::Uri::builder()
             .authority(redirect);
@@ -283,11 +300,11 @@ impl Server
         return Ok(resp);
     }
 
-    pub(crate) async fn process_get(&self, req: &Request<Body>, path: &str) -> Result<Option<Response<Body>>, WebServerError> {
-        if let Some(data) = self.get_file(&req, path).await? {
+    pub(crate) async fn process_get(&self, host: &str, path: &str, is_head: bool) -> Result<Option<Response<Body>>, WebServerError> {
+        if let Some(data) = self.get_file(host, path).await? {
             let len_str = data.len().to_string();
 
-            let mut resp = if req.method() == &Method::HEAD {
+            let mut resp = if is_head {
                 Response::new(Body::empty())
             } else {
                 Response::new(Body::from(data))
@@ -300,14 +317,14 @@ impl Server
         }
     }
 
-    pub(crate) async fn process_get_with_default(&self, req: &Request<Body>, path: &str, default_page: Option<&String>) -> Result<Response<Body>, WebServerError> {
-        match self.process_get(req, path).await? {
+    pub(crate) async fn process_get_with_default(&self, host: &str, path: &str, is_head: bool, default_page: Option<&String>) -> Result<Response<Body>, WebServerError> {
+        match self.process_get(host, path, is_head).await? {
             Some(a) => {
                 return Ok(a);
             },
             None if path.len() == 0 || path == "/" => {
                 if let Some(default_page) = default_page {
-                    if let Some(ret) = self.process_get(req, default_page.as_str()).await? {
+                    if let Some(ret) = self.process_get(host, default_page.as_str(), is_head).await? {
                         return Ok(ret);
                     }
                 }
@@ -321,17 +338,20 @@ impl Server
         Ok(resp)
     }
 
-    pub(crate) async fn process(&self, req: &Request<Body>, listen: &ServerListen) -> Result<Response<Body>, WebServerError> {
+    pub(crate) async fn process(&self, req: Request<Body>, sock_addr: SocketAddr, listen: &ServerListen) -> Result<Response<Body>, WebServerError> {
         trace!("req: {:?}", req);
 
-        let conf = self.get_conf(req).await?;
-        let ret = self.process_internal(req, listen, &conf).await;
+        let is_head = req.method() == Method::HEAD;
+        let host = self.get_host(&req)?;
+        let conf = self.get_conf(host.as_str()).await?;
+
+        let ret = self.process_internal(req, sock_addr, listen, &conf).await;
         match ret {
             Ok(a) => Ok(a),
             Err(err) => {
                 let page = conf.status_pages.get(&err.status_code().as_u16()).map(|a| a.clone());
                 if let Some(page) = page {
-                    if let Some(ret) = self.process_get(req, page.as_str()).await? {
+                    if let Some(ret) = self.process_get(host.as_str(), page.as_str(), is_head).await? {
                         return Ok(ret);
                     }
                 }
@@ -340,15 +360,46 @@ impl Server
         }
     }
 
-    pub(crate) async fn process_internal(&self, req: &Request<Body>, listen: &ServerListen, conf: &WebConf) -> Result<Response<Body>, WebServerError> {
+    pub(crate) async fn process_upgrade(&self, req: Request<Body>, sock_addr: SocketAddr) -> Result<Response<Body>, WebServerError>
+    {
+        if let Some(callback) = &self.callback {
+            let callback = Arc::clone(callback);
+            let (response, websocket) = hyper_tungstenite::upgrade(req, None)?;
+            TaskEngine::spawn(async move {
+                match websocket.await {
+                    Ok(websocket) => {
+                        let ret = callback.web_socket(websocket, sock_addr).await;
+                        if let Err(err) = ret {
+                            error!("web socket failed - {}", err);
+                        }
+                    },
+                    Err(err) => {
+                        error!("web socket failed - {}", err);
+                    }
+                }                
+            });
+            Ok(response)
+        } else {
+            Err(WebServerErrorKind::BadRequest("websockets are not supported".to_string()).into())
+        }
+    }
+
+    pub(crate) async fn process_internal(&self, req: Request<Body>, sock_addr: SocketAddr, listen: &ServerListen, conf: &WebConf) -> Result<Response<Body>, WebServerError> {
+        if hyper_tungstenite::is_upgrade_request(&req) {
+            return self.process_upgrade(req, sock_addr).await;
+        }
+
         if let Some(redirect) = conf.redirect.as_ref() {
             return self.process_redirect(req, listen, &redirect).await;
         }
 
+        let host = self.get_host(&req)?;
+        let is_head = req.method() == Method::HEAD;
+
         match req.method() {
             &Method::HEAD | &Method::GET => {
                 let path = req.uri().path();
-                self.process_get_with_default(req, path, conf.default_page.as_ref()).await
+                self.process_get_with_default(host.as_str(), path, is_head, conf.default_page.as_ref()).await
             },
             _ => {
                 let mut resp = Response::new(Body::from(StatusCode::METHOD_NOT_ALLOWED.as_str()));

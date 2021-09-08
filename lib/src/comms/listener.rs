@@ -46,8 +46,16 @@ struct ListenerNode
     path: String,
 }
 
-pub(crate) struct Listener
+pub(crate) struct Listener<M, C>
+where M: Send + Sync + Serialize + DeserializeOwned + Clone,
+      C: Send + Sync,
 {
+    server_id: NodeId,
+    wire_protocol: StreamProtocol,
+    wire_format: SerializationFormat,
+    server_cert: Option<PrivateEncryptKey>,
+    timeout: Duration,
+    handler: Arc<dyn ServerProcessor<M, C>>,
     routes: fxhash::FxHashMap<String, ListenerNode>,
 }
 
@@ -87,23 +95,28 @@ where Self: Send + Sync,
     }
 }
 
-impl Listener
+impl<M, C> Listener<M, C>
+where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
+      C: Send + Sync + Default + 'static,
 {
-    pub(crate) async fn new<M, C>
+    pub(crate) async fn new
     (
         conf: &MeshConfig,
         server_id: NodeId,
-        inbox: impl ServerProcessor<M, C> + 'static
+        inbox: Arc<dyn ServerProcessor<M, C>>
     )
-    -> Result<Arc<StdMutex<Listener>>, CommsError>
-    where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
-          C: Send + Sync + Default + 'static,
+    -> Result<Arc<StdMutex<Listener<M, C>>>, CommsError>
     {
         // Create the node state and initialize it
-        let inbox = Arc::new(inbox);
         let listener = {
             Arc::new(StdMutex::new(
                 Listener {
+                        server_id: server_id.clone(),
+                        wire_protocol: conf.cfg_mesh.wire_protocol,
+                        wire_format: conf.cfg_mesh.wire_format,
+                        server_cert: conf.listen_cert.clone(),
+                        timeout: conf.cfg_mesh.accept_timeout,
+                        handler: Arc::clone(&inbox),
                         routes: fxhash::FxHashMap::default(),
                     }
             ))
@@ -120,16 +133,11 @@ impl Listener
 
         // Create all the listeners
         for target in conf.listen_on.iter() {
-            let inbox = Arc::clone(&inbox);
             Listener::listen_on(
                 target.clone(),
                 server_id.clone(),
                 Arc::downgrade(&listener),
                 conf.cfg_mesh.wire_protocol,
-                conf.cfg_mesh.wire_format,
-                conf.listen_cert.clone(),
-                conf.cfg_mesh.accept_timeout,
-                inbox
             ).await;
         }
 
@@ -147,18 +155,12 @@ impl Listener
         Ok(())
     }
 
-    async fn listen_on<M, C>(
+    async fn listen_on(
         addr: SocketAddr,
         server_id: NodeId,
-        listener: Weak<StdMutex<Listener>>,
+        listener: Weak<StdMutex<Listener<M, C>>>,
         wire_protocol: StreamProtocol,
-        wire_format: SerializationFormat,
-        certificate: Option<PrivateEncryptKey>,
-        accept_timeout: Duration,
-        inbox: Arc<dyn ServerProcessor<M, C>>
     )
-    where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
-          C: Send + Sync + Default + 'static,
     {
         let tcp_listener = TcpListener::bind(addr.clone()).await
             .expect(&format!("Failed to bind listener to address ({})", addr.clone()));
@@ -195,17 +197,11 @@ impl Listener
                     setup_tcp_stream(&stream).unwrap();
 
                     let stream = Stream::Tcp(stream);
-                    match Listener::accept_tcp_connect
+                    match Listener::accept_stream
                     (
-                        stream,
-                        sock_addr,
-                        server_id,
                         listener,
-                        wire_protocol,
-                        wire_format,
-                        certificate.clone(),
-                        accept_timeout,
-                        Arc::clone(&inbox)
+                        stream,
+                        sock_addr
                     )
                     .instrument(tracing::info_span!("server-accept", id=server_id.to_short_string().as_str()))
                     .await {
@@ -225,21 +221,33 @@ impl Listener
         );
     }
 
-    async fn accept_tcp_connect<M, C>(
+    pub(crate) async fn accept_stream(
+        listener: Arc<StdMutex<Listener<M, C>>>,
         stream: Stream,
         sock_addr: SocketAddr,
-        server_id: NodeId,
-        listener: Arc<StdMutex<Listener>>,
-        wire_protocol: StreamProtocol,
-        wire_format: SerializationFormat,
-        server_cert: Option<PrivateEncryptKey>,
-        timeout: Duration,
-        handler: Arc<dyn ServerProcessor<M, C>>
     ) -> Result<(), CommsError>
-    where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
-          C: Send + Sync + Default + 'static,
     {
         info!("accept-from: {}", sock_addr.to_string());
+
+        // Grab all the data we need
+        let (
+            server_id,
+            wire_protocol,
+            wire_format,
+            server_cert,
+            timeout,
+            handler,
+        ) = {
+            let listener = listener.lock();
+            (
+                listener.server_id.clone(),
+                listener.wire_protocol.clone(),
+                listener.wire_format.clone(),
+                listener.server_cert.clone(),
+                listener.timeout.clone(),
+                listener.handler.clone()
+            )
+        };
         
         // Upgrade and split the stream
         let stream = stream.upgrade_server(wire_protocol, timeout).await?;
@@ -335,7 +343,7 @@ impl Listener
         // Launch the inbox background thread
         let worker_context = Arc::clone(&context);
         TaskEngine::spawn(async move {
-            let result = process_inbox::<M, C>
+            let result = process_inbox
             (
                 rx,
                 tx,
@@ -369,8 +377,10 @@ impl Listener
     }
 }
 
-impl Drop
-for Listener
+impl<M, C> Drop
+for Listener<M, C>
+where M: Send + Sync + Serialize + DeserializeOwned + Clone,
+      C: Send + Sync,
 {
     fn drop(&mut self) {
         debug!("drop (Listener)");

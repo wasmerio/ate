@@ -8,11 +8,11 @@ use ate::conf::ConfAte;
 use super::conf::*;
 use super::server::*;
 
-#[derive(Debug)]
 pub struct ServerBuilder
 {
     pub(crate) remote: Url,
     pub(crate) conf: ServerConf,
+    pub(crate) callback: Option<Arc<dyn ServerCallback>>,
 }
 
 impl ServerBuilder
@@ -22,11 +22,18 @@ impl ServerBuilder
         ServerBuilder {
             remote,
             conf: ServerConf::default(),
+            callback: None,
         }
     }
 
     pub fn with_conf(mut self, cfg: &ConfAte) -> Self {
         self.conf.cfg_ate = cfg.clone();
+        self
+    }
+
+    pub fn with_callback(mut self, callback: impl ServerCallback + 'static) -> Self {
+        let callback = Arc::new(callback);
+        self.callback = Some(callback);
         self
     }
 

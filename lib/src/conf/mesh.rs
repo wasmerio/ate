@@ -95,6 +95,18 @@ pub struct ConfMesh
 
 impl ConfMesh
 {
+    /// Represents a skeleton server that can manually receive new connections
+    #[cfg(feature="enable_dns")]
+    #[cfg(feature="enable_server")]
+    pub async fn skeleton(cfg_ate: &ConfAte, domain: String, connect_port: u16, node_id: Option<u32>) -> Result<ConfMesh, CommsError>
+    {
+        let registry = Registry::new(cfg_ate).await;
+        let mut cfg_mesh = registry.cfg_for_domain(domain.as_str(), connect_port).await?;
+        cfg_mesh.force_client_only = true;
+        cfg_mesh.force_node_id = node_id;
+        Ok(cfg_mesh)
+    }
+
     /// Represents a single server listening on all available addresses. All chains
     /// will be stored locally to this server and there is no replication
     #[cfg(feature="enable_dns")]

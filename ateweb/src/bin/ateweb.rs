@@ -6,7 +6,7 @@ use clap::Clap;
 
 use ate::prelude::*;
 use ateweb::opt::*;
-use ateweb::builder::*;
+use ateweb::*;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

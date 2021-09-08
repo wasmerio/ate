@@ -8,10 +8,6 @@ error_chain! {
     types {
         WebServerError, WebServerErrorKind, ResultExt, Result;
     }
-    foreign_links {
-        HeaderStrError(http::header::ToStrError);
-        HeaderValueError(http::header::InvalidHeaderValue);
-    }
     links {
         LoadError(LoadError, LoadErrorKind);
         SerializationError(SerializationError, SerializationErrorKind);
@@ -19,6 +15,12 @@ error_chain! {
         LockError(LockError, LockErrorKind);
         TransformError(TransformError, TransformErrorKind);
         FileSystemError(FileSystemError, FileSystemErrorKind);
+    }
+    foreign_links {
+        HeaderStrError(http::header::ToStrError);
+        HeaderValueError(http::header::InvalidHeaderValue);
+        TungsteniteError(tungstenite::error::ProtocolError);
+        HyperTungsteniteError(hyper_tungstenite::tungstenite::error::ProtocolError);
     }
     errors {
         BadHost(host: String) {

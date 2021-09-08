@@ -33,6 +33,7 @@ impl AuthService
                 master_session: auth_session,
                 time_keeper:  TimeKeeper::new(cfg, 30000).await?,
                 registry: Registry::new(cfg).await
+                    .temporal(true)
                     .keep_alive(Duration::from_secs(60))
                     .cement(),
                 terms_and_conditions,
