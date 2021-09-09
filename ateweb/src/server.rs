@@ -212,15 +212,23 @@ impl Server
         
         let chain = self.get_chain(host).await?;
         Ok(
-            match chain.search(&context, path.as_str()).await? {
-                Some(a) => {
+            match chain.search(&context, path.as_str()).await {
+                Ok(Some(a)) => {
                     let flags = libc::O_RDONLY as u32;
                     let oh = chain.open(&context, a.ino, flags).await?;
                     let data = chain.read(&context, a.ino, oh.fh, 0, u32::MAX).await?;
                     Some(data)
                 },
-                None => {
+                Ok(None) => {
                     None
+                },
+                Err(FileSystemError(FileSystemErrorKind::IsDirectory, _)) |
+                Err(FileSystemError(FileSystemErrorKind::DoesNotExist, _)) |
+                Err(FileSystemError(FileSystemErrorKind::NoEntry, _)) => {
+                    None
+                },
+                Err(err) => {
+                    return Err(err.into());
                 }
             }
         )
