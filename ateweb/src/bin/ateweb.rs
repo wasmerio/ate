@@ -27,12 +27,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     match opts.subcmd {
-        SubCommand::Run(run) =>
+        SubCommand::Web(run) =>
         {
             conf.log_path = Some(run.log_path);
             let server = ServerBuilder::new(run.remote)
                 .with_conf(&conf)
                 .ttl(Duration::from_secs(run.ttl))
+                .add_listener(run.listen, run.port, run.port == 443u16)
+                .build().await;
+            server.run().await?;
+        }
+
+        SubCommand::All(run) =>
+        {
+            let protocol = StreamProtocol::parse(&run.auth_url)?;
+            let port = run.auth_url.port().unwrap_or(protocol.default_port());
+            let domain = run.auth_url.domain().unwrap_or("localhost").to_string();
+
+            let mut cfg_mesh = ConfMesh::skeleton(&conf, domain, port, Some(0u32)).await?;
+            cfg_mesh.wire_protocol = protocol;
+            cfg_mesh.wire_encryption = Some(KeySize::Bit192);
+            cfg_mesh.listen_certificate = Some(PrivateEncryptKey::generate(KeySize::Bit192));
+            let root = create_server(&cfg_mesh).await?;
+
+            conf.log_path = Some(run.log_path);
+            let server = ServerBuilder::new(run.remote)
+                .with_conf(&conf)
+                .ttl(Duration::from_secs(run.ttl))
+                .with_callback(ateweb::ServerMeshAdapter::new(&root))
                 .add_listener(run.listen, run.port, run.port == 443u16)
                 .build().await;
             server.run().await?;

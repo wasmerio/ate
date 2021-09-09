@@ -341,11 +341,15 @@ impl Server
     pub(crate) async fn process(&self, req: Request<Body>, sock_addr: SocketAddr, listen: &ServerListen) -> Result<Response<Body>, WebServerError> {
         trace!("req: {:?}", req);
 
+        if hyper_tungstenite::is_upgrade_request(&req) {
+            return self.process_upgrade(req, sock_addr).await;
+        }
+
         let is_head = req.method() == Method::HEAD;
         let host = self.get_host(&req)?;
         let conf = self.get_conf(host.as_str()).await?;
 
-        let ret = self.process_internal(req, sock_addr, listen, &conf).await;
+        let ret = self.process_internal(req, listen, &conf).await;
         match ret {
             Ok(a) => Ok(a),
             Err(err) => {
@@ -384,11 +388,7 @@ impl Server
         }
     }
 
-    pub(crate) async fn process_internal(&self, req: Request<Body>, sock_addr: SocketAddr, listen: &ServerListen, conf: &WebConf) -> Result<Response<Body>, WebServerError> {
-        if hyper_tungstenite::is_upgrade_request(&req) {
-            return self.process_upgrade(req, sock_addr).await;
-        }
-
+    pub(crate) async fn process_internal(&self, req: Request<Body>, listen: &ServerListen, conf: &WebConf) -> Result<Response<Body>, WebServerError> {
         if let Some(redirect) = conf.redirect.as_ref() {
             return self.process_redirect(req, listen, &redirect).await;
         }

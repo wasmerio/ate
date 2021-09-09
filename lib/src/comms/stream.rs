@@ -198,7 +198,7 @@ impl Stream
 
     #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
     pub async fn upgrade_server(self, protocol: StreamProtocol, timeout: Duration) -> Result<Stream, CommsError> {
-        debug!("tcp-protocol-upgrade: {}", protocol);
+        debug!("tcp-protocol-upgrade(server): {}", protocol);
 
         let ret = match self {
             #[cfg(feature="enable_tcp")]
@@ -246,7 +246,7 @@ impl Stream
     #[allow(dead_code)]
     #[allow(unused_variables)]
     pub async fn upgrade_client(self, protocol: StreamProtocol) -> Result<Stream, CommsError> {
-        debug!("tcp-protocol-upgrade: {}", protocol);
+        debug!("tcp-protocol-upgrade(client): {}", protocol);
 
         let ret = match self {
             #[cfg(feature="enable_tcp")]
