@@ -210,21 +210,26 @@ impl Server
             gid: 0u32,
         };
         
-        let chain = self.get_chain(host).await?;
-        Ok(
-            match chain.search(&context, path.as_str()).await {
-                Ok(Some(a)) => {
-                    let flags = libc::O_RDONLY as u32;
+        let ret: Result<Option<Bytes>, WebServerError> = async move {
+            let chain = self.get_chain(host).await?;
+            if let Some(a) = chain.search(&context, path.as_str()).await? {
+                let flags = libc::O_RDONLY as u32;
                     let oh = chain.open(&context, a.ino, flags).await?;
                     let data = chain.read(&context, a.ino, oh.fh, 0, u32::MAX).await?;
-                    Some(data)
+                    Ok(Some(data))
+            } else {
+                Ok(None)
+            }
+        }.await;
+
+        Ok(
+            match ret {
+                Ok(a) => {
+                    a
                 },
-                Ok(None) => {
-                    None
-                },
-                Err(FileSystemError(FileSystemErrorKind::IsDirectory, _)) |
-                Err(FileSystemError(FileSystemErrorKind::DoesNotExist, _)) |
-                Err(FileSystemError(FileSystemErrorKind::NoEntry, _)) => {
+                Err(WebServerError(WebServerErrorKind::FileSystemError(FileSystemErrorKind::IsDirectory), _)) |
+                Err(WebServerError(WebServerErrorKind::FileSystemError(FileSystemErrorKind::DoesNotExist), _)) |
+                Err(WebServerError(WebServerErrorKind::FileSystemError(FileSystemErrorKind::NoEntry), _)) => {
                     None
                 },
                 Err(err) => {
