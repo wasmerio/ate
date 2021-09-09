@@ -10,6 +10,9 @@ pub struct WebConf
     /// Hosts the ATE web sockets on this site
     #[serde(default)]
     pub ate_proxy: bool,
+    /// Force (by direction) all requests to HTTPS
+    #[serde(default)]
+    pub force_https: bool,
     /// The default page
     #[serde(default)]
     pub default_page: Option<String>,
@@ -26,6 +29,7 @@ for WebConf
         WebConf {
             redirect: None,
             ate_proxy: false,
+            force_https: false,
             default_page: None,
             status_pages: FxHashMap::default(),
         }

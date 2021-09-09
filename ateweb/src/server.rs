@@ -290,7 +290,35 @@ impl Server
         }
     }
 
-    pub(crate) async fn process_redirect(&self, req: Request<Body>, listen: &ServerListen, redirect: &str) -> Result<Response<Body>, WebServerError>
+    pub(crate) async fn force_https(&self, req: Request<Body>) -> Result<Response<Body>, WebServerError> {
+        let host = match req.uri().authority() {
+            Some(a) => a.to_string(),
+            None => {
+                match req.headers().get("Host") {
+                    Some(a) => a.to_str()?.to_string(),
+                    None => {
+                        bail!(WebServerErrorKind::BadRequest("unknown host address needed for redirect to https".to_string()))
+                    }
+                }
+            }
+        };
+        let mut uri = http::Uri::builder()
+            .authority(host.as_str())
+            .scheme("https");
+        if let Some(path_and_query) = req.uri().path_and_query() {
+            uri = uri.path_and_query(path_and_query.clone());
+        }
+        let uri = match uri.build() {
+            Ok(uri) => uri,
+            Err(err) => {
+                bail!(WebServerErrorKind::BadRequest(err.to_string()))
+            }
+        }.to_string();
+        
+        self.process_redirect(uri.as_str()).await
+    }
+
+    pub(crate) async fn process_redirect_host(&self, req: Request<Body>, listen: &ServerListen, redirect: &str) -> Result<Response<Body>, WebServerError>
     {
         let mut uri = http::Uri::builder()
             .authority(redirect);
@@ -311,8 +339,13 @@ impl Server
             }
         }.to_string();
         
-        let mut resp = Response::new(Body::from(crate::helper::redirect_body(&uri)));
-        resp.headers_mut().append("Location", HeaderValue::from_str(uri.as_str())?);
+        self.process_redirect(uri.as_str()).await
+    }
+
+    pub(crate) async fn process_redirect(&self, uri: &str) -> Result<Response<Body>, WebServerError>
+    {
+        let mut resp = Response::new(Body::from(crate::helper::redirect_body(uri)));
+        resp.headers_mut().append("Location", HeaderValue::from_str(uri)?);
         *resp.status_mut() = StatusCode::PERMANENT_REDIRECT;
         return Ok(resp);
     }
@@ -407,7 +440,11 @@ impl Server
 
     pub(crate) async fn process_internal(&self, req: Request<Body>, listen: &ServerListen, conf: &WebConf) -> Result<Response<Body>, WebServerError> {
         if let Some(redirect) = conf.redirect.as_ref() {
-            return self.process_redirect(req, listen, &redirect).await;
+            return self.process_redirect_host(req, listen, &redirect).await;
+        }
+
+        if conf.force_https && listen.tls == false {
+            return self.force_https(req).await;
         }
 
         let host = self.get_host(&req)?;
