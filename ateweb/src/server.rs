@@ -104,6 +104,7 @@ impl Server
 
     pub async fn run(self: &Arc<Self>) -> Result<(), Box<dyn std::error::Error>>
     {
+        trace!("running web server");
         let mut joins = Vec::new();
         for listen in self.server_conf.listen.iter() {
             let make_service = {
