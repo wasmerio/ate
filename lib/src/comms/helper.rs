@@ -10,9 +10,11 @@ use bytes::Bytes;
 use tokio::io::{self};
 use tokio::io::Error as TError;
 use tokio::io::ErrorKind;
+use tokio::sync::broadcast;
 use async_trait::async_trait;
 use std::net::SocketAddr;
 use parking_lot::Mutex as StdMutex;
+use tokio::select;
 
 use crate::spec::*;
 use crate::crypto::*;
@@ -59,7 +61,8 @@ pub(super) async fn process_inbox<M, C>(
     sock_addr: MeshConnectAddr,
     context: Arc<C>,
     wire_format: SerializationFormat,
-    wire_encryption: Option<EncryptKey>
+    wire_encryption: Option<EncryptKey>,
+    mut exit: broadcast::Receiver<()>
 ) -> Result<(), CommsError>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
       C: Send + Sync,
@@ -74,62 +77,63 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
         // Main read loop
         loop
         {
-            // If the throttle has triggered
-            let now = chrono::offset::Utc::now();
-            let delta = now - last_throttle;
-            if delta > throttle_interval {
-                last_throttle = now;
-                
-                // Compute the deltas
-                let (mut delta_received, mut delta_sent) = {
-                    let metrics = metrics.lock();
-                    let delta_received = metrics.received - current_received;
-                    let delta_sent = metrics.sent - current_sent;
-                    current_received = metrics.received;
-                    current_sent = metrics.sent;
-                    (delta_received as i64, delta_sent as i64)
-                };
-
-                // Normalize the delta based on the time that passed
-                delta_received *= 1000i64;
-                delta_sent *= 1000i64;
-                delta_received /= delta.num_milliseconds();
-                delta_sent /= delta.num_milliseconds();
-
-                // We throttle the connection based off the current metrics and a calculated wait time
-                let wait_time = {
-                    let throttle = throttle.lock();
-                    let wait1 = throttle.download_per_second
-                        .map(|limit| limit as i64)
-                        .filter(|limit| delta_sent.gt(limit))
-                        .map(|limit| chrono::Duration::milliseconds(((delta_sent-limit) * 1000i64) / limit));
-                    let wait2 = throttle.upload_per_second
-                        .map(|limit| limit as i64)
-                        .filter(|limit| delta_received.gt(limit))
-                        .map(|limit| chrono::Duration::milliseconds(((delta_received-limit) * 1000i64) / limit));
-
-                    // Whichever is the longer wait is the one we shall do
-                    match (wait1, wait2) {
-                        (Some(a), Some(b)) if a >= b => Some(a),
-                        (Some(_), Some(b)) => Some(b),
-                        (Some(a), None) => Some(a),
-                        (None, Some(b)) => Some(b),
-                        (None, None) => None
-                    }
-                };
-
-                // We wait outside the throttle lock otherwise we will break things
-                if let Some(wait_time) = wait_time {
-                    if let Ok(wait_time) = wait_time.to_std() {
-                        trace!("trottle wait: {}ms", wait_time.as_millis());
-                        tokio::time::sleep(wait_time).await;
-                    }
-                }
-            }
-
             // Read the next request
             let mut total_read = 0u64;
-            let buf = async {
+            let buf = async
+            {
+                // If the throttle has triggered
+                let now = chrono::offset::Utc::now();
+                let delta = now - last_throttle;
+                if delta > throttle_interval {
+                    last_throttle = now;
+                    
+                    // Compute the deltas
+                    let (mut delta_received, mut delta_sent) = {
+                        let metrics = metrics.lock();
+                        let delta_received = metrics.received - current_received;
+                        let delta_sent = metrics.sent - current_sent;
+                        current_received = metrics.received;
+                        current_sent = metrics.sent;
+                        (delta_received as i64, delta_sent as i64)
+                    };
+
+                    // Normalize the delta based on the time that passed
+                    delta_received *= 1000i64;
+                    delta_sent *= 1000i64;
+                    delta_received /= delta.num_milliseconds();
+                    delta_sent /= delta.num_milliseconds();
+
+                    // We throttle the connection based off the current metrics and a calculated wait time
+                    let wait_time = {
+                        let throttle = throttle.lock();
+                        let wait1 = throttle.download_per_second
+                            .map(|limit| limit as i64)
+                            .filter(|limit| delta_sent.gt(limit))
+                            .map(|limit| chrono::Duration::milliseconds(((delta_sent-limit) * 1000i64) / limit));
+                        let wait2 = throttle.upload_per_second
+                            .map(|limit| limit as i64)
+                            .filter(|limit| delta_received.gt(limit))
+                            .map(|limit| chrono::Duration::milliseconds(((delta_received-limit) * 1000i64) / limit));
+
+                        // Whichever is the longer wait is the one we shall do
+                        match (wait1, wait2) {
+                            (Some(a), Some(b)) if a >= b => Some(a),
+                            (Some(_), Some(b)) => Some(b),
+                            (Some(a), None) => Some(a),
+                            (None, Some(b)) => Some(b),
+                            (None, None) => None
+                        }
+                    };
+
+                    // We wait outside the throttle lock otherwise we will break things
+                    if let Some(wait_time) = wait_time {
+                        if let Ok(wait_time) = wait_time.to_std() {
+                            trace!("trottle wait: {}ms", wait_time.as_millis());
+                            tokio::time::sleep(wait_time).await;
+                        }
+                    }
+                }
+
                 match wire_encryption {
                     Some(key) => {
                         // Read the initialization vector
@@ -168,7 +172,14 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
                     }
                 }
             };
-            let buf = buf.await?;
+            let buf = {
+                select! {
+                    _ = exit.recv() => {
+                        break;
+                    },
+                    a = buf => a
+                }
+            }?;
 
             // Update the metrics with all this received data
             {

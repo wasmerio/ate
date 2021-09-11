@@ -117,6 +117,7 @@ impl MeshSession
             node_id: node_id.clone(),
             key: chain_key.clone(),
             builder,
+            exit: chain.exit.clone(),
             chain: Arc::clone(&chain_store),
             loader_remote: StdMutex::new(Some(Box::new(loader_remote))),
             metrics: Arc::clone(&chain.metrics),
@@ -129,7 +130,7 @@ impl MeshSession
 
         // Set a reference to the chain and trigger it to connect!
         chain_store.lock().replace(Arc::downgrade(&chain));
-        let on_disconnect = chain.pipe.connect()
+        let on_disconnect = chain.pipe.connect(chain.exit.clone())
             .await?;
 
         // Launch an automatic reconnect thread

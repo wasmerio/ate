@@ -19,6 +19,7 @@ use crate::comms::Metrics;
 use crate::comms::Throttle;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use tokio::sync::broadcast;
 use parking_lot::Mutex as StdMutex;
 
 #[cfg(test)]
@@ -116,8 +117,9 @@ async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) 
                 }
             }
             
+            let (exit_tx, _exit_rx) = broadcast::channel(1);
             let server_id = NodeId::generate_server_id(0);
-            listener = Listener::new(&cfg, server_id, Arc::new(Handler::default())).await?;
+            listener = Listener::new(&cfg, server_id, Arc::new(Handler::default()), exit_tx).await?;
             {
                 let mut guard = listener.lock();
                 guard.add_route("/comm-test")?;
@@ -153,7 +155,8 @@ async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) 
             let client_id = NodeId::generate_client_id();
             let metrics = Arc::new(StdMutex::new(Metrics::default()));
             let throttle = Arc::new(StdMutex::new(Throttle::default()));
-            
+
+            let (_exit_tx, exit_rx) = broadcast::channel(1);
             let mut cfg = mock_test_mesh(port);
             cfg.wire_protocol = wire_protocol;
             cfg.wire_format = wire_format;
@@ -161,7 +164,7 @@ async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) 
             cfg.certificate_validation = CertificateValidation::AllowedCertificates(vec![cert.hash()]);
             let cfg = MeshConfig::new(cfg)
                 .connect_to(MeshAddress { host: IpAddr::from_str("127.0.0.1").unwrap(), port });
-            let mut client_tx = super::connect(&cfg, "/comm-test".to_string(), client_id, inbox, metrics, throttle)
+            let mut client_tx = super::connect(&cfg, "/comm-test".to_string(), client_id, inbox, metrics, throttle, exit_rx)
                 .await?;
 
             // We need to test it alot

@@ -127,6 +127,8 @@ impl Server
         }
 
         {
+            let ttl = self.server_conf.ttl.as_secs();
+            let ttl_check = u64::min(ttl, 30u64);
             let server = Arc::clone(self);
             TaskEngine::spawn(async move {
                 let server = {
@@ -134,7 +136,7 @@ impl Server
                     drop(server);
                     s
                 };
-                let mut n = 0u32;
+                let mut n = 0u64;
                 loop {
                     tokio::time::sleep(Duration::from_secs(1)).await;
                     let server = match Weak::upgrade(&server) {
@@ -142,7 +144,7 @@ impl Server
                         None => break
                     };
                     n += 1;
-                    if n > 30 {
+                    if n >= ttl_check {
                         server.house_keeping().await;
                         n = 0;
                     }

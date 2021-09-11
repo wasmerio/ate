@@ -7,6 +7,7 @@ use crate::chain::ChainWork;
 use super::transaction::*;
 use std::sync::Arc;
 use tokio::sync::mpsc;
+use tokio::sync::broadcast;
 
 pub enum ConnectionStatusChange
 {
@@ -19,7 +20,7 @@ pub(crate) trait EventPipe: Send + Sync
 {
     async fn is_connected(&self) -> bool { true }
 
-    async fn connect(&self) -> Result<mpsc::Receiver<ConnectionStatusChange>, ChainCreationError> {
+    async fn connect(&self, _exit: broadcast::Sender<()>) -> Result<mpsc::Receiver<ConnectionStatusChange>, ChainCreationError> {
         Err(ChainCreationErrorKind::NotImplemented.into())
     }
 
@@ -130,14 +131,14 @@ for DuelPipe
         Err(CommsErrorKind::ShouldBlock.into())
     }
 
-    async fn connect(&self) -> Result<mpsc::Receiver<ConnectionStatusChange>, ChainCreationError>
+    async fn connect(&self, exit: broadcast::Sender<()>) -> Result<mpsc::Receiver<ConnectionStatusChange>, ChainCreationError>
     {
-        match self.first.connect().await {
+        match self.first.connect(exit.clone()).await {
             Ok(a) => { return Ok(a); },
             Err(ChainCreationError(ChainCreationErrorKind::NotImplemented, _)) => { }
             Err(err) => { return Err(err); }
         }
-        match self.second.connect().await {
+        match self.second.connect(exit.clone()).await {
             Ok(a) => { return Ok(a); },
             Err(ChainCreationError(ChainCreationErrorKind::NotImplemented, _)) => { }
             Err(err) => { return Err(err); }

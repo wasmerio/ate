@@ -51,6 +51,7 @@ pub(super) struct RecoverableSessionPipe
     pub(super) node_id: NodeId,
     pub(super) key: ChainKey,
     pub(super) builder: ChainBuilder,
+    pub(super) exit: broadcast::Sender<()>,
     pub(super) chain: Arc<StdMutex<Option<Weak<Chain>>>>,
     pub(super) loader_remote: StdMutex<Option<Box<dyn Loader + 'static>>>,
     pub(crate) metrics: Arc<StdMutex<Metrics>>,
@@ -59,7 +60,7 @@ pub(super) struct RecoverableSessionPipe
 
 impl RecoverableSessionPipe
 {
-    pub(super) async fn create_active_pipe(&self, loader: impl Loader + 'static, status_tx: mpsc::Sender<ConnectionStatusChange>) -> Result<ActiveSessionPipe, CommsError>
+    pub(super) async fn create_active_pipe(&self, loader: impl Loader + 'static, status_tx: mpsc::Sender<ConnectionStatusChange>, exit: broadcast::Receiver<()>) -> Result<ActiveSessionPipe, CommsError>
     {
         let commit
             = Arc::new(StdMutex::new(FxHashMap::default()));
@@ -101,7 +102,8 @@ impl RecoverableSessionPipe
                 self.node_id.clone(),
                 inbox,
                 Arc::clone(&self.metrics),
-                Arc::clone(&self.throttle)
+                Arc::clone(&self.throttle),
+                exit
             ).await?;
 
         // Compute an end time that we will sync from based off whats already in the
@@ -169,12 +171,12 @@ impl RecoverableSessionPipe
             // Upgrade to a full reference long enough to get a channel clone
             // if we can not get a full reference then the chain has been destroyed
             // and we should exit
-            let pipe = {
+            let (pipe, exit) = {
                 let chain = match Weak::upgrade(&chain) {
                     Some(a) => a,
                     None => { break; }
                 };
-                Arc::clone(&chain.pipe)
+                (Arc::clone(&chain.pipe), chain.exit.clone())
             };
 
             // Wait on it to disconnect
@@ -208,7 +210,7 @@ impl RecoverableSessionPipe
                 }
 
                 // Reconnect
-                status_change = match pipe.connect().await {
+                status_change = match pipe.connect(exit.clone()).await {
                     Ok(a) => a,
                     Err(ChainCreationError(ChainCreationErrorKind::CommsError(CommsErrorKind::Refused), _)) => {
                         trace!("recoverable_session_pipe reconnect has failed - refused");
@@ -234,8 +236,7 @@ for RecoverableSessionPipe
 {
     fn drop(&mut self)
     {
-        #[cfg(feature = "enable_verbose")]
-        debug!("drop {} @ {}", self.key.to_string(), self.addr);
+        trace!("drop {} @ {}", self.key.to_string(), self.addr);
     }
 }
 
@@ -269,7 +270,7 @@ for RecoverableSessionPipe
         Ok(())
     }
 
-    async fn connect(&self) -> Result<mpsc::Receiver<ConnectionStatusChange>, ChainCreationError>
+    async fn connect(&self, exit: broadcast::Sender<()>) -> Result<mpsc::Receiver<ConnectionStatusChange>, ChainCreationError>
     {
         // Remove the pipe which will mean if we are in a particular recovery
         // mode then all write IO will be blocked
@@ -306,7 +307,7 @@ for RecoverableSessionPipe
         // Set the pipe and drop the lock so that events can be fed correctly
         let (status_tx, status_rx) = mpsc::channel(1);
         let pipe
-            = self.create_active_pipe(composite_loader, status_tx).await?;
+            = self.create_active_pipe(composite_loader, status_tx, exit.subscribe()).await?;
             
         // We replace the new pipe which will mean the chain becomes active again
         // before its completed all the load operations however this is required

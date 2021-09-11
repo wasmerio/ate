@@ -15,6 +15,7 @@ use std::sync::Weak;
 use std::future::Future;
 use serde::{de::DeserializeOwned};
 use std::net::SocketAddr;
+use tokio::sync::broadcast;
 
 use crate::prelude::*;
 use super::core::*;
@@ -71,6 +72,7 @@ pub struct MeshRoot
     pub(super) chains: Mutex<FxHashMap<RouteChain, MeshChain>>,
     pub(super) listener: StdMutex<Option<Arc<StdMutex<Listener<Message, SessionContext>>>>>,
     pub(super) routes: StdMutex<FxHashMap<String, Arc<Mutex<MeshRoute>>>>,
+    pub(super) exit: broadcast::Sender<()>,
 }
 
 #[derive(Clone)]
@@ -155,6 +157,7 @@ impl MeshRoot
             trace!("using certificate: {}", cert.hash());
         }
 
+        let (exit_tx, _) = broadcast::channel(1);
         let server_id = NodeId::generate_server_id(node_id);
         let root = Arc::new(
             MeshRoot
@@ -167,6 +170,7 @@ impl MeshRoot
                 chains: Mutex::new(FxHashMap::default()),
                 listener: StdMutex::new(None),
                 routes: StdMutex::new(FxHashMap::default()),
+                exit: exit_tx.clone(),
             }
         );
 
@@ -174,7 +178,7 @@ impl MeshRoot
             root: Arc::downgrade(&root)
         });
 
-        let listener = crate::comms::Listener::new(&cfg, server_id, processor).await?;
+        let listener = crate::comms::Listener::new(&cfg, server_id, processor, exit_tx.clone()).await?;
         {
             let mut guard = root.listener.lock();
             guard.replace(listener);
@@ -205,7 +209,7 @@ impl MeshRoot
                 bail!(CommsErrorKind::Refused);
             }
         };
-        Listener::accept_stream(listener, stream, sock_addr).await?;
+        Listener::accept_stream(listener, stream, sock_addr, self.exit.subscribe()).await?;
         Ok(())
     }
 
@@ -702,13 +706,15 @@ async fn inbox_subscribe<'b>(
     if root.node_id != node_id
     {
         if redirect {
+            let (_exit_tx, exit_rx) = broadcast::channel(1);
             let relay_tx = super::redirect::redirect::<SessionContext>(
                 root,
                 node_addr,
                 hello_path,
                 chain_key,
                 from,
-                tx.take()).await?;
+                tx.take(),
+                exit_rx).await?;
             tx.set_relay(relay_tx);
 
             return Ok(());
@@ -876,5 +882,6 @@ for MeshRoot
 {
     fn drop(&mut self) {
         debug!("drop (MeshRoot)");
+        let _ = self.exit.send(());
     }
 }

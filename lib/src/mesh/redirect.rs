@@ -5,6 +5,7 @@ use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use async_trait::async_trait;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
+use tokio::sync::broadcast;
 
 use super::*;
 use crate::prelude::*;
@@ -63,6 +64,7 @@ pub(super) async fn redirect<C>(
     chain_key: ChainKey,
     from: ChainTimestamp,
     tx: Tx,
+    exit: broadcast::Receiver<()>
 )
 -> Result<Tx, CommsError>
 where C: Send + Sync + Default + 'static,
@@ -96,6 +98,7 @@ where C: Send + Sync + Default + 'static,
             fascade,
             metrics,
             throttle,
+            exit
         ).await?;
 
     // Send a subscribe packet to the server

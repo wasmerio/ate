@@ -7,6 +7,7 @@ use fxhash::FxHashMap;
 use tokio::{net::{TcpStream}};
 use tokio::time::Duration;
 use tokio::sync::Mutex;
+use tokio::sync::broadcast;
 use std::sync::Arc;
 use send_wrapper::SendWrapper;
 use serde::{Serialize, de::DeserializeOwned};
@@ -55,6 +56,7 @@ pub(crate) async fn connect<M, C>
     inbox: impl InboxProcessor<M, C> + 'static,
     metrics: Arc<StdMutex<Metrics>>,
     throttle: Arc<StdMutex<Throttle>>,
+    exit: broadcast::Receiver<()>
 )
 -> Result<Tx, CommsError>
 where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
@@ -78,6 +80,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
             conf.cfg_mesh.certificate_validation.clone(),
             Arc::clone(&metrics),
             Arc::clone(&throttle),
+            exit,
         ).await?;
         
         // Return the mesh
@@ -117,6 +120,7 @@ pub(super) async fn mesh_connect_to<M, C>
     validation: CertificateValidation,
     metrics: Arc<StdMutex<super::metrics::Metrics>>,
     throttle: Arc<StdMutex<super::throttle::Throttle>>,
+    exit: broadcast::Receiver<()>
 )
 -> Result<Upstream, CommsError>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
@@ -155,6 +159,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
             inbox,
             metrics,
             throttle,
+            exit,
         )
     );
 
@@ -297,6 +302,7 @@ async fn mesh_connect_worker<M, C>
     inbox: Box<dyn InboxProcessor<M, C>>,
     metrics: Arc<StdMutex<super::metrics::Metrics>>,
     throttle: Arc<StdMutex<super::throttle::Throttle>>,
+    exit: broadcast::Receiver<()>
 )
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
       C: Send + Sync + Default + 'static,
@@ -316,7 +322,8 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         sock_addr,
         context,
         wire_format,
-        wire_encryption
+        wire_encryption,
+        exit
     )
     .instrument(span.clone())
     .await {

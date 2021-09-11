@@ -57,6 +57,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone,
     timeout: Duration,
     handler: Arc<dyn ServerProcessor<M, C>>,
     routes: fxhash::FxHashMap<String, ListenerNode>,
+    exit: broadcast::Sender<()>,
 }
 
 #[async_trait]
@@ -103,7 +104,8 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
     (
         conf: &MeshConfig,
         server_id: NodeId,
-        inbox: Arc<dyn ServerProcessor<M, C>>
+        inbox: Arc<dyn ServerProcessor<M, C>>,
+        exit: broadcast::Sender<()>,
     )
     -> Result<Arc<StdMutex<Listener<M, C>>>, CommsError>
     {
@@ -118,6 +120,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
                         timeout: conf.cfg_mesh.accept_timeout,
                         handler: Arc::clone(&inbox),
                         routes: fxhash::FxHashMap::default(),
+                        exit: exit.clone(),
                     }
             ))
         };
@@ -138,6 +141,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
                 server_id.clone(),
                 Arc::downgrade(&listener),
                 conf.cfg_mesh.wire_protocol,
+                exit.clone(),
             ).await;
         }
 
@@ -160,6 +164,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         server_id: NodeId,
         listener: Weak<StdMutex<Listener<M, C>>>,
         wire_protocol: StreamProtocol,
+        exit: broadcast::Sender<()>,
     )
     {
         let tcp_listener = TcpListener::bind(addr.clone()).await
@@ -201,7 +206,8 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
                     (
                         listener,
                         stream,
-                        sock_addr
+                        sock_addr,
+                        exit.subscribe()
                     )
                     .instrument(tracing::info_span!("server-accept", id=server_id.to_short_string().as_str()))
                     .await {
@@ -225,6 +231,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         listener: Arc<StdMutex<Listener<M, C>>>,
         stream: Stream,
         sock_addr: SocketAddr,
+        exit: broadcast::Receiver<()>,
     ) -> Result<(), CommsError>
     {
         info!("accept-from: {}", sock_addr.to_string());
@@ -355,6 +362,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
                 worker_context,
                 wire_format,
                 ek,
+                exit,
             ).await;
 
             let span = span!(Level::DEBUG, "server", addr=sock_addr.to_string().as_str());
@@ -384,5 +392,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone,
 {
     fn drop(&mut self) {
         debug!("drop (Listener)");
+        let _ = self.exit.send(());
     }
 }
