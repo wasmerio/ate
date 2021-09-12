@@ -92,22 +92,18 @@ impl hyper::server::accept::Accept for HyperAcceptor {
                 Poll::Pending => {
                     self.accepting.push((accept, addr));
                 },
-                Poll::Ready(stream) => {
+                Poll::Ready(Err(err)) => {
+                    warn!("failed to accept connection - {}", err);
+                }
+                Poll::Ready(Ok(stream)) => {
                     ret = Some((stream, addr));
                 }
             }
         }
 
         if let Some((stream, addr)) = ret {
-            match stream {
-                Ok(stream) => {
-                    let stream = HyperStream::Tls((stream, addr));
-                    return Poll::Ready(Some(Ok(stream)));
-                },
-                Err(err) => {
-                    return Poll::Ready(Some(Err(err)));
-                }
-            }
+            let stream = HyperStream::Tls((stream, addr));
+            return Poll::Ready(Some(Ok(stream)));
         }
 
         Poll::Pending
