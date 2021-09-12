@@ -22,7 +22,10 @@ ate = { version = "^1", path = "../lib", default_features = false }
 ate-auth = { version = "^1", path = "../auth", default_features = false }
 ate-files = { version = "^1", path = "../files" }
 hyper = { version = "^0.14", features = ["stream", "http1", "http2", "tcp", "server"] }
+rustls = { version = "^0.19" }
 async-compression = { version = "0.3", features = ["brotli", "deflate", "gzip", "tokio"] }
+async-stream = { version = "^0.3" }
+tokio-rustls = { version = "^0.22" }
 http = { version = "0.2" }
 mime_guess = { version = "2.0"}
 error-chain = { version = "^0.12", default_features = false }

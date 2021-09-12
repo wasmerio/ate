@@ -15,6 +15,9 @@ use std::collections::hash_map::Entry as StdEntry;
 use ttl_cache::TtlCache;
 use std::time::Duration;
 use std::net::SocketAddr;
+use tokio::net::TcpListener;
+use async_stream::stream;
+use tokio_rustls::TlsAcceptor;
 
 use hyper;
 use hyper::service::{make_service_fn, service_fn};
@@ -23,7 +26,6 @@ use hyper::Response;
 use hyper::Body;
 use hyper::Method;
 use hyper::StatusCode;
-use hyper::server::conn::AddrStream;
 use hyper::upgrade::Upgraded;
 use hyper::header::HeaderValue;
 use hyper_tungstenite::WebSocketStream;
@@ -37,6 +39,9 @@ use super::error::WebServerError;
 use super::error::WebServerErrorKind;
 use super::conf::*;
 use super::builder::*;
+use super::acceptor::*;
+use super::stream::*;
+use super::acme::*;
 
 pub struct ServerWebConf
 {   
@@ -110,15 +115,46 @@ impl Server
             let make_service = {
                 let server = Arc::clone(self);
                 let listen = Arc::new(listen.clone());
-                make_service_fn(move |conn: &AddrStream| {
-                    let addr = conn.remote_addr();
+                make_service_fn(move |conn: &HyperStream| {
+                    let addr = conn.remote_addr().clone();
                     let server = server.clone();
                     let listen = listen.clone();
                     async move { Ok::<_, Infallible>(service_fn(move |req| process(server.clone(), listen.clone(), req, addr))) }
                 })
             };
 
-            let server = hyper::Server::bind(&listen.addr)
+            let tls = match listen.tls {
+                false => None,
+                true => {
+                    let tls_cfg = {
+                        let mut cfg = rustls::ServerConfig::new(rustls::NoClientAuth::new());
+                        cfg.cert_resolver = Arc::new(Acme::new());
+                        cfg.set_protocols(&[b"h2".to_vec(), b"http/1.1".to_vec()]);
+                        Arc::new(cfg)
+                    };
+                    Some(
+                        TlsAcceptor::from(tls_cfg)
+                    )
+                }
+            };
+
+            let tcp = TcpListener::bind(&listen.addr).await?;
+            let incoming_stream = stream! {
+                loop {
+                    let (socket, addr) = tcp.accept().await?;
+                    let stream = match &tls {
+                        None => HyperStream::PlainTcp((socket, addr)),
+                        Some(tls) => {
+                            let stream = tls.accept(socket).await?;
+                            HyperStream::Tls((stream, addr))
+                        }
+                    };
+                    yield Ok(stream);
+                }
+            };
+            let server = hyper::Server::builder(HyperAcceptor {
+                    acceptor: Box::pin(incoming_stream),
+                })
                 .http1_preserve_header_case(true)
                 .http1_title_case_headers(true)
                 .serve(make_service);    
@@ -126,6 +162,8 @@ impl Server
             joins.push(server);
         }
 
+        // This next background thread will terminate any chains that have gone
+        // out-of-scope due to expired TTL (caching cleanup)
         {
             let ttl = self.server_conf.ttl.as_secs();
             let ttl_check = u64::min(ttl, 30u64);
