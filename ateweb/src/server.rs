@@ -16,8 +16,6 @@ use ttl_cache::TtlCache;
 use std::time::Duration;
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
-use async_stream::stream;
-use tokio_rustls::TlsAcceptor;
 
 use hyper;
 use hyper::service::{make_service_fn, service_fn};
@@ -41,7 +39,6 @@ use super::conf::*;
 use super::builder::*;
 use super::acceptor::*;
 use super::stream::*;
-use super::acme::*;
 
 pub struct ServerWebConf
 {   
@@ -122,40 +119,10 @@ impl Server
                     async move { Ok::<_, Infallible>(service_fn(move |req| process(server.clone(), listen.clone(), req, addr))) }
                 })
             };
-            
-            // We need to accept the plain or TLS based stream
-            let tls = listen.tls;
-            let tcp = TcpListener::bind(&listen.addr).await?;
-            let incoming_stream = stream! {
-                let tls = match tls {
-                    false => None,
-                    true => {
-                        let tls_cfg = {
-                            let mut cfg = rustls::ServerConfig::new(rustls::NoClientAuth::new());
-                            cfg.cert_resolver = Arc::new(Acme::new());
-                            cfg.set_protocols(&[b"h2".to_vec(), b"http/1.1".to_vec()]);
-                            Arc::new(cfg)
-                        };
-                        Some(
-                            TlsAcceptor::from(tls_cfg)
-                        )
-                    }
-                };
-                loop {
-                    let (socket, addr) = tcp.accept().await?;
-                    let stream = match &tls {
-                        None => HyperStream::PlainTcp((socket, addr)),
-                        Some(tls) => {
-                            let stream = tls.accept(socket).await?;
-                            HyperStream::Tls((stream, addr))
-                        }
-                    };
-                    yield Ok(stream);
-                }
-            };
-            let server = hyper::Server::builder(HyperAcceptor {
-                    acceptor: Box::pin(incoming_stream),
-                })
+
+            let tcp_listener = TcpListener::bind(&listen.addr).await?;
+            let acceptor = HyperAcceptor::new(tcp_listener, listen.tls);
+            let server = hyper::Server::builder(acceptor)
                 .http1_preserve_header_case(true)
                 .http1_title_case_headers(true)
                 .serve(make_service);    
