@@ -15,6 +15,7 @@ pub use crate::dio::vec::DaoVec;
 pub use crate::dio::weak::DaoWeak;
 pub use crate::dio::child::DaoChild;
 pub use crate::dio::foreign::DaoForeign;
+pub use crate::dio::bus::Bus;
 pub use crate::dio::dao::Dao;
 pub use crate::dio::dao::DaoObj;
 pub use crate::dio::dao_mut::DaoMut;

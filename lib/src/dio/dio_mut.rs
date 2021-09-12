@@ -675,6 +675,16 @@ impl DioMut
         Ok(ret)
     }
 
+    pub async fn try_load<D>(self: &Arc<Self>, key: &PrimaryKey) -> Result<Option<DaoMut<D>>, LoadError>
+    where D: Serialize + DeserializeOwned,
+    {
+        match self.load(key).await {
+            Ok(a) => Ok(Some(a)),
+            Err(LoadError(LoadErrorKind::NotFound(_), _)) => Ok(None),
+            Err(err) => Err(err)
+        }
+    }
+
     async fn __load<D>(self: &Arc<Self>, key: &PrimaryKey) -> Result<DaoMut<D>, LoadError>
     where D: Serialize + DeserializeOwned,
     {

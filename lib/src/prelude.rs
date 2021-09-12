@@ -53,6 +53,7 @@ pub use crate::trust::ChainRef;
 pub use crate::mesh::ChainGuard;
 pub use crate::conf::ChainBuilder;
 
+pub use crate::dio::Bus;
 pub use crate::dio::DaoForeign;
 pub use crate::dio::DaoVec;
 pub use crate::dio::DaoMap;

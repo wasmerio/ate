@@ -3,7 +3,7 @@ use std::sync::Arc;
 use url::Url;
 use std::time::Duration;
 
-use ate::conf::ConfAte;
+use ate::prelude::*;
 
 use super::conf::*;
 use super::server::*;
@@ -12,6 +12,7 @@ pub struct ServerBuilder
 {
     pub(crate) remote: Url,
     pub(crate) conf: ServerConf,
+    pub(crate) session_cert_store: Option<AteSessionGroup>,
     pub(crate) callback: Option<Arc<dyn ServerCallback>>,
 }
 
@@ -22,12 +23,18 @@ impl ServerBuilder
         ServerBuilder {
             remote,
             conf: ServerConf::default(),
+            session_cert_store: None,
             callback: None,
         }
     }
 
     pub fn with_conf(mut self, cfg: &ConfAte) -> Self {
         self.conf.cfg_ate = cfg.clone();
+        self
+    }
+
+    pub fn with_cert_store_session(mut self, session_cert_store: AteSessionGroup) -> Self {
+        self.session_cert_store = Some(session_cert_store);
         self
     }
 

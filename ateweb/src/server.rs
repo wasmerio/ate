@@ -39,6 +39,7 @@ use super::conf::*;
 use super::builder::*;
 use super::acceptor::*;
 use super::stream::*;
+use super::acme::Acme;
 
 pub struct ServerWebConf
 {   
@@ -62,6 +63,7 @@ pub struct Server
     registry: Registry,
     web_conf: Mutex<FxHashMap<String, ServerWebConf>>,
     server_conf: ServerConf,
+    session_cert_store: Option<AteSessionGroup>,
     callback: Option<Arc<dyn ServerCallback>>,
 }
 
@@ -99,6 +101,7 @@ impl Server
                 chains: Mutex::new(TtlCache::new(usize::MAX)),
                 web_conf: Mutex::new(FxHashMap::default()),
                 server_conf: builder.conf,
+                session_cert_store: builder.session_cert_store,
                 callback: builder.callback,
             }
         )
@@ -107,6 +110,18 @@ impl Server
     pub async fn run(self: &Arc<Self>) -> Result<(), Box<dyn std::error::Error>>
     {
         trace!("running web server");
+
+        let acme = match &self.session_cert_store {
+            Some(session) => {
+                let chain = self.registry.open(&self.remote, &ChainKey::from(session.identity().to_string())).await?;
+                let dio = chain.dio_mut(session).await;
+                Some(
+                    Acme::new(dio).await?
+                )
+            },
+            None => None
+        };
+
         let mut joins = Vec::new();
         for listen in self.server_conf.listen.iter() {
             let make_service = {
@@ -120,8 +135,9 @@ impl Server
                 })
             };
 
+            let acme = acme.clone();
             let tcp_listener = TcpListener::bind(&listen.addr).await?;
-            let acceptor = HyperAcceptor::new(tcp_listener, listen.tls);
+            let acceptor = HyperAcceptor::new(tcp_listener, acme, listen.tls);
             let server = hyper::Server::builder(acceptor)
                 .http1_preserve_header_case(true)
                 .http1_title_case_headers(true)
