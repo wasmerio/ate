@@ -122,24 +122,25 @@ impl Server
                     async move { Ok::<_, Infallible>(service_fn(move |req| process(server.clone(), listen.clone(), req, addr))) }
                 })
             };
-
-            let tls = match listen.tls {
-                false => None,
-                true => {
-                    let tls_cfg = {
-                        let mut cfg = rustls::ServerConfig::new(rustls::NoClientAuth::new());
-                        cfg.cert_resolver = Arc::new(Acme::new());
-                        cfg.set_protocols(&[b"h2".to_vec(), b"http/1.1".to_vec()]);
-                        Arc::new(cfg)
-                    };
-                    Some(
-                        TlsAcceptor::from(tls_cfg)
-                    )
-                }
-            };
-
+            
+            // We need to accept the plain or TLS based stream
+            let tls = listen.tls;
             let tcp = TcpListener::bind(&listen.addr).await?;
             let incoming_stream = stream! {
+                let tls = match tls {
+                    false => None,
+                    true => {
+                        let tls_cfg = {
+                            let mut cfg = rustls::ServerConfig::new(rustls::NoClientAuth::new());
+                            cfg.cert_resolver = Arc::new(Acme::new());
+                            cfg.set_protocols(&[b"h2".to_vec(), b"http/1.1".to_vec()]);
+                            Arc::new(cfg)
+                        };
+                        Some(
+                            TlsAcceptor::from(tls_cfg)
+                        )
+                    }
+                };
                 loop {
                     let (socket, addr) = tcp.accept().await?;
                     let stream = match &tls {

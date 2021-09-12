@@ -9,6 +9,7 @@ use std::io;
 use std::net::SocketAddr;
 
 pub enum HyperStream
+where Self: Send + Sync
 {
     PlainTcp((TcpStream, SocketAddr)),
     Tls((TlsStream<TcpStream>, SocketAddr))

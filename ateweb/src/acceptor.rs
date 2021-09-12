@@ -9,7 +9,8 @@ use hyper;
 
 use super::stream::*;
 
-pub struct HyperAcceptor<'a> {
+pub struct HyperAcceptor<'a>
+{
     pub acceptor: Pin<Box<dyn Stream<Item = Result<HyperStream, io::Error>> + 'a>>,
 }
 
