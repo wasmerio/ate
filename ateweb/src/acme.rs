@@ -67,18 +67,15 @@ impl Acme
         }
     }
 
-    async fn process_cert(&self, sni: &str, cert: Bytes) -> Result<(), Box<dyn std::error::Error>>
+    async fn process_cert(&self, sni: &str, cert: Bytes, key: Bytes) -> Result<(), Box<dyn std::error::Error>>
     {
-        let mut pems = pem::parse_many(&cert[..]);
-        if pems.len() < 2 {
-            error!(
-                "expected 2 or more pem in {}, got: {}",
-                sni,
-                pems.len()
-            );
+        let key = pem::parse(&key[..])?;
+        let pems = pem::parse_many(&cert[..]);
+        if pems.len() < 1 {
+            error!("expected 1 or more pem in {}, got: {}", sni, pems.len());
             return Ok(());
         }
-        let pk = match any_ecdsa_type(&PrivateKey(pems.remove(0).contents)) {
+        let pk = match any_ecdsa_type(&PrivateKey(key.contents)) {
             Ok(pk) => pk,
             Err(_) => {
                 error!("{} does not contain an ecdsa private key", sni);
@@ -107,8 +104,15 @@ impl Acme
         }
 
         let cert = self.repo.get_file(sni.as_str(), WEB_CONF_FILES_CERT).await?;
+        let key = self.repo.get_file(sni.as_str(), WEB_CONF_FILES_KEY).await?;
         if let Some(cert) = cert {
-            self.process_cert(sni.as_str(), cert).await?;
+            if let Some(key) = key {
+                self.process_cert(sni.as_str(), cert, key).await?;
+            } else {
+                warn!("missing certificate private key for {}", sni);
+            }
+        } else {
+            warn!("missing certificate chain for {}", sni);
         }
 
         Ok(())
