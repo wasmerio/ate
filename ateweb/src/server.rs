@@ -183,6 +183,9 @@ impl Server
 
     pub(crate) fn get_host(&self, req: &Request<Body>) -> Result<String, WebServerError>
     {
+        if let Some(host) = req.uri().host() {
+            return Ok(host.to_string());
+        }
         match req.headers().get("Host") {
             Some(a) => Ok(a.to_str()?.to_string()),
             None => { bail!(WebServerErrorKind::UnknownHost); }
