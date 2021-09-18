@@ -290,7 +290,12 @@ for Acme
                 None
             };
 
-            let _ = self.touch_tx.blocking_send(sni);
+            {
+                let tx = self.touch_tx.clone();
+                TaskEngine::spawn(async move {
+                    let _ = tx.send(sni).await;
+                });
+            }
             return ret;
         } else {
             debug!("rejected connection (SNI was missing)");
