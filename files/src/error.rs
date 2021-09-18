@@ -9,6 +9,7 @@ error_chain! {
         AteError(::ate::error::AteError, ::ate::error::AteErrorKind);
         LoginError(::ate_auth::error::LoginError, ::ate_auth::error::LoginErrorKind);
         CreateError(::ate_auth::error::CreateError, ::ate_auth::error::CreateErrorKind);
+        GatherError(::ate_auth::error::GatherError, ::ate_auth::error::GatherErrorKind);
     }
     foreign_links {
         IO(tokio::io::Error);

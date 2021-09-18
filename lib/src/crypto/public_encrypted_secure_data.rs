@@ -66,6 +66,7 @@ where T: serde::Serialize + serde::de::DeserializeOwned
     members: FxHashMap<String, PublicEncryptedSecureData<EncryptKey>>,
     metadata: FxHashMap<String, String>,
     sd_iv: InitializationVector,
+    sd_hash: AteHash,
     #[serde(serialize_with = "vec_serialize", deserialize_with = "vec_deserialize")]
     sd_encrypted: Vec<u8>,
     #[serde(skip)]
@@ -76,8 +77,12 @@ impl<T> MultiEncryptedSecureData<T>
 where T: serde::Serialize + serde::de::DeserializeOwned
 {
     pub fn new(encrypt_key: &PublicEncryptKey, meta: String, data: T) -> Result<MultiEncryptedSecureData<T>, std::io::Error> {
-        let format = SerializationFormat::Bincode;
         let shared_key = EncryptKey::generate(encrypt_key.size());
+        MultiEncryptedSecureData::new_ext(encrypt_key, shared_key, meta, data)
+    }
+
+    pub fn new_ext(encrypt_key: &PublicEncryptKey, shared_key: EncryptKey, meta: String, data: T) -> Result<MultiEncryptedSecureData<T>, std::io::Error> {
+        let format = SerializationFormat::Bincode;
         
         let index = encrypt_key.hash().to_hex_string();
         let mut members = FxHashMap::default();
@@ -90,6 +95,7 @@ where T: serde::Serialize + serde::de::DeserializeOwned
             Err(err) => { return Err(std::io::Error::new(ErrorKind::Other, err.to_string())); }
         };
         let result = shared_key.encrypt(&data[..]);
+        let hash = AteHash::from_bytes_twice(&result.iv.bytes[..], &data[..]);
         
         Ok(
             MultiEncryptedSecureData {
@@ -97,6 +103,7 @@ where T: serde::Serialize + serde::de::DeserializeOwned
                 members,
                 metadata,
                 sd_iv: result.iv,
+                sd_hash: hash,
                 sd_encrypted: result.data,
                 _marker2: PhantomData,
             }
@@ -115,6 +122,21 @@ where T: serde::Serialize + serde::de::DeserializeOwned
                     })
                 },
                 None => None
+            }
+        )
+    }
+
+    pub fn unwrap_shared(&self, shared_key: &EncryptKey) -> Result<Option<T>, std::io::Error> {
+        let data = shared_key.decrypt(&self.sd_iv, &self.sd_encrypted[..]);
+        let hash = AteHash::from_bytes_twice(&self.sd_iv.bytes[..], &data[..]);
+        if hash != self.sd_hash {
+            return Ok(None);
+        }
+
+        Ok(
+            match self.format.deserialize::<T>(&data[..]) {
+                Ok(a) => Some(a),
+                Err(err) => { return Err(std::io::Error::new(ErrorKind::Other, err.to_string())); }
             }
         )
     }

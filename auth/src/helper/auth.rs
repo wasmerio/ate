@@ -61,6 +61,7 @@ pub(crate) fn complete_group_auth(group: &Group, inner: AteSessionInner)
         let mut next = Vec::new();
 
         // Process all the roles
+        let shared_keys = session.read_keys(AteSessionKeyCategory::AllKeys).map(|a| a.clone()).collect::<Vec<_>>();
         let super_keys = session.private_read_keys(AteSessionKeyCategory::AllKeys).map(|a| a.clone()).collect::<Vec<_>>();
         for role in roles.into_iter()
         {
@@ -77,6 +78,21 @@ pub(crate) fn complete_group_auth(group: &Group, inner: AteSessionInner)
                     b.add_gid(group.gid);
                     added = true;
                     break;
+                }
+            }
+            if added == false {
+                for read_key in shared_keys.iter() {
+                    if let Some(a) = role.access.unwrap_shared(&read_key)?
+                    {
+                        // Add access rights to the session                    
+                        let b = session.get_or_create_group_role(&role.purpose);
+                        b.add_read_key(&a.read);
+                        b.add_private_read_key(&a.private_read);
+                        b.add_write_key(&a.write);
+                        b.add_gid(group.gid);
+                        added = true;
+                        break;
+                    }
                 }
             }
 

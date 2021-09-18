@@ -50,7 +50,7 @@ impl AuthService
         // Create the super session
         let mut super_session = self.master_session.clone();
         super_session.user.add_read_key(&super_key);
-        let (super_super_key, super_token) = match self.compute_super_key(super_key.clone()) {
+        let (super_super_key, super_token) = match self.compute_master_key(&super_key) {
             Some(a) => a,
             None => {
                 warn!("login attempt denied ({}) - no master key (sudo)", identity);

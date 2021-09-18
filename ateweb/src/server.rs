@@ -7,12 +7,9 @@ use std::sync::Weak;
 use std::convert::Infallible;
 use fxhash::FxHashMap;
 use tokio::sync::Mutex;
-use url::Url;
-use bytes::Bytes;
 use std::time::Instant;
 use std::ops::Deref;
 use std::collections::hash_map::Entry as StdEntry;
-use ttl_cache::TtlCache;
 use std::time::Duration;
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
@@ -40,6 +37,8 @@ use super::builder::*;
 use super::acceptor::*;
 use super::stream::*;
 use super::acme::Acme;
+use super::repo::*;
+use super::model::*;
 
 pub struct ServerWebConf
 {   
@@ -58,12 +57,9 @@ pub trait ServerCallback: Send + Sync
 
 pub struct Server
 {
-    remote: Url,
-    chains: Mutex<TtlCache<String, Arc<FileAccessor>>>,
-    registry: Registry,
+    repo: Arc<Repository>,
     web_conf: Mutex<FxHashMap<String, ServerWebConf>>,
     server_conf: ServerConf,
-    session_cert_store: Option<AteSessionGroup>,
     callback: Option<Arc<dyn ServerCallback>>,
 }
 
@@ -92,18 +88,25 @@ async fn process(server: Arc<Server>, listen: Arc<ServerListen>, req: Request<Bo
 
 impl Server
 {
-    pub(crate) async fn new(builder: ServerBuilder) -> Arc<Server>
+    pub(crate) async fn new(builder: ServerBuilder) -> Result<Arc<Server>, AteError>
     {
-        Arc::new(
-            Server {
-                registry: Registry::new(&builder.conf.cfg_ate).await,
-                remote: builder.remote,
-                chains: Mutex::new(TtlCache::new(usize::MAX)),
-                web_conf: Mutex::new(FxHashMap::default()),
-                server_conf: builder.conf,
-                session_cert_store: builder.session_cert_store,
-                callback: builder.callback,
-            }
+        let registry = Arc::new(Registry::new(&builder.conf.cfg_ate).await);
+        let repo = Repository::new(
+            &registry,
+            builder.remote.clone(),
+            builder.auth_url.clone(),
+            builder.web_key.clone(),
+            builder.conf.ttl
+        ).await?;
+        Ok(
+            Arc::new(
+                Server {
+                    repo,
+                    web_conf: Mutex::new(FxHashMap::default()),
+                    server_conf: builder.conf,
+                    callback: builder.callback,
+                }
+            )
         )
     }
 
@@ -111,16 +114,7 @@ impl Server
     {
         trace!("running web server");
 
-        let acme = match &self.session_cert_store {
-            Some(session) => {
-                let chain = self.registry.open(&self.remote, &ChainKey::from(session.identity().to_string())).await?;
-                let dio = chain.dio_mut(session).await;
-                Some(
-                    Acme::new(dio).await?
-                )
-            },
-            None => None
-        };
+        let acme = Acme::new(&self.repo).await?;
 
         let mut joins = Vec::new();
         for listen in self.server_conf.listen.iter() {
@@ -184,8 +178,7 @@ impl Server
     }
 
     async fn house_keeping(&self) {
-        let mut lock = self.chains.lock().await;
-        lock.iter();    // this will run the remove_expired function
+        self.repo.house_keeping().await;
     }
 
     pub(crate) fn get_host(&self, req: &Request<Body>) -> Result<String, WebServerError>
@@ -194,76 +187,6 @@ impl Server
             Some(a) => Ok(a.to_str()?.to_string()),
             None => { bail!(WebServerErrorKind::UnknownHost); }
         }
-    }
-
-    pub(crate) async fn get_chain(&self, host: &str) -> Result<Arc<FileAccessor>, WebServerError>
-    {
-        // Now get the chain for this host
-        let host = host.to_string();
-        let chain = {
-            let mut chains = self.chains.lock().await;
-            if let Some(ret) = chains.remove(&host) {
-                chains.insert(host, Arc::clone(&ret), self.server_conf.ttl);
-                ret
-            } else {
-                let key = ChainKey::from(format!("{}/www", host));
-                let chain = self.registry.open(&self.remote, &key).await?;
-                let accessor = Arc::new(
-                    FileAccessor::new(
-                        chain.as_arc(),
-                        Some(host.clone()),
-                        AteSessionType::User(AteSessionUser::default()),
-                        TransactionScope::Local,
-                        TransactionScope::None,
-                        false,
-                        false
-                    ).await
-                );
-                chains.insert(host, Arc::clone(&accessor), self.server_conf.ttl);
-                accessor
-            }
-        };
-
-        Ok(chain)
-    }
-
-    pub(crate) async fn get_file(&self, host: &str, path: &str) -> Result<Option<Bytes>, WebServerError> {
-        let path = path.to_string();
-        let context = RequestContext {
-            uid: 0u32,
-            gid: 0u32,
-        };
-        
-        let chain = self.get_chain(host).await?;
-        Ok(
-            match chain.search(&context, path.as_str()).await {
-                Ok(Some(a)) => {
-                    let flags = libc::O_RDONLY as u32;
-                    let oh = match chain.open(&context, a.ino, flags).await {
-                        Ok(a) => Some(a),
-                        Err(FileSystemError(FileSystemErrorKind::IsDirectory, _)) => None,
-                        Err(err) => { return Err(err.into()); },
-                    };
-                    match oh {
-                        Some(oh) => Some(
-                            chain.read(&context, a.ino, oh.fh, 0, u32::MAX).await?
-                        ),
-                        None => None
-                    }
-                },
-                Ok(None) => {
-                    None
-                },
-                Err(FileSystemError(FileSystemErrorKind::IsDirectory, _)) |
-                Err(FileSystemError(FileSystemErrorKind::DoesNotExist, _)) |
-                Err(FileSystemError(FileSystemErrorKind::NoEntry, _)) => {
-                    None
-                },
-                Err(err) => {
-                    return Err(err.into());
-                }
-            }
-        )
     }
 
     pub(crate) async fn get_conf(&self, host: &str) -> Result<WebConf, WebServerError> {
@@ -288,7 +211,7 @@ impl Server
         if trigger {
             lock.web_conf_when = Some(Instant::now());
             lock.web_conf =
-                match self.get_file(host.as_str(), "web.yaml")
+                match self.repo.get_file(host.as_str(), WEB_CONF_FILES_CONF)
                     .await.ok().flatten()
                 {
                     Some(data) => {
@@ -375,7 +298,7 @@ impl Server
     }
 
     pub(crate) async fn process_get(&self, host: &str, path: &str, is_head: bool) -> Result<Option<Response<Body>>, WebServerError> {
-        if let Some(data) = self.get_file(host, path).await? {
+        if let Some(data) = self.repo.get_file(host, path).await? {
             let len_str = data.len().to_string();
 
             let mut resp = if is_head {

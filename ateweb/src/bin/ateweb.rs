@@ -4,12 +4,10 @@ use std::time::Duration;
 
 use clap::Clap;
 
-use ate_auth::prelude::*;
+use ate_auth::helper::*;
 use ate::prelude::*;
 use ateweb::opt::*;
 use ateweb::*;
-
-use crate::model::CERT_STORE_GROUP_NAME;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -29,26 +27,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         conf.ntp_port = port;
     }
 
-    // Perform the login
-    trace!("getting certificate store session");
-    let session_cert_store = main_session_group(None, Some(opts.token_path), CERT_STORE_GROUP_NAME.to_string(), true, None, Some(opts.auth.clone()), "Domain name").await?;
-
     // Run the server
     match opts.subcmd {
         SubCommand::Web(run) =>
         {
+            let web_key: EncryptKey = load_key(run.web_key_path.clone(), ".read");
+
             conf.log_path = Some(run.log_path);
-            let server = ServerBuilder::new(run.remote)
+            let server = ServerBuilder::new(run.remote, run.auth_url, web_key)
                 .with_conf(&conf)
-                .with_cert_store_session(session_cert_store)
                 .ttl(Duration::from_secs(run.ttl))
                 .add_listener(run.listen, run.port, run.port == 443u16)
-                .build().await;
+                .build().await?;
             server.run().await?;
         }
 
         SubCommand::All(run) =>
         {
+            let web_key: EncryptKey = load_key(run.web_key_path.clone(), ".read");
             let protocol = StreamProtocol::parse(&run.auth_url)?;
             let port = run.auth_url.port().unwrap_or(protocol.default_port());
             let domain = run.auth_url.domain().unwrap_or("localhost").to_string();
@@ -60,13 +56,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let root = create_server(&cfg_mesh).await?;
 
             conf.log_path = Some(run.log_path);
-            let server = ServerBuilder::new(run.remote)
+            let server = ServerBuilder::new(run.remote, run.auth_url, web_key)
                 .with_conf(&conf)
-                .with_cert_store_session(session_cert_store)
                 .ttl(Duration::from_secs(run.ttl))
                 .with_callback(ateweb::ServerMeshAdapter::new(&root))
                 .add_listener(run.listen, run.port, run.port == 443u16)
-                .build().await;
+                .build().await?;
             server.run().await?;
         }
     }

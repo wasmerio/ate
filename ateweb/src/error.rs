@@ -6,7 +6,7 @@ use hyper::StatusCode;
 
 error_chain! {
     types {
-        WebServerError, WebServerErrorKind, ResultExt, Result;
+        WebServerError, WebServerErrorKind, WebServerResultExt, WebServerResult;
     }
     links {
         LoadError(LoadError, LoadErrorKind);
@@ -64,5 +64,65 @@ impl WebServerError
             ret.push_str("\n");
         }
         ret
+    }
+}
+
+error_chain! {
+    types {
+        OrderError, OrderErrorKind, OrderResultExt, OrderResult;
+    }
+    links {
+        SerializationError(SerializationError, SerializationErrorKind);
+        CommitError(CommitError, CommitErrorKind);
+    }
+    errors {
+        Acme(err: rustls_acme::acme::AcmeError) {
+            description("acme error"),
+            display("acme error: {0}", err)
+        }
+        Pem(err: pem::PemError) {
+            description("could not parse pem"),
+            display("could not parse pem: {0}", err)
+        }
+        Rcgen(err: rcgen::RcgenError) {
+            description("certificate generation error"),
+            display("certificate generation error: {0}", err)
+        }
+        BadOrder(order: rustls_acme::acme::Order) {
+            description("bad order object"),
+            display("bad order object: {0:?}", order)
+        }
+        BadAuth(auth: rustls_acme::acme::Auth) {
+            description("bad auth object"),
+            display("bad auth object: {0:?}", auth)
+        }
+        TooManyAttemptsAuth(domain: String) {
+            description("authorization failed too many times"),
+            display("authorization for {0} failed too many times", domain)
+        }
+    }
+}
+
+impl From<rustls_acme::acme::AcmeError>
+for OrderError
+{
+    fn from(err: rustls_acme::acme::AcmeError) -> OrderError {
+        OrderErrorKind::Acme(err).into()
+    }
+}
+
+impl From<pem::PemError>
+for OrderError
+{
+    fn from(err: pem::PemError) -> OrderError {
+        OrderErrorKind::Pem(err).into()
+    }
+}
+
+impl From<rcgen::RcgenError>
+for OrderError
+{
+    fn from(err: rcgen::RcgenError) -> OrderError {
+        OrderErrorKind::Rcgen(err).into()
     }
 }

@@ -30,7 +30,7 @@ impl AuthService
         info!("login attempt: {}", request.email);
 
         // Create the super key and token
-        let (super_key, token) = match self.compute_super_key(request.secret) {
+        let (super_key, token) = match self.compute_master_key(&request.secret) {
             Some(a) => a,
             None => {
                 warn!("login attempt denied ({}) - no master key", request.email);
@@ -117,34 +117,83 @@ impl AuthService
         })
     }
 
-    pub(crate) fn master_key(&self) -> Option<EncryptKey>
+    pub(crate) fn master_key(&self) -> Option<&EncryptKey>
     {
-        self.master_session.user.read_keys().map(|a| a.clone()).next()
+        self.master_session.user.read_keys().map(|a| a).next()
     }
 
-    pub fn compute_super_key(&self, secret: EncryptKey) -> Option<(EncryptKey, EncryptedSecureData<EncryptKey>)>
+    pub(crate) fn web_key(&self) -> &EncryptKey
+    {
+        &self.web_key
+    }
+
+    pub(crate) fn edge_key(&self) -> &EncryptKey
+    {
+        &self.edge_key
+    }
+
+    pub(crate) fn contract_key(&self) -> &EncryptKey
+    {
+        &self.contract_key
+    }
+
+    pub fn compute_super_key(master_key: &EncryptKey, secret: &EncryptKey) -> (EncryptKey, EncryptedSecureData<EncryptKey>)
     {
         // Create a session with crypto keys based off the username and password
-        let master_key = match self.master_session.user.read_keys().next() {
-            Some(a) => a.clone(),
-            None => { return None; }
-        };
-        let super_key = AteHash::from_bytes_twice(master_key.value(), secret.value());
+        let super_key = master_key.encrypt(secret.value());
+        let super_key = AteHash::from_bytes(&super_key.data[..]);
         let super_key = EncryptKey::from_seed_bytes(super_key.to_bytes(), KeySize::Bit192);
         let token = EncryptedSecureData::new(&master_key, super_key).unwrap();
         
-        Some((super_key, token))
+        (super_key, token)
     }
 
-    pub fn compute_super_key_from_hash(&self, hash: AteHash) -> Option<EncryptKey>
+    pub fn compute_super_key_from_hash(master_key: &EncryptKey, hash: &AteHash) -> EncryptKey
     {
         // Create a session with crypto keys based off the username and password
-        let master_key = match self.master_session.user.read_keys().next() {
-            Some(a) => a.clone(),
-            None => { return None; }
-        };
-        let super_key = AteHash::from_bytes_twice(master_key.value(), hash.to_bytes());
+        let super_key = master_key.encrypt(hash.to_bytes());
+        let super_key = AteHash::from_bytes(&super_key.data[..]);
         let super_key = EncryptKey::from_seed_bytes(super_key.to_bytes(), KeySize::Bit192);
-        Some(super_key)
+        super_key
+    }
+
+    pub fn compute_master_key(&self, secret: &EncryptKey) -> Option<(EncryptKey, EncryptedSecureData<EncryptKey>)>
+    {
+        self.master_key().map(|a| AuthService::compute_super_key(a, secret))
+    }
+
+    pub fn compute_master_key_from_hash(&self, hash: &AteHash) -> Option<EncryptKey>
+    {
+        self.master_key().map(|a| AuthService::compute_super_key_from_hash(a, hash))
+    }
+
+    pub fn compute_web_key(&self, secret: &EncryptKey) -> (EncryptKey, EncryptedSecureData<EncryptKey>)
+    {
+        AuthService::compute_super_key(self.web_key(), secret)
+    }
+
+    pub fn compute_web_key_from_hash(&self, hash: &AteHash) -> EncryptKey
+    {
+        AuthService::compute_super_key_from_hash(self.web_key(), hash)
+    }
+
+    pub fn compute_edge_key(&self, secret: &EncryptKey) -> (EncryptKey, EncryptedSecureData<EncryptKey>)
+    {
+        AuthService::compute_super_key(self.edge_key(), secret)
+    }
+
+    pub fn compute_edge_key_from_hash(&self, hash: &AteHash) -> EncryptKey
+    {
+        AuthService::compute_super_key_from_hash(self.edge_key(), hash)
+    }
+
+    pub fn compute_contract_key(&self, secret: &EncryptKey) -> (EncryptKey, EncryptedSecureData<EncryptKey>)
+    {
+        AuthService::compute_super_key(self.contract_key(), secret)
+    }
+
+    pub fn compute_contract_key_from_hash(&self, hash: &AteHash) -> EncryptKey
+    {
+        AuthService::compute_super_key_from_hash(self.contract_key(), hash)
     }
 }

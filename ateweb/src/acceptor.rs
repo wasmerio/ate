@@ -21,32 +21,27 @@ where Self: Send + Sync
 {
     pub tcp: TcpListener,
     pub tls: Option<TlsAcceptor>,
-    pub acme: Option<Arc<Acme>>,
+    pub acme: Arc<Acme>,
     pub accepting: Vec<(Accept<TcpStream>, SocketAddr)>,
 }
 
 impl HyperAcceptor
 {
-    pub fn new(listener: TcpListener, acme: Option<Arc<Acme>>, enable_tls: bool) -> HyperAcceptor
+    pub fn new(listener: TcpListener, acme: Arc<Acme>, enable_tls: bool) -> HyperAcceptor
     {
         let tls = match enable_tls {
             false => None,
             true => {
-                match &acme {
-                    Some(acme) => {
-                        let acme = Arc::clone(acme);
-                        let tls_cfg = {
-                            let mut cfg = rustls::ServerConfig::new(rustls::NoClientAuth::new());
-                            cfg.cert_resolver = acme;
-                            cfg.set_protocols(&[b"h2".to_vec(), b"http/1.1".to_vec()]);
-                            Arc::new(cfg)
-                        };
-                        Some(
-                            TlsAcceptor::from(tls_cfg)
-                        )
-                    },
-                    None => None
-                }
+                let acme = Arc::clone(&acme);
+                let tls_cfg = {
+                    let mut cfg = rustls::ServerConfig::new(rustls::NoClientAuth::new());
+                    cfg.cert_resolver = acme;
+                    cfg.set_protocols(&[b"h2".to_vec(), b"http/1.1".to_vec()]);
+                    Arc::new(cfg)
+                };
+                Some(
+                    TlsAcceptor::from(tls_cfg)
+                )
             }
         };
         HyperAcceptor {

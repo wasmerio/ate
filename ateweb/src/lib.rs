@@ -9,6 +9,7 @@ pub mod adapter;
 pub mod acceptor;
 pub mod stream;
 pub mod acme;
+pub mod repo;
 
 pub use server::Server;
 pub use adapter::ServerMeshAdapter;
@@ -17,3 +18,4 @@ pub use conf::ServerConf;
 pub use acceptor::*;
 pub use stream::*;
 pub use acme::*;
+pub use repo::*;

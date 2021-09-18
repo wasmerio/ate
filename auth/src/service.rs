@@ -17,6 +17,9 @@ pub struct AuthService
 {
     pub auth_url: url::Url,
     pub master_session: AteSessionUser,
+    pub web_key: EncryptKey,
+    pub edge_key: EncryptKey,
+    pub contract_key: EncryptKey,
     pub time_keeper: TimeKeeper,
     pub terms_and_conditions: Option<String>,
     pub registry: Arc<Registry>,
@@ -24,13 +27,16 @@ pub struct AuthService
 
 impl AuthService
 {
-    pub async fn new(cfg: &ConfAte, auth_url: url::Url, auth_session: AteSessionUser, terms_and_conditions: Option<String>) -> Result<Arc<AuthService>, TimeError>
+    pub async fn new(cfg: &ConfAte, auth_url: url::Url, auth_session: AteSessionUser, web_key: EncryptKey, edge_key: EncryptKey, contract_key: EncryptKey, terms_and_conditions: Option<String>) -> Result<Arc<AuthService>, TimeError>
     {
         let service = Arc::new(
             AuthService
             {
                 auth_url,
                 master_session: auth_session,
+                web_key,
+                edge_key,
+                contract_key,
                 time_keeper:  TimeKeeper::new(cfg, 30000).await?,
                 registry: Registry::new(cfg).await
                     .temporal(true)
@@ -43,10 +49,10 @@ impl AuthService
     }
 }
 
-pub async fn service_auth_handlers(cfg: &ConfAte, cmd_session: AteSessionUser, auth_url: url::Url, auth_session: AteSessionUser, terms_and_conditions: Option<String>, chain: &Arc<Chain>)
+pub async fn service_auth_handlers(cfg: &ConfAte, cmd_session: AteSessionUser, auth_url: url::Url, auth_session: AteSessionUser, web_key: EncryptKey, edge_key: EncryptKey, contract_key: EncryptKey, terms_and_conditions: Option<String>, chain: &Arc<Chain>)
 -> Result<(), TimeError>
 {
-    let service = AuthService::new(cfg, auth_url, auth_session, terms_and_conditions).await?;
+    let service = AuthService::new(cfg, auth_url, auth_session, web_key, edge_key, contract_key, terms_and_conditions).await?;
     chain.add_service(&cmd_session, service.clone(), AuthService::process_login);
     chain.add_service(&cmd_session, service.clone(), AuthService::process_sudo);
     chain.add_service(&cmd_session, service.clone(), AuthService::process_reset);

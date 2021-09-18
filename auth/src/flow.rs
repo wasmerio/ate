@@ -14,6 +14,9 @@ pub struct ChainFlow {
     cfg: ConfAte,
     auth_url: url::Url,
     root_key: PrivateSignKey,
+    web_key: EncryptKey,
+    edge_key: EncryptKey,
+    contract_key: EncryptKey,
     regex_auth: Regex,
     regex_cmd: Regex,
     session: AteSessionUser,
@@ -22,7 +25,7 @@ pub struct ChainFlow {
 
 impl ChainFlow
 {
-    pub fn new(cfg: &ConfAte, root_key: PrivateSignKey, session: AteSessionUser, auth_url: &url::Url) -> Self {        
+    pub fn new(cfg: &ConfAte, root_key: PrivateSignKey, session: AteSessionUser, web_key: EncryptKey, edge_key: EncryptKey, contract_key: EncryptKey, auth_url: &url::Url) -> Self {        
         ChainFlow {
             cfg: cfg.clone(),
             root_key,
@@ -30,6 +33,9 @@ impl ChainFlow
             regex_cmd: Regex::new("^cmd-[a-f0-9]{16}$").unwrap(),
             auth_url: auth_url.clone(),
             session,
+            web_key,
+            edge_key,
+            contract_key,
             terms_and_conditions: None,
         }
     }
@@ -97,7 +103,17 @@ for ChainFlow
                 .await?;
                 
             // Add the services to this chain
-            service_auth_handlers(&self.cfg, cmd_session.clone(), self.auth_url.clone(), self.session.clone(), self.terms_and_conditions.clone(), &Arc::clone(&chain)).await?;
+            service_auth_handlers(
+                &self.cfg,
+                cmd_session.clone(),
+                self.auth_url.clone(),
+                self.session.clone(),
+                self.web_key.clone(),
+                self.edge_key.clone(),
+                self.contract_key.clone(),
+                self.terms_and_conditions.clone(),
+                &Arc::clone(&chain)
+            ).await?;
 
             // Return the chain to the caller
             return Ok(OpenAction::PrivateChain

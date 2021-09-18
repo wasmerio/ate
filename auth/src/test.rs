@@ -29,6 +29,9 @@ pub async fn test_create_user_and_group()
     
     // Build a session for service
     info!("building session for service");
+    let web_read_key = EncryptKey::generate(KeySize::Bit192);
+    let edge_read_key = EncryptKey::generate(KeySize::Bit192);
+    let contract_read_key = EncryptKey::generate(KeySize::Bit192);
     let root_read_key = EncryptKey::generate(KeySize::Bit192);
     let root_write_key = PrivateSignKey::generate(KeySize::Bit192);
     let mut session = AteSessionUser::new();
@@ -40,7 +43,7 @@ pub async fn test_create_user_and_group()
     let port_offset = fastrand::u16(..1000);
     let port = 5000 + port_offset;
     let auth = Url::parse(format!("ws://localhost:{}/auth", port).as_str()).unwrap();
-    let flow = ChainFlow::new(&cfg_ate, root_write_key, session, &auth);
+    let flow = ChainFlow::new(&cfg_ate, root_write_key, session, web_read_key.clone(), edge_read_key.clone(), contract_read_key.clone(), &auth);
 
     // Create the server and listen on port 5000
     info!("creating server and listening on ports with routes");

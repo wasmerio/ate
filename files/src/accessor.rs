@@ -32,6 +32,8 @@ where Self: Send + Sync
     pub chain: Arc<Chain>,
     pub dio: Arc<Dio>,
     pub no_auth: bool,
+    pub is_www: bool,
+    pub is_edge: bool,
     pub scope_meta: TransactionScope,
     pub scope_io: TransactionScope,
     pub group: Option<String>,
@@ -49,14 +51,30 @@ pub struct RequestContext
     pub gid: u32,
 }
 
+impl Default
+for RequestContext
+{
+    fn default() -> RequestContext {
+        RequestContext {
+            uid: 0u32,
+            gid: 0u32,
+        }
+    }
+}
+
 impl FileAccessor
 {
     pub async fn new(chain: Arc<Chain>, group: Option<String>, session: AteSessionType, scope_io: TransactionScope, scope_meta: TransactionScope, no_auth: bool, impersonate_uid: bool) -> FileAccessor {
+        let is_www = chain.key().to_string().ends_with("/www");
+        let is_edge = chain.key().to_string().ends_with("/edge");
         let dio = chain.dio(&session).await;
+
         FileAccessor {
             chain,
             dio,
             no_auth,
+            is_www,
+            is_edge,
             group,
             session,
             scope_meta,
@@ -108,7 +126,14 @@ impl FileAccessor
     }
 
     pub fn get_group_read_key<'a>(&'a self, gid: u32) -> Option<&'a EncryptKey> {
-        self.session.role(&AteRolePurpose::Observer)
+        let purpose = if self.is_www {
+            AteRolePurpose::WebServer
+        } else if self.is_edge {
+            AteRolePurpose::EdgeCompute
+        } else {
+            AteRolePurpose::Observer
+        };
+        self.session.role(&purpose)
             .iter()
             .filter(|g| g.gid() == Some(gid))
             .flat_map(|r| r.read_keys())
@@ -116,7 +141,14 @@ impl FileAccessor
     }
 
     pub fn get_group_write_key<'a>(&'a self, gid: u32) -> Option<&'a PrivateSignKey> {
-        self.session.role(&AteRolePurpose::Contributor)
+        let purpose = if self.is_www {
+            AteRolePurpose::WebServer
+        } else if self.is_edge {
+            AteRolePurpose::EdgeCompute
+        } else {
+            AteRolePurpose::Contributor
+        };
+        self.session.role(&purpose)
             .iter()
             .filter(|g| g.gid() == Some(gid))
             .flat_map(|r| r.write_keys())

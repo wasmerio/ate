@@ -35,26 +35,16 @@ impl AuthService
         info!("reset user: {}", request.email);
 
         // Compute the super_key, super_super_key (elevated rights) and the super_session
-        let (super_key, _) = self.compute_super_key(request.new_secret).ok_or_else(|| ResetFailed::NoMasterKey)?;
-        let (super_super_key, super_token) = self.compute_super_key(super_key.clone()).ok_or_else(|| ResetFailed::NoMasterKey)?;
+        let (super_key, token) = self.compute_master_key(&request.new_secret).ok_or_else(|| ResetFailed::NoMasterKey)?;
+        let (super_super_key, super_token) = self.compute_master_key(&super_key).ok_or_else(|| ResetFailed::NoMasterKey)?;
         let mut super_session = self.master_session.clone();
         super_session.user.add_read_key(&super_key);
         super_session.user.add_read_key(&super_super_key);
         super_session.token = Some(super_token);
 
         // Convert the recovery code
-        let (super_recovery_key, _) = self.compute_super_key(request.recovery_key).ok_or_else(|| ResetFailed::NoMasterKey)?;
+        let (super_recovery_key, _) = self.compute_master_key(&request.recovery_key).ok_or_else(|| ResetFailed::NoMasterKey)?;
         super_session.user.add_read_key(&super_recovery_key);
-
-        // Create the super key and token
-        let (super_key, token) = match self.compute_super_key(request.new_secret) {
-            Some(a) => a,
-            None => {
-                warn!("reset attempt denied ({}) - no master key", request.email);
-                return Err(ResetFailed::NoMasterKey);
-            }
-        };
-        super_session.user.add_read_key(&super_key);
 
         // Compute which chain the user should exist within
         let chain_key = chain_key_4hex(request.email.as_str(), Some("redo"));
@@ -107,8 +97,8 @@ impl AuthService
         // We can now add the original encryption key that we grant us access to this account
         {
             let mut session_mut = dio.session_mut();
-            let (super_key, _) = self.compute_super_key(recovery.login_secret).ok_or_else(|| ResetFailed::NoMasterKey)?;
-            let (super_super_key, _) = self.compute_super_key(super_key.clone()).ok_or_else(|| ResetFailed::NoMasterKey)?;
+            let (super_key, _) = self.compute_master_key(&recovery.login_secret).ok_or_else(|| ResetFailed::NoMasterKey)?;
+            let (super_super_key, _) = self.compute_master_key(&super_key.clone()).ok_or_else(|| ResetFailed::NoMasterKey)?;
             session_mut.user_mut().add_user_read_key(&super_key);
             session_mut.user_mut().add_user_read_key(&super_super_key);
         }

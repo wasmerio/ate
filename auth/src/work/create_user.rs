@@ -61,14 +61,14 @@ impl AuthService
 
         // Compute the super_key, super_super_key (elevated rights) and the super_session
         let key_size = request.secret.size();
-        let (super_key, token) = match self.compute_super_key(request.secret) {
+        let (super_key, token) = match self.compute_master_key(&request.secret) {
             Some(a) => a,
             None => { 
                 warn!("failed to generate super key");
                 return Err(CreateUserFailed::NoMasterKey);
             }
         };
-        let (super_super_key, super_token) = match self.compute_super_key(super_key.clone()) {
+        let (super_super_key, super_token) = match self.compute_master_key(&super_key) {
             Some(a) => a,
             None => { 
                 warn!("failed to generate super super key");
@@ -85,7 +85,7 @@ impl AuthService
         let recovery_code = format!("{}-{}-{}-{}-{}", &recovery_code[0..4], &recovery_code[4..8], &recovery_code[8..12], &recovery_code[12..16], &recovery_code[16..20]);
         let recovery_prefix = format!("recover-login:{}:", request.email);
         let recovery_key = password_to_read_key(&recovery_prefix, &recovery_code, 15, KeySize::Bit192);
-        let (super_recovery_key, _) = match self.compute_super_key(recovery_key) {
+        let (super_recovery_key, _) = match self.compute_master_key(&recovery_key) {
             Some(a) => a,
             None => { 
                 warn!("failed to generate recovery key");
@@ -168,13 +168,10 @@ impl AuthService
         });
 
         // We generate a derived contract encryption key which we will give back to the caller
-        let contract_read_key_entropy = AteHash::from_bytes(request.email.as_bytes());
-        let contract_read_key = match self.compute_super_key_from_hash(contract_read_key_entropy) {
-            Some(a) => a,
-            None => {
-                warn!("no master key - failed to create composite key");
-                return Err(CreateUserFailed::NoMasterKey);
-            }
+        let contract_read_key = {
+            let contract_read_key_entropy = format!("contract-read:{}", request.email);
+            let contract_read_key_entropy = AteHash::from_bytes(contract_read_key_entropy.as_bytes());
+            self.compute_contract_key_from_hash(&contract_read_key_entropy)
         };
 
         // Attempt to load it as maybe it is still being verified

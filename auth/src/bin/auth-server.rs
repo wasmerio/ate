@@ -31,10 +31,19 @@ enum SubCommand {
 #[derive(Clap)]
 struct Run {
     /// Path to the secret key that helps protect key operations like creating users and resetting passwords
-    #[clap(index = 1, default_value = "~/ate/auth.key")]
-    key_path: String,
+    #[clap(long, default_value = "~/ate/auth.key")]
+    auth_key_path: String,
+    /// Path to the secret key that grants access to the WebServer role within groups
+    #[clap(long, default_value = "~/ate/web.key")]
+    web_key_path: String,
+    /// Path to the secret key that grants access to the EdgeCompute role within groups
+    #[clap(long, default_value = "~/ate/edge.key")]
+    edge_key_path: String,
+    /// Path to the secret key that grants access to the contracts
+    #[clap(long, default_value = "~/ate/contract.key")]
+    contract_key_path: String,
     /// Path to the log files where all the authentication data is stored
-    #[clap(index = 2, default_value = "~/ate/auth")]
+    #[clap(index = 1, default_value = "~/ate/auth")]
     logs_path: String,
     /// Path to the backup and restore location of log files
     #[clap(short, long)]
@@ -55,7 +64,7 @@ struct Run {
 #[derive(Clap)]
 struct Generate {
     /// Path to the secret key
-    #[clap(index = 1, default_value = "~/ate/auth.key")]
+    #[clap(index = 1, default_value = "~/ate/")]
     key_path: String,
     /// Strength of the key that will be generated
     #[clap(short, long, default_value = "256")]
@@ -82,9 +91,12 @@ async fn main() -> Result<(), AteError>
         SubCommand::Run(run) =>
         {
             // Open the key file
-            let root_write_key: PrivateSignKey = load_key(run.key_path.clone(), ".write");
-            let root_read_key: EncryptKey = load_key(run.key_path.clone(), ".read");
-            let root_cert_key: PrivateEncryptKey = load_key(run.key_path.clone(), ".cert");
+            let root_write_key: PrivateSignKey = load_key(run.auth_key_path.clone(), ".write");
+            let root_read_key: EncryptKey = load_key(run.auth_key_path.clone(), ".read");
+            let root_cert_key: PrivateEncryptKey = load_key(run.auth_key_path.clone(), ".cert");
+            let web_key: EncryptKey = load_key(run.web_key_path.clone(), ".read");
+            let edge_key: EncryptKey = load_key(run.edge_key_path.clone(), ".read");
+            let contract_key: EncryptKey = load_key(run.contract_key_path.clone(), ".read");
             
             // Build a session for service
             let mut cfg_ate = conf_auth();
@@ -99,7 +111,7 @@ async fn main() -> Result<(), AteError>
             session.user.add_write_key(&root_write_key);
 
             // Create the server and listen
-            let mut flow = ChainFlow::new(&cfg_ate, root_write_key, session, &run.url);
+            let mut flow = ChainFlow::new(&cfg_ate, root_write_key, session, web_key, edge_key, contract_key, &run.url);
             flow.terms_and_conditions = Some(ate_auth::GENERIC_TERMS_AND_CONDITIONS.to_string());
             let mut cfg_mesh = ConfMesh::solo_from_url(&cfg_ate, &run.url, &run.listen, None, run.node_id).await?;
             cfg_mesh.wire_protocol = StreamProtocol::parse(&run.url)?;
@@ -119,14 +131,28 @@ async fn main() -> Result<(), AteError>
         },
 
         SubCommand::Generate(generate) => {
+            let mut key_path = generate.key_path.clone();
+            if key_path.ends_with("/") == false {
+                key_path += "/";
+            }
+
             let read_key = EncryptKey::generate(generate.strength);
-            save_key(generate.key_path.clone(), read_key, ".read");
+            save_key(key_path.clone(), read_key, "auth.key.read");
 
             let write_key = PrivateSignKey::generate(generate.strength);
-            save_key(generate.key_path.clone(), write_key, ".write");
+            save_key(key_path.clone(), write_key, "auth.key.write");
 
             let cert_key = PrivateEncryptKey::generate(generate.strength);
-            save_key(generate.key_path.clone(), cert_key, ".cert");
+            save_key(key_path.clone(), cert_key, "auth.key.cert");
+
+            let web_key = EncryptKey::generate(generate.strength);
+            save_key(key_path.clone(), web_key, "web.key.read");
+
+            let edge_key = EncryptKey::generate(generate.strength);
+            save_key(key_path.clone(), edge_key, "edge.key.read");
+
+            let contract_key = EncryptKey::generate(generate.strength);
+            save_key(key_path.clone(), contract_key, "contract.key.read");
         },
     }
 

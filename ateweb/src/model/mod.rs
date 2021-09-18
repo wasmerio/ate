@@ -1,8 +1,7 @@
 mod web_conf;
-mod cert;
 
 pub use web_conf::*;
-pub use cert::*;
 
-pub const CERT_STORE_ID: u64 = 7127953076879823547u64;
-pub const CERT_STORE_GROUP_NAME: &'static str = "cert.tokera.com";
+pub const WEB_CONF_FILES: &'static str = "/.conf";
+pub const WEB_CONF_FILES_CERT: &'static str = "/.conf/cert.pem";
+pub const WEB_CONF_FILES_CONF: &'static str = "/.conf/web.yaml";

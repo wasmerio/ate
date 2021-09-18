@@ -11,18 +11,22 @@ use super::server::*;
 pub struct ServerBuilder
 {
     pub(crate) remote: Url,
+    pub(crate) auth_url: Url,
     pub(crate) conf: ServerConf,
+    pub(crate) web_key: EncryptKey,
     pub(crate) session_cert_store: Option<AteSessionGroup>,
     pub(crate) callback: Option<Arc<dyn ServerCallback>>,
 }
 
 impl ServerBuilder
 {
-    pub fn new(remote: Url) -> ServerBuilder
+    pub fn new(remote: Url, auth_url: Url, web_key: EncryptKey) -> ServerBuilder
     {
         ServerBuilder {
             remote,
+            auth_url,
             conf: ServerConf::default(),
+            web_key,
             session_cert_store: None,
             callback: None,
         }
@@ -57,7 +61,7 @@ impl ServerBuilder
         self
     }
 
-    pub async fn build(self) -> Arc<Server> {
+    pub async fn build(self) -> Result<Arc<Server>, AteError> {
         Server::new(self).await
     }
 }

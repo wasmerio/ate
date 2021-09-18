@@ -29,6 +29,18 @@ impl AuthService
     {
         info!("create group: {}", request.group);
 
+        // There are certain areas that need a derived encryption key
+        let web_key = {
+            let web_key_entropy = format!("web-read:{}", request.identity);
+            let web_key_entropy = AteHash::from_bytes(web_key_entropy.as_bytes());
+            self.compute_web_key_from_hash(&web_key_entropy)
+        };
+        let edge_key = {
+            let edge_key_entropy = format!("edge-read:{}", request.identity);
+            let edge_key_entropy = AteHash::from_bytes(edge_key_entropy.as_bytes());
+            self.compute_edge_key_from_hash(&edge_key_entropy)
+        };
+
         // First we query the user that needs to be added so that we can get their public encrypt key
         let advert = match Arc::clone(&self).process_query(QueryRequest {
             identity: request.identity.clone(),
@@ -124,23 +136,30 @@ impl AuthService
         let observer_private_read = PrivateEncryptKey::generate(key_size);
         let observer_write = PrivateSignKey::generate(key_size);
 
-        // Generate the broker encryption keys used to extend trust without composing
-        // the confidentiality of the chain through wide blast radius
-        let broker_read = PrivateEncryptKey::generate(key_size);
-        let broker_write = PrivateSignKey::generate(key_size);
+        // Generate the web server encryption keys used to protect this role
+        let web_server_read = EncryptKey::generate(key_size);
+        let web_server_private_read = PrivateEncryptKey::generate(key_size);
+        let web_server_write = PrivateSignKey::generate(key_size);
 
         // We generate a derived contract encryption key which we will give back to the caller
-        let contract_read_key_entropy = AteHash::from_bytes(request.identity.as_bytes());
-        let contract_read_key = match self.compute_super_key_from_hash(contract_read_key_entropy) {
-            Some(a) => a,
-            None => {
-                warn!("no master key - failed to create composite key");
-                return Err(CreateGroupFailed::NoMasterKey);
-            }
+        let contract_read_key = {
+            let contract_read_key_entropy = format!("contract-read:{}", request.identity);
+            let contract_read_key_entropy = AteHash::from_bytes(contract_read_key_entropy.as_bytes());
+            self.compute_contract_key_from_hash(&contract_read_key_entropy)
         };
         let finance_read = contract_read_key;
         let finance_private_read = PrivateEncryptKey::generate(key_size);
         let finance_write = PrivateSignKey::generate(key_size);
+
+        // We generate a derived edge compute encryption key which we will give back to the caller
+        let edge_compute_read = EncryptKey::generate(key_size);
+        let edge_compute_private_read = PrivateEncryptKey::generate(key_size);
+        let edge_compute_write = PrivateSignKey::generate(key_size);
+
+        // Generate the broker encryption keys used to extend trust without composing
+        // the confidentiality of the chain through wide blast radius
+        let broker_read = PrivateEncryptKey::generate(key_size);
+        let broker_write = PrivateSignKey::generate(key_size);
 
         // The super session needs the owner keys so that it can save the records
         let mut super_session = self.master_session.clone();
@@ -171,6 +190,8 @@ impl AuthService
                 AteRolePurpose::Delegate,
                 AteRolePurpose::Contributor,
                 AteRolePurpose::Finance,
+                AteRolePurpose::WebServer,
+                AteRolePurpose::EdgeCompute,
                 AteRolePurpose::Observer
             ].iter()
             {
@@ -204,6 +225,16 @@ impl AuthService
                         role_private_read = observer_private_read.clone();
                         role_write = observer_write.clone();
                     },
+                    AteRolePurpose::WebServer => {
+                        role_read = web_server_read.clone();
+                        role_private_read = web_server_private_read.clone();
+                        role_write = web_server_write.clone();
+                    },
+                    AteRolePurpose::EdgeCompute => {
+                        role_read = edge_compute_read.clone();
+                        role_private_read = edge_compute_private_read.clone();
+                        role_write = edge_compute_write.clone();
+                    }
                     _ => {
                         role_read = EncryptKey::generate(key_size);
                         role_private_read = PrivateEncryptKey::generate(key_size);
@@ -212,11 +243,23 @@ impl AuthService
                 }
 
                 // Create the access object
-                let mut access = MultiEncryptedSecureData::new(&owner_private_read.as_public_key(), "owner".to_string(), Authorization {
-                    read: role_read.clone(),
-                    private_read: role_private_read.clone(),
-                    write: role_write.clone()
-                })?;
+                let access_key = match purpose {
+                    AteRolePurpose::WebServer => web_key.clone(),
+                    AteRolePurpose::EdgeCompute => edge_key.clone(),
+                    _ => EncryptKey::generate(owner_private_read.size())
+                };
+                let mut access = MultiEncryptedSecureData::new_ext(
+                    &owner_private_read.as_public_key(),
+                    access_key.clone(),
+                    "owner".to_string(),
+                    Authorization {
+                        read: role_read.clone(),
+                        private_read: role_private_read.clone(),
+                        write: role_write.clone()
+                    }
+                )?;
+
+                // Create the role permission tree
                 if let AteRolePurpose::Owner = purpose {
                     access.add(&request_sudo_read_key, request.identity.clone(), &owner_private_read)?;
                 } else if let AteRolePurpose::Finance = purpose {
@@ -226,6 +269,11 @@ impl AuthService
                 } else if let AteRolePurpose::Observer = purpose {
                     access.add(&delegate_private_read.as_public_key(), "delegate".to_string(), &owner_private_read)?;
                     access.add(&contributor_private_read.as_public_key(), "contributor".to_string(), &owner_private_read)?;
+                } else if let AteRolePurpose::WebServer = purpose {
+                    access.add(&delegate_private_read.as_public_key(), "delegate".to_string(), &owner_private_read)?;
+                    access.add(&contributor_private_read.as_public_key(), "contributor".to_string(), &owner_private_read)?;
+                } else if let AteRolePurpose::EdgeCompute = purpose {
+                    access.add(&delegate_private_read.as_public_key(), "delegate".to_string(), &owner_private_read)?;
                 } else {
                     access.add(&delegate_private_read.as_public_key(), "delegate".to_string(), &owner_private_read)?;
                 }
