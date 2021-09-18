@@ -4,7 +4,7 @@ use rustls::Certificate as RustlsCertificate;
 use rustls::ResolvesServerCert;
 use rustls::ClientHello;
 use rustls::PrivateKey;
-use rustls::sign::any_ecdsa_type;
+use rustls::sign::any_supported_type;
 use rustls::sign::CertifiedKey;
 use std::sync::Arc;
 use ate::engine::TaskEngine;
@@ -75,7 +75,7 @@ impl Acme
             error!("expected 1 or more pem in {}, got: {}", sni, pems.len());
             return Ok(());
         }
-        let pk = match any_ecdsa_type(&PrivateKey(key.contents)) {
+        let pk = match any_supported_type(&PrivateKey(key.contents)) {
             Ok(pk) => pk,
             Err(_) => {
                 error!("{} does not contain an ecdsa private key", sni);
