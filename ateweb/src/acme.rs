@@ -35,7 +35,7 @@ impl Acme
         let (tx, rx) = mpsc::channel(5000usize);
         let ret = Acme {
             repo: Arc::clone(repo),
-            certs: RwLock::new(TtlCache::new(usize::MAX)),
+            certs: RwLock::new(FxHashMap::default()),
             auths: RwLock::new(TtlCache::new(usize::MAX)),
             touch_tx: tx,
         };
