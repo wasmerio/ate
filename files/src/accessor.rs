@@ -536,6 +536,11 @@ impl FileAccessor
             }
         }
 
+        if req.uid == 0 {
+            trace!("access mode={:#02x} - ok", dao.dentry.mode);
+            return Ok(());
+        }
+
         trace!("access mode={:#02x} - EACCES", dao.dentry.mode);
         bail!(FileSystemErrorKind::NoAccess);
     }
