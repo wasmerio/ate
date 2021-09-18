@@ -15,6 +15,7 @@ use parking_lot::RwLock;
 use rustls_acme::acme::ACME_TLS_ALPN_NAME;
 use ttl_cache::TtlCache;
 use bytes::Bytes;
+use fxhash::FxHashMap;
 
 use crate::repo::*;
 use crate::model::*;
@@ -22,7 +23,7 @@ use crate::model::*;
 pub struct Acme
 {
     pub repo: Arc<Repository>,
-    pub certs: RwLock<TtlCache<String, CertifiedKey>>,
+    pub certs: RwLock<FxHashMap<String, CertifiedKey>>,
     pub auths: RwLock<TtlCache<String, CertifiedKey>>,
     pub touch_tx: mpsc::Sender<String>,
 }
@@ -89,7 +90,7 @@ impl Acme
         let cert_key = CertifiedKey::new(cert_chain, Arc::new(pk));
 
         let mut guard = self.certs.write();
-        guard.insert(sni.to_string(), cert_key, self.repo.ttl);
+        guard.insert(sni.to_string(), cert_key);
 
         Ok(())
     }
