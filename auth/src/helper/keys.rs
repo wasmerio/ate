@@ -23,7 +23,7 @@ where T: serde::de::DeserializeOwned
     let path = shellexpand::tilde(&key_path).to_string();
     debug!("loading key: {}", path);
     let path = std::path::Path::new(&path);
-    let file = File::open(path).unwrap();
+    let file = File::open(path).expect(format!("failed to load key at {}", key_path).as_str());
     bincode::deserialize_from(&file).unwrap()
 }
 
