@@ -300,7 +300,21 @@ impl Server
         return Ok(resp);
     }
 
+    pub(crate) fn sanitize(&self, mut path: &str) -> Result<(), WebServerError> {
+        while path.starts_with("/") {
+            path = &path[1..];
+        }
+        if path.contains("..") {
+            bail!(WebServerErrorKind::BadRequest("Accessing parent directories is forbidden".to_string()));
+        }
+        if path.starts_with(WEB_CONF_FILES) {
+            bail!(WebServerErrorKind::BadRequest("Accessing configuration files is forbidden".to_string()));
+        }
+        Ok(())
+    }
+
     pub(crate) async fn process_get(&self, host: &str, path: &str, is_head: bool) -> Result<Option<Response<Body>>, WebServerError> {
+        self.sanitize(path)?;
         if let Some(data) = self.repo.get_file(host, path).await? {
             let len_str = data.len().to_string();
 
@@ -318,6 +332,7 @@ impl Server
     }
 
     pub(crate) async fn process_get_with_default(&self, host: &str, path: &str, is_head: bool, default_page: Option<&String>) -> Result<Response<Body>, WebServerError> {
+        self.sanitize(path)?;
         match self.process_get(host, path, is_head).await? {
             Some(a) => {
                 return Ok(a);
@@ -403,6 +418,7 @@ impl Server
         match req.method() {
             &Method::HEAD | &Method::GET => {
                 let path = req.uri().path();
+                self.sanitize(path)?;
                 self.process_get_with_default(host.as_str(), path, is_head, conf.default_page.as_ref()).await
             },
             _ => {
