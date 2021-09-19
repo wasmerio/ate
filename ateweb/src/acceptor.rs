@@ -9,7 +9,7 @@ use std::sync::Arc;
 use tokio::net::TcpStream;
 use std::net::SocketAddr;
 use std::future::Future;
-use rustls_acme::acme::{
+use super::acme::{
     ACME_TLS_ALPN_NAME
 };
 
@@ -23,13 +23,13 @@ where Self: Send
 {
     pub tcp: TcpListener,
     pub tls: Option<TlsAcceptor>,
-    pub acme: Arc<Acme>,
+    pub acme: Arc<AcmeResolver>,
     pub accepting: Vec<Pin<Box<dyn Future<Output=Result<HyperStream, Box<dyn std::error::Error>>> + Send>>>,
 }
 
 impl HyperAcceptor
 {
-    pub fn new(listener: TcpListener, acme: Arc<Acme>, enable_tls: bool) -> HyperAcceptor
+    pub fn new(listener: TcpListener, acme: Arc<AcmeResolver>, enable_tls: bool) -> HyperAcceptor
     {
         let tls = match enable_tls {
             false => None,
@@ -54,7 +54,7 @@ impl HyperAcceptor
         }
     }
 
-    pub async fn accept(tls: TlsAcceptor, acme: Arc<Acme>, socket: TcpStream, addr: SocketAddr) -> Result<HyperStream, Box<dyn std::error::Error>>
+    pub async fn accept(tls: TlsAcceptor, acme: Arc<AcmeResolver>, socket: TcpStream, addr: SocketAddr) -> Result<HyperStream, Box<dyn std::error::Error>>
     {
         // Enter a loop peeking for the hello client message
         let mut peek_size = 256usize;

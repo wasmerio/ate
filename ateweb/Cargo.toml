@@ -21,14 +21,11 @@ default = []
 ate = { version = "^1", path = "../lib", default_features = false }
 ate-auth = { version = "^1", path = "../auth", default_features = false }
 ate-files = { version = "^1", path = "../files" }
-hyper = { version = "^0.14", features = ["stream", "http1", "http2", "tcp", "server"] }
+hyper = { version = "^0.14", features = ["full"] }
+hyper-tls = "^0.5"
 rustls = { version = "^0.19" }
 async-compression = { version = "0.3", features = ["brotli", "deflate", "gzip", "tokio"] }
 tokio-rustls = { version = "^0.22" }
-tls-parser = { version = "^0.10" }
-rustls-acme = { version = "0.1.7" }
-pem = { version = "0.8" }
-rcgen = { version = "0.8" }
 http = { version = "0.2" }
 mime_guess = { version = "2.0"}
 error-chain = { version = "^0.12", default_features = false }
@@ -37,6 +34,7 @@ tungstenite = { version = "^0.15" }
 hyper-tungstenite = { version = "^0.4" }
 serde = { version = "^1", features = [ "derive"] }
 serde_yaml = { version = "^0.8" }
+serde_json = { version = "^1" }
 tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
 tracing-futures = { version = "^0.2" }
 tracing-subscriber = { version = "^0.2" }
@@ -64,3 +62,9 @@ pbr = "^1"
 ttl_cache = "^0.5"
 x509-parser = "^0.12"
 chrono = "^0.4"
+tls-parser = { version = "^0.10" }
+pem = { version = "^0.8" }
+rcgen = { version = "^0.8" }
+base64 = { version = "^0.13" }
+jsonxf = { version = "^1" }
+ring = { version = "^0.16", features = ["std"] }

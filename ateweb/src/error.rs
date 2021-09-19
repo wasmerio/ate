@@ -74,12 +74,9 @@ error_chain! {
     links {
         SerializationError(SerializationError, SerializationErrorKind);
         CommitError(CommitError, CommitErrorKind);
+        AcmeError(AcmeError, AcmeErrorKind);
     }
     errors {
-        Acme(err: rustls_acme::acme::AcmeError) {
-            description("acme error"),
-            display("acme error: {0}", err)
-        }
         Pem(err: pem::PemError) {
             description("could not parse pem"),
             display("could not parse pem: {0}", err)
@@ -88,11 +85,11 @@ error_chain! {
             description("certificate generation error"),
             display("certificate generation error: {0}", err)
         }
-        BadOrder(order: rustls_acme::acme::Order) {
+        BadOrder(order: crate::acme::Order) {
             description("bad order object"),
             display("bad order object: {0:?}", order)
         }
-        BadAuth(auth: rustls_acme::acme::Auth) {
+        BadAuth(auth: crate::acme::Auth) {
             description("bad auth object"),
             display("bad auth object: {0:?}", auth)
         }
@@ -100,14 +97,6 @@ error_chain! {
             description("authorization failed too many times"),
             display("authorization for {0} failed too many times", domain)
         }
-    }
-}
-
-impl From<rustls_acme::acme::AcmeError>
-for OrderError
-{
-    fn from(err: rustls_acme::acme::AcmeError) -> OrderError {
-        OrderErrorKind::Acme(err).into()
     }
 }
 
@@ -124,5 +113,60 @@ for OrderError
 {
     fn from(err: rcgen::RcgenError) -> OrderError {
         OrderErrorKind::Rcgen(err).into()
+    }
+}
+
+error_chain! {
+    types {
+        SecurityError, SecurityErrorKind, SecurityResultExt, SecurityResult;
+    }
+    foreign_links {
+        Json(serde_json::Error);
+        Crypto(ring::error::Unspecified);
+    }
+}
+
+error_chain! {
+    types {
+        AcmeError, AcmeErrorKind, AcmeResultExt, AcmeResult;
+    }
+    foreign_links {
+        Io(std::io::Error);
+        HyperError(hyper::Error);
+        Rcgen(rcgen::RcgenError);
+        Security(SecurityError);
+        Json(serde_json::Error);
+        KeyRejected(ring::error::KeyRejected);
+        Crypto(ring::error::Unspecified);
+        ToStrError(http::header::ToStrError);
+    }
+    errors {
+        MissingHeader(name: &'static str) {
+            description("missing header"),
+            display("missing header ({})", name)
+        }
+        BadResponse(code: u16, response: String) {
+            description("letsencrypt returned a bad response"),
+            display("letsencrypt returned a bad response (code={}) - {}", code, response),
+        }
+        NoTlsAlpn01Challenge {
+            description("no tls alpn 01 challenge"),
+            display("no tls alpn 01 challenge")
+        }
+    }
+}
+
+error_chain! {
+    types {
+        HttpError, HttpErrorKind, HttpResultExt, HttpResult;
+    }
+    foreign_links {
+        IO(std::io::Error);
+    }
+    errors {
+        UndefinedHost {
+            description("could not determine host from url"),
+            display("could not determine host from url")
+        }
     }
 }

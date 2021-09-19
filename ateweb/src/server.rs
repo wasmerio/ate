@@ -36,7 +36,7 @@ use super::conf::*;
 use super::builder::*;
 use super::acceptor::*;
 use super::stream::*;
-use super::acme::Acme;
+use super::acme::AcmeResolver;
 use super::repo::*;
 use super::model::*;
 
@@ -114,7 +114,7 @@ impl Server
     {
         trace!("running web server");
 
-        let acme = Acme::new(&self.repo).await?;
+        let acme = AcmeResolver::new(&self.repo).await?;
 
         let mut joins = Vec::new();
         for listen in self.server_conf.listen.iter() {

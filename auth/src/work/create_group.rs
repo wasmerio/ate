@@ -143,7 +143,7 @@ impl AuthService
 
         // We generate a derived contract encryption key which we will give back to the caller
         let contract_read_key = {
-            let contract_read_key_entropy = format!("contract-read:{}", request.identity);
+            let contract_read_key_entropy = format!("contract-read:{}", request.group);
             let contract_read_key_entropy = AteHash::from_bytes(contract_read_key_entropy.as_bytes());
             self.compute_contract_key_from_hash(&contract_read_key_entropy)
         };

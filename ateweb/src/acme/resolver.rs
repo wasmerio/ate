@@ -18,7 +18,7 @@ use fxhash::FxHashMap;
 use std::collections::hash_map::Entry;
 use x509_parser::parse_x509_certificate;
 use rcgen::{CertificateParams, DistinguishedName, PKCS_ECDSA_P256_SHA256};
-use rustls_acme::acme::{
+use super::acme::{
     Account,
     Auth,
     Directory,
@@ -41,7 +41,7 @@ pub struct AcmeState
     next_try: Option<chrono::DateTime<chrono::Utc>>,
 }
 
-pub struct Acme
+pub struct AcmeResolver
 {
     pub repo: Arc<Repository>,
     pub certs: StdRwLock<TtlCache<String, CertifiedKey>>,
@@ -49,11 +49,11 @@ pub struct Acme
     pub locks: StdMutex<FxHashMap<String, Arc<Mutex<AcmeState>>>>,
 }
 
-impl Acme
+impl AcmeResolver
 {
-    pub async fn new(repo: &Arc<Repository>) -> Result<Arc<Acme>, AteError>
+    pub async fn new(repo: &Arc<Repository>) -> Result<Arc<AcmeResolver>, AteError>
     {
-        let ret = Acme {
+        let ret = AcmeResolver {
             repo: Arc::clone(repo),
             certs: StdRwLock::new(TtlCache::new(65536usize)),
             auths: StdRwLock::new(TtlCache::new(1024usize)),
@@ -63,7 +63,7 @@ impl Acme
     }
 }
 
-impl Acme
+impl AcmeResolver
 {
     async fn process_cert(&self, sni: &str, cert: Bytes, key: Bytes) -> Result<(), Box<dyn std::error::Error>>
     {
@@ -209,7 +209,7 @@ impl Acme
 
     async fn order(
         &self,
-        directory_url: impl AsRef<str>,
+        directory_url: &str,
         domain: &str,
     ) -> Result<CertifiedKey, OrderError>
     {
@@ -224,9 +224,8 @@ impl Acme
         let pk = any_supported_type(&PrivateKey(cert.serialize_private_key_der())).unwrap();
 
         debug!("load_or_create account");
-        let cache_dir: Option<std::path::PathBuf> = None;
         let directory = Directory::discover(directory_url).await?;
-        let account = Account::load_or_create(directory, cache_dir, &contacts).await?;
+        let account = Account::load_or_create(directory, &contacts).await?;
 
         debug!("new order for {:?}", domains);
         let mut order = account.new_order(domains.clone()).await?;
@@ -246,11 +245,11 @@ impl Acme
                 Order::Ready { finalize } => {
                     debug!("sending csr");
                     let csr = cert.serialize_request_der()?;
-                    account.finalize(finalize, csr).await?
+                    account.finalize(finalize.as_str(), csr).await?
                 }
                 Order::Valid { certificate } => {
                     debug!("download certificate");
-                    let acme_cert_pem = account.certificate(certificate).await?;
+                    let acme_cert_pem = account.certificate(certificate.as_str()).await?;
                     let pems = pem::parse_many(&acme_cert_pem);
                     let cert_chain = pems
                         .into_iter()
@@ -300,9 +299,10 @@ impl Acme
 }
 
 impl ResolvesServerCert
-for Acme
+for AcmeResolver
 {
-    fn resolve(&self, client_hello: ClientHello) -> Option<CertifiedKey> {
+    fn resolve(&self, client_hello: ClientHello) -> Option<CertifiedKey>
+    {
         if let Some(sni) = client_hello.server_name() {
             let sni = sni.to_owned();
             let sni: String = AsRef::<str>::as_ref(&sni).to_string();
