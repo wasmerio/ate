@@ -213,7 +213,7 @@ impl AcmeResolver
         domain: &str,
     ) -> Result<CertifiedKey, OrderError>
     {
-        let contacts = vec![ format!("info@{}", domain) ];
+        let contacts = vec![ format!("mailto:info@{}", domain) ];
         let domains = vec![ domain.to_string() ];
 
         let mut params = CertificateParams::new(domains.clone());
