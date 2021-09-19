@@ -59,11 +59,9 @@ impl Repository
         let web_key = AuthService::compute_super_key_from_hash(&self.web_key, &web_key_entropy);
         let mut session = AteSessionUser::default();
         session.add_user_read_key(&web_key);
-        error!("pre- {}", session);
 
         // Now gather the rights to the chain
         let session = gather_command(&self.registry, sni.clone(), AteSessionInner::User(session), self.auth_url.clone()).await?;
-        error!("post {}", session);
 
         // Enter a write lock and check again
         let mut guard = self.sessions.write();
