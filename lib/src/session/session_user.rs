@@ -38,7 +38,7 @@ for AteSessionUser
     fn default() -> AteSessionUser {
         AteSessionUser {
             user: AteGroupRole {
-                purpose: AteRolePurpose::Delegate,
+                purpose: AteRolePurpose::Personal,
                 properties: Vec::new()
             },
             token: None,
