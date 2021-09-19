@@ -125,7 +125,8 @@ impl HyperAcceptor
             trace!("connection attempt SNI: {}", sni);
 
             // Load the object
-            acme.touch(sni.to_string()).await?
+            acme.touch(sni.to_string()).await?;
+            break;
         }
 
         // Its time to now accept the connect (if the preload failed, then so be it, things will still
