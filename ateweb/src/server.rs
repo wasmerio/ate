@@ -42,7 +42,7 @@ use super::model::*;
 
 pub struct ServerWebConf
 {   
-    web_conf: Option<WebConf>,
+    web_conf: WebConf,
     web_conf_when: Option<Instant>,
 }
 
@@ -196,48 +196,41 @@ impl Server
         let host = host.to_string();
 
         let mut lock = self.web_conf.lock().await;
-        let lock = match lock.entry(host.clone()) {
+        let conf = match lock.entry(host.clone()) {
             StdEntry::Occupied(a) => a.into_mut(),
             StdEntry::Vacant(a) => {
                 a.insert(ServerWebConf {
-                    web_conf: None,
+                    web_conf: WebConf::default(),
                     web_conf_when: None
                 })
             }
         };
 
-        let trigger = match &lock.web_conf_when {
+        let trigger = match &conf.web_conf_when {
             Some(a) if a.elapsed().as_millis() > 4000u128 => true,
             None => true,
-            _ => false,
+            _ => { return Ok(conf.web_conf.clone()); },
         };
         if trigger {
-            lock.web_conf_when = Some(Instant::now());
-            lock.web_conf =
+            conf.web_conf_when = Some(Instant::now());
+            conf.web_conf =
                 match self.repo.get_file(host.as_str(), WEB_CONF_FILES_CONF)
                     .await.ok().flatten()
                 {
                     Some(data) => {
                         let data = String::from_utf8_lossy(&data[..]);
-                        Some(
-                            serde_yaml::from_str::<WebConf>(&data)
-                                .map_err(|err| WebServerError::from_kind(WebServerErrorKind::BadConfiguration(err.to_string())))?
-                        )
+                        serde_yaml::from_str::<WebConf>(&data)
+                            .map_err(|err| WebServerError::from_kind(WebServerErrorKind::BadConfiguration(err.to_string())))?
                     },
-                    None => None,   
+                    None => WebConf::default(),   
                 };
         }
 
-        if let Some(conf) = &lock.web_conf {
-            match serde_yaml::to_string(conf) {
-                Ok(conf) => trace!("web-conf: {}", conf),
-                Err(err) => trace!("web-conf-err: {}", err)
-            };
-            Ok(conf.clone())
-        } else {
-            trace!("web-conf-default");
-            Ok(WebConf::default())
-        }
+        match serde_yaml::to_string(&conf.web_conf) {
+            Ok(conf) => trace!("web-conf: {}", conf),
+            Err(err) => trace!("web-conf-err: {}", err)
+        };
+        Ok(conf.web_conf.clone())
     }
 
     pub(crate) async fn force_https(&self, req: Request<Body>) -> Result<Response<Body>, WebServerError> {
