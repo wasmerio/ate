@@ -7,10 +7,7 @@ use rustls::PrivateKey;
 use rustls::sign::any_supported_type;
 use rustls::sign::CertifiedKey;
 use std::sync::Arc;
-use ate::engine::TaskEngine;
-use tokio::sync::mpsc;
 use ate::prelude::*;
-use tokio::select;
 use parking_lot::RwLock;
 use rustls_acme::acme::ACME_TLS_ALPN_NAME;
 use ttl_cache::TtlCache;
@@ -25,49 +22,23 @@ pub struct Acme
     pub repo: Arc<Repository>,
     pub certs: RwLock<TtlCache<String, CertifiedKey>>,
     pub auths: RwLock<TtlCache<String, CertifiedKey>>,
-    pub touch_tx: mpsc::Sender<String>,
 }
 
 impl Acme
 {
     pub async fn new(repo: &Arc<Repository>) -> Result<Arc<Acme>, AteError>
     {
-        let (tx, rx) = mpsc::channel(5000usize);
         let ret = Acme {
             repo: Arc::clone(repo),
             certs: RwLock::new(TtlCache::new(65536usize)),
             auths: RwLock::new(TtlCache::new(1024usize)),
-            touch_tx: tx,
         };
-        
-        let ret = Arc::new(ret);
-        {
-            let ret = Arc::clone(&ret);
-            TaskEngine::spawn(ret.run(rx));
-        }
-        Ok(ret)
+        Ok(Arc::new(ret))
     }
 }
 
 impl Acme
 {
-    async fn run(self: Arc<Acme>, mut touch_rx: mpsc::Receiver<String>) {
-        loop {
-            select! {
-                a = touch_rx.recv() => {
-                    let sni = match a {
-                        Some(a) => a,
-                        None => { break; }
-                    };
-                    let ret = self.touch(sni).await;
-                    if let Err(err) = ret {
-                        warn!("acme-failed: {}", err);
-                    }
-                },
-            }            
-        }
-    }
-
     async fn process_cert(&self, sni: &str, cert: Bytes, key: Bytes) -> Result<(), Box<dyn std::error::Error>>
     {
         let key = pem::parse(&key[..])?;
@@ -294,10 +265,6 @@ for Acme
                 Some(cert.clone())
             } else {
                 trace!("tls_hello: cert_miss={:?}", sni);
-                let tx = self.touch_tx.clone();
-                TaskEngine::spawn(async move {
-                    let _ = tx.send(sni).await;
-                });
                 None
             };
         } else {
