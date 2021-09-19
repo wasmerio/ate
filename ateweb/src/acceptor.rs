@@ -9,6 +9,9 @@ use std::sync::Arc;
 use tokio::net::TcpStream;
 use std::net::SocketAddr;
 use std::future::Future;
+use rustls_acme::acme::{
+    ACME_TLS_ALPN_NAME
+};
 
 use hyper;
 
@@ -91,7 +94,7 @@ impl HyperAcceptor
                 None => { continue; }
             };
 
-            // We are looking for the SNI extension
+            // Grab all the extensions
             let exts = if let Some(hello_ext) = hello.ext {
                 if let Ok((_rem, exts)) = tls_parser::parse_tls_extensions(hello_ext) {
                     exts
@@ -101,6 +104,22 @@ impl HyperAcceptor
             } else {
                 continue;
             };
+
+            // If it has an ACME ALPN extension then we dont want to trigger another certificate for it
+            // so we instead just attempt to accept the connection
+            for ext in exts.iter() {
+                if let tls_parser::TlsExtension::ALPN(a) = ext {
+                    for alpn in a {
+                        let alpn = *alpn;
+                        if alpn.eq(ACME_TLS_ALPN_NAME) {
+                            let stream = tls.accept(socket).await?;
+                            return Ok(HyperStream::Tls((stream, addr)))
+                        }
+                    }
+                }
+            }
+
+            // We are looking for the SNI extension
             let sni = exts.iter()
                 .filter_map(|a| match a {
                     tls_parser::TlsExtension::SNI(snis) => {
