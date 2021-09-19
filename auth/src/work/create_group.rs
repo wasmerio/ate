@@ -31,12 +31,12 @@ impl AuthService
 
         // There are certain areas that need a derived encryption key
         let web_key = {
-            let web_key_entropy = format!("web-read:{}", request.identity);
+            let web_key_entropy = format!("web-read:{}", request.group);
             let web_key_entropy = AteHash::from_bytes(web_key_entropy.as_bytes());
             self.compute_web_key_from_hash(&web_key_entropy)
         };
         let edge_key = {
-            let edge_key_entropy = format!("edge-read:{}", request.identity);
+            let edge_key_entropy = format!("edge-read:{}", request.group);
             let edge_key_entropy = AteHash::from_bytes(edge_key_entropy.as_bytes());
             self.compute_edge_key_from_hash(&edge_key_entropy)
         };
