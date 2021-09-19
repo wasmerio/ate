@@ -25,6 +25,7 @@ hyper = { version = "^0.14", features = ["stream", "http1", "http2", "tcp", "ser
 rustls = { version = "^0.19" }
 async-compression = { version = "0.3", features = ["brotli", "deflate", "gzip", "tokio"] }
 tokio-rustls = { version = "^0.22" }
+tls-parser = { version = "^0.10" }
 rustls-acme = { version = "0.1.7" }
 pem = { version = "0.8" }
 rcgen = { version = "0.8" }

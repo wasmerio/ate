@@ -15,7 +15,7 @@ use parking_lot::RwLock;
 use rustls_acme::acme::ACME_TLS_ALPN_NAME;
 use ttl_cache::TtlCache;
 use bytes::Bytes;
-use fxhash::FxHashMap;
+use std::time::Duration;
 
 use crate::repo::*;
 use crate::model::*;
@@ -23,7 +23,7 @@ use crate::model::*;
 pub struct Acme
 {
     pub repo: Arc<Repository>,
-    pub certs: RwLock<FxHashMap<String, CertifiedKey>>,
+    pub certs: RwLock<TtlCache<String, CertifiedKey>>,
     pub auths: RwLock<TtlCache<String, CertifiedKey>>,
     pub touch_tx: mpsc::Sender<String>,
 }
@@ -35,8 +35,8 @@ impl Acme
         let (tx, rx) = mpsc::channel(5000usize);
         let ret = Acme {
             repo: Arc::clone(repo),
-            certs: RwLock::new(FxHashMap::default()),
-            auths: RwLock::new(TtlCache::new(usize::MAX)),
+            certs: RwLock::new(TtlCache::new(65536usize)),
+            auths: RwLock::new(TtlCache::new(1024usize)),
             touch_tx: tx,
         };
         
@@ -83,19 +83,20 @@ impl Acme
                 return Ok(());
             }
         };
-        let cert_chain = pems
+        let cert_chain: Vec<RustlsCertificate> = pems
             .into_iter()
             .map(|p| RustlsCertificate(p.contents))
             .collect();
+
         let cert_key = CertifiedKey::new(cert_chain, Arc::new(pk));
 
         let mut guard = self.certs.write();
-        guard.insert(sni.to_string(), cert_key);
+        guard.insert(sni.to_string(), cert_key, Duration::from_secs(3600));
 
         Ok(())
     }
 
-    async fn touch(&self, sni: String) -> Result<(), Box<dyn std::error::Error>>
+    pub async fn touch(&self, sni: String) -> Result<(), Box<dyn std::error::Error>>
     {
         {
             let guard = self.certs.read();
@@ -287,21 +288,18 @@ for Acme
             }
 
             let guard = self.certs.read();
-            let ret = if let Some(cert) = guard.get(&sni)  {
+            
+            return if let Some(cert) = guard.get(&sni)  {
                 trace!("tls_hello: cert_hit={:?}", sni);
                 Some(cert.clone())
             } else {
                 trace!("tls_hello: cert_miss={:?}", sni);
-                None
-            };
-
-            {
                 let tx = self.touch_tx.clone();
                 TaskEngine::spawn(async move {
                     let _ = tx.send(sni).await;
                 });
-            }
-            return ret;
+                None
+            };
         } else {
             debug!("rejected connection (SNI was missing)");
         }
