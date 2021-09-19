@@ -8,20 +8,45 @@ use rustls::sign::any_supported_type;
 use rustls::sign::CertifiedKey;
 use std::sync::Arc;
 use ate::prelude::*;
-use parking_lot::RwLock;
-use rustls_acme::acme::ACME_TLS_ALPN_NAME;
+use parking_lot::RwLock as StdRwLock;
 use ttl_cache::TtlCache;
 use bytes::Bytes;
 use std::time::Duration;
+use tokio::sync::Mutex;
+use parking_lot::Mutex as StdMutex;
+use fxhash::FxHashMap;
+use std::collections::hash_map::Entry;
+use x509_parser::parse_x509_certificate;
+use rcgen::{CertificateParams, DistinguishedName, PKCS_ECDSA_P256_SHA256};
+use rustls_acme::acme::{
+    Account,
+    Auth,
+    Directory,
+    Identifier,
+    Order,
+    ACME_TLS_ALPN_NAME,
+    LETS_ENCRYPT_PRODUCTION_DIRECTORY,
+    LETS_ENCRYPT_STAGING_DIRECTORY,
+};
+use futures::future::try_join_all;
 
+use crate::error::*;
 use crate::repo::*;
 use crate::model::*;
+
+#[derive(Default)]
+pub struct AcmeState
+{
+    err_cnt: i64,
+    next_try: Option<chrono::DateTime<chrono::Utc>>,
+}
 
 pub struct Acme
 {
     pub repo: Arc<Repository>,
-    pub certs: RwLock<TtlCache<String, CertifiedKey>>,
-    pub auths: RwLock<TtlCache<String, CertifiedKey>>,
+    pub certs: StdRwLock<TtlCache<String, CertifiedKey>>,
+    pub auths: StdRwLock<TtlCache<String, CertifiedKey>>,
+    pub locks: StdMutex<FxHashMap<String, Arc<Mutex<AcmeState>>>>,
 }
 
 impl Acme
@@ -30,8 +55,9 @@ impl Acme
     {
         let ret = Acme {
             repo: Arc::clone(repo),
-            certs: RwLock::new(TtlCache::new(65536usize)),
-            auths: RwLock::new(TtlCache::new(1024usize)),
+            certs: StdRwLock::new(TtlCache::new(65536usize)),
+            auths: StdRwLock::new(TtlCache::new(1024usize)),
+            locks: StdMutex::new(FxHashMap::default()),
         };
         Ok(Arc::new(ret))
     }
@@ -69,94 +95,136 @@ impl Acme
 
     pub async fn touch(&self, sni: String) -> Result<(), Box<dyn std::error::Error>>
     {
+        // Fast path
         {
             let guard = self.certs.read();
-            if guard.contains_key(&sni) {
+            if let Some(cert) = guard.get(&sni) {
+                let d = self.duration_until_renewal_attempt(cert);
+                if d.as_secs() > 0 {
+                    trace!("next renewal attempt in {}s", d.as_secs());
+                    return Ok(())
+                }
+            }
+        }
+
+        let lock = {
+            let mut guard = self.locks.lock();
+            match guard.entry(sni.clone()) {
+                Entry::Occupied(a) => {
+                    Arc::clone(a.get())
+                },
+                Entry::Vacant(a) => {
+                    let ret = Arc::new(Mutex::new(AcmeState::default()));
+                    a.insert(Arc::clone(&ret));
+                    ret
+                }
+            }
+        };
+        let mut lock = lock.lock().await;
+
+        // Slow path
+        let loaded = {
+            let guard = self.certs.read();
+            if let Some(cert) = guard.get(&sni) {
+                let d = self.duration_until_renewal_attempt(cert);
+                if d.as_secs() > 0 {
+                    trace!("next renewal attempt in {}s", d.as_secs());
+                    return Ok(())
+                }
+                true
+            } else {
+                false
+            }
+        };
+
+        // If we have never loaded the certificates from disk then load them now
+        if loaded == false {
+            let cert = self.repo.get_file(sni.as_str(), WEB_CONF_FILES_CERT).await?;
+            let key = self.repo.get_file(sni.as_str(), WEB_CONF_FILES_KEY).await?;
+            if let Some(cert) = cert {
+                if let Some(key) = key {
+                    self.process_cert(sni.as_str(), cert, key).await?;
+                } else {
+                    warn!("missing certificate private key for {}", sni);
+                }
+            } else {
+                warn!("missing certificate chain for {}", sni);
+            }
+        }
+
+        // Check for exponental backoff
+        if let Some(next_try) = lock.next_try {
+            if next_try.gt(&chrono::Utc::now()) {
+                trace!("aborting attempt due to exponential backoff");
                 return Ok(())
             }
         }
 
-        let cert = self.repo.get_file(sni.as_str(), WEB_CONF_FILES_CERT).await?;
-        let key = self.repo.get_file(sni.as_str(), WEB_CONF_FILES_KEY).await?;
-        if let Some(cert) = cert {
-            if let Some(key) = key {
-                self.process_cert(sni.as_str(), cert, key).await?;
-            } else {
-                warn!("missing certificate private key for {}", sni);
+        let production = false;
+        let directory_url = match production {
+            true => LETS_ENCRYPT_PRODUCTION_DIRECTORY,
+            false => LETS_ENCRYPT_STAGING_DIRECTORY,
+        };
+
+        // Order the certificate using lets encrypt
+        match self
+            .order(&directory_url, sni.as_str())
+            .await
+        {
+            Ok(cert_key) => {
+                debug!("successfully ordered certificate");
+                lock.err_cnt = 0i64;
+                lock.next_try = None;
+
+                let mut guard = self.certs.write();
+                guard.insert(sni.to_string(), cert_key, Duration::from_secs(3600));
             }
-        } else {
-            warn!("missing certificate chain for {}", sni);
-        }
+            Err(err) => {
+                warn!("ordering certificate failed: {}", err);
+                lock.err_cnt += 1i64;
+                let retry_time = chrono::Duration::seconds(1 << lock.err_cnt);
+                let retry_time = chrono::Utc::now() + retry_time;
+                lock.next_try = Some(retry_time);
+            }
+        };
 
         Ok(())
+    }
 
-        // Check if we are in a global renewal freeze
-
-        /*
-        // Order the certificate
-        let mut err_cnt = 0usize;
-        loop {
-            let d = self.duration_until_renewal_attempt(err_cnt);
-            if d.as_secs() != 0 {
-                debug!("next renewal attempt in {}s", d.as_secs());
-                sleep(d).await;
-            }
-            match self
-                .order(&directory_url, &domains, &cache_dir, &file_name)
-                .await
-            {
-                Ok(_) => {
-                    debug!("successfully ordered certificate");
-                    err_cnt = 0;
-                }
+    fn duration_until_renewal_attempt(&self, cert_key: &CertifiedKey) -> Duration {
+        let valid_until = match cert_key.cert.first() {
+            Some(cert) => match parse_x509_certificate(cert.0.as_slice()) {
+                Ok((_, cert)) => cert.validity().not_after.timestamp(),
                 Err(err) => {
-                    warn!("ordering certificate failed: {}", err);
-                    err_cnt += 1;
+                    warn!("could not parse certificate: {}", err);
+                    i64::MAX
                 }
-            };
-        }
-        */
-
-        // Get the challenge 
-    }
-
-    /*
-    fn duration_until_renewal_attempt(&self, err_cnt: usize) -> Duration {
-        let valid_until = match self.cert_key.lock().unwrap().clone() {
-            None => 0,
-            Some(cert_key) => match cert_key.cert.first() {
-                Some(cert) => match parse_x509_certificate(cert.0.as_slice()) {
-                    Ok((_, cert)) => cert.validity().not_after.timestamp(),
-                    Err(err) => {
-                        warn!("could not parse certificate: {}", err);
-                        0
-                    }
-                },
-                None => 0,
             },
+            None => i64::MAX,
         };
-        let valid_secs = (valid_until - Utc::now().timestamp()).max(0);
-        let wait_secs = Duration::from_secs(valid_secs as u64 / 2);
-        match err_cnt {
-            0 => wait_secs,
-            err_cnt => wait_secs.max(Duration::from_secs(1 << err_cnt)),
-        }
+        let valid_secs = (valid_until - chrono::Utc::now().timestamp()).max(0);
+        Duration::from_secs(valid_secs as u64 / 2)
     }
 
-    async fn order<P: AsRef<Path>>(
+    async fn order(
         &self,
         directory_url: impl AsRef<str>,
-        domains: &Vec<String>,
-        cache_dir: &Option<P>,
-        file_name: &str,
-    ) -> Result<(), OrderError> {
+        domain: &str,
+    ) -> Result<CertifiedKey, OrderError>
+    {
+        let contacts = vec![ format!("info@{}", domain) ];
+        let domains = vec![ domain.to_string() ];
+
         let mut params = CertificateParams::new(domains.clone());
         params.distinguished_name = DistinguishedName::new();
         params.alg = &PKCS_ECDSA_P256_SHA256;
+
         let cert = rcgen::Certificate::from_params(params)?;
-        let pk = any_ecdsa_type(&PrivateKey(cert.serialize_private_key_der())).unwrap();
+        let pk = any_supported_type(&PrivateKey(cert.serialize_private_key_der())).unwrap();
+        let cache_dir: Option<std::path::PathBuf> = None;
         let directory = Directory::discover(directory_url).await?;
-        let account = Account::load_or_create(directory, cache_dir.as_ref(), &self.contact).await?;
+        let account = Account::load_or_create(directory, cache_dir, &contacts).await?;
+
         let mut order = account.new_order(domains.clone()).await?;
         loop {
             order = match order {
@@ -185,10 +253,7 @@ impl Acme
                         .map(|p| RustlsCertificate(p.contents))
                         .collect();
                     let cert_key = CertifiedKey::new(cert_chain, Arc::new(pk));
-                    self.cert_key.lock().unwrap().replace(cert_key.clone());
-                    let pk_pem = cert.serialize_private_key_pem();
-                    Self::save_certified_key(cache_dir, file_name, pk_pem, acme_cert_pem).await;
-                    return Ok(());
+                    return Ok(cert_key);
                 }
                 Order::Invalid => return Err(OrderErrorKind::BadOrder(order).into()),
             }
@@ -205,18 +270,9 @@ impl Acme
                 info!("trigger challenge for {}", &domain);
                 let (challenge, auth_key) = account.tls_alpn_01(&challenges, domain.clone())?;
 
-                self.dio.store(CertificateChallenge {
-                    cert: CertificateKey {
-                        domain: domain.clone(),
-                        pk: auth_key.key.
-                    }
-                })?;
-                self.dio.commit().await?;
-
-                self.auth_keys
-                    .lock()
-                    .unwrap()
-                    .insert(domain.clone(), auth_key);
+                self.auths
+                    .write()
+                    .insert(domain.clone(), auth_key, Duration::from_secs(300));
                 account.challenge(&challenge.url).await?;
                 (domain, challenge.url.clone())
             }
@@ -236,7 +292,6 @@ impl Acme
         }
         Err(OrderErrorKind::TooManyAttemptsAuth(domain).into())
     }
-    */
 }
 
 impl ResolvesServerCert
