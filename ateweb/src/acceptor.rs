@@ -110,8 +110,7 @@ impl HyperAcceptor
             for ext in exts.iter() {
                 if let tls_parser::TlsExtension::ALPN(a) = ext {
                     for alpn in a {
-                        let alpn = *alpn;
-                        if alpn.eq(ACME_TLS_ALPN_NAME) {
+                        if ACME_TLS_ALPN_NAME.eq(*alpn) {
                             let stream = tls.accept(socket).await?;
                             return Ok(HyperStream::Tls((stream, addr)))
                         }

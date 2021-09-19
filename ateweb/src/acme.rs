@@ -167,6 +167,7 @@ impl Acme
         };
 
         // Order the certificate using lets encrypt
+        debug!("ordering of certificate started");
         match self
             .order(&directory_url, sni.as_str())
             .await
@@ -221,10 +222,13 @@ impl Acme
 
         let cert = rcgen::Certificate::from_params(params)?;
         let pk = any_supported_type(&PrivateKey(cert.serialize_private_key_der())).unwrap();
+
+        debug!("load_or_create account");
         let cache_dir: Option<std::path::PathBuf> = None;
         let directory = Directory::discover(directory_url).await?;
         let account = Account::load_or_create(directory, cache_dir, &contacts).await?;
 
+        debug!("new order for {:?}", domains);
         let mut order = account.new_order(domains.clone()).await?;
         loop {
             order = match order {
@@ -261,6 +265,7 @@ impl Acme
     }
 
     async fn authorize(&self, account: &Account, url: &String) -> Result<(), OrderError> {
+        debug!("starting authorization for {}", url);
         let (domain, challenge_url) = match account.auth(url).await? {
             Auth::Pending {
                 identifier,
