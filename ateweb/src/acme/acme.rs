@@ -27,6 +27,8 @@ pub const LETS_ENCRYPT_STAGING_DIRECTORY: &str =
     "https://acme-staging-v02.api.letsencrypt.org/directory";
 pub const LETS_ENCRYPT_PRODUCTION_DIRECTORY: &str =
     "https://acme-v02.api.letsencrypt.org/directory";
+pub const PEBBLE_DIRECTORY: &str =
+    "https://localhost:14000/dir";
 pub const ACME_TLS_ALPN_NAME: &[u8] = b"acme-tls/1";
 
 #[derive(Debug)]

@@ -26,7 +26,8 @@ use super::acme::{
     Order,
     ACME_TLS_ALPN_NAME,
     LETS_ENCRYPT_PRODUCTION_DIRECTORY,
-    LETS_ENCRYPT_STAGING_DIRECTORY,
+    //LETS_ENCRYPT_STAGING_DIRECTORY,
+    PEBBLE_DIRECTORY,
 };
 use futures::future::try_join_all;
 
@@ -163,7 +164,8 @@ impl AcmeResolver
         let production = false;
         let directory_url = match production {
             true => LETS_ENCRYPT_PRODUCTION_DIRECTORY,
-            false => LETS_ENCRYPT_STAGING_DIRECTORY,
+            //false => LETS_ENCRYPT_STAGING_DIRECTORY,
+            false => PEBBLE_DIRECTORY
         };
 
         // Order the certificate using lets encrypt
