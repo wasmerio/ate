@@ -124,13 +124,13 @@ impl AcmeResolver
         Ok(())
     }
 
-    pub async fn touch_web(&self, sni: String) -> Result<(), Box<dyn std::error::Error>>
+    pub async fn touch_web(&self, sni: String, renewal: chrono::Duration) -> Result<(), Box<dyn std::error::Error>>
     {
         // Fast path
         {
             let guard = self.certs.read();
             if let Some(cert) = guard.get(&sni) {
-                let d = self.duration_until_renewal_attempt(cert);
+                let d = self.duration_until_renewal_attempt(cert, renewal);
                 if d.as_secs() > 0 {
                     trace!("next renewal attempt in {}s", d.as_secs());
                     return Ok(())
@@ -157,7 +157,7 @@ impl AcmeResolver
         let loaded = {
             let guard = self.certs.read();
             if let Some(cert) = guard.get(&sni) {
-                let d = self.duration_until_renewal_attempt(cert);
+                let d = self.duration_until_renewal_attempt(cert, renewal);
                 if d.as_secs() > 0 {
                     trace!("next renewal attempt in {}s", d.as_secs());
                     return Ok(())
@@ -176,7 +176,13 @@ impl AcmeResolver
                 if let Some(key) = key {
                     if let Some(cert_key) = self.process_cert(sni.as_str(), cert, key).await? {
                         let mut guard = self.certs.write();
-                        guard.insert(sni.to_string(), cert_key, Duration::from_secs(3600));
+                        guard.insert(sni.to_string(), cert_key.clone(), Duration::from_secs(3600));
+
+                        let d = self.duration_until_renewal_attempt(&cert_key, renewal);
+                        if d.as_secs() > 0 {
+                            trace!("next renewal attempt in {}s", d.as_secs());
+                            return Ok(())
+                        }
                     }
                 } else {
                     warn!("missing certificate private key for {}", sni);
@@ -231,19 +237,16 @@ impl AcmeResolver
         Ok(())
     }
 
-    fn duration_until_renewal_attempt(&self, cert_key: &CertifiedKey) -> Duration {
-        let valid_until = match cert_key.cert.first() {
-            Some(cert) => match parse_x509_certificate(cert.0.as_slice()) {
-                Ok((_, cert)) => cert.validity().not_after.timestamp(),
-                Err(err) => {
-                    warn!("could not parse certificate: {}", err);
-                    i64::MAX
-                }
-            },
-            None => i64::MAX,
-        };
-        let valid_secs = (valid_until - chrono::Utc::now().timestamp()).max(0);
-        Duration::from_secs(valid_secs as u64 / 2)
+    fn duration_until_renewal_attempt(&self, cert_key: &CertifiedKey, renewal: chrono::Duration) -> Duration {
+        for cert in cert_key.cert.iter() {
+            if let Ok((_, cert)) = parse_x509_certificate(cert.0.as_slice()) {
+                let valid_until = cert.validity().not_after.timestamp();
+                let valid_secs = (valid_until - chrono::Utc::now().timestamp()).max(0);
+                let valid_secs = (valid_secs - renewal.num_seconds()).max(0);
+                return Duration::from_secs(valid_secs as u64);
+            }
+        }
+        Duration::from_secs(u64::MAX)
     }
 
     async fn order(

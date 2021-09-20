@@ -145,7 +145,7 @@ impl HyperAcceptor
                 acme.touch_alpn(sni.to_string()).await?;
             } else {
                 trace!("connection attempt SNI: {}", sni);
-                acme.touch_web(sni.to_string()).await?;
+                acme.touch_web(sni.to_string(), chrono::Duration::days(100)).await?;
             }
             break;
         }
