@@ -47,8 +47,8 @@ impl RegularFile
             updated,
             state: Mutex::new(FileState::Immutable {
                 inode,
-                bundles: array_init::array_init(|_| None),
-                pages: array_init::array_init(|_| None),
+                bundles: Box::new(array_init::array_init(|_| None)),
+                pages: Box::new(array_init::array_init(|_| None)),
             }),
         }
     }
@@ -78,8 +78,8 @@ pub enum FileState
     Immutable
     {
         inode: Dao<Inode>,
-        bundles: [Option<Dao<PageBundle>>; CACHED_BUNDLES],
-        pages: [Option<Dao<Page>>; CACHED_PAGES],        
+        bundles: Box<[Option<Dao<PageBundle>>; CACHED_BUNDLES]>,
+        pages: Box<[Option<Dao<Page>>; CACHED_PAGES]>,
     },
     Mutable
     {
