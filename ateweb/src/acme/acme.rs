@@ -141,8 +141,9 @@ impl Account
         self.request(url, "").await
     }
 
-    pub async fn check(&self, url: &str) -> Result<String, AcmeError> {
-        self.request(url, "").await
+    pub async fn check(&self, url: &str) -> Result<Order, AcmeError> {
+        let response = self.request(url, "").await;
+        Ok(serde_json::from_str(&response?)?)
     }
 
     pub fn tls_alpn_01<'a>(
