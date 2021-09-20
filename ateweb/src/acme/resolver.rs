@@ -27,7 +27,7 @@ use super::acme::{
     ACME_TLS_ALPN_NAME,
     LETS_ENCRYPT_PRODUCTION_DIRECTORY,
     //LETS_ENCRYPT_STAGING_DIRECTORY,
-    PEBBLE_DIRECTORY,
+    //PEBBLE_DIRECTORY,
 };
 use futures::future::try_join_all;
 
