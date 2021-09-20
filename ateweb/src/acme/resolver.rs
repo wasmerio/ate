@@ -183,7 +183,7 @@ impl AcmeResolver
                             trace!("next renewal attempt in {}s", d.as_secs());
                             return Ok(())
                         } else {
-                            trace!("certificate will be renewed");
+                            info!("certificate will be renewed for {}", sni);
                         }
                     } else {
                         warn!("failed to process certificate");
@@ -241,13 +241,15 @@ impl AcmeResolver
     fn duration_until_renewal_attempt(&self, cert_key: &CertifiedKey, renewal: chrono::Duration) -> Duration {
         for cert in cert_key.cert.iter() {
             if let Ok((_, cert)) = parse_x509_certificate(cert.0.as_slice()) {
+                let time_stamp = chrono::DateTime::<chrono::Utc>::from_utc(chrono::NaiveDateTime::from_timestamp(cert.validity().not_after.timestamp(), 0), chrono::Utc);
+                trace!("valid until {}", time_stamp);
                 let valid_until = cert.validity().not_after.timestamp();
                 let valid_secs = (valid_until - chrono::Utc::now().timestamp()).max(0);
                 let valid_secs = (valid_secs - renewal.num_seconds()).max(0);
                 return Duration::from_secs(valid_secs as u64);
             }
         }
-        Duration::from_secs(u64::MAX)
+        chrono::Duration::days(365).to_std().unwrap()
     }
 
     async fn order(
