@@ -182,7 +182,11 @@ impl AcmeResolver
                         if d.as_secs() > 0 {
                             trace!("next renewal attempt in {}s", d.as_secs());
                             return Ok(())
+                        } else {
+                            trace!("certificate will be renewed");
                         }
+                    } else {
+                        warn!("failed to process certificate");
                     }
                 } else {
                     warn!("missing certificate private key for {}", sni);
@@ -203,7 +207,7 @@ impl AcmeResolver
         let directory_url = LETS_ENCRYPT_PRODUCTION_DIRECTORY;
         //let directory_url = LETS_ENCRYPT_STAGING_DIRECTORY;
         //let directory_url = PEBBLE_DIRECTORY;
-        let expires = chrono::Duration::days(40);
+        let expires = chrono::Duration::days(90);
 
         // Order the certificate using lets encrypt
         debug!("ordering of certificate started");
