@@ -311,7 +311,7 @@ impl AcmeResolver
                         .collect();
 
                     let cert_key = CertifiedKey::new(cert_chain, Arc::new(pk));
-                    return Ok((cert_key, certificate, pk_pem));
+                    return Ok((cert_key, acme_cert_pem, pk_pem));
                 }
                 Order::Invalid => return Err(OrderErrorKind::BadOrder(order).into()),
             }
