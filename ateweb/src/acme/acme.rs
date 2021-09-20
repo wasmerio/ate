@@ -153,7 +153,7 @@ impl Account
         &self,
         challenges: &'a Vec<Challenge>,
         domain: String,
-    ) -> Result<(&'a Challenge, CertifiedKey), AcmeError>
+    ) -> Result<(&'a Challenge, CertifiedKey, String, String), AcmeError>
     {
         let challenge = challenges
             .iter()
@@ -171,13 +171,15 @@ impl Account
         params.custom_extensions = vec![CustomExtension::new_acme_identifier(key_auth.as_ref())];
 
         let cert = Certificate::from_params(params)?;
+        let cert_pem = cert.serialize_pem()?;
+        let pk_pem = cert.serialize_private_key_pem();
         let pk = any_ecdsa_type(&PrivateKey(cert.serialize_private_key_der())).unwrap();
         let certified_key = CertifiedKey::new(
             vec![tokio_rustls::rustls::Certificate(cert.serialize_der()?)],
             Arc::new(pk),
         );
 
-        Ok((challenge, certified_key))
+        Ok((challenge, certified_key, cert_pem, pk_pem))
     }
 }
 

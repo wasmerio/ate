@@ -66,19 +66,19 @@ impl AcmeResolver
 
 impl AcmeResolver
 {
-    async fn process_cert(&self, sni: &str, cert: Bytes, key: Bytes) -> Result<(), Box<dyn std::error::Error>>
+    async fn process_cert(&self, sni: &str, cert: Bytes, key: Bytes) -> Result<Option<CertifiedKey>, Box<dyn std::error::Error>>
     {
         let key = pem::parse(&key[..])?;
         let pems = pem::parse_many(&cert[..]);
         if pems.len() < 1 {
             error!("expected 1 or more pem in {}, got: {}", sni, pems.len());
-            return Ok(());
+            return Ok(None);
         }
         let pk = match any_supported_type(&PrivateKey(key.contents)) {
             Ok(pk) => pk,
             Err(_) => {
                 error!("{} does not contain an ecdsa private key", sni);
-                return Ok(());
+                return Ok(None);
             }
         };
         let cert_chain: Vec<RustlsCertificate> = pems
@@ -87,14 +87,44 @@ impl AcmeResolver
             .collect();
 
         let cert_key = CertifiedKey::new(cert_chain, Arc::new(pk));
+        Ok(Some(cert_key))
+    }
 
-        let mut guard = self.certs.write();
-        guard.insert(sni.to_string(), cert_key, Duration::from_secs(3600));
+    pub async fn touch_alpn(&self, sni: String) -> Result<(), Box<dyn std::error::Error>>
+    {
+        // Fast path
+        {
+            let guard = self.auths.read();
+            if guard.contains_key(&sni) {
+                return Ok(());
+            }
+        }
 
+        // Load the certificates
+        let cert = self.repo.get_file(sni.as_str(), WEB_CONF_FILES_ALPN_CERT).await?;
+        let key = self.repo.get_file(sni.as_str(), WEB_CONF_FILES_ALPN_KEY).await?;
+
+        if let Some(cert) = cert {
+            if let Some(key) = key {
+                if let Some(cert_key) = self.process_cert(sni.as_str(), cert, key).await? {
+                    let mut guard = self.auths.write();
+                    guard.insert(sni.to_string(), cert_key, Duration::from_secs(300));
+                    return Ok(())
+                }
+            } else {
+                warn!("missing alpn private key for {}", sni);
+            }
+        } else {
+            warn!("missing alpn chain for {}", sni);
+        }
+
+        // No certificate :-(
+        let mut guard = self.auths.write();
+        guard.remove(&sni);
         Ok(())
     }
 
-    pub async fn touch(&self, sni: String) -> Result<(), Box<dyn std::error::Error>>
+    pub async fn touch_web(&self, sni: String) -> Result<(), Box<dyn std::error::Error>>
     {
         // Fast path
         {
@@ -140,11 +170,14 @@ impl AcmeResolver
 
         // If we have never loaded the certificates from disk then load them now
         if loaded == false {
-            let cert = self.repo.get_file(sni.as_str(), WEB_CONF_FILES_CERT).await?;
-            let key = self.repo.get_file(sni.as_str(), WEB_CONF_FILES_KEY).await?;
+            let cert = self.repo.get_file(sni.as_str(), WEB_CONF_FILES_WEB_CERT).await?;
+            let key = self.repo.get_file(sni.as_str(), WEB_CONF_FILES_WEB_KEY).await?;
             if let Some(cert) = cert {
                 if let Some(key) = key {
-                    self.process_cert(sni.as_str(), cert, key).await?;
+                    if let Some(cert_key) = self.process_cert(sni.as_str(), cert, key).await? {
+                        let mut guard = self.certs.write();
+                        guard.insert(sni.to_string(), cert_key, Duration::from_secs(3600));
+                    }
                 } else {
                     warn!("missing certificate private key for {}", sni);
                 }
@@ -174,10 +207,13 @@ impl AcmeResolver
             .order(&directory_url, sni.as_str())
             .await
         {
-            Ok(cert_key) => {
+            Ok((cert_key, cert_pem, pk_pem)) => {
                 debug!("successfully ordered certificate");
                 lock.err_cnt = 0i64;
                 lock.next_try = None;
+
+                self.repo.set_file(sni.as_str(), WEB_CONF_FILES_WEB_CERT, cert_pem.as_bytes()).await?;
+                self.repo.set_file(sni.as_str(), WEB_CONF_FILES_WEB_KEY, pk_pem.as_bytes()).await?;
 
                 let mut guard = self.certs.write();
                 guard.insert(sni.to_string(), cert_key, Duration::from_secs(3600));
@@ -213,7 +249,7 @@ impl AcmeResolver
         &self,
         directory_url: &str,
         domain: &str,
-    ) -> Result<CertifiedKey, OrderError>
+    ) -> Result<(CertifiedKey, String, String), OrderError>
     {
         let contacts = vec![ format!("mailto:info@{}", domain) ];
         let domains = vec![ domain.to_string() ];
@@ -223,7 +259,9 @@ impl AcmeResolver
         params.alg = &PKCS_ECDSA_P256_SHA256;
 
         let cert = rcgen::Certificate::from_params(params)?;
-        let pk = any_supported_type(&PrivateKey(cert.serialize_private_key_der())).unwrap();
+        let pk_pem = cert.serialize_private_key_pem();
+        let pk_bytes = cert.serialize_private_key_der();
+        let pk = any_supported_type(&PrivateKey(pk_bytes.clone())).unwrap();
 
         debug!("load_or_create account");
         let directory = Directory::discover(directory_url).await?;
@@ -240,7 +278,7 @@ impl AcmeResolver
                 } => {
                     let auth_futures = authorizations
                         .iter()
-                        .map(|url| self.authorize(&account, url));
+                        .map(|url| self.authorize(&account, domain, url));
                     try_join_all(auth_futures).await?;
                     debug!("completed all authorizations");
                     Order::Ready { finalize }
@@ -268,14 +306,14 @@ impl AcmeResolver
                         .map(|p| RustlsCertificate(p.contents))
                         .collect();
                     let cert_key = CertifiedKey::new(cert_chain, Arc::new(pk));
-                    return Ok(cert_key);
+                    return Ok((cert_key, acme_cert_pem, pk_pem));
                 }
                 Order::Invalid => return Err(OrderErrorKind::BadOrder(order).into()),
             }
         }
     }
 
-    async fn authorize(&self, account: &Account, url: &String) -> Result<(), OrderError> {
+    async fn authorize(&self, account: &Account, sni: &str, url: &String) -> Result<(), OrderError> {
         debug!("starting authorization for {}", url);
         let (domain, challenge_url) = match account.auth(url).await? {
             Auth::Pending {
@@ -284,11 +322,17 @@ impl AcmeResolver
             } => {
                 let Identifier::Dns(domain) = identifier;
                 info!("trigger challenge for {}", &domain);
-                let (challenge, auth_key) = account.tls_alpn_01(&challenges, domain.clone())?;
+                let (challenge, _auth_key, cert_pem, pk_pem) = account.tls_alpn_01(&challenges, domain.clone())?;
 
+                self.repo.set_file(sni, WEB_CONF_FILES_ALPN_CERT, cert_pem.as_bytes()).await?;
+                self.repo.set_file(sni, WEB_CONF_FILES_ALPN_KEY, pk_pem.as_bytes()).await?;
+
+                /*
                 self.auths
                     .write()
-                    .insert(domain.clone(), auth_key, Duration::from_secs(300));
+                    .insert(domain.clone(), _auth_key, Duration::from_secs(300));
+                */
+                
                 account.challenge(&challenge.url).await?;
                 (domain, challenge.url.clone())
             }

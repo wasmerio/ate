@@ -107,12 +107,12 @@ impl HyperAcceptor
 
             // If it has an ACME ALPN extension then we dont want to trigger another certificate for it
             // so we instead just attempt to accept the connection
+            let mut alpn = false;
             for ext in exts.iter() {
-                if let tls_parser::TlsExtension::ALPN(a) = ext {
-                    for alpn in a {
-                        if ACME_TLS_ALPN_NAME.eq(*alpn) {
-                            let stream = tls.accept(socket).await?;
-                            return Ok(HyperStream::Tls((stream, addr)))
+                if let tls_parser::TlsExtension::ALPN(alpn_exts) = ext {
+                    for alpn_ext in alpn_exts {
+                        if ACME_TLS_ALPN_NAME.eq(*alpn_ext) {
+                            alpn = true;
                         }
                     }
                 }
@@ -139,11 +139,14 @@ impl HyperAcceptor
                 None => { continue; }
             };
             
-            // Debug out
-            trace!("connection attempt SNI: {}", sni);
-
             // Load the object
-            acme.touch(sni.to_string()).await?;
+            if alpn {
+                trace!("alpn challenge for SNI: {}", sni);
+                acme.touch_alpn(sni.to_string()).await?;
+            } else {
+                trace!("connection attempt SNI: {}", sni);
+                acme.touch_web(sni.to_string()).await?;
+            }
             break;
         }
 

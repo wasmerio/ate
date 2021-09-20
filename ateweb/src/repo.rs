@@ -145,6 +145,28 @@ impl Repository
         )
     }
 
+    pub async fn set_file(&self, host: &str, path: &str, data: &[u8]) -> Result<u64, FileSystemError> {
+        let path = path.to_string();
+        let context = RequestContext::default();
+        
+        let chain = self.get_accessor(host).await?;
+        Ok(
+            match chain.touch(&context, path.as_str()).await {
+                Ok(a) => {
+                    let flags = (libc::O_RDWR as u32) | (libc::O_TRUNC as u32);
+                    let oh = match chain.open(&context, a.ino, flags).await {
+                        Ok(a) => a,
+                        Err(err) => { return Err(err.into()); },
+                    };
+                    chain.write(&context, a.ino, oh.fh, 0, data, flags).await?
+                },
+                Err(err) => {
+                    return Err(err.into());
+                }
+            }
+        )
+    }
+
     pub async fn house_keeping(&self) {
         let mut lock = self.chains.lock().await;
         lock.iter();    // this will run the remove_expired function

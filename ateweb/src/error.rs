@@ -75,6 +75,7 @@ error_chain! {
         SerializationError(SerializationError, SerializationErrorKind);
         CommitError(CommitError, CommitErrorKind);
         AcmeError(AcmeError, AcmeErrorKind);
+        FileSystemError(FileSystemError, FileSystemErrorKind);
     }
     errors {
         Pem(err: pem::PemError) {

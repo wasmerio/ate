@@ -681,6 +681,25 @@ impl FileAccessor
         Ok(Some(ret))
     }
 
+    pub async fn touch(&self, req: &RequestContext, path: &str) -> Result<FileAttr> {
+        let mut ret = self.getattr(req, 1u64, None, 0u32).await?;
+        let comps = path.split("/").filter(|a| a.len() > 0).collect::<Vec<_>>();
+        let comps_len = comps.len();
+
+        let mut n = 0usize;
+        for comp in comps {
+            n += 1usize;
+
+            let parent = ret.ino;
+            ret = match self.lookup(req, parent, comp).await? {
+                Some(a) => a,
+                None if n < comps_len => self.mkdir(req, parent, comp, 0o770).await?,
+                None => self.mknod(req, parent, comp, 0o660).await?
+            };
+        }
+        Ok(ret)
+    }
+
     pub async fn forget(&self, _req: &RequestContext, _inode: u64, _nlookup: u64) {
         let _ = self.tick().await;
     }
