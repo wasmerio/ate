@@ -38,7 +38,7 @@ impl HyperAcceptor
                 let tls_cfg = {
                     let mut cfg = rustls::ServerConfig::new(rustls::NoClientAuth::new());
                     cfg.cert_resolver = acme;
-                    cfg.set_protocols(&[b"h2".to_vec(), b"http/1.1".to_vec()]);
+                    cfg.set_protocols(&[b"h2".to_vec(), b"http/1.1".to_vec(), b"acme-tls/1".to_vec()]);
                     Arc::new(cfg)
                 };
                 Some(
