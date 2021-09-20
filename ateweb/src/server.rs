@@ -223,7 +223,10 @@ impl Server
                             .map_err(|err| WebServerError::from_kind(WebServerErrorKind::BadConfiguration(err.to_string())))?
                     },
                     None => {
-                        let ret = WebConf::default();
+                        let mut ret = WebConf::default();
+                        ret.default_page = Some("index.html".to_string());
+                        ret.force_https = true;
+
                         if let Some(ret_str) = serde_yaml::to_string(&ret).ok() {
                             let err = self.repo.set_file(host.as_str(), WEB_CONF_FILES_CONF, ret_str.as_bytes()).await;
                             if let Err(err) = err {
