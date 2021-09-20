@@ -299,14 +299,19 @@ impl AcmeResolver
                 }
                 Order::Valid { certificate } => {
                     debug!("download certificate");
+
+                    let certificate = certificate.replace("-----BEGINCERTIFICATE-----", "-----BEGIN CERTIFICATE-----\n");
+                    let certificate = certificate.replace("-----ENDCERTIFICATE-----", "\n-----END CERTIFICATE-----\n");
+
                     let acme_cert_pem = account.certificate(certificate.as_str()).await?;
                     let pems = pem::parse_many(&acme_cert_pem);
-                    let cert_chain = pems
+                    let cert_chain: Vec<rustls::Certificate> = pems
                         .into_iter()
                         .map(|p| RustlsCertificate(p.contents))
                         .collect();
+
                     let cert_key = CertifiedKey::new(cert_chain, Arc::new(pk));
-                    return Ok((cert_key, acme_cert_pem, pk_pem));
+                    return Ok((cert_key, certificate, pk_pem));
                 }
                 Order::Invalid => return Err(OrderErrorKind::BadOrder(order).into()),
             }
