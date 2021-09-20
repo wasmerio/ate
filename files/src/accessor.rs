@@ -683,7 +683,7 @@ impl FileAccessor
 
     pub async fn touch(&self, req: &RequestContext, path: &str) -> Result<FileAttr> {
         let mut ret = self.getattr(req, 1u64, None, 0u32).await?;
-        let comps = path.split("/").filter(|a| a.len() > 0).collect::<Vec<_>>();
+        let comps = path.split("/").map(|a| a.to_string()).filter(|a| a.len() > 0).collect::<Vec<_>>();
         let comps_len = comps.len();
 
         let mut n = 0usize;
@@ -691,12 +691,14 @@ impl FileAccessor
             n += 1usize;
 
             let parent = ret.ino;
-            ret = match self.lookup(req, parent, comp).await? {
+            ret = match self.lookup(req, parent, comp.as_str()).await? {
                 Some(a) => a,
-                None if n < comps_len => self.mkdir(req, parent, comp, 0o770).await?,
-                None => self.mknod(req, parent, comp, 0o660).await?
+                None if n < comps_len => self.mkdir(req, parent, comp.as_str(), 0o770).await?,
+                None => self.mknod(req, parent, comp.as_str(), 0o660).await?
             };
         }
+
+        trace!("touching {}", path);
         Ok(ret)
     }
 

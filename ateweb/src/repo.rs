@@ -150,20 +150,11 @@ impl Repository
         let context = RequestContext::default();
         
         let chain = self.get_accessor(host).await?;
+        let file = chain.touch(&context, path.as_str()).await?;
+        let flags = (libc::O_RDWR as u32) | (libc::O_TRUNC as u32);
+        let oh = chain.open(&context, file.ino, flags).await?;
         Ok(
-            match chain.touch(&context, path.as_str()).await {
-                Ok(a) => {
-                    let flags = (libc::O_RDWR as u32) | (libc::O_TRUNC as u32);
-                    let oh = match chain.open(&context, a.ino, flags).await {
-                        Ok(a) => a,
-                        Err(err) => { return Err(err.into()); },
-                    };
-                    chain.write(&context, a.ino, oh.fh, 0, data, flags).await?
-                },
-                Err(err) => {
-                    return Err(err.into());
-                }
-            }
+            chain.write(&context, file.ino, oh.fh, 0, data, flags).await?
         )
     }
 
