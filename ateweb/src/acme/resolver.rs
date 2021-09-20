@@ -244,15 +244,16 @@ impl AcmeResolver
                     debug!("completed all authorizations");
                     Order::Ready { finalize }
                 }
+                Order::Ready { finalize } => {
+                    debug!("sending csr");
+                    let csr = cert.serialize_request_der()?;
+                    account.finalize(finalize.as_str(), csr).await?
+                }
                 Order::Processing {
                     finalize,
                 } => {
-                    debug!("processing certificate - waiting a second");
+                    debug!("processing certificate");
                     tokio::time::sleep(Duration::from_secs(1)).await;
-                    Order::Processing { finalize }
-                }
-                Order::Ready { finalize } => {
-                    debug!("sending csr");
                     let csr = cert.serialize_request_der()?;
                     account.finalize(finalize.as_str(), csr).await?
                 }
