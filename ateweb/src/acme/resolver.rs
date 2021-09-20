@@ -300,10 +300,10 @@ impl AcmeResolver
                 Order::Valid { certificate } => {
                     debug!("download certificate");
 
-                    let certificate = certificate.replace("-----BEGINCERTIFICATE-----", "-----BEGIN CERTIFICATE-----\n");
-                    let certificate = certificate.replace("-----ENDCERTIFICATE-----", "\n-----END CERTIFICATE-----\n");
-
                     let acme_cert_pem = account.certificate(certificate.as_str()).await?;
+                    let acme_cert_pem = acme_cert_pem.replace("-----BEGINCERTIFICATE-----", "-----BEGIN CERTIFICATE-----\n");
+                    let acme_cert_pem = acme_cert_pem.replace("-----ENDCERTIFICATE-----", "\n-----END CERTIFICATE-----\n");
+
                     let pems = pem::parse_many(&acme_cert_pem);
                     let cert_chain: Vec<rustls::Certificate> = pems
                         .into_iter()
