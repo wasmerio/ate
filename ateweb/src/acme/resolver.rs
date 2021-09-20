@@ -244,6 +244,12 @@ impl AcmeResolver
                     debug!("completed all authorizations");
                     Order::Ready { finalize }
                 }
+                Order::Processing {
+                    finalize,
+                } => {
+                    debug!("processing certificate");
+                    Order::Ready { finalize }
+                }
                 Order::Ready { finalize } => {
                     debug!("sending csr");
                     let csr = cert.serialize_request_der()?;

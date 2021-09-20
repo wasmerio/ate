@@ -223,6 +223,9 @@ pub enum Order {
         certificate: String,
     },
     Invalid,
+    Processing {
+        finalize: String,
+    }
 }
 
 #[derive(Debug, Deserialize)]
