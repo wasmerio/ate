@@ -200,11 +200,12 @@ impl AcmeResolver
             //false => LETS_ENCRYPT_STAGING_DIRECTORY,
             false => PEBBLE_DIRECTORY
         };
+        let expires = chrono::Duration::days(40);
 
         // Order the certificate using lets encrypt
         debug!("ordering of certificate started");
         match self
-            .order(&directory_url, sni.as_str())
+            .order(&directory_url, sni.as_str(), expires)
             .await
         {
             Ok((cert_key, cert_pem, pk_pem)) => {
@@ -249,14 +250,22 @@ impl AcmeResolver
         &self,
         directory_url: &str,
         domain: &str,
+        duration: chrono::Duration,
     ) -> Result<(CertifiedKey, String, String), OrderError>
     {
         let contacts = vec![ format!("mailto:info@{}", domain) ];
         let domains = vec![ domain.to_string() ];
+        let not_before = chrono::Utc::now();
+        let mut not_after = not_before.clone();
+        if let Some(not_after_next) = not_before.checked_add_signed(duration) {
+            not_after = not_after_next;
+        }
 
         let mut params = CertificateParams::new(domains.clone());
         params.distinguished_name = DistinguishedName::new();
         params.alg = &PKCS_ECDSA_P256_SHA256;
+        params.not_before = not_before;
+        params.not_after = not_after;
 
         let cert = rcgen::Certificate::from_params(params)?;
         let pk_pem = cert.serialize_private_key_pem();
@@ -269,7 +278,7 @@ impl AcmeResolver
 
         debug!("new order for {:?}", domains);
         let mut wait = 0u32;
-        let (mut order, kid) = account.new_order(domains.clone()).await?;
+        let (mut order, kid) = account.new_order(domains.clone(), not_before, not_after).await?;
         loop {
             order = match order {
                 Order::Pending {
