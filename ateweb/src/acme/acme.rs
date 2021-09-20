@@ -81,17 +81,33 @@ impl Account
     }
 
     pub async fn request(&self, url: &str, payload: &str) -> Result<String, AcmeError> {
-        let body = sign(
-            &self.key_pair,
-            Some(&self.kid),
-            self.directory.nonce().await?,
-            url,
-            payload,
-        )?;
-        
-        let (body, _) = api_call(url, Method::POST, Some(body), self.directory.insecure).await?;
-        debug!("response: {:?}", body);
-        Ok(body)
+        let mut n = 0;
+        loop {
+            let body = sign(
+                &self.key_pair,
+                Some(&self.kid),
+                self.directory.nonce().await?,
+                url,
+                payload,
+            )?;
+
+            match api_call(url, Method::POST, Some(body), self.directory.insecure).await {
+                Ok((body, _)) => {
+                    debug!("response: {:?}", body);
+                    return Ok(body)
+                },
+                Err(AcmeError(AcmeErrorKind::ApiError(err), _)) => {
+                    if err.typ == "urn:ietf:params:acme:error:badNonce" && n < 5 {
+                        n += 1;
+                        continue;
+                    }
+                    bail!(AcmeErrorKind::ApiError(err));
+                },
+                Err(err) => {
+                    return Err(err);
+                }
+            };            
+        }
     }
 
     pub async fn auth(&self, url: &str) -> Result<Auth, AcmeError> {
@@ -236,6 +252,14 @@ pub struct Challenge {
     pub token: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct ApiError {
+    #[serde(rename = "type")]
+    pub typ: String,
+    pub detail: String,
+    pub status: u16,
+}
+
 fn get_header(response: &HeaderMap<HeaderValue>, header: &'static str) -> Result<String, AcmeError> {
     match response.get(header) {
         Some(value) => Ok(value.to_str()?.to_string()),
@@ -304,6 +328,12 @@ async fn api_call(
     // If an error occured then fail
     if !status.is_success() {
         warn!("{}", res);
+
+        if status.as_u16() == 400 {
+            if let Some(err) = serde_json::from_str::<ApiError>(res.as_str()).ok() {
+                bail!(AcmeErrorKind::ApiError(err));
+            }
+        }
         bail!(AcmeErrorKind::BadResponse(status.as_u16(), orig_res));
     }
 

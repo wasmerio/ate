@@ -149,6 +149,10 @@ error_chain! {
             description("letsencrypt returned a bad response"),
             display("letsencrypt returned a bad response (code={}) - {}", code, response),
         }
+        ApiError(err: super::ApiError) {
+            description("letsencrypt returned an error"),
+            display("letsencrypt returned an error (code={}) - {}", err.typ, err.detail),
+        }
         NoTlsAlpn01Challenge {
             description("no tls alpn 01 challenge"),
             display("no tls alpn 01 challenge")
