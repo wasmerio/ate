@@ -254,8 +254,7 @@ impl AcmeResolver
                 } => {
                     debug!("processing certificate");
                     tokio::time::sleep(Duration::from_secs(1)).await;
-                    let csr = cert.serialize_request_der()?;
-                    account.finalize(finalize.as_str(), csr).await?
+                    account.check(finalize.as_str()).await?
                 }
                 Order::Valid { certificate } => {
                     debug!("download certificate");

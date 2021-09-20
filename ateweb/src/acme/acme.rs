@@ -141,6 +141,10 @@ impl Account
         self.request(url, "").await
     }
 
+    pub async fn check(&self, url: &str) -> Result<String, AcmeError> {
+        self.request(url, "").await
+    }
+
     pub fn tls_alpn_01<'a>(
         &self,
         challenges: &'a Vec<Challenge>,
