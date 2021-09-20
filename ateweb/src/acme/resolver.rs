@@ -247,8 +247,9 @@ impl AcmeResolver
                 Order::Processing {
                     finalize,
                 } => {
-                    debug!("processing certificate");
-                    Order::Ready { finalize }
+                    debug!("processing certificate - waiting a second");
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    Order::Processing { finalize }
                 }
                 Order::Ready { finalize } => {
                     debug!("sending csr");
