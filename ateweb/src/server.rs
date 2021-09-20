@@ -222,7 +222,16 @@ impl Server
                         serde_yaml::from_str::<WebConf>(&data)
                             .map_err(|err| WebServerError::from_kind(WebServerErrorKind::BadConfiguration(err.to_string())))?
                     },
-                    None => WebConf::default(),   
+                    None => {
+                        let ret = WebConf::default();
+                        if let Some(ret_str) = serde_yaml::to_string(&ret).ok() {
+                            let err = self.repo.set_file(host.as_str(), WEB_CONF_FILES_CONF, ret_str.as_bytes()).await;
+                            if let Err(err) = err {
+                                warn!("failed to save default web.yaml - {}", err);
+                            }
+                        }
+                        ret
+                    },
                 };
         }
 
