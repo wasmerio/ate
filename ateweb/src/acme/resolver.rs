@@ -200,12 +200,9 @@ impl AcmeResolver
             }
         }
 
-        let production = false;
-        let directory_url = match production {
-            true => LETS_ENCRYPT_PRODUCTION_DIRECTORY,
-            //false => LETS_ENCRYPT_STAGING_DIRECTORY,
-            false => PEBBLE_DIRECTORY
-        };
+        let directory_url = LETS_ENCRYPT_PRODUCTION_DIRECTORY;
+        //let directory_url = LETS_ENCRYPT_STAGING_DIRECTORY;
+        //let directory_url = PEBBLE_DIRECTORY;
         let expires = chrono::Duration::days(40);
 
         // Order the certificate using lets encrypt

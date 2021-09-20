@@ -93,7 +93,7 @@ impl Account
 
             match api_call(url, Method::POST, Some(body), self.directory.insecure).await {
                 Ok((body, headers)) => {
-                    debug!("response: {:?}", body);
+                    //debug!("response: {:?}", body);
                     return Ok((body, headers));
                 },
                 Err(AcmeError(AcmeErrorKind::ApiError(err), _)) => {
@@ -289,11 +289,13 @@ async fn api_call(
 {
     // Build the request
     let req_url = req_url.to_string();
+    /*
     if let Some(req_str) = req.as_ref() {
         debug!("Request: {:?}@{}", req_str, req_url);
     } else {
         debug!("Request: @{}", req_url);
     }
+    */
 
     // Create the HTTPS client
     let client = {
@@ -322,7 +324,7 @@ async fn api_call(
     let mut res = client.request(req).await?;
     let status = res.status();
 
-    debug!("Response: {}", status);
+    //debug!("Response: {}", status);
     //debug!("Headers: {:#?}\n", res.headers());
     
     let headers = res.headers().clone();
@@ -350,6 +352,6 @@ async fn api_call(
         bail!(AcmeErrorKind::BadResponse(status.as_u16(), orig_res));
     }
 
-    debug!("Body: {}", res);
+    //debug!("Body: {}", res);
     Ok((res, headers))
 }
