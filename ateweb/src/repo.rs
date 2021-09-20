@@ -153,6 +153,7 @@ impl Repository
         let file = chain.touch(&context, path.as_str()).await?;
         let flags = (libc::O_RDWR as u32) | (libc::O_TRUNC as u32);
         let oh = chain.open(&context, file.ino, flags).await?;
+        chain.fallocate(&context, file.ino, oh.fh, 0, 0, flags).await?;
         Ok(
             chain.write(&context, file.ino, oh.fh, 0, data, flags).await?
         )
