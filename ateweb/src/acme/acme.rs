@@ -80,7 +80,7 @@ impl Account
         })
     }
 
-    pub async fn request(&self, url: &str, payload: &str) -> Result<String, AcmeError> {
+    pub async fn request(&self, url: &str, payload: &str) -> Result<(String, HeaderMap), AcmeError> {
         let mut n = 0;
         loop {
             let body = sign(
@@ -92,9 +92,9 @@ impl Account
             )?;
 
             match api_call(url, Method::POST, Some(body), self.directory.insecure).await {
-                Ok((body, _)) => {
+                Ok((body, headers)) => {
                     debug!("response: {:?}", body);
-                    return Ok(body)
+                    return Ok((body, headers));
                 },
                 Err(AcmeError(AcmeErrorKind::ApiError(err), _)) => {
                     if err.typ == "urn:ietf:params:acme:error:badNonce" && n < 5 {
@@ -112,8 +112,8 @@ impl Account
 
     pub async fn auth(&self, url: &str) -> Result<Auth, AcmeError> {
         let payload = "".to_string();
-        let response = self.request(url, &payload).await;
-        Ok(serde_json::from_str(&response?)?)
+        let (response, _) = self.request(url, &payload).await?;
+        Ok(serde_json::from_str(&response)?)
     }
 
     pub async fn challenge(&self, url: &str) -> Result<(), AcmeError> {
@@ -121,11 +121,13 @@ impl Account
         Ok(())
     }
 
-    pub async fn new_order(&self, domains: Vec<String>) -> Result<Order, AcmeError> {
+    pub async fn new_order(&self, domains: Vec<String>) -> Result<(Order, String), AcmeError> {
         let domains: Vec<Identifier> = domains.into_iter().map(|d| Identifier::Dns(d)).collect();
         let payload = format!("{{\"identifiers\":{}}}", serde_json::to_string(&domains)?);
-        let response = self.request(&self.directory.new_order, &payload).await;
-        Ok(serde_json::from_str(&response?)?)
+        let (response, headers) = self.request(&self.directory.new_order, &payload).await?;
+        let order = serde_json::from_str(&response)?; 
+        let kid = get_header(&headers, "Location")?;
+        Ok((order, kid))
     }
 
     pub async fn finalize(&self, url: &str, csr: Vec<u8>) -> Result<Order, AcmeError> {
@@ -133,17 +135,18 @@ impl Account
             "{{\"csr\":\"{}\"}}",
             base64::encode_config(csr, URL_SAFE_NO_PAD)
         );
-        let response = self.request(url, &payload).await;
-        Ok(serde_json::from_str(&response?)?)
+        let (response, _) = self.request(url, &payload).await?;
+        Ok(serde_json::from_str(&response)?)
     }
 
     pub async fn certificate(&self, url: &str) -> Result<String, AcmeError> {
-        self.request(url, "").await
+        let (ret, _) = self.request(url, "").await?;
+        Ok(ret)
     }
 
     pub async fn check(&self, url: &str) -> Result<Order, AcmeError> {
-        let response = self.request(url, "").await;
-        Ok(serde_json::from_str(&response?)?)
+        let (response, _) = self.request(url, "").await?;
+        Ok(serde_json::from_str(&response)?)
     }
 
     pub fn tls_alpn_01<'a>(
@@ -228,9 +231,7 @@ pub enum Order {
         certificate: String,
     },
     Invalid,
-    Processing {
-        finalize: String,
-    }
+    Processing,
 }
 
 #[derive(Debug, Deserialize)]

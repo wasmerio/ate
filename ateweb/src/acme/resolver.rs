@@ -230,7 +230,8 @@ impl AcmeResolver
         let account = Account::load_or_create(directory, &contacts).await?;
 
         debug!("new order for {:?}", domains);
-        let mut order = account.new_order(domains.clone()).await?;
+        let mut wait = 0u32;
+        let (mut order, kid) = account.new_order(domains.clone()).await?;
         loop {
             order = match order {
                 Order::Pending {
@@ -249,12 +250,14 @@ impl AcmeResolver
                     let csr = cert.serialize_request_der()?;
                     account.finalize(finalize.as_str(), csr).await?
                 }
-                Order::Processing {
-                    finalize,
-                } => {
+                Order::Processing => {
                     debug!("processing certificate");
+                    wait += 1;
+                    if wait > 30 {
+                        return Err(OrderErrorKind::Timeout.into());
+                    }
                     tokio::time::sleep(Duration::from_secs(1)).await;
-                    account.check(finalize.as_str()).await?
+                    account.check(kid.as_str()).await?
                 }
                 Order::Valid { certificate } => {
                     debug!("download certificate");

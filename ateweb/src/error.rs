@@ -89,6 +89,10 @@ error_chain! {
             description("bad order object"),
             display("bad order object: {0:?}", order)
         }
+        Timeout {
+            description("timeout while waiting for certificate"),
+            display("timeout while waiting for certificate")
+        }
         BadAuth(auth: crate::acme::Auth) {
             description("bad auth object"),
             display("bad auth object: {0:?}", auth)
