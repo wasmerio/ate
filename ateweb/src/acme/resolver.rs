@@ -326,6 +326,10 @@ impl AcmeResolver
 
                 self.repo.set_file(sni, WEB_CONF_FILES_ALPN_CERT, cert_pem.as_bytes()).await?;
                 self.repo.set_file(sni, WEB_CONF_FILES_ALPN_KEY, pk_pem.as_bytes()).await?;
+                
+                self.auths
+                    .write()
+                    .remove(&domain);
 
                 /*
                 self.auths
