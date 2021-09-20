@@ -70,7 +70,7 @@ impl Account
             &payload,
         )?;
         
-        let (_, headers) = api_call(&directory.new_account, Method::POST, Some(body)).await?;
+        let (_, headers) = api_call(&directory.new_account, Method::POST, Some(body), directory.insecure).await?;
         let kid = get_header(&headers, "Location")?;
 
         Ok(Account {
@@ -89,7 +89,7 @@ impl Account
             payload,
         )?;
         
-        let (body, _) = api_call(url, Method::POST, Some(body)).await?;
+        let (body, _) = api_call(url, Method::POST, Some(body), self.directory.insecure).await?;
         debug!("response: {:?}", body);
         Ok(body)
     }
@@ -163,17 +163,22 @@ pub struct Directory {
     pub new_nonce: String,
     pub new_account: String,
     pub new_order: String,
+    #[serde(skip)]
+    pub insecure: bool
 }
 
 impl Directory
 {
     pub async fn discover(url: &str) -> Result<Self, AcmeError> {
-        let (body, _) = api_call(url, Method::GET, None).await?;
-        Ok(serde_json::from_str(body.as_str())?)
+        let insecure = url == PEBBLE_DIRECTORY;
+        let (body, _) = api_call(url, Method::GET, None, insecure).await?;
+        let mut ret: Directory = serde_json::from_str(body.as_str())?;
+        ret.insecure = insecure;
+        Ok(ret)
     }
 
     pub async fn nonce(&self) -> Result<String, AcmeError> {
-        let (_, headers) = api_call(&self.new_nonce.as_str(), Method::HEAD, None).await?;
+        let (_, headers) = api_call(&self.new_nonce.as_str(), Method::HEAD, None, self.insecure).await?;
         get_header(&headers, "replay-nonce")
     }
 }
@@ -242,6 +247,7 @@ async fn api_call(
     req_url: &str,
     method: Method,
     req: Option<String>,
+    insecure: bool,
 ) -> Result<(String, HeaderMap<HeaderValue>), AcmeError>
 {
     // Build the request
@@ -253,8 +259,16 @@ async fn api_call(
     }
 
     // Create the HTTPS client
-    let https = HttpsConnector::new();
-    let client = Client::builder().build::<_, hyper::Body>(https);
+    let client = {
+        let tls_connector = hyper_tls::native_tls::TlsConnector::builder()
+            .danger_accept_invalid_certs(insecure)
+            .build()
+            .unwrap();
+        let mut http_connector = hyper::client::HttpConnector::new();
+        http_connector.enforce_http(false);
+        let https_connector = HttpsConnector::from((http_connector, tls_connector.into()));
+        Client::builder().build::<_, hyper::Body>(https_connector)
+    };
 
     // Make the request object
     let builder = Request::builder()
