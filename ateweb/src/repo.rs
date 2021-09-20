@@ -154,8 +154,10 @@ impl Repository
         let flags = (libc::O_RDWR as u32) | (libc::O_TRUNC as u32);
         let oh = chain.open(&context, file.ino, flags).await?;
         chain.fallocate(&context, file.ino, oh.fh, 0, 0, flags).await?;
+        let written = chain.write(&context, file.ino, oh.fh, 0, data, flags).await?;
+        chain.sync(&context, file.ino, oh.fh, 0).await?;
         Ok(
-            chain.write(&context, file.ino, oh.fh, 0, data, flags).await?
+            written
         )
     }
 

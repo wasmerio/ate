@@ -733,6 +733,12 @@ impl FileAccessor
         Ok(())
     }
 
+    pub async fn sync(&self, req: &RequestContext, inode: u64, fh: u64, lock_owner: u64) -> Result<()> {
+        self.flush(req, inode, fh, lock_owner).await?;
+        self.chain.sync().await?;
+        Ok(())
+    }
+
     pub async fn access(&self, req: &RequestContext, inode: u64, mask: u32) -> Result<()> {
         self.access_internal(req, inode, mask).await
     }
