@@ -39,7 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .ttl(Duration::from_secs(run.ttl))
                 .add_listener(run.listen, run.port, run.port == 443u16)
                 .build().await?;
-            server.run().await?;
+            TaskEngine::run_until(server.run()).await?;
         }
 
         SubCommand::All(run) =>
@@ -62,7 +62,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .with_callback(ateweb::ServerMeshAdapter::new(&root))
                 .add_listener(run.listen, run.port, run.port == 443u16)
                 .build().await?;
-            server.run().await?;
+            TaskEngine::run_until(server.run()).await?;
         }
     }
 
