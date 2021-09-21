@@ -1,4 +1,5 @@
 use error_chain::error_chain;
+use tokio::time::error::Elapsed;
 
 error_chain! {
     types {
@@ -20,6 +21,10 @@ error_chain! {
         Aborted {
             description("the transaction aborted before it could be completed"),
             display("the transaction aborted before it could be completed"),
+        }
+        Timeout(elapsed: Elapsed) {
+            description("the transaction has timed out"),
+            display("the transaction has timed out after {}", elapsed),
         }
         ReadOnly {
             description("the chain of trust is currently read only"),

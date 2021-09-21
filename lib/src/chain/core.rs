@@ -2,6 +2,7 @@
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use tracing_futures::Instrument;
 use parking_lot::Mutex as StdMutex;
+use std::time::Duration;
 
 use crate::error::*;
 
@@ -138,16 +139,23 @@ impl<'a> Chain
 
     pub async fn sync(&'a self) -> Result<(), CommitError>
     {
-        self.run_async(self.__sync()).await
+        let timeout = Duration::from_secs(30);
+        self.run_async(self.__sync(timeout)).await
     }
 
-    async fn __sync(&'a self) -> Result<(), CommitError>
+    pub async fn sync_ext(&'a self, timeout: Duration) -> Result<(), CommitError>
+    {
+        self.run_async(self.__sync(timeout)).await
+    }
+
+    async fn __sync(&'a self, timeout: Duration) -> Result<(), CommitError>
     {
         // Create the transaction
         let trans = Transaction {
             scope: TransactionScope::Full,
             transmit: true,
             events: Vec::new(),
+            timeout,
             conversation: None,
         };
 

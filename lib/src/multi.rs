@@ -2,6 +2,7 @@ use tokio::sync::RwLock;
 use parking_lot::RwLock as StdRwLock;
 #[allow(unused_imports)]
 use std::sync::{Weak, Arc};
+use std::time::Duration;
 
 use crate::session::{AteSession};
 
@@ -127,11 +128,18 @@ impl ChainMultiUser
 
     pub async fn sync(&self) -> Result<(), CommitError>
     {
+        let timeout = Duration::from_secs(30);
+        self.sync_ext(timeout).await
+    }
+
+    pub async fn sync_ext(&self, timeout: Duration) -> Result<(), CommitError>
+    {
         // Create the transaction
         let trans = Transaction {
             scope: TransactionScope::Full,
             transmit: true,
             events: Vec::new(),
+            timeout,
             conversation: None,
         };
 

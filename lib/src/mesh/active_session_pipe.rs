@@ -69,7 +69,7 @@ impl ActiveSessionPipe
         if let Some(chain) = self.session.chain.upgrade() {
             chain.single().await.set_integrity(TrustMode::Distributed);
         }
-        
+
         Ok(())
     }
 
@@ -127,20 +127,25 @@ impl ActiveSessionPipe
             }
 
             // Feed the transaction into the pipe
+            let timeout = trans.timeout;
             let receiver = self.feed_internal(trans).await?;
 
             // If we need to wait for the transaction to commit then do so
             if let Some(mut receiver) = receiver {
                 trace!("waiting for transaction to commit");
-                match receiver.recv().await {
-                    Some(result) => {
+                match tokio::time::timeout(timeout, receiver.recv()).await {
+                    Ok(Some(result)) => {
                         self.likely_read_only = false;
                         let commit_id = result?;
                         trace!("transaction committed: {}", commit_id);
                     },
-                    None => { 
+                    Ok(None) => { 
                         debug!("transaction has aborted");
                         bail!(CommitErrorKind::Aborted);
+                    },
+                    Err(elapsed) => {
+                        debug!("transaction has timed out");
+                        bail!(CommitErrorKind::Timeout(elapsed));
                     }
                 };
             }

@@ -3,6 +3,7 @@
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use std::sync::Arc;
 use bytes::Bytes;
+use std::time::Duration;
 
 use crate::error::*;
 use crate::crypto::*;
@@ -97,7 +98,7 @@ async fn test_chain() -> Result<(), AteError> {
             evts.push(evt2);
 
             info!("feeding two events into the chain");
-            let trans = Transaction::from_events(evts, TransactionScope::Local, false);
+            let trans = Transaction::from_events(evts, TransactionScope::Local, false, Duration::from_secs(30));
             lock.pipe.feed(ChainWork { trans }).await.expect("The event failed to be accepted");
             
             drop(lock);
@@ -161,7 +162,7 @@ async fn test_chain() -> Result<(), AteError> {
             info!("feeding new version of event1 into the chain");
             let mut evts = Vec::new();
             evts.push(evt1);
-            let trans = Transaction::from_events(evts, TransactionScope::Local, false);
+            let trans = Transaction::from_events(evts, TransactionScope::Local, false, Duration::from_secs(30));
             lock.pipe.feed(ChainWork { trans }).await.expect("The event failed to be accepted");
 
             drop(lock);
@@ -235,7 +236,7 @@ async fn test_chain() -> Result<(), AteError> {
             info!("feeding the tombstone into the chain");
             let mut evts = Vec::new();
             evts.push(evt3.clone());
-            let trans = Transaction::from_events(evts, TransactionScope::Local, false);
+            let trans = Transaction::from_events(evts, TransactionScope::Local, false, Duration::from_secs(30));
             lock.pipe.feed(ChainWork { trans }).await.expect("The event failed to be accepted");
             
             // Number of events should have gone up by one even though there should be one less item

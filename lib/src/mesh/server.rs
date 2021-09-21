@@ -16,6 +16,7 @@ use std::future::Future;
 use serde::{de::DeserializeOwned};
 use std::net::SocketAddr;
 use tokio::sync::broadcast;
+use std::time::Duration;
 
 use crate::prelude::*;
 use super::core::*;
@@ -579,6 +580,7 @@ async fn inbox_event<'b>(
             scope: TransactionScope::None,
             transmit: false,
             events: evts,
+            timeout: Duration::from_secs(30),
             conversation: Some(Arc::clone(&context.conversation)),
         }
     }).await;

@@ -190,6 +190,7 @@ impl MeshSession
                         scope: TransactionScope::Local,
                         transmit: false,
                         events: feed_me,
+                        timeout: Duration::from_secs(30),
                         conversation: Some(Arc::clone(&self.inbound_conversation)),
                     }
                 }).await?;

@@ -15,6 +15,7 @@ use tokio::sync::mpsc;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Weak;
+use std::time::Duration;
 
 use crate::header::PrimaryKeyScope;
 use super::row::*;
@@ -439,10 +440,16 @@ impl DioMut
 
     pub async fn commit(&self) -> Result<(), CommitError>
     {
-        self.run_async(self.__commit()).await
+        let timeout = Duration::from_secs(30);
+        self.run_async(self.__commit(timeout)).await
     }
 
-    async fn __commit(&self) -> Result<(), CommitError>
+    pub async fn commit_ext(&self, timeout: Duration) -> Result<(), CommitError>
+    {
+        self.run_async(self.__commit(timeout)).await
+    }
+
+    async fn __commit(&self, timeout: Duration) -> Result<(), CommitError>
     {
         let (rows, deleted, unlocks) = {
             // If we have no dirty records
@@ -614,6 +621,7 @@ impl DioMut
             scope: self.scope.clone(),
             transmit: true,
             events: evts,
+            timeout,
             conversation: match &self.conversation {
                 Some(c) => Some(Arc::clone(c)),
                 None => None,

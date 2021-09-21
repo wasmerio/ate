@@ -6,6 +6,7 @@ use fxhash::FxHashSet;
 use std::sync::Arc;
 use parking_lot::RwLock as StdRwLock;
 use rcu_cell::RcuCell;
+use std::time::Duration;
 
 use super::crypto::AteHash;
 use super::event::*;
@@ -69,18 +70,20 @@ pub(crate) struct Transaction
     pub(crate) scope: TransactionScope,
     pub(crate) transmit: bool,
     pub(crate) events: Vec<EventData>,
+    pub(crate) timeout: Duration,
     pub(crate) conversation: Option<Arc<ConversationSession>>,
 }
 
 impl Transaction
 {
     #[allow(dead_code)]
-    pub(crate) fn from_events(events: Vec<EventData>, scope: TransactionScope, transmit: bool) -> Transaction
+    pub(crate) fn from_events(events: Vec<EventData>, scope: TransactionScope, transmit: bool, timeout: Duration) -> Transaction
     {
         Transaction {
             scope,
             transmit,
             events,
+            timeout,
             conversation: None,
         }
     }
