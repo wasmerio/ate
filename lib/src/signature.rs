@@ -272,7 +272,7 @@ for SignaturePlugin
             let hash_of_hashes = AteHash::from_bytes(&hashes_bytes[..]);
             
             // Add the public key side into the chain-of-trust if it is not present yet
-            if self.pk.get(&auth).is_none() {
+            if self.pk.get(&auth).is_none() || self.integrity.is_centralized() {
                 ret.push(CoreMetadata::PublicKey(sk.as_public_key().clone()));
             };
 
