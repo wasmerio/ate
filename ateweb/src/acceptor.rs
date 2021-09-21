@@ -57,11 +57,16 @@ impl HyperAcceptor
     pub async fn accept(tls: TlsAcceptor, acme: Arc<AcmeResolver>, socket: TcpStream, addr: SocketAddr) -> Result<HyperStream, Box<dyn std::error::Error>>
     {
         // Enter a loop peeking for the hello client message
-        let mut peek_size = 256usize;
-        loop {
+        let mut peek_size = 128usize;
+        while peek_size <= 16384usize {
+            peek_size *= 2usize;
+
             // Keep peeking at the stream until we have a TlsMessage
             let mut buf = vec![0; peek_size];
             let n = socket.peek(&mut buf).await?;
+            if n <= 0 {
+                continue;
+            }
 
             // Attempt to get a TlsMessage
             let record = match tls_parser::parse_tls_plaintext(&buf[..n]) {
@@ -69,10 +74,6 @@ impl HyperAcceptor
                     record
                 },
                 Err(tls_parser::Err::Incomplete(_needed)) => {
-                    if peek_size > 16384usize {
-                        break;
-                    }
-                    peek_size *= 2usize;
                     continue;
                 },
                 Err(e) => {
@@ -99,10 +100,10 @@ impl HyperAcceptor
                 if let Ok((_rem, exts)) = tls_parser::parse_tls_extensions(hello_ext) {
                     exts
                 } else {
-                    continue;
+                    break;
                 }
             } else {
-                continue;
+                break;
             };
 
             // If it has an ACME ALPN extension then we dont want to trigger another certificate for it
@@ -136,7 +137,7 @@ impl HyperAcceptor
                 .next();
             let sni = match sni {
                 Some(a) => a,
-                None => { continue; }
+                None => { break; }
             };
             
             // Load the object
