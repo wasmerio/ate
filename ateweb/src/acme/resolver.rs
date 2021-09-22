@@ -25,9 +25,9 @@ use super::acme::{
     Identifier,
     Order,
     ACME_TLS_ALPN_NAME,
-    //LETS_ENCRYPT_PRODUCTION_DIRECTORY,
+    LETS_ENCRYPT_PRODUCTION_DIRECTORY,
     //LETS_ENCRYPT_STAGING_DIRECTORY,
-    PEBBLE_DIRECTORY,
+    //PEBBLE_DIRECTORY,
 };
 use futures::future::try_join_all;
 
@@ -212,9 +212,9 @@ impl AcmeResolver
             }
         }
 
-        //let directory_url = LETS_ENCRYPT_PRODUCTION_DIRECTORY;
+        let directory_url = LETS_ENCRYPT_PRODUCTION_DIRECTORY;
         //let directory_url = LETS_ENCRYPT_STAGING_DIRECTORY;
-        let directory_url = PEBBLE_DIRECTORY;
+        //let directory_url = PEBBLE_DIRECTORY;
         let expires = chrono::Duration::days(90);
 
         // Order the certificate using lets encrypt
