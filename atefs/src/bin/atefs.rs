@@ -40,6 +40,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     #[cfg(not(feature = "enable_tokera"))]
     let token_path = opts.token_path.clone();
+
+    // Do we need a token
+    let needs_token = match &opts.subcmd {
+        SubCommand::Login( .. ) => false,
+        SubCommand::Token( .. ) => false,
+        _ => true
+    };
+
+    // Make sure the token exists
+    if needs_token {
+        let token_path = shellexpand::tilde(&opts.token_path).to_string();
+        if std::path::Path::new(&token_path).exists() == false {
+            eprintln!("Token not found - please first login.");
+            std::process::exit(1);
+        }
+    }
     
     match opts.subcmd {
         SubCommand::Token(opts_token) => {
@@ -61,15 +77,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             main_opts_group(opts_group, None, token_path, opts.auth, "Domain name").await?;
         },
         #[cfg(feature = "enable_tokera")]
-        SubCommand::Wallet(opts_wallet) =>
-        {
-            // Make sure the token exists
-            let token_path = shellexpand::tilde(&opts.token_path).to_string();
-            if std::path::Path::new(&token_path).exists() == false {
-                eprintln!("Token not found - please first login.");
-                std::process::exit(1);
-            }
-
+        SubCommand::Wallet(opts_wallet) => {
             main_opts_wallet(opts_wallet.source, opts.token_path, opts.auth).await?
         },
         #[cfg(feature = "enable_tokera")]
