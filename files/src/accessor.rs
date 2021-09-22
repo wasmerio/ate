@@ -665,8 +665,21 @@ impl FileAccessor
         Ok(None)
     }
 
+    pub async fn root(&self, req: &RequestContext)-> Result<Option<FileAttr>> {
+        match self.getattr(req, 1u64, None, 0u32).await {
+            Ok(a) => Ok(Some(a)),
+            Err(FileSystemError(FileSystemErrorKind::DoesNotExist, _)) |
+            Err(FileSystemError(FileSystemErrorKind::NoAccess, _)) |
+            Err(FileSystemError(FileSystemErrorKind::NoEntry, _)) => Ok(None),
+            Err(err) => Err(err)
+        }
+    }
+
     pub async fn search(&self, req: &RequestContext, path: &str) -> Result<Option<FileAttr>> {
-        let mut ret = self.getattr(req, 1u64, None, 0u32).await?;
+        let mut ret = match self.root(req).await? {
+            Some(a) => a,
+            None => { return Ok(None); }
+        };
         for comp in path.split("/") {
             if comp.len() <= 0 {
                 continue;

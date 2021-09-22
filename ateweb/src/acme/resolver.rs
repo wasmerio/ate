@@ -25,9 +25,9 @@ use super::acme::{
     Identifier,
     Order,
     ACME_TLS_ALPN_NAME,
-    LETS_ENCRYPT_PRODUCTION_DIRECTORY,
+    //LETS_ENCRYPT_PRODUCTION_DIRECTORY,
     //LETS_ENCRYPT_STAGING_DIRECTORY,
-    //PEBBLE_DIRECTORY,
+    PEBBLE_DIRECTORY,
 };
 use futures::future::try_join_all;
 
@@ -194,6 +194,14 @@ impl AcmeResolver
             } else {
                 warn!("missing certificate chain for {}", sni);
             }
+
+            // If the file system that backs this web site is not even in existance then we should
+            // not try and generate a certificate as we have nowhere to save it
+            let accessor = self.repo.get_accessor(sni.as_str()).await?;
+            if accessor.root(&ate_files::prelude::RequestContext::default()).await?.is_none() {
+                trace!("aborting attempt due to uninitialized backing file system");
+                return Ok(())
+            }
         }
 
         // Check for exponental backoff
@@ -204,9 +212,9 @@ impl AcmeResolver
             }
         }
 
-        let directory_url = LETS_ENCRYPT_PRODUCTION_DIRECTORY;
+        //let directory_url = LETS_ENCRYPT_PRODUCTION_DIRECTORY;
         //let directory_url = LETS_ENCRYPT_STAGING_DIRECTORY;
-        //let directory_url = PEBBLE_DIRECTORY;
+        let directory_url = PEBBLE_DIRECTORY;
         let expires = chrono::Duration::days(90);
 
         // Order the certificate using lets encrypt
