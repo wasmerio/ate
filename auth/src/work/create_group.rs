@@ -263,7 +263,7 @@ impl AuthService
                 if let AteRolePurpose::Owner = purpose {
                     access.add(&request_sudo_read_key, request.identity.clone(), &owner_private_read)?;
                 } else if let AteRolePurpose::Finance = purpose {
-                    access.add(&request_sudo_read_key, "finance".to_string(), &owner_private_read)?;
+                    access.add(&request_sudo_read_key, request.identity.clone(), &owner_private_read)?;
                 } else if let AteRolePurpose::Delegate = purpose {
                     access.add(&request_nominal_read_key, request.identity.clone(), &owner_private_read)?;
                 } else if let AteRolePurpose::Observer = purpose {

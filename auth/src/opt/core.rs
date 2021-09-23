@@ -34,7 +34,7 @@ pub enum SubCommand {
     User(OptsUser),
     /// Groups are collections of users that share something together
     #[clap()]
-    Group(OptsGroup),
+    Group(OptsDomain),
     /// Tokens are stored authentication and authorization secrets used by other processes
     #[clap()]
     Token(OptsToken),

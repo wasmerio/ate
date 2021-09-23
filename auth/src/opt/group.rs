@@ -4,7 +4,7 @@ use super::*;
 
 #[derive(Clap)]
 #[clap()]
-pub struct OptsGroup {
+pub struct OptsDomain {
     #[clap(subcommand)]
     pub action: GroupAction,
 }

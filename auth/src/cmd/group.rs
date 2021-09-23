@@ -14,7 +14,7 @@ use crate::request::*;
 use crate::opt::*;
 use crate::cmd::*;
 
-pub async fn main_opts_group(opts_group: OptsGroup, token: Option<String>, token_path: Option<String>, auth: url::Url, hint_group: &str) -> Result<(), AteError>{
+pub async fn main_opts_group(opts_group: OptsDomain, token: Option<String>, token_path: Option<String>, auth: url::Url, hint_group: &str) -> Result<(), AteError>{
     match opts_group.action {
         GroupAction::Create(action) => {
             let session = main_session_user(token.clone(), token_path.clone(), Some(auth.clone())).await?;

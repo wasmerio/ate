@@ -20,7 +20,7 @@ pub async fn group_user_remove_command(registry: &Registry, session: &AteSession
     let group = session.identity().to_string();
     let chain = registry.open_cmd(&auth).await?;
     
-    // First we query the user that needs to be added so that we can get their public encrypt key
+    // First we query the user that needs to be removed so that we can get their public encrypt key
     let query = query_command(registry, username, auth).await?;
 
     // Determine what level of authentication we will associate the role with

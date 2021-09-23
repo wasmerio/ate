@@ -72,14 +72,14 @@ pub enum SubCommand {
     /// Groups are collections of users that share same remote file system
     #[cfg(not(feature = "enable_tokera"))]
     #[clap()]
-    Group(OptsGroup),
+    Group(OptsDomain),
     /// Domain groups are collections of users that share something together in association
     /// with an internet domain name. Every group has a built in wallet(s) that you can
     /// use instead of a personal wallet. In order to claim a domain group you will need
     /// DNS access to an owned internet domain that can be validated.
     #[cfg(feature = "enable_tokera")]
     #[clap()]
-    Domain(OptsGroup),
+    Domain(OptsDomain),
     /// Tokens are stored authentication and authorization secrets used by other processes.
     /// Using this command you may generate a custom token however the usual method for
     /// authentication is to use the login command instead.
