@@ -55,7 +55,7 @@ pub async fn main_opts_db(opts_db: OptsDatabase, token: Option<String>, token_pa
             println!("Size: {}", guard.chain_size);
         },
         DatabaseAction::Truncate(_action) => {
-            print!("Deleting all events");
+            print!("Deleting all events...");
             let dio = db.dio_full(&session).await;
             let mut ids = dio.dio.all_keys().await;
             while ids.is_empty() == false {

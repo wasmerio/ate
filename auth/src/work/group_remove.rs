@@ -39,31 +39,15 @@ impl AuthService
         let mut super_session = self.master_session.clone();
         super_session.append(request_session.properties());
 
-        // Load the group
+        // Delete the group
         let group_key = PrimaryKey::from(request.group.clone());
         let dio = chain.dio_full(&super_session).await;
-        let group = match dio.load::<Group>(&group_key).await {
-            Ok(a) => a,
-            Err(LoadError(LoadErrorKind::NotFound(_), _)) => {
-                return Err(GroupRemoveFailed::GroupNotFound);
-            },
-            Err(LoadError(LoadErrorKind::TransformationError(TransformErrorKind::MissingReadKey(_)), _)) => {
-                return Err(GroupRemoveFailed::NoMasterKey);
-            },
-            Err(err) => {
-                bail!(err);
-            }
-        };
+        dio.delete(&group_key).await?;
 
-        // Remove the group
-        group.delete()?;
-
-        // If it has an advert then remove that as well
+        // Delete the advert
         let advert_key_entropy = format!("advert:{}", request.group.clone()).to_string();
         let advert_key = PrimaryKey::from(advert_key_entropy);
-        if let Some(advert) = dio.try_load::<Advert>(&advert_key).await? {
-            advert.delete()?;
-        }
+        let _ = dio.delete(&advert_key).await;
 
         // Commit
         dio.commit().await?;
