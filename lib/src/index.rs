@@ -153,6 +153,11 @@ impl BinaryTreeIndexer
     {
         self.uploads.values().filter(|d| d.complete == false).map(|d| d.clone()).collect::<Vec<_>>()
     }
+
+    pub(crate) fn all_keys(&self) -> impl Iterator<Item=&PrimaryKey>
+    {
+        self.primary.keys()
+    }
 }
 
 #[derive(Default, Debug)]

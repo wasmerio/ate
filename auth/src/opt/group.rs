@@ -14,6 +14,9 @@ pub enum GroupAction {
     /// Creates a new group
     #[clap()]
     Create(CreateGroup),
+    /// Removes the existing group
+    #[clap()]
+    RemoveGroup(GroupRemove),
     /// Adds another user to an existing group
     #[clap()]
     AddUser(GroupAddUser),

@@ -6,6 +6,7 @@ mod create_group;
 mod group_details;
 mod group_user_add;
 mod group_user_remove;
+mod group_remove;
 mod gather;
 mod reset;
 
@@ -17,5 +18,6 @@ pub use create_group::*;
 pub use group_details::*;
 pub use group_user_add::*;
 pub use group_user_remove::*;
+pub use group_remove::*;
 pub use gather::*;
 pub use reset::*;

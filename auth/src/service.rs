@@ -63,5 +63,6 @@ pub async fn service_auth_handlers(cfg: &ConfAte, cmd_session: AteSessionUser, a
     chain.add_service(&cmd_session, service.clone(), AuthService::process_group_user_add);
     chain.add_service(&cmd_session, service.clone(), AuthService::process_group_user_remove);
     chain.add_service(&cmd_session, service.clone(), AuthService::process_group_details);
+    chain.add_service(&cmd_session, service.clone(), AuthService::process_group_remove);
     Ok(())
 }

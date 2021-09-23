@@ -299,6 +299,18 @@ impl Dio
         Ok(keys)
     }
 
+    pub async fn all_keys(self: &Arc<Self>) -> Vec<PrimaryKey>
+    {
+        self.run_async(self.__all_keys()).await
+    }
+
+    pub async fn __all_keys(self: &Arc<Self>) -> Vec<PrimaryKey>
+    {
+        let guard = self.multi.inside_async.read().await;
+        let keys = guard.chain.timeline.pointers.all_keys();
+        keys.map(|a| a.clone()).collect::<Vec<_>>()
+    }
+
     pub async fn children<D>(self: &Arc<Self>, parent_id: PrimaryKey, collection_id: u64) -> Result<Vec<Dao<D>>, LoadError>
     where D: DeserializeOwned,
     {

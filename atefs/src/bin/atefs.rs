@@ -59,10 +59,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     match opts.subcmd {
         SubCommand::Token(opts_token) => {
-            main_opts_token(opts_token, opts.token, token_path, opts.auth, "Group").await?;
+            main_opts_token(opts_token, opts.token, token_path, opts.auth, "Domain name").await?;
         },
         SubCommand::User(opts_user) => {
             main_opts_user(opts_user, opts.token, token_path, opts.auth).await?;
+        },
+        SubCommand::Db(opts_db) => {
+            main_opts_db(opts_db, opts.token, token_path, opts.auth, "Domain name").await?;
         },
         #[cfg(not(feature = "enable_tokera"))]
         SubCommand::Group(opts_group) => {

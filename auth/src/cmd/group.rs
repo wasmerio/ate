@@ -28,6 +28,10 @@ pub async fn main_opts_group(opts_group: OptsDomain, token: Option<String>, toke
             let session = main_session_group(token.clone(), token_path.clone(), action.group.clone(), true, None, Some(auth.clone()), hint_group).await?;
             main_group_user_remove(Some(action.role), Some(action.username), auth, &session, hint_group).await?;
         },
+        GroupAction::RemoveGroup(action) => {
+            let session = main_session_group(token.clone(), token_path.clone(), action.group.clone(), true, None, Some(auth.clone()), hint_group).await?;
+            main_group_remove(auth, &session, hint_group).await?;
+        },
         GroupAction::Details(action) => {
             if token.is_some() || token_path.is_some() {
                 let session = main_session_group(token.clone(), token_path.clone(), action.group.clone(), action.sudo, None, Some(auth.clone()), hint_group).await?;

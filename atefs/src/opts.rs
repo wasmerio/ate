@@ -80,6 +80,10 @@ pub enum SubCommand {
     #[cfg(feature = "enable_tokera")]
     #[clap()]
     Domain(OptsDomain),
+    /// Databases are chains of data that make up a particular shard. These databases can be
+    /// use for application data persistance, file systems and web sites.
+    #[clap()]
+    Db(OptsDatabase),
     /// Tokens are stored authentication and authorization secrets used by other processes.
     /// Using this command you may generate a custom token however the usual method for
     /// authentication is to use the login command instead.
