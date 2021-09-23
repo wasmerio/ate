@@ -55,11 +55,21 @@ pub async fn main_opts_db(opts_db: OptsDatabase, token: Option<String>, token_pa
             println!("Size: {}", guard.chain_size);
         },
         DatabaseAction::Truncate(_action) => {
+            print!("Deleting all events");
             let dio = db.dio_full(&session).await;
-            for id in dio.dio.all_keys().await {
-                let _ = dio.delete(&id).await;
+            let ids = dio.dio.all_keys().await;
+            while ids.is_empty() == false {
+                print!(".");
+                for _ in 0..100 {
+                    let id = match ids.pop() {
+                        Some(a) => a,
+                        None => break
+                    };
+                    let _ = dio.delete(&id).await;
+                }
+                dio.commit().await?;
             }
-            dio.commit().await?;
+            println!("Done");
         }
     }
     Ok(())
