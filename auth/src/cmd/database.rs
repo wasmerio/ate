@@ -57,7 +57,7 @@ pub async fn main_opts_db(opts_db: OptsDatabase, token: Option<String>, token_pa
         DatabaseAction::Truncate(_action) => {
             print!("Deleting all events");
             let dio = db.dio_full(&session).await;
-            let ids = dio.dio.all_keys().await;
+            let mut ids = dio.dio.all_keys().await;
             while ids.is_empty() == false {
                 print!(".");
                 for _ in 0..100 {
