@@ -61,7 +61,7 @@ impl AuthService
         // If it has an advert then remove that as well
         let advert_key_entropy = format!("advert:{}", request.group.clone()).to_string();
         let advert_key = PrimaryKey::from(advert_key_entropy);
-        if let Some(advert) = dio.try_load::<Advert>(&group_key).await? {
+        if let Some(advert) = dio.try_load::<Advert>(&advert_key).await? {
             advert.delete()?;
         }
 
