@@ -93,6 +93,7 @@ impl MeshConfig
 
 impl Upstream
 {
+    #[allow(dead_code)]
     pub fn wire_encryption(&self) -> Option<EncryptKey>
     {
         self.outbox.wire_encryption.clone()

@@ -76,7 +76,10 @@ impl Registry
             #[cfg(feature="enable_dns")]
             dns,
             node_id,
+            #[cfg(feature = "enable_local_fs")]
             temporal: cfg_ate.log_path.is_none(),
+            #[cfg(not(feature = "enable_local_fs"))]
+            temporal: true,
             ignore_certificates: false,
             cmd_key: StdMutex::new(FxHashMap::default()),
             chains: Mutex::new(FxHashMap::default()),

@@ -26,6 +26,7 @@ pub(crate) enum TxDirection
     #[cfg(feature="enable_server")]
     Downcast(TxGroupSpecific),
     Upcast(Upstream),
+    #[allow(dead_code)]
     Nullcast,
 }
 
@@ -49,6 +50,7 @@ pub(crate) struct Tx
 
 impl Tx
 {
+    #[allow(dead_code)]
     pub async fn send_relay<M, C>(&mut self, pck: PacketWithContext<M, C>) -> Result<(), CommsError>
     where M: Send + Sync + Serialize + DeserializeOwned + Clone,
           C: Send + Sync,
@@ -164,6 +166,7 @@ impl Tx
         };
     }
 
+    #[allow(dead_code)]
     pub fn take(&mut self) -> Tx
     {
         let mut direction = TxDirection::Nullcast;
@@ -180,6 +183,7 @@ impl Tx
         ret
     }
 
+    #[allow(dead_code)]
     pub fn set_relay(&mut self, mut tx: Tx)
     {
         let mut direction = TxDirection::Nullcast;
@@ -191,6 +195,7 @@ impl Tx
         });
     }
 
+    #[allow(dead_code)]
     pub fn relay_is_some(&self) -> bool
     {
         self.relay.is_some()
@@ -203,6 +208,7 @@ impl Tx
         metrics.sent += amt;
     }
 
+    #[allow(dead_code)]
     pub async fn wire_encryption(&self) -> Option<EncryptKey>
     {
         self.direction.wire_encryption().await
@@ -262,6 +268,7 @@ impl TxGroupSpecific
         std::mem::replace(&mut self.group, group)
     }
 
+    #[allow(dead_code)]
     pub async fn wire_encryption(&self) -> Option<EncryptKey>
     {
         let guard = self.me_tx.lock().await;
@@ -307,6 +314,7 @@ impl TxGroup
 
 impl TxDirection
 {
+    #[allow(dead_code)]
     pub async fn wire_encryption(&self) -> Option<EncryptKey>
     {
         match self {

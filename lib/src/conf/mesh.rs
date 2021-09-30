@@ -187,6 +187,7 @@ impl ConfMesh
             roots: roots.map(|a| a.clone()).collect::<Vec<_>>(),
             domain_name: domain_name.to_string(),
             certificate_validation: CertificateValidation::AllowedCertificates(Vec::new()),
+            #[cfg(feature="enable_server")]
             listen_certificate: None,
             #[cfg(feature="enable_client")]
             force_client_only: false,

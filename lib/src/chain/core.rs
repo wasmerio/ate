@@ -211,6 +211,7 @@ impl<'a> Chain
         drop(single);
 
         if we_are_the_one {
+            #[cfg(feature = "enable_local_fs")]
             if self.cfg_ate.log_path.is_some() && self.cfg_ate.compact_cleanup {
                 self.compact().await?;
             }
