@@ -61,6 +61,7 @@ pub struct Server
     web_conf: Mutex<FxHashMap<String, ServerWebConf>>,
     server_conf: ServerConf,
     callback: Option<Arc<dyn ServerCallback>>,
+    mime: FxHashMap<String, String>,
 }
 
 async fn process(server: Arc<Server>, listen: Arc<ServerListen>, req: Request<Body>, sock_addr: SocketAddr) -> Result<Response<Body>, hyper::Error> {
@@ -105,6 +106,7 @@ impl Server
                     web_conf: Mutex::new(FxHashMap::default()),
                     server_conf: builder.conf,
                     callback: builder.callback,
+                    mime: Server::init_mime(),
                 }
             )
         )
@@ -329,6 +331,7 @@ impl Server
                 Response::new(Body::from(data))
             };
             resp.headers_mut().append("Content-Length", HeaderValue::from_str(len_str.as_str())?);
+            self.apply_mime(path, &mut resp)?;
             if conf.coop {
                 resp.headers_mut().append("Cross-Origin-Embedder-Policy", HeaderValue::from_str("require-corp")?);
                 resp.headers_mut().append("Cross-Origin-Opener-Policy", HeaderValue::from_str("same-origin")?);
@@ -338,6 +341,95 @@ impl Server
         } else {
             Ok(None)
         }
+    }
+
+    pub(crate) fn apply_mime(&self, path: &str, resp: &mut Response<Body>) -> Result<(), WebServerError> {
+        if let Some(ext) = path.split(".").collect::<Vec<_>>().into_iter().rev().next() {
+            let ext = ext.to_string();
+            if let Some(mime) = self.mime.get(&ext) {
+                resp.headers_mut().append("Content-Type", HeaderValue::from_str(mime.as_str())?);
+            }
+        }
+        Ok(())
+    }
+
+    fn init_mime() -> FxHashMap<String, String> {
+        let mut ret = FxHashMap::default();        
+        ret.insert("aac".to_string(), "audio/aac".to_string());
+        ret.insert("abw".to_string(), "application/x-abiword".to_string());
+        ret.insert("arc".to_string(), "application/x-freearc".to_string());
+        ret.insert("avi".to_string(), "video/x-msvideo".to_string());
+        ret.insert("azw".to_string(), "application/vnd.amazon.ebook".to_string());
+        ret.insert("bin".to_string(), "application/octet-stream".to_string());
+        ret.insert("bmp".to_string(), "image/bmp".to_string());
+        ret.insert("bz".to_string(), "application/x-bzip".to_string());
+        ret.insert("bz2".to_string(), "application/x-bzip2".to_string());
+        ret.insert("cda".to_string(), "application/x-cdf".to_string());
+        ret.insert("csh".to_string(), "application/x-csh".to_string());
+        ret.insert("css".to_string(), "text/css".to_string());
+        ret.insert("csv".to_string(), "text/csv".to_string());
+        ret.insert("doc".to_string(), "application/msword".to_string());
+        ret.insert("docx".to_string(), "application/vnd.openxmlformats-officedocument.wordprocessingml.document".to_string());
+        ret.insert("eot".to_string(), "application/vnd.ms-fontobject".to_string());
+        ret.insert("epub".to_string(), "application/epub+zip".to_string());
+        ret.insert("gz".to_string(), "application/gzip".to_string());
+        ret.insert("gif".to_string(), "image/gif".to_string());
+        ret.insert("htm".to_string(), "text/html".to_string());
+        ret.insert("html".to_string(), "text/html".to_string());
+        ret.insert("ico".to_string(), "image/vnd.microsoft.icon".to_string());
+        ret.insert("ics".to_string(), "text/calendar".to_string());
+        ret.insert("jar".to_string(), "application/java-archive".to_string());
+        ret.insert("jpeg".to_string(), "image/jpeg".to_string());
+        ret.insert("jpg".to_string(), "image/jpeg".to_string());
+        ret.insert("js".to_string(), "text/javascript".to_string());
+        ret.insert("json".to_string(), "application/json".to_string());
+        ret.insert("jsonld".to_string(), "application/ld+json".to_string());
+        ret.insert("mid".to_string(), "audio/midi".to_string());
+        ret.insert("midi".to_string(), "audio/midi".to_string());
+        ret.insert("mjs".to_string(), "text/javascript".to_string());
+        ret.insert("mp3".to_string(), "audio/mpeg".to_string());
+        ret.insert("mp4".to_string(), "video/mp4".to_string());
+        ret.insert("mpeg".to_string(), "video/mpeg".to_string());
+        ret.insert("mpkg".to_string(), "application/vnd.apple.installer+xml".to_string());
+        ret.insert("odp".to_string(), "application/vnd.oasis.opendocument.presentation".to_string());
+        ret.insert("ods".to_string(), "application/vnd.oasis.opendocument.spreadsheet".to_string());
+        ret.insert("odt".to_string(), "application/vnd.oasis.opendocument.text".to_string());
+        ret.insert("oga".to_string(), "audio/ogg".to_string());
+        ret.insert("ogv".to_string(), "video/ogg".to_string());
+        ret.insert("ogx".to_string(), "application/ogg".to_string());
+        ret.insert("opus".to_string(), "audio/opus".to_string());
+        ret.insert("otf".to_string(), "font/otf".to_string());
+        ret.insert("png".to_string(), "image/png".to_string());
+        ret.insert("pdf".to_string(), "application/pdf".to_string());
+        ret.insert("php".to_string(), "application/x-httpd-php".to_string());
+        ret.insert("ppt".to_string(), "application/vnd.ms-powerpoint".to_string());
+        ret.insert("pptx".to_string(), "application/vnd.openxmlformats-officedocument.presentationml.presentation".to_string());
+        ret.insert("rar".to_string(), "application/vnd.rar".to_string());
+        ret.insert("rtf".to_string(), "application/rtf".to_string());
+        ret.insert("sh".to_string(), "application/x-sh".to_string());
+        ret.insert("svg".to_string(), "image/svg+xml".to_string());
+        ret.insert("swf".to_string(), "application/x-shockwave-flash".to_string());
+        ret.insert("tar".to_string(), "application/x-tar".to_string());
+        ret.insert("tif".to_string(), "image/tiff".to_string());
+        ret.insert("tiff".to_string(), "image/tiff".to_string());
+        ret.insert("ts".to_string(), "video/mp2t".to_string());
+        ret.insert("ttf".to_string(), "font/ttf".to_string());
+        ret.insert("txt".to_string(), "text/plain".to_string());
+        ret.insert("vsd".to_string(), "application/vnd.visio".to_string());
+        ret.insert("wav".to_string(), "audio/wav".to_string());
+        ret.insert("weba".to_string(), "audio/webm".to_string());
+        ret.insert("webm".to_string(), "video/webm".to_string());
+        ret.insert("webp".to_string(), "image/webp".to_string());
+        ret.insert("woff".to_string(), "font/woff".to_string());
+        ret.insert("woff2".to_string(), "font/woff2".to_string());
+        ret.insert("xhtml".to_string(), "application/xhtml+xml".to_string());
+        ret.insert("xls".to_string(), "application/vnd.ms-excel".to_string());
+        ret.insert("xlsx".to_string(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet".to_string());
+        ret.insert("xml".to_string(), "application/xml".to_string());
+        ret.insert("xul".to_string(), "application/vnd.mozilla.xul+xml".to_string());
+        ret.insert("zip".to_string(), "application/zip".to_string());
+        ret.insert("7z".to_string(), "application/x-7z-compressed".to_string());
+        ret
     }
 
     pub(crate) async fn process_get_with_default(&self, host: &str, path: &str, is_head: bool, conf: &WebConf) -> Result<Response<Body>, WebServerError> {
