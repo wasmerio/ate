@@ -318,7 +318,7 @@ impl Server
         Ok(())
     }
 
-    pub(crate) async fn process_get(&self, host: &str, path: &str, is_head: bool) -> Result<Option<Response<Body>>, WebServerError> {
+    pub(crate) async fn process_get(&self, host: &str, path: &str, is_head: bool, conf: &WebConf) -> Result<Option<Response<Body>>, WebServerError> {
         self.sanitize(path)?;
         if let Some(data) = self.repo.get_file(host, path).await? {
             let len_str = data.len().to_string();
@@ -329,6 +329,10 @@ impl Server
                 Response::new(Body::from(data))
             };
             resp.headers_mut().append("Content-Length", HeaderValue::from_str(len_str.as_str())?);
+            if conf.coop {
+                resp.headers_mut().append("Cross-Origin-Embedder-Policy", HeaderValue::from_str("require-corp")?);
+                resp.headers_mut().append("Cross-Origin-Opener-Policy", HeaderValue::from_str("same-origin")?);
+            }
             *resp.status_mut() = StatusCode::OK;
             Ok(Some(resp))
         } else {
@@ -336,15 +340,16 @@ impl Server
         }
     }
 
-    pub(crate) async fn process_get_with_default(&self, host: &str, path: &str, is_head: bool, default_page: Option<&String>) -> Result<Response<Body>, WebServerError> {
+    pub(crate) async fn process_get_with_default(&self, host: &str, path: &str, is_head: bool, conf: &WebConf) -> Result<Response<Body>, WebServerError> {
         self.sanitize(path)?;
-        match self.process_get(host, path, is_head).await? {
+        match self.process_get(host, path, is_head, conf).await? {
             Some(a) => {
                 return Ok(a);
             },
             None if path.len() == 0 || path == "/" => {
+                let default_page = conf.default_page.as_ref();
                 if let Some(default_page) = default_page {
-                    if let Some(ret) = self.process_get(host, default_page.as_str(), is_head).await? {
+                    if let Some(ret) = self.process_get(host, default_page.as_str(), is_head, conf).await? {
                         return Ok(ret);
                     }
                 }
@@ -375,7 +380,7 @@ impl Server
             Err(err) => {
                 let page = conf.status_pages.get(&err.status_code().as_u16()).map(|a| a.clone());
                 if let Some(page) = page {
-                    if let Some(ret) = self.process_get(host.as_str(), page.as_str(), is_head).await? {
+                    if let Some(ret) = self.process_get(host.as_str(), page.as_str(), is_head, &conf).await? {
                         return Ok(ret);
                     }
                 }
@@ -424,7 +429,7 @@ impl Server
             &Method::HEAD | &Method::GET => {
                 let path = req.uri().path();
                 self.sanitize(path)?;
-                self.process_get_with_default(host.as_str(), path, is_head, conf.default_page.as_ref()).await
+                self.process_get_with_default(host.as_str(), path, is_head, conf).await
             },
             _ => {
                 let mut resp = Response::new(Body::from(StatusCode::METHOD_NOT_ALLOWED.as_str()));

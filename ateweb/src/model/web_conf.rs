@@ -10,6 +10,9 @@ pub struct WebConf
     /// Hosts the ATE web sockets on this site
     #[serde(default)]
     pub ate_proxy: bool,
+    /// Enable COOP (Cross-Origin-Opener-Policy: same-origin)
+    #[serde(default)]
+    pub coop: bool,
     /// Force (by direction) all requests to HTTPS
     #[serde(default)]
     pub force_https: bool,
@@ -28,6 +31,7 @@ for WebConf
     {
         WebConf {
             redirect: None,
+            coop: false,
             ate_proxy: false,
             force_https: false,
             default_page: None,

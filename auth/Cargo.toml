@@ -10,16 +10,20 @@ categories = [ "data-structures", "command-line-utilities", "authentication", "c
 repository = "https://github.com/john-sharratt/ate/auth"
 readme = "README.md"
 
+[[bin]]
+name = "auth-server"
+required-features = ["server"]
+
 [features]
 default = [ "client", "server" ]
 client_web = [ "ate/client_web" ]
 client = [ "ate/client" ]
-server = [ "ate/server", "ate/enable_mt" ]
+server = [ "ctrlc", "ate/server", "ate/enable_mt" ]
 
 [dependencies]
 ate = { version = "^1", path = "../lib", default_features = false }
 error-chain = { version = "^0.12", default_features = false }
-tokio = { version = "^1", features = ["full", "signal", "process"] }
+tokio = { version = "^1", features = [ "rt", "io-util", "macros", "sync", "time", "fs" ], default_features = false }
 serde = { version = "^1", features = ["derive"] }
 tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
 tracing-futures = { version = "^0.2" }
@@ -34,7 +38,7 @@ fastrand = "^1"
 chrono = { version = "^0.4", features = ["serde"] }
 isocountry = "^0.3"
 url = "^2"
-rpassword = "0.0.*"
+rpassword = { version = "5.0.*", path = "../../rpassword" }
 regex = "^1"
 hex = "^0.4"
 google-authenticator = "^0.2"
@@ -42,7 +46,7 @@ qrcode = "^0.12"
 base64 = "^0.13"
 shellexpand = "^2"
 clap = "3.0.0-beta.2"
-ctrlc = "^3"
+ctrlc = { version = "^3", optional = true }
 bincode = "^1"
 once_cell = "^1"
 atty = "^0.2"

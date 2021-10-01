@@ -1,4 +1,5 @@
 pub use super::error;
+#[cfg(all(feature = "server"))]
 pub use super::flow::ChainFlow;
 
 pub use crate::helper::conf_cmd;

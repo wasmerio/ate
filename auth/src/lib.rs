@@ -1,4 +1,5 @@
 pub mod helper;
+#[cfg(all(feature = "server"))]
 pub mod flow;
 mod test;
 pub mod model;
