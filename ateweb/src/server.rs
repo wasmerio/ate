@@ -434,11 +434,21 @@ impl Server
 
     pub(crate) async fn process_get_with_default(&self, host: &str, path: &str, is_head: bool, conf: &WebConf) -> Result<Response<Body>, WebServerError> {
         self.sanitize(path)?;
-        match self.process_get(host, path, is_head, conf).await? {
+
+        // If it has parameters passed to the web server we ignore them
+        let path = if let Some((left, _right)) = path.split_once("?") {
+            left.to_string()
+        } else {
+            path.to_string()
+        };
+
+        // Attempt to get the file
+        match self.process_get(host, path.as_str(), is_head, conf).await? {
             Some(a) => {
                 return Ok(a);
             },
             None => {
+                // Otherwise we attempt to get a default file
                 let default_page = conf.default_page.as_ref();
                 if let Some(default_page) = default_page {
                     let path = if path.ends_with("/") == false {
