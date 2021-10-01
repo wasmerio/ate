@@ -438,10 +438,15 @@ impl Server
             Some(a) => {
                 return Ok(a);
             },
-            None if path.len() == 0 || path == "/" => {
+            None if path.len() == 0 || path.ends_with("/") => {
                 let default_page = conf.default_page.as_ref();
                 if let Some(default_page) = default_page {
-                    if let Some(ret) = self.process_get(host, default_page.as_str(), is_head, conf).await? {
+                    let mut path = path.to_string();
+                    if path.len() == 0 {
+                        path = "/".to_string();
+                    }
+                    path = format!("{}{}", path, default_page);
+                    if let Some(ret) = self.process_get(host, path.as_str(), is_head, conf).await? {
                         return Ok(ret);
                     }
                 }
