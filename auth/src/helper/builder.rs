@@ -106,10 +106,14 @@ impl DioBuilder
             Some(a) => format!("{}/{}", a, name),
             None => {
                 let identity = self.session.identity();
-                match identity.split_once("@") {
-                    Some((user, domain)) => format!("{}/{}/{}", domain, user, name),
-                    None => name.to_string()
-                }                
+                let comps = identity.split("@").collect::<Vec<_>>();
+                if comps.len() >= 2 {
+                    let user = comps[0];
+                    let domain = comps[1];
+                    format!("{}/{}/{}", domain, user, name)
+                } else {
+                    name.to_string()
+                }
             }
         }
     }
