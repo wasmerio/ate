@@ -75,12 +75,9 @@ num_enum = "^0.5"
 pin-project-lite = "^0.2"
 crossbeam = "^0.8"
 cooked-waker = "^5"
-#pqcrypto-falcon = { version = "^0.2", features = [ "avx2" ], default_features = false }
-#pqcrypto-ntru = { version = "^0.5", features = [ "avx2" ], default_features = false }
-#pqcrypto-traits = { version = "^0.3", default_features = false }
-pqcrypto-falcon = { version = "^0.2", path = "../../pqcrypto-wasi/pqcrypto-falcon", features = [ "avx2" ], default_features = false }
-pqcrypto-ntru = { version = "^0.5", path = "../../pqcrypto-wasi/pqcrypto-ntru", features = [ "avx2" ], default_features = false }
-pqcrypto-traits = { version = "^0.3", path = "../../pqcrypto-wasi/pqcrypto-traits", default_features = false }
+pqcrypto-falcon-wasi = { version = "^0.2", features = [ "avx2" ], default_features = false }
+pqcrypto-ntru-wasi = { version = "^0.5", features = [ "avx2" ], default_features = false }
+pqcrypto-traits-wasi = { version = "^0.3", default_features = false }
 http = { version = "^0.2" }
 aes = { version = "^0.7" }
 ctr = { version = "^0.8" }
@@ -98,7 +95,7 @@ tokio-util = { version = "^0.6", features = [ "io", "codec" ], optional = true }
 pnet = { version = "^0.27", optional = true }
 trust-dns-proto = { version = "^0.20", optional = true }
 trust-dns-client = { version = "^0.20", features = ["dnssec"], optional = true }
-tokio-tungstenite = { version = "^0.14", optional = true }
+tokio-tungstenite = { version = "^0.15", optional = true }
 hyper-tungstenite = { version = "^0.4", optional = true }
 backtrace = { version = "^0.3" }
 

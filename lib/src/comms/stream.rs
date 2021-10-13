@@ -22,6 +22,7 @@ use
     hyper_tungstenite     :: hyper::upgrade::Upgraded as HyperUpgraded,
     hyper_tungstenite     :: tungstenite::Message as HyperMessage,
     hyper_tungstenite     :: WebSocketStream as HyperWebSocket,
+    hyper_tungstenite     :: tungstenite::Error as HyperError,
     tokio_tungstenite     :: { tungstenite::{ Message }, WebSocketStream    },
     tokio                 :: { io::{ AsyncReadExt, AsyncWriteExt }          },
     futures_util          :: { StreamExt, SinkExt, stream                   },
@@ -381,14 +382,16 @@ impl StreamTx
                     match a.feed(Message::binary(buf)).await {
                         Ok(a) => a,
                         Err(err) => {
-                            return Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to feed data into websocket - {}", err.to_string())));
+                            let kind = StreamTx::conv_error_kind(&err);
+                            return Err(tokio::io::Error::new(kind, format!("Failed to feed data into websocket - {}", err.to_string())));
                         }
                     }
                 } else {
                     match a.send(Message::binary(buf)).await {
                         Ok(a) => a,
                         Err(err) => {
-                            return Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to feed data into websocket - {}", err.to_string())));
+                            let kind = StreamTx::conv_error_kind(&err);
+                            return Err(tokio::io::Error::new(kind, format!("Failed to feed data into websocket - {}", err.to_string())));
                         }
                     }
                 }
@@ -420,20 +423,32 @@ impl StreamTx
                     match a.feed(HyperMessage::binary(buf)).await {
                         Ok(a) => a,
                         Err(err) => {
-                            return Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to feed data into websocket - {}", err.to_string())));
+                            let kind = StreamTx::conv_error_kind(&err);
+                            return Err(tokio::io::Error::new(kind, format!("Failed to feed data into websocket - {}", err.to_string())));
                         }
                     }
                 } else {
                     match a.send(HyperMessage::binary(buf)).await {
                         Ok(a) => a,
                         Err(err) => {
-                            return Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to feed data into websocket - {}", err.to_string())));
+                            let kind = StreamTx::conv_error_kind(&err);
+                            return Err(tokio::io::Error::new(kind, format!("Failed to feed data into websocket - {}", err.to_string())));
                         }
                     }
                 }
             },
         }
         Ok(total_sent)
+    }
+
+    fn conv_error_kind(err: &HyperError) -> tokio::io::ErrorKind
+    {
+        match err {
+            HyperError::AlreadyClosed => tokio::io::ErrorKind::ConnectionAborted,
+            HyperError::ConnectionClosed => tokio::io::ErrorKind::ConnectionAborted,
+            HyperError::Io(io) => io.kind(),
+            _ => tokio::io::ErrorKind::Other,
+        }
     }
 
     #[must_use="all network communication metrics must be accounted for"]

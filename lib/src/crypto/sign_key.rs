@@ -3,10 +3,10 @@ use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use serde::{Serialize, Deserialize};
 use std::{io::ErrorKind};
 use std::result::Result;
-use pqcrypto_falcon::falcon512;
-use pqcrypto_falcon::falcon1024;
-use pqcrypto_traits::sign::{DetachedSignature, PublicKey as PQCryptoPublicKey};
-use pqcrypto_traits::sign::SecretKey as PQCryptoSecretKey;
+use pqcrypto_falcon_wasi::falcon512;
+use pqcrypto_falcon_wasi::falcon1024;
+use pqcrypto_traits_wasi::sign::{DetachedSignature, PublicKey as PQCryptoPublicKey};
+use pqcrypto_traits_wasi::sign::SecretKey as PQCryptoSecretKey;
 use crate::utils::vec_serialize;
 use crate::utils::vec_deserialize;
 
@@ -174,7 +174,7 @@ impl PublicSignKey
     }
     
     #[allow(dead_code)]
-    pub fn verify(&self, data: &[u8], sig: &[u8]) -> Result<bool, pqcrypto_traits::Error> {
+    pub fn verify(&self, data: &[u8], sig: &[u8]) -> Result<bool, pqcrypto_traits_wasi::Error> {
         let ret = match &self {
             PublicSignKey::Falcon512 { pk } => {
                 let pk = falcon512::PublicKey::from_bytes(&pk[..])?;

@@ -152,7 +152,7 @@ pub async fn main_login(
             // When no password is supplied we will ask for both the password and the code
             eprint!("Password: ");
             stdout().lock().flush()?;
-            let pass = rpassword::read_password().unwrap();
+            let pass = rpassword_wasi::read_password().unwrap();
 
             pass.trim().to_string()
         }

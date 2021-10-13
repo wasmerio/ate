@@ -92,11 +92,11 @@ You will need *both* of the following to reset your account:
         None => {
             print!("New Password: ");
             stdout().lock().flush()?;
-            let ret1 = rpassword::read_password().unwrap();
+            let ret1 = rpassword_wasi::read_password().unwrap();
 
             print!("New Password Again: ");
             stdout().lock().flush()?;
-            let ret2 = rpassword::read_password().unwrap();
+            let ret2 = rpassword_wasi::read_password().unwrap();
 
             if ret1 != ret2 {
                 bail!(ResetErrorKind::PasswordMismatch);

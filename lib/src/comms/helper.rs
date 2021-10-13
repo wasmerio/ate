@@ -211,6 +211,8 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
             match rcv.await {
                 Ok(a) => a,
                 Err(CommsError(CommsErrorKind::Disconnected, _)) => { break; }
+                Err(CommsError(CommsErrorKind::IO(io), _)) if io.kind() == std::io::ErrorKind::ConnectionAborted => { break; }
+                Err(CommsError(CommsErrorKind::IO(io), _)) if io.kind() == std::io::ErrorKind::ConnectionReset => { break; }
                 Err(CommsError(CommsErrorKind::ReadOnly, _)) => { continue; }
                 Err(CommsError(CommsErrorKind::NotYetSubscribed, _)) => {
                     error!("inbox-err: {}", CommsErrorKind::NotYetSubscribed);

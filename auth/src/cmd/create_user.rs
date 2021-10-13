@@ -74,11 +74,11 @@ pub async fn main_create_user(
 
             print!("Password: ");
             stdout().lock().flush()?;
-            let ret1 = rpassword::read_password().unwrap();
+            let ret1 = rpassword_wasi::read_password().unwrap();
 
             print!("Password Again: ");
             stdout().lock().flush()?;
-            let ret2 = rpassword::read_password().unwrap();
+            let ret2 = rpassword_wasi::read_password().unwrap();
 
             if ret1 != ret2 {
                 bail!(CreateErrorKind::PasswordMismatch);

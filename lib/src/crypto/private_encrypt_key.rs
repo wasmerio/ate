@@ -2,10 +2,10 @@
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use serde::{Serialize, Deserialize};
 use std::result::Result;
-use pqcrypto_ntru::ntruhps2048509 as ntru128;
-use pqcrypto_ntru::ntruhps2048677 as ntru192;
-use pqcrypto_ntru::ntruhps4096821 as ntru256;
-use pqcrypto_traits::kem::*;
+use pqcrypto_ntru_wasi::ntruhps2048509 as ntru128;
+use pqcrypto_ntru_wasi::ntruhps2048677 as ntru192;
+use pqcrypto_ntru_wasi::ntruhps4096821 as ntru256;
+use pqcrypto_traits_wasi::kem::*;
 use crate::utils::vec_serialize;
 use crate::utils::vec_deserialize;
 
