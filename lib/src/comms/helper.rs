@@ -213,6 +213,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
                 Err(CommsError(CommsErrorKind::Disconnected, _)) => { break; }
                 Err(CommsError(CommsErrorKind::IO(io), _)) if io.kind() == std::io::ErrorKind::ConnectionAborted => { break; }
                 Err(CommsError(CommsErrorKind::IO(io), _)) if io.kind() == std::io::ErrorKind::ConnectionReset => { break; }
+                Err(CommsError(CommsErrorKind::IO(io), _)) if io.kind() == std::io::ErrorKind::BrokenPipe => { break; }
                 Err(CommsError(CommsErrorKind::ReadOnly, _)) => { continue; }
                 Err(CommsError(CommsErrorKind::NotYetSubscribed, _)) => {
                     error!("inbox-err: {}", CommsErrorKind::NotYetSubscribed);
