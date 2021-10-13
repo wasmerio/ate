@@ -1,4 +1,23 @@
 ```
+
+1.0.1   WebAssembly in the browser
+        + Modify authentication so that it uses a bearwr token thats exchangable to a time limited token
+          that has to be validated before it can be used and or exchanged for a group auth.
+        + Add the nwtworking API's for connect to WASI in a fork so that commands can be executed here.
+        + Add a protocol for websockets so that the browswr can directly implement it.
+        + Add the gethost method to WASI so that this function also works.
+        + For all lower level network operations make a reverse proxy call to Tokera and run it server side.
+        + Stripe out the bindings from WASM version of ATE ans focus on WASI.
+        + Implement a Wasmer fork for the missing functionality.
+        + Implement a WebAssembly shell thats forwards and backwards compatible.
+        + Imeplemnt a marketplace to register WASM modules.
+        + Emulate a user defined file system for WASI in the browser.
+        + Add a popen WASI call that invokes a backend virtual machine within Tokera that executes the process.
+        + Implement a login screen that gets a token before shell opens amd stores it in the FS.
+        + The hash of the token is the file system session that is unique and distributed
+        + Create a fake proc folder that shows all the running procesees for the session
+        + Implement a kill system call to terminate the processes running in the background.
+
 0.8.1   Support for WebSockets
         + Attempt to remove as many dependencies as possible
         + Add WebSocket support to the ATE server instead of TCP ports
