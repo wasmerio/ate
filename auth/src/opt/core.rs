@@ -1,9 +1,9 @@
-use clap::Clap;
+use clap::Parser;
 use url::Url;
 
 use super::*;
 
-#[derive(Clap)]
+#[derive(Parser)]
 #[clap(version = "1.5", author = "John S. <johnathan.sharratt@gmail.com>")]
 pub struct Opts {
     /// Sets the level of log verbosity, can be used multiple times
@@ -27,7 +27,7 @@ pub struct Opts {
     pub subcmd: SubCommand,
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub enum SubCommand {
     /// Users are personal accounts and services that have an authentication context
     #[clap()]

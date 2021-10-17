@@ -1,8 +1,8 @@
 use ate::prelude::*;
-use clap::Clap;
+use clap::Parser;
 
 /// Removes a particular user from a role within a group
-#[derive(Clap)]
+#[derive(Parser)]
 pub struct GroupRemoveUser {
     /// Name of the group that the user will be removed from
     #[clap(index = 1)]

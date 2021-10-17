@@ -1,15 +1,15 @@
-use clap::Clap;
+use clap::Parser;
 
 use super::*;
 
-#[derive(Clap)]
+#[derive(Parser)]
 #[clap()]
 pub struct OptsToken {
     #[clap(subcommand)]
     pub action: TokenAction,
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub enum TokenAction {
     /// Generate a token with normal permissions from the supplied username and password
     #[clap()]

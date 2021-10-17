@@ -2,7 +2,7 @@
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use std::time::Duration;
 
-use clap::Clap;
+use clap::Parser;
 
 use ate_auth::helper::*;
 use ate::prelude::*;

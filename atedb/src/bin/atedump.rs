@@ -3,7 +3,7 @@ use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use ate::conf::conf_ate;
 use serde::{Serialize, Deserialize};
 use ate::prelude::*;
-use clap::Clap;
+use clap::Parser;
 use ate::redo::RedoLog;
 use ate::loader::Loader;
 use ate::loader::LoadData;
@@ -20,7 +20,7 @@ use ascii_tree::Tree;
 use std::collections::HashMap;
 use colored::*;
 
-#[derive(Clap)]
+#[derive(Parser)]
 #[clap(version = "1.4", author = "John S. <johnathan.sharratt@gmail.com>")]
 struct Opts {
     /// Path to the log file to be dumped

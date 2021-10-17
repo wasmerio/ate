@@ -1,7 +1,7 @@
-use clap::Clap;
+use clap::Parser;
 
 /// Logs into the authentication server using the supplied credentials
-#[derive(Clap)]
+#[derive(Parser)]
 pub struct GenerateToken {
     /// Email address that you wish to login using
     #[clap(index = 1)]

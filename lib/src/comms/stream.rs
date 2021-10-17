@@ -441,6 +441,7 @@ impl StreamTx
         Ok(total_sent)
     }
 
+    #[cfg(feature="enable_tcp")]
     fn conv_error_kind(err: &HyperError) -> tokio::io::ErrorKind
     {
         match err {

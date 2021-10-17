@@ -32,11 +32,11 @@ async-trait = "^0.1"
 bytes = "^1"
 fxhash = "^0.2"
 fastrand = "^1"
-ctrlc = { version = "^3" }
+ctrlc-async = { version = "^3" }
 directories = { version = "^3" }
 libc = { version = "^0.2" }
 enum_dispatch = { version = "^0.3" }
-clap = "3.0.0-beta.2"
+clap = "^3.0.0-beta.5"
 ascii_tree = "0.1.1"
 shellexpand = "^2"
 cached = "^0.23"

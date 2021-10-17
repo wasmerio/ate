@@ -1,9 +1,9 @@
-use clap::Clap;
+use clap::Parser;
 use url::Url;
 
 use super::*;
 
-#[derive(Clap)]
+#[derive(Parser)]
 #[clap()]
 pub struct OptsDatabase {
     /// URL where the data is remotely stored on a distributed commit log.
@@ -13,7 +13,7 @@ pub struct OptsDatabase {
     pub action: DatabaseAction,
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub enum DatabaseAction {
     /// Truncates an existing database by tombstoning all the events
     #[clap()]

@@ -1,7 +1,7 @@
-use clap::Clap;
+use clap::Parser;
 
 /// Display the details about a particular group
-#[derive(Clap)]
+#[derive(Parser)]
 pub struct GroupDetails {
     /// Name of the group to query
     #[clap(index = 1)]

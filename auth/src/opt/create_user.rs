@@ -1,7 +1,7 @@
-use clap::Clap;
+use clap::Parser;
 
 /// Creates a new user and login credentials on the authentication server
-#[derive(Clap)]
+#[derive(Parser)]
 pub struct CreateUser {
     /// Email address of the user to be created
     #[clap(index = 1)]

@@ -3,10 +3,10 @@ use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use url::Url;
 use std::net::IpAddr;
 
-use clap::Clap;
+use clap::Parser;
 
 /// Runs a web server that will serve content from a Tokera file system
-#[derive(Clap)]
+#[derive(Parser)]
 pub struct OptsAll {
     /// IP address that the datachain server will isten on
     #[clap(short, long, default_value = "::")]

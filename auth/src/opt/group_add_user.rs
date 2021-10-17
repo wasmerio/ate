@@ -1,8 +1,8 @@
 use ate::prelude::*;
-use clap::Clap;
+use clap::Parser;
 
 /// Adds a particular user to a role within a group
-#[derive(Clap)]
+#[derive(Parser)]
 pub struct GroupAddUser {
     /// Name of the group that the user will be added to
     #[clap(index = 1)]

@@ -1,7 +1,7 @@
-use clap::Clap;
+use clap::Parser;
 
 /// Removes a previously created database with a specific name
-#[derive(Clap)]
+#[derive(Parser)]
 pub struct DatabaseTruncate {
     /// Name of the database to be removed
     #[clap(index = 1)]

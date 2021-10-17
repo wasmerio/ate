@@ -3,9 +3,9 @@ use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use url::Url;
 use std::net::IpAddr;
 
-use clap::Clap;
+use clap::Parser;
 
-#[derive(Clap)]
+#[derive(Parser)]
 #[clap(version = "1.6", author = "John S. <johnathan.sharratt@gmail.com>")]
 pub struct Opts {
     /// Sets the level of log verbosity, can be used multiple times
@@ -43,7 +43,7 @@ pub struct Opts {
 }
 
 /// Runs a web server that will serve content from a Tokera file system
-#[derive(Clap)]
+#[derive(Parser)]
 pub struct OptsWeb {
     /// IP address that the datachain server will isten on
     #[clap(short, long, default_value = "::")]
@@ -69,7 +69,7 @@ pub struct OptsWeb {
 }
 
 /// Runs a web server that will serve content from a Tokera file system
-#[derive(Clap)]
+#[derive(Parser)]
 pub struct OptsAll {
     /// IP address that the datachain server will isten on
     #[clap(short, long, default_value = "::")]
@@ -101,7 +101,7 @@ pub struct OptsAll {
     pub auth_url: url::Url,
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub enum SubCommand {
     /// Starts a web server that will load Tokera file systems and serve
     /// them directly as HTML content

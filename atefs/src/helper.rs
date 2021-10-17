@@ -18,7 +18,7 @@ use fuse3::{MountOptions};
 
 fn ctrl_channel() -> tokio::sync::watch::Receiver<bool> {
     let (sender, receiver) = tokio::sync::watch::channel(false);
-    ctrlc::set_handler(move || {
+    ctrlc_async::set_handler(move || {
         let _ = sender.send(true);
     }).unwrap();
     receiver

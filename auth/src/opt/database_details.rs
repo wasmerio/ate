@@ -1,7 +1,7 @@
-use clap::Clap;
+use clap::Parser;
 
 /// Display the details about a particular database
-#[derive(Clap)]
+#[derive(Parser)]
 pub struct DatabaseDetails {
     /// Name of the database to query
     #[clap(index = 1)]

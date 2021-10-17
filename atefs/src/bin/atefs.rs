@@ -13,7 +13,7 @@ use {
     tokera::cmd::*,
 };
 
-use clap::Clap;
+use clap::Parser;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

@@ -4,13 +4,13 @@ use ate::{compact::CompactMode, prelude::*};
 use std::time::Duration;
 use url::Url;
 
-use clap::Clap;
+use clap::Parser;
 
 mod flow;
 
 use crate::flow::ChainFlow;
 
-#[derive(Clap)]
+#[derive(Parser)]
 #[clap(version = "1.4", author = "John S. <johnathan.sharratt@gmail.com>")]
 struct Opts {
     /// Sets the level of log verbosity, can be used multiple times
@@ -55,13 +55,13 @@ struct Opts {
     subcmd: SubCommand,
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 enum SubCommand {
     #[clap()]
     Solo(Solo),
 }
 /// Runs a solo ATE datachain and listens for connections from clients
-#[derive(Clap)]
+#[derive(Parser)]
 struct Solo {
     /// Path to the log files where all the file system data is stored
     #[clap(index = 1, default_value = "/opt/ate")]
@@ -95,7 +95,7 @@ struct Solo {
 
 fn ctrl_channel() -> tokio::sync::watch::Receiver<bool> {
     let (sender, receiver) = tokio::sync::watch::channel(false);
-    ctrlc::set_handler(move || {
+    ctrlc_async::set_handler(move || {
         let _ = sender.send(true);
     }).unwrap();
     receiver

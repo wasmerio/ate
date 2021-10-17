@@ -1,12 +1,12 @@
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use ate::{prelude::*};
-use clap::Clap;
+use clap::Parser;
 
 use ate_auth::prelude::*;
 use ate_auth::helper::*;
 
-#[derive(Clap)]
+#[derive(Parser)]
 #[clap(version = "1.5", author = "John S. <johnathan.sharratt@gmail.com>")]
 struct Opts {
     /// Sets the level of log verbosity, can be used multiple times
@@ -19,7 +19,7 @@ struct Opts {
     subcmd: SubCommand,
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 enum SubCommand {
     #[clap()]
     Run(Run),
@@ -28,7 +28,7 @@ enum SubCommand {
 }
 
 /// Runs the login authentication and authorization server
-#[derive(Clap)]
+#[derive(Parser)]
 struct Run {
     /// Path to the secret key that helps protect key operations like creating users and resetting passwords
     #[clap(long, default_value = "~/ate/auth.key")]
@@ -61,7 +61,7 @@ struct Run {
 }
 
 /// Generates the secret key that helps protect key operations like creating users and resetting passwords
-#[derive(Clap)]
+#[derive(Parser)]
 struct Generate {
     /// Path to the secret key
     #[clap(index = 1, default_value = "~/ate/")]
@@ -73,7 +73,7 @@ struct Generate {
 
 fn ctrl_channel() -> tokio::sync::watch::Receiver<bool> {
     let (sender, receiver) = tokio::sync::watch::channel(false);
-    ctrlc::set_handler(move || {
+    ctrlc_async::set_handler(move || {
         let _ = sender.send(true);
     }).unwrap();
     receiver

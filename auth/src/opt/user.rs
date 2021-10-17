@@ -1,15 +1,15 @@
-use clap::Clap;
+use clap::Parser;
 
 use super::*;
 
-#[derive(Clap)]
+#[derive(Parser)]
 #[clap()]
 pub struct OptsUser {
     #[clap(subcommand)]
     pub action: UserAction,
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub enum UserAction {
     /// Creates a new user and generates login credentials
     #[clap()]

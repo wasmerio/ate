@@ -11,9 +11,9 @@ use {
     tokera::opt::*
 };
 
-use clap::Clap;
+use clap::Parser;
 
-#[derive(Clap)]
+#[derive(Parser)]
 #[clap(version = "1.6", author = "John S. <johnathan.sharratt@gmail.com>")]
 pub struct Opts {
     /// Sets the level of log verbosity, can be used multiple times
@@ -63,7 +63,7 @@ pub struct Opts {
     pub subcmd: SubCommand,
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub enum SubCommand {
     /// Users are personal accounts and services that have an authentication context.
     /// Every user comes with a personal wallet that can hold commodities.
@@ -123,7 +123,7 @@ pub enum SubCommand {
 }
 
 /// Mounts a particular directory as an ATE file system
-#[derive(Clap)]
+#[derive(Parser)]
 pub struct OptsMount {
     /// Path to directory that the file system will be mounted at
     #[clap(index=1)]

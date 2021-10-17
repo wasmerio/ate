@@ -375,6 +375,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
                 Err(CommsError(CommsErrorKind::IO(err), _))
                     if err.kind() == std::io::ErrorKind::UnexpectedEof ||
                        err.kind() == std::io::ErrorKind::ConnectionReset ||
+                       err.kind() == std::io::ErrorKind::ConnectionAborted ||
                        err.kind() == std::io::ErrorKind::BrokenPipe ||
                        err.to_string().to_lowercase().contains("connection reset without closing handshake")
                      => debug!("connection-eof(inbox)"),

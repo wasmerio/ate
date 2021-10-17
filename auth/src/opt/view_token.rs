@@ -1,6 +1,6 @@
-use clap::Clap;
+use clap::Parser;
 
 /// Views the contents of the current token
-#[derive(Clap)]
+#[derive(Parser)]
 pub struct ViewToken {
 }

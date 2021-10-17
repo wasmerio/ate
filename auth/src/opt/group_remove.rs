@@ -1,7 +1,7 @@
-use clap::Clap;
+use clap::Parser;
 
 /// Removes a particular  group
-#[derive(Clap)]
+#[derive(Parser)]
 pub struct GroupRemove {
     /// Name of the group to be removed
     #[clap(index = 1)]

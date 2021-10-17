@@ -3,7 +3,7 @@ use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use url::Url;
 use ate::{prelude::*};
 use ate_auth::prelude::*;
-use clap::Clap;
+use clap::Parser;
 use ate_auth::cmd::*;
 use ate_auth::opt::*;
 use ate_auth::prelude::*;

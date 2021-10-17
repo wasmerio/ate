@@ -1,7 +1,7 @@
-use clap::Clap;
+use clap::Parser;
 
 /// Recovers a lost account using the recovery code that you stored somewhere safely when you created your account
-#[derive(Clap)]
+#[derive(Parser)]
 pub struct ResetUser {
     /// Email address of the user to be recovered
     #[clap(index = 1)]

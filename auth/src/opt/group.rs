@@ -1,15 +1,15 @@
-use clap::Clap;
+use clap::Parser;
 
 use super::*;
 
-#[derive(Clap)]
+#[derive(Parser)]
 #[clap()]
 pub struct OptsDomain {
     #[clap(subcommand)]
     pub action: GroupAction,
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub enum GroupAction {
     /// Creates a new group
     #[clap()]
