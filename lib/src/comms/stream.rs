@@ -565,13 +565,13 @@ impl StreamRx
                         let msg = match a {
                             Ok(a) => a,
                             Err(err) => {
-                                return Err(tokio::io::Error::new(tokio::io::ErrorKind::InvalidData, format!("Failed to receive data from websocket - {}", err.to_string())));
+                                return Err(tokio::io::Error::new(tokio::io::ErrorKind::BrokenPipe, format!("Failed to receive data from websocket - {}", err.to_string())));
                             }
                         };
                         match msg {
                             Message::Binary(a) => a,
                             _ => {
-                                return Err(tokio::io::Error::new(tokio::io::ErrorKind::InvalidData, format!("Failed to receive data from websocket as the message was the wrong type")));
+                                return Err(tokio::io::Error::new(tokio::io::ErrorKind::BrokenPipe, format!("Failed to receive data from websocket as the message was the wrong type")));
                             }
                         }
                     },
@@ -587,7 +587,7 @@ impl StreamRx
                         match msg {
                             Ok(a) => a.to_vec(),
                             Err(err) => {
-                                return Err(tokio::io::Error::new(tokio::io::ErrorKind::InvalidData, format!("Failed to receive data from websocket - {}", err.to_string())));
+                                return Err(tokio::io::Error::new(tokio::io::ErrorKind::BrokenPipe, format!("Failed to receive data from websocket - {}", err.to_string())));
                             }
                         }
                     },
@@ -603,13 +603,13 @@ impl StreamRx
                         let msg = match a {
                             Ok(a) => a,
                             Err(err) => {
-                                return Err(tokio::io::Error::new(tokio::io::ErrorKind::InvalidData, format!("Failed to receive data from websocket - {}", err.to_string())));
+                                return Err(tokio::io::Error::new(tokio::io::ErrorKind::BrokenPipe, format!("Failed to receive data from websocket - {}", err.to_string())));
                             }
                         };
                         match msg {
                             HyperMessage::Binary(a) => a,
                             _ => {
-                                return Err(tokio::io::Error::new(tokio::io::ErrorKind::InvalidData, format!("Failed to receive data from websocket as the message was the wrong type")));
+                                return Err(tokio::io::Error::new(tokio::io::ErrorKind::BrokenPipe, format!("Failed to receive data from websocket as the message was the wrong type")));
                             }
                         }
                     },

@@ -175,6 +175,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
             let buf = {
                 select! {
                     _ = exit.recv() => {
+                        debug!("received exit broadcast - {}", sock_addr);
                         break;
                     },
                     a = buf => a
@@ -211,10 +212,22 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
             match rcv.await {
                 Ok(a) => a,
                 Err(CommsError(CommsErrorKind::Disconnected, _)) => { break; }
-                Err(CommsError(CommsErrorKind::IO(io), _)) if io.kind() == std::io::ErrorKind::UnexpectedEof => { break; }
-                Err(CommsError(CommsErrorKind::IO(io), _)) if io.kind() == std::io::ErrorKind::ConnectionAborted => { break; }
-                Err(CommsError(CommsErrorKind::IO(io), _)) if io.kind() == std::io::ErrorKind::ConnectionReset => { break; }
-                Err(CommsError(CommsErrorKind::IO(io), _)) if io.kind() == std::io::ErrorKind::BrokenPipe => { break; }
+                Err(CommsError(CommsErrorKind::IO(err), _)) if err.kind() == std::io::ErrorKind::BrokenPipe => {
+                    debug!("inbox-debug: {}", err);
+                    break;
+                }
+                Err(CommsError(CommsErrorKind::IO(err), _)) if err.kind() == std::io::ErrorKind::UnexpectedEof => {
+                    debug!("inbox-debug: {}", err);
+                    break;
+                }
+                Err(CommsError(CommsErrorKind::IO(err), _)) if err.kind() == std::io::ErrorKind::ConnectionAborted => {
+                    warn!("inbox-err: {}", err);
+                    break;
+                }
+                Err(CommsError(CommsErrorKind::IO(err), _)) if err.kind() == std::io::ErrorKind::ConnectionReset => {
+                    warn!("inbox-err: {}", err);
+                    break;
+                }
                 Err(CommsError(CommsErrorKind::ReadOnly, _)) => { continue; }
                 Err(CommsError(CommsErrorKind::NotYetSubscribed, _)) => {
                     error!("inbox-err: {}", CommsErrorKind::NotYetSubscribed);
