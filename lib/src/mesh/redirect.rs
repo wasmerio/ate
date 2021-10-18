@@ -39,6 +39,15 @@ where C: Send + Sync + Default + 'static,
     _marker1: PhantomData<C>,
 }
 
+impl<C> Drop
+for Redirect<C>
+where C: Send + Sync + Default
+{
+    fn drop(&mut self) {
+        debug!("drop(redirect)");
+    }
+}
+
 #[async_trait]
 impl<C> InboxProcessor<Message, C>
 for Redirect<C>
@@ -76,7 +85,7 @@ where C: Send + Sync + Default + 'static,
         _marker1: PhantomData::<C>,
     };
 
-    trace!("redirect to {}", node_addr);
+    debug!("redirect to {}", node_addr);
 
     // Build a configuration that forces connecting to a specific ndoe
     let mut conf = root.cfg_mesh.clone();

@@ -694,7 +694,8 @@ async fn inbox_subscribe<'b>(
         return Ok(());
     }
 
-    // First lets check if this connection is meant for this server
+    // First lets check if this connection is meant for this group of servers that make
+    // up the distributed chain table.
     let (node_addr, node_id) = match root.lookup.lookup(&chain_key) {
         Some(a) => a,
         None => {
@@ -708,7 +709,7 @@ async fn inbox_subscribe<'b>(
     if root.node_id != node_id
     {
         if redirect {
-            let (_exit_tx, exit_rx) = broadcast::channel(1);
+            let (exit_tx, exit_rx) = broadcast::channel(1);
             let relay_tx = super::redirect::redirect::<SessionContext>(
                 root,
                 node_addr,
@@ -718,6 +719,7 @@ async fn inbox_subscribe<'b>(
                 tx.take(),
                 exit_rx).await?;
             tx.set_relay(relay_tx);
+            tx.add_exit_dependency(exit_tx);
 
             return Ok(());
         } else {

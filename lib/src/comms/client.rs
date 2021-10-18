@@ -92,6 +92,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
                 relay: None,
                 metrics: Arc::clone(&metrics),
                 throttle: Arc::clone(&throttle),
+                exit_dependencies: Vec::new(),
             },
         )
     }

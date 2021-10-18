@@ -7,6 +7,7 @@ use std::sync::Weak;
 use serde::{Serialize, de::DeserializeOwned};
 use tokio::sync::Mutex;
 use parking_lot::Mutex as StdMutex;
+use tokio::sync::broadcast;
 
 use crate::error::*;
 use crate::prelude::SerializationFormat;
@@ -46,6 +47,7 @@ pub(crate) struct Tx
     pub(crate) relay: Option<TxRelay>,
     pub metrics: Arc<StdMutex<Metrics>>,
     pub throttle: Arc<StdMutex<Throttle>>,
+    pub(crate) exit_dependencies: Vec<broadcast::Sender<()>>,
 }
 
 impl Tx
@@ -179,6 +181,7 @@ impl Tx
             relay: None,
             metrics: Arc::clone(&self.metrics),
             throttle: Arc::clone(&self.throttle),
+            exit_dependencies: Vec::new(),
         };
         ret
     }
@@ -213,6 +216,10 @@ impl Tx
     {
         self.direction.wire_encryption().await
     }
+
+    pub fn add_exit_dependency(&mut self, exit: broadcast::Sender<()>) {
+        self.exit_dependencies.push(exit);
+    }
 }
 
 impl Drop
@@ -220,6 +227,10 @@ for Tx
 {
     fn drop(&mut self)
     {
+        for exit in self.exit_dependencies.drain(..) {
+            let _ = exit.send(());
+        }
+
         #[cfg(feature = "enable_super_verbose")]
         trace!("drop(node-tx)");
     }

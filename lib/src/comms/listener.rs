@@ -339,6 +339,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
             relay: None,
             metrics: Arc::clone(&metrics),
             throttle: Arc::clone(&throttle),
+            exit_dependencies: Vec::new(),
         };
 
         // The fascade makes the transmit object available
