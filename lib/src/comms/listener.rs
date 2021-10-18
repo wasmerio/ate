@@ -218,7 +218,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
                             err.kind() == std::io::ErrorKind::ConnectionAborted ||
                             err.kind() == std::io::ErrorKind::BrokenPipe ||
                             err.to_string().to_lowercase().contains("connection reset without closing handshake")
-                            => debug!("connection-eof(accept)"),
+                            => debug!("{:?}(accept)", err.kind()),
                         Err(err) => {
                             warn!("connection-failed(accept): {}", err.to_string());
                             continue;
@@ -378,7 +378,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
                        err.kind() == std::io::ErrorKind::ConnectionAborted ||
                        err.kind() == std::io::ErrorKind::BrokenPipe ||
                        err.to_string().to_lowercase().contains("connection reset without closing handshake")
-                     => debug!("connection-eof(inbox)"),
+                     => debug!("{:?}(inbox)", err.kind()),
                 Err(CommsError(CommsErrorKind::IO(err), _)) => warn!("connection-failed (inbox): due to an IO error(kind={:?}) - {}", err.kind(), err),
                 Err(err) => warn!("connection-failed (inbox): {}", err)
             };

@@ -16,6 +16,7 @@ use std::net::SocketAddr;
 use parking_lot::Mutex as StdMutex;
 use tokio::select;
 
+use crate::comms::*;
 use crate::spec::*;
 use crate::crypto::*;
 use crate::error::*;
@@ -73,6 +74,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
         let mut last_throttle = chrono::offset::Utc::now();
         let mut current_received = 0u64;
         let mut current_sent = 0u64;
+        let mut hickup_count = 0u32;
 
         // Main read loop
         loop
@@ -210,9 +212,19 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
             // Its time to process the packet
             let rcv = inbox.process(pck);
             match rcv.await {
-                Ok(a) => a,
+                Ok(a) => {
+                    if hickup_count > 0 {
+                        debug!("inbox-recovered: recovered from hickups {}", hickup_count);    
+                    }
+                    hickup_count = 0;
+                    a
+                },
                 Err(CommsError(CommsErrorKind::Disconnected, _)) => { break; }
                 Err(CommsError(CommsErrorKind::IO(err), _)) if err.kind() == std::io::ErrorKind::BrokenPipe => {
+                    if rx.protocol().is_web_socket() && hickup_count < 10 {
+                        hickup_count += 1;
+                        continue;
+                    }
                     debug!("inbox-debug: {}", err);
                     break;
                 }

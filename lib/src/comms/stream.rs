@@ -98,6 +98,22 @@ impl StreamProtocol
             StreamProtocol::WebSocket => 80,
         }
     }
+
+    pub fn is_tcp(&self) -> bool {
+        match self {
+            #[cfg(feature="enable_tcp")]
+            StreamProtocol::Tcp => true,
+            StreamProtocol::WebSocket => false,
+        }
+    }
+
+    pub fn is_web_socket(&self) -> bool {
+        match self {
+            #[cfg(feature="enable_tcp")]
+            StreamProtocol::Tcp => false,
+            StreamProtocol::WebSocket => true,
+        }
+    }
 }
 
 impl std::fmt::Display
@@ -620,5 +636,18 @@ impl StreamRx
             },
         };
         Ok(ret)
+    }
+
+    #[allow(dead_code)]
+    pub fn protocol(&self) -> StreamProtocol
+    {
+        match self {
+            #[cfg(feature="enable_tcp")]
+            StreamRx::Tcp(_) => StreamProtocol::Tcp,
+            #[cfg(feature="enable_ws")]
+            StreamRx::WebSocket(_) => StreamProtocol::WebSocket,
+            #[cfg(feature="enable_tcp")]
+            StreamRx::HyperWebSocket(_) => StreamProtocol::WebSocket,
+        }
     }
 }

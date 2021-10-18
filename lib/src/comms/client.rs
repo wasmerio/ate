@@ -329,6 +329,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
     .await {
         Ok(_) => { },
         Err(CommsError(CommsErrorKind::IO(err), _)) if match err.kind() {
+            std::io::ErrorKind::BrokenPipe => true,
             std::io::ErrorKind::UnexpectedEof => true,
             std::io::ErrorKind::ConnectionReset => true,
             std::io::ErrorKind::ConnectionAborted => true,
