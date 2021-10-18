@@ -16,11 +16,11 @@ struct Table
     ball: DaoVec<BallSound>
 }
 
-#[cfg(not(all(feature = "enable_server", feature = "enable_tcp" )))]
+#[cfg(not(feature = "enable_server"))]
 fn main() {
 }
 
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), AteError>
 {

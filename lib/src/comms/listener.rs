@@ -20,11 +20,9 @@ use tokio::sync::Mutex;
 use async_trait::async_trait;
 
 use std::convert::Infallible;
-#[cfg(feature="enable_tcp")]
-#[cfg(feature="enable_ws")]
+#[cfg(feature = "enable_full")]
 use tokio_tungstenite::WebSocketStream;
-#[cfg(feature="enable_tcp")]
-#[cfg(feature="enable_ws")]
+#[cfg(feature = "enable_full")]
 use tokio_tungstenite::tungstenite::{handshake, Error};
 
 use super::PacketWithContext;

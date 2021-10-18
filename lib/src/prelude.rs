@@ -23,25 +23,25 @@ pub use crate::meta::WriteOption;
 pub use crate::comms::Metrics as ChainMetrics;
 pub use crate::comms::Throttle as ChainThrottle;
 
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 pub use crate::flow::OpenFlow;
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 pub use crate::flow::OpenAction;
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 pub use crate::flow::all_ethereal_distributed;
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 pub use crate::flow::all_ethereal_centralized;
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 pub use crate::flow::all_ethereal_distributed_with_root_key;
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 pub use crate::flow::all_ethereal_centralized_with_root_key;
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 pub use crate::flow::all_persistent_and_centralized;
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 pub use crate::flow::all_persistent_and_distributed;
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 pub use crate::flow::all_persistent_and_centralized_with_root_key;
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 pub use crate::flow::all_persistent_and_distributed_with_root_key;
 
 pub use crate::utils::chain_key_4hex;
@@ -100,15 +100,15 @@ pub use crate::mesh::Registry;
 pub use crate::conf::MeshAddress;
 pub use std::{net::{IpAddr, Ipv4Addr, Ipv6Addr}, str::FromStr};
 
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 pub use crate::mesh::create_persistent_centralized_server;
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 pub use crate::mesh::create_persistent_distributed_server;
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 pub use crate::mesh::create_ethereal_centralized_server;
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 pub use crate::mesh::create_ethereal_distributed_server;
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 pub use crate::mesh::create_server;
 #[cfg(feature = "enable_client")]
 pub use crate::mesh::create_client;

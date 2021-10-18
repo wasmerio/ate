@@ -10,8 +10,6 @@ use tokio::sync::Mutex;
 use std::time::Duration;
 use std::net::SocketAddr;
 use std::net::ToSocketAddrs;
-#[cfg(feature="enable_tcp")]
-use tokio::net::TcpStream as TokioTcpStream;
 use url::Url;
 use std::net::Ipv4Addr;
 use std::net::Ipv6Addr;
@@ -31,6 +29,7 @@ use crate::mesh::*;
 use crate::error::*;
 use crate::loader;
 use crate::service::Service;
+#[cfg(feature = "enable_dns")]
 use crate::dns::*;
 use crate::utils::chain_key_16hex;
 

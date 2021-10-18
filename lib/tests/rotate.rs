@@ -2,7 +2,7 @@
 #![allow(unused_imports)]
 use ate::prelude::*;
 
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 #[cfg(feature = "enable_rotate")]
 #[test]
 fn rotate_test() -> Result<(), AteError>

@@ -80,7 +80,7 @@ pub(super) async fn mesh_hello_exchange_sender(stream_rx: &mut StreamRx, stream_
     })
 }
 
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 pub(super) async fn mesh_hello_exchange_receiver(stream_rx: &mut StreamRx, stream_tx: &mut StreamTx, server_id: NodeId, key_size: Option<KeySize>, wire_format: SerializationFormat) -> Result<HelloMetadata, CommsError>
 {
     // Read the hello message from the other side
@@ -110,7 +110,7 @@ pub(super) async fn mesh_hello_exchange_receiver(stream_rx: &mut StreamRx, strea
     })
 }
 
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 fn mesh_hello_upgrade_key(key1: Option<KeySize>, key2: Option<KeySize>) -> Option<KeySize>
 {
     // If both don't want encryption then who are we to argue about that?

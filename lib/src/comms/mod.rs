@@ -6,7 +6,7 @@ mod hello;
 mod key_exchange;
 mod conf;
 mod helper;
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 mod listener;
 #[cfg(feature = "enable_client")]
 mod client;
@@ -28,7 +28,7 @@ pub(crate) use conf::MeshConfig;
 #[allow(unused_imports)]
 pub(crate) use rx_tx::{Tx, TxDirection, TxGroup, TxGroupSpecific};
 
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 pub(crate) use listener::Listener;
 #[cfg(feature = "enable_client")]
 #[allow(unused_imports)]

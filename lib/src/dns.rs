@@ -2,7 +2,7 @@
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use std::net::SocketAddr;
 use std::net::ToSocketAddrs;
-#[cfg(feature="enable_tcp")]
+#[cfg(feature = "enable_full")]
 use tokio::net::TcpStream as TokioTcpStream;
 
 use crate::{
@@ -10,7 +10,6 @@ use crate::{
 };
 use crate::engine::TaskEngine;
 
-#[cfg(feature="enable_dns")]
 use
 {
     trust_dns_client::client::*,
@@ -20,14 +19,12 @@ use
     trust_dns_proto::iocompat::AsyncIoTokioAsStd,
 };
 
-#[cfg(feature="enable_dns")]
 pub use
 {
     trust_dns_client::error::ClientError,
     trust_dns_client::rr::*,
 };
 
-#[cfg(feature="enable_dns")]
 pub enum DnsClient
 {
     Dns {
@@ -40,9 +37,9 @@ pub enum DnsClient
     }
 }
 
-#[cfg(feature="enable_dns")]
 impl DnsClient
 {
+    #[cfg(feature = "enable_full")]
     pub async fn connect(cfg: &ConfAte) -> DnsClient
     {
         debug!("using DNS server: {}", cfg.dns_server);

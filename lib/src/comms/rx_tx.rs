@@ -217,6 +217,7 @@ impl Tx
         self.direction.wire_encryption().await
     }
 
+    #[allow(dead_code)]
     pub fn add_exit_dependency(&mut self, exit: broadcast::Sender<()>) {
         self.exit_dependencies.push(exit);
     }

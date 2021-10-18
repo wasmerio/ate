@@ -3,26 +3,18 @@ use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use tracing_futures::{Instrument, WithSubscriber};
 use error_chain::bail;
 use fxhash::FxHashMap;
-#[cfg(feature="enable_tcp")]
+#[cfg(feature = "enable_full")]
 use tokio::{net::{TcpStream}};
 use tokio::time::Duration;
 use tokio::sync::Mutex;
 use tokio::sync::broadcast;
 use std::sync::Arc;
-use send_wrapper::SendWrapper;
 use serde::{Serialize, de::DeserializeOwned};
 use std::net::SocketAddr;
-#[cfg(all(feature="enable_tcp", not(feature="enable_dns")))]
+#[cfg(not(feature="enable_dns"))]
 use std::net::ToSocketAddrs;
 use std::result::Result;
 use parking_lot::Mutex as StdMutex;
-
-#[cfg(feature="enable_web")]
-#[cfg(feature="enable_ws")]
-use
-{
-    ws_stream_wasm        :: { *                                    } ,
-};
 
 use crate::{error::*, comms::NodeId};
 use crate::crypto::*;
@@ -179,6 +171,7 @@ struct MeshConnectContext
     hello_metadata: HelloMetadata,
 }
 
+#[allow(unused_variables)]
 async fn mesh_connect_prepare
 (
     
@@ -194,48 +187,48 @@ async fn mesh_connect_prepare
 -> Result<(MeshConnectContext, StreamTx), CommsError>
 {
     async move {
+        #[allow(unused_mut)]
         let mut exp_backoff = Duration::from_millis(100);
         loop {
-            #[cfg(all(feature="enable_tcp", not(feature="enable_dns")))]
-            let addr = {
-                match format!("{}:{}", addr.host, addr.port)
-                    .to_socket_addrs()?
-                    .next()
-                {
-                    Some(a) => a,
-                    None => {
-                        return Err(CommsError::InvalidDomainName);
-                    }
-                }
-            };
-
-            #[cfg(feature="enable_tcp")]
-            let stream = match
-                TcpStream::connect(addr.clone())
-                .await
-            {
-                Err(err) if match err.kind() {
-                    std::io::ErrorKind::ConnectionRefused => {
-                        if fail_fast {
-                            bail!(CommsErrorKind::Refused);
-                        }
-                        true
-                    },
-                    std::io::ErrorKind::ConnectionReset => true,
-                    std::io::ErrorKind::ConnectionAborted => true,
-                    _ => false   
-                } => {
-                    debug!("connect failed: reason={}, backoff={}s", err, exp_backoff.as_secs_f32());
-                    tokio::time::sleep(exp_backoff).await;
-                    exp_backoff *= 2;
-                    if exp_backoff > Duration::from_secs(10) { exp_backoff = Duration::from_secs(10); }
-                    continue;
-                },
-                a => a?,
-            };
-            
-            #[cfg(feature="enable_tcp")]
+            #[cfg(feature = "enable_full")]
             let stream = {
+                #[cfg(not(feature="enable_dns"))]
+                let addr = {
+                    match format!("{}:{}", addr.host, addr.port)
+                        .to_socket_addrs()?
+                        .next()
+                    {
+                        Some(a) => a,
+                        None => {
+                            bail!(CommsErrorKind::InvalidDomainName);
+                        }
+                    }
+                };
+
+                let stream = match
+                    TcpStream::connect(addr.clone())
+                    .await
+                {
+                    Err(err) if match err.kind() {
+                        std::io::ErrorKind::ConnectionRefused => {
+                            if fail_fast {
+                                bail!(CommsErrorKind::Refused);
+                            }
+                            true
+                        },
+                        std::io::ErrorKind::ConnectionReset => true,
+                        std::io::ErrorKind::ConnectionAborted => true,
+                        _ => false   
+                    } => {
+                        debug!("connect failed: reason={}, backoff={}s", err, exp_backoff.as_secs_f32());
+                        tokio::time::sleep(exp_backoff).await;
+                        exp_backoff *= 2;
+                        if exp_backoff > Duration::from_secs(10) { exp_backoff = Duration::from_secs(10); }
+                        continue;
+                    },
+                    a => a?,
+                };
+
                 // Setup the TCP stream
                 setup_tcp_stream(&stream)?;
 
@@ -247,30 +240,19 @@ async fn mesh_connect_prepare
                 stream
             };
 
-            // Connect to the websocket using the WASM binding (browser connection)
-            #[cfg(feature="enable_web")]
-            #[cfg(not(feature="enable_tcp"))]
+            #[cfg(feature = "enable_web_sys")]
             let stream = {
-                let url = wire_protocol.make_url(addr.host.clone(), addr.port, hello_path.clone())?.to_string();
-                
-                let connect = SendWrapper::new(WsMeta::connect( url, None ));
-                let (_, wsio) = match
-                    connect
-                    .await
-                {
-                    Ok(a) => a,
-                    Err(WsErr::ConnectionFailed{ event }) => {
-                        debug!("connect failed: reason={}, backoff={}s", event.reason, exp_backoff.as_secs_f32());
-                        tokio::time::sleep(exp_backoff).await;
-                        exp_backoff *= 2;
-                        if exp_backoff > Duration::from_secs(10) { exp_backoff = Duration::from_secs(10); }
-                        continue;
-                    },
-                    a => a?,
-                };
+                use wasm_bindgen::prelude::*;
 
-                let stream = SendWrapper::new(wsio.into_io());
-                Stream::WebSocket(stream, wire_protocol)
+                // Import the `window.alert` function from the Web.
+                #[wasm_bindgen]
+                extern "C" {
+                    fn alert(s: &str);
+                }
+
+                alert(&format!("Hello!"));
+
+                Stream::WebSocket(())
             };
 
             // Build the stream

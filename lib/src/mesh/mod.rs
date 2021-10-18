@@ -4,7 +4,7 @@ use tracing::{error, info, debug};
 
 mod msg;
 mod core;
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 mod server;
 #[cfg(feature = "enable_client")]
 mod client;
@@ -14,7 +14,7 @@ mod test;
 mod lock_request;
 mod recoverable_session_pipe;
 mod active_session_pipe;
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 mod redirect;
 
 use async_trait::async_trait;
@@ -28,9 +28,9 @@ use fxhash::FxHashMap;
 use bytes::Bytes;
 use std::sync::Weak;
 
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 use super::flow::*;
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 use crate::flow::basic::*;
 use crate::meta::*;
 use crate::pipe::*;
@@ -53,7 +53,7 @@ pub(crate) use crate::mesh::client::MeshClient;
 
 pub(crate) use session::MeshSession;
 
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 pub use crate::mesh::server::MeshRoot;
 pub use crate::mesh::registry::Registry;
 pub use crate::mesh::registry::ChainGuard;
@@ -95,7 +95,7 @@ fn create_prepare<'a, 'b>(cfg_mesh: &'b ConfMesh) -> Vec<MeshAddress> {
     listen_root_addresses
 }
 
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 pub async fn create_persistent_centralized_server(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Result<Arc<MeshRoot>, CommsError>
 {
     let ret = create_server(cfg_mesh).await?;
@@ -103,7 +103,7 @@ pub async fn create_persistent_centralized_server(cfg_ate: &ConfAte, cfg_mesh: &
     Ok(ret)
 }
 
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 pub async fn create_persistent_distributed_server(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Result<Arc<MeshRoot>, CommsError>
 {
     let ret = create_server(cfg_mesh).await?;
@@ -111,7 +111,7 @@ pub async fn create_persistent_distributed_server(cfg_ate: &ConfAte, cfg_mesh: &
     Ok(ret)
 }
 
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 pub async fn create_ethereal_centralized_server(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Result<Arc<MeshRoot>, CommsError>
 {
     let ret = create_server(cfg_mesh).await?;
@@ -119,7 +119,7 @@ pub async fn create_ethereal_centralized_server(cfg_ate: &ConfAte, cfg_mesh: &Co
     Ok(ret)
 }
 
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 pub async fn create_ethereal_distributed_server(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Result<Arc<MeshRoot>, CommsError>
 {
     let ret = create_server(cfg_mesh).await?;
@@ -127,7 +127,7 @@ pub async fn create_ethereal_distributed_server(cfg_ate: &ConfAte, cfg_mesh: &Co
     Ok(ret)
 }
 
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 pub async fn create_server(cfg_mesh: &ConfMesh) -> Result<Arc<MeshRoot>, CommsError>
 {
     

@@ -2,8 +2,6 @@ use error_chain::error_chain;
 use rmp_serde::decode::Error as RmpDecodeError;
 use serde_json::Error as JsonError;
 use tokio::sync::mpsc as mpsc;
-#[cfg(feature="enable_web")]
-use ws_stream_wasm::WsErr;
 
 use crate::crypto::KeySize;
 
@@ -97,19 +95,10 @@ error_chain! {
             description("internal comms error"),
             display("internal comms error - {}", err),
         }
-        #[cfg(feature="enable_ws")]
-        #[cfg(feature="enable_web")]
         WebSocketError(err: String) {
             description("web socket error"),
             display("web socket error - {}", err),
         }
-        #[cfg(feature="enable_ws")]
-        #[cfg(not(feature="enable_web"))]
-        WebSocketError(err: String) {
-            description("web socket error"),
-            display("web socket error - {}", err),
-        }
-        #[cfg(feature="enable_ws")]
         WebSocketInternalError(err: String) {
             description("web socket internal error"),
             display("web socket internal error - {}", err),
@@ -137,18 +126,7 @@ for CommsError
     }   
 }
 
-#[cfg(feature="enable_ws")]
-#[cfg(feature="enable_web")]
-impl From<WsErr>
-for CommsError
-{
-    fn from(err: WsErr) -> CommsError {
-        CommsErrorKind::WebSocketError(err.to_string()).into()
-    }   
-}
-
-#[cfg(feature="enable_ws")]
-#[cfg(not(feature="enable_web"))]
+#[cfg(feature = "enable_full")]
 impl From<tokio_tungstenite::tungstenite::Error>
 for CommsError
 {
@@ -157,8 +135,7 @@ for CommsError
     }   
 }
 
-#[cfg(feature="enable_tcp")]
-#[cfg(feature="enable_ws")]
+#[cfg(feature = "enable_full")]
 impl From<tokio_tungstenite::tungstenite::http::uri::InvalidUri>
 for CommsError
 {

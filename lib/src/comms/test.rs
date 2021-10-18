@@ -4,7 +4,7 @@ use crate::crypto::{EncryptKey, PrivateEncryptKey, PublicEncryptKey, Initializat
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use crate::prelude::*;
 use super::MeshConfig;
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 use super::Listener;
 use crate::engine::TaskEngine;
 use crate::comms::PacketData;
@@ -45,15 +45,14 @@ for TestMessage
 struct DummyContext {
 }
 
-#[cfg(all(feature = "enable_server", feature = "enable_client", feature = "enable_tcp" ))]
+#[cfg(all(feature = "enable_server", feature = "enable_client" ))]
 #[tokio::main(flavor = "current_thread")]
 #[test]
 async fn test_server_client_for_comms_with_tcp() -> Result<(), AteError> {
     test_server_client_for_comms(StreamProtocol::Tcp, 4001).await
 }
 
-#[cfg(all(feature = "enable_server", feature = "enable_client", feature = "enable_tcp" ))]
-#[cfg(feature="enable_ws")]
+#[cfg(all(feature = "enable_server", feature = "enable_client" ))]
 #[tokio::main(flavor = "current_thread")]
 #[test]
 async fn test_server_client_for_comms_with_websocket() -> Result<(), AteError> {
@@ -72,7 +71,7 @@ pub(crate) fn mock_test_mesh(port: u16) -> ConfMesh {
     ret
 }
 
-#[cfg(all(feature = "enable_server", feature = "enable_client", feature = "enable_tcp" ))]
+#[cfg(all(feature = "enable_server", feature = "enable_client" ))]
 #[cfg(test)]
 async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) -> Result<(), AteError> {
     use crate::comms::helper::InboxProcessor;

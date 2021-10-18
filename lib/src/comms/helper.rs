@@ -3,7 +3,7 @@ use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use serde::{Serialize, de::DeserializeOwned};
-#[cfg(feature="enable_tcp")]
+#[cfg(feature = "enable_full")]
 use tokio::{net::{TcpStream}};
 use bytes::Bytes;
 #[allow(unused_imports)]
@@ -45,7 +45,7 @@ where Self: Send + Sync,
     async fn shutdown(&mut self, addr: MeshConnectAddr);
 }
 
-#[cfg(feature="enable_tcp")]
+#[cfg(feature = "enable_full")]
 pub(super) fn setup_tcp_stream(stream: &TcpStream) -> io::Result<()> {
     stream.set_nodelay(true)?;
     Ok(())

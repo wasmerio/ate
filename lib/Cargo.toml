@@ -19,21 +19,17 @@ enable_buffered = []
 enable_local_fs = []
 enable_rotate = []
 enable_caching = []
-enable_ws = []
 enable_client = []
-enable_server = []
+enable_server = [ "hyper-tungstenite" ]
 enable_dio_backtrace = []
-enable_net = [ "tokio/net" ]
-enable_ntp = [ "enable_net" ]
+enable_ntp = []
+enable_web_sys = [ "wasm-bindgen" ]
 enable_mt = [ "tokio/rt-multi-thread" ]
-enable_tcp = [ "tokio-tungstenite", "hyper-tungstenite", "pnet", "enable_net" ]
-enable_web = [ "ws_stream_wasm", "wasm-bindgen", "wasm-bindgen-test", "async_io_stream", "tokio-util" ]
-enable_basics = [ "enable_ws" ]
-enable_dns = [ "enable_net", "trust-dns-proto", "trust-dns-client" ]
-enable_full = [ "enable_buffered", "enable_local_fs", "enable_rotate", "enable_caching", "enable_ntp", "enable_tcp", "enable_dns" ]
-client_web = [ "enable_web", "enable_ws", "enable_client" ]
-client = [ "enable_full", "enable_ws", "enable_client" ]
-server = [ "enable_full", "enable_ws", "enable_server", "enable_client" ]
+enable_dns = [ "trust-dns-proto", "trust-dns-client", "pnet" ]
+enable_full = [ "tokio/net", "tokio-tungstenite", "enable_buffered", "enable_local_fs", "enable_rotate", "enable_caching", "enable_ntp", "enable_dns" ]
+client_web = [ "enable_client", "enable_web_sys" ]
+client = [ "enable_full", "enable_client" ]
+server = [ "enable_full", "enable_server", "enable_client" ]
 
 [dependencies]
 error-chain = { version = "^0.12", default_features = false }
@@ -81,22 +77,17 @@ pqcrypto-traits-wasi = { version = "^0.3", default_features = false }
 http = { version = "^0.2" }
 aes = { version = "^0.7" }
 ctr = { version = "^0.8" }
-send_wrapper = { version = "0.5", features = ["futures"] }
 tokio = { version = "^1", features = [ "rt", "io-util", "macros", "sync", "time", "fs" ], default_features = false }
-ws_stream_wasm = { version = "^0.7", features= [ "tokio_io" ], optional = true }
-wasm-bindgen = { version = "^0.2", optional = true }
-wasm-bindgen-test = { version = "^0.3", optional = true }
-async_io_stream = { version = "^0.3", optional = true }
-tokio-util = { version = "^0.6", features = [ "io", "codec" ], optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = { version = "^0.2", optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 pnet = { version = "^0.27", optional = true }
-trust-dns-proto = { version = "^0.20", optional = true }
-trust-dns-client = { version = "^0.20", features = ["dnssec"], optional = true }
 tokio-tungstenite = { version = "^0.15", optional = true }
 hyper-tungstenite = { version = "^0.4", optional = true }
+trust-dns-proto = { version = "^0.20", optional = true }
+trust-dns-client = { version = "^0.20", features = ["dnssec"], optional = true }
 backtrace = { version = "^0.3" }
 
 [dev-dependencies]

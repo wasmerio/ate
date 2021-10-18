@@ -42,9 +42,10 @@ pub mod service;
 pub mod pipe;
 pub mod prelude;
 pub mod anti_replay;
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 pub mod flow;
 pub mod engine;
+#[cfg(feature="enable_dns")]
 pub mod dns;
 
 pub use utils::log_init;

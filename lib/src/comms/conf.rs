@@ -36,7 +36,7 @@ for SocketAddr
 #[derive(Debug, Clone)]
 pub(crate) struct MeshConfig
 {
-    #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+    #[cfg(feature = "enable_server")]
     pub listen_on: Vec<SocketAddr>,
     #[cfg(feature="enable_server")]
     pub listen_cert: Option<PrivateEncryptKey>,
@@ -51,7 +51,7 @@ impl MeshConfig
 {
     pub(crate) fn new(cfg_mesh: ConfMesh) -> MeshConfig {
         MeshConfig {
-            #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+            #[cfg(feature = "enable_server")]
             listen_on: Vec::new(),
             #[cfg(feature="enable_server")]
             listen_cert: cfg_mesh.listen_certificate.clone(),
@@ -63,7 +63,7 @@ impl MeshConfig
         }
     }
 
-    #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+    #[cfg(feature = "enable_server")]
     pub(crate) fn listen_on(mut self, ip: IpAddr, port: u16) -> Self {
         self.listen_on.push(SocketAddr::from(NodeTarget{ip, port}));
         self

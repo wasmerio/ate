@@ -58,7 +58,7 @@ pub(super) async fn mesh_key_exchange_sender(stream_rx: &mut StreamRx, stream_tx
     Ok(EncryptKey::xor(&ek1, &ek2))
 }
 
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 pub(super) async fn mesh_key_exchange_receiver(stream_rx: &mut StreamRx, stream_tx: &mut StreamTx, server_key: PrivateEncryptKey) -> Result<EncryptKey, CommsError>
 {
     trace!("negotiating {}bit shared secret", server_key.size());

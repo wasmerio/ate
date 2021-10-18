@@ -5,7 +5,7 @@ use std::sync::Arc;
 use serde::{Serialize, Deserialize};
 
 use crate::prelude::*;
-#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
+#[cfg(feature = "enable_server")]
 use crate::mesh::MeshRoot;
 use crate::error::*;
 

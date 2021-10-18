@@ -200,9 +200,6 @@ impl ConfMesh
             #[cfg(feature="enable_client")]
             force_connect: None,
             wire_encryption: Some(KeySize::Bit128),
-            #[cfg(feature="enable_tcp")]
-            wire_protocol: StreamProtocol::Tcp,
-            #[cfg(not(feature="enable_tcp"))]
             wire_protocol: StreamProtocol::WebSocket,
             wire_format: SerializationFormat::Bincode,
             connect_timeout: Duration::from_secs(30),
