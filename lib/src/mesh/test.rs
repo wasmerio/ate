@@ -17,25 +17,39 @@ struct TestData {
 
 #[tokio::main(flavor = "current_thread")]
 #[test]
-async fn test_mesh_distributed()
+async fn test_mesh_distributed_with_tcp()
 {
-    test_mesh_internal(false).await
+    test_mesh_internal(false, StreamProtocol::Tcp).await
 }
 
 #[tokio::main(flavor = "current_thread")]
 #[test]
-async fn test_mesh_centralized()
+async fn test_mesh_centralized_with_tcp()
 {
-    test_mesh_internal(true).await
+    test_mesh_internal(true, StreamProtocol::Tcp).await
+}
+
+#[tokio::main(flavor = "current_thread")]
+#[test]
+async fn test_mesh_distributed_with_web_socket()
+{
+    test_mesh_internal(false, StreamProtocol::WebSocket).await
+}
+
+#[tokio::main(flavor = "current_thread")]
+#[test]
+async fn test_mesh_centralized_with_web_socket()
+{
+    test_mesh_internal(true, StreamProtocol::WebSocket).await
 }
 
 #[cfg(test)]
-async fn test_mesh_internal(centralized: bool)
+async fn test_mesh_internal(centralized: bool, proto: StreamProtocol)
 {
     crate::utils::bootstrap_test_env();
 
     let cfg_ate = crate::conf::tests::mock_test_config();
-    let test_url = url::Url::parse("ws://localhost/").unwrap();
+    let test_url = url::Url::parse(format!("{}://localhost/", proto.to_scheme()).as_str()).unwrap();
 
     // Create a root key that will protect the integrity of the chain
     let root_key = crate::crypto::PrivateSignKey::generate(KeySize::Bit256);
@@ -52,7 +66,7 @@ async fn test_mesh_internal(centralized: bool)
             roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
         }
         let mut cfg_mesh = ConfMesh::new("localhost", roots.iter());
-        cfg_mesh.wire_protocol = StreamProtocol::WebSocket;
+        cfg_mesh.wire_protocol = proto;
 
         let mut mesh_root_joins = Vec::new();
 
