@@ -60,8 +60,9 @@ pub(crate) async fn main_session_start(token_string: Option<String>, token_file_
                 std::process::exit(1);
             }
             let path = shellexpand::tilde(path.as_str()).to_string();
-            let token = tokio::fs::read_to_string(path).await?;
-            session = Some(b64_to_session(token));
+            if let Ok(token) = tokio::fs::read_to_string(path).await {
+                session = Some(b64_to_session(token));
+            }
         }
     }
 

@@ -240,8 +240,9 @@ async fn mesh_connect_prepare
                 stream
             };
 
-            #[cfg(feature = "enable_web_sys")]
+            #[cfg(all(feature = "enable_web_sys",not(feature = "enable_full")))]
             let stream = {
+                /*
                 use wasm_bindgen::prelude::*;
 
                 // Import the `window.alert` function from the Web.
@@ -251,7 +252,7 @@ async fn mesh_connect_prepare
                 }
 
                 alert(&format!("Hello!"));
-
+                */
                 Stream::WebSocket(())
             };
 
