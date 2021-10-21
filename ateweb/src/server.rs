@@ -417,6 +417,7 @@ impl Server
         ret.insert("txt".to_string(), "text/plain".to_string());
         ret.insert("vsd".to_string(), "application/vnd.visio".to_string());
         ret.insert("wav".to_string(), "audio/wav".to_string());
+        ret.insert("wasm".to_string(), "application/wasm".to_string());
         ret.insert("weba".to_string(), "audio/webm".to_string());
         ret.insert("webm".to_string(), "video/webm".to_string());
         ret.insert("webp".to_string(), "image/webp".to_string());
