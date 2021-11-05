@@ -57,6 +57,7 @@ impl Tx
     where M: Send + Sync + Serialize + DeserializeOwned + Clone,
           C: Send + Sync,
     {
+        trace!("send relay (type={})", std::any::type_name::<M>());
         let mut total_sent = 0u64;
         if let Some(relay) = self.relay.as_mut() {
             let pck = if self.wire_format == relay.wire_format {
@@ -82,6 +83,7 @@ impl Tx
 
     pub async fn send_reply(&mut self, pck: PacketData) -> Result<(), CommsError>
     {
+        trace!("send reply (bytes={})", pck.bytes.len());
         let total_sent = match &mut self.direction {
             #[cfg(feature="enable_server")]
             TxDirection::Downcast(tx) => {
@@ -101,6 +103,7 @@ impl Tx
     pub async fn send_reply_msg<M>(&mut self, msg: M) -> Result<(), CommsError>
     where M: Send + Sync + Serialize + DeserializeOwned + Clone
     {
+        trace!("send reply msg (type={})", std::any::type_name::<M>());
         let pck = Packet::from(msg).to_packet_data(self.wire_format)?;
         self.send_reply(pck).await?;
         Ok(())
@@ -109,6 +112,7 @@ impl Tx
     #[cfg(feature="enable_server")]
     pub async fn send_others(&mut self, pck: PacketData) -> Result<(), CommsError>
     {
+        trace!("send others (bytes={})", pck.bytes.len());
         let total_sent = match &mut self.direction {
             #[cfg(feature="enable_server")]
             TxDirection::Downcast(tx) => {
@@ -122,6 +126,7 @@ impl Tx
 
     pub async fn send_all(&mut self, pck: PacketData) -> Result<(), CommsError>
     {
+        trace!("send others (bytes={})", pck.bytes.len());
         let total_sent = match &mut self.direction {
             #[cfg(feature="enable_server")]
             TxDirection::Downcast(tx) => {
@@ -141,6 +146,7 @@ impl Tx
     pub async fn send_all_msg<M>(&mut self, msg: M) -> Result<(), CommsError>
     where M: Send + Sync + Serialize + DeserializeOwned + Clone
     {
+        trace!("send all msg (type={})", std::any::type_name::<M>());
         let pck = Packet::from(msg).to_packet_data(self.wire_format)?;
         self.send_all(pck).await?;
         Ok(())

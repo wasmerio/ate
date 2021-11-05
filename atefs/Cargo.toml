@@ -14,7 +14,7 @@ links = "fuse"
 
 [features]
 default = [ "client", "server", "enable_tokera" ]
-client_web = [ "ate/client_web", "ate-auth/client_web" ]
+client_web = [ "ate/client_web", "ate-auth/client_web", "parking_lot/wasm-bindgen" ]
 client = [ "ate/client", "ate-auth/client" ]
 server = [ "ate/server", "ate-auth/server", "ate/enable_mt" ]
 enable_tokera = [ "tokera" ]

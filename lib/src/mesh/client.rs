@@ -84,6 +84,7 @@ impl MeshClientSession
             .node_id(client.node_id.clone())
             .temporal(client.temporal);
 
+        trace!("connecting to {}", addr);
         let chain = MeshSession::connect
             (
                 builder,

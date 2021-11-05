@@ -120,6 +120,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
       C: Send + Sync + Default + 'static,
 {
     // Make the connection
+    trace!("prepare connect (path={})", hello_path);
     let worker_connect = mesh_connect_prepare
     (
         addr.clone(),
@@ -142,6 +143,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
 
     // background thread - connects and then runs inbox and outbox threads
     // if the upstream object signals a termination event it will exit
+    trace!("spawning connect worker");
     TaskEngine::spawn(
         mesh_connect_worker::<M, C>(
             worker_connect,
@@ -156,6 +158,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         )
     );
 
+    trace!("building upstream with tx channel");
     let stream_tx = StreamTxChannel::new(stream_tx, ek);
     Ok(Upstream {
         id: node_id,
@@ -242,21 +245,13 @@ async fn mesh_connect_prepare
 
             #[cfg(all(feature = "enable_web_sys",not(feature = "enable_full")))]
             let stream = {
-                /*
-                use wasm_bindgen::prelude::*;
-
-                // Import the `window.alert` function from the Web.
-                #[wasm_bindgen]
-                extern "C" {
-                    fn alert(s: &str);
-                }
-
-                alert(&format!("Hello!"));
-                */
-                Stream::WebSocket(())
+                trace!("opening /dev/tok");
+                let file = std::fs::File::open("/dev/tok")?;
+                Stream::WebSocket(file)
             };
 
             // Build the stream
+            trace!("splitting stream into rx/tx");
             let (mut stream_rx, mut stream_tx) = stream.split();
 
             // Say hello

@@ -62,12 +62,14 @@ impl RecoverableSessionPipe
 {
     pub(super) async fn create_active_pipe(&self, loader: impl Loader + 'static, status_tx: mpsc::Sender<ConnectionStatusChange>, exit: broadcast::Receiver<()>) -> Result<ActiveSessionPipe, CommsError>
     {
+        trace!("creating active pipe");
         let commit
             = Arc::new(StdMutex::new(FxHashMap::default()));
         let lock_requests
             = Arc::new(StdMutex::new(FxHashMap::default()));
 
         // Create pipes to all the target root nodes
+        trace!("building node cfg connect to");
         let node_cfg = MeshConfig::new(self.cfg_mesh.clone())
             .connect_to(self.addr.clone());
 
@@ -110,6 +112,7 @@ impl RecoverableSessionPipe
         // chain-of-trust minus a small tolerance that helps in edge-cases - this will
         // cause a minor number duplicate events to be ignored but it is needed to
         // reduce the chances of data loss.
+        trace!("computing timeline end");
         let from = {
             let tolerance_ms = self.builder.cfg_ate.sync_tolerance.as_millis() as u64;
 
@@ -272,6 +275,8 @@ for RecoverableSessionPipe
 
     async fn connect(&self, exit: broadcast::Sender<()>) -> Result<mpsc::Receiver<ConnectionStatusChange>, ChainCreationError>
     {
+        trace!("connecting to {}", self.addr);
+
         // Remove the pipe which will mean if we are in a particular recovery
         // mode then all write IO will be blocked
         self.active.write().await.take();
@@ -280,6 +285,7 @@ for RecoverableSessionPipe
         // This is because the sync design has a tolerance in what it replays back
         // to the consumer meaning duplicate events will be received from the remote
         // chain
+        trace!("building anti-reply loader");
         let mut anti_replay = Box::new(AntiReplayPlugin::default());
         {
             let chain = self.chain.lock().as_ref().map(|a| a.upgrade());
@@ -292,6 +298,7 @@ for RecoverableSessionPipe
         }
 
         // Run the loaders and the message procesor
+        trace!("building composite loader");
         let mut loader = self.loader_remote.lock().take();
         let (loading_sender, mut loading_receiver)
             = mpsc::channel(1);

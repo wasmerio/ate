@@ -53,6 +53,7 @@ pub async fn main_create_user(
     let username = match username {
         Some(a) => a,
         None => {
+            #[cfg(not(feature = "force_tty"))]
             if !atty::is(atty::Stream::Stdin) {
                 bail!(CreateErrorKind::InvalidArguments);
             }
@@ -68,17 +69,15 @@ pub async fn main_create_user(
     let password = match password {
         Some(a) => a,
         None => {
+            #[cfg(not(feature = "force_tty"))]
             if !atty::is(atty::Stream::Stdin) {
                 bail!(CreateErrorKind::InvalidArguments);
             }
 
-            print!("Password: ");
-            stdout().lock().flush()?;
-            let ret1 = rpassword_wasi::read_password().unwrap();
+            let ret1 = rpassword_wasi::prompt_password("Password: ").unwrap();
 
-            print!("Password Again: ");
             stdout().lock().flush()?;
-            let ret2 = rpassword_wasi::read_password().unwrap();
+            let ret2 = rpassword_wasi::prompt_password("Password Again: ").unwrap();
 
             if ret1 != ret2 {
                 bail!(CreateErrorKind::PasswordMismatch);
@@ -105,6 +104,7 @@ pub async fn main_create_user(
         }
         Err(CreateError(CreateErrorKind::TermsAndConditions(terms), _)) =>
         {
+            #[cfg(not(feature = "force_tty"))]
             if !atty::is(atty::Stream::Stdin) {
                 bail!(CreateErrorKind::InvalidArguments);
             }

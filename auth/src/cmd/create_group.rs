@@ -39,6 +39,7 @@ pub async fn main_create_group_prelude(
     let group = match group {
         Some(a) => a,
         None => {
+            #[cfg(not(feature = "force_tty"))]
             if !atty::is(atty::Stream::Stdin) {
                 bail!(CreateErrorKind::InvalidArguments);
             }
@@ -54,6 +55,7 @@ pub async fn main_create_group_prelude(
     let username = match username {
         Some(a) => a,
         None => {
+            #[cfg(not(feature = "force_tty"))]
             if !atty::is(atty::Stream::Stdin) {
                 bail!(CreateErrorKind::InvalidArguments);
             }

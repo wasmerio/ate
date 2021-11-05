@@ -10,7 +10,7 @@ pub fn log_init(verbose: i32, debug: bool) {
         1 => Some(LevelFilter::WARN),
         2 => Some(LevelFilter::INFO),
         3 => Some(LevelFilter::DEBUG),
-        4 => Some(LevelFilter::WARN),
+        4 => Some(LevelFilter::TRACE),
         _ => None,
     };
     if debug { log_level = Some(LevelFilter::DEBUG); }

@@ -2,8 +2,9 @@ use clap::Parser;
 
 use super::*;
 
+#[allow(dead_code)]
 #[derive(Parser)]
-#[clap()]
+#[clap(version = "1.5", author = "Tokera Pty Ltd <info@tokera.com>")]
 pub struct OptsToken {
     #[clap(subcommand)]
     pub action: TokenAction,

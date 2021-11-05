@@ -71,6 +71,7 @@ pub async fn main_sudo(
     let code = match code {
         Some(a) => a,
         None => {
+            #[cfg(not(feature = "force_tty"))]
             if !atty::is(atty::Stream::Stdin) {
                 bail!(SudoErrorKind::InvalidArguments);
             }

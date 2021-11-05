@@ -53,6 +53,7 @@ pub(super) async fn mesh_hello_exchange_sender(stream_rx: &mut StreamRx, stream_
     // Read the hello message from the other side
     let hello_server_bytes = stream_rx.read_16bit().await?;
     trace!("client received hello from server");
+    trace!("{}", String::from_utf8_lossy(&hello_server_bytes[..]));
     let hello_server: ReceiverHello = serde_json::from_slice(&hello_server_bytes[..])?;
 
     // Validate the encryption is strong enough

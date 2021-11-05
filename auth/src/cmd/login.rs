@@ -33,6 +33,7 @@ pub async fn login_command(registry: &Registry, username: String, password: Stri
     };
 
     // Attempt the login request with a 10 second timeout
+    trace!("invoking login (email={})", login.email);
     let response: Result<LoginResponse, LoginFailed> = chain.invoke(login).await?;
     let result = response?;
 
@@ -131,6 +132,7 @@ pub async fn main_login(
     let username = match username {
         Some(a) => a,
         None => {
+            #[cfg(not(feature = "force_tty"))]
             if !atty::is(atty::Stream::Stdin) {
                 bail!(LoginErrorKind::InvalidArguments);
             }
@@ -146,14 +148,13 @@ pub async fn main_login(
     let password = match password {
         Some(a) => a,
         None => {
+            #[cfg(not(feature = "force_tty"))]
             if !atty::is(atty::Stream::Stdin) {
                 bail!(LoginErrorKind::InvalidArguments);
             }
 
             // When no password is supplied we will ask for both the password and the code
-            eprint!("Password: ");
-            stdout().lock().flush()?;
-            let pass = rpassword_wasi::read_password().unwrap();
+            let pass = rpassword_wasi::prompt_password("Password: ").unwrap();
 
             pass.trim().to_string()
         }
@@ -178,6 +179,7 @@ pub(crate) async fn handle_login_response(
     if let Err(LoginError(LoginErrorKind::Unverified(_), _)) = &response {
         was_unverified = true;
 
+        #[cfg(not(feature = "force_tty"))]
         if !atty::is(atty::Stream::Stdin) {
             bail!(LoginErrorKind::InvalidArguments);
         }
