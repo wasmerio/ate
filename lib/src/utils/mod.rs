@@ -7,7 +7,6 @@ mod test;
 mod b64;
 mod key;
 mod progress;
-mod wasi_file;
 
 pub use super::utils::test::*;
 pub use log::log_init;

@@ -78,7 +78,6 @@ http = { version = "^0.2" }
 aes = { version = "^0.7" }
 ctr = { version = "^0.8" }
 tokio = { version = "^1", features = [ "rt", "io-util", "macros", "sync", "time", "fs" ], default_features = false }
-wasi = { version = "^0.10" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 pnet = { version = "^0.27", optional = true }
