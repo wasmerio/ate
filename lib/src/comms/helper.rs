@@ -28,11 +28,7 @@ use super::PacketWithContext;
 use super::StreamRx;
 use super::Metrics;
 use super::Throttle;
-
-#[cfg(feature="enable_dns")]
-type MeshConnectAddr = SocketAddr;
-#[cfg(not(feature="enable_dns"))]
-type MeshConnectAddr = crate::conf::MeshAddress;
+use crate::conf::MeshConnectAddr;
 
 #[async_trait]
 pub(crate) trait InboxProcessor<M, C>
@@ -51,6 +47,7 @@ pub(super) fn setup_tcp_stream(stream: &TcpStream) -> io::Result<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
 #[allow(unused_variables)]
 pub(super) async fn process_inbox<M, C>(
     mut rx: StreamRx,

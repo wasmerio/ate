@@ -51,6 +51,7 @@ pub(crate) struct MeshConfig
 
 impl MeshConfig
 {
+    #[allow(dead_code)]
     pub(crate) fn new(cfg_mesh: ConfMesh) -> MeshConfig {
         MeshConfig {
             #[cfg(feature = "enable_server")]

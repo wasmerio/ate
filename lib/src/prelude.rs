@@ -22,7 +22,7 @@ pub use crate::meta::ReadOption;
 pub use crate::meta::WriteOption;
 pub use crate::comms::Metrics as ChainMetrics;
 pub use crate::comms::Throttle as ChainThrottle;
-pub use crate::comms::MeshConnectAddr;
+pub use crate::conf::MeshConnectAddr;
 
 #[cfg(feature = "enable_server")]
 pub use crate::flow::OpenFlow;

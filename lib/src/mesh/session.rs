@@ -36,11 +36,7 @@ use crate::session::*;
 use crate::time::*;
 use crate::engine::*;
 use crate::mesh::NodeId;
-
-#[cfg(feature="enable_dns")]
-type MeshConnectAddr = SocketAddr;
-#[cfg(not(feature="enable_dns"))]
-type MeshConnectAddr = crate::conf::MeshAddress;
+use crate::conf::MeshConnectAddr;
 
 pub struct MeshSession
 {

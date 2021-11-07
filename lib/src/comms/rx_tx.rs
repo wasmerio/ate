@@ -26,6 +26,7 @@ pub(crate) enum TxDirection
 {
     #[cfg(feature="enable_server")]
     Downcast(TxGroupSpecific),
+    #[allow(dead_code)]
     Upcast(Upstream),
     #[allow(dead_code)]
     Nullcast,

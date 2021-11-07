@@ -60,6 +60,13 @@ pub(super) struct RecoverableSessionPipe
 
 impl RecoverableSessionPipe
 {
+    #[cfg(not(feature = "enable_client"))]
+    pub(super) async fn create_active_pipe(&self, _loader: impl Loader + 'static, _status_tx: mpsc::Sender<ConnectionStatusChange>, _exit: broadcast::Receiver<()>) -> Result<ActiveSessionPipe, CommsError>
+    {
+        return Err(CommsErrorKind::InternalError("client connections are unsupported".to_string()).into());
+    }
+
+    #[cfg(feature = "enable_client")]
     pub(super) async fn create_active_pipe(&self, loader: impl Loader + 'static, status_tx: mpsc::Sender<ConnectionStatusChange>, exit: broadcast::Receiver<()>) -> Result<ActiveSessionPipe, CommsError>
     {
         trace!("creating active pipe");

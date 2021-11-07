@@ -94,11 +94,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
     }
 }
 
-#[cfg(feature="enable_dns")]
-pub type MeshConnectAddr = SocketAddr;
-#[cfg(not(feature="enable_dns"))]
-pub type MeshConnectAddr = crate::conf::MeshAddress;
-
 pub(super) async fn mesh_connect_to<M, C>
 (
     addr: MeshConnectAddr,

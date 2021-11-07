@@ -45,7 +45,8 @@ pub struct Registry
     pub keep_alive: Option<Duration>,
     pub ignore_certificates: bool,
 
-    cmd_key: StdMutex<FxHashMap<url::Url, String>>,    
+    cmd_key: StdMutex<FxHashMap<url::Url, String>>,
+    #[cfg(feature = "enable_client")]
     chains: Mutex<FxHashMap<url::Url, Arc<MeshClient>>>,
     pub(crate) services: StdMutex<Vec<Arc<dyn Service>>>,
 }
@@ -78,6 +79,7 @@ impl Registry
             temporal: true,
             ignore_certificates: false,
             cmd_key: StdMutex::new(FxHashMap::default()),
+            #[cfg(feature = "enable_client")]
             chains: Mutex::new(FxHashMap::default()),
             services: StdMutex::new(Vec::new()),
             keep_alive: None,
@@ -146,6 +148,7 @@ impl Registry
         Ok(self.__try_open_ext(url, key).await?)
     }
 
+    #[cfg(feature = "enable_client")]
     async fn __try_open_ext(&self, url: &Url, key: &ChainKey) -> Result<Option<ChainGuard>, ChainCreationError>
     {
         let client = {
@@ -178,6 +181,12 @@ impl Registry
         }))
     }
 
+    #[cfg(not(feature = "enable_client"))]
+    async fn __try_open_ext(&self, _url: &Url, _key: &ChainKey) -> Result<Option<ChainGuard>, ChainCreationError> {
+        return Err(ChainCreationErrorKind::InternalError("client connections are unsupported".to_string()).into());
+    }
+
+    #[cfg(feature = "enable_client")]
     async fn __open_ext(&self, url: &Url, key: &ChainKey, loader_local: impl loader::Loader + 'static, loader_remote: impl loader::Loader + 'static) -> Result<ChainGuard, ChainCreationError>
     {
         let client = {
@@ -197,7 +206,7 @@ impl Registry
         };
 
         trace!("opening chain ({}) on mesh client for {}", key, url);
-        
+    
         let hello_path = url.path().to_string();
         let ret = client.__open_ext(&key, hello_path, loader_local, loader_remote).await?;
 
@@ -205,6 +214,12 @@ impl Registry
             chain: ret,
             keep_alive: self.keep_alive.clone(),
         })
+    }
+
+    #[cfg(not(feature = "enable_client"))]
+    async fn __open_ext(&self, _url: &Url, _key: &ChainKey, _loader_local: impl loader::Loader + 'static, _loader_remote: impl loader::Loader + 'static) -> Result<ChainGuard, ChainCreationError>
+    {
+        return Err(ChainCreationErrorKind::InternalError("client connections are unsupported".to_string()).into());
     }
 
     pub async fn cfg_for_url(&self, url: &Url) -> Result<ConfMesh, ChainCreationError>

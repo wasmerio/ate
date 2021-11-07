@@ -17,6 +17,11 @@ pub struct MeshAddress
     pub port: u16,
 }
 
+#[cfg(feature="enable_dns")]
+pub type MeshConnectAddr = std::net::SocketAddr;
+#[cfg(not(feature="enable_dns"))]
+pub type MeshConnectAddr = crate::conf::MeshAddress;
+
 impl MeshAddress
 {
     #[cfg(feature="enable_dns")]
