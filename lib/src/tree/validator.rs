@@ -60,7 +60,7 @@ for TreeAuthorityPlugin
                             return Ok(ValidationResult::Allow)
                         }
 
-                        let lock = conversation.signatures.read();
+                        let lock = conversation.signatures.read().unwrap();
                         let already = match &auth.write {
                             WriteOption::Specific(hash) => lock.contains(hash),
                             WriteOption::Any(hashes) => hashes.iter().any(|h| lock.contains(h)),

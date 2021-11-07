@@ -16,21 +16,21 @@ required-features = ["server"]
 
 [features]
 default = [ "client", "server" ]
-client_web = [ "ate/client_web", "parking_lot/wasm-bindgen", "tty" ]
-client = [ "ate/client", "tty" ]
-server = [ "ate/server", "ate/enable_mt", "tty" ]
+enable_full = [ "tty", "tokio/rt", "tokio/io-util", "tokio/time", "tokio/fs" ]
+client_web = [ "ate/client_web", "tty" ]
+client = [ "ate/client", "enable_full" ]
+server = [ "ate/server", "ate/enable_mt", "enable_full" ]
 tty = [ "atty" ]
 force_tty = [ "tty" ]
 
 [dependencies]
 ate = { version = "^1", path = "../lib", default_features = false }
 error-chain = { version = "^0.12", default_features = false }
-tokio = { version = "^1", features = [ "rt", "io-util", "macros", "sync", "time", "fs" ], default_features = false }
+tokio = { version = "^1", features = [ "macros", "sync" ], default_features = false }
 serde = { version = "^1", features = ["derive"] }
 tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
 tracing-futures = { version = "^0.2" }
 tracing-subscriber = { version = "^0.2" }
-parking_lot = "^0.11"
 futures = "^0.3"
 futures-util = "^0.3"
 async-trait = "^0.1"

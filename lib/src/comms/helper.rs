@@ -13,7 +13,7 @@ use tokio::io::ErrorKind;
 use tokio::sync::broadcast;
 use async_trait::async_trait;
 use std::net::SocketAddr;
-use parking_lot::Mutex as StdMutex;
+use std::sync::Mutex as StdMutex;
 use tokio::select;
 
 use crate::comms::*;
@@ -91,7 +91,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
                     
                     // Compute the deltas
                     let (mut delta_received, mut delta_sent) = {
-                        let metrics = metrics.lock();
+                        let metrics = metrics.lock().unwrap();
                         let delta_received = metrics.received - current_received;
                         let delta_sent = metrics.sent - current_sent;
                         current_received = metrics.received;
@@ -107,7 +107,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
 
                     // We throttle the connection based off the current metrics and a calculated wait time
                     let wait_time = {
-                        let throttle = throttle.lock();
+                        let throttle = throttle.lock().unwrap();
                         let wait1 = throttle.download_per_second
                             .map(|limit| limit as i64)
                             .filter(|limit| delta_sent.gt(limit))
@@ -131,7 +131,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
                     if let Some(wait_time) = wait_time {
                         if let Ok(wait_time) = wait_time.to_std() {
                             trace!("trottle wait: {}ms", wait_time.as_millis());
-                            tokio::time::sleep(wait_time).await;
+                            crate::engine::sleep(wait_time).await;
                         }
                     }
                 }
@@ -186,7 +186,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
 
             // Update the metrics with all this received data
             {
-                let mut metrics = metrics.lock();
+                let mut metrics = metrics.lock().unwrap();
                 metrics.received += total_read;
                 metrics.requests += 1u64;
             }

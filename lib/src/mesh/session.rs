@@ -2,18 +2,18 @@ use async_trait::async_trait;
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use tracing_futures::{Instrument, WithSubscriber};
 use error_chain::bail;
-use parking_lot::Mutex as StdMutex;
+use std::sync::Mutex as StdMutex;
 use std::net::SocketAddr;
 use std::{sync::Arc, sync::Weak};
 use tokio::sync::mpsc;
 use tokio::sync::RwLock;
 use fxhash::FxHashMap;
-use parking_lot::RwLock as StdRwLock;
+use std::sync::RwLock as StdRwLock;
 use std::ops::Rem;
 use std::time::Duration;
 use std::time::Instant;
 use tokio::sync::broadcast;
-use tokio::time::timeout;
+use crate::engine::timeout;
 use tokio::select;
 
 use super::recoverable_session_pipe::*;
@@ -136,7 +136,7 @@ impl MeshSession
         let chain = Arc::new(chain);
 
         // Set a reference to the chain and trigger it to connect!
-        chain_store.lock().replace(Arc::downgrade(&chain));
+        chain_store.lock().unwrap().replace(Arc::downgrade(&chain));
         let on_disconnect = chain.pipe.connect(chain.exit.clone())
             .await?;
 
@@ -212,7 +212,7 @@ impl MeshSession
         trace!("commit_confirmed id={}", id);
 
         let r = {
-            let mut lock = self.commit.lock();
+            let mut lock = self.commit.lock().unwrap();
             lock.remove(&id)
         };
         if let Some(result) = r {
@@ -227,7 +227,7 @@ impl MeshSession
         trace!("commit_error id={}, err={}", id, err);
 
         let r= {
-            let mut lock = self.commit.lock();
+            let mut lock = self.commit.lock().unwrap();
             lock.remove(&id)
         };
         if let Some(result) = r {
@@ -240,7 +240,7 @@ impl MeshSession
         trace!("lock_result key={} is_locked={}", key.to_string(), is_locked);
 
         let mut remove = false;
-        let mut guard = self.lock_requests.lock();
+        let mut guard = self.lock_requests.lock().unwrap();
         if let Some(result) = guard.get_mut(&key) {
             if result.entropy(is_locked) == true {
                 remove = true;
@@ -315,7 +315,7 @@ impl MeshSession
 
             {
                 // Setup the chain based on the properties given to us
-                let mut lock = chain.inside_sync.write();
+                let mut lock = chain.inside_sync.write().unwrap();
                 lock.set_integrity_mode(integrity);
                 for plugin in lock.plugins.iter_mut() {
                     plugin.set_root_keys(&root_keys);
@@ -367,7 +367,7 @@ impl MeshSession
                 trace!("received 'secure_with' secrets no_root");
             }
 
-            chain.inside_sync.write().default_session.append(session.properties());
+            chain.inside_sync.write().unwrap().default_session.append(session.properties());
         }
         Ok(())
     }
@@ -487,7 +487,7 @@ impl MeshSession
     {
         let mut senders = Vec::new();
         {
-            let mut guard = self.commit.lock();
+            let mut guard = self.commit.lock().unwrap();
             for (_, sender) in guard.drain() {
                 senders.push(sender);
             }
@@ -506,7 +506,7 @@ impl MeshSession
 
     pub(super) fn cancel_locks(&self)
     {
-        let mut guard = self.lock_requests.lock();
+        let mut guard = self.lock_requests.lock().unwrap();
         for (_, sender) in guard.drain() {
             sender.cancel();
         }
@@ -515,7 +515,7 @@ impl MeshSession
     pub(super) fn cancel_sniffers(&self)
     {
         if let Some(guard) = self.chain.upgrade() {
-            let mut lock = guard.inside_sync.write();
+            let mut lock = guard.inside_sync.write().unwrap();
             lock.sniffers.clear();
         }
     }

@@ -54,7 +54,7 @@ pub async fn main_create_user(
         Some(a) => a,
         None => {
             #[cfg(not(feature = "force_tty"))]
-            if !atty::is(atty::Stream::Stdin) {
+            if !is_tty_stdin() {
                 bail!(CreateErrorKind::InvalidArguments);
             }
 
@@ -70,7 +70,7 @@ pub async fn main_create_user(
         Some(a) => a,
         None => {
             #[cfg(not(feature = "force_tty"))]
-            if !atty::is(atty::Stream::Stdin) {
+            if !is_tty_stdin() {
                 bail!(CreateErrorKind::InvalidArguments);
             }
 
@@ -104,8 +104,7 @@ pub async fn main_create_user(
         }
         Err(CreateError(CreateErrorKind::TermsAndConditions(terms), _)) =>
         {
-            #[cfg(not(feature = "force_tty"))]
-            if !atty::is(atty::Stream::Stdin) {
+            if !is_tty_stdin() {
                 bail!(CreateErrorKind::InvalidArguments);
             }
 
@@ -135,7 +134,7 @@ pub async fn main_create_user(
         }
     };
 
-    if atty::is(atty::Stream::Stdout) {
+    if is_tty_stdout() {
         println!("User created (id={})", result.key);
 
         // Display the QR code

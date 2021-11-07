@@ -1,7 +1,7 @@
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use std::sync::Arc;
-use parking_lot::Mutex as StdMutex;
+use std::sync::Mutex as StdMutex;
 
 use crate::anti_replay::AntiReplayPlugin;
 use crate::chain::Chain;

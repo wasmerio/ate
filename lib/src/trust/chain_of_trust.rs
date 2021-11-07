@@ -1,6 +1,6 @@
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use parking_lot::Mutex as StdMutex;
+use std::sync::Mutex as StdMutex;
 use std::sync::Arc;
 
 use crate::comms::Metrics;
@@ -108,7 +108,7 @@ impl<'a> ChainOfTrust
     pub(crate) fn add_history(&mut self, header: EventHeader)
     {
         {
-            let mut metrics = self.metrics.lock();
+            let mut metrics = self.metrics.lock().unwrap();
             metrics.chain_size += header.raw.meta_bytes.len() as u64;
             metrics.chain_size += header.raw.data_size as u64;
         }

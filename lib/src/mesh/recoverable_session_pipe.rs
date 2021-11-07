@@ -1,17 +1,17 @@
 use async_trait::async_trait;
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use error_chain::bail;
-use parking_lot::Mutex as StdMutex;
+use std::sync::Mutex as StdMutex;
 use std::{sync::Arc, sync::Weak};
 use tokio::sync::mpsc;
 use tokio::sync::RwLock;
 use fxhash::FxHashMap;
-use parking_lot::RwLock as StdRwLock;
+use std::sync::RwLock as StdRwLock;
 use std::ops::Rem;
 use std::time::Duration;
 use std::time::Instant;
 use tokio::sync::broadcast;
-use tokio::time::timeout;
+use crate::engine::timeout;
 
 use super::*;
 use super::active_session_pipe::*;
@@ -81,7 +81,7 @@ impl RecoverableSessionPipe
             key: self.key.clone(),
             sync_tolerance: self.builder.cfg_ate.sync_tolerance,
             commit: Arc::clone(&commit),
-            chain: Weak::clone(self.chain.lock().as_ref().expect("You must call the 'set_chain' before invoking this method.")),
+            chain: Weak::clone(self.chain.lock().unwrap().as_ref().expect("You must call the 'set_chain' before invoking this method.")),
             lock_requests: Arc::clone(&lock_requests),
             inbound_conversation: Arc::clone(&inbound_conversation),
             outbound_conversation: Arc::clone(&outbound_conversation),
@@ -117,7 +117,7 @@ impl RecoverableSessionPipe
             let tolerance_ms = self.builder.cfg_ate.sync_tolerance.as_millis() as u64;
 
             let chain = {
-                let lock = self.chain.lock();
+                let lock = self.chain.lock().unwrap();
                 lock.as_ref().map(|a| Weak::upgrade(a)).flatten()
             };
             
@@ -206,7 +206,7 @@ impl RecoverableSessionPipe
                 }
 
                 // Wait a fix amount of time to prevent thrashing and increase the exp backoff
-                tokio::time::sleep(Duration::from_secs(exp_backoff)).await;
+                crate::engine::sleep(Duration::from_secs(exp_backoff)).await;
                 exp_backoff = (exp_backoff * 2) + 4;
                 if exp_backoff > 60 {
                     exp_backoff = 60;
@@ -288,7 +288,7 @@ for RecoverableSessionPipe
         trace!("building anti-reply loader");
         let mut anti_replay = Box::new(AntiReplayPlugin::default());
         {
-            let chain = self.chain.lock().as_ref().map(|a| a.upgrade());
+            let chain = self.chain.lock().unwrap().as_ref().map(|a| a.upgrade());
             if let Some(Some(chain)) = chain {
                 let guard = chain.inside_async.read().await;
                 for evt in guard.chain.timeline.history.iter() {
@@ -299,7 +299,7 @@ for RecoverableSessionPipe
 
         // Run the loaders and the message procesor
         trace!("building composite loader");
-        let mut loader = self.loader_remote.lock().take();
+        let mut loader = self.loader_remote.lock().unwrap().take();
         let (loading_sender, mut loading_receiver)
             = mpsc::channel(1);
         
@@ -337,13 +337,14 @@ for RecoverableSessionPipe
         match loading_receiver.recv().await {
             Some(result) => result?,
             None => {
+                warn!("Service disconnected before it loaded the chain of trust");
                 bail!(ChainCreationErrorKind::ServerRejected(FatalTerminate::Other { err: "Server disconnected before it loaded the chain.".to_string() }));
             }
         }
         debug!("loaded {}", self.key.to_string());
 
         // Now we need to send all the events over that have been delayed
-        let chain = self.chain.lock().as_ref().map(|a| a.upgrade());
+        let chain = self.chain.lock().unwrap().as_ref().map(|a| a.upgrade());
         if let Some(Some(chain)) = chain {
             for delayed_upload in chain.get_pending_uploads().await {
                 debug!("sending pending upload [{}..{}]", delayed_upload.from, delayed_upload.to);

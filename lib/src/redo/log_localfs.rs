@@ -4,6 +4,7 @@ use error_chain::bail;
 use async_trait::async_trait;
 use std::pin::Pin;
 
+#[allow(unused_imports)]
 #[cfg(feature = "enable_caching")]
 use cached::Cached;
 use tokio::io::{Result};
@@ -13,7 +14,7 @@ use bytes::Bytes;
 use cached::*;
 use fxhash::{FxHashMap};
 #[cfg(feature = "enable_caching")]
-use parking_lot::Mutex as MutexSync;
+use std::sync::Mutex as MutexSync;
 
 use crate::{crypto::*, redo::LogLookup};
 use crate::event::*;
@@ -368,7 +369,7 @@ for LogFileLocalFs
 
         #[cfg(feature = "enable_caching")]
         let cache = {
-            let cache = self.cache.lock();
+            let cache = self.cache.lock().unwrap();
             MutexSync::new(LogFileCache {
                 flush: cache.flush.clone(),
                 read: cached::TimedSizedCache::with_size_and_lifespan(cache.read.cache_capacity().unwrap(), cache.read.cache_lifespan().unwrap()),
@@ -408,7 +409,7 @@ for LogFileLocalFs
         // Cache the data
         #[cfg(feature = "enable_caching")]
         {
-            let mut cache = self.cache.lock();
+            let mut cache = self.cache.lock().unwrap();
             cache.flush.insert(header.event_hash, LoadData {
                 lookup,
                 header,
@@ -434,7 +435,7 @@ for LogFileLocalFs
         // Cache the data
         #[cfg(feature = "enable_caching")]
         {
-            let mut cache = self.cache.lock();
+            let mut cache = self.cache.lock().unwrap();
             cache.flush.insert(hash.clone(), LoadData {
                 header: result.header,
                 lookup,
@@ -450,7 +451,7 @@ for LogFileLocalFs
         // Check the caches
         #[cfg(feature = "enable_caching")]
         {
-            let mut cache = self.cache.lock();
+            let mut cache = self.cache.lock().unwrap();
             if let Some(result) = cache.flush.get(&hash) {
                 return Ok(result.clone());
             }
@@ -524,7 +525,7 @@ for LogFileLocalFs
         // Store it in the read cache
         #[cfg(feature = "enable_caching")]
         {
-            let mut cache = self.cache.lock();
+            let mut cache = self.cache.lock().unwrap();
             cache.read.cache_set(ret.header.event_hash, ret.clone());
         }
 
@@ -589,7 +590,7 @@ for LogFileLocalFs
 
         #[cfg(feature = "enable_caching")]
         {
-            let cache = self.cache.lock();
+            let cache = self.cache.lock().unwrap();
             for k in cache.flush.keys() {
                 keys.push(k.clone());
             }
@@ -602,7 +603,7 @@ for LogFileLocalFs
         // will cause them to be released after the TTL is reached
         #[cfg(feature = "enable_caching")]
         {
-            let mut cache = self.cache.lock();
+            let mut cache = self.cache.lock().unwrap();
             for k in keys.into_iter() {
                 if let Some(v) =  cache.flush.remove(&k) {
                     cache.write.cache_set(k, v);
@@ -663,7 +664,7 @@ for LogFileLocalFs
 
             #[cfg(feature = "enable_caching")]
             let (cache_size, cache_ttl) = {
-                let cache = self.cache.lock();
+                let cache = self.cache.lock().unwrap();
                 let cache_size = cache.read.cache_capacity().unwrap();
                 let cache_ttl = cache.read.cache_lifespan().unwrap();
                 (cache_size, cache_ttl)

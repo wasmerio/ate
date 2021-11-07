@@ -4,7 +4,7 @@ use error_chain::bail;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use tokio::io;
-use tokio::time::Timeout;
+use crate::engine::timeout;
 use std::mem;
 use tokio::net;
 use tokio::net::UdpSocket;
@@ -244,7 +244,7 @@ pub(crate) async fn request(pool: &str, port: u16, timeout: time::Duration) -> i
     let req = NtpPacket::new();
     let dest = process_request(dest, &req, &socket).await?;
     let mut buf: RawNtpPacket = RawNtpPacket::default();
-    let (response, src) = tokio::time::timeout(timeout, socket.recv_from(buf.0.as_mut())).await??;
+    let (response, src) = crate::engine::timeout(timeout, socket.recv_from(buf.0.as_mut())).await??;
     let recv_timestamp = get_ntp_timestamp();
     
     if src != dest {
@@ -410,7 +410,7 @@ pub(crate) async fn query_ntp_with_backoff(pool: &String, port: u16, tolerance_m
             return result;
         }
 
-        tokio::time::sleep(Duration::from_millis(wait_time)).await;
+        crate::engine::sleep(Duration::from_millis(wait_time)).await;
         wait_time = (wait_time * 120) / 100;
         wait_time = wait_time + 50;
         if wait_time > 10000 {
@@ -453,7 +453,7 @@ pub(crate) async fn query_ntp_retry(pool: &String, port: u16, tolerance_ms: u32,
         }
         else
         {
-            tokio::time::sleep(Duration::from_millis(wait_time)).await;
+            crate::engine::sleep(Duration::from_millis(wait_time)).await;
             wait_time = (wait_time * 120) / 100;
             wait_time = wait_time + 50;
             if wait_time > 10000 {

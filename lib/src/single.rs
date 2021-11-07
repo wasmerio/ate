@@ -2,7 +2,7 @@
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use tokio::sync::RwLock;
 use tokio::sync::RwLockWriteGuard;
-use parking_lot::RwLock as StdRwLock;
+use std::sync::RwLock as StdRwLock;
 use std::sync::Arc;
 
 use super::chain::*;
@@ -49,7 +49,7 @@ impl<'a> ChainSingleUser<'a>
     pub fn set_integrity(&mut self, mode: TrustMode) {
         self.inside_async.set_integrity_mode(mode);
         
-        let mut lock = self.inside_sync.write();
+        let mut lock = self.inside_sync.write().unwrap();
         lock.set_integrity_mode(mode);
     }
 }

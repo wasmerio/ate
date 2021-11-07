@@ -10,7 +10,7 @@ use crate::error::*;
 use tokio::time::Duration;
 use std::sync::Arc;
 use std::sync::Weak;
-use parking_lot::Mutex as StdMutex;
+use std::sync::Mutex as StdMutex;
 use serde::{Serialize, de::DeserializeOwned};
 use std::net::SocketAddr;
 use crate::crypto::KeySize;
@@ -180,7 +180,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
                         Ok(a) => a,
                         Err(err) => {
                             error!("tcp-listener - {}", err.to_string());
-                            tokio::time::sleep(exp_backoff).await;
+                            crate::engine::sleep(exp_backoff).await;
                             exp_backoff *= 2;
                             if exp_backoff > Duration::from_secs(10) { exp_backoff = Duration::from_secs(10); }
                             continue;
@@ -245,7 +245,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
             timeout,
             handler,
         ) = {
-            let listener = listener.lock();
+            let listener = listener.lock().unwrap();
             (
                 listener.server_id.clone(),
                 listener.wire_protocol.clone(),
@@ -298,7 +298,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
 
         // Now we need to check if there are any endpoints for this hello_path
         {
-            let guard = listener.lock();
+            let guard = listener.lock().unwrap();
             match guard.routes.get(&hello_meta.path) {
                 Some(a) => a,
                 None => {

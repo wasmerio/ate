@@ -347,7 +347,7 @@ pub(super) async fn stream_empty_history(
 {
     // Extract the root keys and integrity mode
     let (integrity, root_keys) = {
-        let chain = chain.inside_sync.read();
+        let chain = chain.inside_sync.read().unwrap();
         let root_keys = chain
             .plugins
             .iter()
@@ -384,7 +384,7 @@ where R: RangeBounds<ChainTimestamp>,
 {
     // Extract the root keys and integrity mode
     let (integrity, root_keys) = {
-        let chain = chain.inside_sync.read();
+        let chain = chain.inside_sync.read().unwrap();
         let root_keys = chain
             .plugins
             .iter()

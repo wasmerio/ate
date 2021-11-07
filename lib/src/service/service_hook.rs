@@ -140,7 +140,7 @@ impl ServiceHook
         }));
         extra_meta.push(CoreMetadata::Reply(req));
 
-        let mut state = dio.state.lock();
+        let mut state = dio.state.lock().unwrap();
         state.dirty_header(RowHeader {
             key,
             parent: None,

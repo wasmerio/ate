@@ -4,7 +4,7 @@ use crate::meta::MetaParent;
 use fxhash::FxHashMap;
 use fxhash::FxHashSet;
 use std::sync::Arc;
-use parking_lot::RwLock as StdRwLock;
+use std::sync::RwLock as StdRwLock;
 use rcu_cell::RcuCell;
 use std::time::Duration;
 
@@ -59,7 +59,7 @@ impl ConversationSession {
         if let Some(mut guard) = self.id.try_lock() {
             guard.update(None);
         }
-        let mut guard = self.signatures.write();
+        let mut guard = self.signatures.write().unwrap();
         guard.clear();
     }
 }

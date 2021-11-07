@@ -24,8 +24,11 @@ where M: Send + Sync + Clone,
 {
     pub packet: Packet<M>,
     pub data: PacketData,
+    #[allow(dead_code)]
     pub context: Arc<C>,
+    #[allow(dead_code)]
     pub id: NodeId,
+    #[allow(dead_code)]
     pub peer_id: NodeId,
 }
 

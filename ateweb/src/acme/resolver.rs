@@ -317,7 +317,7 @@ impl AcmeResolver
                     if wait > 30 {
                         return Err(OrderErrorKind::Timeout.into());
                     }
-                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    ate::engine::sleep(Duration::from_secs(1)).await;
                     account.check(kid.as_str()).await?
                 }
                 Order::Valid { certificate } => {
@@ -372,7 +372,7 @@ impl AcmeResolver
             auth => return Err(OrderErrorKind::BadAuth(auth).into()),
         };
         for i in 0u64..5 {
-            tokio::time::sleep(Duration::from_secs(1 << i)).await;
+            ate::engine::sleep(Duration::from_secs(1 << i)).await;
             match account.auth(url).await? {
                 Auth::Pending { .. } => {
                     info!("authorization for {} still pending", &domain);

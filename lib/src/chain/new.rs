@@ -14,10 +14,10 @@ use crate::transaction::*;
 use crate::compact::*;
 
 use std::sync::{Arc};
-use parking_lot::Mutex as StdMutex;
+use std::sync::Mutex as StdMutex;
 use fxhash::{FxHashSet};
 use tokio::sync::RwLock;
-use parking_lot::RwLock as StdRwLock;
+use std::sync::RwLock as StdRwLock;
 
 use crate::redo::*;
 use crate::spec::SerializationFormat;
@@ -188,14 +188,14 @@ impl<'a> Chain
         
         // Process all the events in the chain-of-trust
         let conversation = Arc::new(ConversationSession::default());
-        if let Err(err) = inside_async.process(inside_sync.write(), headers, Some(&conversation)) {
+        if let Err(err) = inside_async.process(inside_sync.write().unwrap(), headers, Some(&conversation)) {
             if allow_process_errors == false {
                 return Err(err);
             }
         }
 
         // Now switch to the integrity mode we will use after loading
-        inside_sync.write().set_integrity_mode(idle_integrity);
+        inside_sync.write().unwrap().set_integrity_mode(idle_integrity);
         
         // Create the compaction state (which later we will pass to the compaction thread)
         let (compact_tx, compact_rx) = CompactState::new(compact_mode, inside_async.chain.redo.size() as u64);

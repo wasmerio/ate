@@ -9,7 +9,7 @@ use multimap::MultiMap;
 use serde::{Deserialize};
 use serde::{Serialize, Serializer, de::Deserializer, de::DeserializeOwned};
 use std::{fmt::Debug, sync::Arc};
-use parking_lot::Mutex;
+use std::sync::Mutex;
 use std::ops::Deref;
 use tokio::sync::mpsc;
 use std::cell::RefCell;
@@ -354,7 +354,7 @@ impl DioMut
     async fn __delete(&self, key: &PrimaryKey) -> Result<(), SerializationError>
     {
         {
-            let mut state = self.state.lock();
+            let mut state = self.state.lock().unwrap();
             if state.is_locked(key) {
                 bail!(SerializationErrorKind::ObjectStillLocked(key.clone()));
             }
@@ -365,7 +365,7 @@ impl DioMut
         }
         
         let parent = self.multi.lookup_parent(key).await;
-        self.state.lock().add_deleted(key.clone(), parent);
+        self.state.lock().unwrap().add_deleted(key.clone(), parent);
         Ok(())
     }
 }
@@ -408,7 +408,7 @@ impl DioMut
 {
     pub fn has_uncommitted(&self) -> bool
     {
-        let state = self.state.lock();
+        let state = self.state.lock().unwrap();
         if state.store_ordered.is_empty() && state.deleted.is_empty() {
             return false;
         }
@@ -417,19 +417,19 @@ impl DioMut
 
     pub fn cancel(&self)
     {
-        let mut state = self.state.lock();
+        let mut state = self.state.lock().unwrap();
         state.clear();
     }
 
     pub fn auto_cancel(&self)
     {
-        let mut state = self.state.lock();
+        let mut state = self.state.lock().unwrap();
         state.auto_cancel = true;
     }
 
     pub fn auto_panic(&self)
     {
-        let mut state = self.state.lock();
+        let mut state = self.state.lock().unwrap();
         state.auto_cancel = false;
     }
 
@@ -453,7 +453,7 @@ impl DioMut
     {
         let (rows, deleted, unlocks) = {
             // If we have no dirty records
-            let mut state = self.state.lock();
+            let mut state = self.state.lock().unwrap();
             if state.store_ordered.is_empty() && state.deleted.is_empty() {
                 return Ok(())
             }
@@ -662,7 +662,7 @@ for DioMut
     fn drop(&mut self)
     {
         // Check if auto-cancel is enabled
-        if self.has_uncommitted() & self.state.lock().auto_cancel {
+        if self.has_uncommitted() & self.state.lock().unwrap().auto_cancel {
             debug!("Data objects have been discarded due to auto-cancel and uncommitted changes");
             #[cfg(feature = "enable_dio_backtrace")]
             debug!("{:?}", self.backtrace_new);
@@ -697,7 +697,7 @@ impl DioMut
     where D: Serialize + DeserializeOwned,
     {
         {
-            let state = self.state.lock();
+            let state = self.state.lock().unwrap();
             let _pop1 = DioMutScope::new(self);
 
             if state.is_locked(key) {
@@ -713,7 +713,7 @@ impl DioMut
         }
 
         {
-            let state = self.dio.state.lock();
+            let state = self.dio.state.lock().unwrap();
             let _pop1 = DioMutScope::new(self);
             if let Some((dao, leaf)) = state.cache_load.get(key) {
                 let (row_header, row) = Row::from_event(&self.dio, dao.deref(), leaf.created, leaf.updated)?;
@@ -755,7 +755,7 @@ impl DioMut
             None => None,
         };
 
-        let mut state = self.dio.state.lock();
+        let mut state = self.dio.state.lock().unwrap();
         let _pop1 = DioMutScope::new(self);
 
         match header.meta.get_data_key() {
@@ -795,7 +795,7 @@ impl DioMut
     async fn __exists(&self, key: &PrimaryKey) -> bool
     {
         {
-            let state = self.state.lock();
+            let state = self.state.lock().unwrap();
             if state.deleted.contains(&key) {
                 return false;
             }
@@ -854,7 +854,7 @@ impl DioMut
 
         // Now we search the secondary local index so any objects we have
         // added in this transaction scope are returned
-        let state = self.state.lock();
+        let state = self.state.lock().unwrap();
         let _pop1 = DioMutScope::new(self);
         if let Some(vec) = state.store_secondary.get_vec(&collection_key) {
             for a in vec {
@@ -910,8 +910,8 @@ impl DioMut
         let to_load = {
             let mut to_load = Vec::new();
 
-            let state = self.state.lock();
-            let inner_state = self.dio.state.lock();
+            let state = self.state.lock().unwrap();
+            let inner_state = self.dio.state.lock().unwrap();
             let _pop1 = DioMutScope::new(self);
             
             for key in keys
@@ -949,8 +949,8 @@ impl DioMut
 
         // Now process all the objects
         let ret = {
-            let state = self.state.lock();
-            let mut inner_state = self.dio.state.lock();
+            let state = self.state.lock().unwrap();
+            let mut inner_state = self.dio.state.lock().unwrap();
             let _pop1 = DioMutScope::new(self);
 
             let session = self.session();

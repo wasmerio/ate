@@ -115,7 +115,15 @@ for CommsError
 {
     fn from(_err: tokio::time::error::Elapsed) -> CommsError {
         CommsErrorKind::IO(std::io::Error::new(std::io::ErrorKind::TimedOut, format!("Timeout while waiting for communication channel").to_string())).into()
-    }   
+    }
+}
+
+impl From<crate::engine::Elapsed>
+for CommsError
+{
+    fn from(_err: crate::engine::Elapsed) -> CommsError {
+        CommsErrorKind::IO(std::io::Error::new(std::io::ErrorKind::TimedOut, format!("Timeout while waiting for communication channel").to_string())).into()
+    }
 }
 
 impl<T> From<mpsc::error::SendError<T>>

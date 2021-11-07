@@ -10,8 +10,8 @@ use multimap::MultiMap;
 use serde::{Deserialize};
 use serde::{Serialize, Serializer, de::Deserializer, de::DeserializeOwned};
 use std::{fmt::Debug, sync::Arc};
-use parking_lot::Mutex as StdMutex;
-use parking_lot::RwLock as StdRwLock;
+use std::sync::Mutex as StdMutex;
+use std::sync::RwLock as StdRwLock;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use tokio::sync::mpsc;
@@ -202,7 +202,7 @@ impl Dio
     where D: DeserializeOwned,
     {
         {
-            let state = self.state.lock();
+            let state = self.state.lock().unwrap();
             if let Some((dao, leaf)) = state.cache_load.get(key) {
                 let (row_header, row) = Row::from_event(self, dao.deref(), leaf.created, leaf.updated)?;
                 return Ok(Dao::new(self, row_header, row));
@@ -231,7 +231,7 @@ impl Dio
     pub(super) async fn __exists(&self, key: &PrimaryKey) -> bool
     {
         {
-            let state = self.state.lock();
+            let state = self.state.lock().unwrap();
             if let Some((_, _)) = state.cache_load.get(key) {
                 return true;
             }
@@ -266,7 +266,7 @@ impl Dio
             None => None,
         };
 
-        let mut state = self.state.lock();
+        let mut state = self.state.lock().unwrap();
         match header.meta.get_data_key() {
             Some(key) =>
             {
@@ -356,7 +356,7 @@ impl Dio
         let to_load = {
             let mut to_load = Vec::new();
 
-            let state = self.state.lock();
+            let state = self.state.lock().unwrap();
             for key in keys
             {
                 if let Some((dao, leaf)) = state.cache_load.get(&key) {
@@ -379,7 +379,7 @@ impl Dio
 
         // Now process all the objects
         let ret = {
-            let mut state = self.state.lock();
+            let mut state = self.state.lock().unwrap();
             let session = self.session();
             for mut evt in to_load {
 
@@ -472,7 +472,7 @@ impl Dio
 
         TaskEngine::spawn(async move {
             loop {
-                let recv = tokio::time::timeout(std::time::Duration::from_secs(1), decache.recv()).await;
+                let recv = crate::engine::timeout(std::time::Duration::from_secs(1), decache.recv()).await;
                 let dio = match Weak::upgrade(&dio) {
                     Some(a) => a,
                     None => { break; }
@@ -486,7 +486,7 @@ impl Dio
                     Err(_) => { break; }
                 };
 
-                let mut state = dio.state.lock();
+                let mut state = dio.state.lock().unwrap();
                 for key in recv {
                     state.cache_load.remove(&key);
                 }
@@ -497,7 +497,7 @@ impl Dio
 
 pub struct DioSessionGuard<'a>
 {
-    lock: parking_lot::RwLockReadGuard<'a, Box<dyn AteSession>>
+    lock: std::sync::RwLockReadGuard<'a, Box<dyn AteSession>>
 }
 
 impl<'a> DioSessionGuard<'a>
@@ -505,7 +505,7 @@ impl<'a> DioSessionGuard<'a>
     fn new(dio: &'a Dio) -> DioSessionGuard<'a>
     {
         DioSessionGuard {
-            lock: dio.session.read()
+            lock: dio.session.read().unwrap()
         }
     }
 
@@ -526,7 +526,7 @@ for DioSessionGuard<'a>
 
 pub struct DioSessionGuardMut<'a>
 {
-    lock: parking_lot::RwLockWriteGuard<'a, Box<dyn AteSession>>
+    lock: std::sync::RwLockWriteGuard<'a, Box<dyn AteSession>>
 }
 
 impl<'a> DioSessionGuardMut<'a>
@@ -534,7 +534,7 @@ impl<'a> DioSessionGuardMut<'a>
     fn new(dio: &'a Dio) -> DioSessionGuardMut<'a>
     {
         DioSessionGuardMut {
-            lock: dio.session.write()
+            lock: dio.session.write().unwrap()
         }
     }
 

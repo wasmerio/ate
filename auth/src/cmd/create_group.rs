@@ -40,7 +40,7 @@ pub async fn main_create_group_prelude(
         Some(a) => a,
         None => {
             #[cfg(not(feature = "force_tty"))]
-            if !atty::is(atty::Stream::Stdin) {
+            if !is_tty_stdin() {
                 bail!(CreateErrorKind::InvalidArguments);
             }
 
@@ -56,7 +56,7 @@ pub async fn main_create_group_prelude(
         Some(a) => a,
         None => {
             #[cfg(not(feature = "force_tty"))]
-            if !atty::is(atty::Stream::Stdin) {
+            if !is_tty_stdin() {
                 bail!(CreateErrorKind::InvalidArguments);
             }
 

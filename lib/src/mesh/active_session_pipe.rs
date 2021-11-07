@@ -1,17 +1,17 @@
 use async_trait::async_trait;
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use error_chain::bail;
-use parking_lot::Mutex as StdMutex;
+use std::sync::Mutex as StdMutex;
 use std::{sync::Arc, sync::Weak};
 use tokio::sync::watch;
 use tokio::sync::RwLock;
 use fxhash::FxHashMap;
-use parking_lot::RwLock as StdRwLock;
+use std::sync::RwLock as StdRwLock;
 use std::ops::Rem;
 use std::time::Duration;
 use std::time::Instant;
 use tokio::sync::broadcast;
-use tokio::time::timeout;
+use crate::engine::timeout;
 
 use super::*;
 use super::recoverable_session_pipe::*;
@@ -87,7 +87,7 @@ impl ActiveSessionPipe
 
                 // Register a commit ID that will receive the response
                 let id = fastrand::u64(..);
-                self.commit.lock().insert(id, sender);
+                self.commit.lock().unwrap().insert(id, sender);
                 (Some(id), Some(receiver))
             },
             _ => (None, None),
@@ -133,7 +133,7 @@ impl ActiveSessionPipe
             // If we need to wait for the transaction to commit then do so
             if let Some(mut receiver) = receiver {
                 trace!("waiting for transaction to commit");
-                match tokio::time::timeout(timeout, receiver.recv()).await {
+                match crate::engine::timeout(timeout, receiver.recv()).await {
                     Ok(Some(result)) => {
                         self.likely_read_only = false;
                         let commit_id = result?;
@@ -145,7 +145,7 @@ impl ActiveSessionPipe
                     },
                     Err(elapsed) => {
                         debug!("transaction has timed out");
-                        bail!(CommitErrorKind::Timeout(elapsed));
+                        bail!(CommitErrorKind::Timeout(elapsed.to_string()));
                     }
                 };
             }
@@ -169,7 +169,7 @@ impl ActiveSessionPipe
             negative: 0,
             tx,
         };
-        self.lock_requests.lock().insert(key.clone(), my_lock);
+        self.lock_requests.lock().unwrap().insert(key.clone(), my_lock);
 
         // Send a message up to the main server asking for a lock on the data object
         trace!("tx lock key={}", key);
@@ -178,7 +178,7 @@ impl ActiveSessionPipe
         }).await?;
 
         // Wait for the response from the server
-        let ret = match tokio::time::timeout(self.lock_attempt_timeout, rx.changed()).await {
+        let ret = match crate::engine::timeout(self.lock_attempt_timeout, rx.changed()).await {
             Ok(a) => {
                 self.likely_read_only = false;
                 if let Err(_) = a {

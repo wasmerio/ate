@@ -19,7 +19,7 @@ pub async fn main_opts_token(opts_token: OptsToken, token: Option<String>, token
         TokenAction::Generate(action) => {
             let session = main_login(action.email, action.password, auth).await?;
 
-            if atty::is(atty::Stream::Stdout) {
+            if is_tty_stdout() {
                 eprintln!("The token string below can be used to secure your file system.\n");
             }
             
@@ -30,7 +30,7 @@ pub async fn main_opts_token(opts_token: OptsToken, token: Option<String>, token
             let session = main_login(action.email, action.password, auth.clone()).await?;
             let session = main_sudo(session, action.code, auth).await?;
 
-            if atty::is(atty::Stream::Stdout) {
+            if is_tty_stdout() {
                 eprintln!("The token string below can be used to secure your file system.\n");
             }
 
@@ -40,7 +40,7 @@ pub async fn main_opts_token(opts_token: OptsToken, token: Option<String>, token
         TokenAction::Gather(action) => {
             let session = main_session_group(token.clone(), token_path.clone(), action.group, action.sudo, None, Some(auth.clone()), hint_group).await?;
 
-            if atty::is(atty::Stream::Stdout) {
+            if is_tty_stdout() {
                 eprintln!("The token string below can be used to secure your file system.\n");
             }
             

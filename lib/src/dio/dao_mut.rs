@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-use tracing::{warn, debug};
+use tracing::{warn, debug, error, info, trace};
 use fxhash::FxHashSet;
 use async_trait::async_trait;
 
@@ -7,7 +7,7 @@ use serde::{Serialize, de::DeserializeOwned};
 use bytes::Bytes;
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Weak};
-use parking_lot::{Mutex, MutexGuard};
+use std::sync::{Mutex, MutexGuard};
 
 use crate::crypto::{EncryptedPrivateKey, PrivateSignKey};
 use crate::{crypto::EncryptKey, session::{AteSession, AteSessionProperty}};
@@ -123,7 +123,7 @@ where D: Serialize
 
     pub fn delete(self) -> std::result::Result<(), SerializationError> {
         let key = self.key().clone();
-        let mut state = self.trans.state.lock();
+        let mut state = self.trans.state.lock().unwrap();
         state.add_deleted(key, self.inner.row_header.parent.clone());
         Ok(())
     }
@@ -211,7 +211,7 @@ where D: Serialize
         }
         
         let timer = std::time::Instant::now();
-
+        
         // Use an exponential backoff
         let mut spin = 3;
         let mut max_wait = 0u64;
@@ -242,7 +242,7 @@ where D: Serialize
             let mut random_wait = std::time::Duration::from_millis(random_wait);
             random_wait = random_wait.min(remaining);
 
-            tokio::time::sleep(random_wait).await;
+            crate::engine::sleep(random_wait).await;
         }
         return Ok(false);
     }
@@ -292,7 +292,7 @@ where D: Serialize
     pub fn as_mut<'a>(&'a mut self) -> DaoMutGuard<'a, D>
     {
         {
-            let mut state = self.trans.state.lock();
+            let mut state = self.trans.state.lock().unwrap();
             if state.rows.contains_key(self.inner.key()) == false {
                 if let Some(row) = self.inner.row.as_row_data(&self.inner.row_header).ok() {
                     state.rows.insert(self.inner.key().clone(), row);
@@ -338,7 +338,7 @@ where D: Serialize
     fn commit(&mut self, header_changed: bool, data_changed: bool) -> std::result::Result<(), SerializationError>
     where D: Serialize
     {
-        let mut state = self.trans.state.lock();
+        let mut state = self.trans.state.lock().unwrap();
 
         // The local DIO lock gets released first
         state.unlock(&self.inner.row.key);

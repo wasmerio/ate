@@ -14,7 +14,7 @@ use std::net::SocketAddr;
 #[cfg(not(feature="enable_dns"))]
 use std::net::ToSocketAddrs;
 use std::result::Result;
-use parking_lot::Mutex as StdMutex;
+use std::sync::Mutex as StdMutex;
 
 use crate::{error::*, comms::NodeId};
 use crate::crypto::*;
@@ -95,9 +95,9 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
 }
 
 #[cfg(feature="enable_dns")]
-type MeshConnectAddr = SocketAddr;
+pub type MeshConnectAddr = SocketAddr;
 #[cfg(not(feature="enable_dns"))]
-type MeshConnectAddr = crate::conf::MeshAddress;
+pub type MeshConnectAddr = crate::conf::MeshAddress;
 
 pub(super) async fn mesh_connect_to<M, C>
 (
@@ -131,7 +131,8 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         wire_encryption,
         fail_fast,
     );
-    let (mut worker_connect, mut stream_tx) = tokio::time::timeout(timeout, worker_connect).await??;
+    let (mut worker_connect, mut stream_tx)
+        = crate::engine::timeout(timeout, worker_connect).await??;
     let wire_format = worker_connect.hello_metadata.wire_format;
     let server_id = worker_connect.hello_metadata.server_id;
 
@@ -193,61 +194,81 @@ async fn mesh_connect_prepare
         #[allow(unused_mut)]
         let mut exp_backoff = Duration::from_millis(100);
         loop {
-            #[cfg(feature = "enable_full")]
-            let stream = {
-                #[cfg(not(feature="enable_dns"))]
-                let addr = {
-                    match format!("{}:{}", addr.host, addr.port)
-                        .to_socket_addrs()?
-                        .next()
-                    {
-                        Some(a) => a,
-                        None => {
-                            bail!(CommsErrorKind::InvalidDomainName);
-                        }
-                    }
-                };
-
-                let stream = match
-                    TcpStream::connect(addr.clone())
-                    .await
-                {
-                    Err(err) if match err.kind() {
-                        std::io::ErrorKind::ConnectionRefused => {
-                            if fail_fast {
-                                bail!(CommsErrorKind::Refused);
-                            }
-                            true
-                        },
-                        std::io::ErrorKind::ConnectionReset => true,
-                        std::io::ErrorKind::ConnectionAborted => true,
-                        _ => false   
-                    } => {
-                        debug!("connect failed: reason={}, backoff={}s", err, exp_backoff.as_secs_f32());
-                        tokio::time::sleep(exp_backoff).await;
-                        exp_backoff *= 2;
-                        if exp_backoff > Duration::from_secs(10) { exp_backoff = Duration::from_secs(10); }
-                        continue;
-                    },
-                    a => a?,
-                };
-
-                // Setup the TCP stream
-                setup_tcp_stream(&stream)?;
-
-                // Convert the TCP stream into the right protocol
-                let stream = Stream::Tcp(stream);
-                let stream = stream
-                    .upgrade_client(wire_protocol)
-                    .await?;
-                stream
+            // If we have a factory then use it
+            #[allow(unused_mut)]
+            let mut stream = {
+                let mut factory = crate::mesh::GLOBAL_COMM_FACTORY.lock().unwrap();
+                if let Some(factory) = factory.as_mut() {
+                    let create_client = Arc::clone(&factory);
+                    drop(factory);
+                    create_client(addr.clone())
+                } else {
+                    None
+                }
             };
 
-            #[cfg(all(feature = "enable_web_sys",not(feature = "enable_full")))]
-            let stream = {
-                trace!("opening /dev/tok");
-                let file = std::fs::File::open("/dev/tok")?;
-                Stream::WebSocket(file)
+            // If no stream yet exists then create one
+            #[cfg(feature = "enable_full")]
+            if stream.is_none()
+            {                
+                stream = {
+                    #[cfg(not(feature="enable_dns"))]
+                    let addr = {
+                        match format!("{}:{}", addr.host, addr.port)
+                            .to_socket_addrs()?
+                            .next()
+                        {
+                            Some(a) => a,
+                            None => {
+                                bail!(CommsErrorKind::InvalidDomainName);
+                            }
+                        }
+                    };
+
+                    let stream = match
+                        TcpStream::connect(addr.clone())
+                        .await
+                    {
+                        Err(err) if match err.kind() {
+                            std::io::ErrorKind::ConnectionRefused => {
+                                if fail_fast {
+                                    bail!(CommsErrorKind::Refused);
+                                }
+                                true
+                            },
+                            std::io::ErrorKind::ConnectionReset => true,
+                            std::io::ErrorKind::ConnectionAborted => true,
+                            _ => false   
+                        } => {
+                            debug!("connect failed: reason={}, backoff={}s", err, exp_backoff.as_secs_f32());
+                            crate::engine::sleep(exp_backoff).await;
+                            exp_backoff *= 2;
+                            if exp_backoff > Duration::from_secs(10) { exp_backoff = Duration::from_secs(10); }
+                            continue;
+                        },
+                        a => a?,
+                    };
+
+                    // Setup the TCP stream
+                    setup_tcp_stream(&stream)?;
+
+                    // Convert the TCP stream into the right protocol
+                    let stream = Stream::Tcp(stream);
+                    let stream = stream
+                        .upgrade_client(wire_protocol)
+                        .await?;
+                    Some(stream)
+                };
+
+                #[cfg(all(feature = "enable_web_sys",not(feature = "enable_full")))]
+                bail!(CommsErrorKind::InternalError("Web based clients require a GLOBAL_COMM_FACTORY".to_string()));
+            }
+
+            let stream = match stream {
+                Some(a) => a,
+                None => {
+                    bail!(CommsErrorKind::InternalError("Failed to create a client stream".to_string()));
+                }
             };
 
             // Build the stream

@@ -15,7 +15,8 @@ use std::net::Ipv4Addr;
 use std::net::Ipv6Addr;
 use std::str::FromStr;
 use once_cell::sync::Lazy;
-use parking_lot::RwLock as StdRwLock;
+use std::sync::Mutex as StdMutex;
+use std::sync::RwLock as StdRwLock;
 
 use crate::prelude::*;
 use crate::{
@@ -32,10 +33,6 @@ use crate::service::Service;
 #[cfg(feature = "enable_dns")]
 use crate::dns::*;
 use crate::utils::chain_key_16hex;
-
-static GLOBAL_CERTIFICATES: Lazy<StdRwLock<Vec<AteHash>>> = Lazy::new(|| {
-    StdRwLock::new(Vec::new())
-});
 
 pub struct Registry
 {
@@ -235,7 +232,7 @@ impl Registry
 
         // Add all the global certificates
         if let CertificateValidation::AllowedCertificates(allowed) = &mut ret.certificate_validation {
-            for cert in GLOBAL_CERTIFICATES.read().iter() {
+            for cert in GLOBAL_CERTIFICATES.read().unwrap().iter() {
                 allowed.push(cert.clone());
             }
         }
@@ -381,7 +378,7 @@ impl Registry
     /// (note: this cache time must be less than the server cache time on commands)
     fn chain_key_cmd(&self, url: &url::Url, reuse: bool) -> ChainKey
     {
-        let mut guard = self.cmd_key.lock();
+        let mut guard = self.cmd_key.lock().unwrap();
         if reuse {
             if let Some(hex) = guard.get(url) {
                 return chain_key_16hex(hex.as_str(), Some("cmd"));
@@ -391,10 +388,6 @@ impl Registry
         let hex = AteHash::generate().to_hex_string();
         guard.insert(url.clone(), hex.clone());
         chain_key_16hex(hex.as_str(), Some("cmd"))
-    }
-
-    pub fn add_global_certificate(cert: &AteHash) {
-        GLOBAL_CERTIFICATES.write().push(cert.clone());
     }
 }
 
@@ -478,7 +471,7 @@ for ChainGuard
             let duration = duration.clone();
             TaskEngine::spawn(async move {
                 trace!("keep-alive: warm down for {}", chain.key());
-                tokio::time::sleep(duration).await;
+                crate::engine::sleep(duration).await;
 
                 // If we are the last then do a cleanup
                 if Arc::strong_count(&chain) <= 1 {

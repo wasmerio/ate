@@ -1,7 +1,7 @@
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use tracing_futures::Instrument;
-use parking_lot::Mutex as StdMutex;
+use std::sync::Mutex as StdMutex;
 use std::time::Duration;
 
 use crate::error::*;
@@ -14,7 +14,7 @@ use crate::transaction::*;
 use std::sync::{Arc};
 use tokio::sync::RwLock;
 use tokio::sync::broadcast;
-use parking_lot::RwLock as StdRwLock;
+use std::sync::RwLock as StdRwLock;
 
 use crate::single::*;
 use crate::multi::*;
@@ -52,6 +52,7 @@ use super::*;
 pub struct Chain
 {
     pub(crate) key: ChainKey,
+    #[allow(dead_code)]
     pub(crate) node_id: NodeId,
     pub(crate) cfg_ate: ConfAte,
     pub(crate) remote_addr: Option<MeshAddress>,

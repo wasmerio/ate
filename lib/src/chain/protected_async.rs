@@ -10,8 +10,8 @@ use crate::transaction::*;
 use fxhash::FxHashSet;
 use std::sync::{Arc};
 use tokio::sync::RwLock;
-use parking_lot::RwLock as StdRwLock;
-use parking_lot::RwLockWriteGuard as StdRwLockWriteGuard;
+use std::sync::RwLock as StdRwLock;
+use std::sync::RwLockWriteGuard as StdRwLockWriteGuard;
 use std::ops::*;
 use std::time::Duration;
 use multimap::MultiMap;
@@ -86,7 +86,7 @@ impl ChainProtectedAsync
         let mut errors = Vec::new();
         let mut validated_evts = Vec::new();
         {
-            let mut sync = sync.write();
+            let mut sync = sync.write().unwrap();
             for evt in evts.iter()
             {
                 let header = evt.as_header()?;

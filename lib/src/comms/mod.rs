@@ -39,6 +39,7 @@ pub use stream::StreamRx;
 pub use stream::StreamTx;
 pub use stream::StreamTxChannel;
 pub use stream::StreamProtocol;
+pub use client::MeshConnectAddr;
 pub use metrics::Metrics;
 pub use throttle::Throttle;
 pub use certificate_validation::*;

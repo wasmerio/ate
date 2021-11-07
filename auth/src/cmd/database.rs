@@ -46,7 +46,7 @@ pub async fn main_opts_db(opts_db: OptsDatabase, token: Option<String>, token_pa
 
     match opts_db.action {
         DatabaseAction::Details(_action) => {
-            let guard = db.metrics().lock();
+            let guard = db.metrics().lock().unwrap();
             println!("Database Chain Details");
             println!("======================");
             println!("Remote: {}", opts_db.remote);

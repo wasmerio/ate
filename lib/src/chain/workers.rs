@@ -10,7 +10,7 @@ use crate::chain::Chain;
 use crate::time::*;
 use crate::engine::TaskEngine;
 
-use parking_lot::RwLock as StdRwLock;
+use std::sync::RwLock as StdRwLock;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tokio::sync::broadcast;
@@ -45,7 +45,7 @@ impl ChainWorkProcessor
     pub(crate) async fn process(&self, work: ChainWork) -> Result<(), CommitError>
     {
         // Check all the sniffers
-        let notifies = crate::service::callback_events_prepare(&self.inside_sync.read(), &work.trans.events);
+        let notifies = crate::service::callback_events_prepare(&self.inside_sync.read().unwrap(), &work.trans.events);
         let trans = work.trans;
 
         // We lock the chain of trust while we update the local chain

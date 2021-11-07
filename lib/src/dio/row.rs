@@ -7,7 +7,7 @@ use serde::{Serialize, de::DeserializeOwned};
 use bytes::Bytes;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
-use parking_lot::{Mutex, MutexGuard};
+use std::sync::{Mutex, MutexGuard};
 
 use crate::crypto::{EncryptedPrivateKey, PrivateSignKey};
 use crate::{crypto::EncryptKey, session::{AteSessionProperty}};

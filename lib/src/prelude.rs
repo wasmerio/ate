@@ -22,6 +22,7 @@ pub use crate::meta::ReadOption;
 pub use crate::meta::WriteOption;
 pub use crate::comms::Metrics as ChainMetrics;
 pub use crate::comms::Throttle as ChainThrottle;
+pub use crate::comms::MeshConnectAddr;
 
 #[cfg(feature = "enable_server")]
 pub use crate::flow::OpenFlow;
@@ -116,3 +117,5 @@ pub use crate::mesh::create_client;
 pub use crate::mesh::create_temporal_client;
 #[cfg(feature = "enable_client")]
 pub use crate::mesh::create_persistent_client;
+pub use crate::mesh::add_global_certificate;
+pub use crate::mesh::set_comm_factory;

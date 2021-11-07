@@ -26,7 +26,7 @@ enable_ntp = []
 enable_web_sys = []
 enable_mt = [ "tokio/rt-multi-thread" ]
 enable_dns = [ "trust-dns-proto", "trust-dns-client", "pnet" ]
-enable_full = [ "tokio/net", "tokio-tungstenite", "enable_buffered", "enable_local_fs", "enable_rotate", "enable_caching", "enable_ntp", "enable_dns" ]
+enable_full = [ "tokio/net", "tokio-tungstenite", "enable_buffered", "enable_local_fs", "enable_rotate", "enable_caching", "enable_ntp", "enable_dns", "tokio/rt", "tokio/io-util", "tokio/time", "tokio/fs" ]
 client_web = [ "enable_client", "enable_web_sys" ]
 client = [ "enable_full", "enable_client" ]
 server = [ "enable_full", "enable_server", "enable_client" ]
@@ -61,7 +61,6 @@ tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
 tracing-futures = { version = "^0.2" }
 tracing-subscriber = { version = "^0.2" }
 cached = "^0.23"
-parking_lot = "^0.11"
 bincode = "^1"
 async-executor = "^1"
 url = { version = "^2", features = ["serde"] }
@@ -77,7 +76,7 @@ pqcrypto-traits-wasi = { version = "^0.3", default_features = false }
 http = { version = "^0.2" }
 aes = { version = "^0.7" }
 ctr = { version = "^0.8" }
-tokio = { version = "^1", features = [ "rt", "io-util", "macros", "sync", "time", "fs" ], default_features = false }
+tokio = { version = "^1", features = [ "macros", "sync" ], default_features = false }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 pnet = { version = "^0.27", optional = true }

@@ -21,7 +21,9 @@ use async_trait::async_trait;
 use serde::{Serialize, Deserialize};
 use std::{net::{IpAddr, Ipv6Addr}, str::FromStr};
 use tokio::sync::{RwLock, Mutex};
-use parking_lot::Mutex as StdMutex;
+use std::sync::Mutex as StdMutex;
+use std::sync::RwLock as StdRwLock;
+use once_cell::sync::Lazy;
 use std::{collections::BTreeMap, sync::Arc, collections::hash_map::Entry};
 use tokio::sync::mpsc;
 use fxhash::FxHashMap;
@@ -158,4 +160,20 @@ pub fn create_temporal_client(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Arc<Mes
 {
     let client_id = NodeId::generate_client_id();
     MeshClient::new(&cfg_ate, &cfg_mesh, client_id, true)
+}
+
+pub(crate) static GLOBAL_CERTIFICATES: Lazy<StdRwLock<Vec<AteHash>>> = Lazy::new(|| {
+    StdRwLock::new(Vec::new())
+});
+
+pub(crate) static GLOBAL_COMM_FACTORY: Lazy<StdMutex<Option<Arc<dyn Fn(MeshConnectAddr) -> Option<Stream> + Send + Sync + 'static>>>> = Lazy::new(|| {
+    StdMutex::new(None)
+});
+
+pub fn add_global_certificate(cert: &AteHash) {
+    GLOBAL_CERTIFICATES.write().unwrap().push(cert.clone());
+}
+
+pub fn set_comm_factory(funct: impl Fn(MeshConnectAddr) -> Option<Stream> + Send + Sync + 'static) {
+    GLOBAL_COMM_FACTORY.lock().unwrap().replace(Arc::new(funct));
 }

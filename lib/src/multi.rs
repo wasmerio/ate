@@ -1,5 +1,5 @@
 use tokio::sync::RwLock;
-use parking_lot::RwLock as StdRwLock;
+use std::sync::RwLock as StdRwLock;
 #[allow(unused_imports)]
 use std::sync::{Weak, Arc};
 use std::time::Duration;
@@ -22,7 +22,7 @@ use bytes::Bytes;
 pub(crate) struct ChainMultiUserLock<'a>
 {
     pub inside_async: tokio::sync::RwLockReadGuard<'a, ChainProtectedAsync>,
-    pub inside_sync: parking_lot::RwLockReadGuard<'a, ChainProtectedSync>,
+    pub inside_sync: std::sync::RwLockReadGuard<'a, ChainProtectedSync>,
 }
 
 impl<'a> std::ops::Deref
@@ -93,25 +93,25 @@ impl ChainMultiUser
 
     #[allow(dead_code)]
     pub(crate) fn metadata_lint_many<'a>(&self, lints: &Vec<LintData<'a>>, session: &'_ dyn AteSession, conversation: Option<&Arc<ConversationSession>>) -> Result<Vec<CoreMetadata>, LintError> {
-        let guard = self.inside_sync.read();
+        let guard = self.inside_sync.read().unwrap();
         guard.metadata_lint_many(lints, session, conversation)
     }
 
     #[allow(dead_code)]
     pub(crate) fn metadata_lint_event(&self, meta: &mut Metadata, session: &'_ dyn AteSession, trans_meta: &TransactionMetadata, type_code: &str) -> Result<Vec<CoreMetadata>, LintError> {
-        let guard = self.inside_sync.read();
+        let guard = self.inside_sync.read().unwrap();
         guard.metadata_lint_event(meta, session, trans_meta, type_code)
     }
 
     #[allow(dead_code)]
     pub(crate) fn data_as_overlay(&self, meta: &Metadata, data: Bytes, session: &'_ dyn AteSession) -> Result<Bytes, TransformError> {
-        let guard = self.inside_sync.read();
+        let guard = self.inside_sync.read().unwrap();
         guard.data_as_overlay(meta, data, session)
     }
 
     #[allow(dead_code)]
     pub(crate) fn data_as_underlay(&self, meta: &mut Metadata, data: Bytes, session: &'_ dyn AteSession, trans_meta: &TransactionMetadata) -> Result<Bytes, TransformError> {
-        let guard = self.inside_sync.read();
+        let guard = self.inside_sync.read().unwrap();
         guard.data_as_underlay(meta, data, session, trans_meta)
     }
     
@@ -122,7 +122,7 @@ impl ChainMultiUser
     pub(crate) async fn lock<'a>(&'a self) -> ChainMultiUserLock<'a> {
         ChainMultiUserLock {
             inside_async: self.inside_async.read().await,
-            inside_sync: self.inside_sync.read()
+            inside_sync: self.inside_sync.read().unwrap()
         }        
     }
 

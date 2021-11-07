@@ -4,8 +4,8 @@ use error_chain::bail;
 use async_trait::async_trait;
 use serde::{Serialize, Deserialize};
 use std::{borrow::Borrow, net::{IpAddr, Ipv4Addr, Ipv6Addr}, ops::Deref};
+use std::sync::Mutex as StdMutex;
 use tokio::sync::{Mutex};
-use parking_lot::Mutex as StdMutex;
 use std::{sync::Arc, collections::hash_map::Entry};
 use tokio::sync::mpsc;
 use fxhash::FxHashMap;
@@ -103,7 +103,7 @@ for SessionContext {
 impl Drop
 for SessionContext {
     fn drop(&mut self) {
-        let context = self.inside.lock().clone();
+        let context = self.inside.lock().unwrap().clone();
         if let Err(err) = disconnected(context) {
             debug_assert!(false, "mesh-root-err {:?}", err);
             warn!("mesh-root-err: {}", err.to_string());
@@ -181,7 +181,7 @@ impl MeshRoot
 
         let listener = crate::comms::Listener::new(&cfg, server_id, processor, exit_tx.clone()).await?;
         {
-            let mut guard = root.listener.lock();
+            let mut guard = root.listener.lock().unwrap();
             guard.replace(listener);
         }
 
@@ -189,7 +189,7 @@ impl MeshRoot
             let root = Arc::clone(&root);
             TaskEngine::spawn(async move {
                 root.auto_clean().await;
-            })
+            });
         }
 
         Ok(root)
@@ -202,7 +202,7 @@ impl MeshRoot
     ) -> Result<(), CommsError>
     {
         let listener = {
-            let guard = self.listener.lock();
+            let guard = self.listener.lock().unwrap();
             if let Some(listener) = guard.as_ref() {
                 Arc::clone(&listener)
             } else {
@@ -218,7 +218,7 @@ impl MeshRoot
     {
         let chain = Arc::downgrade(&self);
         loop {
-            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            crate::engine::sleep(std::time::Duration::from_secs(5)).await;
             
             let chain = match Weak::upgrade(&chain) {
                 Some(a) => a,
@@ -254,14 +254,14 @@ impl MeshRoot
         };
         
         {
-            let mut routes = self.routes.lock();
+            let mut routes = self.routes.lock().unwrap();
             routes.insert(hello_path.clone(), Arc::new(Mutex::new(route)));
         }
 
         {
-            let listener = self.listener.lock();
+            let listener = self.listener.lock().unwrap();
             if let Some(listener) = listener.deref() {
-                let mut listener = listener.lock();
+                let mut listener = listener.lock().unwrap();
                 listener.add_route(hello_path.as_str())?
             }
         };
@@ -309,12 +309,12 @@ impl MeshRoot
     pub async fn __shutdown(self: &Arc<Self>)
     {
         {
-            let mut guard = self.listener.lock();
+            let mut guard = self.listener.lock().unwrap();
             guard.take();
         }
 
         {
-            let mut guard = self.routes.lock();
+            let mut guard = self.routes.lock().unwrap();
             guard.clear();
         }
 
@@ -403,7 +403,7 @@ async fn open_internal<'b>(
 
     // Determine the route (if any)
     let route = {
-        let routes = root.routes.lock();
+        let routes = root.routes.lock().unwrap();
         match routes.get(&route_chain.route) {
             Some(a) => Arc::clone(a),
             None => {
@@ -563,7 +563,7 @@ async fn inbox_event<'b>(
         }
     }
 
-    let chain = context.inside.lock().chain.clone();
+    let chain = context.inside.lock().unwrap().chain.clone();
     let chain = match chain {
         Some(a) => a,
         None => {
@@ -624,7 +624,7 @@ async fn inbox_lock<'b>(
 {
     trace!("lock {}", key);
 
-    let chain = context.inside.lock().chain.clone();
+    let chain = context.inside.lock().unwrap().chain.clone();
     let chain = match chain {
         Some(a) => a,
         None => {
@@ -634,7 +634,7 @@ async fn inbox_lock<'b>(
     };
 
     let is_locked = chain.pipe.try_lock(key.clone()).await?;
-    context.inside.lock().locks.insert(key.clone());
+    context.inside.lock().unwrap().locks.insert(key.clone());
     
     tx.send_reply_msg(Message::LockResult {
         key: key.clone(),
@@ -651,7 +651,7 @@ async fn inbox_unlock<'b>(
 {
     trace!("unlock {}", key);
 
-    let chain = context.inside.lock().chain.clone();
+    let chain = context.inside.lock().unwrap().chain.clone();
     let chain = match chain {
         Some(a) => a,
         None => {
@@ -660,7 +660,7 @@ async fn inbox_unlock<'b>(
         }
     };
     
-    context.inside.lock().locks.remove(&key);
+    context.inside.lock().unwrap().locks.remove(&key);
     chain.pipe.unlock(key).await?;
     Ok(())
 }
@@ -777,7 +777,7 @@ async fn inbox_subscribe<'b>(
 
     // Update the context with the latest chain-key
     {
-        let mut guard = context.inside.lock();
+        let mut guard = context.inside.lock().unwrap();
         guard.chain.replace(Arc::clone(&chain));
     }
 
@@ -806,7 +806,7 @@ async fn inbox_unsubscribe<'b>(
 
     // Clear the chain this is operating on
     {
-        let mut guard = context.inside.lock();
+        let mut guard = context.inside.lock().unwrap();
         guard.chain.take();
     }
 
@@ -839,7 +839,7 @@ async fn inbox_packet<'b>(
         let pck = pck.packet;
 
         let read_only = {
-            let throttle = tx.throttle.lock();
+            let throttle = tx.throttle.lock().unwrap();
             throttle.read_only
         };
 

@@ -3,7 +3,7 @@ use tracing::{info, error, warn, debug};
 use std::{sync::Weak};
 use tokio::sync::mpsc;
 use std::sync::Arc;
-use parking_lot::RwLockReadGuard as StdRwLockReadGuard;
+use std::sync::RwLockReadGuard as StdRwLockReadGuard;
 
 use crate::{error::*, event::*};
 use crate::chain::*;
@@ -73,7 +73,7 @@ pub(super) fn sniff_for_command_begin(chain: Weak<Chain>, what: Box<dyn Fn(&Even
 
     // Insert a sniffer under a lock
     if let Some(chain) = chain.upgrade() {
-        let mut guard = chain.inside_sync.write();
+        let mut guard = chain.inside_sync.write().unwrap();
         guard.sniffers.push(sniffer);
     }
 
@@ -91,7 +91,7 @@ pub(super) async fn sniff_for_command_finish(mut handle: SniffCommandHandle) -> 
 
     // Remove the sniffer
     if let Some(chain) = handle.chain.upgrade() {
-        let mut guard = chain.inside_sync.write();
+        let mut guard = chain.inside_sync.write().unwrap();
         guard.sniffers.retain(|s| s.id != handle.id);
     }
 

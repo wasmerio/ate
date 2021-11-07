@@ -144,7 +144,7 @@ You will need *both* of the following to reset your account:
         }
     };
 
-    if atty::is(atty::Stream::Stdout) {
+    if is_tty_stdout() {
         println!("Account reset (id={})", result.key);
 
         // Display the QR code

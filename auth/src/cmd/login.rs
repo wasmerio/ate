@@ -40,7 +40,7 @@ pub async fn login_command(registry: &Registry, username: String, password: Stri
     // Display the message of the day
     if print_message_of_the_day {
         if let Some(message_of_the_day) = result.message_of_the_day {
-            if atty::is(atty::Stream::Stderr) {
+            if is_tty_stderr() {
                 eprintln!("{}", message_of_the_day);
             }
         }
@@ -61,7 +61,12 @@ pub(crate) async fn main_session_start(token_string: Option<String>, token_file_
                 std::process::exit(1);
             }
             let path = shellexpand::tilde(path.as_str()).to_string();
+            #[cfg(feature = "enable_full")]
             if let Ok(token) = tokio::fs::read_to_string(path).await {
+                session = Some(b64_to_session(token));
+            }
+            #[cfg(not(feature = "enable_full"))]
+            if let Ok(token) = std::fs::read_to_string(path) {
                 session = Some(b64_to_session(token));
             }
         }
@@ -132,8 +137,7 @@ pub async fn main_login(
     let username = match username {
         Some(a) => a,
         None => {
-            #[cfg(not(feature = "force_tty"))]
-            if !atty::is(atty::Stream::Stdin) {
+            if !is_tty_stdin() {
                 bail!(LoginErrorKind::InvalidArguments);
             }
 
@@ -148,8 +152,7 @@ pub async fn main_login(
     let password = match password {
         Some(a) => a,
         None => {
-            #[cfg(not(feature = "force_tty"))]
-            if !atty::is(atty::Stream::Stdin) {
+            if !is_tty_stdin() {
                 bail!(LoginErrorKind::InvalidArguments);
             }
 
@@ -179,8 +182,7 @@ pub(crate) async fn handle_login_response(
     if let Err(LoginError(LoginErrorKind::Unverified(_), _)) = &response {
         was_unverified = true;
 
-        #[cfg(not(feature = "force_tty"))]
-        if !atty::is(atty::Stream::Stdin) {
+        if !is_tty_stdin() {
             bail!(LoginErrorKind::InvalidArguments);
         }
 

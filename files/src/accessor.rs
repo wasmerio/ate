@@ -23,6 +23,7 @@ use super::api::*;
 use super::handle::*;
 use super::error::*;
 use super::prelude::*;
+use super::codes::*;
 
 use fxhash::FxHashMap;
 
@@ -205,19 +206,19 @@ impl FileAccessor
     pub async fn create_open_handle(&self, inode: u64, req: &RequestContext, flags: i32) -> Result<OpenHandle>
     {
         let mut writable = false;
-        if flags & libc::O_TRUNC != 0 || flags & libc::O_RDWR != 0 || flags & libc::O_WRONLY != 0 {
+        if flags & O_TRUNC != 0 || flags & O_RDWR != 0 || flags & O_WRONLY != 0 {
             self.access_internal(&req, inode, 0o2).await?;
             writable = true;
         }
 
-        if flags & libc::O_RDWR != 0 || flags & libc::O_RDONLY != 0 {
+        if flags & O_RDWR != 0 || flags & O_RDONLY != 0 {
             self.access_internal(&req, inode, 0o4).await?;
         }
 
         let data = self.load(inode).await?;
         let created = data.when_created();
         let updated = data.when_updated();
-        let read_only = flags & libc::O_RDONLY != 0;
+        let read_only = flags & O_RDONLY != 0;
 
         let uid = data.dentry.uid;
         let gid = data.dentry.gid;
@@ -265,7 +266,7 @@ impl FileAccessor
             }
             false => Inode::as_file_spec(data.key().as_u64(), created, updated, data).await
         };
-        if flags & libc::O_TRUNC != 0 {
+        if flags & O_TRUNC != 0 {
             spec.fallocate(0).await?;
             dirty = true;
         }
@@ -649,7 +650,7 @@ impl FileAccessor
 
     pub async fn lookup(&self, req: &RequestContext, parent: u64, name: &str) -> Result<Option<FileAttr>> {
         self.tick().await?;
-        let open = self.create_open_handle(parent, req, libc::O_RDONLY).await?;
+        let open = self.create_open_handle(parent, req, O_RDONLY).await?;
 
         if open.attr.kind != FileKind::Directory {
             debug!("atefs::lookup parent={} not-a-directory", parent);
@@ -795,7 +796,7 @@ impl FileAccessor
         self.tick().await?;
         debug!("atefs::rmdir parent={}", parent);
 
-        let open = self.create_open_handle(parent, req, libc::O_RDONLY).await?;
+        let open = self.create_open_handle(parent, req, O_RDONLY).await?;
 
         if open.attr.kind != FileKind::Directory {
             debug!("atefs::rmdir parent={} not-a-directory", parent);
@@ -1108,9 +1109,9 @@ impl FileAccessor
         self.tick().await?;
         debug!("atefs::lseek inode={}", inode);
 
-        let offset = if whence == libc::SEEK_CUR as u32 || whence == libc::SEEK_SET as u32 {
+        let offset = if whence == SEEK_CUR as u32 || whence == SEEK_SET as u32 {
             offset
-        } else if whence == libc::SEEK_END as u32 {
+        } else if whence == SEEK_END as u32 {
             let mut size = None;
             if fh > 0 {
                 let lock = self.open_handles.lock();
@@ -1164,7 +1165,7 @@ impl FileAccessor
     ) -> Result<()> {
         self.tick().await?;
         
-        let flags = libc::O_RDWR;
+        let flags = O_RDWR;
         let mut open = self.create_open_handle(inode, &req, flags).await?;
         open.spec.set_xattr(name, value).await
     }
@@ -1179,7 +1180,7 @@ impl FileAccessor
         self.tick().await?;
         debug!("atefs::removexattr not-implemented");
 
-        let flags = libc::O_RDWR;
+        let flags = O_RDWR;
         let mut open = self.create_open_handle(inode, &req, flags).await?;
         open.spec.remove_xattr(name).await
     }
@@ -1192,7 +1193,7 @@ impl FileAccessor
     ) -> Result<Option<String>> {
         self.tick().await?;
         
-        let flags = libc::O_RDONLY;
+        let flags = O_RDONLY;
         let open = self.create_open_handle(inode, &req, flags).await?;
         open.spec.get_xattr(name).await
     }
@@ -1205,7 +1206,7 @@ impl FileAccessor
         self.tick().await?;
         debug!("atefs::listxattr not-implemented");
 
-        let flags = libc::O_RDONLY;
+        let flags = O_RDONLY;
         let open = self.create_open_handle(inode, &req, flags).await?;
         open.spec.list_xattr().await
     }

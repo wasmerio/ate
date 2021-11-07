@@ -82,11 +82,11 @@ impl NtpWorker
                                 break;
                             }
                         }
-                        tokio::time::sleep(Duration::from_secs(20)).await;
+                        crate::engine::sleep(Duration::from_secs(20)).await;
                         backoff_time = 50;
                     },
                     _ => {
-                        tokio::time::sleep(Duration::from_millis(backoff_time)).await;
+                        crate::engine::sleep(Duration::from_millis(backoff_time)).await;
                         backoff_time = (backoff_time * 120) / 100;
                         backoff_time = backoff_time + 50;
                         if backoff_time > 10000 {

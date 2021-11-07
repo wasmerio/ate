@@ -6,6 +6,7 @@ use crate::index::*;
 #[derive(Debug, Clone)]
 pub struct LoadResult
 {
+    #[allow(dead_code)]
     pub(crate) lookup: LogLookup,
     pub header: EventHeaderRaw,
     pub data: EventData,

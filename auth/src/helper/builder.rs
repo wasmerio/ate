@@ -64,7 +64,10 @@ impl DioBuilder
 
     pub async fn with_token_path(mut self, path: String) -> Result<Self, LoginError> {
         let path = shellexpand::tilde(path.as_str()).to_string();
+        #[cfg(feature = "enable_full")]
         let token = tokio::fs::read_to_string(path).await?;
+        #[cfg(not(feature = "enable_full"))]
+        let token = std::fs::read_to_string(path)?;
         self.session = Box::new(b64_to_session(token));
         Ok(self)
     }

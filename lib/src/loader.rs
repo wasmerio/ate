@@ -1,4 +1,6 @@
 use async_trait::async_trait;
+#[allow(unused_imports)]
+use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use tokio::sync::mpsc;
 
 use crate::event::*;
@@ -136,11 +138,13 @@ for NotificationLoader
 {
     async fn start_of_history(&mut self, _size: usize)
     {
+        trace!("sending notify");
         let _ = self.notify.send(Ok(())).await;
     }
 
     async fn end_of_history(&mut self)
     {
+        trace!("sending notify");
         let _ = self.notify.send(Ok(())).await;
     }
 

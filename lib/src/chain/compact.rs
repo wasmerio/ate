@@ -2,7 +2,7 @@
 use tracing::{info, debug, warn, error, trace};
 use std::sync::{Arc};
 use tokio::sync::RwLock;
-use parking_lot::RwLock as StdRwLock;
+use std::sync::RwLock as StdRwLock;
 use btreemultimap::BTreeMultiMap;
 
 use crate::trust::*;
@@ -154,7 +154,7 @@ impl<'a> Chain
 
             // step4 - create a fake sync that will be used by the validators
             let mut sync = {
-                let guard_sync = multi.inside_sync.read();
+                let guard_sync = multi.inside_sync.read().unwrap();
                 ChainProtectedSync {
                     sniffers: Vec::new(),
                     services: Vec::new(),
@@ -218,7 +218,7 @@ impl<'a> Chain
 
         // complete the transaction under another lock
         {
-            let mut lock = single.inside_sync.write();
+            let mut lock = single.inside_sync.write().unwrap();
             let new_events= new_events
                 .into_iter()
                 .map(|e| e.as_header())

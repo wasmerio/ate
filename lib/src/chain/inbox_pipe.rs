@@ -4,7 +4,7 @@ use tokio::sync::broadcast;
 
 use async_trait::async_trait;
 use std::sync::{Arc};
-use parking_lot::Mutex as StdMutex;
+use std::sync::Mutex as StdMutex;
 use fxhash::{FxHashSet};
 
 use crate::error::*;
@@ -44,7 +44,7 @@ for InboxPipe
     #[allow(dead_code)]
     async fn try_lock(&self, key: PrimaryKey) -> Result<bool, CommitError>
     {
-        let mut guard = self.locks.lock();
+        let mut guard = self.locks.lock().unwrap();
         if guard.contains(&key) {
             return Ok(false);
         }
@@ -56,7 +56,7 @@ for InboxPipe
     #[allow(dead_code)]
     fn unlock_local(&self, key: PrimaryKey) -> Result<(), CommitError>
     {
-        let mut guard = self.locks.lock();
+        let mut guard = self.locks.lock().unwrap();
         guard.remove(&key);
         Ok(())
     }

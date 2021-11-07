@@ -47,7 +47,6 @@ fxhash = "^0.2"
 fastrand = "^1.4"
 ctrlc-async = { version = "^3" }
 directories = { version = "^3" }
-libc = { version = "^0.2" }
 enum_dispatch = { version = "^0.3" }
 clap = "^3.0.0-beta.5"
 shellexpand = "^2"
@@ -68,3 +67,4 @@ rcgen = { version = "^0.8" }
 base64 = { version = "^0.13" }
 jsonxf = { version = "^1" }
 ring = { version = "^0.16", features = ["std"] }
+libc = "^0.2"

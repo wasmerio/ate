@@ -7,14 +7,13 @@ use tokio::net::TcpStream;
 use tokio::net::tcp::OwnedReadHalf;
 #[cfg(feature = "enable_full")]
 use tokio::net::tcp::OwnedWriteHalf;
-use tokio::io::{AsyncRead, AsyncWrite};
 use std::str::FromStr;
-use tokio::time::timeout as tokio_timeout;
+use crate::engine::timeout as tokio_timeout;
 use std::time::Duration;
 use std::result::Result;
 use std::sync::Arc;
-use std::io::{Read, Write};
 use std::fs::File;
+use tokio::sync::mpsc;
 
 use crate::crypto::EncryptKey;
 use crate::comms::PacketData;
@@ -103,8 +102,21 @@ for StreamProtocol
     }
 }
 
-pub trait AsyncStream : AsyncRead + AsyncWrite + std::fmt::Debug
+pub trait AsyncStream : tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + Sync
 {
+}
+
+impl<T> AsyncStream
+for T
+where T: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + Sync
+{ }
+
+impl std::fmt::Debug
+for dyn AsyncStream
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("async-stream")
+    }
 }
 
 #[derive(Debug)]
@@ -116,7 +128,9 @@ pub enum Stream
     WebSocket(WebSocketStream<TcpStream>, StreamProtocol),
     #[cfg(feature = "enable_server")]
     HyperWebSocket(HyperWebSocket<HyperUpgraded>, StreamProtocol),
-    Custom(Box<dyn AsyncStream>, StreamProtocol),
+    ViaStream(Box<dyn AsyncStream + 'static>, StreamProtocol),
+    ViaQueue(mpsc::Sender<Vec<u8>>, mpsc::Receiver<Vec<u8>>, StreamProtocol),
+    ViaFile(std::fs::File, StreamProtocol),
 }
 
 impl StreamProtocol
@@ -153,7 +167,9 @@ pub enum StreamRx
     WebSocket(futures_util::stream::SplitStream<WebSocketStream<TcpStream>>),
     #[cfg(feature = "enable_server")]
     HyperWebSocket(futures_util::stream::SplitStream<HyperWebSocket<HyperUpgraded>>),
-    Custom(tokio::io::ReadHalf<Box<dyn AsyncStream>>, StreamProtocol),
+    ViaStream(Arc<tokio::sync::Mutex<Box<dyn AsyncStream + 'static>>>, StreamProtocol),
+    ViaQueue(mpsc::Receiver<Vec<u8>>, StreamProtocol),
+    ViaFile(Arc<std::sync::Mutex<std::fs::File>>, StreamProtocol),
 }
 
 #[derive(Debug)]
@@ -165,7 +181,9 @@ pub enum StreamTx
     WebSocket(futures_util::stream::SplitSink<WebSocketStream<TcpStream>, Message>),
     #[cfg(feature = "enable_server")]
     HyperWebSocket(futures_util::stream::SplitSink<HyperWebSocket<HyperUpgraded>, HyperMessage>),
-    Custom(tokio::io::WriteHalf<Box<dyn AsyncStream>>, StreamProtocol),
+    ViaStream(Arc<tokio::sync::Mutex<Box<dyn AsyncStream + 'static>>>, StreamProtocol),
+    ViaQueue(mpsc::Sender<Vec<u8>>, StreamProtocol),
+    ViaFile(Arc<std::sync::Mutex<std::fs::File>>, StreamProtocol),
 }
 
 impl Stream
@@ -177,19 +195,30 @@ impl Stream
                 let (rx, tx) = a.into_split();
                 (StreamRx::Tcp(rx), StreamTx::Tcp(tx))
             },
-            Stream::WebSocket(a) => {
+            #[cfg(feature = "enable_full")]
+            Stream::WebSocket(a, _) => {
+                use futures_util::StreamExt;
                 let (tx, rx) = a.split();
                 (StreamRx::WebSocket(rx), StreamTx::WebSocket(tx))
             }
             #[cfg(feature = "enable_server")]
             Stream::HyperWebSocket(a, _) => {
+                use futures_util::StreamExt;
                 let (tx, rx) = a.split();
                 (StreamRx::HyperWebSocket(rx), StreamTx::HyperWebSocket(tx))
             }
-            Stream::Custom(a, p) => {
-                use tokio::io::*;
-                let (tx, rx) = a.split();
-                (StreamRx::Custom(rx, p), StreamTx::Custom(tx, p))
+            Stream::ViaStream(a, p) => {
+                let a = Arc::new(tokio::sync::Mutex::new(a));
+                let b = Arc::clone(&a);
+                (StreamRx::ViaStream(a, p), StreamTx::ViaStream(b, p))
+            }
+            Stream::ViaQueue(a, b, p) => {
+                (StreamRx::ViaQueue(b, p), StreamTx::ViaQueue(a, p))
+            }
+            Stream::ViaFile(a, p) => {
+                let rx = Arc::new(std::sync::Mutex::new(a));
+                let tx = Arc::clone(&rx);
+                (StreamRx::ViaFile(rx, p), StreamTx::ViaFile(tx, p))
             }
         }
     }
@@ -214,35 +243,20 @@ impl Stream
             },
             #[cfg(feature = "enable_full")]
             Stream::WebSocket(a, p) => {
-                match protocol {
-                    StreamProtocol::Tcp => {
-                        Stream::WebSocket(a, p)
-                    },
-                    StreamProtocol::WebSocket => {
-                        Stream::WebSocket(a, p)
-                    },
-                }
+                Stream::WebSocket(a, p)
             },
             #[cfg(feature = "enable_server")]
             Stream::HyperWebSocket(a, p) => {
-                match protocol {
-                    StreamProtocol::Tcp => {
-                        Stream::HyperWebSocket(a, p)
-                    },
-                    StreamProtocol::WebSocket => {
-                        Stream::HyperWebSocket(a, p)
-                    }
-                }
+                Stream::HyperWebSocket(a, p)
             },
-            Stream::Custom(a, p) => {
-                match protocol {
-                    StreamProtocol::Tcp => {
-                        Stream::Custom(a, p)
-                    },
-                    StreamProtocol::WebSocket => {
-                        Stream::Custom(a, p)
-                    }
-                }
+            Stream::ViaStream(a, p) => {
+                Stream::ViaStream(a, p)
+            },
+            Stream::ViaQueue(a, b, p) => {
+                Stream::ViaQueue(a, b, p)
+            },
+            Stream::ViaFile(a, p) => {
+                Stream::ViaFile(a, p)
             }
         };
 
@@ -274,23 +288,20 @@ impl Stream
             },
             #[cfg(feature = "enable_full")]
             Stream::WebSocket(a, p) => {
-                match protocol {
-                    StreamProtocol::Tcp => Stream::WebSocket(a, p),
-                    StreamProtocol::WebSocket => Stream::WebSocket(a, p),
-                }
+                Stream::WebSocket(a, p)
             },
             #[cfg(feature = "enable_server")]
             Stream::HyperWebSocket(a, p) => {
-                match protocol {
-                    StreamProtocol::Tcp => Stream::HyperWebSocket(a, p),
-                    StreamProtocol::WebSocket => Stream::HyperWebSocket(a, p)
-                }
+                Stream::HyperWebSocket(a, p)
             },
-            Stream::Custom(a, p) => {
-                match protocol {
-                    StreamProtocol::Tcp => Stream::WebSocket(a),
-                    StreamProtocol::WebSocket => Stream::WebSocket(a),
-                }
+            Stream::ViaStream(a, p) => {
+                Stream::ViaStream(a, p)
+            },
+            Stream::ViaQueue(a, b, p) => {
+                Stream::ViaQueue(a, b, p)
+            },
+            Stream::ViaFile(a, p) => {
+                Stream::ViaFile(a, p)
             }
         };
         Ok(ret)
@@ -306,7 +317,9 @@ impl Stream
             Stream::WebSocket(_, p) => p.clone(),
             #[cfg(feature = "enable_server")]
             Stream::HyperWebSocket(_, p) => p.clone(),
-            Stream::Custom(_, p) => p,
+            Stream::ViaStream(_, p) => p.clone(),
+            Stream::ViaQueue(_, _, p) => p.clone(),
+            Stream::ViaFile(_, p) => p.clone()
         }
     }
 }
@@ -338,7 +351,13 @@ impl StreamTx
             StreamTx::HyperWebSocket(_) => {
                 total_sent += self.write_32bit(buf, delay_flush).await?;
             },
-            StreamTx::Custom(file) => {
+            StreamTx::ViaStream(_, _) => {
+                total_sent += self.write_32bit(buf, delay_flush).await?;
+            },
+            StreamTx::ViaQueue(_, _) => {
+                total_sent += self.write_32bit(buf, delay_flush).await?;
+            },
+            StreamTx::ViaFile(_, _) => {
                 total_sent += self.write_32bit(buf, delay_flush).await?;
             },
         }
@@ -371,7 +390,13 @@ impl StreamTx
             StreamTx::HyperWebSocket(_) => {
                 total_sent += self.write_32bit(buf, delay_flush).await?;
             },
-            StreamTx::Custom(_) => {
+            StreamTx::ViaStream(_, _) => {
+                total_sent += self.write_32bit(buf, delay_flush).await?;
+            },
+            StreamTx::ViaQueue(_, _) => {
+                total_sent += self.write_32bit(buf, delay_flush).await?;
+            },
+            StreamTx::ViaFile(_, _) => {
                 total_sent += self.write_32bit(buf, delay_flush).await?;
             }
         }
@@ -398,6 +423,7 @@ impl StreamTx
             },
             #[cfg(feature = "enable_full")]
             StreamTx::WebSocket(a) => {
+                use futures_util::SinkExt;
                 total_sent += buf.len() as u64;
                 if delay_flush {
                     match a.feed(Message::binary(buf)).await {
@@ -419,6 +445,7 @@ impl StreamTx
             },
             #[cfg(feature = "enable_server")]
             StreamTx::HyperWebSocket(a) => {
+                use futures_util::SinkExt;
                 total_sent += buf.len() as u64;
                 if delay_flush {
                     match a.feed(HyperMessage::binary(buf)).await {
@@ -438,12 +465,28 @@ impl StreamTx
                     }
                 }
             },
-            StreamTx::Custom(a) => {
+            StreamTx::ViaStream(a, _) => {
+                use tokio::io::AsyncWriteExt;
+                let mut a = a.lock().await;
                 if buf.len() > u32::MAX as usize {
                     return Err(tokio::io::Error::new(tokio::io::ErrorKind::InvalidData, format!("Data is to big to write (len={}, max={})", buf.len(), u32::MAX)));
                 }
                 a.write_all(&buf[..]).await?;
                 total_sent += buf.len() as u64;
+            },
+            StreamTx::ViaQueue(a, _) => {
+                let buf = buf.to_vec();
+                match a.send(buf).await {
+                    Ok(a) => a,
+                    Err(err) => {
+                        return Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to send data on pipe/queue - {}", err.to_string())));
+                    }
+                }
+            },
+            StreamTx::ViaFile(a, _) => {
+                use std::io::Write;
+                let mut a = a.lock().unwrap();
+                a.write_all(buf)?;
             }
         }
         #[allow(unreachable_code)]
@@ -529,10 +572,16 @@ impl StreamRx
             #[cfg(feature = "enable_server")]
             StreamRx::HyperWebSocket(_) => {
                 self.read_32bit().await?
-            }
-            StreamRx::Custom(_, _) => {
+            },
+            StreamRx::ViaStream(_, _) => {
                 self.read_32bit().await?
             },
+            StreamRx::ViaQueue(_, _) => {
+                self.read_32bit().await?
+            },
+            StreamRx::ViaFile(_, _) => {
+                self.read_32bit().await?
+            }
         };
         #[allow(unreachable_code)]
         Ok(ret)
@@ -559,7 +608,13 @@ impl StreamRx
             StreamRx::HyperWebSocket(_) => {
                 self.read_32bit().await?
             },
-            StreamRx::Custom(_, _) => {
+            StreamRx::ViaStream(_, _) => {
+                self.read_32bit().await?
+            },
+            StreamRx::ViaQueue(_, _) => {
+                self.read_32bit().await?
+            },
+            StreamRx::ViaFile(_, _) => {
                 self.read_32bit().await?
             },
         };
@@ -582,6 +637,7 @@ impl StreamRx
             },
             #[cfg(feature = "enable_full")]
             StreamRx::WebSocket(a) => {
+                use futures_util::StreamExt;
                 match a.next().await {
                     Some(a) => {
                         let msg = match a {
@@ -604,6 +660,7 @@ impl StreamRx
             },
             #[cfg(feature = "enable_server")]
             StreamRx::HyperWebSocket(a) => {
+                use futures_util::StreamExt;
                 match a.next().await {
                     Some(a) => {
                         let msg = match a {
@@ -624,7 +681,9 @@ impl StreamRx
                     }
                 }
             },
-            StreamRx::Custom(a, _) => {
+            StreamRx::ViaStream(a, _) => {
+                use tokio::io::AsyncReadExt;
+                let mut a = a.lock().await;
                 let mut ret = bytes::BytesMut::new();
                 loop {
                     let mut buf = [0u8; 16384];
@@ -637,6 +696,52 @@ impl StreamRx
                 }
                 ret.to_vec()
             },
+            StreamRx::ViaQueue(a, _) => {
+                match a.recv().await {
+                    Some(a) => {
+                        a
+                    },
+                    None => {
+                        return Err(tokio::io::Error::new(tokio::io::ErrorKind::BrokenPipe, format!("Failed to receive data from pipe/queue")));
+                    }
+                }
+            },
+            StreamRx::ViaFile(a, _) => {
+                use std::io::Read;
+                let mut ret;
+                loop
+                {
+                    let a = Arc::clone(a);
+                    ret = crate::engine::TaskEngine::spawn_blocking(move || {
+                        let mut data = Vec::new();
+                        let mut temp = [0u8; 8192];
+                        loop {
+                            let mut file = a.lock().unwrap();
+                            let nread = match file.read(&mut temp) {
+                                Ok(a) => a,
+                                Err(err) if err.kind() == tokio::io::ErrorKind::WouldBlock => {
+                                    break;
+                                }
+                                Err(err) => { return Err(err); }
+                            };
+                            drop(file);
+                            if nread == 0 {
+                                break;
+                            }
+                            data.extend_from_slice(&temp[..nread]);
+                        }
+                        Ok(data)
+                    }).await?;
+
+                    if ret.len() <= 0 {
+                        crate::engine::TaskEngine::tick(true).await;
+                        continue;
+                    }
+
+                    break;
+                }
+                ret
+            }
         };
         #[allow(unreachable_code)]
         Ok(ret)
@@ -652,7 +757,9 @@ impl StreamRx
             StreamRx::WebSocket(_) => StreamProtocol::WebSocket,
             #[cfg(feature = "enable_server")]
             StreamRx::HyperWebSocket(_) => StreamProtocol::WebSocket,
-            StreamRx::Custom(_, p) => p,
+            StreamRx::ViaStream(_, p) => p.clone(),
+            StreamRx::ViaQueue(_, p) => p.clone(),
+            StreamRx::ViaFile(_, p) => p.clone(),
         }
     }
 }

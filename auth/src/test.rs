@@ -25,7 +25,7 @@ pub async fn test_create_user_and_group()
 
     // Create the certificate
     let cert = PrivateEncryptKey::generate(KeySize::Bit192);
-    Registry::add_global_certificate(&cert.hash());
+    ate::mesh::add_global_certificate(&cert.hash());
     
     // Build a session for service
     info!("building session for service");

@@ -6,7 +6,7 @@ use std::sync::Arc;
 use std::sync::Weak;
 use serde::{Serialize, de::DeserializeOwned};
 use tokio::sync::Mutex;
-use parking_lot::Mutex as StdMutex;
+use std::sync::Mutex as StdMutex;
 use tokio::sync::broadcast;
 
 use crate::error::*;
@@ -213,7 +213,7 @@ impl Tx
     async fn metrics_add_sent(&self, amt: u64)
     {
         // Update the metrics with all this received data
-        let mut metrics = self.metrics.lock();
+        let mut metrics = self.metrics.lock().unwrap();
         metrics.sent += amt;
     }
 
@@ -246,8 +246,10 @@ for Tx
 #[derive(Debug)]
 pub(crate) struct TxGroupSpecific
 {
+    #[allow(dead_code)]
     pub me_id: NodeId,
     pub me_tx: Arc<Mutex<Upstream>>,
+    #[allow(dead_code)]
     pub group: Arc<Mutex<TxGroup>>,
 }
 
@@ -297,6 +299,7 @@ impl TxGroupSpecific
 #[derive(Debug, Default)]
 pub(crate) struct TxGroup
 {
+    #[allow(dead_code)]
     pub all: FxHashMap<NodeId, Weak<Mutex<Upstream>>>,
 }
 

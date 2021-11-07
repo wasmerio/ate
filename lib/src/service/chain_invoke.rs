@@ -5,6 +5,7 @@ use serde::{Serialize, de::DeserializeOwned};
 use std::{time::Duration};
 use tokio::select;
 use std::sync::Arc;
+#[allow(unused_imports)]
 use std::ops::Deref;
 
 use crate::transaction::TransactionScope;
@@ -45,7 +46,7 @@ impl Chain
         let session = match session {
             Some(a) => a,
             None => {
-                session_store = self.inside_sync.read().default_session.clone_session();
+                session_store = self.inside_sync.read().unwrap().default_session.clone_session();
                 session_store.deref()
             }
         };

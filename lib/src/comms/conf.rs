@@ -13,8 +13,10 @@ use crate::crypto::PrivateEncryptKey;
 #[derive(Debug)]
 pub(crate) struct Upstream
 {
+    #[allow(dead_code)]
     pub id: NodeId,
     pub outbox: StreamTxChannel,
+    #[allow(dead_code)]
     pub wire_format: SerializationFormat,
 }
 

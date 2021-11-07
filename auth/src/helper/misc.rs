@@ -62,3 +62,33 @@ pub fn is_public_domain(domain: &str) -> bool {
         _ => false
     }
 }
+
+#[cfg(feature = "force_tty")]
+pub fn is_tty_stdin() -> bool {
+    true
+}
+
+#[cfg(not(feature = "force_tty"))]
+pub fn is_tty_stdin() -> bool {
+    atty::is(atty::Stream::Stdin)
+}
+
+#[cfg(feature = "force_tty")]
+pub fn is_tty_stdout() -> bool {
+    true
+}
+
+#[cfg(not(feature = "force_tty"))]
+pub fn is_tty_stdout() -> bool {
+    atty::is(atty::Stream::Stdout)
+}
+
+#[cfg(feature = "force_tty")]
+pub fn is_tty_stderr() -> bool {
+    true
+}
+
+#[cfg(not(feature = "force_tty"))]
+pub fn is_tty_stderr() -> bool {
+    atty::is(atty::Stream::Stderr)
+}

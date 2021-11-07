@@ -20,7 +20,7 @@ use crate::comms::Throttle;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::broadcast;
-use parking_lot::Mutex as StdMutex;
+use std::sync::Mutex as StdMutex;
 
 #[cfg(test)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -120,7 +120,7 @@ async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) 
             let server_id = NodeId::generate_server_id(0);
             listener = Listener::new(&cfg, server_id, Arc::new(Handler::default()), exit_tx).await?;
             {
-                let mut guard = listener.lock();
+                let mut guard = listener.lock().unwrap();
                 guard.add_route("/comm-test")?;
             };
         };

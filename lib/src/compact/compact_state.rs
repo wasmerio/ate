@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
 use tokio::sync::watch;
-use parking_lot::Mutex;
+use std::sync::Mutex;
 use tokio::select;
 
 use super::CompactMode;
@@ -45,7 +45,7 @@ impl CompactState
     pub async fn wait_for_compact(&mut self) -> Result<(), watch::error::RecvError> {
         loop {
             let initial_size = {
-                let mut guard = self.last_size.lock();
+                let mut guard = self.last_size.lock().unwrap();
                 let mut ret = *guard;
                 
                 // If the size has gone backwards (likely due to compaction) then move the cursor back
@@ -60,7 +60,7 @@ impl CompactState
 
             let deadtime_compact = Arc::clone(&self.last_compact);
             let deadtime = move |duration: Duration| {
-                let mut guard = deadtime_compact.lock();
+                let mut guard = deadtime_compact.lock().unwrap();
                 match *guard {
                     Some(a) => {
                         let already = a.elapsed();
@@ -79,11 +79,11 @@ impl CompactState
 
             match self.mode {
                 CompactMode::Never => {
-                    tokio::time::sleep(Duration::from_secs(u64::MAX)).await;
+                    crate::engine::sleep(Duration::from_secs(u64::MAX)).await;
                 },
                 CompactMode::Timer(duration) => {
                     let deadtime = deadtime(duration);
-                    tokio::time::sleep(deadtime).await;
+                    crate::engine::sleep(deadtime).await;
                     break;
                 }
                 CompactMode::Modified => {
@@ -96,7 +96,7 @@ impl CompactState
                         break;
                     }
                     self.log_size.changed().await?;
-                    tokio::time::sleep(Duration::from_millis(10)).await;
+                    crate::engine::sleep(Duration::from_millis(10)).await;
                 }
                 CompactMode::GrowthFactor(target) => {
                     let target = 1.0f32 + target;
@@ -106,7 +106,7 @@ impl CompactState
                         break;
                     }
                     self.log_size.changed().await?;
-                    tokio::time::sleep(Duration::from_millis(10)).await;
+                    crate::engine::sleep(Duration::from_millis(10)).await;
                 }
                 CompactMode::GrowthSizeOrTimer { growth, timer } => {
                     let final_size = *self.log_size.borrow();
@@ -117,9 +117,9 @@ impl CompactState
                     select! {
                         a = self.log_size.changed() => {
                             a?;
-                            tokio::time::sleep(Duration::from_millis(10)).await;
+                            crate::engine::sleep(Duration::from_millis(10)).await;
                         },
-                        () = tokio::time::sleep(deadtime) => { break; },
+                        () = crate::engine::sleep(deadtime) => { break; },
                     };
                 }
                 CompactMode::GrowthFactorOrTimer { growth, timer } => {
@@ -133,16 +133,16 @@ impl CompactState
                     select! {
                         a = self.log_size.changed() => {
                             a?;
-                            tokio::time::sleep(Duration::from_millis(10)).await;
+                            crate::engine::sleep(Duration::from_millis(10)).await;
                         },
-                        () = tokio::time::sleep(deadtime) => { break; },
+                        () = crate::engine::sleep(deadtime) => { break; },
                     };
                 }
             }
         }
 
-        *self.last_size.lock() = *self.log_size.borrow();
-        *self.last_compact.lock() = Some(Instant::now());
+        *self.last_size.lock().unwrap() = *self.log_size.borrow();
+        *self.last_compact.lock().unwrap() = Some(Instant::now());
 
         Ok(())
     }

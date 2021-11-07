@@ -1,10 +1,11 @@
 #![cfg(test)]
 use std::time::Duration;
 use std::time::Instant;
-use tokio::time::timeout;
 
 use crate::error::*;
 use crate::engine::TaskEngine;
+use crate::engine::timeout;
+use crate::engine::sleep;
 
 use super::*;
 
@@ -46,7 +47,7 @@ async fn test_compact_state_machine() -> Result<(), AteError> {
         // Test the modify trigger (positive)
         let (tx, mut rx) = CompactState::new(CompactMode::Modified, 0);
         let wait = rx.wait_for_compact();
-        TaskEngine::spawn(async move { tokio::time::sleep(Duration::from_millis(10)).await; let _ = tx.log_size.send(100u64); tx });
+        TaskEngine::spawn(async move { sleep(Duration::from_millis(10)).await; let _ = tx.log_size.send(100u64); tx });
         timeout(Duration::from_millis(100), wait).await
             .expect("This should not timeout")?;
 
@@ -60,14 +61,14 @@ async fn test_compact_state_machine() -> Result<(), AteError> {
         let (tx, mut rx) = CompactState::new(CompactMode::GrowthSize(500), 1000);
         let wait = rx.wait_for_compact();
         tx.log_size.send(1000u64)?;
-        TaskEngine::spawn(async move { tokio::time::sleep(Duration::from_millis(10)).await; let _ = tx.log_size.send(1100u64); tokio::time::sleep(Duration::from_millis(100)).await; });
+        TaskEngine::spawn(async move { sleep(Duration::from_millis(10)).await; let _ = tx.log_size.send(1100u64); sleep(Duration::from_millis(100)).await; });
         timeout(Duration::from_millis(50), wait).await
             .expect_err("The growth size event should not be triggered");
 
         // Test the growth size trigger (positive)
         let (tx, mut rx) = CompactState::new(CompactMode::GrowthSize(500), 1000);
         let wait = rx.wait_for_compact();
-        TaskEngine::spawn(async move { tokio::time::sleep(Duration::from_millis(10)).await; let _ = tx.log_size.send(1400u64); let _ = tx.log_size.send(1600u64); tx });
+        TaskEngine::spawn(async move { sleep(Duration::from_millis(10)).await; let _ = tx.log_size.send(1400u64); let _ = tx.log_size.send(1600u64); tx });
         timeout(Duration::from_millis(100), wait).await
             .expect("This should not timeout")?;
         
@@ -90,7 +91,7 @@ async fn test_compact_state_machine() -> Result<(), AteError> {
         let (tx, mut rx) = CompactState::new(CompactMode::GrowthSizeOrTimer { growth: 500, timer: Duration::from_millis(100) }, 1000);
         let wait = rx.wait_for_compact();
         let start = Instant::now();
-        TaskEngine::spawn(async move { tokio::time::sleep(Duration::from_millis(10)).await; let _ = tx.log_size.send(2000u64); tx });
+        TaskEngine::spawn(async move { sleep(Duration::from_millis(10)).await; let _ = tx.log_size.send(2000u64); tx });
         timeout(Duration::from_millis(50), wait).await
             .expect("This growth or timer event should have triggered")?;
         let elapsed = start.elapsed();

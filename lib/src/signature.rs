@@ -167,7 +167,7 @@ for SignaturePlugin
                         if let Some(conversation) = &conversation {
                             if let Some(conv_id) = conversation.id.read() {
                                 if sig.hashes.contains(conv_id.deref()) {
-                                    let mut lock = conversation.signatures.write();
+                                    let mut lock = conversation.signatures.write().unwrap();
                                     lock.insert(sig.public_key_hash);
                                 }
                             }
@@ -231,7 +231,7 @@ for SignaturePlugin
         // has already got proof that we own the authentication key then we are done
         if self.integrity.is_centralized() {
             if let Some(conversation) = &conversation {
-                let lock = conversation.signatures.read();
+                let lock = conversation.signatures.read().unwrap();
                 auths.retain(|h| lock.contains(h) == false);
             }
         }
@@ -291,7 +291,7 @@ for SignaturePlugin
             // transmissions do not need to prove it again (this makes the fast path quicker)
             if self.integrity.is_centralized() {
                 if let Some(conversation) = &conversation {
-                    let mut lock = conversation.signatures.write();
+                    let mut lock = conversation.signatures.write().unwrap();
                     lock.insert((*auth).clone());
                 }
             }

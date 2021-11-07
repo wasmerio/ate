@@ -51,7 +51,7 @@ impl Chain
         {
             let svr = Arc::clone(&ret);
             let svr: Arc<dyn Service> = svr;
-            let mut guard = self.inside_sync.write();
+            let mut guard = self.inside_sync.write().unwrap();
             guard.services.push(svr);
         }
         ret
