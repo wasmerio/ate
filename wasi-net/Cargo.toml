@@ -1,7 +1,13 @@
 [package]
 name = "wasi-net"
 version = "0.1.0"
+authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
+description = "Interface used to make web requests on WASI operating systems"
+license = "MIT OR Apache-2.0"
+keywords = [ "wasi" ]
+repository = "https://github.com/john-sharratt/ate"
+readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
