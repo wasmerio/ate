@@ -22,9 +22,10 @@ for Response
         if self.pos >= self.data.len() {
             return Ok(0usize);
         }
-        let ret = &self.data[self.pos..];
-        buf[0..self.pos].clone_from_slice(ret);
-        self.pos += ret.len();
-        Ok(ret.len())
+        let remaining = &self.data[self.pos..];
+        let sub = remaining.len().min(buf.len());
+        buf[0..sub].clone_from_slice(&remaining[0..sub]);
+        self.pos += sub;
+        Ok(sub)
     }
 }
