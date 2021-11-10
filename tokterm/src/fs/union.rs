@@ -50,12 +50,26 @@ impl UnionFileSystem
 
     fn read_dir_internal(&self, path: &Path) -> Result<ReadDir> {
         let path = path.to_string_lossy();
+
+        let mut ret = None;
         for (path, mount) in filter_mounts(&self.mounts, path.as_ref()) {
-            if let Ok(ret) = mount.fs.read_dir(Path::new(path)) {
-                return Ok(ret);
+            if let Ok(dir) = mount.fs.read_dir(Path::new(path)) {
+                if ret.is_none() {
+                    ret = Some(Vec::new());
+                }
+                let ret = ret.as_mut().unwrap();
+                for sub in dir {
+                    if let Ok(sub) = sub {
+                        ret.push(sub);
+                    }
+                }
             }
         }
-        Err(FsError::EntityNotFound)
+
+        match ret {
+            Some(ret) => Ok(ReadDir::new(ret)),
+            None => Err(FsError::EntityNotFound)
+        }
     }
 }
 

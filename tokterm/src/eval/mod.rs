@@ -7,6 +7,7 @@ pub(crate) mod andor_list;
 pub(crate) mod complete_command;
 pub(crate) mod eval_arg;
 pub(crate) mod exec_pipeline;
+pub(crate) mod load_bin;
 
 pub use exec::*;
 pub use process::*;
@@ -14,6 +15,7 @@ pub use andor_list::*;
 pub use complete_command::*;
 pub use eval_arg::*;
 pub use exec_pipeline::*;
+pub use load_bin::*;
 
 #[allow(unused_imports, dead_code)]
 use tracing::{info, error, debug, trace, warn};

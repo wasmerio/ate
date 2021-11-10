@@ -20,6 +20,7 @@ use std::sync::Mutex;
 use std::path::{Path, PathBuf};
 use wasmer_wasi::vfs::FileSystem;
 use bytes::Bytes;
+use std::io::Read;
 
 use super::*;
 
@@ -62,33 +63,10 @@ pub async fn exec
         return Ok(ExecResponse::Immediate(ret));
     }
 
-    // Check if there is a file in the /bin and /wapm_packages/.bin folder
-    let mut data = None;
-    let file_checks = vec! [
-        format!("/bin/{}", cmd),
-    ];
-    for file_check in file_checks {
-        if let Ok(mut file) = stdio.root.new_open_options().read(true).open(file_check) {
-            let mut d = Vec::new();
-            if let Ok(_) = file.read_to_end(&mut d) {
-                data = Some(Bytes::from(d));
-                break;
-            }
-        }
-    }
-
-    // Fetch the data asynchronously (from the web site)
-    if data.is_none() {
-        data = ctx.bins.get(cmd).await;
-    }
-
     // Grab the private file system for this binary (if the binary changes the private
     // file system will also change)
-    let (data, fs_private) = match data {
-        Some(data) => {
-            let fs_private = ctx.bins.fs(&data).await;
-            (data, fs_private)
-        },
+    let (data, fs_private) = match load_bin(ctx, cmd, &mut stdio).await {
+        Some(a) => a,
         None => {
             *show_result = true;
             return Ok(ExecResponse::Immediate(err::ERR_ENOENT));
