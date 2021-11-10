@@ -22,11 +22,12 @@ pub async fn load_bin
 {
     // Check if there is a file in the /bin and /wapm_packages/.bin folder
     let mut data = None;
-    let file_checks = vec! [
+    let mut file_checks = vec! [
         format!("/bin/{}", cmd),
-        format!("/{}", cmd),
-        format!("{}", cmd),
     ];
+    if cmd.starts_with("/") {
+        file_checks.push(cmd.clone());
+    }
     for file_check in file_checks {
         if let Ok(mut file) = stdio.root.new_open_options().read(true).open(file_check) {
             let mut d = Vec::new();
@@ -38,7 +39,7 @@ pub async fn load_bin
     }
 
     // Search for in the wapm_packages
-    if data.is_none() {
+    if data.is_none() && cmd.starts_with("/") == false {
         let search_path = if cmd.contains("/") {
             format!("/wapm_packages/{}@", cmd)
         } else {
