@@ -7,6 +7,7 @@ members = [
     "auth",
     "files",
     "wasi-net",
+    "tokterm",
 ]
 
 #[profile.release]
