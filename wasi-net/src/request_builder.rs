@@ -71,7 +71,7 @@ impl RequestBuilder {
         let _ = file.write_all(submit_data.as_bytes());
 
         let mut data = Vec::new();
-        file.read_to_end(&mut data)?;
+        read_to_end(&mut file, &mut data)?;
 
         Ok(
             Response {
@@ -80,4 +80,32 @@ impl RequestBuilder {
             }
         )
     }
+}
+
+fn read_to_end(file: &mut std::fs::File, data: &mut Vec<u8>) -> Result<(), std::io::Error>
+{
+    let mut buf = [0u8; 4096];
+    loop {
+        match file.read(&mut buf[..]) {
+            Ok(read) if read == 0usize => {
+                break;
+            },
+            Ok(read) => {
+                data.extend_from_slice(&buf[..read]);
+            },
+            Err(err) if err.kind() == ErrorKind::WouldBlock => {
+                std::thread::yield_now();
+                continue;
+            },
+            Err(err) if err.kind() == ErrorKind::ConnectionAborted ||
+                              err.kind() == ErrorKind::ConnectionReset ||
+                              err.kind() == ErrorKind::BrokenPipe => {
+                break;                       
+            }
+            Err(err) => {
+                return Err(err);
+            },
+        }
+    }
+    return Ok(())
 }
