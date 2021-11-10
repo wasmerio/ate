@@ -1,0 +1,28 @@
+{
+  "name": "tokterm",
+  "version": "0.1.0",
+  "main": "index.html",
+  "author": "John Sharratt <johnathan.sharratt@gmail.com>",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "webpack",
+    "watch": "parcel index.html",
+    "release": "parcel build index.html"
+  },
+  "dependencies": {
+    "comlink": "^4",
+    "regenerator-runtime": "^0.13",
+    "xterm": "^4.13",
+    "xterm-addon-fit": "^0.3",
+    "xterm-addon-web-links": "^0.3",
+    "xterm-addon-webgl": "^0.3"
+  },
+  "devDependencies": {
+    "html-webpack-plugin": "^5.4.0",
+    "parcel-bundler": "^1.12",
+    "typescript": "^3.9",
+    "webpack": "^5.51",
+    "webpack-cli": "^4.8"
+  }
+}

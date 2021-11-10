@@ -1,0 +1,171 @@
+use crate::ast::{
+    Program,
+    CompleteCommands,
+    CompleteCommand,
+    AndOr,
+    AndOrOp,
+    Pipeline,
+    Command,
+    Arg,
+    TermOp
+};
+
+grammar;
+
+pub program: Program<'input> = {
+    linebreak <complete_commands> linebreak => Program {
+        commands: <>
+    },
+    linebreak => Program {
+        commands: CompleteCommands {
+            complete_commands: vec![]
+        }
+    },
+}
+
+complete_commands: CompleteCommands<'input> = {
+    <rest:complete_commands> newline_list <c:complete_command> => rest.push(c),
+                                          <c:complete_command> => CompleteCommands
+                                          {
+                                              complete_commands: vec![c]
+                                          },
+}
+
+complete_command: CompleteCommand<'input> = {
+    <l:list> <s:separator_op> => {
+        let mut cc = l;
+        cc.update_last(s);
+        cc
+    },
+    list,
+}
+
+list: CompleteCommand<'input> = {
+    <l:list> <s:separator_op> <a:and_or> => l.push(s, a),
+                              <a:and_or> => CompleteCommand
+                              {
+                                  and_ors: vec![(TermOp::Semi, <>)]
+                              },
+}
+
+and_or: AndOr<'input> = {
+    pipeline                                    => AndOr { pipelines: vec![(AndOrOp::And, <>)] },
+    <rest:and_or> AND_IF linebreak <p:pipeline> => rest.push(AndOrOp::And, p),
+    <rest:and_or> OR_IF  linebreak <p:pipeline> => rest.push(AndOrOp::Or, p),
+}
+
+pipeline: Pipeline<'input> = {
+    pipe_sequence,
+    Bang <pipe_sequence> => <>.negate()
+}
+
+pipe_sequence: Pipeline<'input> = {
+    command => Pipeline::new(<>),
+    <p:pipe_sequence> "|" linebreak <c:command> => p.push(c)
+}
+
+cmd_name = { cmd_word }
+cmd_word = {
+    DQUOTE_WORD,
+    SQUOTE_WORD,
+    BACKTICK_WORD,
+    BARE_WORD,
+}
+
+cmd_suffix: Vec<Arg<'input>> = {
+    WORD+ => <>.into_iter()
+        .map(|w| { Arg::Arg(w) })
+        .collect(),
+}
+
+cmd_prefix: Vec<&'input str> = {
+    ASSIGNMENT_WORD+ => <>,
+}
+
+command: Command<'input> = {
+    simple_command,
+}
+
+simple_command: Command<'input> = {
+    <assign:cmd_prefix> <cmd:cmd_word> <args:cmd_suffix> => Command::Simple{ assign, cmd: Arg::Arg(cmd), args },
+    <assign:cmd_prefix> <cmd:cmd_word>                   => Command::Simple{ assign, cmd: Arg::Arg(cmd), args: vec![] },
+    <assign:cmd_prefix>                                  => Command::Simple{ assign, cmd: Arg::Arg(""), args: vec![] },
+    <cmd:cmd_name> <args:cmd_suffix>                     => Command::Simple{ assign: vec![], cmd: Arg::Arg(cmd), args },
+    cmd_name                                             => Command::Simple{ assign: vec![], cmd: Arg::Arg(<>), args: vec![] },
+};
+
+WORD = {
+    DQUOTE_WORD,
+    SQUOTE_WORD,
+    BACKTICK_WORD,
+    BARE_WORD,
+    ASSIGNMENT_WORD,
+}
+
+newline_list: () = {
+    NEWLINE,
+    newline_list NEWLINE,
+}
+
+linebreak = {
+    newline_list?
+}
+
+separator: TermOp = {
+    <separator_op> linebreak,
+    newline_list => TermOp::Semi,
+}
+
+separator_op: TermOp = {
+    "&" => TermOp::Amp,
+    ";" => TermOp::Semi,
+}
+
+sequential_sep: () = {
+    ";" linebreak,
+    newline_list,
+}
+
+match {
+    "&&" => AND_IF,
+    "||" => OR_IF,
+    ";;" => DSEMI,
+    "<<" => DLESS,
+    ">>" => DGREAT,
+    "<&" => LESSAND,
+    ">&" => GREATAND,
+    "<>" => LESSGREAT,
+    "<<-" => DLESSDASH,
+    ">|" => CLOBBER,
+
+    "if" => If,
+    "then" => Then,
+    "else" => Else,
+    "elif" => Elif,
+    "fi" => Fi,
+    "do" => Do,
+    "done" => Done,
+
+    "case" => Case,
+    "esac" => Esac,
+    "while" => While,
+    "until" => Until,
+    "for" => For,
+
+    "|",
+    "&",
+    ";",
+
+    "{" => Lbrace,
+    "}" => Rbrace,
+    "!" => Bang,
+    "in" => In,
+
+    r"[a-zA-Z_][a-zA-Z0-9_]*=\S+" => ASSIGNMENT_WORD,
+} else {
+    r"(\n|(\r\n))" => NEWLINE,
+    r"\x22([^\x22]|\\\x22)+\x22" => DQUOTE_WORD,
+    r"'([^']|\\')+'" => SQUOTE_WORD,
+    r"`([^`]|\\`)+`" => BACKTICK_WORD,
+    r"[^\s'\x22`][^\s|&;{}!><]*" => BARE_WORD,    
+}
