@@ -1,4 +1,4 @@
-import init, { start, resize } from '../dist/tokterm.js';
+import init, { start, resize } from '../../pkg/index.js';
 import 'regenerator-runtime/runtime.js'
 import './workers-polyfill.js'
 
