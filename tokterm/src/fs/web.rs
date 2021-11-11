@@ -67,23 +67,31 @@ impl TokeraSocketFactory
 
                 // Now we wait for the connection type and spawn based of it
                 wasm_bindgen_futures::spawn_local(async move {
-                    let url = if let Some(a) = read_line(&mut rx).await {
+                    use wasi_net::web_command::WebCommand;
+
+                    let req = if let Some(a) = read_line(&mut rx).await {
                         a
                     } else {
-                        debug!("failed to read connection type from file");
+                        debug!("failed to read command string from /dev/web");
                         return;
                     };
-                    let url = url.as_str();
-
-                    info!("/dev/web open on {}", url);
-                    if url.starts_with("wss://") || url.starts_with("ws://") {
-                        open_web_socket(fd, url, reactor, rx, tx).await;
-                    } else if url.starts_with("https://") || url.starts_with("http://") {
-                        open_web_request(fd, url, reactor, rx, tx).await;
-                    } else {
-                        warn!("unsupported connection url type - {}", url);
-                        return;
-                    }
+                    match WebCommand::deserialize(req.as_str()) {
+                        Ok(WebCommand::WebSocket { url }) => {
+                            open_web_socket(fd, url.as_str(), reactor, rx, tx).await;
+                        },
+                        Ok(WebCommand::WebRequest {
+                            url,
+                            method,
+                            headers,
+                            body
+                        }) => {
+                            open_web_request(fd, url.as_str(), method.as_str(), headers, body, reactor, rx, tx).await;
+                        },
+                        Err(err) => {
+                            debug!("failed to deserialize the command");
+                            return;
+                        }
+                    };
                 });
             }
         });
@@ -254,36 +262,8 @@ async fn open_web_socket(fd: Fd, url: &str, reactor: Arc<RwLock<Reactor>>, mut r
     let _ = rx_msg.recv().await;
 }
 
-async fn open_web_request(fd: Fd, url: &str, reactor: Arc<RwLock<Reactor>>, mut rx: mpsc::Receiver<Vec<u8>>, tx: mpsc::Sender<Vec<u8>>) -> Result<(), i32> {
-    let method = read_line(&mut rx).await.ok_or_else(|| err::ERR_EINVAL)?;
-    let method = method.trim();
-
+async fn open_web_request(fd: Fd, url: &str, method: &str, headers: Vec<(String, String)>, data: Option<Vec<u8>>, reactor: Arc<RwLock<Reactor>>, mut rx: mpsc::Receiver<Vec<u8>>, tx: mpsc::Sender<Vec<u8>>) -> Result<(), i32> {
     debug!("executing HTTP {}", method);
-
-    let headers = read_line(&mut rx).await.ok_or_else(|| err::ERR_EINVAL)?;
-    let headers = base64::decode(headers).map_err(|e| {
-        debug!("failed to base64 decode request headers - {}", e);
-        err::ERR_EINVAL
-    })?;
-    let headers = serde_json::from_slice::<Vec<(String, String)>>(&headers[..]).map_err(|e| {
-        debug!("failed to json decode request headers - {}", e);
-        err::ERR_EINVAL
-    })?;
-    
-    let data = read_line(&mut rx).await.ok_or_else(|| err::ERR_EINVAL)?;
-    let data = if data.len() > 0 {
-        let data = base64::decode(&data[..]).map_err(|_e| err::ERR_EINVAL)?;
-        if data.len() > 0 {
-            debug!("sending {} bytes", data.len());
-            Some(data)
-        } else {
-            debug!("sending empty request");
-            None    
-        }
-    } else {
-        debug!("sending empty request");
-        None
-    };
 
     let ret = fetch(url, method, headers, data).await?;
     debug!("received {} bytes", ret.len());

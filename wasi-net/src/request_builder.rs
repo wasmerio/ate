@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use std::borrow::Cow;
 use std::io::{Read, Write};
 
+use crate::web_command::WebCommand;
+
 use super::*;
 
 pub struct RequestBuilder {
@@ -44,31 +46,18 @@ impl RequestBuilder {
     pub fn send(self) -> Result<Response, std::io::Error> {
         let url = self.url.to_string();
 
-        let headers = self.headers.iter().map(|(a, b)| (a.clone(), b.clone())).collect::<Vec<_>>();
-        let headers = serde_json::to_vec(&headers).unwrap();
-        let headers = base64::encode(&headers[..]);
-
-        let data = if let Some(request) = self.request {
-            if let Some(request) = request.as_bytes() {
-                base64::encode(request)
-            } else {
-                String::new()    
-            }
-        } else {
-            String::new()
+        let cmd = WebCommand::WebRequest {
+            url,
+            method: self.method.to_string(),
+            headers: self.headers.iter().map(|(a, b)| (a.clone(), b.clone())).collect(),
+            body: self.request.iter().filter_map(|a| a.as_bytes()).map(|a| a.to_vec()).next()
         };
+        let cmd = cmd.serialize()?;
 
-        let submit_url = format!("{}\n", url);
-        let submit_method = format!("{}\n", self.method.to_string());
-        let submit_headers = format!("{}\n", headers);
-        let submit_data = format!("{}\n", data);
-        
         let mut file = std::fs::File::open("/dev/web")?;
-
-        let _ = file.write_all(submit_url.as_bytes());
-        let _ = file.write_all(submit_method.as_bytes());
-        let _ = file.write_all(submit_headers.as_bytes());
-        let _ = file.write_all(submit_data.as_bytes());
+        
+        let submit = format!("{}\n", cmd);
+        let _ = file.write_all(submit.as_bytes());
 
         let mut data = Vec::new();
         read_to_end(&mut file, &mut data)?;
