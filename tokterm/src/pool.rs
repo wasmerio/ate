@@ -108,7 +108,7 @@ impl LoaderHelper {
     }
 }
 
-#[wasm_bindgen(module = "/worker.js")]
+#[wasm_bindgen(module = "/public/worker.js")]
 extern "C" {
     #[wasm_bindgen(js_name = "startWorker")]
     fn start_worker(

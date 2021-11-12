@@ -142,7 +142,7 @@ pub fn start() -> Result<(), JsValue> {
     Ok(())
 }
 
-#[wasm_bindgen(module = "/fit.ts")]
+#[wasm_bindgen(module = "/src/js/fit.ts")]
 extern "C" {
     #[wasm_bindgen(js_name = "termFit")]
     fn term_fit(
