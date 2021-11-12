@@ -13,7 +13,7 @@ pub struct Process
 {
     pub(crate) pid: Pid,
     pub(crate) exit_rx: watch::Receiver<Option<i32>>,
-    pub(crate) exit_tx: Arc<Mutex<watch::Sender<Option<i32>>>>,
+    pub(crate) exit_tx: Arc<watch::Sender<Option<i32>>>,
 }
 
 impl Clone
@@ -53,6 +53,6 @@ impl Process
     }
 
     pub fn terminate(&mut self, exit_code: i32) {
-        self.exit_tx.lock().unwrap().send(Some(exit_code));
+        self.exit_tx.send(Some(exit_code));
     }
 }

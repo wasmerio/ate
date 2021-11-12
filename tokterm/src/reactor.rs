@@ -103,7 +103,7 @@ impl Reactor
                 self.pid.insert(pid, Process {
                     pid,
                     exit_rx: exit_rx.clone(),
-                    exit_tx: Arc::new(Mutex::new(exit_tx)),
+                    exit_tx: Arc::new(exit_tx),
                 });
                 return Ok((pid, exit_rx));
             }
