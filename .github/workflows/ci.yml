@@ -21,3 +21,19 @@ jobs:
       run: |
         cd lib
         cargo test
+
+  tokterm:
+    name: Build Tokera/Wasmer Terminal
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+    - name: Build Terminal WASM
+      run: |
+        cd tokterm
+        cargo build
+    - name: Build NPM
+      run: |
+        npm i
+        npm run build
