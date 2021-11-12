@@ -22,6 +22,25 @@ jobs:
         cd lib
         cargo test
 
+  atefs:
+    name: Build ATE FileSystem
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+    - name: Install Fuse
+      run: |
+        apt-get install fuse libfuse-dev libfuse3-dev
+    - name: First the Unit Tests
+      run: |
+        cd atefs
+        cargo test
+    - name: Build atefs
+      run: |
+        cd atefs
+        cargo build --release
+
   tokterm:
     name: Build Tokera/Wasmer Terminal
     runs-on: ubuntu-latest
