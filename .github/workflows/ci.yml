@@ -23,7 +23,7 @@ jobs:
         cargo test
 
   atefs:
-    name: Build ATE FileSystem
+    name: Test ATE FileSystem
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
@@ -36,10 +36,6 @@ jobs:
       run: |
         cd atefs
         cargo test
-    - name: Build atefs
-      run: |
-        cd atefs
-        cargo build --release
 
   tokterm:
     name: Build Tokera/Wasmer Terminal
