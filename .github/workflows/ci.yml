@@ -1,0 +1,51 @@
+name: CI
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_MIN_STACK: 20971520
+
+jobs:
+  lib:
+    name: Test ATE Library
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+    - name: Run Tests
+      run: |
+        cd lib
+        cargo test
+
+  atefs:
+    name: Test ATE FileSystem
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+    - name: Install Fuse
+      run: |
+        sudo apt-get install fuse libfuse-dev libfuse3-dev
+    - name: First the Unit Tests
+      run: |
+        cd atefs
+        cargo test
+
+  tokterm:
+    name: Build Tokera/Wasmer Terminal
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+    - name: Build
+      run: |
+        cd tokterm
+        npm install
+        npm run build

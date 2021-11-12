@@ -103,7 +103,7 @@ pub async fn exec
             Ok(a) => a,
             Err(err) => {
                 let _ = stdio.stderr.blocking_write(&format!("compile-error: {}\n", err).as_bytes()[..]);
-                exit_tx.lock().unwrap().send(Some(ERR_ENOEXEC));
+                exit_tx.send(Some(ERR_ENOEXEC));
                 return;
             }
         };
@@ -192,7 +192,7 @@ pub async fn exec
             err::ERR_ENOEXEC
         };
         debug!("exited with code {}", ret);
-        exit_tx.lock().unwrap().send(Some(ret));
+        exit_tx.send(Some(ret));
     });
     
     Ok(ExecResponse::Process(process))

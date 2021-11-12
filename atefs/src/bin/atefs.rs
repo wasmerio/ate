@@ -10,7 +10,13 @@ use ate_auth::helper::*;
 
 #[cfg(feature = "enable_tokera")]
 use {
-    tokera::cmd::*,
+    tokera::cmd::{
+        main_opts_service,
+        main_opts_contract,
+        main_opts_wallet,
+        main_opts_login,
+        main_opts_logout
+    },
 };
 
 use clap::Parser;

@@ -8,7 +8,13 @@ use ate::compact::CompactMode;
 
 #[cfg(feature = "enable_tokera")]
 use {
-    tokera::opt::*
+    tokera::opt::{
+        OptsService,
+        OptsContract,
+        OptsWallet,
+        OptsLogin,
+        OptsLogout
+    }
 };
 
 use clap::Parser;
