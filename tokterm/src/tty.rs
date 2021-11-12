@@ -346,7 +346,7 @@ impl Tty
             let mut inner = self.inner_async.lock().await;
             let cursor_pos = inner.cursor_pos;
             inner.line.insert_str(cursor_pos, data);
-            inner.cursor_pos += 1;
+            inner.cursor_pos += data.len();
             
             let right = if inner.cursor_pos < inner.line.len() {
                 Some(inner.line[inner.cursor_pos..].to_string())

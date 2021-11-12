@@ -285,8 +285,6 @@ impl Console
 
     pub async fn on_ctrl_c(&mut self)
     {
-        self.tty.draw("^C\r\n").await;
-        
         let mode = self.tty.mode().await;
         match mode {
             TtyMode::Null => {
@@ -314,129 +312,72 @@ impl Console
         self.tty.set_bounds(cols, rows).await;
     }
 
-    pub async fn on_parse(&mut self, key_code: u32, key: String, alt_key: bool, ctrl_key: bool, meta_key: bool, job: Option<Job>)
-    {
-        match key_code {
-            Self::TERM_KEY_ENTER => {
+    pub async fn on_parse(&mut self, data: &str, job: Option<Job>) {
+        // debug!("on_parse {}", data.as_bytes().iter().map(|byte| format!("\\u{{{:04X}}}", byte).to_owned()).collect::<Vec<String>>().join(""));
+        match data {
+            "\r" => {
                 self.on_enter().await;
-            }
-            Self::TERM_KEY_TAB => {
-                self.tty.add("    ").await;
-            }
-            Self::TERM_KEY_BACKSPACE => {
+            },
+            "\u{0003}" => { // Ctrl-C
+                if job.is_none() {
+                    self.tty.draw("\r\n").await;
+                }
+                else {
+                    self.tty.draw("^C\r\n").await;
+                }
+                self.on_ctrl_c().await;
+            },
+            "\u{007F}" => {
                 self.tty.backspace().await;
-            }
-            Self::TERM_KEY_INSERT => {
-            }
-            Self::TERM_KEY_DEL => {
-                self.tty.delete().await;
-            }
-            Self::TERM_KEY_LEFT_ARROW => {
+            },
+            "\u{001B}\u{005B}\u{0044}" => {
                 self.tty.cursor_left().await;
-            }
-            Self::TERM_KEY_RIGHT_ARROW => {
+            },
+            "\u{001B}\u{005B}\u{0043}" => {
                 self.tty.cursor_right().await;
-            }
-            Self::TERM_KEY_HOME => {
+            },
+            "\u{0001}" => {
                 self.tty.set_cursor_to_start().await;
-            }
-            Self::TERM_KEY_END => {
-                self.tty.set_cursor_to_end().await;
-            }
-            Self::TERM_KEY_UP_ARROW |
-            Self::TERM_KEY_PAGE_UP => {
+            },
+            "\u{001B}\u{005B}\u{0041}" => {
                 if job.is_none() {
                     self.tty.cursor_up().await;
                 }
-            }
-            Self::TERM_KEY_DOWN_ARROW |
-            Self::TERM_KEY_PAGE_DOWN => {
+            },
+            "\u{001B}\u{005B}\u{0042}" => {
                 if job.is_none() {
                     self.tty.cursor_down().await;
                 }
-            }
-            Self::TERM_KEY_L if ctrl_key => {
+            },
+            "\u{000C}" => {
                 self.on_ctrl_l().await;
-            }
-            Self::TERM_KEY_F1 |
-            Self::TERM_KEY_F2 |
-            Self::TERM_KEY_F3 |
-            Self::TERM_KEY_F4 |
-            Self::TERM_KEY_F5 |
-            Self::TERM_KEY_F6 |
-            Self::TERM_KEY_F7 |
-            Self::TERM_KEY_F8 |
-            Self::TERM_KEY_F9 |
-            Self::TERM_KEY_F10 |
-            Self::TERM_KEY_F11 |
-            Self::TERM_KEY_F12 => {
-            }
-            _ => {
-                if !alt_key && !ctrl_key && !meta_key {
-                    if key.len() > 1 {
-                        debug!("special key pressed: code={}, str={}", key_code, key);
-                    }
-                    self.tty.add(key.as_str()).await;
-                }
+            },
+            data => {
+                self.tty.add(data).await;
             }
         }
     }
 
-    pub async fn on_key(&mut self, key_code: u32, key: String, alt_key: bool, ctrl_key: bool, meta_key: bool)
+    pub async fn on_key(&mut self, _key_code: u32, _key: String, _alt_key: bool, _ctrl_key: bool, _meta_key: bool)
     {
-        match key_code {
-            Self::TERM_KEY_C if ctrl_key => {
-                self.on_ctrl_c().await;
+        // Do nothing for now
+    }
+
+    pub async fn on_data(&mut self, data: String) {
+        let mode = self.tty.mode().await;
+        match mode {
+            TtyMode::StdIn(job) => {
+                if self.tty.is_buffering() {
+                    self.on_parse(&data, Some(job)).await
+                } else {
+                    //self.tty.echo(key.as_str()).await;
+                    let _ = job.stdin_tx.send(data.into_bytes()).await;
+                }
             }
-            _ => {
-                let mode = self.tty.mode().await;
-                match mode {
-                    TtyMode::StdIn(job) => {
-                        if self.tty.is_buffering() {
-                            self.on_parse(key_code, key, alt_key, ctrl_key, meta_key, Some(job)).await
-                        } else {
-                            let key = match key_code {
-                                Self::TERM_KEY_ENTER => "\n".to_string(),
-                                Self::TERM_KEY_TAB => "\t".to_string(),
-                                Self::TERM_KEY_BACKSPACE  |
-                                Self::TERM_KEY_INSERT |
-                                Self::TERM_KEY_DEL |
-                                Self::TERM_KEY_LEFT_ARROW |
-                                Self::TERM_KEY_RIGHT_ARROW |
-                                Self::TERM_KEY_UP_ARROW |
-                                Self::TERM_KEY_DOWN_ARROW |
-                                Self::TERM_KEY_HOME |
-                                Self::TERM_KEY_END |
-                                Self::TERM_KEY_PAGE_UP |
-                                Self::TERM_KEY_PAGE_DOWN |
-                                Self::TERM_KEY_F1 |
-                                Self::TERM_KEY_F2 |
-                                Self::TERM_KEY_F3 |
-                                Self::TERM_KEY_F4 |
-                                Self::TERM_KEY_F5 |
-                                Self::TERM_KEY_F6 |
-                                Self::TERM_KEY_F7 |
-                                Self::TERM_KEY_F8 |
-                                Self::TERM_KEY_F9 |
-                                Self::TERM_KEY_F10 |
-                                Self::TERM_KEY_F11 |
-                                Self::TERM_KEY_F12 => {
-                                    char::from_u32(key_code)
-                                        .map(|a| [a].iter().collect::<String>())
-                                        .unwrap_or_else(|| key)
-                                },
-                                _ => key,
-                            };
-                            //self.tty.echo(key.as_str()).await;
-                            let _ = job.stdin_tx.send(key.into_bytes()).await;
-                        }                        
-                    }
-                    TtyMode::Null => {
-                    }
-                    TtyMode::Console => {
-                        self.on_parse(key_code, key, alt_key, ctrl_key, meta_key, None).await
-                    }
-                }        
+            TtyMode::Null => {
+            }
+            TtyMode::Console => {
+                self.on_parse(&data, None).await
             }
         }
     }
