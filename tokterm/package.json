@@ -7,8 +7,7 @@
   "type": "module",
   "scripts": {
     "build": "webpack",
-    "watch": "parcel index.html",
-    "release": "parcel build index.html"
+    "dev": "webpack serve"
   },
   "dependencies": {
     "comlink": "^4",
@@ -19,10 +18,13 @@
     "xterm-addon-webgl": "^0.3"
   },
   "devDependencies": {
+    "@wasm-tool/wasm-pack-plugin": "^1.6.0",
+    "copy-webpack-plugin": "^9.1.0",
     "html-webpack-plugin": "^5.4.0",
     "parcel-bundler": "^1.12",
     "typescript": "^3.9",
     "webpack": "^5.51",
-    "webpack-cli": "^4.8"
+    "webpack-cli": "^4.8",
+    "webpack-dev-server": "^4.4.0"
   }
 }
