@@ -29,11 +29,7 @@ jobs:
     - uses: actions/checkout@v2
       with:
         submodules: true
-    - name: Build Terminal WASM
-      run: |
-        cd tokterm
-        cargo build
-    - name: Build NPM
+    - name: Build
       run: |
         cd tokterm
         npm install
