@@ -76,21 +76,21 @@ impl Tty
     pub const COL_WHITE: &'static str ="\x1B[1;37m";
 
     pub const WELCOME: &'static str = r#"\x1B[0m
-\x1B[33;1m|                           /\       -X-     + |\x1B[1;34m                 ww              \x1B[37;1m  Tokera WASM.sh v1.0\r
-\x1B[33;1m|              +           /  \_               |\x1B[1;34m                 wwwww           \x1B[37;1m  Powered by Wasmer and ATE\r
-\x1B[33;1m|       /\               _/ ^ / \  _           |\x1B[1;34m          ww     wwwwww  w       \x1B[37;1m  \r
-\x1B[33;1m|    /\/  \      +      |   _/ ` \/ \    +     |\x1B[1;34m          wwwww      wwwwwwwww   \x1B[0m  QUICK START:\r
-\x1B[33;1m|   //  `  \            |  / __   \ `\    _    |\x1B[1;34m  ww      wwwwww  w     wwwwwww  \x1B[0m      • WAPM commands -> wapm\r
-\x1B[33;1m|  //  .    \         /^|_/ / .\ . \ ~\  / \   |\x1B[1;34m  wwwww      wwwwwwwwww   wwwww  \x1B[0m      • Tokera commands -> tok\r
-\x1B[33;1m| //     ^ . \_______| /   / _  \   \  \_| |__/|\x1B[1;34m  wwwwww  w      wwwwwww  wwwww  \x1B[0m      • Core utils: coreutils -> ls\r
+\x1B[33;1m                            /\       -X-     +  \x1B[1;34m                 ww              \x1B[37;1m  Tokera WASM.sh v1.0\r
+\x1B[33;1m               +           /  \_                \x1B[1;34m                 wwwww           \x1B[37;1m  Powered by Wasmer and ATE\r
+\x1B[33;1m        /\               _/ ^ / \  _            \x1B[1;34m          ww     wwwwww  w       \x1B[37;1m  \r
+\x1B[33;1m     /\/  \      +      |   _/ ` \/ \    +      \x1B[1;34m          wwwww      wwwwwwwww   \x1B[0m  QUICK START:\r
+\x1B[33;1m    //  `  \            |  / __   \ `\    _     \x1B[1;34m  ww      wwwwww  w     wwwwwww  \x1B[0m      • WAPM commands -> wapm\r
+\x1B[33;1m   //  .    \         /^|_/ / .\ . \ ~\  / \    \x1B[1;34m  wwwww      wwwwwwwwww   wwwww  \x1B[0m      • Tokera commands -> tok\r
+\x1B[33;1m__//     ^ . \_______| /   / _  \   \  \_| |___ \x1B[1;34m  wwwwww  w      wwwwwww  wwwww  \x1B[0m      • Core utils: coreutils -> ls\r
 \x1B[33;1m|     _____     _                        | |   |\x1B[1;34m  wwwwwwwwwwwwww   wwwww  wwwww  \x1B[0m      • Pipe -> echo blah | cowsay\r
 \x1B[33;1m|    |_   _|__ | | _____ ___ __ _*      /| |\  |\x1B[1;34m  wwwwwwwwwwwwww   wwwww  wwwww  \x1B[0m      • Run a JS Engine -> qjs\r
 \x1B[33;1m|      | |/ _ \| |/ / _ \  _/ _  |* ,  | |_| | |\x1B[1;34m  wwwwwwwwwwwwww   wwwww  wwwww  \x1B[0m      • Access a wallet -> wallet\r
 \x1B[33;1m|      | | (_) |   <  __/ || (_| |     |/ " \| |\x1B[1;34m  wwwwwwwwwwwwww   wwwww   wwww  \x1B[0m  \r
 \x1B[33;1m| ~    |_|\___/|_|\_\___|_| \__/_|       """   |\x1B[1;34m  wwwwwwwwwwwwwww  wwwww         \x1B[0m  MORE INFO:\r
 \x1B[33;1m|______________________________________________|\x1B[1;34m     wwwwwwwwwwww   wwww         \x1B[0m      • Usage Information: help\r
-\x1B[37;1m|   Tokera v1.0 Copyright (C) 2016 Tokera Ltd  |\x1B[1;34m         wwwwwwww                \x1B[0m      • About Tokera: about\r
-\x1B[37;1m|              ( www.tokera.com )              |\x1B[1;34m             wwww                \x1B[0m  \r
+\x1B[37;1m    Tokera v1.0 Copyright (C) 2016 Tokera Ltd   \x1B[1;34m         wwwwwwww                \x1B[0m      • About Tokera: about\r
+\x1B[37;1m               ( www.tokera.com )               \x1B[1;34m             wwww                \x1B[0m  \r
 \x1B[0m\r\n"#;
 
     pub const ABOUT: &'static str = r#"# Tokera WASM.sh
