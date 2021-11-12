@@ -35,5 +35,6 @@ jobs:
         cargo build
     - name: Build NPM
       run: |
-        npm i
+        cd tokterm
+        npm install
         npm run build
