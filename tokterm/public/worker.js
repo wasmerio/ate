@@ -18,7 +18,6 @@ export function startWorker(module, memory, state, opts, helper) {
 // Second: Entry script for the actual web worker.
 if ('WorkerGlobalScope' in self &&
     self instanceof WorkerGlobalScope) {
-
     //console.log("pool::worker(entry) started");
     Error.stackTraceLimit = 50;
 

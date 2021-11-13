@@ -57,8 +57,9 @@ pub fn start() -> Result<(), JsValue> {
             .with_font_size(16u32)
             .with_draw_bold_text_in_bright_colors(true)
             .with_right_click_selects_word(true)
+            .with_transparency(true)
             .with_theme(
-                &Theme::new(),
+                &Theme::new().with_background("#23104400").with_black("#231044"),
             ),
     );
 

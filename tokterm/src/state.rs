@@ -46,14 +46,14 @@ impl ConsoleState
             if need_more_text {
                 ">".to_string()
             } else {
-                "$".to_string()
+                "→".to_string()
             }
         };
 
         if color {
-            format!("{}{}{}:{}{}{}{} {}", Tty::COL_GREEN, self.user, Tty::COL_WHITE, Tty::COL_BLUE, self.path, Tty::COL_WHITE, prompt_symbol, Tty::COL_RESET)
+            format!("{}{} {}", Tty::COL_WHITE, prompt_symbol, Tty::COL_RESET)
         } else {
-            format!("{}:{}{} ", self.user, self.path, prompt_symbol)
+            format!("{} ", prompt_symbol)
         }
     }
 }
