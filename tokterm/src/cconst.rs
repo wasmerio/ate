@@ -77,21 +77,30 @@ impl Tty
 
     pub const WELCOME: &'static str = r#""#;
 
-    pub const ABOUT: &'static str = r#"#
+    pub const ABOUT_TOKERA: &'static str = r#"#
 The WebAssembly Shell is built with Wasmer and ATE:
 
     https://github.com/john-sharratt/ate
     https://github.com/wasmerio/wasmer
 
-It supports:
-- MemFS file system with mount points
-- stdin, stdout, stderr and tty support
-- Private file system space per process.
-- Full support for piping and TTY.
-- Fully Multi-threading.
-- Support for basic bash commands.
-- Environment variables.
+Visit us at:
+https://www.tokera.com
 "#;
+
+   pub const ABOUT_WASMER: &'static str = r#"# Wasmer
+
+Wasmer is a fast and secure WebAssembly runtime that enables super
+lightweight containers to run anywhere: from Desktop to the Cloud, Edge and
+IoT devices.
+
+Features:
+• Secure by default. No file, network, or environment access, unless
+  explicitly enabled.
+• Supports WASI and Emscripten out of the box.
+• Fast. Run WebAssembly at near-native speeds.
+• Embeddable in multiple programming languages
+• Compliant with latest WebAssembly Proposals (SIMD, Reference Types,
+  Threads, ...)"#;
 
     pub const HELP: &'static str = r#"#
 

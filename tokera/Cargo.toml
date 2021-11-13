@@ -1,0 +1,59 @@
+[package]
+name = "tokera"
+version = "1.0.0"
+authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
+edition = "2018"
+description = "Provides an interface into Tokera and its supporting services"
+license = "MIT OR Apache-2.0"
+keywords = [ "authentication", "cli", "authorization", "crypto" ]
+categories = [ "data-structures", "command-line-utilities", "authentication", "cryptography" ]
+repository = "https://github.com/john-sharratt/Tokera"
+readme = "README.md"
+
+[features]
+default = [ "client", "server" ]
+client_web = [ "ate/client_web", "parking_lot/wasm-bindgen" ]
+client = [ "enable_full", "ate/client" ]
+server = [ "enable_full", "ctrlc-async", "ate/server", "ate/enable_mt" ]
+enable_full = [ "enable_tcp", "tokio/rt", "tokio/io-util", "tokio/time", "tokio/fs" ]
+enable_tcp = [ "enable_ntp", "enable_dns" ]
+enable_dns = []
+enable_ntp = []
+
+[dependencies]
+ate = { version = "^1", path = "../lib", default_features = false }
+ate-auth = { version = "^1", path = "../auth", default_features = false }
+error-chain = { version = "^0.12", default_features = false }
+tokio = { version = "^1", features = [ "rt", "io-util", "macros", "sync", "time", "fs" ], default_features = false }
+serde = { version = "^1", features = ["derive"] }
+serde_json = "^1"
+tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
+tracing-futures = { version = "^0.2" }
+tracing-subscriber = { version = "^0.2" }
+parking_lot = "^0.11"
+futures = "^0.3"
+futures-util = "^0.3"
+async-trait = "^0.1"
+bytes = "^1"
+fxhash = "^0.2"
+fastrand = "^1"
+chrono = { version = "^0.4", features = ["serde"] }
+isocountry = "^0.3"
+url = "^2"
+rpassword-wasi = "^5"
+regex = "^1"
+hex = "^0.4"
+google-authenticator = "^0.2"
+qrcode = "^0.12"
+base64 = "^0.13"
+shellexpand = "^2"
+clap = "^3.0.0-beta.5"
+ctrlc-async = { version = "^3", optional = true }
+bincode = "^1"
+once_cell = "^1"
+atty = "^0.2"
+strum = "^0.21"
+strum_macros = "^0.21"
+rust_decimal = "^1"
+rust_decimal_macros = "^1"
+num-traits = { version = "^0.2" }
