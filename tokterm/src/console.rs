@@ -84,8 +84,7 @@ impl Console
                     terminal.write(text.as_str());
 
                     let mut state = state.lock().unwrap();
-                    state.last_draw_text = text;
-                    state.unfinished_line = true;
+                    state.unfinished_line = text.ends_with("\n") == false;
                 }
             });
         }
@@ -235,12 +234,6 @@ impl Console
             match rx {
                 Ok(EvalPlan::Executed { code, ctx, show_result }) => {
                     debug!("eval executed (code={})", code);
-                    if code != 0 && show_result {
-                        let mut chars = String::new();
-                        chars += err::exit_code_to_message(code);
-                        chars += "\r\n";
-                        tty.draw(chars.as_str()).await;
-                    }
                     let should_line_feed = {
                         let mut state = state.lock().unwrap();
                         state.last_return = code;
@@ -250,7 +243,12 @@ impl Console
                     if record_history {
                         tty.record_history(cmd).await;
                     }
-                    if should_line_feed {
+                    if code != 0 && show_result {
+                        let mut chars = String::new();
+                        chars += err::exit_code_to_message(code);
+                        chars += "\r\n";
+                        tty.draw(chars.as_str()).await;
+                    } else if should_line_feed {
                         tty.draw("\r\n").await;
                     }
                 },

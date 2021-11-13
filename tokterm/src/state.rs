@@ -27,7 +27,6 @@ pub struct ConsoleState
     pub user: String,
     pub env: Environment,
     pub last_return: i32,
-    pub last_draw_text: String,
     pub unfinished_line: bool,
 }
 
@@ -39,7 +38,6 @@ impl ConsoleState
             user: "wasm.sh".to_string(),
             env: Environment::default(),
             last_return: 0,
-            last_draw_text: "".to_string(),
             unfinished_line: false,
         }
     }
