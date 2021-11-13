@@ -934,19 +934,16 @@ impl FileAccessor
                     bail!(FileSystemErrorKind::NotDirectory);
                 }
 
-                if new_parent_data.children.iter().await?.filter(|c| c.dentry.name.as_str() == new_name).next().is_some() {
-                    debug!("atefs::rename new_name={} already exists", new_name);
-                    bail!(FileSystemErrorKind::AlreadyExists);
+                if let Some(existing) = new_parent_data.children.iter().await?.filter(|c| c.dentry.name.as_str() == new_name).next() {
+                    dio.delete(existing.key()).await?;
                 }
-
                 data.detach()?;
                 data.attach(&new_parent_data, &new_parent_data.children)?;
             }
             else
             {
-                if parent_data.children.iter().await?.filter(|c| c.dentry.name.as_str() == new_name).next().is_some() {
-                    debug!("atefs::rename new_name={} already exists", new_name);
-                    bail!(FileSystemErrorKind::NotDirectory);
+                if let Some(existing) = parent_data.children.iter().await?.filter(|c| c.dentry.name.as_str() == new_name).next() {
+                    dio.delete(existing.key()).await?;
                 }
             }
 

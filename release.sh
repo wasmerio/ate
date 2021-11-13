@@ -22,6 +22,7 @@ for N in $(seq 0 30); do
 done
 
 echo "Compiling"
+rm -r -f tokterm/dist/*
 cd tokterm
 npm install
 npm run build
@@ -34,4 +35,8 @@ cp -f tokterm/dist/* target/release/www
 cp -r -f tokterm/public/* target/release/www
 
 echo "Synchronizing the files"
-rsync target/release/www/* /mnt/tok --checksum --recursive --inplace --links
+rsync target/release/www/* /mnt/tok --verbose --checksum --recursive --whole-file --links --delete --human-readable
+
+echo "Sync the files"
+cd /mnt/tok
+sync
