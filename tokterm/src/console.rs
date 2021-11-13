@@ -297,6 +297,21 @@ impl Console
         self.terminal.clear();
     }
 
+    pub async fn on_page_up(&mut self) { }
+    pub async fn on_page_down(&mut self) { }
+    pub async fn on_f1(&mut self) { }
+    pub async fn on_f2(&mut self) { }
+    pub async fn on_f3(&mut self) { }
+    pub async fn on_f4(&mut self) { }
+    pub async fn on_f5(&mut self) { }
+    pub async fn on_f6(&mut self) { }
+    pub async fn on_f7(&mut self) { }
+    pub async fn on_f8(&mut self) { }
+    pub async fn on_f9(&mut self) { }
+    pub async fn on_f10(&mut self) { }
+    pub async fn on_f11(&mut self) { }
+    pub async fn on_f12(&mut self) { }
+
     pub async fn on_ctrl_c(&mut self, job: Option<Job>)
     {
         if job.is_none() {
@@ -334,7 +349,7 @@ impl Console
     }
 
     pub async fn on_parse(&mut self, data: &str, job: Option<Job>) {
-        // debug!("on_parse {}", data.as_bytes().iter().map(|byte| format!("\\u{{{:04X}}}", byte).to_owned()).collect::<Vec<String>>().join(""));
+        //error!("on_parse {}", data.as_bytes().iter().map(|byte| format!("\\u{{{:04X}}}", byte).to_owned()).collect::<Vec<String>>().join(""));
         match data {
             "\r" => {
                 self.on_enter().await;
@@ -351,8 +366,12 @@ impl Console
             "\u{001B}\u{005B}\u{0043}" => {
                 self.tty.cursor_right().await;
             },
-            "\u{0001}" => {
+            "\u{0001}" |
+            "\u{001B}\u{005B}\u{0048}" => {
                 self.tty.set_cursor_to_start().await;
+            },
+            "\u{001B}\u{005B}\u{0046}" => {
+                self.tty.set_cursor_to_end().await;
             },
             "\u{001B}\u{005B}\u{0041}" => {
                 if job.is_none() {
@@ -366,6 +385,48 @@ impl Console
             },
             "\u{000C}" => {
                 self.on_ctrl_l().await;
+            },
+            "\u{001B}\u{005B}\u{0035}\u{007E}" => {
+                self.on_page_up().await;
+            },
+            "\u{001B}\u{005B}\u{0036}\u{007E}" => {
+                self.on_page_down().await;
+            },
+            "\u{001B}\u{004F}\u{0050}" => {
+                self.on_f1().await
+            },
+            "\u{001B}\u{004F}\u{0051}" => {
+                self.on_f2().await
+            },
+            "\u{001B}\u{004F}\u{0052}" => {
+                self.on_f3().await
+            },
+            "\u{001B}\u{004F}\u{0053}" => {
+                self.on_f4().await
+            },
+            "\u{001B}\u{005B}\u{0031}\u{0035}\u{007E}" => {
+                self.on_f5().await
+            },
+            "\u{001B}\u{005B}\u{0031}\u{0037}\u{007E}" => {
+                self.on_f6().await
+            },
+            "\u{001B}\u{005B}\u{0031}\u{0038}\u{007E}" => {
+                self.on_f7().await
+            },
+            "\u{001B}\u{005B}\u{0031}\u{0039}\u{007E}" => {
+                self.on_f8().await
+            },
+            "\u{001B}\u{005B}\u{0032}\u{0030}\u{007E}" => {
+                self.on_f9().await
+            },
+            "\u{001B}\u{005B}\u{0032}\u{0031}\u{007E}" => {
+                self.on_f10().await
+            },
+            "\u{001B}\u{005B}\u{0032}\u{0033}\u{007E}" => {
+                self.on_f11().await
+            },
+            "\u{001B}\u{005B}\u{0032}\u{0034}\u{007E}" => {
+                self.on_f12().await
             },
             data => {
                 self.tty.add(data).await;
