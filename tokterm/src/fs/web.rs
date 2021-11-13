@@ -240,13 +240,14 @@ async fn open_web_socket(fd: Fd, url: &str, reactor: Arc<RwLock<Reactor>>, mut r
     // Before we attach the message process let the caller know its all
     // running along nicely
     let ret = wasi_net::web_response::WebResponse::WebSocketVersion1 { };
-    let ret = match ret.serialize() {
+    let mut ret = match ret.serialize() {
         Ok(a) => a,
         Err(err) => {
             debug!("websocket failed serialize the web response");
             return;
         }
     };
+    ret += "\n";
     tx.blocking_send(ret.into_bytes());
 
     // Attach the message process
@@ -293,17 +294,18 @@ async fn open_web_request(fd: Fd, url: &str, method: &str, headers: Vec<(String,
         headers,
         has_data: true
     };
-    let ret = match ret.serialize() {
+    let mut ret = match ret.serialize() {
         Ok(a) => a,
         Err(err) => {
             debug!("websocket failed serialize the web response");
             return Ok(());
         }
     };
-    debug!("received {} bytes", ret.len());
+    ret += "\n";
     let _ = tx.send(ret.into_bytes()).await;
 
     let ret = get_response_data(resp).await?;
+    debug!("received {} bytes", ret.len());
     let _ = tx.send(ret).await;
     Ok(())
 }

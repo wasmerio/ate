@@ -21,14 +21,14 @@ impl SocketBuilder {
     pub fn open(self) -> Result<WebSocket, std::io::Error> {
         let url = self.url.to_string();
 
-        let cmd = WebCommand::WebSocketVersion1 {
+        let submit = WebCommand::WebSocketVersion1 {
             url,
         };
-        let cmd = cmd.serialize()?;
+        let mut submit = submit.serialize()?;
+        submit += "\n";
 
         let mut file = std::fs::File::open("/dev/web")?;
         
-        let submit = format!("{}\n", cmd);
         let _ = file.write_all(submit.as_bytes());
 
         let res = read_response(&mut file)?;

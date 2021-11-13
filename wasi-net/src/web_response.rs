@@ -1,22 +1,26 @@
 use serde::{Serialize, Deserialize};
 use bincode;
-use base64;
 use std::io;
 
 #[derive(Serialize, Deserialize, Debug)]
-pub enum WebCommand {
+pub enum WebResponse
+{
+    Error {
+        msg: String,
+    },
     WebSocketVersion1 {
-        url: String
     },
     WebRequestVersion1 {
-        url: String,
-        method: String,
+        ok: bool,
+        redirected: bool,
+        status: u16,
+        status_text: String,
         headers: Vec<(String, String)>,
-        body: Option<Vec<u8>>,
+        has_data: bool,
     }
 }
 
-impl WebCommand
+impl WebResponse
 {
     pub fn serialize(&self) -> io::Result<String> {
         let ret = bincode::serialize(self)
@@ -24,7 +28,7 @@ impl WebCommand
         Ok(base64::encode(&ret[..]))
     }
 
-    pub fn deserialize(input: &str) -> io::Result<WebCommand> {
+    pub fn deserialize(input: &str) -> io::Result<WebResponse> {
         let input = base64::decode(input.trim())
             .map_err(|err| io::Error::new(io::ErrorKind::Other, format!("failed to decode base64 string - {}", err)))?;
         Ok(bincode::deserialize(&input[..])

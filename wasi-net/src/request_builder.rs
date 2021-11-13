@@ -49,17 +49,17 @@ impl RequestBuilder {
     pub fn send(self) -> Result<Response, std::io::Error> {
         let url = self.url.to_string();
 
-        let cmd = WebCommand::WebRequestVersion1 {
+        let submit = WebCommand::WebRequestVersion1 {
             url,
             method: self.method.to_string(),
             headers: self.headers.iter().map(|(a, b)| (a.clone(), b.clone())).collect(),
             body: self.request.iter().filter_map(|a| a.as_bytes()).map(|a| a.to_vec()).next()
         };
-        let cmd = cmd.serialize()?;
+        let mut submit = submit.serialize()?;
+        submit += "\n";
 
         let mut file = std::fs::File::open("/dev/web")?;
         
-        let submit = format!("{}\n", cmd);
         let _ = file.write_all(submit.as_bytes());
 
         let res = read_response(&mut file)?;
@@ -108,7 +108,7 @@ impl RequestBuilder {
                 status,
                 status_text,
                 headers,
-                pos: data.as_ref().map_or_else(|| 0usize, |a| a.len()),
+                pos: 0usize,
                 data,
             }
         )
