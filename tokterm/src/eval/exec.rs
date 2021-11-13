@@ -147,6 +147,7 @@ pub async fn exec
             .stderr(Box::new(stderr))
             .syscall_proxy(Box::new(wasi_proxy))
             .preopen_dir(Path::new("/")).unwrap()
+            .map_dir(".", Path::new(path.as_str())).unwrap()
             .set_fs(fs)
             .finalize()
             .unwrap();
