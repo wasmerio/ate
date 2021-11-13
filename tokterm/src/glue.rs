@@ -2,6 +2,7 @@
 use tracing::{info, error, debug, trace, warn};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
+use web_sys::KeyboardEvent;
 use wasm_bindgen_futures::spawn_local;
 use tokio::sync::mpsc;
 
@@ -29,6 +30,12 @@ macro_rules! csi {
 pub fn main() {
     //let _ = console_log::init_with_level(log::Level::Debug);
     set_panic_hook();
+}
+
+#[derive(Debug)]
+pub enum InputEvent {
+    Key(KeyboardEvent),
+    Data(String),
 }
 
 #[wasm_bindgen]
@@ -63,7 +70,7 @@ pub fn start() -> Result<(), JsValue> {
         .get_element_by_id("terminal")
         .unwrap();
 
-    terminal.open(elem.dyn_into()?);
+    terminal.open(elem.clone().dyn_into()?);
 
     let pool = ThreadPool::new_with_max_threads().unwrap();
 
@@ -74,21 +81,24 @@ pub fn start() -> Result<(), JsValue> {
     let tty = console.tty().clone();
 
     let (tx, mut rx) = mpsc::channel(MAX_MPSC);
+    let tx_key = tx.clone();
     let callback = {
         Closure::wrap(Box::new(move |e: OnKeyEvent| {
             let event = e.dom_event();
-            tx.blocking_send(event).unwrap();
+            tx_key.blocking_send(InputEvent::Key(event)).unwrap();
         }) as Box<dyn FnMut(_)>)
     };
     terminal.on_key(callback.as_ref().unchecked_ref());
     callback.forget();
 
-    spawn_local(async move {
-        console.init().await;
-        while let Some(event) = rx.recv().await {
-            console.on_key(event.key_code(), event.key(), event.alt_key(), event.ctrl_key(), event.meta_key()).await;
-        }
-    });
+    let tx_data = tx.clone();
+    let callback = {
+        Closure::wrap(Box::new(move |data: String| {
+            tx_data.blocking_send(InputEvent::Data(data)).unwrap();
+        }) as Box<dyn FnMut(_)>)
+    };
+    terminal.on_data(callback.as_ref().unchecked_ref());
+    callback.forget();
 
     /*
     {
@@ -97,6 +107,20 @@ pub fn start() -> Result<(), JsValue> {
         addon.fit();
     }
     */
+
+    spawn_local(async move {
+        console.init().await;
+        while let Some(event) = rx.recv().await {
+            match event {
+                InputEvent::Key(event) => {
+                    console.on_key(event.key_code(), event.key(), event.alt_key(), event.ctrl_key(), event.meta_key()).await;
+                },
+                InputEvent::Data(data) => {
+                    console.on_data(data).await;
+                },
+            }
+        }
+    });
 
     /*
     {
