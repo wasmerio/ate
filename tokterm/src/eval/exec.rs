@@ -95,6 +95,7 @@ pub async fn exec
     let reactor = ctx.reactor.clone();
     let cmd = cmd.clone();
     let args = args.clone();
+    let path = ctx.path.clone();
     ctx.pool.spawn_blocking(move ||
     {
         // Compile the module (which)

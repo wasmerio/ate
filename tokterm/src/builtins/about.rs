@@ -21,6 +21,7 @@ pub(super) fn about(args: &[String], _ctx: &mut EvalContext, mut stdio: Stdio) -
 
     Box::pin(async move {
         let _ = stdio.stdout.write(txt.as_bytes()).await;
+        let _ = stdio.stdout.write("\r\n".as_bytes()).await;
         0
     })
 }

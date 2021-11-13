@@ -195,6 +195,7 @@ impl Console
             pool,
             path,
             input: cmd.clone(),
+            console: self.state.clone(),
             stdio
         };
         
@@ -234,7 +235,6 @@ impl Console
                         let mut state = state.lock().unwrap();
                         state.last_return = code;
                         state.env = ctx.env;
-                        state.path = ctx.path;
                     }
                     if record_history {
                         tty.record_history(cmd).await;

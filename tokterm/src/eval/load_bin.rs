@@ -45,7 +45,7 @@ pub async fn load_bin
         } else {
             format!("/wapm_packages/_/{}@", cmd)
         };
-        if let Ok(file) = stdio.root.search(&Path::new("/wapm_packages"), Some(search_path.as_str()), Some(".wasm")) {
+        if let Ok(file) = stdio.root.search_pattern(&Path::new("/wapm_packages"), Some(search_path.as_str()), Some(".wasm")) {
             if let Ok(mut file) = stdio.root.new_open_options().read(true).open(file).map_err(|_e| ERR_ENOENT) {
                 let mut d = Vec::new();
                 if let Ok(_) = file.read_to_end(&mut d) {

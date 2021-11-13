@@ -59,6 +59,7 @@ pub struct EvalContext
     pub pool: ThreadPool,
     pub path: String,
     pub input: String,
+    pub console: Arc<Mutex<ConsoleState>>,
     pub stdio: Stdio,
 }
 

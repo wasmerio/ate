@@ -7,14 +7,14 @@ use tracing::{info, error, debug, trace, warn};
 pub trait FileSystemExt<T>
 where T: FileSystem
 {
-    fn search(&self, path: &Path, starts_with: Option<&str>, ends_with: Option<&str>) -> Result<PathBuf>;
+    fn search_pattern(&self, path: &Path, starts_with: Option<&str>, ends_with: Option<&str>) -> Result<PathBuf>;
 }
 
 impl<T> FileSystemExt<T>
 for T
 where T: FileSystem
 {
-    fn search(&self, path: &Path, starts_with: Option<&str>, ends_with: Option<&str>) -> Result<PathBuf>
+    fn search_pattern(&self, path: &Path, starts_with: Option<&str>, ends_with: Option<&str>) -> Result<PathBuf>
     {
         let mut queue = VecDeque::new();
         queue.push_back(path.to_path_buf());
