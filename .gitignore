@@ -12,6 +12,3 @@ Cargo.lock
 # Do not add the performance data
 perf.data
 perf.data.old
-
-# Some more dev files that are not needed
-.parcel-cache

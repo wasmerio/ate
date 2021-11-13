@@ -23,7 +23,7 @@ enable_tokera = [ "tokera" ]
 ate = { version = "^1", path = "../lib", default_features = false }
 ate-auth = { version = "^1", path = "../auth", default_features = false }
 ate-files = { version = "^1", path = "../files" }
-tokera = { version = "^1", optional = true }
+tokera = { version = "^1", path = "../tokera", optional = true }
 error-chain = { version = "^0.12", default_features = false }
 tokio = { version = "^1", features = ["full", "signal", "process"] }
 serde = { version = "^1", features = ["derive"] }
