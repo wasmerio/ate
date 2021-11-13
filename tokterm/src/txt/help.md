@@ -16,10 +16,15 @@ Including:
 
 ## wapm commands
 
-    list                           List the currently installed packages and their commands
-    install                        Install a package from Wapm
-    upload                         Install a local Wasm module
-    uninstall                      Uninstall a package
+    add          Add packages to the manifest without installing
+    bin          Get the .bin dir path
+    config       Config related subcommands
+    help         Prints this message or the help of the given subcommand(s)
+    init         Set up current directory for use with wapm
+    install      Install a package
+    remove       Remove packages from the manifest
+    uninstall    Uninstall a package
+    validate     Check if a directory or tar.gz is a valid wapm package
 
 ## coreutil commands:
 

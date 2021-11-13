@@ -186,7 +186,14 @@ for UnionFileOpener {
         let path = path.to_string_lossy();
         if conf.create() || conf.create_new() {
             for (path, mount) in filter_mounts(&self.mounts, path.as_ref()) {
-                if let Ok(mut ret) = mount.fs.new_open_options().open(path) {
+                if let Ok(mut ret) = mount.fs
+                    .new_open_options()
+                    .truncate(conf.truncate())
+                    .append(conf.append())
+                    .read(conf.read())
+                    .write(conf.write())
+                    .open(path)
+                {
                     if conf.create_new() {
                         ret.unlink();
                         continue;
