@@ -2,8 +2,10 @@
 use std::io::Write;
 
 use crate::web_command::WebCommand;
+use crate::web_response::WebResponse;
 
 use super::*;
+use super::utils::*;
 
 pub struct SocketBuilder {
     pub(crate) url: url::Url,
@@ -19,7 +21,7 @@ impl SocketBuilder {
     pub fn open(self) -> Result<WebSocket, std::io::Error> {
         let url = self.url.to_string();
 
-        let cmd = WebCommand::WebSocket {
+        let cmd = WebCommand::WebSocketVersion1 {
             url,
         };
         let cmd = cmd.serialize()?;
@@ -28,6 +30,18 @@ impl SocketBuilder {
         
         let submit = format!("{}\n", cmd);
         let _ = file.write_all(submit.as_bytes());
+
+        let res = read_response(&mut file)?;
+        match res {
+            WebResponse::Error { msg } => {
+                return Err(std::io::Error::new(std::io::ErrorKind::Other, msg.as_str()));
+            },
+            WebResponse::WebSocketVersion1 { .. } => {                
+            },
+            WebResponse::WebRequestVersion1 { .. } => {
+                return Err(std::io::Error::new(std::io::ErrorKind::Other, "server returned a web response instead of a web socket"));
+            }
+        };
 
         Ok(
             WebSocket {

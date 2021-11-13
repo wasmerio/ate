@@ -5,10 +5,10 @@ use std::io;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum WebCommand {
-    WebSocket {
+    WebSocketVersion1 {
         url: String
     },
-    WebRequest {
+    WebRequestVersion1 {
         url: String,
         method: String,
         headers: Vec<(String, String)>,

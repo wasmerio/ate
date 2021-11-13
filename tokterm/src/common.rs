@@ -134,49 +134,59 @@ impl AnimationFrameCallbackWrapper /*<'a>*/ {
     }
 }
 
-pub async fn fetch(url: &str, method: &str, headers: Vec<(String, String)>, data: Option<Vec<u8>>) -> Result<Vec<u8>, i32>
+pub async fn fetch(url: &str, method: &str, headers: Vec<(String, String)>, data: Option<Vec<u8>>) -> Result<Response, i32>
+{
+    let request = {
+        let mut opts = RequestInit::new();
+        opts.method(method);
+        opts.mode(RequestMode::Cors);
+
+        if let Some(data) = data {
+            let data_len = data.len();
+            let array = js_sys::Uint8Array::new_with_length(data_len as u32);
+            array.copy_from(&data[..]);
+
+            opts.body(Some(
+                &array
+            ));
+        }
+
+        let request = Request::new_with_str_and_init(&url, &opts)
+            .map_err(|_| err::ERR_EIO)?;
+
+        let set_headers = request.headers();
+        for (name, val) in headers {
+            set_headers.set(name.as_str(), val.as_str()).map_err(|_| err::ERR_EIO)?;
+        }
+
+        let window = web_sys::window().unwrap();
+        JsFuture::from( window.fetch_with_request(&request))
+    };
+
+    let resp_value = request
+        .await
+        .map_err(|_| err::ERR_EIO)?;
+    assert!(resp_value.is_instance_of::<Response>());
+    let resp: Response = resp_value.dyn_into().unwrap();
+
+    if resp.status() < 200 || resp.status() >= 400 {
+        debug!("fetch-failed: {}", resp.status_text());
+        return Err(match resp.status() {
+            404 => err::ERR_ENOENT,
+            _ => err::ERR_EIO
+        });
+    }
+    Ok(resp)
+}
+
+pub async fn fetch_data(url: &str, method: &str, headers: Vec<(String, String)>, data: Option<Vec<u8>>) -> Result<Vec<u8>, i32>
+{
+    Ok(get_response_data(fetch(url, method, headers, data).await?).await?)
+}
+
+pub async fn get_response_data(resp: Response) -> Result<Vec<u8>, i32>
 {
     let resp = {
-        let request = {
-            let mut opts = RequestInit::new();
-            opts.method(method);
-            opts.mode(RequestMode::Cors);
-
-            if let Some(data) = data {
-                let data_len = data.len();
-                let array = js_sys::Uint8Array::new_with_length(data_len as u32);
-                array.copy_from(&data[..]);
-
-                opts.body(Some(
-                    &array
-                ));
-            }
-    
-            let request = Request::new_with_str_and_init(&url, &opts)
-                .map_err(|_| err::ERR_EIO)?;
-    
-            let set_headers = request.headers();
-            for (name, val) in headers {
-                set_headers.set(name.as_str(), val.as_str()).map_err(|_| err::ERR_EIO)?;
-            }
-    
-            let window = web_sys::window().unwrap();
-            JsFuture::from( window.fetch_with_request(&request))
-        };
-
-        let resp_value = request
-            .await
-            .map_err(|_| err::ERR_EIO)?;
-        assert!(resp_value.is_instance_of::<Response>());
-        let resp: Response = resp_value.dyn_into().unwrap();
-
-        if resp.status() < 200 || resp.status() >= 400 {
-            debug!("fetch-failed: {}", resp.status_text());
-            return Err(match resp.status() {
-                404 => err::ERR_ENOENT,
-                _ => err::ERR_EIO
-            });
-        }
         JsFuture::from(resp.array_buffer().unwrap())
     };
 
