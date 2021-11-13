@@ -20,6 +20,17 @@ pub async fn load_bin
     stdio: &mut Stdio,
 ) -> Option<(Bytes, TmpFileSystem)>
 {
+    // Check if there is an alias
+    let mut cmd = cmd.clone();
+    if let Ok(mut file) = stdio.root.new_open_options().read(true)
+        .open(format!("/bin/{}.alias", cmd))
+    {
+        let mut d = Vec::new();
+        if let Ok(_) = file.read_to_end(&mut d) {
+            cmd = String::from_utf8_lossy(&d[..]).to_string();
+        }
+    }
+
     // Check if there is a file in the /bin and /wapm_packages/.bin folder
     let mut data = None;
     let mut file_checks = vec! [
@@ -27,6 +38,9 @@ pub async fn load_bin
     ];
     if cmd.starts_with("/") {
         file_checks.push(cmd.clone());
+    } else if cmd.starts_with("./") && cmd.len() > 2 {
+        let state = ctx.console.lock().unwrap();
+        file_checks.push(format!("{}{}", state.path, &cmd[2..]));
     }
     for file_check in file_checks {
         if let Ok(mut file) = stdio.root.new_open_options().read(true).open(file_check) {
@@ -57,7 +71,7 @@ pub async fn load_bin
 
     // Fetch the data asynchronously (from the web site)
     if data.is_none() {
-        data = ctx.bins.get(cmd).await;
+        data = ctx.bins.get(cmd.as_str()).await;
     }
 
     // Grab the private file system for this binary (if the binary changes the private

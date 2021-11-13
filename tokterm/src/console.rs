@@ -61,22 +61,31 @@ impl Console
 
         // Stdout
         {
+            let state = state.clone();
             let terminal: Terminal = terminal.clone().dyn_into().unwrap();
             wasm_bindgen_futures::spawn_local(async move {
                 while let Some(data) = stdout_rx.recv().await {
                     let text = String::from_utf8_lossy(&data[..])[..].replace("\n", "\r\n");
                     terminal.write(text.as_str());
+
+                    let mut state = state.lock().unwrap();
+                    state.unfinished_line = text.ends_with("\n") == false;
                 }
             });
         }
 
         // Stderr
         {
+            let state = state.clone();
             let terminal: Terminal = terminal.clone().dyn_into().unwrap();
             wasm_bindgen_futures::spawn_local(async move {
                 while let Some(data) = stderr_rx.recv().await {
                     let text = String::from_utf8_lossy(&data[..])[..].replace("\n", "\r\n");
                     terminal.write(text.as_str());
+
+                    let mut state = state.lock().unwrap();
+                    state.last_draw_text = text;
+                    state.unfinished_line = true;
                 }
             });
         }
@@ -141,11 +150,11 @@ impl Console
             return;
         }
 
-        let state = self.state.clone();
         let reactor = self.reactor.clone();
         let pool = self.pool.clone();
         let (env, last_return, path) = {
-            let state = self.state.lock().unwrap();
+            let mut state = self.state.lock().unwrap();
+            state.unfinished_line = false;
             let env = state.env.clone();
             let last_return = state.last_return;
             let path = state.path.clone();
@@ -206,10 +215,11 @@ impl Console
         tty.clear_paragraph().await;
         tty.enter_mode(TtyMode::StdIn(job), &self.reactor).await;
 
+        let state = self.state.clone();
         wasm_bindgen_futures::spawn_local(async move
         {
             let rx = rx.await;
-            
+
             tty.reset_line().await;
             tty.clear_paragraph().await;
             tty.enter_mode(TtyMode::Console, &reactor).await;
@@ -231,13 +241,17 @@ impl Console
                         chars += "\r\n";
                         tty.draw(chars.as_str()).await;
                     }
-                    {
+                    let should_line_feed = {
                         let mut state = state.lock().unwrap();
                         state.last_return = code;
                         state.env = ctx.env;
-                    }
+                        state.unfinished_line
+                    };
                     if record_history {
                         tty.record_history(cmd).await;
+                    }
+                    if should_line_feed {
+                        tty.draw("\r\n").await;
                     }
                 },
                 Ok(EvalPlan::InternalError) => {
