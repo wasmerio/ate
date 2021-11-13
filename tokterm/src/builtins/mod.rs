@@ -34,8 +34,7 @@ impl Builtins {
         b.insert("readonly", readonly);
         b.insert("unset", unset);
         b.insert("help", help);
-        b.insert("about tokera", about_tokera);
-        b.insert("about wasmer", about_wasmer);
+        b.insert("about", about);
         b
     }
 
