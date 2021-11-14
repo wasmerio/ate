@@ -49,6 +49,7 @@ pub enum EvalPlan
     InternalError,
 }
 
+#[derive(Clone)]
 pub struct EvalContext
 {
     pub env: Environment,
@@ -59,6 +60,7 @@ pub struct EvalContext
     pub pool: ThreadPool,
     pub path: String,
     pub input: String,
+    pub console: Arc<Mutex<ConsoleState>>,
     pub stdio: Stdio,
 }
 

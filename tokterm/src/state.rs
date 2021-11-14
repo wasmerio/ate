@@ -27,6 +27,7 @@ pub struct ConsoleState
     pub user: String,
     pub env: Environment,
     pub last_return: i32,
+    pub unfinished_line: bool,
 }
 
 impl ConsoleState
@@ -34,9 +35,10 @@ impl ConsoleState
     pub fn new() -> ConsoleState {
         ConsoleState {
             path: "/".to_string(),
-            user: "wasm.sh".to_string(),
+            user: "tokera.sh".to_string(),
             env: Environment::default(),
             last_return: 0,
+            unfinished_line: false,
         }
     }
 

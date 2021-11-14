@@ -20,6 +20,18 @@ pub async fn load_bin
     stdio: &mut Stdio,
 ) -> Option<(Bytes, TmpFileSystem)>
 {
+    // Check if there is an alias
+    let _ = stdio.stderr.write("Searching...".as_bytes()).await;
+    let mut cmd = cmd.clone();
+    if let Ok(mut file) = stdio.root.new_open_options().read(true)
+        .open(format!("/bin/{}.alias", cmd))
+    {
+        let mut d = Vec::new();
+        if let Ok(_) = file.read_to_end(&mut d) {
+            cmd = String::from_utf8_lossy(&d[..]).to_string();
+        }
+    }
+
     // Check if there is a file in the /bin and /wapm_packages/.bin folder
     let mut data = None;
     let mut file_checks = vec! [
@@ -27,9 +39,15 @@ pub async fn load_bin
     ];
     if cmd.starts_with("/") {
         file_checks.push(cmd.clone());
+    } else if cmd.starts_with("./") && cmd.len() > 2 {
+        let state = ctx.console.lock().unwrap();
+        file_checks.push(format!("{}{}", state.path, &cmd[2..]));
     }
     for file_check in file_checks {
         if let Ok(mut file) = stdio.root.new_open_options().read(true).open(file_check) {
+            stdio.stderr.write_clear_line().await;
+            let _ = stdio.stderr.write("Loading...".as_bytes()).await;
+
             let mut d = Vec::new();
             if let Ok(_) = file.read_to_end(&mut d) {
                 data = Some(Bytes::from(d));
@@ -38,30 +56,17 @@ pub async fn load_bin
         }
     }
 
-    // Search for in the wapm_packages
-    if data.is_none() && cmd.starts_with("/") == false {
-        let search_path = if cmd.contains("/") {
-            format!("/wapm_packages/{}@", cmd)
-        } else {
-            format!("/wapm_packages/_/{}@", cmd)
-        };
-        if let Ok(file) = stdio.root.search(&Path::new("/wapm_packages"), Some(search_path.as_str()), Some(".wasm")) {
-            if let Ok(mut file) = stdio.root.new_open_options().read(true).open(file).map_err(|_e| ERR_ENOENT) {
-                let mut d = Vec::new();
-                if let Ok(_) = file.read_to_end(&mut d) {
-                    data = Some(Bytes::from(d));
-                }
-            }
-        }
-    }
-
     // Fetch the data asynchronously (from the web site)
     if data.is_none() {
-        data = ctx.bins.get(cmd).await;
+        stdio.stderr.write_clear_line().await;
+        let _ = stdio.stderr.write("Fetching...".as_bytes()).await;
+
+        data = ctx.bins.get(cmd.as_str()).await;
     }
 
     // Grab the private file system for this binary (if the binary changes the private
     // file system will also change)
+    stdio.stderr.write_clear_line().await;
     match data {
         Some(data) => {
             let fs_private = ctx.bins.fs(&data).await;

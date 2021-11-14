@@ -76,10 +76,10 @@ impl TokeraSocketFactory
                         return;
                     };
                     match WebCommand::deserialize(req.as_str()) {
-                        Ok(WebCommand::WebSocket { url }) => {
+                        Ok(WebCommand::WebSocketVersion1 { url }) => {
                             open_web_socket(fd, url.as_str(), reactor, rx, tx).await;
                         },
-                        Ok(WebCommand::WebRequest {
+                        Ok(WebCommand::WebRequestVersion1 {
                             url,
                             method,
                             headers,
@@ -237,6 +237,20 @@ async fn open_web_socket(fd: Fd, url: &str, reactor: Arc<RwLock<Reactor>>, mut r
     fr.set_onloadend(Some(onloadend_cb.as_ref().unchecked_ref()));                            
     onloadend_cb.forget();
 
+    // Before we attach the message process let the caller know its all
+    // running along nicely
+    let ret = wasi_net::web_response::WebResponse::WebSocketVersion1 { };
+    let mut ret = match ret.serialize() {
+        Ok(a) => a,
+        Err(err) => {
+            debug!("websocket failed serialize the web response");
+            return;
+        }
+    };
+    ret += "\n";
+    tx.blocking_send(ret.into_bytes());
+
+    // Attach the message process
     let onmessage_callback = {
         let tx = tx.clone();
         Closure::wrap(Box::new(move |e: MessageEvent| {
@@ -265,9 +279,33 @@ async fn open_web_socket(fd: Fd, url: &str, reactor: Arc<RwLock<Reactor>>, mut r
 async fn open_web_request(fd: Fd, url: &str, method: &str, headers: Vec<(String, String)>, data: Option<Vec<u8>>, reactor: Arc<RwLock<Reactor>>, mut rx: mpsc::Receiver<Vec<u8>>, tx: mpsc::Sender<Vec<u8>>) -> Result<(), i32> {
     debug!("executing HTTP {}", method);
 
-    let ret = fetch(url, method, headers, data).await?;
-    debug!("received {} bytes", ret.len());
+    let resp = fetch(url, method, headers, data).await?;
+    debug!("response status {}", resp.status());
 
+    let headers = Vec::new();
+    // we can't implement this as the method resp.headers().keys() is missing!
+    // how else are we going to parse the headers
+    
+    let ret = wasi_net::web_response::WebResponse::WebRequestVersion1 {
+        ok: resp.ok(),
+        redirected: resp.redirected(),
+        status: resp.status(),
+        status_text: resp.status_text(),
+        headers,
+        has_data: true
+    };
+    let mut ret = match ret.serialize() {
+        Ok(a) => a,
+        Err(err) => {
+            debug!("websocket failed serialize the web response");
+            return Ok(());
+        }
+    };
+    ret += "\n";
+    let _ = tx.send(ret.into_bytes()).await;
+
+    let ret = get_response_data(resp).await?;
+    debug!("received {} bytes", ret.len());
     let _ = tx.send(ret).await;
     Ok(())
 }

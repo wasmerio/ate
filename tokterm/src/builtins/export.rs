@@ -3,9 +3,10 @@ use std::future::Future;
 
 use crate::stdio::*;
 use crate::eval::EvalContext;
+use crate::eval::ExecResponse;
 
-pub(super) fn export(args: &[String], ctx: &mut EvalContext, stdio: Stdio) -> Pin<Box<dyn Future<Output = i32>>> {
-    if args.len() == 1 || args[1] == "-p" {
+pub(super) fn export(args: &[String], ctx: &mut EvalContext, stdio: Stdio) -> Pin<Box<dyn Future<Output = Result<ExecResponse, i32>>>> {
+    if args.len() <= 1 || args[1] == "-p" {
         let output = ctx.env
             .iter()
             .filter(|(_, v)| v.export)
@@ -21,7 +22,7 @@ pub(super) fn export(args: &[String], ctx: &mut EvalContext, stdio: Stdio) -> Pi
             for output in output {
                 let _ = stdio.println(format_args!("{}", output)).await;
             }
-            0
+            Ok(ExecResponse::Immediate(0))
         });
     }
 
@@ -36,6 +37,6 @@ pub(super) fn export(args: &[String], ctx: &mut EvalContext, stdio: Stdio) -> Pi
     }
 
     Box::pin(async move {
-        0
+        Ok(ExecResponse::Immediate(0))
     })
 }

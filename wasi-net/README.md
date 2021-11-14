@@ -15,3 +15,14 @@ On the server side the following must be implemented
 5. The third line is an encoded set of headers (base64 encoded JSON representation of a Vec<(String, String)>
 6. The last line is the data to set (zero bytes means no data)
 7. Then make the HTTP request and allow the file handle to read the data
+
+# Missing features
+
+While it is possible to add request headers, it is not yet possible read response
+headers as the ability to iterate them using web-sys is not yet implemented upstream
+
+# Testing
+
+You can test your WASI program by uploading it to wapm.io and then heading over to the Tokera Shell
+
+https://sh.tokera.com

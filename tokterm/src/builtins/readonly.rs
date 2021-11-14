@@ -3,8 +3,9 @@ use std::future::Future;
 
 use crate::stdio::*;
 use crate::eval::EvalContext;
+use crate::eval::ExecResponse;
 
-pub(super) fn readonly(args: &[String], ctx: &mut EvalContext, stdio: Stdio) -> Pin<Box<dyn Future<Output = i32>>> {
+pub(super) fn readonly(args: &[String], ctx: &mut EvalContext, stdio: Stdio) -> Pin<Box<dyn Future<Output = Result<ExecResponse, i32>>>> {
     if args.len() == 1 || args[1] == "-p" {
         let output = ctx.env
             .iter()
@@ -21,7 +22,7 @@ pub(super) fn readonly(args: &[String], ctx: &mut EvalContext, stdio: Stdio) -> 
             for output in output {
                 let _ = stdio.println(format_args!("{}", output)).await;
             }
-            0
+            Ok(ExecResponse::Immediate(0))
         });
     }
 
@@ -36,6 +37,6 @@ pub(super) fn readonly(args: &[String], ctx: &mut EvalContext, stdio: Stdio) -> 
     }
 
     Box::pin(async move {
-        0
+        Ok(ExecResponse::Immediate(0))
     })
 }

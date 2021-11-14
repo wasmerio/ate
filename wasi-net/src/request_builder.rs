@@ -1,11 +1,14 @@
 #![allow(dead_code)]
 use std::collections::HashMap;
 use std::borrow::Cow;
-use std::io::{Read, Write};
+use std::io::{Write};
+use http::StatusCode;
 
 use crate::web_command::WebCommand;
+use crate::web_response::WebResponse;
 
 use super::*;
+use super::utils::*;
 
 pub struct RequestBuilder {
     pub(crate) method: http::Method,
@@ -46,55 +49,68 @@ impl RequestBuilder {
     pub fn send(self) -> Result<Response, std::io::Error> {
         let url = self.url.to_string();
 
-        let cmd = WebCommand::WebRequest {
+        let submit = WebCommand::WebRequestVersion1 {
             url,
             method: self.method.to_string(),
             headers: self.headers.iter().map(|(a, b)| (a.clone(), b.clone())).collect(),
             body: self.request.iter().filter_map(|a| a.as_bytes()).map(|a| a.to_vec()).next()
         };
-        let cmd = cmd.serialize()?;
+        let mut submit = submit.serialize()?;
+        submit += "\n";
 
         let mut file = std::fs::File::open("/dev/web")?;
         
-        let submit = format!("{}\n", cmd);
         let _ = file.write_all(submit.as_bytes());
 
-        let mut data = Vec::new();
-        read_to_end(&mut file, &mut data)?;
+        let res = read_response(&mut file)?;
+        let (
+            ok,
+            redirected,
+            status,
+            status_text,
+            headers,
+            has_data
+        ) = match res {
+            WebResponse::Error { msg } => {
+                return Err(std::io::Error::new(std::io::ErrorKind::Other, msg.as_str()));
+            },
+            WebResponse::WebSocketVersion1 { .. } => {
+                return Err(std::io::Error::new(std::io::ErrorKind::Other, "server returned a web socket instead of a web request"));
+            },
+            WebResponse::WebRequestVersion1 {
+                ok,
+                redirected,
+                status,
+                status_text,
+                headers,
+                has_data
+            } => {
+                (ok, redirected, status, status_text, headers, has_data)
+            }
+        };
+    
+        let status = StatusCode::from_u16(status).map_err(|err| {
+            std::io::Error::new(std::io::ErrorKind::Other, format!("invalid status code returned by the server - {}", err).as_str())
+        })?;
+        
+        let data = if has_data {
+            let mut data = Vec::new();
+            read_to_end(&mut file, &mut data)?;
+            Some(data)
+        } else {
+            None
+        };
 
         Ok(
             Response {
-                pos: 0,
+                ok,
+                redirected,
+                status,
+                status_text,
+                headers,
+                pos: 0usize,
                 data,
             }
         )
     }
-}
-
-fn read_to_end(file: &mut std::fs::File, data: &mut Vec<u8>) -> Result<(), std::io::Error>
-{
-    let mut buf = [0u8; 4096];
-    loop {
-        match file.read(&mut buf[..]) {
-            Ok(read) if read == 0usize => {
-                break;
-            },
-            Ok(read) => {
-                data.extend_from_slice(&buf[..read]);
-            },
-            Err(err) if err.kind() == ErrorKind::WouldBlock => {
-                std::thread::yield_now();
-                continue;
-            },
-            Err(err) if err.kind() == ErrorKind::ConnectionAborted ||
-                              err.kind() == ErrorKind::ConnectionReset ||
-                              err.kind() == ErrorKind::BrokenPipe => {
-                break;                       
-            }
-            Err(err) => {
-                return Err(err);
-            },
-        }
-    }
-    return Ok(())
 }

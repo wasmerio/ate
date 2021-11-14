@@ -104,6 +104,14 @@ impl Fd
         }
     }
 
+    pub(crate) async fn write_clear_line(&mut self) {
+        let _ = self.write("\r\x1b[0K\r".as_bytes()).await;
+    }
+
+    pub(crate) fn blocking_write_clear_line(&mut self) {
+        let _ = self.blocking_write("\r\x1b[0K\r".as_bytes());
+    }
+
     pub fn blocking_write(&mut self, buf: &[u8]) -> io::Result<usize> {
         if let Some(sender) = self.sender.as_mut() {
             let buf_len = buf.len();

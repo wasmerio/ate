@@ -77,48 +77,8 @@ impl Tty
 
     pub const WELCOME: &'static str = r#""#;
 
-    pub const ABOUT_TOKERA: &'static str = r#"#
-The WebAssembly Shell is built with Wasmer and ATE:
-
-    https://github.com/john-sharratt/ate
-    https://github.com/wasmerio/wasmer
-
-Visit us at:
-https://www.tokera.com
-"#;
-
-   pub const ABOUT_WASMER: &'static str = r#"# Wasmer
-
-Wasmer is a fast and secure WebAssembly runtime that enables super
-lightweight containers to run anywhere: from Desktop to the Cloud, Edge and
-IoT devices.
-
-Features:
-• Secure by default. No file, network, or environment access, unless
-  explicitly enabled.
-• Supports WASI and Emscripten out of the box.
-• Fast. Run WebAssembly at near-native speeds.
-• Embeddable in multiple programming languages
-• Compliant with latest WebAssembly Proposals (SIMD, Reference Types,
-  Threads, ...)"#;
-
-    pub const HELP: &'static str = r#"#
-
-## wapm commands
-
-    list                           List the currently installed packages and their commands
-    install                        Install a package from Wapm
-    upload                         Install a local Wasm module
-    uninstall                      Uninstall a package
-
-## coreutil commands:
-
-    arch, base32, base64, basename, cat, cksum, comm, cp, csplit, cut,
-    date, dircolors, dirname, echo, env, expand, factor, false, fmt, fold,
-    hashsum, head, join, link, ln, ls, md5sum, mkdir, mktemp, mv, nl, nproc,
-    numfmt, od, paste, printenv, printf, ptx, pwd, readlink, realpath,
-    relpath, rm, rmdir, seq, sha1sum, sha224sum, sha256sum, sha3-224sum,
-    sha3-256sum, sha3-384sum, sha3-512sum, sha384sum, sha3sum, sha512sum,
-    shake128sum, shake256sum, shred, shuf, sleep, sum, tee, touch, tr, true,
-    truncate, tsort, unexpand, uniq, unlink, wc, yes"#;
+    pub const ABOUT: &'static str = include_str!("txt/about.md");
+    pub const ABOUT_TOKERA: &'static str = include_str!("txt/about_tokera.md");
+    pub const ABOUT_WASMER: &'static str = include_str!("txt/about_wasmer.md");
+    pub const HELP: &'static str = include_str!("txt/help.md");
 }

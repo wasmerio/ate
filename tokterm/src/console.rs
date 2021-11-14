@@ -33,6 +33,7 @@ use super::fs::*;
 pub struct Console
 {
     terminal: Terminal,
+    location: url::Url,
     state: Arc<Mutex<ConsoleState>>,
     bins: BinFactory,
     tok: TokeraSocketFactory,
@@ -46,47 +47,43 @@ pub struct Console
 
 impl Console
 {
-    pub fn new(terminal: Terminal, pool: Pool) -> Console
+    pub fn new(terminal: Terminal, location: String, pool: Pool) -> Console
     {
         let mut reactor = Reactor::new();
 
         let state = Arc::new(Mutex::new(ConsoleState::new()));
-        let (stdout, mut stdout_rx) = reactor.pipe_out().unwrap();
-        let (stderr, mut stderr_rx) = reactor.pipe_out().unwrap();
+        let (stdout, mut tty_rx) = reactor.pipe_out().unwrap();
+        let stderr = reactor.dup(&stdout).unwrap();
 
         let stdout = reactor.fd(stdout);
         let stdout = Stdout::new(stdout);
 
         let reactor = Arc::new(RwLock::new(reactor));
 
-        // Stdout
+        // Stdout and Stderr
         {
+            let state = state.clone();
             let terminal: Terminal = terminal.clone().dyn_into().unwrap();
             wasm_bindgen_futures::spawn_local(async move {
-                while let Some(data) = stdout_rx.recv().await {
+                while let Some(data) = tty_rx.recv().await {
                     let text = String::from_utf8_lossy(&data[..])[..].replace("\n", "\r\n");
                     terminal.write(text.as_str());
+
+                    let mut state = state.lock().unwrap();
+                    state.unfinished_line = is_cleared_line(&text) == false;
                 }
             });
         }
 
-        // Stderr
-        {
-            let terminal: Terminal = terminal.clone().dyn_into().unwrap();
-            wasm_bindgen_futures::spawn_local(async move {
-                while let Some(data) = stderr_rx.recv().await {
-                    let text = String::from_utf8_lossy(&data[..])[..].replace("\n", "\r\n");
-                    terminal.write(text.as_str());
-                }
-            });
-        }
+        let location = url::Url::parse(&location).unwrap();
 
         let tty = Tty::new(stdout.clone());
 
         let mounts = super::fs::create_root_fs();
-
+        
         Console {
             terminal,
+            location,
             bins: BinFactory::new(),
             tok: TokeraSocketFactory::new(&reactor),
             state,
@@ -101,6 +98,27 @@ impl Console
 
     pub async fn init(&mut self)
     {
+        let mut location_file = self.mounts.new_open_options()
+              .create_new(true)
+              .write(true)
+              .open(Path::new("/etc/location"))
+              .unwrap();
+        location_file.write_all(self.location.as_str().as_bytes()).unwrap();
+
+        let run_command = self.location.query_pairs()
+            .filter(|(key, _)| key == "run-command" || key == "init")
+            .next()
+            .map(|(_, val)| val.to_string());
+
+        if let Some(run_command) = &run_command {
+            let mut init_file = self.mounts.new_open_options()
+              .create_new(true)
+              .write(true)
+              .open(Path::new("/bin/init"))
+              .unwrap();
+            init_file.write_all(run_command.as_bytes()).unwrap();
+        }
+
         let cols = self.terminal.get_cols();
         let rows = self.terminal.get_rows();
         self.tty.set_bounds(cols, rows).await;  
@@ -108,7 +126,12 @@ impl Console
         Console::update_prompt(false, &self.state, &self.tty).await;
 
         self.tty.draw_welcome().await;
-        self.tty.draw_prompt().await;        
+        if run_command.is_some() {
+            self.on_data("exec /bin/init".to_string()).await;
+            self.on_enter().await;
+        } else {
+            self.tty.draw_prompt().await;
+        }
     }
 
     pub fn tty(&self) -> &Tty
@@ -120,10 +143,8 @@ impl Console
     {
         let mode = self.tty.mode().await;
 
-        let pushed = self.tty.draw_undo().await;
         self.tty.set_cursor_to_end().await;
-        self.tty.draw_fixed(pushed.as_str()).await;
-        self.tty.draw("\n\r").await;
+        self.tty.draw("\r\n").await;
 
         let mut cmd = self.tty.get_paragraph().await;
 
@@ -141,11 +162,11 @@ impl Console
             return;
         }
 
-        let state = self.state.clone();
         let reactor = self.reactor.clone();
         let pool = self.pool.clone();
         let (env, last_return, path) = {
-            let state = self.state.lock().unwrap();
+            let mut state = self.state.lock().unwrap();
+            state.unfinished_line = false;
             let env = state.env.clone();
             let last_return = state.last_return;
             let path = state.path.clone();
@@ -195,6 +216,7 @@ impl Console
             pool,
             path,
             input: cmd.clone(),
+            console: self.state.clone(),
             stdio
         };
         
@@ -205,10 +227,11 @@ impl Console
         tty.clear_paragraph().await;
         tty.enter_mode(TtyMode::StdIn(job), &self.reactor).await;
 
+        let state = self.state.clone();
         wasm_bindgen_futures::spawn_local(async move
         {
             let rx = rx.await;
-            
+
             tty.reset_line().await;
             tty.clear_paragraph().await;
             tty.enter_mode(TtyMode::Console, &reactor).await;
@@ -224,20 +247,22 @@ impl Console
             match rx {
                 Ok(EvalPlan::Executed { code, ctx, show_result }) => {
                     debug!("eval executed (code={})", code);
+                    let should_line_feed = {
+                        let mut state = state.lock().unwrap();
+                        state.last_return = code;
+                        state.env = ctx.env;
+                        state.unfinished_line
+                    };
+                    if record_history {
+                        tty.record_history(cmd).await;
+                    }
                     if code != 0 && show_result {
                         let mut chars = String::new();
                         chars += err::exit_code_to_message(code);
                         chars += "\r\n";
                         tty.draw(chars.as_str()).await;
-                    }
-                    {
-                        let mut state = state.lock().unwrap();
-                        state.last_return = code;
-                        state.env = ctx.env;
-                        state.path = ctx.path;
-                    }
-                    if record_history {
-                        tty.record_history(cmd).await;
+                    } else if should_line_feed {
+                        tty.draw("\r\n").await;
                     }
                 },
                 Ok(EvalPlan::InternalError) => {
@@ -283,6 +308,27 @@ impl Console
         self.terminal.clear();
     }
 
+    pub async fn on_tab(&mut self, _job: Option<Job>)
+    {
+        // Later we need to implement auto-complete here when the process is not running
+        // and implement spaces when it is
+    }
+
+    pub async fn on_page_up(&mut self) { }
+    pub async fn on_page_down(&mut self) { }
+    pub async fn on_f1(&mut self) { }
+    pub async fn on_f2(&mut self) { }
+    pub async fn on_f3(&mut self) { }
+    pub async fn on_f4(&mut self) { }
+    pub async fn on_f5(&mut self) { }
+    pub async fn on_f6(&mut self) { }
+    pub async fn on_f7(&mut self) { }
+    pub async fn on_f8(&mut self) { }
+    pub async fn on_f9(&mut self) { }
+    pub async fn on_f10(&mut self) { }
+    pub async fn on_f11(&mut self) { }
+    pub async fn on_f12(&mut self) { }
+
     pub async fn on_ctrl_c(&mut self, job: Option<Job>)
     {
         if job.is_none() {
@@ -320,7 +366,7 @@ impl Console
     }
 
     pub async fn on_parse(&mut self, data: &str, job: Option<Job>) {
-        // debug!("on_parse {}", data.as_bytes().iter().map(|byte| format!("\\u{{{:04X}}}", byte).to_owned()).collect::<Vec<String>>().join(""));
+        //error!("on_parse {}", data.as_bytes().iter().map(|byte| format!("\\u{{{:04X}}}", byte).to_owned()).collect::<Vec<String>>().join(""));
         match data {
             "\r" => {
                 self.on_enter().await;
@@ -331,14 +377,21 @@ impl Console
             "\u{007F}" => {
                 self.tty.backspace().await;
             },
+            "\u{0009}" => {
+                self.on_tab(job).await;
+            },
             "\u{001B}\u{005B}\u{0044}" => {
                 self.tty.cursor_left().await;
             },
             "\u{001B}\u{005B}\u{0043}" => {
                 self.tty.cursor_right().await;
             },
-            "\u{0001}" => {
+            "\u{0001}" |
+            "\u{001B}\u{005B}\u{0048}" => {
                 self.tty.set_cursor_to_start().await;
+            },
+            "\u{001B}\u{005B}\u{0046}" => {
+                self.tty.set_cursor_to_end().await;
             },
             "\u{001B}\u{005B}\u{0041}" => {
                 if job.is_none() {
@@ -352,6 +405,48 @@ impl Console
             },
             "\u{000C}" => {
                 self.on_ctrl_l().await;
+            },
+            "\u{001B}\u{005B}\u{0035}\u{007E}" => {
+                self.on_page_up().await;
+            },
+            "\u{001B}\u{005B}\u{0036}\u{007E}" => {
+                self.on_page_down().await;
+            },
+            "\u{001B}\u{004F}\u{0050}" => {
+                self.on_f1().await
+            },
+            "\u{001B}\u{004F}\u{0051}" => {
+                self.on_f2().await
+            },
+            "\u{001B}\u{004F}\u{0052}" => {
+                self.on_f3().await
+            },
+            "\u{001B}\u{004F}\u{0053}" => {
+                self.on_f4().await
+            },
+            "\u{001B}\u{005B}\u{0031}\u{0035}\u{007E}" => {
+                self.on_f5().await
+            },
+            "\u{001B}\u{005B}\u{0031}\u{0037}\u{007E}" => {
+                self.on_f6().await
+            },
+            "\u{001B}\u{005B}\u{0031}\u{0038}\u{007E}" => {
+                self.on_f7().await
+            },
+            "\u{001B}\u{005B}\u{0031}\u{0039}\u{007E}" => {
+                self.on_f8().await
+            },
+            "\u{001B}\u{005B}\u{0032}\u{0030}\u{007E}" => {
+                self.on_f9().await
+            },
+            "\u{001B}\u{005B}\u{0032}\u{0031}\u{007E}" => {
+                self.on_f10().await
+            },
+            "\u{001B}\u{005B}\u{0032}\u{0033}\u{007E}" => {
+                self.on_f11().await
+            },
+            "\u{001B}\u{005B}\u{0032}\u{0034}\u{007E}" => {
+                self.on_f12().await
             },
             data => {
                 self.tty.add(data).await;

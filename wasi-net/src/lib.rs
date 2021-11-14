@@ -9,7 +9,9 @@ pub mod body;
 pub mod error;
 pub mod mime;
 pub mod web_command;
+pub mod web_response;
 pub mod web_socket;
+mod utils;
 
 pub use client_builder::*;
 pub use client::*;

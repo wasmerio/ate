@@ -1,10 +1,17 @@
 #!/bin/bash -e
-cd tokterm
 
 echo "Mounting Tokera"
-umount -l /mnt/tok || true
-atefs mount /mnt/tok sh.tokera.com/www --non-empty &
+umount -l /mnt/tok 2>/dev/null || true
+killall atefs 2>/dev/null || true
+atefs mount /mnt/tok tokera.sh/www --non-empty &
 PID_MNT=$1
+
+function finish {
+  echo "Unmounting Tokera"
+  umount -l /mnt/tok 2>/dev/null || true
+  killall atefs 2>/dev/null || true
+}
+trap finish EXIT
 
 echo
 echo "Waiting for mount..."
@@ -15,17 +22,21 @@ for N in $(seq 0 30); do
 done
 
 echo "Compiling"
+rm -r -f tokterm/dist/*
+cd tokterm
 npm install
 npm run build
+cd ..
 
-echo "Removing existing files"
-rm -f /mnt/tok/bin/* || true
-rm -f /mnt/tok/* || true
+echo "Building package"
+mkdir -p target/release/www
+rm -f -r target/release/www/* 2>/dev/null || true
+cp -f tokterm/dist/* target/release/www
+cp -r -f tokterm/public/* target/release/www
 
-echo "Copying new files"
-cp -f dist/* /mnt/tok
-cp -r -f public/* /mnt/tok
+echo "Synchronizing the files"
+rsync target/release/www/* /mnt/tok --verbose --checksum --recursive --whole-file --links --delete --human-readable
 
-echo "Unmounting Tokera"
-umount -l /mnt/tok || true
-kill $PID_MNT
+echo "Sync the files"
+cd /mnt/tok
+sync
