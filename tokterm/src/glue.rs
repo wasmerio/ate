@@ -5,6 +5,7 @@ use wasm_bindgen::JsCast;
 use web_sys::KeyboardEvent;
 use wasm_bindgen_futures::spawn_local;
 use tokio::sync::mpsc;
+use chrono::prelude::*;
 
 #[allow(unused_imports)]
 use xterm_js_rs::addons::fit::FitAddon;
@@ -77,6 +78,7 @@ pub fn start() -> Result<(), JsValue> {
         .unwrap();
 
     let user_agent = USER_AGENT.clone();
+    let is_mobile = crate::common::is_mobile(&user_agent);
     debug!("user_agent: {}", user_agent);
 
     let elem = window
@@ -168,14 +170,32 @@ pub fn start() -> Result<(), JsValue> {
     
     terminal.focus();
 
-    spawn_local(async move {
+    spawn_local(async move
+    {
         console.init().await;
+        
+        let mut last = None;
         while let Some(event) = rx.recv().await {
             match event {
                 InputEvent::Key(event) => {
                     console.on_key(event.key_code(), event.key(), event.alt_key(), event.ctrl_key(), event.meta_key()).await;
                 },
                 InputEvent::Data(data) => {
+
+                    // Due to a nasty bug in xterm.js on Android mobile it sends the keys you press
+                    // twice in a row with a short interval between - this hack will avoid that bug
+                    if is_mobile {
+                        let now: DateTime<Local> = Local::now();
+                        let now = now.timestamp_millis();                        
+                        if let Some((what, when)) = last {
+                            if what == data && now - when < 200 {
+                                last = None;
+                                continue;
+                            }
+                        }
+                        last = Some((data.clone(), now))
+                    }
+                    
                     console.on_data(data).await;
                 },
             }
