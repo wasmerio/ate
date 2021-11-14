@@ -76,8 +76,8 @@ impl Tty
     pub const COL_WHITE: &'static str ="\x1B[1;37m";
 
     pub const WELCOME: &'static str = r#"\x1B[0m
-\x1B[33;1m                            /\       -X-     +  \x1B[1;34m                  ww              \x1B[37;1m  Tokera WASM.sh v1.0\r
-\x1B[33;1m               +           /  \_                \x1B[1;34m                  wwwww           \x1B[37;1m  Powered by Wasmer and ATE\r
+\x1B[33;1m                            /\       -X-     +  \x1B[1;34m                  ww              \x1B[37;1m  Tokera.sh v1.0\r
+\x1B[33;1m               +           /  \_                \x1B[1;34m                  wwwww           \x1B[37;1m  Powered by wasmer.io and ATE\r
 \x1B[33;1m        /\               _/ ^ / \  _            \x1B[1;34m           ww     wwwwww  w       \x1B[37;1m  \r
 \x1B[33;1m     /\/  \      +      |   _/ ` \/ \    +      \x1B[1;34m           wwwww      wwwwwwwww   \x1B[0m  QUICK START:\r
 \x1B[33;1m    //  `  \            |  / __   \ `\    _     \x1B[1;34m   ww      wwwwww  w     wwwwwww  \x1B[0m  • WAPM commands:    wapm\r

@@ -1,4 +1,4 @@
-# Tokera WASM.sh
+# Tokera.sh
 
 ## The Shell
 

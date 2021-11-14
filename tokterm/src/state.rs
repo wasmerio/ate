@@ -35,7 +35,7 @@ impl ConsoleState
     pub fn new() -> ConsoleState {
         ConsoleState {
             path: "/".to_string(),
-            user: "wasm.sh".to_string(),
+            user: "tokera.sh".to_string(),
             env: Environment::default(),
             last_return: 0,
             unfinished_line: false,
