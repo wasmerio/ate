@@ -453,8 +453,10 @@ impl Console
             "\u{001B}\u{005B}\u{0032}\u{0034}\u{007E}" => {
                 self.on_f12().await
             },
-            data => {
+            data if data.len() == 1 => {
                 self.tty.add(data).await;
+            }
+            _ => {
             }
         }
     }
