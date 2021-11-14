@@ -128,10 +128,8 @@ impl Console
     {
         let mode = self.tty.mode().await;
 
-        let pushed = self.tty.draw_undo().await;
         self.tty.set_cursor_to_end().await;
-        self.tty.draw_fixed(pushed.as_str()).await;
-        self.tty.draw("\n\r").await;
+        self.tty.draw("\r\n").await;
 
         let mut cmd = self.tty.get_paragraph().await;
 
