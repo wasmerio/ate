@@ -172,8 +172,8 @@ impl ThreadPool {
             manager: Arc::new(manager),
         };
 
-        pool.pool_reactors.expand();
-        pool.pool_blocking.expand();
+        pool.pool_reactors.expand_now();
+        pool.pool_blocking.expand_now();
 
         Ok(pool)
     }
@@ -205,7 +205,7 @@ impl ThreadPool {
 }
 
 impl PoolState {
-    pub fn expand(self: &Arc<PoolState>) {
+    pub fn expand_now(self: &Arc<PoolState>) {
         let pool = self.clone();
 
         let idx = pool.id_seed.fetch_add(1, Ordering::Relaxed);
@@ -215,21 +215,23 @@ impl PoolState {
             pool: pool,
             idx,
         });
-        wasm_bindgen_futures::spawn_local(async move {
-            let mut opts = WorkerOptions::new();
-            opts.type_(WorkerType::Module);
-            opts.name(&*format!("Worker-{}", idx));
+        Self::start_worker_now(idx, state)
+    }
 
-            let ptr = Arc::into_raw(state);
-            let _worker = wasm_bindgen_futures::JsFuture::from(start_worker(
-                wasm_bindgen::module(),
-                wasm_bindgen::memory(),
-                JsValue::from(ptr as u32),
-                opts,
-                LoaderHelper {},
-            ))
-            .await;
-        });
+    pub fn start_worker_now(idx: usize, state: Arc<ThreadState>) {
+        let mut opts = WorkerOptions::new();
+        opts.type_(WorkerType::Module);
+        opts.name(&*format!("Worker-{}", idx));
+
+        let ptr = Arc::into_raw(state);
+
+        let _ = start_worker(
+            wasm_bindgen::module(),
+            wasm_bindgen::memory(),
+            JsValue::from(ptr as u32),
+            opts,
+            LoaderHelper {},
+        );
     }
 
     pub fn shrink(self: &Arc<PoolState>) {
@@ -244,11 +246,11 @@ impl PoolState {
         
         if backlog >= starting + idle {
             if size < self.max_size {
-                self.expand();
+                self.expand_now();
             }
         } else if backlog <= 0 && idle <= 0 {
             if size > self.min_size {
-                self.shrink();
+                self.expand_now();
             }
         }
     }
