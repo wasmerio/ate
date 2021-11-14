@@ -274,8 +274,8 @@ impl ThreadState {
             pool.size.fetch_add(1, Ordering::Relaxed);
             pool.idle.fetch_add(1, Ordering::Relaxed);
             pool.starting.fetch_sub(1, Ordering::Relaxed);
-            
-            while let Ok(_) = rx.recv().await {
+       
+            loop {
                 let msg = {
                     let mut queue = pool.queue.lock().unwrap();
                     queue.pop_front()
@@ -296,6 +296,8 @@ impl ThreadState {
                         },
                     }
                 }
+
+                let _ = rx.recv().await;
             }
             info!("{}: Shutting down", global.name());
             
