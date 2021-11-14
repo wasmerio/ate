@@ -131,6 +131,26 @@ impl Reactor
         Ok((fd, rx))
     }
 
+    pub fn dup(&mut self, fd: &RawFd) -> Result<RawFd,i32> {
+        let new_fd = self.generate_fd()?;
+        
+        let tx = if let Some(tx) = self.fd_pipe_tx.get(fd) {
+            Some(tx.clone())
+        } else { None };
+        if let Some(tx) = tx {
+            self.fd_pipe_tx.insert(new_fd, tx);
+        }
+
+        let rx = if let Some(rx) = self.fd_pipe_rx.get(fd) {
+            Some(rx.clone())
+        } else { None };
+        if let Some(rx) = rx {
+            self.fd_pipe_rx.insert(new_fd, rx);
+        }
+        
+        Ok(new_fd)
+    }
+
     pub fn pipe_in(&mut self, mode: ReceiverMode) -> Result<(RawFd, mpsc::Sender<Vec<u8>>),i32> {
         let fd = self.generate_fd()?;
         self.pipe_in_with_fd(fd, mode)

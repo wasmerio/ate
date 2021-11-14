@@ -51,35 +51,20 @@ impl Console
         let mut reactor = Reactor::new();
 
         let state = Arc::new(Mutex::new(ConsoleState::new()));
-        let (stdout, mut stdout_rx) = reactor.pipe_out().unwrap();
-        let (stderr, mut stderr_rx) = reactor.pipe_out().unwrap();
+        let (stdout, mut tty_rx) = reactor.pipe_out().unwrap();
+        let stderr = reactor.dup(&stdout).unwrap();
 
         let stdout = reactor.fd(stdout);
         let stdout = Stdout::new(stdout);
 
         let reactor = Arc::new(RwLock::new(reactor));
 
-        // Stdout
+        // Stdout and Stderr
         {
             let state = state.clone();
             let terminal: Terminal = terminal.clone().dyn_into().unwrap();
             wasm_bindgen_futures::spawn_local(async move {
-                while let Some(data) = stdout_rx.recv().await {
-                    let text = String::from_utf8_lossy(&data[..])[..].replace("\n", "\r\n");
-                    terminal.write(text.as_str());
-
-                    let mut state = state.lock().unwrap();
-                    state.unfinished_line = is_cleared_line(&text) == false;
-                }
-            });
-        }
-
-        // Stderr
-        {
-            let state = state.clone();
-            let terminal: Terminal = terminal.clone().dyn_into().unwrap();
-            wasm_bindgen_futures::spawn_local(async move {
-                while let Some(data) = stderr_rx.recv().await {
+                while let Some(data) = tty_rx.recv().await {
                     let text = String::from_utf8_lossy(&data[..])[..].replace("\n", "\r\n");
                     terminal.write(text.as_str());
 
