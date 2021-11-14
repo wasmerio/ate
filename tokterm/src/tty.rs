@@ -69,11 +69,12 @@ pub struct Tty
     inner_async: Arc<AsyncMutex<TtyInnerAsync>>,
     inner_sync: Arc<TtyInnerSync>,
     stdout: Stdout,
+    is_mobile: bool,
 }
 
 impl Tty
 {
-    pub fn new(stdout: Stdout) -> Tty
+    pub fn new(stdout: Stdout, is_mobile: bool) -> Tty
     {
         Tty {
             inner_async: Arc::new(AsyncMutex::new(TtyInnerAsync {
@@ -92,7 +93,8 @@ impl Tty
             inner_sync: Arc::new(TtyInnerSync {
                 buffering: AtomicBool::new(true),
             }),
-            stdout
+            stdout,
+            is_mobile
         }
     }
 
@@ -379,7 +381,12 @@ impl Tty
     }
 
     pub async fn draw_welcome(&mut self) {
-        let mut data = Tty::WELCOME
+        let welcome = if self.is_mobile {
+            Tty::WELCOME_SMALL
+        } else {
+            Tty::WELCOME
+        };
+        let mut data = welcome
             .replace("\\x1B", "\x1B")
             .replace("\\r", "\r")
             .replace("\\n", "\n");

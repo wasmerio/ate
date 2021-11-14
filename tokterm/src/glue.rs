@@ -40,6 +40,12 @@ pub enum InputEvent {
 
 #[wasm_bindgen]
 pub fn start() -> Result<(), JsValue> {
+    #[wasm_bindgen]
+    extern "C" {
+        #[wasm_bindgen(js_namespace = navigator, js_name = userAgent)]
+        static USER_AGENT: String;
+    }
+
     //ate::log_init(0i32, false);
     tracing_wasm::set_as_global_default_with_config(tracing_wasm::WASMLayerConfigBuilder::new()
         .set_report_logs_in_timings(false)
@@ -70,6 +76,9 @@ pub fn start() -> Result<(), JsValue> {
         .href()
         .unwrap();
 
+    let user_agent = USER_AGENT.clone();
+    debug!("user_agent: {}", user_agent);
+
     let elem = window
         .document()
         .unwrap()
@@ -83,6 +92,7 @@ pub fn start() -> Result<(), JsValue> {
     let mut console = Console::new(
         terminal.clone().dyn_into().unwrap(),
         location,
+        user_agent,
         pool
     );
     let tty = console.tty().clone();
@@ -152,6 +162,7 @@ pub fn start() -> Result<(), JsValue> {
                 });
             });
         window.add_event_listener_with_callback("resize", closure.as_ref().unchecked_ref())?;
+        window.add_event_listener_with_callback("orientationchange", closure.as_ref().unchecked_ref())?;
         closure.forget();
     }
     

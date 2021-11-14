@@ -34,6 +34,8 @@ pub struct Console
 {
     terminal: Terminal,
     location: url::Url,
+    user_agent: String,
+    is_mobile: bool,
     state: Arc<Mutex<ConsoleState>>,
     bins: BinFactory,
     tok: TokeraSocketFactory,
@@ -47,7 +49,7 @@ pub struct Console
 
 impl Console
 {
-    pub fn new(terminal: Terminal, location: String, pool: Pool) -> Console
+    pub fn new(terminal: Terminal, location: String, user_agent: String, pool: Pool) -> Console
     {
         let mut reactor = Reactor::new();
 
@@ -77,13 +79,16 @@ impl Console
 
         let location = url::Url::parse(&location).unwrap();
 
-        let tty = Tty::new(stdout.clone());
+        let is_mobile = is_mobile(&user_agent);
+        let tty = Tty::new(stdout.clone(), is_mobile);
 
         let mounts = super::fs::create_root_fs();
         
         Console {
             terminal,
             location,
+            is_mobile,
+            user_agent,
             bins: BinFactory::new(),
             tok: TokeraSocketFactory::new(&reactor),
             state,

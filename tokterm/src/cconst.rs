@@ -93,6 +93,15 @@ impl Tty
 \x1B[37;1m               ( www.tokera.com )               \x1B[1;34m              wwww                \x1B[0m  • About Wasmer: about wasmer\r
 \x1B[0m\r\n"#;
 
+    pub const WELCOME_SMALL: &'static str = r#"\x1B[1;31m   _____     _                    \r
+  |_   _|__ | | _____ ___ __ _    \r
+    | |/ _ \| |/ / _ \  _/ _  |   \r
+    | | (_) |   <  __/ || (_| |   \r
+    |_|\___/|_|\_\___|_| \__/_|   \x1B[33;1m\r
+ ________________________________ \x1B[37;1m\r
+ Terminal v1.0 ( www.tokera.com ) \x1B[30;1m\r
+      \powered by wasmer.io/      \r\n"#;
+
     pub const ABOUT: &'static str = include_str!("txt/about.md");
     pub const ABOUT_TOKERA: &'static str = include_str!("txt/about_tokera.md");
     pub const ABOUT_WASMER: &'static str = include_str!("txt/about_wasmer.md");
