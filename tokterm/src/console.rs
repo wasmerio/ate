@@ -69,7 +69,7 @@ impl Console
                     terminal.write(text.as_str());
 
                     let mut state = state.lock().unwrap();
-                    state.unfinished_line = text.ends_with("\n") == false;
+                    state.unfinished_line = is_cleared_line(&text) == false;
                 }
             });
         }
@@ -84,7 +84,7 @@ impl Console
                     terminal.write(text.as_str());
 
                     let mut state = state.lock().unwrap();
-                    state.unfinished_line = text.ends_with("\n") == false;
+                    state.unfinished_line = is_cleared_line(&text) == false;
                 }
             });
         }

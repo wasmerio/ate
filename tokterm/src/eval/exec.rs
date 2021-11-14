@@ -99,15 +99,18 @@ pub async fn exec
     ctx.pool.spawn_blocking(move ||
     {
         // Compile the module (which)
+        let _ = stdio.stderr.blocking_write("Compiling...".as_bytes());
         let store = Store::default();
         let module = match Module::new(&store, &data[..]) {
             Ok(a) => a,
             Err(err) => {
+                stdio.stderr.blocking_write_clear_line();
                 let _ = stdio.stderr.blocking_write(&format!("compile-error: {}\n", err).as_bytes()[..]);
                 exit_tx.send(Some(ERR_ENOEXEC));
                 return;
             }
         };
+        stdio.stderr.blocking_write_clear_line();
         info!("compiled {}", module.name().unwrap_or_else(|| "unknown module"));
 
         // Build the list of arguments

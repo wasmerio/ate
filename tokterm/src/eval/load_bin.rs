@@ -21,6 +21,7 @@ pub async fn load_bin
 ) -> Option<(Bytes, TmpFileSystem)>
 {
     // Check if there is an alias
+    let _ = stdio.stderr.write("Searching...".as_bytes()).await;
     let mut cmd = cmd.clone();
     if let Ok(mut file) = stdio.root.new_open_options().read(true)
         .open(format!("/bin/{}.alias", cmd))
@@ -44,6 +45,9 @@ pub async fn load_bin
     }
     for file_check in file_checks {
         if let Ok(mut file) = stdio.root.new_open_options().read(true).open(file_check) {
+            stdio.stderr.write_clear_line().await;
+            let _ = stdio.stderr.write("Loading...".as_bytes()).await;
+
             let mut d = Vec::new();
             if let Ok(_) = file.read_to_end(&mut d) {
                 data = Some(Bytes::from(d));
@@ -52,30 +56,17 @@ pub async fn load_bin
         }
     }
 
-    // Search for in the wapm_packages
-    if data.is_none() && cmd.starts_with("/") == false {
-        let search_path = if cmd.contains("/") {
-            format!("/wapm_packages/{}@", cmd)
-        } else {
-            format!("/wapm_packages/_/{}@", cmd)
-        };
-        if let Ok(file) = stdio.root.search_pattern(&Path::new("/wapm_packages"), Some(search_path.as_str()), Some(".wasm")) {
-            if let Ok(mut file) = stdio.root.new_open_options().read(true).open(file).map_err(|_e| ERR_ENOENT) {
-                let mut d = Vec::new();
-                if let Ok(_) = file.read_to_end(&mut d) {
-                    data = Some(Bytes::from(d));
-                }
-            }
-        }
-    }
-
     // Fetch the data asynchronously (from the web site)
     if data.is_none() {
+        stdio.stderr.write_clear_line().await;
+        let _ = stdio.stderr.write("Fetching...".as_bytes()).await;
+
         data = ctx.bins.get(cmd.as_str()).await;
     }
 
     // Grab the private file system for this binary (if the binary changes the private
     // file system will also change)
+    stdio.stderr.write_clear_line().await;
     match data {
         Some(data) => {
             let fs_private = ctx.bins.fs(&data).await;

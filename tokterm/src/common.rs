@@ -200,3 +200,11 @@ pub async fn get_response_data(resp: Response) -> Result<Vec<u8>, i32>
     let ret = typebuff.to_vec();
     Ok(ret)
 }
+
+pub fn is_cleared_line(text: &str) -> bool
+{
+    // returns true if the displayed line is all blank on the screen
+    text.ends_with("\r\x1b[0K") ||
+    text.ends_with("\x1b[0K\r") ||
+    text.ends_with("\n")
+}
