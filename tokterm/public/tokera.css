@@ -4,6 +4,7 @@ html, body {
   margin: 0px;
   height: 100%;
   width: 100%;
+  background: black;
 }
 
 #frontBuffer {
@@ -27,7 +28,8 @@ html {
 
 body {
   position: fixed;
-  overflow-y: auto;
+  overflow: hidden;
+  margin: 5px;
 }
 
 *, *::before, *::after {

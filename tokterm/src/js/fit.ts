@@ -34,8 +34,8 @@ export function termFit(terminal, front)
   //const parentElementHeight = parseInt(parentElementStyle.getPropertyValue('height'));
   //const parentElementWidth = Math.max(0, parseInt(parentElementStyle.getPropertyValue('width')));
   
-  var parentElementHeight = document.body.clientHeight;
-  var parentElementWidth = document.body.clientWidth;
+  var parentElementHeight = document.body.clientHeight - 10;
+  var parentElementWidth = document.body.clientWidth - 10;
 
   const elementStyle = window.getComputedStyle(terminal.element);
   const elementPadding = {
@@ -54,14 +54,13 @@ export function termFit(terminal, front)
   };
 
   // Also update the front buffer
-  front.width = parentElementWidth;
-  front.height = parentElementHeight;
-  document.getElementById(front.id).style.width = parentElementWidth + 'px';
-  document.getElementById(front.id).style.height = parentElementHeight + 'px';
- 
+  front.width = document.body.clientWidth;
+  front.height = document.body.clientHeight;
+  document.getElementById(front.id).style.width = document.body.clientWidth + 'px';
+  document.getElementById(front.id).style.height = document.body.clientHeight + 'px';
+
   // Force a full render
   if (terminal.rows !== dims.rows || terminal.cols !== dims.cols) {
-    core._renderService.clear();
     terminal.resize(dims.cols, dims.rows);
   }
 }
