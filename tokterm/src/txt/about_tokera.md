@@ -1,4 +1,4 @@
-# Tokera.sh
+# tokera.sh
 
 The Tokera WASM shell is an browser based operating system that integrates
 with the WebAssembly community to assembly and build micro-applications.

@@ -3,7 +3,7 @@
 echo "Mounting Tokera"
 umount -l /mnt/tok 2>/dev/null || true
 killall atefs 2>/dev/null || true
-atefs mount /mnt/tok sh.tokera.com/www --non-empty &
+atefs mount /mnt/tok tokera.sh/www --non-empty &
 PID_MNT=$1
 
 function finish {
