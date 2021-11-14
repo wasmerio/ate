@@ -108,7 +108,7 @@ impl Fd
         let _ = self.write("\r\x1b[0K\r".as_bytes()).await;
     }
 
-    pub(crate) async fn blocking_write_clear_line(&mut self) {
+    pub(crate) fn blocking_write_clear_line(&mut self) {
         let _ = self.blocking_write("\r\x1b[0K\r".as_bytes());
     }
 

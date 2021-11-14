@@ -90,6 +90,7 @@ pub async fn exec
     let stdin = stdio.stdin.clone();
     let stdout = stdio.stdout.clone();
     let stderr = stdio.stderr.clone();
+    let mut tty = ctx.stdio.stderr.clone();
 
     // Spawn the process on a background thread
     let reactor = ctx.reactor.clone();
@@ -99,18 +100,18 @@ pub async fn exec
     ctx.pool.spawn_blocking(move ||
     {
         // Compile the module (which)
-        let _ = stdio.stderr.blocking_write("Compiling...".as_bytes());
+        let _ = tty.blocking_write("Compiling...".as_bytes());
         let store = Store::default();
         let module = match Module::new(&store, &data[..]) {
             Ok(a) => a,
             Err(err) => {
-                stdio.stderr.blocking_write_clear_line();
-                let _ = stdio.stderr.blocking_write(&format!("compile-error: {}\n", err).as_bytes()[..]);
+                tty.blocking_write_clear_line();
+                let _ = tty.blocking_write(&format!("compile-error: {}\n", err).as_bytes()[..]);
                 exit_tx.send(Some(ERR_ENOEXEC));
                 return;
             }
         };
-        stdio.stderr.blocking_write_clear_line();
+        tty.blocking_write_clear_line();
         info!("compiled {}", module.name().unwrap_or_else(|| "unknown module"));
 
         // Build the list of arguments
