@@ -295,6 +295,12 @@ impl Console
         self.terminal.clear();
     }
 
+    pub async fn on_tab(&mut self, _job: Option<Job>)
+    {
+        // Later we need to implement auto-complete here when the process is not running
+        // and implement spaces when it is
+    }
+
     pub async fn on_page_up(&mut self) { }
     pub async fn on_page_down(&mut self) { }
     pub async fn on_f1(&mut self) { }
@@ -347,7 +353,7 @@ impl Console
     }
 
     pub async fn on_parse(&mut self, data: &str, job: Option<Job>) {
-        //error!("on_parse {}", data.as_bytes().iter().map(|byte| format!("\\u{{{:04X}}}", byte).to_owned()).collect::<Vec<String>>().join(""));
+        error!("on_parse {}", data.as_bytes().iter().map(|byte| format!("\\u{{{:04X}}}", byte).to_owned()).collect::<Vec<String>>().join(""));
         match data {
             "\r" => {
                 self.on_enter().await;
@@ -357,6 +363,9 @@ impl Console
             },
             "\u{007F}" => {
                 self.tty.backspace().await;
+            },
+            "\u{0009}" => {
+                self.on_tab(job).await;
             },
             "\u{001B}\u{005B}\u{0044}" => {
                 self.tty.cursor_left().await;

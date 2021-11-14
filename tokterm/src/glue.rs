@@ -81,6 +81,7 @@ pub fn start() -> Result<(), JsValue> {
     let tty = console.tty().clone();
 
     let (tx, mut rx) = mpsc::channel(MAX_MPSC);
+    
     let tx_key = tx.clone();
     let callback = {
         Closure::wrap(Box::new(move |e: OnKeyEvent| {
