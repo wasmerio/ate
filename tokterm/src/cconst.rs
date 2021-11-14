@@ -83,11 +83,11 @@ impl Tty
 \x1B[33;1m    //  `  \            |  / __   \ `\    _     \x1B[1;34m   ww      wwwwww  w     wwwwwww  \x1B[0m  • WAPM commands:    wapm\r
 \x1B[33;1m   //  .    \         /^|_/ / .\ . \ ~\  / \    \x1B[1;34m   wwwww      wwwwwwwwww   wwwww  \x1B[0m  • Tokera commands:  tok\r
 \x1B[33;1m__//     ^ . \_______| /   / _  \   \  \_| |___ \x1B[1;34m   wwwwww  w      wwwwwww  wwwww  \x1B[0m  • Core utils:       coreutils\r
-\x1B[33;1m|     _____     _                        | |   |\x1B[1;34m   wwwwwwwwwwwwww   wwwww  wwwww  \x1B[0m  • Pipe: echo blah | cowsay\r
-\x1B[33;1m|    |_   _|__ | | _____ ___ __ _*      /| |\  |\x1B[1;34m   wwwwwwwwwwwwww   wwwww  wwwww  \x1B[0m  • QuickJS:          qjs\r
-\x1B[33;1m|      | |/ _ \| |/ / _ \  _/ _  |* ,  | |_| | |\x1B[1;34m   wwwwwwwwwwwwww   wwwww  wwwww  \x1B[0m  • Access a wallet:  wallet\r
-\x1B[33;1m|      | | (_) |   <  __/ || (_| |     |/ " \| |\x1B[1;34m   wwwwwwwwwwwwww   wwwww   wwww  \x1B[0m  \r
-\x1B[33;1m| ~    |_|\___/|_|\_\___|_| \__/_|       """   |\x1B[1;34m   wwwwwwwwwwwwwww  wwwww         \x1B[0m  MORE INFO:\r
+\x1B[33;1m|    \x1B[1;31m _____     _                 \x1B[33;1m       | |   |\x1B[1;34m   wwwwwwwwwwwwww   wwwww  wwwww  \x1B[0m  • Pipe: echo blah | cowsay\r
+\x1B[33;1m|    \x1B[1;31m|_   _|__ | | _____ ___ __ _ \x1B[33;1m      /| |\  |\x1B[1;34m   wwwwwwwwwwwwww   wwwww  wwwww  \x1B[0m  • QuickJS:          qjs\r
+\x1B[33;1m|    \x1B[1;31m  | |/ _ \| |/ / _ \  _/ _  |\x1B[33;1m* ,  | |_| | |\x1B[1;34m   wwwwwwwwwwwwww   wwwww  wwwww  \x1B[0m  • Access a wallet:  wallet\r
+\x1B[33;1m|    \x1B[1;31m  | | (_) |   <  __/ || (_| |\x1B[33;1m     |/ " \| |\x1B[1;34m   wwwwwwwwwwwwww   wwwww   wwww  \x1B[0m  \r
+\x1B[33;1m| ~  \x1B[1;31m  |_|\___/|_|\_\___|_| \__/_|\x1B[33;1m       """   |\x1B[1;34m   wwwwwwwwwwwwwww  wwwww         \x1B[0m  MORE INFO:\r
 \x1B[33;1m|______________________________________________|\x1B[1;34m      wwwwwwwwwwww   wwww         \x1B[0m  • Usage Information: help\r
 \x1B[37;1m    Tokera v1.0 Copyright (C) 2016 Tokera Ltd   \x1B[1;34m          wwwwwwww                \x1B[0m  • About Tokera: about tokera\r
 \x1B[37;1m               ( www.tokera.com )               \x1B[1;34m              wwww                \x1B[0m  • About Wasmer: about wasmer\r
