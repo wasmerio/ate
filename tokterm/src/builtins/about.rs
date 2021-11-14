@@ -7,8 +7,9 @@ use std::future::Future;
 use crate::stdio::*;
 use crate::tty::Tty;
 use crate::eval::EvalContext;
+use crate::eval::ExecResponse;
 
-pub(super) fn about(args: &[String], _ctx: &mut EvalContext, mut stdio: Stdio) -> Pin<Box<dyn Future<Output = i32>>> {
+pub(super) fn about(args: &[String], _ctx: &mut EvalContext, mut stdio: Stdio) -> Pin<Box<dyn Future<Output = Result<ExecResponse, i32>>>> {
     let txt = if args.len() <= 1 {
         Tty::ABOUT
     } else {
@@ -22,6 +23,6 @@ pub(super) fn about(args: &[String], _ctx: &mut EvalContext, mut stdio: Stdio) -
     Box::pin(async move {
         let _ = stdio.stdout.write(txt.as_bytes()).await;
         let _ = stdio.stdout.write("\r\n".as_bytes()).await;
-        0
+        Ok(ExecResponse::Immediate(0))
     })
 }

@@ -59,8 +59,7 @@ pub async fn exec
     // If there is a built in then use it
     if let Some(builtin) = builtins.get(cmd) {
         *show_result = true;
-        let ret = builtin(args, ctx, stdio).await;
-        return Ok(ExecResponse::Immediate(ret));
+        return builtin(args, ctx, stdio).await;
     }
 
     // Grab the private file system for this binary (if the binary changes the private

@@ -49,6 +49,7 @@ pub enum EvalPlan
     InternalError,
 }
 
+#[derive(Clone)]
 pub struct EvalContext
 {
     pub env: Environment,

@@ -33,6 +33,7 @@ use super::fs::*;
 pub struct Console
 {
     terminal: Terminal,
+    location: url::Url,
     state: Arc<Mutex<ConsoleState>>,
     bins: BinFactory,
     tok: TokeraSocketFactory,
@@ -46,7 +47,7 @@ pub struct Console
 
 impl Console
 {
-    pub fn new(terminal: Terminal, pool: Pool) -> Console
+    pub fn new(terminal: Terminal, location: String, pool: Pool) -> Console
     {
         let mut reactor = Reactor::new();
 
@@ -74,12 +75,15 @@ impl Console
             });
         }
 
+        let location = url::Url::parse(&location).unwrap();
+
         let tty = Tty::new(stdout.clone());
 
         let mounts = super::fs::create_root_fs();
-
+        
         Console {
             terminal,
+            location,
             bins: BinFactory::new(),
             tok: TokeraSocketFactory::new(&reactor),
             state,
@@ -94,6 +98,27 @@ impl Console
 
     pub async fn init(&mut self)
     {
+        let mut location_file = self.mounts.new_open_options()
+              .create_new(true)
+              .write(true)
+              .open(Path::new("/etc/location"))
+              .unwrap();
+        location_file.write_all(self.location.as_str().as_bytes()).unwrap();
+
+        let run_command = self.location.query_pairs()
+            .filter(|(key, _)| key == "run-command" || key == "init")
+            .next()
+            .map(|(_, val)| val.to_string());
+
+        if let Some(run_command) = &run_command {
+            let mut init_file = self.mounts.new_open_options()
+              .create_new(true)
+              .write(true)
+              .open(Path::new("/bin/init"))
+              .unwrap();
+            init_file.write_all(run_command.as_bytes()).unwrap();
+        }
+
         let cols = self.terminal.get_cols();
         let rows = self.terminal.get_rows();
         self.tty.set_bounds(cols, rows).await;  
@@ -101,7 +126,12 @@ impl Console
         Console::update_prompt(false, &self.state, &self.tty).await;
 
         self.tty.draw_welcome().await;
-        self.tty.draw_prompt().await;        
+        if run_command.is_some() {
+            self.on_data("exec /bin/init".to_string()).await;
+            self.on_enter().await;
+        } else {
+            self.tty.draw_prompt().await;
+        }
     }
 
     pub fn tty(&self) -> &Tty

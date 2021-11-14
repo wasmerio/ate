@@ -5,12 +5,13 @@ use wasmer_wasi::vfs::FileSystem;
 
 use crate::stdio::*;
 use crate::eval::EvalContext;
+use crate::eval::ExecResponse;
 
-pub(super) fn cd(args: &[String], ctx: &mut EvalContext, mut stdio: Stdio) -> Pin<Box<dyn Future<Output = i32>>> {
+pub(super) fn cd(args: &[String], ctx: &mut EvalContext, mut stdio: Stdio) -> Pin<Box<dyn Future<Output = Result<ExecResponse, i32>>>> {
     if args.len() > 2 {
         return Box::pin(async move {
             let _ = stdio.stdout.write(format!("cd: too many arguments\r\n").as_bytes()).await;
-            0
+            Ok(ExecResponse::Immediate(0))
         });
     }
 
@@ -24,7 +25,7 @@ pub(super) fn cd(args: &[String], ctx: &mut EvalContext, mut stdio: Stdio) -> Pi
         } else {
             return Box::pin(async move {
                 let _ = stdio.stdout.write(format!("cd: -: OLDPWD not set\r\n").as_bytes()).await;
-                0
+                Ok(ExecResponse::Immediate(0))
             });
         }
     } else {
@@ -37,7 +38,7 @@ pub(super) fn cd(args: &[String], ctx: &mut EvalContext, mut stdio: Stdio) -> Pi
         if ctx.stdio.root.read_dir(Path::new(dir.as_str())).is_err() {
             return Box::pin(async move {
                 let _ = stdio.stdout.write(format!("cd: {}: No such directory\r\n", dir).as_bytes()).await;
-                0
+                Ok(ExecResponse::Immediate(0))
             });
         }
         dir
@@ -55,7 +56,7 @@ pub(super) fn cd(args: &[String], ctx: &mut EvalContext, mut stdio: Stdio) -> Pi
         if print_path {
             let _ = stdio.stdout.write(format!("{}\r\n", dir).as_bytes()).await;
         }
-        0
+        Ok(ExecResponse::Immediate(0))
     })
 }
 

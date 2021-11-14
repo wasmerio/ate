@@ -64,6 +64,12 @@ pub fn start() -> Result<(), JsValue> {
 
     let window = web_sys::window()
         .unwrap();
+
+    let location = window
+        .location()
+        .href()
+        .unwrap();
+
     let elem = window
         .document()
         .unwrap()
@@ -76,6 +82,7 @@ pub fn start() -> Result<(), JsValue> {
 
     let mut console = Console::new(
         terminal.clone().dyn_into().unwrap(),
+        location,
         pool
     );
     let tty = console.tty().clone();
@@ -108,20 +115,6 @@ pub fn start() -> Result<(), JsValue> {
         addon.fit();
     }
     */
-
-    spawn_local(async move {
-        console.init().await;
-        while let Some(event) = rx.recv().await {
-            match event {
-                InputEvent::Key(event) => {
-                    console.on_key(event.key_code(), event.key(), event.alt_key(), event.ctrl_key(), event.meta_key()).await;
-                },
-                InputEvent::Data(data) => {
-                    console.on_data(data).await;
-                },
-            }
-        }
-    });
 
     /*
     {
@@ -163,6 +156,20 @@ pub fn start() -> Result<(), JsValue> {
     }
     
     terminal.focus();
+
+    spawn_local(async move {
+        console.init().await;
+        while let Some(event) = rx.recv().await {
+            match event {
+                InputEvent::Key(event) => {
+                    console.on_key(event.key_code(), event.key(), event.alt_key(), event.ctrl_key(), event.meta_key()).await;
+                },
+                InputEvent::Data(data) => {
+                    console.on_data(data).await;
+                },
+            }
+        }
+    });
 
     Ok(())
 }

@@ -36,6 +36,7 @@ derivative = { version = "^2" }
 base64 = { version = "^0.13" }
 sha2 = { version = "^0.9" }
 wasi-net = { version = "^0.3", path = "../wasi-net" }
+url = { version = "^2" }
 
 [dependencies.parking_lot]
 version = "^0.11"
@@ -70,6 +71,7 @@ features = [
   'HtmlElement',
   'HtmlInputElement',
   'HtmlDivElement',
+  'Location',
   'MessageEvent',
   "Navigator",
   'Node',
@@ -77,6 +79,7 @@ features = [
   "ProgressEvent",
   'Window',  
   "Url",
+  'UrlSearchParams',
   "WebSocket",
   'Worker',
   "WorkerOptions",

@@ -4,6 +4,7 @@ mod readonly;
 mod about;
 mod help;
 mod unset;
+mod exec;
 
 use cd::*;
 use export::*;
@@ -11,6 +12,7 @@ use readonly::*;
 use about::*;
 use help::*;
 use unset::*;
+use exec::*;
 
 use std::collections::HashMap;
 use std::pin::Pin;
@@ -18,8 +20,9 @@ use std::future::Future;
 
 use super::stdio::*;
 use super::eval::EvalContext;
+use super::eval::ExecResponse;
 
-pub type Command = fn(&[String], &mut EvalContext, Stdio) -> Pin<Box<dyn Future<Output = i32>>>;
+pub type Command = fn(&[String], &mut EvalContext, Stdio) -> Pin<Box<dyn Future<Output = Result<ExecResponse, i32>>>>;
 
 #[derive(Default)]
 pub struct Builtins {
@@ -35,6 +38,7 @@ impl Builtins {
         b.insert("unset", unset);
         b.insert("help", help);
         b.insert("about", about);
+        b.insert("exec", exec);
         b
     }
 
