@@ -3,6 +3,7 @@
 #[allow(unused_imports, dead_code)]
 use tracing::{info, error, debug, trace, warn};
 use xterm_js_rs::{Terminal};
+use web_sys::HtmlCanvasElement;
 use std::collections::HashMap;
 use tokio::sync::mpsc;
 use wasm_bindgen::JsCast;
@@ -33,6 +34,7 @@ use super::fs::*;
 pub struct Console
 {
     terminal: Terminal,
+    front_buffer: HtmlCanvasElement,
     location: url::Url,
     user_agent: String,
     is_mobile: bool,
@@ -49,7 +51,7 @@ pub struct Console
 
 impl Console
 {
-    pub fn new(terminal: Terminal, location: String, user_agent: String, pool: Pool) -> Console
+    pub fn new(terminal: Terminal, front_buffer: HtmlCanvasElement, location: String, user_agent: String, pool: Pool) -> Console
     {
         let mut reactor = Reactor::new();
 
@@ -86,6 +88,7 @@ impl Console
         
         Console {
             terminal,
+            front_buffer,
             location,
             is_mobile,
             user_agent,
@@ -103,6 +106,8 @@ impl Console
 
     pub async fn init(&mut self)
     {
+        crate::glue::show_terminal();
+
         let mut location_file = self.mounts.new_open_options()
               .create_new(true)
               .write(true)

@@ -1,7 +1,8 @@
 # tokera.sh
 
-The Tokera WASM shell is an browser based operating system that integrates
-with the WebAssembly community to assembly and build micro-applications.
+The Tokera Shell is an browser based operating system powered by wasmer.io
+that integrates that allows the WebAssembly community to assembly and build
+browser hosted applications.
 
 Including:
 - MemFS file system with mount points

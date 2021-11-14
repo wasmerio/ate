@@ -2,6 +2,7 @@
 use tracing::{info, error, debug, trace, warn};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
+use web_sys::HtmlCanvasElement;
 use web_sys::KeyboardEvent;
 use wasm_bindgen_futures::spawn_local;
 use tokio::sync::mpsc;
@@ -89,10 +90,21 @@ pub fn start() -> Result<(), JsValue> {
 
     terminal.open(elem.clone().dyn_into()?);
 
+    let front_buffer = window
+        .document()
+        .unwrap()
+        .get_element_by_id("frontBuffer")
+        .unwrap();
+    let front_buffer: HtmlCanvasElement = front_buffer
+        .dyn_into::<HtmlCanvasElement>()
+        .map_err(|_| ())
+        .unwrap();
+
     let pool = ThreadPool::new_with_max_threads().unwrap();
 
     let mut console = Console::new(
         terminal.clone().dyn_into().unwrap(),
+        front_buffer.clone().dyn_into().unwrap(),
         location,
         user_agent,
         pool
@@ -145,16 +157,19 @@ pub fn start() -> Result<(), JsValue> {
     
 
     {
+        let front_buffer: HtmlCanvasElement = front_buffer.clone().dyn_into().unwrap();
         let terminal: Terminal = terminal.clone().dyn_into().unwrap();
-        term_fit(terminal.clone().dyn_into().unwrap());
+        term_fit(terminal, front_buffer);
     }
 
     {
+        let front_buffer: HtmlCanvasElement = front_buffer.clone().dyn_into().unwrap();
         let terminal: Terminal = terminal.clone().dyn_into().unwrap();
         let closure: Closure<dyn FnMut()> = Closure::new(
             move || {
+                let front_buffer: HtmlCanvasElement = front_buffer.clone().dyn_into().unwrap();
                 let terminal: Terminal = terminal.clone().dyn_into().unwrap();
-                term_fit(terminal.clone().dyn_into().unwrap());
+                term_fit(terminal.clone().dyn_into().unwrap(), front_buffer.clone().dyn_into().unwrap());
                 
                 let tty = tty.clone();
                 wasm_bindgen_futures::spawn_local(async move {
@@ -210,5 +225,14 @@ extern "C" {
     #[wasm_bindgen(js_name = "termFit")]
     fn term_fit(
         terminal: Terminal,
+        front: HtmlCanvasElement,
     );
+}
+
+#[wasm_bindgen(module = "/src/js/gl.js")]
+extern "C" {
+    #[wasm_bindgen(js_name = "showTerminal")]
+    pub fn show_terminal();
+    #[wasm_bindgen(js_name = "showCanvas")]
+    pub fn show_canvas();
 }
