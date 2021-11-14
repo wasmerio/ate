@@ -353,7 +353,7 @@ impl Console
     }
 
     pub async fn on_parse(&mut self, data: &str, job: Option<Job>) {
-        error!("on_parse {}", data.as_bytes().iter().map(|byte| format!("\\u{{{:04X}}}", byte).to_owned()).collect::<Vec<String>>().join(""));
+        //error!("on_parse {}", data.as_bytes().iter().map(|byte| format!("\\u{{{:04X}}}", byte).to_owned()).collect::<Vec<String>>().join(""));
         match data {
             "\r" => {
                 self.on_enter().await;
