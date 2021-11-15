@@ -5,8 +5,8 @@ mod export;
 mod help;
 mod pwd;
 mod readonly;
-mod unset;
 mod reset;
+mod unset;
 
 use about::*;
 use cd::*;
@@ -15,8 +15,8 @@ use export::*;
 use help::*;
 use pwd::*;
 use readonly::*;
-use unset::*;
 use reset::*;
+use unset::*;
 
 use std::collections::HashMap;
 use std::future::Future;
