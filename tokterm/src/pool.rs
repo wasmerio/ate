@@ -18,11 +18,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use wasm_bindgen::{prelude::*, JsCast};
 use web_sys::{DedicatedWorkerGlobalScope, WorkerOptions, WorkerType};
-use xterm_js_rs::{Terminal};
+use xterm_js_rs::Terminal;
 
 use super::common::*;
-use super::interval::*;
 use super::fd::*;
+use super::interval::*;
 use super::tty::Tty;
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
@@ -218,7 +218,11 @@ impl PoolState {
         Self::start_worker_now(idx, state, should_warn_on_error);
     }
 
-    pub fn start_worker_now(idx: usize, state: Arc<ThreadState>, should_warn_on_error: Option<Terminal>) {
+    pub fn start_worker_now(
+        idx: usize,
+        state: Arc<ThreadState>,
+        should_warn_on_error: Option<Terminal>,
+    ) {
         let mut opts = WorkerOptions::new();
         opts.type_(WorkerType::Module);
         opts.name(&*format!("Worker-{}", idx));
@@ -236,15 +240,19 @@ impl PoolState {
         wasm_bindgen_futures::spawn_local(async move {
             let ret = result.await;
             if let Err(err) = ret {
-                let err = err.as_string().unwrap_or_else(|| "unknown error".to_string());
+                let err = err
+                    .as_string()
+                    .unwrap_or_else(|| "unknown error".to_string());
                 error!("failed to start worker thread - {}", err);
 
                 if let Some(term) = should_warn_on_error {
-                    term.write(Tty::BAD_WORKER
-                        .replace("\n", "\r\n")
-                        .replace("\\x1B", "\x1B")
-                        .replace("{error}", err.as_str())
-                        .as_str());
+                    term.write(
+                        Tty::BAD_WORKER
+                            .replace("\n", "\r\n")
+                            .replace("\\x1B", "\x1B")
+                            .replace("{error}", err.as_str())
+                            .as_str(),
+                    );
                 }
 
                 return;
