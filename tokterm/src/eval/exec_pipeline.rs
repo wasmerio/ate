@@ -1,5 +1,10 @@
+use std::ops::Deref;
+
 use super::*;
 use crate::ast;
+use tokio::select;
+use wasmer_wasi::vfs::FileSystem;
+use wasmer_wasi::vfs::FsError;
 
 pub(super) async fn exec_pipeline<'a>(
     ctx: &mut EvalContext,
@@ -29,7 +34,12 @@ pub(super) async fn exec_pipeline<'a>(
         for i in 0..pipeline.commands.len() {
             let command = &pipeline.commands[i];
             match command {
-                ast::Command::Simple { assign, cmd, args } => {
+                ast::Command::Simple {
+                    assign,
+                    cmd,
+                    args,
+                    redirect,
+                } => {
                     let parsed_cmd = match cmd {
                         ast::Arg::Arg(s) => eval_arg(&ctx.env, ctx.last_return, *s),
                         ast::Arg::Backquote(_quoted_args) => String::new(),
@@ -59,7 +69,7 @@ pub(super) async fn exec_pipeline<'a>(
                         cur_stdout = end_stdout.clone();
                     }
 
-                    let stdio = Stdio {
+                    let mut stdio = Stdio {
                         stdin: cur_stdin.clone(),
                         stdout: cur_stdout.clone(),
                         stderr: cur_stderr.clone(),
@@ -81,6 +91,7 @@ pub(super) async fn exec_pipeline<'a>(
                         &parsed_env,
                         show_result,
                         stdio,
+                        &redirect,
                     )
                     .await
                     {

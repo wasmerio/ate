@@ -87,6 +87,10 @@ impl FileSystem for ProcFileSystem {
                     metadata: Ok(Self::default_metadata(&self.type_file)),
                 });
                 entries.push(DirEntry {
+                    path: PathBuf::from("null"),
+                    metadata: Ok(Self::default_metadata(&self.type_file)),
+                });
+                entries.push(DirEntry {
                     path: PathBuf::from("tty"),
                     metadata: Ok(Self::default_metadata(&self.type_file)),
                 });
@@ -157,6 +161,7 @@ impl FileOpener for CoreFileOpener {
             "/stdin" | "stdin" => Ok(Box::new(self.stdio.stdin.clone())),
             "/stdout" | "stdout" => Ok(Box::new(self.stdio.stdout.clone())),
             "/stderr" | "stderr" => Ok(Box::new(self.stdio.stderr.clone())),
+            "/null" | "null" => Ok(Box::new(NullFile::default())),
             "/tty" | "tty" => Ok(Box::new(TtyFile::new(&self.stdio))),
             "/web" | "web" => Ok(Box::new(self.stdio.tok.create())),
             _ => Err(FsError::EntityNotFound),
@@ -230,5 +235,55 @@ impl VirtualFile for TtyFile {
     }
     fn get_fd(&self) -> Option<FileDescriptor> {
         self.fd.get_fd()
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct NullFile {}
+
+impl Seek for NullFile {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+        Ok(0)
+    }
+}
+impl Write for NullFile {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+impl Read for NullFile {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        Ok(0)
+    }
+}
+
+impl VirtualFile for NullFile {
+    fn last_accessed(&self) -> u64 {
+        0
+    }
+    fn last_modified(&self) -> u64 {
+        0
+    }
+    fn created_time(&self) -> u64 {
+        0
+    }
+    fn size(&self) -> u64 {
+        0
+    }
+    fn set_len(&mut self, new_size: wasi_types::__wasi_filesize_t) -> StdResult<(), WasiFsError> {
+        Ok(())
+    }
+    fn unlink(&mut self) -> StdResult<(), WasiFsError> {
+        Ok(())
+    }
+    fn bytes_available(&self) -> StdResult<usize, WasiFsError> {
+        Ok(0)
+    }
+    fn get_fd(&self) -> Option<FileDescriptor> {
+        None
     }
 }

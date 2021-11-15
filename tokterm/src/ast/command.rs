@@ -6,6 +6,14 @@ pub enum Command<'a> {
         assign: Vec<&'a str>,
         cmd: Arg<'a>,
         args: Vec<Arg<'a>>,
-        //redirect: Vec<Redirect<'a>>,
+        redirect: Vec<Redirect>,
     },
+}
+
+impl<'a> Command<'a> {
+    pub fn redirect(&mut self) -> &mut Vec<Redirect> {
+        match self {
+            Command::Simple { redirect, .. } => redirect,
+        }
+    }
 }
