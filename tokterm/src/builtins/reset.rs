@@ -7,7 +7,7 @@ use crate::stdio::*;
 
 pub(super) fn reset(
     args: &[String],
-    ctx: &mut EvalContext,
+    _ctx: &mut EvalContext,
     mut stdio: Stdio,
 ) -> Pin<Box<dyn Future<Output = Result<ExecResponse, i32>>>> {
     if args.len() > 1 {
