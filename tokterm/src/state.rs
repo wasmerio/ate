@@ -50,7 +50,13 @@ impl ConsoleState {
         };
 
         if color {
-            format!("{}{} {}", Tty::COL_WHITE, prompt_symbol, Tty::COL_RESET)
+            format!(
+                "{}{}{} {}",
+                Tty::COL_BLUE,
+                prompt_symbol,
+                Tty::COL_WHITE,
+                Tty::COL_RESET
+            )
         } else {
             format!("{} ", prompt_symbol)
         }
