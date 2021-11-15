@@ -38,25 +38,19 @@ error_chain! {
     }
 }
 
-impl<T> From<tokio::sync::mpsc::error::SendError<T>>
-for InvokeError
-{
+impl<T> From<tokio::sync::mpsc::error::SendError<T>> for InvokeError {
     fn from(err: tokio::sync::mpsc::error::SendError<T>) -> InvokeError {
         InvokeErrorKind::PipeError(err.to_string()).into()
-    }   
+    }
 }
 
-impl From<tokio::time::error::Elapsed>
-for InvokeError
-{
+impl From<tokio::time::error::Elapsed> for InvokeError {
     fn from(_elapsed: tokio::time::error::Elapsed) -> InvokeError {
         InvokeErrorKind::Timeout.into()
     }
 }
 
-impl From<crate::engine::Elapsed>
-for InvokeError
-{
+impl From<crate::engine::Elapsed> for InvokeError {
     fn from(_elapsed: crate::engine::Elapsed) -> InvokeError {
         InvokeErrorKind::Timeout.into()
     }

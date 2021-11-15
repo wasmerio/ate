@@ -1,14 +1,13 @@
-use std::time::Duration;   
+use std::time::Duration;
 
 /// # Compaction State Machine
-/// 
+///
 /// State machine that will trigger a compaction only when a particular set
 /// of states has been reached.
 
 // Specifies when a compaction event on a chain will occur.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum CompactMode
-{
+pub enum CompactMode {
     // Compaction will never occur which effectivily means this chain is immutable
     Never,
     // Comapction will be triggered when the chain is modified in any way
@@ -18,79 +17,71 @@ pub enum CompactMode
     // Compaction will occur whenever growth exceeds a particular percentage
     GrowthFactor(f32),
     // Compaction will occur whenever growth exceeds a particular percentage or the timer is triggered
-    GrowthFactorOrTimer {
-        growth: f32,
-        timer: Duration
-    },
+    GrowthFactorOrTimer { growth: f32, timer: Duration },
     // Compaction will occur whever the chain size increases by a certain absolute amount in bytes
     GrowthSize(u64),
     // Compaction will occur whever the chain size increases by a certain absolute amount in bytes or the timer is triggered
-    GrowthSizeOrTimer {
-        growth: u64,
-        timer: Duration
-    },
+    GrowthSizeOrTimer { growth: u64, timer: Duration },
 }
 
-impl CompactMode
-{
+impl CompactMode {
     pub fn with_timer_value(self: Self, val: Duration) -> Self {
         match self {
-            CompactMode::Timer(_) => {
-                CompactMode::Timer(val)
-            },
-            CompactMode::GrowthFactorOrTimer { growth, timer: _timer } => {
-                CompactMode::GrowthFactorOrTimer { growth, timer: val }
-            },
-            CompactMode::GrowthSizeOrTimer { growth, timer: _timer } => {
-                CompactMode::GrowthSizeOrTimer { growth, timer: val }
-            },
+            CompactMode::Timer(_) => CompactMode::Timer(val),
+            CompactMode::GrowthFactorOrTimer {
+                growth,
+                timer: _timer,
+            } => CompactMode::GrowthFactorOrTimer { growth, timer: val },
+            CompactMode::GrowthSizeOrTimer {
+                growth,
+                timer: _timer,
+            } => CompactMode::GrowthSizeOrTimer { growth, timer: val },
             a => a,
         }
     }
 
     pub fn with_growth_factor(self: Self, val: f32) -> Self {
         match self {
-            CompactMode::GrowthFactor(_) => {
-                CompactMode::GrowthFactor(val)
-            },
-            CompactMode::GrowthFactorOrTimer { growth: _growth, timer } => {
-                CompactMode::GrowthFactorOrTimer { growth: val, timer }
-            },
+            CompactMode::GrowthFactor(_) => CompactMode::GrowthFactor(val),
+            CompactMode::GrowthFactorOrTimer {
+                growth: _growth,
+                timer,
+            } => CompactMode::GrowthFactorOrTimer { growth: val, timer },
             a => a,
         }
     }
 
     pub fn with_growth_size(self: Self, val: u64) -> Self {
         match self {
-            CompactMode::GrowthSize(_) => {
-                CompactMode::GrowthSize(val)
-            },
-            CompactMode::GrowthSizeOrTimer { growth: _growth, timer } => {
-                CompactMode::GrowthSizeOrTimer { growth: val, timer }
-            },
+            CompactMode::GrowthSize(_) => CompactMode::GrowthSize(val),
+            CompactMode::GrowthSizeOrTimer {
+                growth: _growth,
+                timer,
+            } => CompactMode::GrowthSizeOrTimer { growth: val, timer },
             a => a,
         }
     }
 }
 
-impl std::fmt::Display
-for CompactMode {
+impl std::fmt::Display for CompactMode {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             CompactMode::Never => write!(f, "never"),
             CompactMode::Modified => write!(f, "modified"),
             CompactMode::Timer(a) => write!(f, "timer({}ms)", a.as_millis()),
             CompactMode::GrowthFactor(a) => write!(f, "factor({})", a),
-            CompactMode::GrowthFactorOrTimer { growth, timer} => write!(f, "factor({})-or-timer({}ms)", growth, timer.as_millis()),
+            CompactMode::GrowthFactorOrTimer { growth, timer } => {
+                write!(f, "factor({})-or-timer({}ms)", growth, timer.as_millis())
+            }
             CompactMode::GrowthSize(a) => write!(f, "size({})", a),
-            CompactMode::GrowthSizeOrTimer { growth, timer } => write!(f, "size({})-or-timer({}ms)", growth, timer.as_millis())
+            CompactMode::GrowthSizeOrTimer { growth, timer } => {
+                write!(f, "size({})-or-timer({}ms)", growth, timer.as_millis())
+            }
         }
     }
 }
 
-impl std::str::FromStr
-for CompactMode
-{
+impl std::str::FromStr for CompactMode {
     type Err = &'static str;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {

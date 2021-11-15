@@ -1,30 +1,31 @@
 #![allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use chrono::Duration;
 use error_chain::bail;
 use std::io::stdout;
 use std::io::Write;
-use url::Url;
 use std::sync::Arc;
-use chrono::Duration;
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
+use url::Url;
 
-use ate::prelude::*;
 use ate::error::LoadError;
 use ate::error::TransformError;
+use ate::prelude::*;
 
-use crate::prelude::*;
-use crate::request::*;
-use crate::model::*;
-use crate::service::AuthService;
-use crate::helper::*;
 use crate::error::*;
 use crate::helper::*;
+use crate::helper::*;
+use crate::model::*;
+use crate::prelude::*;
+use crate::request::*;
+use crate::service::AuthService;
 
 use super::login::*;
 
-impl AuthService
-{
-    pub async fn process_sudo(self: Arc<Self>, request: SudoRequest) -> Result<SudoResponse, SudoFailed>
-    {
+impl AuthService {
+    pub async fn process_sudo(
+        self: Arc<Self>,
+        request: SudoRequest,
+    ) -> Result<SudoResponse, SudoFailed> {
         info!("sudo attempt: {}", request.session.identity());
 
         // Get token
@@ -41,7 +42,9 @@ impl AuthService
         // the authentication server can access it
         let master_key = match self.master_key() {
             Some(a) => a,
-            None => { return Err(SudoFailed::NoMasterKey); }
+            None => {
+                return Err(SudoFailed::NoMasterKey);
+            }
         };
 
         // Extra the original super key that was used to access the user
@@ -74,7 +77,7 @@ impl AuthService
                 bail!(err);
             }
         };
-        
+
         // Check if the account is locked or not yet verified
         match user.status.clone() {
             UserStatus::Locked(until) => {
@@ -82,16 +85,18 @@ impl AuthService
                 let utc_now = local_now.with_timezone(&chrono::Utc);
                 if until > utc_now {
                     let duration = until - utc_now;
-                    warn!("login attempt denied ({}) - account locked until {}", identity, until);
+                    warn!(
+                        "login attempt denied ({}) - account locked until {}",
+                        identity, until
+                    );
                     return Err(SudoFailed::AccountLocked(duration.to_std().unwrap()));
                 }
-            },
-            UserStatus::Unverified =>
-            {
+            }
+            UserStatus::Unverified => {
                 warn!("login attempt denied ({}) - unverified", identity);
                 return Err(SudoFailed::Unverified(identity));
-            },
-            UserStatus::Nominal => { },
+            }
+            UserStatus::Nominal => {}
         };
 
         // If a google authenticator code has been supplied then we need to try and load the
@@ -104,31 +109,33 @@ impl AuthService
                 Err(LoadError(LoadErrorKind::NotFound(_), _)) => {
                     warn!("login attempt denied ({}) - user not found", identity);
                     return Err(SudoFailed::UserNotFound(identity));
-                },
+                }
                 Err(err) => {
                     bail!(err);
                 }
-            }
-            {
+            } {
                 // Check the code matches the authenticator code
                 self.time_keeper.wait_for_high_accuracy().await;
                 let time = self.time_keeper.current_timestamp_as_duration()?;
                 let time = time.as_secs() / 30;
                 let google_auth = google_authenticator::GoogleAuthenticator::new();
-                if google_auth.verify_code(sudo.secret.as_str(), request.authenticator_code.as_str(), 3, time) {
+                if google_auth.verify_code(
+                    sudo.secret.as_str(),
+                    request.authenticator_code.as_str(),
+                    3,
+                    time,
+                ) {
                     debug!("code authenticated");
-                }
-                else
-                {
+                } else {
                     // Increment the failed count - every 5 failed attempts then
                     // ban the user for 30 mins to 1 day depending on severity.
                     sudo.as_mut().failed_attempts = sudo.failed_attempts + 1;
                     if sudo.failed_attempts % 5 == 0 {
                         let ban_time = if sudo.failed_attempts <= 5 {
                             Duration::seconds(30)
-                        } else  if sudo.failed_attempts <= 10 {
+                        } else if sudo.failed_attempts <= 10 {
                             Duration::minutes(5)
-                        } else  if sudo.failed_attempts <= 15 {
+                        } else if sudo.failed_attempts <= 15 {
                             Duration::hours(1)
                         } else {
                             Duration::days(1)
@@ -140,9 +147,12 @@ impl AuthService
                         }
                     }
                     dio.commit().await?;
-                    
+
                     // Notify the caller that the login attempt has failed
-                    warn!("login attempt denied ({}) - wrong code - attempts={}", identity, sudo.failed_attempts);
+                    warn!(
+                        "login attempt denied ({}) - wrong code - attempts={}",
+                        identity, sudo.failed_attempts
+                    );
                     return Err(SudoFailed::WrongCode);
                 }
 
@@ -154,9 +164,11 @@ impl AuthService
 
                 // Add the extra authentication objects from the sudo
                 compute_sudo_auth(&sudo.take(), request.session.clone())
-                
             } else {
-                warn!("login attempt denied ({}) - user not found (sudo)", identity);
+                warn!(
+                    "login attempt denied ({}) - user not found (sudo)",
+                    identity
+                );
                 return Err(SudoFailed::UserNotFound(identity));
             }
         };
@@ -164,8 +176,6 @@ impl AuthService
 
         // Return the session that can be used to access this user
         info!("login attempt accepted ({})", identity);
-        Ok(SudoResponse {
-            authority: session,
-        })
+        Ok(SudoResponse { authority: session })
     }
 }

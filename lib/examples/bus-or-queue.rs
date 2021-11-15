@@ -1,38 +1,42 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use serde::{Serialize, Deserialize};
 use ate::prelude::*;
+use serde::{Deserialize, Serialize};
+#[allow(unused_imports)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-enum BallSound
-{
+enum BallSound {
     Ping,
-    Pong
+    Pong,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct Table
-{
-    ball: DaoVec<BallSound>
+struct Table {
+    ball: DaoVec<BallSound>,
 }
 
 #[cfg(not(feature = "enable_server"))]
-fn main() {
-}
+fn main() {}
 
 #[cfg(feature = "enable_server")]
 #[tokio::main(flavor = "current_thread")]
-async fn main() -> Result<(), AteError>
-{
+async fn main() -> Result<(), AteError> {
     ate::log_init(0, true);
-    
+
     // Create the server and listen on port 5001
     info!("setting up a mesh server on 127.0.0.1:5001");
     let mesh_url = url::Url::parse("ws://localhost:5001/").unwrap();
     let cfg_ate = ConfAte::default();
-    #[cfg(feature="enable_dns")]
-    let mut cfg_mesh = ConfMesh::solo(&cfg_ate, &IpAddr::from_str("127.0.0.1").unwrap(), None, "localhost".to_string(), 5001, None).await?;
-    #[cfg(not(feature="enable_dns"))]
+    #[cfg(feature = "enable_dns")]
+    let mut cfg_mesh = ConfMesh::solo(
+        &cfg_ate,
+        &IpAddr::from_str("127.0.0.1").unwrap(),
+        None,
+        "localhost".to_string(),
+        5001,
+        None,
+    )
+    .await?;
+    #[cfg(not(feature = "enable_dns"))]
     let mut cfg_mesh = ConfMesh::solo("localhost".to_string(), 5001)?;
     let _root = create_ethereal_distributed_server(&cfg_ate, &cfg_mesh).await?;
 
@@ -48,9 +52,11 @@ async fn main() -> Result<(), AteError>
 
     // Setup a BUS that we will listen on
     info!("opening a chain on called 'ping-pong-table' using client 1");
-    let chain_a = client_a.open(&mesh_url, &ChainKey::from("ping-pong-table")).await.unwrap();
-    let (mut bus, key) =
-    {
+    let chain_a = client_a
+        .open(&mesh_url, &ChainKey::from("ping-pong-table"))
+        .await
+        .unwrap();
+    let (mut bus, key) = {
         info!("writing a record ('table') to the remote chain from client 1");
         let dio = chain_a.dio_trans(&session, TransactionScope::Full).await;
         let dao = dio.store(Table {
@@ -60,16 +66,19 @@ async fn main() -> Result<(), AteError>
 
         // Now attach a BUS that will simple write to the console
         info!("opening a communication bus on the record 'table' from client 1");
-        (
-            dao.ball.bus().await?,
-            dao.key().clone(),
-        )
+        (dao.ball.bus().await?, dao.key().clone())
     };
 
     {
         // Write a ping... twice
         info!("connecting to the communication bus from client 2");
-        let chain_b = client_b.open(&url::Url::parse("ws://localhost:5001/").unwrap(), &ChainKey::from("ping-pong-table")).await.unwrap();
+        let chain_b = client_b
+            .open(
+                &url::Url::parse("ws://localhost:5001/").unwrap(),
+                &ChainKey::from("ping-pong-table"),
+            )
+            .await
+            .unwrap();
         chain_b.sync().await?;
 
         info!("writing two records ('balls') onto the earlier saved record 'table' from client 2");
@@ -81,7 +90,7 @@ async fn main() -> Result<(), AteError>
     }
 
     // Process any events that were received on the BUS
-    {   
+    {
         let dio = chain_a.dio_trans(&session, TransactionScope::Full).await;
 
         // (this is a broadcast event to all current subscribers)

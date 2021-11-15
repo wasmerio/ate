@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use tracing::{error, info, warn, debug};
+use tracing::{debug, error, info, warn};
 
 use crate::crypto::*;
 use crate::error::*;
@@ -8,23 +8,21 @@ use crate::session::*;
 
 use super::*;
 
-impl TreeAuthorityPlugin
-{
-    pub(super) fn generate_encrypt_key(&self, auth: &ReadOption, session: &'_ dyn AteSession) -> Result<Option<(InitializationVector, EncryptKey)>, TransformError>
-    {
+impl TreeAuthorityPlugin {
+    pub(super) fn generate_encrypt_key(
+        &self,
+        auth: &ReadOption,
+        session: &'_ dyn AteSession,
+    ) -> Result<Option<(InitializationVector, EncryptKey)>, TransformError> {
         match auth {
-            ReadOption::Inherit => {
-                Err(TransformErrorKind::UnspecifiedReadability.into())
-            },
-            ReadOption::Everyone(_key) => {
-                Ok(None)
-            },
+            ReadOption::Inherit => Err(TransformErrorKind::UnspecifiedReadability.into()),
+            ReadOption::Everyone(_key) => Ok(None),
             ReadOption::Specific(key_hash, derived) => {
                 for key in session.read_keys(AteSessionKeyCategory::AllKeys) {
                     if key.hash() == *key_hash {
                         return Ok(Some((
                             InitializationVector::generate(),
-                            derived.transmute(key)?
+                            derived.transmute(key)?,
                         )));
                     }
                 }
@@ -32,7 +30,7 @@ impl TreeAuthorityPlugin
                     if key.hash() == *key_hash {
                         return Ok(Some((
                             InitializationVector::generate(),
-                            derived.transmute_private(key)?
+                            derived.transmute_private(key)?,
                         )));
                     }
                 }

@@ -1,8 +1,7 @@
 use super::prelude::*;
 
 #[derive(Debug, Clone)]
-pub struct FileAttr
-{
+pub struct FileAttr {
     pub ino: u64,
     pub size: u64,
     pub blksize: u32,
@@ -15,12 +14,11 @@ pub struct FileAttr
     pub gid: u32,
 }
 
-impl FileAttr
-{
+impl FileAttr {
     pub fn new(spec: &FileSpec, uid: u32, gid: u32) -> FileAttr {
         let size = spec.size();
         let blksize = PAGE_SIZE as u64;
-    
+
         FileAttr {
             ino: spec.ino(),
             size,
@@ -36,8 +34,7 @@ impl FileAttr
     }
 }
 
-impl FileAccessor
-{
+impl FileAccessor {
     pub fn spec_as_attr_reverse(&self, spec: &FileSpec, req: &RequestContext) -> FileAttr {
         let uid = self.reverse_uid(spec.uid(), req);
         let gid = self.reverse_gid(spec.gid(), req);

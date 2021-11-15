@@ -24,18 +24,14 @@ error_chain! {
     }
 }
 
-impl From<super::CommitError>
-for LockError
-{
+impl From<super::CommitError> for LockError {
     fn from(err: super::CommitError) -> LockError {
         LockErrorKind::CommitError(err.to_string()).into()
-    }   
+    }
 }
 
-impl From<super::CommitErrorKind>
-for LockError
-{
+impl From<super::CommitErrorKind> for LockError {
     fn from(err: super::CommitErrorKind) -> LockError {
         LockErrorKind::CommitError(err.to_string()).into()
-    }   
+    }
 }

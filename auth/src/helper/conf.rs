@@ -1,10 +1,9 @@
 #[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use ::ate::prelude::*;
 
-pub fn conf_auth() -> ConfAte
-{
+pub fn conf_auth() -> ConfAte {
     let mut cfg_ate = ConfAte::default();
     cfg_ate.configured_for(ConfiguredFor::BestSecurity);
     cfg_ate.log_format.meta = SerializationFormat::Json;
@@ -13,8 +12,7 @@ pub fn conf_auth() -> ConfAte
     cfg_ate
 }
 
-pub fn conf_cmd() -> ConfAte
-{
+pub fn conf_cmd() -> ConfAte {
     let cfg_cmd = conf_auth();
     cfg_cmd
 }

@@ -1,21 +1,31 @@
 use std::collections::VecDeque;
 use std::path::*;
-use wasmer_wasi::vfs::*;
 #[allow(unused_imports, dead_code)]
-use tracing::{info, error, debug, trace, warn};
+use tracing::{debug, error, info, trace, warn};
+use wasmer_wasi::vfs::*;
 
 pub trait FileSystemExt<T>
-where T: FileSystem
+where
+    T: FileSystem,
 {
-    fn search_pattern(&self, path: &Path, starts_with: Option<&str>, ends_with: Option<&str>) -> Result<PathBuf>;
+    fn search_pattern(
+        &self,
+        path: &Path,
+        starts_with: Option<&str>,
+        ends_with: Option<&str>,
+    ) -> Result<PathBuf>;
 }
 
-impl<T> FileSystemExt<T>
-for T
-where T: FileSystem
+impl<T> FileSystemExt<T> for T
+where
+    T: FileSystem,
 {
-    fn search_pattern(&self, path: &Path, starts_with: Option<&str>, ends_with: Option<&str>) -> Result<PathBuf>
-    {
+    fn search_pattern(
+        &self,
+        path: &Path,
+        starts_with: Option<&str>,
+        ends_with: Option<&str>,
+    ) -> Result<PathBuf> {
         let mut queue = VecDeque::new();
         queue.push_back(path.to_path_buf());
 

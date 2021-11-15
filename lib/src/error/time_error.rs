@@ -1,7 +1,7 @@
-use error_chain::error_chain;
-use std::{time::SystemTime};
-use chrono::Utc;
 use chrono::DateTime;
+use chrono::Utc;
+use error_chain::error_chain;
+use std::time::SystemTime;
 
 use std::time::SystemTimeError;
 

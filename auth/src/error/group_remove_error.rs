@@ -1,7 +1,7 @@
 use error_chain::error_chain;
 
-use ::ate::prelude::*;
 use crate::request::*;
+use ::ate::prelude::*;
 
 error_chain! {
     types {
@@ -38,22 +38,21 @@ error_chain! {
     }
 }
 
-impl From<GroupRemoveError>
-for AteError
-{
+impl From<GroupRemoveError> for AteError {
     fn from(err: GroupRemoveError) -> AteError {
         AteErrorKind::ServiceError(err.to_string()).into()
     }
 }
 
-impl From<GroupRemoveFailed>
-for GroupRemoveError {
+impl From<GroupRemoveFailed> for GroupRemoveError {
     fn from(err: GroupRemoveFailed) -> GroupRemoveError {
         match err {
             GroupRemoveFailed::GroupNotFound => GroupRemoveErrorKind::GroupNotFound.into(),
             GroupRemoveFailed::NoAccess => GroupRemoveErrorKind::NoAccess.into(),
             GroupRemoveFailed::NoMasterKey => GroupRemoveErrorKind::NoMasterKey.into(),
-            GroupRemoveFailed::InternalError(code) => GroupRemoveErrorKind::InternalError(code).into(),
+            GroupRemoveFailed::InternalError(code) => {
+                GroupRemoveErrorKind::InternalError(code).into()
+            }
         }
     }
 }

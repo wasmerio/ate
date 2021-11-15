@@ -1,13 +1,12 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use serde::*;
 use ate::crypto::*;
+use serde::*;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum AdvertId
-{
+pub enum AdvertId {
     UID(u32),
-    GID(u32)
+    GID(u32),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

@@ -1,21 +1,24 @@
 #![allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use error_chain::bail;
 use ate::prelude::*;
-use std::sync::Arc;
-use url::Url;
+use error_chain::bail;
 use std::io::stdout;
 use std::io::Write;
+use std::sync::Arc;
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
+use url::Url;
 
-use crate::prelude::*;
-use crate::helper::*;
-use crate::error::*;
-use crate::request::*;
-use crate::opt::*;
 use crate::cmd::*;
+use crate::error::*;
+use crate::helper::*;
+use crate::opt::*;
+use crate::prelude::*;
+use crate::request::*;
 
-pub async fn group_remove_command(registry: &Registry, session: &AteSessionGroup, auth: Url) -> Result<GroupRemoveResponse, GroupRemoveError>
-{
+pub async fn group_remove_command(
+    registry: &Registry,
+    session: &AteSessionGroup,
+    auth: Url,
+) -> Result<GroupRemoveResponse, GroupRemoveError> {
     // Open a command chain
     let group = session.identity().to_string();
     let chain = registry.open_cmd(&auth).await?;
@@ -35,11 +38,10 @@ pub async fn group_remove_command(registry: &Registry, session: &AteSessionGroup
 pub async fn main_group_remove(
     auth: Url,
     session: &AteSessionGroup,
-    hint_group: &str
-) -> Result<(), GroupRemoveError>
-{
+    hint_group: &str,
+) -> Result<(), GroupRemoveError> {
     // Remove a user from a group using the authentication server
-    let registry = ate::mesh::Registry::new( &conf_cmd()).await.cement();
+    let registry = ate::mesh::Registry::new(&conf_cmd()).await.cement();
     let result = group_remove_command(&registry, &session, auth).await?;
 
     println!("{} removed (id={})", hint_group, result.key);

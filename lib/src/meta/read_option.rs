@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use crate::crypto::*;
 
@@ -9,30 +9,25 @@ use crate::crypto::*;
 /// data records of which the hash of the encryption key must
 /// match this record.
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ReadOption
-{
+pub enum ReadOption {
     Inherit,
     Everyone(Option<EncryptKey>),
-    Specific(AteHash, DerivedEncryptKey)
+    Specific(AteHash, DerivedEncryptKey),
 }
 
-impl ReadOption
-{
+impl ReadOption {
     pub fn from_key(key: &EncryptKey) -> ReadOption {
         ReadOption::Specific(key.hash(), DerivedEncryptKey::new(key))
     }
 }
 
-impl Default
-for ReadOption
-{
+impl Default for ReadOption {
     fn default() -> ReadOption {
         ReadOption::Inherit
     }
 }
 
-impl std::fmt::Display
-for ReadOption {
+impl std::fmt::Display for ReadOption {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             ReadOption::Everyone(key) => {
@@ -41,13 +36,13 @@ for ReadOption {
                 } else {
                     write!(f, "everyone")
                 }
-            },
+            }
             ReadOption::Inherit => {
                 write!(f, "inherit")
-            },
+            }
             ReadOption::Specific(hash, _derived) => {
                 write!(f, "specifc({})", hash)
-            },
+            }
         }
     }
 }

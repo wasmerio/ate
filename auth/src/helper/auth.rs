@@ -1,14 +1,13 @@
 #[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 use url::Url;
 
-use ::ate::prelude::*;
 use ::ate::crypto::EncryptKey;
+use ::ate::prelude::*;
 
 use crate::model::*;
 
-pub(crate) fn compute_user_auth(user: &User) -> AteSessionUser
-{
+pub(crate) fn compute_user_auth(user: &User) -> AteSessionUser {
     let mut session = AteSessionUser::default();
     for auth in user.access.iter() {
         session.user.add_read_key(&auth.read);
@@ -23,11 +22,10 @@ pub(crate) fn compute_user_auth(user: &User) -> AteSessionUser
     session
 }
 
-pub(crate) fn compute_sudo_auth(sudo: &Sudo, session: AteSessionUser) -> AteSessionSudo
-{
+pub(crate) fn compute_sudo_auth(sudo: &Sudo, session: AteSessionUser) -> AteSessionSudo {
     let mut role = AteGroupRole {
         purpose: AteRolePurpose::Owner,
-        properties: Vec::new()
+        properties: Vec::new(),
     };
     for auth in sudo.access.iter() {
         role.add_read_key(&auth.read);
@@ -39,20 +37,21 @@ pub(crate) fn compute_sudo_auth(sudo: &Sudo, session: AteSessionUser) -> AteSess
 
     AteSessionSudo {
         inner: session,
-        sudo: role
+        sudo: role,
     }
 }
 
-pub(crate) fn complete_group_auth(group: &Group, inner: AteSessionInner)
-    -> Result<AteSessionGroup, LoadError>
-{
+pub(crate) fn complete_group_auth(
+    group: &Group,
+    inner: AteSessionInner,
+) -> Result<AteSessionGroup, LoadError> {
     // Create the session that we will return to the call
     let mut session = AteSessionGroup::new(inner, group.name.clone());
 
     // Add the broker keys and contract read key
     session.group.broker_read = Some(group.broker_read.clone());
     session.group.broker_write = Some(group.broker_write.clone());
-    
+
     // Enter a recursive loop that will expand its authorizations of the roles until
     // it expands no more or all the roles are gained.
     let mut roles = group.roles.iter().collect::<Vec<_>>();
@@ -61,16 +60,20 @@ pub(crate) fn complete_group_auth(group: &Group, inner: AteSessionInner)
         let mut next = Vec::new();
 
         // Process all the roles
-        let shared_keys = session.read_keys(AteSessionKeyCategory::AllKeys).map(|a| a.clone()).collect::<Vec<_>>();
-        let super_keys = session.private_read_keys(AteSessionKeyCategory::AllKeys).map(|a| a.clone()).collect::<Vec<_>>();
-        for role in roles.into_iter()
-        {
+        let shared_keys = session
+            .read_keys(AteSessionKeyCategory::AllKeys)
+            .map(|a| a.clone())
+            .collect::<Vec<_>>();
+        let super_keys = session
+            .private_read_keys(AteSessionKeyCategory::AllKeys)
+            .map(|a| a.clone())
+            .collect::<Vec<_>>();
+        for role in roles.into_iter() {
             // Attempt to gain access to the role using the access rights of the super session
             let mut added = false;
             for read_key in super_keys.iter() {
-                if let Some(a) = role.access.unwrap(&read_key)?
-                {
-                    // Add access rights to the session                    
+                if let Some(a) = role.access.unwrap(&read_key)? {
+                    // Add access rights to the session
                     let b = session.get_or_create_group_role(&role.purpose);
                     b.add_read_key(&a.read);
                     b.add_private_read_key(&a.private_read);
@@ -82,9 +85,8 @@ pub(crate) fn complete_group_auth(group: &Group, inner: AteSessionInner)
             }
             if added == false {
                 for read_key in shared_keys.iter() {
-                    if let Some(a) = role.access.unwrap_shared(&read_key)?
-                    {
-                        // Add access rights to the session                    
+                    if let Some(a) = role.access.unwrap_shared(&read_key)? {
+                        // Add access rights to the session
                         let b = session.get_or_create_group_role(&role.purpose);
                         b.add_read_key(&a.read);
                         b.add_private_read_key(&a.private_read);
@@ -114,8 +116,13 @@ pub(crate) fn complete_group_auth(group: &Group, inner: AteSessionInner)
     Ok(session)
 }
 
-pub async fn load_credentials(registry: &Registry, username: String, read_key: EncryptKey, _code: Option<String>, auth: Url) -> Result<AteSessionUser, AteError>
-{
+pub async fn load_credentials(
+    registry: &Registry,
+    username: String,
+    read_key: EncryptKey,
+    _code: Option<String>,
+    auth: Url,
+) -> Result<AteSessionUser, AteError> {
     // Prepare for the load operation
     let key = PrimaryKey::from(username.clone());
     let mut session = AteSessionUser::new();

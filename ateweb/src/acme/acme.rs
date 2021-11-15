@@ -1,34 +1,33 @@
-#[allow(unused_imports, dead_code)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use error_chain::bail;
-use tokio_rustls::rustls::sign::{any_ecdsa_type, CertifiedKey};
-use tokio_rustls::rustls::PrivateKey;
 use base64::URL_SAFE_NO_PAD;
+use error_chain::bail;
 use rcgen::{Certificate, CustomExtension, PKCS_ECDSA_P256_SHA256};
-use ring::signature::{EcdsaKeyPair, ECDSA_P256_SHA256_FIXED_SIGNING};
 use ring::rand::SystemRandom;
+use ring::signature::{EcdsaKeyPair, ECDSA_P256_SHA256_FIXED_SIGNING};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
+use tokio_rustls::rustls::sign::{any_ecdsa_type, CertifiedKey};
+use tokio_rustls::rustls::PrivateKey;
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use http::HeaderMap;
 use http::HeaderValue;
 
-use hyper::Request;
-use hyper::Method;
-use hyper::Client;
 use hyper::Body;
+use hyper::Client;
+use hyper::Method;
+use hyper::Request;
 use hyper_tls::HttpsConnector;
 
-use crate::error::*;
 use super::security::*;
+use crate::error::*;
 
 pub const LETS_ENCRYPT_STAGING_DIRECTORY: &str =
     "https://acme-staging-v02.api.letsencrypt.org/directory";
 pub const LETS_ENCRYPT_PRODUCTION_DIRECTORY: &str =
     "https://acme-v02.api.letsencrypt.org/directory";
-pub const PEBBLE_DIRECTORY: &str =
-    "https://localhost:14000/dir";
+pub const PEBBLE_DIRECTORY: &str = "https://localhost:14000/dir";
 pub const ACME_TLS_ALPN_NAME: &[u8] = b"acme-tls/1";
 
 #[derive(Debug)]
@@ -38,18 +37,18 @@ pub struct Account {
     pub kid: String,
 }
 
-impl Account
-{
+impl Account {
     pub async fn load_or_create<'a, S, I>(
         directory: Directory,
         contact: I,
     ) -> Result<Self, AcmeError>
-    where S: AsRef<str> + 'a,
-          I: IntoIterator<Item = &'a S>,
+    where
+        S: AsRef<str> + 'a,
+        I: IntoIterator<Item = &'a S>,
     {
         let alg = &ECDSA_P256_SHA256_FIXED_SIGNING;
         let contact: Vec<&'a str> = contact.into_iter().map(AsRef::<str>::as_ref).collect();
-        
+
         let key_pair = {
             info!("creating a new account key");
             let rng = SystemRandom::new();
@@ -60,7 +59,8 @@ impl Account
         let payload = json!({
             "termsOfServiceAgreed": true,
             "contact": contact,
-        }).to_string();
+        })
+        .to_string();
 
         let body = sign(
             &key_pair,
@@ -69,8 +69,14 @@ impl Account
             &directory.new_account,
             &payload,
         )?;
-        
-        let (_, headers) = api_call(&directory.new_account, Method::POST, Some(body), directory.insecure).await?;
+
+        let (_, headers) = api_call(
+            &directory.new_account,
+            Method::POST,
+            Some(body),
+            directory.insecure,
+        )
+        .await?;
         let kid = get_header(&headers, "Location")?;
 
         Ok(Account {
@@ -80,7 +86,11 @@ impl Account
         })
     }
 
-    pub async fn request(&self, url: &str, payload: &str) -> Result<(String, HeaderMap), AcmeError> {
+    pub async fn request(
+        &self,
+        url: &str,
+        payload: &str,
+    ) -> Result<(String, HeaderMap), AcmeError> {
         let mut n = 0;
         loop {
             let body = sign(
@@ -95,18 +105,18 @@ impl Account
                 Ok((body, headers)) => {
                     //debug!("response: {:?}", body);
                     return Ok((body, headers));
-                },
+                }
                 Err(AcmeError(AcmeErrorKind::ApiError(err), _)) => {
                     if err.typ == "urn:ietf:params:acme:error:badNonce" && n < 5 {
                         n += 1;
                         continue;
                     }
                     bail!(AcmeErrorKind::ApiError(err));
-                },
+                }
                 Err(err) => {
                     return Err(err);
                 }
-            };            
+            };
         }
     }
 
@@ -121,14 +131,19 @@ impl Account
         Ok(())
     }
 
-    pub async fn new_order(&self, domains: Vec<String>, not_before: chrono::DateTime<chrono::Utc>, not_after: chrono::DateTime<chrono::Utc>) -> Result<(Order, String), AcmeError> {
+    pub async fn new_order(
+        &self,
+        domains: Vec<String>,
+        not_before: chrono::DateTime<chrono::Utc>,
+        not_after: chrono::DateTime<chrono::Utc>,
+    ) -> Result<(Order, String), AcmeError> {
         let _not_before = not_before.to_rfc3339();
         let _not_after = not_after.to_rfc3339();
         let domains: Vec<Identifier> = domains.into_iter().map(|d| Identifier::Dns(d)).collect();
         //let payload = format!("{{\"identifiers\":{},\"notBefore\":\"{}\",\"notAfter\":\"{}\"}}", serde_json::to_string(&domains)?, not_before, not_after);
         let payload = format!("{{\"identifiers\":{}}}", serde_json::to_string(&domains)?);
         let (response, headers) = self.request(&self.directory.new_order, &payload).await?;
-        let order = serde_json::from_str(&response)?; 
+        let order = serde_json::from_str(&response)?;
         let kid = get_header(&headers, "Location")?;
         Ok((order, kid))
     }
@@ -156,8 +171,7 @@ impl Account
         &self,
         challenges: &'a Vec<Challenge>,
         domain: String,
-    ) -> Result<(&'a Challenge, CertifiedKey, String, String), AcmeError>
-    {
+    ) -> Result<(&'a Challenge, CertifiedKey, String, String), AcmeError> {
         let challenge = challenges
             .iter()
             .filter(|c| c.typ == ChallengeType::TlsAlpn01)
@@ -193,11 +207,10 @@ pub struct Directory {
     pub new_account: String,
     pub new_order: String,
     #[serde(skip)]
-    pub insecure: bool
+    pub insecure: bool,
 }
 
-impl Directory
-{
+impl Directory {
     pub async fn discover(url: &str) -> Result<Self, AcmeError> {
         let insecure = url == PEBBLE_DIRECTORY;
         let (body, _) = api_call(url, Method::GET, None, insecure).await?;
@@ -207,7 +220,8 @@ impl Directory
     }
 
     pub async fn nonce(&self) -> Result<String, AcmeError> {
-        let (_, headers) = api_call(&self.new_nonce.as_str(), Method::HEAD, None, self.insecure).await?;
+        let (_, headers) =
+            api_call(&self.new_nonce.as_str(), Method::HEAD, None, self.insecure).await?;
         get_header(&headers, "replay-nonce")
     }
 }
@@ -274,7 +288,10 @@ pub struct ApiError {
     pub status: u16,
 }
 
-fn get_header(response: &HeaderMap<HeaderValue>, header: &'static str) -> Result<String, AcmeError> {
+fn get_header(
+    response: &HeaderMap<HeaderValue>,
+    header: &'static str,
+) -> Result<String, AcmeError> {
     match response.get(header) {
         Some(value) => Ok(value.to_str()?.to_string()),
         None => bail!(AcmeErrorKind::MissingHeader(header)),
@@ -286,8 +303,7 @@ async fn api_call(
     method: Method,
     req: Option<String>,
     insecure: bool,
-) -> Result<(String, HeaderMap<HeaderValue>), AcmeError>
-{
+) -> Result<(String, HeaderMap<HeaderValue>), AcmeError> {
     // Build the request
     let req_url = req_url.to_string();
     /*
@@ -327,7 +343,7 @@ async fn api_call(
 
     //debug!("Response: {}", status);
     //debug!("Headers: {:#?}\n", res.headers());
-    
+
     let headers = res.headers().clone();
     let res = hyper::body::to_bytes(res.body_mut()).await?;
     let orig_res = String::from_utf8(res.into_iter().collect()).unwrap();
@@ -340,7 +356,7 @@ async fn api_call(
             orig_res.clone()
         }
     };
-    
+
     // If an error occured then fail
     if !status.is_success() {
         warn!("{}", res);

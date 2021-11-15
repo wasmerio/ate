@@ -15,5 +15,5 @@ pub use crate::file::RegularFile;
 pub use crate::fixed::FixedFile;
 pub use crate::handle::DirectoryEntry;
 pub use crate::handle::OpenHandle;
-pub use crate::symlink::SymLink;
 pub use crate::model::*;
+pub use crate::symlink::SymLink;

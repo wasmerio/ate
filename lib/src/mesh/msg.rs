@@ -1,52 +1,51 @@
 use async_trait::async_trait;
-use serde::{Serialize, Deserialize};
 use bytes::Bytes;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::{crypto::{PrivateEncryptKey, PrivateSignKey}, meta::{CoreMetadata, Metadata}};
-use crate::crypto::AteHash;
-use crate::event::*;
-use crate::chain::ChainKey;
-use crate::pipe::EventPipe;
 use crate::chain::Chain;
-use crate::error::*;
-use crate::header::PrimaryKey;
-use crate::spec::*;
-use crate::session::AteSessionUser;
+use crate::chain::ChainKey;
+use crate::crypto::AteHash;
 use crate::crypto::PublicSignKey;
+use crate::error::*;
+use crate::event::*;
+use crate::header::PrimaryKey;
+use crate::pipe::EventPipe;
+use crate::session::AteSessionUser;
+use crate::spec::*;
 use crate::time::ChainTimestamp;
+use crate::{
+    crypto::{PrivateEncryptKey, PrivateSignKey},
+    meta::{CoreMetadata, Metadata},
+};
 
 use super::NodeId;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub(super) struct MessageEvent
-{
+pub(super) struct MessageEvent {
     pub(crate) meta: Metadata,
     pub(crate) data: Option<Vec<u8>>,
     pub(crate) format: MessageFormat,
 }
 
-impl MessageEvent
-{
-    pub(crate) fn convert_to(evts: &Vec<EventData>) -> Vec<MessageEvent>
-    {
+impl MessageEvent {
+    pub(crate) fn convert_to(evts: &Vec<EventData>) -> Vec<MessageEvent> {
         let mut feed_me = Vec::new();
         for evt in evts {
             let evt = MessageEvent {
-                    meta: evt.meta.clone(),
-                    data: match &evt.data_bytes {
-                        Some(d) => Some(d.to_vec()),
-                        None => None,
-                    },
-                    format: evt.format,
-                };
+                meta: evt.meta.clone(),
+                data: match &evt.data_bytes {
+                    Some(d) => Some(d.to_vec()),
+                    None => None,
+                },
+                format: evt.format,
+            };
             feed_me.push(evt);
         }
         feed_me
     }
 
-    pub(crate) fn convert_from_single(evt: MessageEvent) -> EventData
-    {
+    pub(crate) fn convert_from_single(evt: MessageEvent) -> EventData {
         EventData {
             meta: evt.meta.clone(),
             data_bytes: match evt.data {
@@ -57,8 +56,7 @@ impl MessageEvent
         }
     }
 
-    pub(crate) fn convert_from(evts: impl Iterator<Item=MessageEvent>) -> Vec<EventData>
-    {
+    pub(crate) fn convert_from(evts: impl Iterator<Item = MessageEvent>) -> Vec<EventData> {
         let mut feed_me = Vec::new();
         for evt in evts {
             feed_me.push(MessageEvent::convert_from_single(evt));
@@ -75,45 +73,39 @@ impl MessageEvent
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum FatalTerminate
-{
+pub enum FatalTerminate {
     NotYetSubscribed,
     NotFound,
     NotThisRoot,
-    RootRedirect {
-        expected: u32,
-        actual: u32,
-    },
-    Denied {
-        reason: String
-    },
-    Other {
-        err: String
-    },
+    RootRedirect { expected: u32, actual: u32 },
+    Denied { reason: String },
+    Other { err: String },
 }
 
-impl std::fmt::Display
-for FatalTerminate {
+impl std::fmt::Display for FatalTerminate {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             FatalTerminate::NotYetSubscribed => {
                 write!(f, "Performed an action while the chain is not subscribed")
-            },
+            }
             FatalTerminate::NotFound => {
                 write!(f, "The chain is not found")
-            },
+            }
             FatalTerminate::NotThisRoot => {
-                write!(f, "Failed to create chain-of-trust as this is the wrong root node")
-            },
+                write!(
+                    f,
+                    "Failed to create chain-of-trust as this is the wrong root node"
+                )
+            }
             FatalTerminate::RootRedirect { expected, actual } => {
                 write!(f, "Failed to create chain-of-trust as the server you connected (node_id={}) is not hosting these chains - instead you must connect to another node (node_id={})", actual, expected)
-            },
+            }
             FatalTerminate::Denied { reason } => {
                 write!(f, "Access to this chain is denied - {}", reason)
-            },
+            }
             FatalTerminate::Other { err } => {
                 write!(f, "Fatal error occured - {}", err)
-            },
+            }
         }
     }
 }
@@ -141,7 +133,7 @@ pub(super) enum Message {
     },
     LockResult {
         key: PrimaryKey,
-        is_locked: bool
+        is_locked: bool,
     },
 
     NewConversation {
@@ -157,10 +149,10 @@ pub(super) enum Message {
     },
     Events {
         commit: Option<u64>,
-        evts: Vec<MessageEvent>
+        evts: Vec<MessageEvent>,
     },
     EndOfHistory,
-    
+
     /// Asks to confirm all events are up-to-date for transaction keeping purposes
     Confirmed(u64),
     CommitError {
@@ -173,9 +165,7 @@ pub(super) enum Message {
     SecuredWith(AteSessionUser),
 }
 
-impl Default
-for Message
-{
+impl Default for Message {
     fn default() -> Message {
         Message::Noop
     }

@@ -1,8 +1,8 @@
 use error_chain::error_chain;
 use std::time::Duration;
 
-use ::ate::prelude::*;
 use crate::request::*;
+use ::ate::prelude::*;
 
 error_chain! {
     types {
@@ -53,16 +53,13 @@ error_chain! {
     }
 }
 
-impl From<LoginError>
-for AteError
-{
+impl From<LoginError> for AteError {
     fn from(err: LoginError) -> AteError {
         AteErrorKind::ServiceError(err.to_string()).into()
     }
 }
 
-impl From<LoginFailed>
-for LoginError {
+impl From<LoginFailed> for LoginError {
     fn from(err: LoginFailed) -> LoginError {
         match err {
             LoginFailed::AccountLocked(duration) => LoginErrorKind::AccountLocked(duration).into(),

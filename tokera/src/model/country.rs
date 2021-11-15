@@ -1,17 +1,30 @@
+use clap::Parser;
 use serde::*;
 use std::str::FromStr;
-use clap::Parser;
 use strum::IntoEnumIterator;
-use strum_macros::EnumIter;
 use strum_macros::Display;
+use strum_macros::EnumIter;
 
 use crate::model::*;
 
 /// Lists all the different national currencies that are available in the
 /// world plus a set of attributes.
-#[derive(Serialize, Deserialize, Display, Debug, Parser, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, EnumIter)]
-pub enum Country
-{
+#[derive(
+    Serialize,
+    Deserialize,
+    Display,
+    Debug,
+    Parser,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    EnumIter,
+)]
+pub enum Country {
     #[clap()]
     ABW,
     #[clap()]
@@ -507,14 +520,12 @@ pub enum Country
     #[clap()]
     ZMB,
     #[clap()]
-    ZWE
+    ZWE,
 }
 
-impl Country
-{    
+impl Country {
     pub fn official_name(&self) -> &str {
         self.params().0
-
     }
 
     pub fn short_name(&self) -> &str {
@@ -541,8 +552,17 @@ impl Country
         self.params().6
     }
 
-    fn params(&self) -> (&str, &str, &str, &str, u16, NationalCurrency, Option<Decimal>)
-    {
+    fn params(
+        &self,
+    ) -> (
+        &str,
+        &str,
+        &str,
+        &str,
+        u16,
+        NationalCurrency,
+        Option<Decimal>,
+    ) {
         match self {
             Country::ABW => (
                 "Aruba",
@@ -551,7 +571,7 @@ impl Country
                 "ABW",
                 533,
                 NationalCurrency::AWG,
-                None
+                None,
             ),
             Country::AFG => (
                 "Islamic Republic of Afghanistan",
@@ -560,7 +580,7 @@ impl Country
                 "AFG",
                 004,
                 NationalCurrency::AFN,
-                None
+                None,
             ),
             Country::AGO => (
                 "Republic of Angola",
@@ -569,7 +589,7 @@ impl Country
                 "AGO",
                 024,
                 NationalCurrency::AOA,
-                Some(Decimal::from_str("14.0").unwrap())
+                Some(Decimal::from_str("14.0").unwrap()),
             ),
             Country::AIA => (
                 "Anguilla",
@@ -578,7 +598,7 @@ impl Country
                 "AIA",
                 660,
                 NationalCurrency::XCD,
-                None
+                None,
             ),
             Country::ALA => (
                 "Åland Islands",
@@ -587,7 +607,7 @@ impl Country
                 "ALA",
                 248,
                 NationalCurrency::EUR,
-                None
+                None,
             ),
             Country::ALB => (
                 "Republic of Albania",
@@ -596,7 +616,7 @@ impl Country
                 "ALB",
                 008,
                 NationalCurrency::ALL,
-                Some(Decimal::from_str("20.0").unwrap())
+                Some(Decimal::from_str("20.0").unwrap()),
             ),
             Country::AND => (
                 "Principality of Andorra",
@@ -605,7 +625,7 @@ impl Country
                 "AND",
                 020,
                 NationalCurrency::EUR,
-                Some(Decimal::from_str("4.5").unwrap())
+                Some(Decimal::from_str("4.5").unwrap()),
             ),
             Country::ARE => (
                 "United Arab Emirates",
@@ -614,7 +634,7 @@ impl Country
                 "ARE",
                 784,
                 NationalCurrency::AED,
-                None
+                None,
             ),
             Country::ARG => (
                 "Argentine Republic",
@@ -623,7 +643,7 @@ impl Country
                 "ARG",
                 032,
                 NationalCurrency::ARS,
-                Some(Decimal::from_str("20.0").unwrap())
+                Some(Decimal::from_str("20.0").unwrap()),
             ),
             Country::ARM => (
                 "Republic of Armenia",
@@ -632,7 +652,7 @@ impl Country
                 "ARM",
                 051,
                 NationalCurrency::AMD,
-                Some(Decimal::from_str("20.0").unwrap())
+                Some(Decimal::from_str("20.0").unwrap()),
             ),
             Country::ASM => (
                 "American Samoa",
@@ -641,7 +661,7 @@ impl Country
                 "ASM",
                 016,
                 NationalCurrency::WST,
-                None
+                None,
             ),
             Country::ATA => (
                 "Antarctica",
@@ -650,7 +670,7 @@ impl Country
                 "ATA",
                 010,
                 NationalCurrency::AAD,
-                None
+                None,
             ),
             Country::ATF => (
                 "French Southern and Antarctic Lands",
@@ -659,7 +679,7 @@ impl Country
                 "ATF",
                 260,
                 NationalCurrency::EUR,
-                None
+                None,
             ),
             Country::ATG => (
                 "Antigua and Barbuda",
@@ -668,7 +688,7 @@ impl Country
                 "ATG",
                 028,
                 NationalCurrency::XCD,
-                None
+                None,
             ),
             Country::AUS => (
                 "Commonwealth of Australia",
@@ -677,7 +697,7 @@ impl Country
                 "AUS",
                 036,
                 NationalCurrency::AUD,
-                Some(Decimal::from_str("10.0").unwrap())
+                Some(Decimal::from_str("10.0").unwrap()),
             ),
             Country::AUT => (
                 "Republic of Austria",
@@ -686,7 +706,7 @@ impl Country
                 "AUT",
                 040,
                 NationalCurrency::EUR,
-                Some(Decimal::from_str("20.0").unwrap())
+                Some(Decimal::from_str("20.0").unwrap()),
             ),
             Country::AZE => (
                 "Republic of Azerbaijan",
@@ -695,7 +715,7 @@ impl Country
                 "AZE",
                 031,
                 NationalCurrency::AZN,
-                Some(Decimal::from_str("12.0").unwrap())
+                Some(Decimal::from_str("12.0").unwrap()),
             ),
             Country::BDI => (
                 "Republic of Burundi",
@@ -704,7 +724,7 @@ impl Country
                 "BDI",
                 108,
                 NationalCurrency::BIF,
-                None
+                None,
             ),
             Country::BEL => (
                 "Kingdom of Belgium",
@@ -713,16 +733,16 @@ impl Country
                 "BEL",
                 056,
                 NationalCurrency::EUR,
-                Some(Decimal::from_str("21.0").unwrap())
+                Some(Decimal::from_str("21.0").unwrap()),
             ),
-            Country::BEN => ( 
+            Country::BEN => (
                 "Republic of Benin",
                 "Benin",
                 "BJ",
                 "BEN",
                 204,
                 NationalCurrency::XOF,
-                None
+                None,
             ),
             Country::BES => (
                 "Bonaire, Sint Eustatius and Saba",
@@ -731,7 +751,7 @@ impl Country
                 "BES",
                 535,
                 NationalCurrency::USD,
-                None
+                None,
             ),
             Country::BFA => (
                 "Burkina Faso",
@@ -740,7 +760,7 @@ impl Country
                 "BFA",
                 854,
                 NationalCurrency::XOF,
-                None
+                None,
             ),
             Country::BGD => (
                 "People's Republic of Bangladesh",
@@ -749,7 +769,7 @@ impl Country
                 "BGD",
                 050,
                 NationalCurrency::BDT,
-                Some(Decimal::from_str("15.0").unwrap())
+                Some(Decimal::from_str("15.0").unwrap()),
             ),
             Country::BGR => (
                 "Republic of Bulgaria",
@@ -758,7 +778,7 @@ impl Country
                 "BGR",
                 100,
                 NationalCurrency::BGN,
-                None
+                None,
             ),
             Country::BHR => (
                 "Kingdom of Bahrain",
@@ -767,7 +787,7 @@ impl Country
                 "BHR",
                 048,
                 NationalCurrency::BHD,
-                None
+                None,
             ),
             Country::BHS => (
                 "Commonwealth of The Bahamas",
@@ -776,7 +796,7 @@ impl Country
                 "BHS",
                 044,
                 NationalCurrency::BSD,
-                Some(Decimal::from_str("12.0").unwrap())
+                Some(Decimal::from_str("12.0").unwrap()),
             ),
             Country::BIH => (
                 "Bosnia and Herzegovina",
@@ -785,7 +805,7 @@ impl Country
                 "BIH",
                 070,
                 NationalCurrency::BAM,
-                None
+                None,
             ),
             Country::BLM => (
                 "Saint Barthélemy",
@@ -794,7 +814,7 @@ impl Country
                 "BLM",
                 652,
                 NationalCurrency::EUR,
-                None
+                None,
             ),
             Country::BLR => (
                 "Republic of Belarus",
@@ -803,7 +823,7 @@ impl Country
                 "BLR",
                 112,
                 NationalCurrency::BYR,
-                Some(Decimal::from_str("20.0").unwrap())
+                Some(Decimal::from_str("20.0").unwrap()),
             ),
             Country::BLZ => (
                 "Belize",
@@ -812,7 +832,7 @@ impl Country
                 "BLZ",
                 084,
                 NationalCurrency::BZD,
-                None
+                None,
             ),
             Country::BMU => (
                 "Bermuda",
@@ -821,7 +841,7 @@ impl Country
                 "BMU",
                 060,
                 NationalCurrency::BMD,
-                None
+                None,
             ),
             Country::BOL => (
                 "Plurinational State of Bolivia",
@@ -830,7 +850,7 @@ impl Country
                 "BOL",
                 068,
                 NationalCurrency::BOB,
-                None
+                None,
             ),
             Country::BRA => (
                 "Federative Republic of Brazil",
@@ -839,7 +859,7 @@ impl Country
                 "BRA",
                 076,
                 NationalCurrency::BRL,
-                Some(Decimal::from_str("2.0").unwrap())
+                Some(Decimal::from_str("2.0").unwrap()),
             ),
             Country::BRB => (
                 "Barbados",
@@ -848,7 +868,7 @@ impl Country
                 "BRB",
                 052,
                 NationalCurrency::BBD,
-                None
+                None,
             ),
             Country::BRN => (
                 "Nation of Brunei, the Abode of Peace",
@@ -857,7 +877,7 @@ impl Country
                 "BRN",
                 096,
                 NationalCurrency::BND,
-                None
+                None,
             ),
             Country::BTN => (
                 "Kingdom of Bhutan",
@@ -866,7 +886,7 @@ impl Country
                 "BTN",
                 064,
                 NationalCurrency::BTN,
-                None
+                None,
             ),
             Country::BVT => (
                 "Bouvet Island",
@@ -875,7 +895,7 @@ impl Country
                 "BVT",
                 074,
                 NationalCurrency::NOK,
-                None
+                None,
             ),
             Country::BWA => (
                 "Republic of Botswana",
@@ -884,7 +904,7 @@ impl Country
                 "BWA",
                 072,
                 NationalCurrency::BWP,
-                None
+                None,
             ),
             Country::CAF => (
                 "Central African Republic",
@@ -893,7 +913,7 @@ impl Country
                 "CAF",
                 140,
                 NationalCurrency::XAF,
-                None
+                None,
             ),
             Country::CAN => (
                 "Canada",
@@ -902,7 +922,7 @@ impl Country
                 "CAN",
                 124,
                 NationalCurrency::CAD,
-                Some(Decimal::from_str("5.0").unwrap())
+                Some(Decimal::from_str("5.0").unwrap()),
             ),
             Country::CCK => (
                 "Territory of Cocos {Keeling} Islands",
@@ -911,7 +931,7 @@ impl Country
                 "CCK",
                 166,
                 NationalCurrency::AUD,
-                Some(Decimal::from_str("10.0").unwrap())
+                Some(Decimal::from_str("10.0").unwrap()),
             ),
             Country::CHE => (
                 "Swiss Confederation",
@@ -920,7 +940,7 @@ impl Country
                 "CHE",
                 756,
                 NationalCurrency::CHF,
-                None
+                None,
             ),
             Country::CHL => (
                 "Republic of Chile",
@@ -929,7 +949,7 @@ impl Country
                 "CHL",
                 152,
                 NationalCurrency::CLP,
-                Some(Decimal::from_str("19.0").unwrap())
+                Some(Decimal::from_str("19.0").unwrap()),
             ),
             Country::CHN => (
                 "People's Republic of China",
@@ -938,7 +958,7 @@ impl Country
                 "CHN",
                 156,
                 NationalCurrency::CNY,
-                Some(Decimal::from_str("6.0").unwrap())
+                Some(Decimal::from_str("6.0").unwrap()),
             ),
             Country::CIV => (
                 "Republic of Côte d'Ivoire",
@@ -947,7 +967,7 @@ impl Country
                 "CIV",
                 384,
                 NationalCurrency::XOF,
-                None
+                None,
             ),
             Country::CMR => (
                 "Republic of Cameroon",
@@ -956,7 +976,7 @@ impl Country
                 "CMR",
                 120,
                 NationalCurrency::XAF,
-                Some(Decimal::from_str("20.0").unwrap())
+                Some(Decimal::from_str("20.0").unwrap()),
             ),
             Country::COD => (
                 "Democratic Republic of the Congo",
@@ -965,7 +985,7 @@ impl Country
                 "COD",
                 180,
                 NationalCurrency::XAF,
-                None
+                None,
             ),
             Country::COG => (
                 "Republic of the Congo",
@@ -974,7 +994,7 @@ impl Country
                 "COG",
                 178,
                 NationalCurrency::XAF,
-                None
+                None,
             ),
             Country::COK => (
                 "Cook Islands",
@@ -983,7 +1003,7 @@ impl Country
                 "COK",
                 184,
                 NationalCurrency::NZD,
-                None
+                None,
             ),
             Country::COL => (
                 "Republic of Colombia",
@@ -992,7 +1012,7 @@ impl Country
                 "COL",
                 170,
                 NationalCurrency::COP,
-                Some(Decimal::from_str("19.0").unwrap())
+                Some(Decimal::from_str("19.0").unwrap()),
             ),
             Country::COM => (
                 "Union of the Comoros",
@@ -1001,7 +1021,7 @@ impl Country
                 "COM",
                 174,
                 NationalCurrency::KMF,
-                None
+                None,
             ),
             Country::CPV => (
                 "Republic of Cabo Verde",
@@ -1010,7 +1030,7 @@ impl Country
                 "CPV",
                 132,
                 NationalCurrency::CVE,
-                None
+                None,
             ),
             Country::CPI => (
                 "Republic of Costa Rica",
@@ -1019,7 +1039,7 @@ impl Country
                 "CPI",
                 188,
                 NationalCurrency::CRC,
-                Some(Decimal::from_str("19.0").unwrap())
+                Some(Decimal::from_str("19.0").unwrap()),
             ),
             Country::CUB => (
                 "Republic of Cuba",
@@ -1028,7 +1048,7 @@ impl Country
                 "CUB",
                 192,
                 NationalCurrency::CUP,
-                Some(Decimal::from_str("12.0").unwrap())
+                Some(Decimal::from_str("12.0").unwrap()),
             ),
             Country::CUW => (
                 "Curaçao",
@@ -1037,7 +1057,7 @@ impl Country
                 "CUW",
                 531,
                 NationalCurrency::ANG,
-                None
+                None,
             ),
             Country::CXR => (
                 "Territory of Christmas Island",
@@ -1046,7 +1066,7 @@ impl Country
                 "CXR",
                 162,
                 NationalCurrency::AUD,
-                Some(Decimal::from_str("10.0").unwrap())
+                Some(Decimal::from_str("10.0").unwrap()),
             ),
             Country::CYM => (
                 "Cayman Islands",
@@ -1055,7 +1075,7 @@ impl Country
                 "CYM",
                 136,
                 NationalCurrency::KYD,
-                None
+                None,
             ),
             Country::CYP => (
                 "Republic of Cyprus",
@@ -1064,7 +1084,7 @@ impl Country
                 "CYP",
                 196,
                 NationalCurrency::EUR,
-                Some(Decimal::from_str("19.0").unwrap())
+                Some(Decimal::from_str("19.0").unwrap()),
             ),
             Country::CZE => (
                 "Czech Republic",
@@ -1073,7 +1093,7 @@ impl Country
                 "CZE",
                 203,
                 NationalCurrency::CZK,
-                None
+                None,
             ),
             Country::DEU => (
                 "Federal Republic of Germany",
@@ -1082,7 +1102,7 @@ impl Country
                 "DEU",
                 276,
                 NationalCurrency::EUR,
-                Some(Decimal::from_str("19.0").unwrap())
+                Some(Decimal::from_str("19.0").unwrap()),
             ),
             Country::DJI => (
                 "Republic of Djibouti",
@@ -1091,7 +1111,7 @@ impl Country
                 "DJI",
                 262,
                 NationalCurrency::DJF,
-                None
+                None,
             ),
             Country::DMA => (
                 "Commonwealth of Dominica",
@@ -1100,7 +1120,7 @@ impl Country
                 "DMA",
                 212,
                 NationalCurrency::DOP,
-                None
+                None,
             ),
             Country::DNK => (
                 "Kingdom of Denmark",
@@ -1109,7 +1129,7 @@ impl Country
                 "DNK",
                 208,
                 NationalCurrency::DKK,
-                None
+                None,
             ),
             Country::DOM => (
                 "Dominican Republic",
@@ -1118,7 +1138,7 @@ impl Country
                 "DOM",
                 214,
                 NationalCurrency::DOP,
-                None
+                None,
             ),
             Country::DZA => (
                 "People's Democratic Republic of Algeria",
@@ -1127,7 +1147,7 @@ impl Country
                 "DZA",
                 012,
                 NationalCurrency::DZD,
-                Some(Decimal::from_str("9.0").unwrap())
+                Some(Decimal::from_str("9.0").unwrap()),
             ),
             Country::ECU => (
                 "Republic of Ecuador",
@@ -1136,7 +1156,7 @@ impl Country
                 "ECU",
                 218,
                 NationalCurrency::USD,
-                None
+                None,
             ),
             Country::EGY => (
                 "Arab Republic of Egypt",
@@ -1145,7 +1165,7 @@ impl Country
                 "EGY",
                 818,
                 NationalCurrency::EGP,
-                Some(Decimal::from_str("14.0").unwrap())
+                Some(Decimal::from_str("14.0").unwrap()),
             ),
             Country::ERI => (
                 "State of Eritrea",
@@ -1154,7 +1174,7 @@ impl Country
                 "ERI",
                 232,
                 NationalCurrency::ERN,
-                None
+                None,
             ),
             Country::ESP => (
                 "Kingdom of Spain",
@@ -1163,7 +1183,7 @@ impl Country
                 "ESP",
                 724,
                 NationalCurrency::EUR,
-                Some(Decimal::from_str("21.0").unwrap())
+                Some(Decimal::from_str("21.0").unwrap()),
             ),
             Country::EST => (
                 "Republic of Estonia",
@@ -1172,7 +1192,7 @@ impl Country
                 "EST",
                 233,
                 NationalCurrency::EUR,
-                Some(Decimal::from_str("20.0").unwrap())
+                Some(Decimal::from_str("20.0").unwrap()),
             ),
             Country::ETH => (
                 "Federal Democratic Republic of Ethiopia",
@@ -1181,7 +1201,7 @@ impl Country
                 "ETH",
                 231,
                 NationalCurrency::ETB,
-                None
+                None,
             ),
             Country::FIN => (
                 "Republic of Finland",
@@ -1190,7 +1210,7 @@ impl Country
                 "FIN",
                 246,
                 NationalCurrency::EUR,
-                Some(Decimal::from_str("24.0").unwrap())
+                Some(Decimal::from_str("24.0").unwrap()),
             ),
             Country::FJI => (
                 "Republic of Fiji",
@@ -1199,7 +1219,7 @@ impl Country
                 "FJI",
                 242,
                 NationalCurrency::FJD,
-                None
+                None,
             ),
             Country::FLK => (
                 "Falkland Islands",
@@ -1208,7 +1228,7 @@ impl Country
                 "FLK",
                 238,
                 NationalCurrency::FKP,
-                None
+                None,
             ),
             Country::FRA => (
                 "French Republic",
@@ -1217,7 +1237,7 @@ impl Country
                 "FRA",
                 250,
                 NationalCurrency::EUR,
-                Some(Decimal::from_str("20.0").unwrap())
+                Some(Decimal::from_str("20.0").unwrap()),
             ),
             Country::FRO => (
                 "Faroe Islands",
@@ -1226,7 +1246,7 @@ impl Country
                 "FRO",
                 234,
                 NationalCurrency::DKK,
-                None
+                None,
             ),
             Country::FSM => (
                 "Federated States of Micronesia",
@@ -1235,7 +1255,7 @@ impl Country
                 "FSM",
                 583,
                 NationalCurrency::USD,
-                None
+                None,
             ),
             Country::GAB => (
                 "Gabonese Republic",
@@ -1244,7 +1264,7 @@ impl Country
                 "GAB",
                 266,
                 NationalCurrency::XAF,
-                None
+                None,
             ),
             Country::GBR => (
                 "United Kingdom of Great Britain and Northern Ireland",
@@ -1253,7 +1273,7 @@ impl Country
                 "GBR",
                 826,
                 NationalCurrency::GBP,
-                None
+                None,
             ),
             Country::GEO => (
                 "Georgia",
@@ -1262,7 +1282,7 @@ impl Country
                 "GEO",
                 268,
                 NationalCurrency::GEL,
-                None
+                None,
             ),
             Country::GGY => (
                 "Bailiwick of Guernsey",
@@ -1271,7 +1291,7 @@ impl Country
                 "GGY",
                 831,
                 NationalCurrency::GBP,
-                None
+                None,
             ),
             Country::GHA => (
                 "Republic of Ghana",
@@ -1280,7 +1300,7 @@ impl Country
                 "GHA",
                 288,
                 NationalCurrency::GHS,
-                Some(Decimal::from_str("17.0").unwrap())
+                Some(Decimal::from_str("17.0").unwrap()),
             ),
             Country::GIB => (
                 "Gibraltar",
@@ -1289,7 +1309,7 @@ impl Country
                 "GIB",
                 292,
                 NationalCurrency::GIP,
-                None
+                None,
             ),
             Country::GIN => (
                 "Republic of Guinea",
@@ -1298,7 +1318,7 @@ impl Country
                 "GIN",
                 324,
                 NationalCurrency::GNF,
-                None
+                None,
             ),
             Country::GLP => (
                 "Guadeloupe",
@@ -1307,7 +1327,7 @@ impl Country
                 "GLP",
                 312,
                 NationalCurrency::EUR,
-                None
+                None,
             ),
             Country::GMB => (
                 "Republic of the Gambia",
@@ -1316,7 +1336,7 @@ impl Country
                 "GMB",
                 270,
                 NationalCurrency::GMD,
-                None
+                None,
             ),
             Country::GNB => (
                 "Republic of Guinea-Bissau",
@@ -1325,7 +1345,7 @@ impl Country
                 "GNB",
                 624,
                 NationalCurrency::XOF,
-                None
+                None,
             ),
             Country::GNQ => (
                 "Republic of Equatorial Guinea",
@@ -1334,7 +1354,7 @@ impl Country
                 "GNQ",
                 226,
                 NationalCurrency::PGK,
-                None
+                None,
             ),
             Country::GRC => (
                 "Hellenic Republic",
@@ -1343,7 +1363,7 @@ impl Country
                 "GRC",
                 300,
                 NationalCurrency::EUR,
-                Some(Decimal::from_str("24.0").unwrap())
+                Some(Decimal::from_str("24.0").unwrap()),
             ),
             Country::GRD => (
                 "Grenada",
@@ -1352,7 +1372,7 @@ impl Country
                 "GRD",
                 308,
                 NationalCurrency::XCD,
-                None
+                None,
             ),
             Country::GRL => (
                 "Greenland",
@@ -1361,7 +1381,7 @@ impl Country
                 "GRL",
                 304,
                 NationalCurrency::DKK,
-                None
+                None,
             ),
             Country::GTM => (
                 "Republic of Guatemala",
@@ -1370,7 +1390,7 @@ impl Country
                 "GTM",
                 320,
                 NationalCurrency::GTQ,
-                None
+                None,
             ),
             Country::GUF => (
                 "French Guiana",
@@ -1379,7 +1399,7 @@ impl Country
                 "GUF",
                 254,
                 NationalCurrency::EUR,
-                None
+                None,
             ),
             Country::GUM => (
                 "Guam",
@@ -1388,7 +1408,7 @@ impl Country
                 "GUM",
                 316,
                 NationalCurrency::USD,
-                None
+                None,
             ),
             Country::GUY => (
                 "Co‑operative Republic of Guyana",
@@ -1397,7 +1417,7 @@ impl Country
                 "GUY",
                 328,
                 NationalCurrency::GYD,
-                None
+                None,
             ),
             Country::HKG => (
                 "Hong Kong Special Administrative Region of the People's Republic of China",
@@ -1406,7 +1426,7 @@ impl Country
                 "HKG",
                 344,
                 NationalCurrency::HKD,
-                None
+                None,
             ),
             Country::HMD => (
                 "Territory of Heard Island and McDonald Islands",
@@ -1415,7 +1435,7 @@ impl Country
                 "HMD",
                 334,
                 NationalCurrency::AUD,
-                Some(Decimal::from_str("10.0").unwrap())
+                Some(Decimal::from_str("10.0").unwrap()),
             ),
             Country::HND => (
                 "Republic of Honduras",
@@ -1424,7 +1444,7 @@ impl Country
                 "HND",
                 340,
                 NationalCurrency::HNL,
-                None
+                None,
             ),
             Country::HRV => (
                 "Republic of Croatia",
@@ -1433,7 +1453,7 @@ impl Country
                 "HRV",
                 191,
                 NationalCurrency::HRK,
-                None
+                None,
             ),
             Country::HTI => (
                 "Republic of Haiti",
@@ -1442,7 +1462,7 @@ impl Country
                 "HTI",
                 332,
                 NationalCurrency::HTG,
-                None
+                None,
             ),
             Country::HUN => (
                 "Hungary",
@@ -1451,7 +1471,7 @@ impl Country
                 "HUN",
                 348,
                 NationalCurrency::HUF,
-                None
+                None,
             ),
             Country::IDN => (
                 "Republic of Indonesia",
@@ -1460,7 +1480,7 @@ impl Country
                 "IDN",
                 360,
                 NationalCurrency::IDR,
-                Some(Decimal::from_str("10.0").unwrap())
+                Some(Decimal::from_str("10.0").unwrap()),
             ),
             Country::IMN => (
                 "Isle of Man",
@@ -1469,7 +1489,7 @@ impl Country
                 "IMN",
                 833,
                 NationalCurrency::GBP,
-                None
+                None,
             ),
             Country::IND => (
                 "Republic of India",
@@ -1478,7 +1498,7 @@ impl Country
                 "IND",
                 356,
                 NationalCurrency::INR,
-                Some(Decimal::from_str("18.0").unwrap())
+                Some(Decimal::from_str("18.0").unwrap()),
             ),
             Country::IOT => (
                 "British Indian Ocean Territory",
@@ -1487,7 +1507,7 @@ impl Country
                 "IOT",
                 086,
                 NationalCurrency::GBP,
-                None
+                None,
             ),
             Country::IRL => (
                 "Republic of Ireland",
@@ -1496,7 +1516,7 @@ impl Country
                 "IRL",
                 372,
                 NationalCurrency::EUR,
-                Some(Decimal::from_str("9.0").unwrap())
+                Some(Decimal::from_str("9.0").unwrap()),
             ),
             Country::IRN => (
                 "Islamic Republic of Iran",
@@ -1505,7 +1525,7 @@ impl Country
                 "IRN",
                 364,
                 NationalCurrency::IRR,
-                None
+                None,
             ),
             Country::IRQ => (
                 "Republic of Iraq",
@@ -1514,7 +1534,7 @@ impl Country
                 "IRQ",
                 368,
                 NationalCurrency::IQD,
-                None
+                None,
             ),
             Country::ISL => (
                 "Iceland",
@@ -1523,7 +1543,7 @@ impl Country
                 "ISL",
                 352,
                 NationalCurrency::ISK,
-                Some(Decimal::from_str("24.0").unwrap())
+                Some(Decimal::from_str("24.0").unwrap()),
             ),
             Country::ISR => (
                 "State of Israel",
@@ -1532,7 +1552,7 @@ impl Country
                 "ISR",
                 376,
                 NationalCurrency::ILS,
-                None
+                None,
             ),
             Country::ITA => (
                 "Italian Republic",
@@ -1541,7 +1561,7 @@ impl Country
                 "ITA",
                 380,
                 NationalCurrency::EUR,
-                Some(Decimal::from_str("22.0").unwrap())
+                Some(Decimal::from_str("22.0").unwrap()),
             ),
             Country::JAM => (
                 "Jamaica",
@@ -1550,7 +1570,7 @@ impl Country
                 "JAM",
                 388,
                 NationalCurrency::JMD,
-                None
+                None,
             ),
             Country::JEY => (
                 "Bailiwick of Jersey",
@@ -1559,7 +1579,7 @@ impl Country
                 "JEY",
                 832,
                 NationalCurrency::GBP,
-                None
+                None,
             ),
             Country::JOR => (
                 "Hashemite Kingdom of Jordan",
@@ -1568,7 +1588,7 @@ impl Country
                 "JOR",
                 400,
                 NationalCurrency::JOD,
-                None
+                None,
             ),
             Country::JPN => (
                 "Japan",
@@ -1577,7 +1597,7 @@ impl Country
                 "JPN",
                 392,
                 NationalCurrency::JPY,
-                Some(Decimal::from_str("10.0").unwrap())
+                Some(Decimal::from_str("10.0").unwrap()),
             ),
             Country::KAZ => (
                 "Republic of Kazakhstan",
@@ -1586,7 +1606,7 @@ impl Country
                 "KAZ",
                 398,
                 NationalCurrency::KZT,
-                Some(Decimal::from_str("12.0").unwrap())
+                Some(Decimal::from_str("12.0").unwrap()),
             ),
             Country::KEN => (
                 "Republic of Kenya",
@@ -1595,7 +1615,7 @@ impl Country
                 "KEN",
                 404,
                 NationalCurrency::KES,
-                Some(Decimal::from_str("14.0").unwrap())
+                Some(Decimal::from_str("14.0").unwrap()),
             ),
             Country::KGZ => (
                 "Kyrgyz Republic",
@@ -1604,7 +1624,7 @@ impl Country
                 "KGZ",
                 417,
                 NationalCurrency::KGS,
-                None
+                None,
             ),
             Country::KHM => (
                 "Kingdom of Cambodia",
@@ -1613,7 +1633,7 @@ impl Country
                 "KHM",
                 116,
                 NationalCurrency::KHR,
-                None
+                None,
             ),
             Country::KIR => (
                 "Republic of Kiribati",
@@ -1622,7 +1642,7 @@ impl Country
                 "KIR",
                 296,
                 NationalCurrency::AUD,
-                Some(Decimal::from_str("10.0").unwrap())
+                Some(Decimal::from_str("10.0").unwrap()),
             ),
             Country::KNA => (
                 "Federation of Saint Christopher and Nevis",
@@ -1631,7 +1651,7 @@ impl Country
                 "KNA",
                 659,
                 NationalCurrency::XCD,
-                None
+                None,
             ),
             Country::KOR => (
                 "Republic of Korea",
@@ -1640,7 +1660,7 @@ impl Country
                 "KOR",
                 410,
                 NationalCurrency::KRW,
-                None
+                None,
             ),
             Country::KWT => (
                 "State of Kuwait",
@@ -1649,7 +1669,7 @@ impl Country
                 "KWT",
                 414,
                 NationalCurrency::KWD,
-                None
+                None,
             ),
             Country::LAO => (
                 "Lao People's Democratic Republic",
@@ -1658,7 +1678,7 @@ impl Country
                 "LAO",
                 418,
                 NationalCurrency::LAK,
-                None
+                None,
             ),
             Country::LBN => (
                 "Lebanese Republic",
@@ -1667,7 +1687,7 @@ impl Country
                 "LBN",
                 422,
                 NationalCurrency::LBP,
-                None
+                None,
             ),
             Country::LBR => (
                 "Republic of Liberia",
@@ -1676,7 +1696,7 @@ impl Country
                 "LBR",
                 430,
                 NationalCurrency::LRD,
-                None
+                None,
             ),
             Country::LBY => (
                 "State of Libya",
@@ -1685,7 +1705,7 @@ impl Country
                 "LBY",
                 434,
                 NationalCurrency::LYD,
-                None
+                None,
             ),
             Country::LCA => (
                 "Saint Lucia",
@@ -1694,7 +1714,7 @@ impl Country
                 "LCA",
                 662,
                 NationalCurrency::XCD,
-                None
+                None,
             ),
             Country::LIE => (
                 "Principality of Liechtenstein",
@@ -1703,7 +1723,7 @@ impl Country
                 "LIE",
                 438,
                 NationalCurrency::CHF,
-                None
+                None,
             ),
             Country::LKA => (
                 "Democratic Socialist Republic of Sri Lanka",
@@ -1712,7 +1732,7 @@ impl Country
                 "LKA",
                 144,
                 NationalCurrency::LKR,
-                None
+                None,
             ),
             Country::LSO => (
                 "Kingdom of Lesotho",
@@ -1721,7 +1741,7 @@ impl Country
                 "LSO",
                 426,
                 NationalCurrency::ZAR,
-                None
+                None,
             ),
             Country::LTU => (
                 "Republic of Lithuania",
@@ -1730,7 +1750,7 @@ impl Country
                 "LTU",
                 440,
                 NationalCurrency::EUR,
-                Some(Decimal::from_str("21.0").unwrap())
+                Some(Decimal::from_str("21.0").unwrap()),
             ),
             Country::LUX => (
                 "Grand Duchy of Luxembourg",
@@ -1739,7 +1759,7 @@ impl Country
                 "LUX",
                 442,
                 NationalCurrency::EUR,
-                Some(Decimal::from_str("17.0").unwrap())
+                Some(Decimal::from_str("17.0").unwrap()),
             ),
             Country::LVA => (
                 "Republic of Latvia",
@@ -1748,7 +1768,7 @@ impl Country
                 "LVA",
                 428,
                 NationalCurrency::EUR,
-                Some(Decimal::from_str("21.0").unwrap())
+                Some(Decimal::from_str("21.0").unwrap()),
             ),
             Country::MAC => (
                 "Macao Special Administrative Region of the People's Republic of China",
@@ -1757,7 +1777,7 @@ impl Country
                 "MAC",
                 446,
                 NationalCurrency::MOP,
-                None
+                None,
             ),
             Country::MAF => (
                 "Collectivity of Saint Martin",
@@ -1766,7 +1786,7 @@ impl Country
                 "MAF",
                 663,
                 NationalCurrency::EUR,
-                None
+                None,
             ),
             Country::MAR => (
                 "Kingdom of Morocco",
@@ -1775,7 +1795,7 @@ impl Country
                 "MAR",
                 504,
                 NationalCurrency::MAD,
-                Some(Decimal::from_str("20.0").unwrap())
+                Some(Decimal::from_str("20.0").unwrap()),
             ),
             Country::MCO => (
                 "Principality of Monaco",
@@ -1784,7 +1804,7 @@ impl Country
                 "MCO",
                 492,
                 NationalCurrency::EUR,
-                Some(Decimal::from_str("19.5").unwrap())
+                Some(Decimal::from_str("19.5").unwrap()),
             ),
             Country::MDA => (
                 "Republic of Moldova",
@@ -1793,7 +1813,7 @@ impl Country
                 "MDA",
                 498,
                 NationalCurrency::MDL,
-                Some(Decimal::from_str("20.0").unwrap())
+                Some(Decimal::from_str("20.0").unwrap()),
             ),
             Country::MDG => (
                 "Republic of Madagascar",
@@ -1802,7 +1822,7 @@ impl Country
                 "MDG",
                 450,
                 NationalCurrency::MGA,
-                None
+                None,
             ),
             Country::MDV => (
                 "Republic of Maldives",
@@ -1811,7 +1831,7 @@ impl Country
                 "MDV",
                 462,
                 NationalCurrency::MVR,
-                None
+                None,
             ),
             Country::MEX => (
                 "United Mexican States",
@@ -1820,7 +1840,7 @@ impl Country
                 "MEX",
                 484,
                 NationalCurrency::MXN,
-                Some(Decimal::from_str("16.0").unwrap())
+                Some(Decimal::from_str("16.0").unwrap()),
             ),
             Country::MHL => (
                 "Republic of the Marshall Islands",
@@ -1829,7 +1849,7 @@ impl Country
                 "MHL",
                 584,
                 NationalCurrency::USD,
-                None
+                None,
             ),
             Country::MKD => (
                 "Republic of North Macedonia",
@@ -1838,7 +1858,7 @@ impl Country
                 "MKD",
                 807,
                 NationalCurrency::MKD,
-                None
+                None,
             ),
             Country::MLI => (
                 "Republic of Mali",
@@ -1847,7 +1867,7 @@ impl Country
                 "MLI",
                 466,
                 NationalCurrency::XOF,
-                None
+                None,
             ),
             Country::MLT => (
                 "Republic of Malta",
@@ -1856,7 +1876,7 @@ impl Country
                 "MLT",
                 470,
                 NationalCurrency::EUR,
-                None
+                None,
             ),
             Country::MMR => (
                 "Republic of the Union of Myanmar",
@@ -1865,7 +1885,7 @@ impl Country
                 "MMR",
                 104,
                 NationalCurrency::MMK,
-                None
+                None,
             ),
             Country::MNE => (
                 "Montenegro",
@@ -1874,7 +1894,7 @@ impl Country
                 "MNE",
                 499,
                 NationalCurrency::EUR,
-                Some(Decimal::from_str("21.0").unwrap())
+                Some(Decimal::from_str("21.0").unwrap()),
             ),
             Country::MNG => (
                 "Mongolia",
@@ -1883,7 +1903,7 @@ impl Country
                 "MNG",
                 496,
                 NationalCurrency::MNT,
-                None
+                None,
             ),
             Country::MNP => (
                 "Commonwealth of the Northern Mariana Islands",
@@ -1892,7 +1912,7 @@ impl Country
                 "MNP",
                 580,
                 NationalCurrency::USD,
-                None
+                None,
             ),
             Country::MOZ => (
                 "Republic of Mozambique",
@@ -1901,7 +1921,7 @@ impl Country
                 "MOZ",
                 508,
                 NationalCurrency::MZN,
-                None
+                None,
             ),
             Country::MRT => (
                 "Islamic Republic of Mauritania",
@@ -1910,7 +1930,7 @@ impl Country
                 "MRT",
                 478,
                 NationalCurrency::MRO,
-                None
+                None,
             ),
             Country::MSR => (
                 "Montserrat",
@@ -1919,7 +1939,7 @@ impl Country
                 "MSR",
                 500,
                 NationalCurrency::XCD,
-                None
+                None,
             ),
             Country::MTQ => (
                 "Martinique",
@@ -1928,7 +1948,7 @@ impl Country
                 "MTQ",
                 474,
                 NationalCurrency::EUR,
-                None
+                None,
             ),
             Country::MUS => (
                 "Republic of Mauritius",
@@ -1937,7 +1957,7 @@ impl Country
                 "MUS",
                 480,
                 NationalCurrency::MUR,
-                Some(Decimal::from_str("15.0").unwrap())
+                Some(Decimal::from_str("15.0").unwrap()),
             ),
             Country::MWI => (
                 "Republic of Malawi",
@@ -1946,7 +1966,7 @@ impl Country
                 "MWI",
                 454,
                 NationalCurrency::MWK,
-                None
+                None,
             ),
             Country::MYS => (
                 "Malaysia",
@@ -1955,7 +1975,7 @@ impl Country
                 "MYS",
                 458,
                 NationalCurrency::MYR,
-                Some(Decimal::from_str("6.0").unwrap())
+                Some(Decimal::from_str("6.0").unwrap()),
             ),
             Country::MYT => (
                 "Department of Mayotte",
@@ -1964,7 +1984,7 @@ impl Country
                 "MYT",
                 175,
                 NationalCurrency::EUR,
-                None
+                None,
             ),
             Country::NAM => (
                 "Republic of Namibia",
@@ -1973,7 +1993,7 @@ impl Country
                 "NAM",
                 516,
                 NationalCurrency::NAD,
-                None
+                None,
             ),
             Country::NCL => (
                 "New Caledonia",
@@ -1982,7 +2002,7 @@ impl Country
                 "NCL",
                 540,
                 NationalCurrency::XPF,
-                None
+                None,
             ),
             Country::NER => (
                 "Republic of the Niger",
@@ -1991,7 +2011,7 @@ impl Country
                 "NER",
                 562,
                 NationalCurrency::XOF,
-                None
+                None,
             ),
             Country::NFK => (
                 "Norfolk Island",
@@ -2000,7 +2020,7 @@ impl Country
                 "NFK",
                 574,
                 NationalCurrency::AUD,
-                Some(Decimal::from_str("10.0").unwrap())
+                Some(Decimal::from_str("10.0").unwrap()),
             ),
             Country::NGA => (
                 "Federal Republic of Nigeria",
@@ -2009,7 +2029,7 @@ impl Country
                 "NGA",
                 566,
                 NationalCurrency::NGN,
-                None
+                None,
             ),
             Country::NIC => (
                 "Republic of Nicaragua",
@@ -2018,7 +2038,7 @@ impl Country
                 "NIC",
                 558,
                 NationalCurrency::NIO,
-                None
+                None,
             ),
             Country::NIU => (
                 "Niue",
@@ -2027,7 +2047,7 @@ impl Country
                 "NIU",
                 570,
                 NationalCurrency::NZD,
-                None
+                None,
             ),
             Country::NLD => (
                 "Netherlands",
@@ -2036,7 +2056,7 @@ impl Country
                 "NLD",
                 528,
                 NationalCurrency::EUR,
-                Some(Decimal::from_str("21.0").unwrap())
+                Some(Decimal::from_str("21.0").unwrap()),
             ),
             Country::NOR => (
                 "Kingdom of Norway",
@@ -2045,7 +2065,7 @@ impl Country
                 "NOR",
                 578,
                 NationalCurrency::NOK,
-                None
+                None,
             ),
             Country::NPL => (
                 "Federal Democratic Republic of Nepal",
@@ -2054,7 +2074,7 @@ impl Country
                 "NPL",
                 524,
                 NationalCurrency::NPR,
-                None
+                None,
             ),
             Country::NRU => (
                 "Republic of Nauru",
@@ -2063,7 +2083,7 @@ impl Country
                 "NRU",
                 520,
                 NationalCurrency::AUD,
-                Some(Decimal::from_str("10.0").unwrap())
+                Some(Decimal::from_str("10.0").unwrap()),
             ),
             Country::NZL => (
                 "New Zealand",
@@ -2072,7 +2092,7 @@ impl Country
                 "NZL",
                 554,
                 NationalCurrency::NZD,
-                None
+                None,
             ),
             Country::OMN => (
                 "Sultanate of Oman",
@@ -2081,7 +2101,7 @@ impl Country
                 "OMN",
                 512,
                 NationalCurrency::OMR,
-                None
+                None,
             ),
             Country::PAK => (
                 "Islamic Republic of Pakistan",
@@ -2090,7 +2110,7 @@ impl Country
                 "PAK",
                 586,
                 NationalCurrency::PKR,
-                None
+                None,
             ),
             Country::PAN => (
                 "Republic of Panama",
@@ -2099,7 +2119,7 @@ impl Country
                 "PAN",
                 591,
                 NationalCurrency::PAB,
-                None
+                None,
             ),
             Country::PCN => (
                 "Pitcairn, Henderson, Ducie and Oeno Islands",
@@ -2108,7 +2128,7 @@ impl Country
                 "PCN",
                 612,
                 NationalCurrency::NZD,
-                None
+                None,
             ),
             Country::PER => (
                 "Republic of Peru",
@@ -2117,7 +2137,7 @@ impl Country
                 "PER",
                 604,
                 NationalCurrency::PEN,
-                None
+                None,
             ),
             Country::PHL => (
                 "Republic of the Philippines",
@@ -2126,7 +2146,7 @@ impl Country
                 "PHL",
                 608,
                 NationalCurrency::PHP,
-                None
+                None,
             ),
             Country::PLW => (
                 "Republic of Palau",
@@ -2135,7 +2155,7 @@ impl Country
                 "PLW",
                 585,
                 NationalCurrency::USD,
-                None
+                None,
             ),
             Country::PNG => (
                 "Independent State of Papua New Guinea",
@@ -2144,7 +2164,7 @@ impl Country
                 "PNG",
                 598,
                 NationalCurrency::PGK,
-                None
+                None,
             ),
             Country::POL => (
                 "Republic of Poland",
@@ -2153,7 +2173,7 @@ impl Country
                 "POL",
                 616,
                 NationalCurrency::PLN,
-                None
+                None,
             ),
             Country::PRI => (
                 "Commonwealth of Puerto Rico",
@@ -2162,7 +2182,7 @@ impl Country
                 "PRI",
                 630,
                 NationalCurrency::USD,
-                None
+                None,
             ),
             Country::PRK => (
                 "Democratic People's Republic of Korea",
@@ -2171,7 +2191,7 @@ impl Country
                 "PRK",
                 408,
                 NationalCurrency::KPW,
-                None
+                None,
             ),
             Country::PRT => (
                 "Portuguese Republic",
@@ -2180,7 +2200,7 @@ impl Country
                 "PRT",
                 620,
                 NationalCurrency::EUR,
-                Some(Decimal::from_str("18.0").unwrap())
+                Some(Decimal::from_str("18.0").unwrap()),
             ),
             Country::PRY => (
                 "Republic of Paraguay",
@@ -2189,7 +2209,7 @@ impl Country
                 "PRY",
                 600,
                 NationalCurrency::PYG,
-                None
+                None,
             ),
             Country::PSE => (
                 "State of Palestine",
@@ -2198,7 +2218,7 @@ impl Country
                 "PSE",
                 275,
                 NationalCurrency::JOD,
-                None
+                None,
             ),
             Country::PYF => (
                 "French Polynesia",
@@ -2207,7 +2227,7 @@ impl Country
                 "PYF",
                 258,
                 NationalCurrency::XPF,
-                None
+                None,
             ),
             Country::QAT => (
                 "State of Qatar",
@@ -2216,7 +2236,7 @@ impl Country
                 "QAT",
                 634,
                 NationalCurrency::QAR,
-                None
+                None,
             ),
             Country::REU => (
                 "Réunion",
@@ -2225,7 +2245,7 @@ impl Country
                 "REU",
                 638,
                 NationalCurrency::EUR,
-                None
+                None,
             ),
             Country::ROU => (
                 "Romania",
@@ -2234,7 +2254,7 @@ impl Country
                 "ROU",
                 642,
                 NationalCurrency::RON,
-                None
+                None,
             ),
             Country::RUS => (
                 "Russian Federation",
@@ -2243,7 +2263,7 @@ impl Country
                 "RUS",
                 643,
                 NationalCurrency::RUB,
-                None
+                None,
             ),
             Country::RWA => (
                 "Republic of Rwanda",
@@ -2252,7 +2272,7 @@ impl Country
                 "RWA",
                 646,
                 NationalCurrency::RWF,
-                None
+                None,
             ),
             Country::SAU => (
                 "Kingdom of Saudi Arabia",
@@ -2261,7 +2281,7 @@ impl Country
                 "SAU",
                 682,
                 NationalCurrency::SAR,
-                None
+                None,
             ),
             Country::SDN => (
                 "Republic of the Sudan",
@@ -2270,7 +2290,7 @@ impl Country
                 "SDN",
                 729,
                 NationalCurrency::SDG,
-                None
+                None,
             ),
             Country::SEN => (
                 "Republic of Senegal",
@@ -2279,7 +2299,7 @@ impl Country
                 "SEN",
                 686,
                 NationalCurrency::XOF,
-                None
+                None,
             ),
             Country::SGP => (
                 "Republic of Singapore",
@@ -2288,7 +2308,7 @@ impl Country
                 "SGP",
                 702,
                 NationalCurrency::SGD,
-                None
+                None,
             ),
             Country::SGS => (
                 "South Georgia and the South Sandwich Islands",
@@ -2297,7 +2317,7 @@ impl Country
                 "SGS",
                 239,
                 NationalCurrency::GEL,
-                None
+                None,
             ),
             Country::SHN => (
                 "Saint Helena, Ascension and Tristan da Cunha",
@@ -2306,7 +2326,7 @@ impl Country
                 "SHN",
                 654,
                 NationalCurrency::SHP,
-                None
+                None,
             ),
             Country::SJM => (
                 "Svalbard and Jan Mayen",
@@ -2315,7 +2335,7 @@ impl Country
                 "SJM",
                 744,
                 NationalCurrency::NOK,
-                None
+                None,
             ),
             Country::SLB => (
                 "Solomon Islands",
@@ -2324,7 +2344,7 @@ impl Country
                 "SLB",
                 090,
                 NationalCurrency::SBD,
-                None
+                None,
             ),
             Country::SLE => (
                 "Republic of Sierra Leone",
@@ -2333,7 +2353,7 @@ impl Country
                 "SLE",
                 694,
                 NationalCurrency::SLL,
-                None
+                None,
             ),
             Country::SLV => (
                 "Republic of El Salvador",
@@ -2342,7 +2362,7 @@ impl Country
                 "SLV",
                 222,
                 NationalCurrency::USD,
-                None
+                None,
             ),
             Country::SMR => (
                 "Republic of San Marino",
@@ -2351,7 +2371,7 @@ impl Country
                 "SMR",
                 674,
                 NationalCurrency::EUR,
-                None
+                None,
             ),
             Country::SOM => (
                 "Federal Republic of Somalia",
@@ -2360,7 +2380,7 @@ impl Country
                 "SOM",
                 706,
                 NationalCurrency::SOS,
-                None
+                None,
             ),
             Country::SPM => (
                 "Territorial Collectivity of Saint-Pierre and Miquelon",
@@ -2369,7 +2389,7 @@ impl Country
                 "SPM",
                 666,
                 NationalCurrency::EUR,
-                None
+                None,
             ),
             Country::SRB => (
                 "Republic of Serbia",
@@ -2378,7 +2398,7 @@ impl Country
                 "SRB",
                 688,
                 NationalCurrency::RSD,
-                None
+                None,
             ),
             Country::SSD => (
                 "Republic of South Sudan",
@@ -2387,7 +2407,7 @@ impl Country
                 "SSD",
                 728,
                 NationalCurrency::SSP,
-                None
+                None,
             ),
             Country::STP => (
                 "Democratic Republic of São Tomé and Príncipe",
@@ -2396,7 +2416,7 @@ impl Country
                 "STP",
                 678,
                 NationalCurrency::STD,
-                None
+                None,
             ),
             Country::SUR => (
                 "Republic of Suriname",
@@ -2405,7 +2425,7 @@ impl Country
                 "SUR",
                 740,
                 NationalCurrency::SRD,
-                None
+                None,
             ),
             Country::SVK => (
                 "Slovak Republic",
@@ -2414,7 +2434,7 @@ impl Country
                 "SVK",
                 703,
                 NationalCurrency::EUR,
-                Some(Decimal::from_str("20.0").unwrap())
+                Some(Decimal::from_str("20.0").unwrap()),
             ),
             Country::SVN => (
                 "Republic of Slovenia",
@@ -2423,7 +2443,7 @@ impl Country
                 "SVN",
                 705,
                 NationalCurrency::EUR,
-                Some(Decimal::from_str("22.0").unwrap())
+                Some(Decimal::from_str("22.0").unwrap()),
             ),
             Country::SWE => (
                 "Kingdom of Sweden",
@@ -2432,7 +2452,7 @@ impl Country
                 "SWE",
                 752,
                 NationalCurrency::SEK,
-                None
+                None,
             ),
             Country::SWZ => (
                 "Kingdom of Eswatini",
@@ -2441,7 +2461,7 @@ impl Country
                 "SWZ",
                 748,
                 NationalCurrency::SZL,
-                None
+                None,
             ),
             Country::SXM => (
                 "Sint Maarten",
@@ -2450,7 +2470,7 @@ impl Country
                 "SXM",
                 534,
                 NationalCurrency::ANG,
-                None
+                None,
             ),
             Country::SYC => (
                 "Republic of Seychelles",
@@ -2459,7 +2479,7 @@ impl Country
                 "SYC",
                 690,
                 NationalCurrency::SCR,
-                None
+                None,
             ),
             Country::SYR => (
                 "Syrian Arab Republic",
@@ -2468,7 +2488,7 @@ impl Country
                 "SYR",
                 760,
                 NationalCurrency::SYP,
-                None
+                None,
             ),
             Country::TCA => (
                 "Turks and Caicos Islands",
@@ -2477,7 +2497,7 @@ impl Country
                 "TCA",
                 796,
                 NationalCurrency::USD,
-                None
+                None,
             ),
             Country::TCD => (
                 "Republic of Chad",
@@ -2486,7 +2506,7 @@ impl Country
                 "TCD",
                 148,
                 NationalCurrency::XAF,
-                None
+                None,
             ),
             Country::TGO => (
                 "Togolese Republic",
@@ -2495,7 +2515,7 @@ impl Country
                 "TGO",
                 768,
                 NationalCurrency::XOF,
-                None
+                None,
             ),
             Country::THA => (
                 "Kingdom of Thailand",
@@ -2504,7 +2524,7 @@ impl Country
                 "THA",
                 764,
                 NationalCurrency::THB,
-                None
+                None,
             ),
             Country::TJK => (
                 "Republic of Tajikistan",
@@ -2513,7 +2533,7 @@ impl Country
                 "TJK",
                 762,
                 NationalCurrency::TJS,
-                None
+                None,
             ),
             Country::TKL => (
                 "Tokelau Islands",
@@ -2522,7 +2542,7 @@ impl Country
                 "TKL",
                 772,
                 NationalCurrency::NZD,
-                None
+                None,
             ),
             Country::TKM => (
                 "Turkmenistan",
@@ -2531,7 +2551,7 @@ impl Country
                 "TKM",
                 795,
                 NationalCurrency::TMT,
-                None
+                None,
             ),
             Country::TLS => (
                 "Democratic Republic of Timor-Leste",
@@ -2540,7 +2560,7 @@ impl Country
                 "TLS",
                 626,
                 NationalCurrency::USD,
-                None
+                None,
             ),
             Country::TON => (
                 "Kingdom of Tonga",
@@ -2549,7 +2569,7 @@ impl Country
                 "TON",
                 776,
                 NationalCurrency::TOP,
-                None
+                None,
             ),
             Country::TTO => (
                 "Republic of Trinidad and Tobago",
@@ -2558,7 +2578,7 @@ impl Country
                 "TTO",
                 780,
                 NationalCurrency::TTD,
-                None
+                None,
             ),
             Country::TUN => (
                 "Republic of Tunisia",
@@ -2567,7 +2587,7 @@ impl Country
                 "TUN",
                 788,
                 NationalCurrency::TND,
-                None
+                None,
             ),
             Country::TUR => (
                 "Republic of Turkey",
@@ -2576,7 +2596,7 @@ impl Country
                 "TUR",
                 792,
                 NationalCurrency::TRY,
-                None
+                None,
             ),
             Country::TUV => (
                 "Tuvalu",
@@ -2585,7 +2605,7 @@ impl Country
                 "TUV",
                 798,
                 NationalCurrency::AUD,
-                Some(Decimal::from_str("10.0").unwrap())
+                Some(Decimal::from_str("10.0").unwrap()),
             ),
             Country::TWN => (
                 "Republic of China",
@@ -2594,7 +2614,7 @@ impl Country
                 "TWN",
                 158,
                 NationalCurrency::TWD,
-                None
+                None,
             ),
             Country::TZA => (
                 "United Republic of Tanzania",
@@ -2603,7 +2623,7 @@ impl Country
                 "TZA",
                 834,
                 NationalCurrency::TZS,
-                None
+                None,
             ),
             Country::UGA => (
                 "Republic of Ugand",
@@ -2612,7 +2632,7 @@ impl Country
                 "UGA",
                 800,
                 NationalCurrency::UGX,
-                None
+                None,
             ),
             Country::UKR => (
                 "Ukraine",
@@ -2621,7 +2641,7 @@ impl Country
                 "UKR",
                 804,
                 NationalCurrency::UAH,
-                None
+                None,
             ),
             Country::UMI => (
                 "United States Minor Outlying Islands",
@@ -2630,7 +2650,7 @@ impl Country
                 "UMI",
                 581,
                 NationalCurrency::USD,
-                None
+                None,
             ),
             Country::URY => (
                 "Oriental Republic of Uruguay",
@@ -2639,7 +2659,7 @@ impl Country
                 "URY",
                 858,
                 NationalCurrency::UYU,
-                None
+                None,
             ),
             Country::USA => (
                 "United States of America",
@@ -2648,7 +2668,7 @@ impl Country
                 "USA",
                 840,
                 NationalCurrency::USD,
-                Some(Decimal::from_str("10.0").unwrap())
+                Some(Decimal::from_str("10.0").unwrap()),
             ),
             Country::UZB => (
                 "Republic of Uzbekistan",
@@ -2657,7 +2677,7 @@ impl Country
                 "UZB",
                 860,
                 NationalCurrency::UZS,
-                None
+                None,
             ),
             Country::VAT => (
                 "Vatican City State",
@@ -2666,7 +2686,7 @@ impl Country
                 "VAT",
                 336,
                 NationalCurrency::EUR,
-                None
+                None,
             ),
             Country::VCT => (
                 "Saint Vincent and the Grenadines",
@@ -2675,7 +2695,7 @@ impl Country
                 "VCT",
                 670,
                 NationalCurrency::XCD,
-                None
+                None,
             ),
             Country::VEN => (
                 "Bolivarian Republic of Venezuela",
@@ -2684,7 +2704,7 @@ impl Country
                 "VEN",
                 862,
                 NationalCurrency::VEF,
-                None
+                None,
             ),
             Country::VGB => (
                 "Virgin Islands",
@@ -2693,7 +2713,7 @@ impl Country
                 "VGB",
                 092,
                 NationalCurrency::USD,
-                None
+                None,
             ),
             Country::VIR => (
                 "Virgin Islands of the United States",
@@ -2702,7 +2722,7 @@ impl Country
                 "VIR",
                 850,
                 NationalCurrency::USD,
-                None
+                None,
             ),
             Country::VNM => (
                 "Socialist Republic of Vietnam",
@@ -2711,7 +2731,7 @@ impl Country
                 "VNM",
                 704,
                 NationalCurrency::VND,
-                None
+                None,
             ),
             Country::VUT => (
                 "Republic of Vanuatu",
@@ -2720,7 +2740,7 @@ impl Country
                 "VUT",
                 548,
                 NationalCurrency::VUV,
-                None
+                None,
             ),
             Country::WLF => (
                 "Territory of the Wallis and Futuna Islands",
@@ -2729,7 +2749,7 @@ impl Country
                 "WLF",
                 876,
                 NationalCurrency::XPF,
-                None
+                None,
             ),
             Country::WSM => (
                 "Independent State of Samoa",
@@ -2738,7 +2758,7 @@ impl Country
                 "WSM",
                 882,
                 NationalCurrency::WST,
-                None
+                None,
             ),
             Country::YEM => (
                 "Republic of Yemen",
@@ -2747,7 +2767,7 @@ impl Country
                 "YEM",
                 887,
                 NationalCurrency::YER,
-                None
+                None,
             ),
             Country::ZAF => (
                 "Republic of South Africa",
@@ -2756,7 +2776,7 @@ impl Country
                 "ZAF",
                 710,
                 NationalCurrency::ZAR,
-                None
+                None,
             ),
             Country::ZMB => (
                 "Republic of Zambia",
@@ -2765,7 +2785,7 @@ impl Country
                 "ZMB",
                 895,
                 NationalCurrency::ZMW,
-                None
+                None,
             ),
             Country::ZWE => (
                 "Republic of Zimbabwe",
@@ -2774,15 +2794,13 @@ impl Country
                 "ZWE",
                 716,
                 NationalCurrency::ZWL,
-                None
+                None,
             ),
         }
     }
 }
 
-impl FromStr
-for Country
-{
+impl FromStr for Country {
     type Err = std::io::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -2800,6 +2818,9 @@ for Country
                 return Ok(country);
             }
         }
-        Err(std::io::Error::new(std::io::ErrorKind::Other, format!("Country is not valid: {}.", s)))
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("Country is not valid: {}.", s),
+        ))
     }
 }

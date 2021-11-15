@@ -1,10 +1,10 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use ate::{prelude::*};
+use ate::prelude::*;
 use clap::Parser;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
-use ate_auth::prelude::*;
 use ate_auth::helper::*;
+use ate_auth::prelude::*;
 
 #[derive(Parser)]
 #[clap(version = "1.5", author = "John S. <johnathan.sharratt@gmail.com>")]
@@ -75,21 +75,20 @@ fn ctrl_channel() -> tokio::sync::watch::Receiver<bool> {
     let (sender, receiver) = tokio::sync::watch::channel(false);
     ctrlc_async::set_handler(move || {
         let _ = sender.send(true);
-    }).unwrap();
+    })
+    .unwrap();
     receiver
 }
 
 #[tokio::main(flavor = "multi_thread")]
-async fn main() -> Result<(), AteError>
-{
+async fn main() -> Result<(), AteError> {
     let opts: Opts = Opts::parse();
 
     ate::log_init(opts.verbose, opts.debug);
 
     // Determine what we need to do
     match opts.subcmd {
-        SubCommand::Run(run) =>
-        {
+        SubCommand::Run(run) => {
             // Open the key file
             let root_write_key: PrivateSignKey = load_key(run.auth_key_path.clone(), ".write");
             let root_read_key: EncryptKey = load_key(run.auth_key_path.clone(), ".read");
@@ -97,7 +96,7 @@ async fn main() -> Result<(), AteError>
             let web_key: EncryptKey = load_key(run.web_key_path.clone(), ".read");
             let edge_key: EncryptKey = load_key(run.edge_key_path.clone(), ".read");
             let contract_key: EncryptKey = load_key(run.contract_key_path.clone(), ".read");
-            
+
             // Build a session for service
             let mut cfg_ate = conf_auth();
             cfg_ate.log_path = Some(shellexpand::tilde(&run.logs_path).to_string());
@@ -105,21 +104,30 @@ async fn main() -> Result<(), AteError>
                 cfg_ate.backup_path = Some(shellexpand::tilde(&backup_path).to_string());
             }
             cfg_ate.compact_mode = CompactMode::Never;
-            
+
             let mut session = AteSessionUser::new();
             session.user.add_read_key(&root_read_key);
             session.user.add_write_key(&root_write_key);
 
             // Create the server and listen
-            let mut flow = ChainFlow::new(&cfg_ate, root_write_key, session, web_key, edge_key, contract_key, &run.url);
+            let mut flow = ChainFlow::new(
+                &cfg_ate,
+                root_write_key,
+                session,
+                web_key,
+                edge_key,
+                contract_key,
+                &run.url,
+            );
             flow.terms_and_conditions = Some(ate_auth::GENERIC_TERMS_AND_CONDITIONS.to_string());
-            let mut cfg_mesh = ConfMesh::solo_from_url(&cfg_ate, &run.url, &run.listen, None, run.node_id).await?;
+            let mut cfg_mesh =
+                ConfMesh::solo_from_url(&cfg_ate, &run.url, &run.listen, None, run.node_id).await?;
             cfg_mesh.wire_protocol = StreamProtocol::parse(&run.url)?;
             cfg_mesh.listen_certificate = Some(root_cert_key);
 
             let server = create_server(&cfg_mesh).await?;
             server.add_route(Box::new(flow), &cfg_ate).await?;
-            
+
             // Wait for ctrl-c
             let mut exit = ctrl_channel();
             while *exit.borrow() == false {
@@ -128,7 +136,7 @@ async fn main() -> Result<(), AteError>
             println!("Shutting down...");
             server.shutdown().await;
             println!("Goodbye!");
-        },
+        }
 
         SubCommand::Generate(generate) => {
             let mut key_path = generate.key_path.clone();
@@ -153,7 +161,7 @@ async fn main() -> Result<(), AteError>
 
             let contract_key = EncryptKey::generate(generate.strength);
             save_key(key_path.clone(), contract_key, "contract.key.read");
-        },
+        }
     }
 
     // We are done

@@ -1,5 +1,5 @@
-use error_chain::error_chain;
 use crate::crypto::AteHash;
+use error_chain::error_chain;
 
 error_chain! {
     types {
@@ -30,9 +30,7 @@ error_chain! {
 }
 
 #[cfg(feature = "enable_openssl")]
-impl From<openssl::error::ErrorStack>
-for Error
-{
+impl From<openssl::error::ErrorStack> for Error {
     fn from(err: openssl::error::ErrorStack) -> Error {
         ErrorKind::EncryptionError(err).into()
     }

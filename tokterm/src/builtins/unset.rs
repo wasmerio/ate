@@ -1,15 +1,17 @@
-use std::pin::Pin;
 use std::future::Future;
+use std::pin::Pin;
 
-use crate::stdio::*;
 use crate::eval::EvalContext;
 use crate::eval::ExecResponse;
+use crate::stdio::*;
 
-pub(super) fn unset(args: &[String], ctx: &mut EvalContext, _stdio: Stdio) -> Pin<Box<dyn Future<Output = Result<ExecResponse, i32>>>> {
+pub(super) fn unset(
+    args: &[String],
+    ctx: &mut EvalContext,
+    _stdio: Stdio,
+) -> Pin<Box<dyn Future<Output = Result<ExecResponse, i32>>>> {
     for arg in &args[1..] {
         ctx.env.unset(arg.as_str());
     }
-    Box::pin(async move {
-        Ok(ExecResponse::Immediate(0))
-    })
+    Box::pin(async move { Ok(ExecResponse::Immediate(0)) })
 }

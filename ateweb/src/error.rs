@@ -1,7 +1,7 @@
-use error_chain::error_chain;
 use ate::error::*;
 use ate_files::error::FileSystemError;
 use ate_files::error::FileSystemErrorKind;
+use error_chain::error_chain;
 use hyper::StatusCode;
 
 error_chain! {
@@ -42,23 +42,23 @@ error_chain! {
     }
 }
 
-impl WebServerError
-{
-    pub fn status_code(&self) -> StatusCode
-    {
+impl WebServerError {
+    pub fn status_code(&self) -> StatusCode {
         match self {
             WebServerError(WebServerErrorKind::BadHost(_), _) => StatusCode::BAD_GATEWAY,
             WebServerError(WebServerErrorKind::BadRequest(_), _) => StatusCode::BAD_REQUEST,
             WebServerError(WebServerErrorKind::UnknownHost, _) => StatusCode::BAD_REQUEST,
-            WebServerError(WebServerErrorKind::FileSystemError(FileSystemErrorKind::DoesNotExist), _) => StatusCode::NOT_FOUND,
-            _ => StatusCode::INTERNAL_SERVER_ERROR
+            WebServerError(
+                WebServerErrorKind::FileSystemError(FileSystemErrorKind::DoesNotExist),
+                _,
+            ) => StatusCode::NOT_FOUND,
+            _ => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
-    pub fn response_body(&self) -> String
-    {
+    pub fn response_body(&self) -> String {
         let mut ret = match self {
-            err => err.to_string()
+            err => err.to_string(),
         };
         if ret.ends_with("\n") == false {
             ret.push_str("\n");
@@ -105,17 +105,13 @@ error_chain! {
     }
 }
 
-impl From<pem::PemError>
-for OrderError
-{
+impl From<pem::PemError> for OrderError {
     fn from(err: pem::PemError) -> OrderError {
         OrderErrorKind::Pem(err).into()
     }
 }
 
-impl From<rcgen::RcgenError>
-for OrderError
-{
+impl From<rcgen::RcgenError> for OrderError {
     fn from(err: rcgen::RcgenError) -> OrderError {
         OrderErrorKind::Rcgen(err).into()
     }

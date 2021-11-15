@@ -5,17 +5,19 @@ use ate::prelude::*;
 #[cfg(feature = "enable_server")]
 #[cfg(feature = "enable_rotate")]
 #[test]
-fn rotate_test() -> Result<(), AteError>
-{
+fn rotate_test() -> Result<(), AteError> {
     ate::utils::bootstrap_test_env();
 
     #[cfg(feature = "enable_mt")]
-    let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
     #[cfg(not(feature = "enable_mt"))]
-    let rt =tokio::runtime::Builder::new_current_thread().enable_all().build()?;
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?;
 
     rt.block_on(TaskEngine::run_until(async {
-
         // The default configuration will store the redo log locally in the temporary folder
         let mut conf = ConfAte::default();
         #[cfg(feature = "enable_local_fs")]
@@ -61,7 +63,7 @@ fn rotate_test() -> Result<(), AteError>
             let dio = chain.dio(&session).await;
             assert_eq!(*dio.load::<String>(&key1).await?, "blah!".to_string());
             assert_eq!(*dio.load::<String>(&key2).await?, "haha!".to_string());
-            
+
             chain.single().await.destroy().await.unwrap();
         }
 

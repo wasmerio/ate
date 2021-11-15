@@ -1,37 +1,38 @@
 #![allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use error_chain::bail;
+use qrcode::render::unicode;
+use qrcode::QrCode;
 use std::io::stdout;
 use std::io::Write;
-use std::sync::Arc;
-use url::Url;
 use std::ops::Deref;
-use qrcode::QrCode;
-use qrcode::render::unicode;
+use std::sync::Arc;
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
+use url::Url;
 
-use ate::prelude::*;
 use ate::error::LoadError;
 use ate::error::TransformError;
+use ate::prelude::*;
 use ate::session::AteRolePurpose;
 use ate::utils::chain_key_4hex;
 
+use crate::error::*;
+use crate::helper::*;
+use crate::model::*;
 use crate::prelude::*;
 use crate::request::*;
 use crate::service::AuthService;
-use crate::helper::*;
-use crate::error::*;
-use crate::model::*;
 
-impl AuthService
-{
-    pub async fn process_group_user_remove(self: Arc<Self>, request: GroupUserRemoveRequest) -> Result<GroupUserRemoveResponse, GroupUserRemoveFailed>
-    {
+impl AuthService {
+    pub async fn process_group_user_remove(
+        self: Arc<Self>,
+        request: GroupUserRemoveRequest,
+    ) -> Result<GroupUserRemoveResponse, GroupUserRemoveFailed> {
         info!("group ({}) user remove", request.group);
 
         // Copy the request session
         let request_purpose = request.purpose;
         let request_session = request.session;
-        
+
         // Compute which chain the group should exist within
         let group_chain_key = chain_key_4hex(&request.group, Some("redo"));
         let chain = self.registry.open(&self.auth_url, &group_chain_key).await?;
@@ -47,10 +48,13 @@ impl AuthService
             Ok(a) => a,
             Err(LoadError(LoadErrorKind::NotFound(_), _)) => {
                 return Err(GroupUserRemoveFailed::GroupNotFound);
-            },
-            Err(LoadError(LoadErrorKind::TransformationError(TransformErrorKind::MissingReadKey(_)), _)) => {
+            }
+            Err(LoadError(
+                LoadErrorKind::TransformationError(TransformErrorKind::MissingReadKey(_)),
+                _,
+            )) => {
                 return Err(GroupUserRemoveFailed::NoMasterKey);
-            },
+            }
             Err(err) => {
                 bail!(err);
             }
@@ -60,7 +64,7 @@ impl AuthService
         let needed_role = match request_purpose {
             AteRolePurpose::Owner => AteRolePurpose::Owner,
             AteRolePurpose::Delegate => AteRolePurpose::Owner,
-            _ => AteRolePurpose::Delegate
+            _ => AteRolePurpose::Delegate,
         };
 
         // Extract the controlling role as this is what we will use to create the role
@@ -77,13 +81,18 @@ impl AuthService
 
             // Get the group role
             let role = {
-                match group.roles.iter_mut().filter(|r| r.purpose == request_purpose).next() {
+                match group
+                    .roles
+                    .iter_mut()
+                    .filter(|r| r.purpose == request_purpose)
+                    .next()
+                {
                     Some(a) => a,
                     None => {
                         return Err(GroupUserRemoveFailed::RoleNotFound);
                     }
                 }
-            };        
+            };
 
             // Check that we actually have the rights to remove this item
             if role.access.exists(&delegate_write_hash) == false {

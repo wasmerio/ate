@@ -1,6 +1,6 @@
 #![allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use std::sync::Once;
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 static INIT: Once = Once::new();
 

@@ -1,17 +1,16 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace};
 use chrono::DateTime;
 use chrono::Utc;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, trace, warn};
 
-use ate::prelude::*;
-use crate::model::*;
 use crate::error::*;
+use crate::model::*;
+use ate::prelude::*;
 
 use super::*;
 
 #[derive(Debug, Clone)]
-pub struct ContractSummary
-{
+pub struct ContractSummary {
     /// Primary key of this contract
     pub key: PrimaryKey,
     /// Reference number assocaited with this contract
@@ -28,18 +27,21 @@ pub struct ContractSummary
     pub metrics: Vec<ContractMetrics>,
 }
 
-impl TokApi
-{
-    pub async fn contract_summary(&mut self) -> Result<Vec<ContractSummary>, ContractError>
-    {
+impl TokApi {
+    pub async fn contract_summary(&mut self) -> Result<Vec<ContractSummary>, ContractError> {
         // Query all the contracts for this wallet
         let mut ret = Vec::new();
 
-        if let Some(parent_id) = self.wallet.parent_id()
-        {
-            let contracts = self.dio.children_ext::<Contract>(parent_id, CONTRACT_COLLECTION_ID, true, true).await?;
+        if let Some(parent_id) = self.wallet.parent_id() {
+            let contracts = self
+                .dio
+                .children_ext::<Contract>(parent_id, CONTRACT_COLLECTION_ID, true, true)
+                .await?;
             for contract in contracts {
-                let metrics = contract.metrics.iter().await?
+                let metrics = contract
+                    .metrics
+                    .iter()
+                    .await?
                     .map(|a| a.take())
                     .collect::<Vec<_>>();
 

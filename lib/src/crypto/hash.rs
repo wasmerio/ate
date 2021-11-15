@@ -1,17 +1,16 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use serde::{Serialize, Deserialize};
+use crate::crypto::RandomGeneratorAccessor;
+use crate::utils::b16_deserialize;
+use crate::utils::b16_serialize;
+use serde::{Deserialize, Serialize};
 use sha3::Digest;
 use std::convert::TryInto;
-use crate::utils::b16_serialize;
-use crate::utils::b16_deserialize;
-use crate::crypto::RandomGeneratorAccessor;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum HashRoutine
-{
+pub enum HashRoutine {
     Sha3,
-    Blake3
+    Blake3,
 }
 
 /// Represents a hash of a piece of data that is cryptographically secure enough
@@ -20,7 +19,7 @@ pub enum HashRoutine
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct AteHash {
     #[serde(serialize_with = "b16_serialize", deserialize_with = "b16_deserialize")]
-    pub val: [u8; 16]
+    pub val: [u8; 16],
 }
 
 impl AteHash {
@@ -35,11 +34,7 @@ impl AteHash {
                 bytes16
             })
             .flatten()
-            .map(|a| {
-                AteHash {
-                    val: a
-                }
-            })
+            .map(|a| AteHash { val: a })
     }
     pub fn from_bytes(input: &[u8]) -> AteHash {
         Self::from_bytes_by_routine(input, crate::HASH_ROUTINE)
@@ -64,9 +59,7 @@ impl AteHash {
         let bytes: [u8; 32] = hash.into();
         let mut bytes16: [u8; 16] = Default::default();
         bytes16.copy_from_slice(&bytes[0..16]);
-        AteHash {
-            val: bytes16
-        }
+        AteHash { val: bytes16 }
     }
     fn from_bytes_twice_blake3(input1: &[u8], input2: &[u8]) -> AteHash {
         let mut hasher = blake3::Hasher::new();
@@ -76,9 +69,7 @@ impl AteHash {
         let bytes: [u8; 32] = hash.into();
         let mut bytes16: [u8; 16] = Default::default();
         bytes16.copy_from_slice(&bytes[0..16]);
-        AteHash {
-            val: bytes16
-        }
+        AteHash { val: bytes16 }
     }
     pub fn from_bytes_sha3(input: &[u8], repeat: i32) -> AteHash {
         let mut hasher = sha3::Keccak384::default();
@@ -86,34 +77,26 @@ impl AteHash {
             hasher.update(input);
         }
         let result = hasher.finalize();
-        let result: Vec<u8> = result.into_iter()
-            .take(16)
-            .collect();
+        let result: Vec<u8> = result.into_iter().take(16).collect();
         let result: [u8; 16] = result
             .try_into()
             .expect("The hash should fit into 16 bytes!");
 
-        AteHash {
-            val: result,
-        }
+        AteHash { val: result }
     }
     fn from_bytes_twice_sha3(input1: &[u8], input2: &[u8]) -> AteHash {
         let mut hasher = sha3::Keccak384::default();
         hasher.update(input1);
         hasher.update(input2);
         let result = hasher.finalize();
-        let result: Vec<u8> = result.into_iter()
-            .take(16)
-            .collect();
+        let result: Vec<u8> = result.into_iter().take(16).collect();
         let result: [u8; 16] = result
             .try_into()
             .expect("The hash should fit into 16 bytes!");
 
-        AteHash {
-            val: result,
-        }
+        AteHash { val: result }
     }
-    
+
     pub fn to_u64(&self) -> u64 {
         let mut val = [0u8; 8];
         val.copy_from_slice(&self.val[..8]);
@@ -147,25 +130,19 @@ impl AteHash {
     }
 }
 
-impl From<String>
-for AteHash
-{
+impl From<String> for AteHash {
     fn from(val: String) -> AteHash {
         AteHash::from_bytes(val.as_bytes())
     }
 }
 
-impl From<&'static str>
-for AteHash
-{
+impl From<&'static str> for AteHash {
     fn from(val: &'static str) -> AteHash {
         AteHash::from(val.to_string())
     }
 }
 
-impl From<u64>
-for AteHash
-{
+impl From<u64> for AteHash {
     fn from(val: u64) -> AteHash {
         AteHash::from_bytes(&val.to_be_bytes())
     }

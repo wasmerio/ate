@@ -1,9 +1,8 @@
-use serde::*;
 use fxhash::FxHashMap;
+use serde::*;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct WebConf
-{
+pub struct WebConf {
     /// Forces the host to be redirected to a new URL
     #[serde(default)]
     pub redirect: Option<String>,
@@ -24,11 +23,8 @@ pub struct WebConf
     pub status_pages: FxHashMap<u16, String>,
 }
 
-impl Default
-for WebConf
-{
-    fn default() -> Self
-    {
+impl Default for WebConf {
+    fn default() -> Self {
         WebConf {
             redirect: None,
             coop: false,

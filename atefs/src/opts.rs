@@ -1,21 +1,13 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use ate::prelude::*;
 use ate_auth::opt::*;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 use url::Url;
 
 use ate::compact::CompactMode;
 
 #[cfg(feature = "enable_tokera")]
-use {
-    tokera::opt::{
-        OptsService,
-        OptsContract,
-        OptsWallet,
-        OptsLogin,
-        OptsLogout
-    }
-};
+use tokera::opt::{OptsContract, OptsLogin, OptsLogout, OptsService, OptsWallet};
 
 use clap::Parser;
 
@@ -132,11 +124,11 @@ pub enum SubCommand {
 #[derive(Parser)]
 pub struct OptsMount {
     /// Path to directory that the file system will be mounted at
-    #[clap(index=1)]
+    #[clap(index = 1)]
     pub mount_path: String,
     /// Name of the file-system to be mounted (e.g. myfs).
     /// If this URL is not specified then data will only be stored in a local chain-of-trust
-    #[clap(index=2)]
+    #[clap(index = 2)]
     pub remote_name: Option<String>,
     /// URL where the data is remotely stored on a distributed commit log.
     #[clap(short, long, default_value = "ws://tokera.com/db")]
@@ -191,7 +183,7 @@ pub struct OptsMount {
     pub non_empty: bool,
     /// For files and directories that the authenticated user owns, translate the UID and GID to the local machine ids instead of the global ones.
     #[clap(short, long)]
-    pub impersonate_uid: bool, 
+    pub impersonate_uid: bool,
     /// Configure the log file for <raw>, <barebone>, <speed>, <compatibility>, <balanced> or <security>
     #[clap(long, default_value = "speed")]
     pub configured_for: ate::conf::ConfiguredFor,

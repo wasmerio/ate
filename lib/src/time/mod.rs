@@ -1,13 +1,13 @@
-#[cfg(feature = "enable_ntp")]
-mod worker;
+mod enforcer;
+mod keeper;
 #[cfg(feature = "enable_ntp")]
 mod ntp;
-mod keeper;
-mod enforcer;
 mod timestamp;
+#[cfg(feature = "enable_ntp")]
+mod worker;
 
-pub use keeper::TimeKeeper;
 pub use enforcer::TimestampEnforcer;
+pub use keeper::TimeKeeper;
 pub use timestamp::ChainTimestamp;
 #[cfg(feature = "enable_ntp")]
 pub use worker::NtpWorker;

@@ -1,52 +1,57 @@
 #![allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use tracing_futures::{Instrument};
 use error_chain::bail;
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
+use tracing_futures::Instrument;
 
-use multimap::MultiMap;
 use btreemultimap::BTreeMultiMap;
+use multimap::MultiMap;
 use tokio::sync::broadcast;
 
-use crate::error::*;
+use crate::compact::*;
 use crate::conf::*;
+use crate::error::*;
 use crate::index::*;
 use crate::transaction::*;
-use crate::compact::*;
 
-use std::sync::{Arc};
+use fxhash::FxHashSet;
+use std::sync::Arc;
 use std::sync::Mutex as StdMutex;
-use fxhash::{FxHashSet};
-use tokio::sync::RwLock;
 use std::sync::RwLock as StdRwLock;
+use tokio::sync::RwLock;
 
+use crate::engine::TaskEngine;
+use crate::event::EventHeader;
+use crate::loader::*;
+use crate::pipe::*;
 use crate::redo::*;
 use crate::spec::SerializationFormat;
+use crate::spec::TrustMode;
 use crate::time::TimeKeeper;
 use crate::trust::*;
-use crate::pipe::*;
-use crate::loader::*;
-use crate::event::EventHeader;
-use crate::engine::TaskEngine;
-use crate::spec::TrustMode;
 
 use crate::trust::ChainKey;
 
-use super::*;
 use super::inbox_pipe::*;
 use super::workers::ChainWorkProcessor;
+use super::*;
 
-impl<'a> Chain
-{
+impl<'a> Chain {
     #[allow(dead_code)]
     pub(crate) async fn new(
         builder: ChainBuilder,
         key: &ChainKey,
         load_integrity: TrustMode,
         idle_integrity: TrustMode,
-    ) -> Result<Chain, ChainCreationError>
-    {
-        Chain::new_ext(builder, key.clone(), None, true, load_integrity, idle_integrity)
-            .await
+    ) -> Result<Chain, ChainCreationError> {
+        Chain::new_ext(
+            builder,
+            key.clone(),
+            None,
+            true,
+            load_integrity,
+            idle_integrity,
+        )
+        .await
     }
 
     #[allow(dead_code)]
@@ -57,8 +62,7 @@ impl<'a> Chain
         allow_process_errors: bool,
         load_integrity: TrustMode,
         idle_integrity: TrustMode,
-    ) -> Result<Chain, ChainCreationError>
-    {
+    ) -> Result<Chain, ChainCreationError> {
         debug!("open: {}", key);
 
         // Compute the open flags
@@ -71,7 +75,7 @@ impl<'a> Chain
         };
         let compact_mode = builder.cfg_ate.compact_mode;
         let compact_bootstrap = builder.cfg_ate.compact_bootstrap;
-        
+
         // Create a redo log loader which will listen to all the events as they are
         // streamed in and extract the event headers
         #[cfg(feature = "enable_local_fs")]
@@ -88,7 +92,7 @@ impl<'a> Chain
         // Build the header
         let header = ChainHeader::default();
         let header_bytes = SerializationFormat::Json.serialize(&header)?;
-        
+
         // Create the redo log itself which will open the files and stream in the events
         // in a background thread
         #[cfg(feature = "enable_local_fs")]
@@ -96,16 +100,19 @@ impl<'a> Chain
             let key = key.clone();
             let builder = builder.clone();
             async move {
-                RedoLog::open_ext(&builder.cfg_ate, &key, flags, composite_loader, header_bytes).await
+                RedoLog::open_ext(
+                    &builder.cfg_ate,
+                    &key,
+                    flags,
+                    composite_loader,
+                    header_bytes,
+                )
+                .await
             }
         };
         #[cfg(not(feature = "enable_local_fs"))]
-        let redo_log = {
-            async move {
-                RedoLog::open(header_bytes).await
-            }
-        };
-        
+        let redo_log = { async move { RedoLog::open(header_bytes).await } };
+
         // While the events are streamed in we build a list of all the event headers
         // but we strip off the data itself
         let process_local = async move {
@@ -117,7 +124,7 @@ impl<'a> Chain
             }
             Result::<Vec<EventHeader>, SerializationError>::Ok(headers)
         };
-        
+
         // Join the redo log thread earlier after the events were successfully streamed in
         let (redo_log, process_local) = futures::join!(redo_log, process_local);
         let headers = process_local?;
@@ -159,8 +166,7 @@ impl<'a> Chain
         inside_sync.set_integrity_mode(load_integrity);
 
         // Wrap the sync object
-        let inside_sync
-            = Arc::new(StdRwLock::new(inside_sync));
+        let inside_sync = Arc::new(StdRwLock::new(inside_sync));
 
         // Create an exit watcher
         let (exit_tx, _) = broadcast::channel(1);
@@ -174,31 +180,37 @@ impl<'a> Chain
             sync_tolerance: builder.cfg_ate.sync_tolerance,
             listeners: MultiMap::new(),
             is_shutdown: false,
-            integrity: load_integrity
+            integrity: load_integrity,
         };
-        
+
         // Check all the process events
         #[cfg(feature = "enable_verbose")]
         for a in headers.iter() {
             match a.meta.get_data_key() {
                 Some(key) => debug!("loaded: {} data {}", a.raw.event_hash, key),
-                None => debug!("loaded: {}", a.raw.event_hash)
+                None => debug!("loaded: {}", a.raw.event_hash),
             }
         }
-        
+
         // Process all the events in the chain-of-trust
         let conversation = Arc::new(ConversationSession::default());
-        if let Err(err) = inside_async.process(inside_sync.write().unwrap(), headers, Some(&conversation)) {
+        if let Err(err) =
+            inside_async.process(inside_sync.write().unwrap(), headers, Some(&conversation))
+        {
             if allow_process_errors == false {
                 return Err(err);
             }
         }
 
         // Now switch to the integrity mode we will use after loading
-        inside_sync.write().unwrap().set_integrity_mode(idle_integrity);
-        
+        inside_sync
+            .write()
+            .unwrap()
+            .set_integrity_mode(idle_integrity);
+
         // Create the compaction state (which later we will pass to the compaction thread)
-        let (compact_tx, compact_rx) = CompactState::new(compact_mode, inside_async.chain.redo.size() as u64);
+        let (compact_tx, compact_rx) =
+            CompactState::new(compact_mode, inside_async.chain.redo.size() as u64);
 
         // Make the inside async immutable
         let inside_async = Arc::new(RwLock::new(inside_async));
@@ -241,7 +253,7 @@ impl<'a> Chain
             exit: exit_tx.clone(),
             decache: decache_tx,
             metrics: Arc::clone(&builder.metrics),
-            throttle: Arc::clone(&builder.throttle)
+            throttle: Arc::clone(&builder.throttle),
         };
 
         // If we are to compact the log on bootstrap then do so
@@ -261,14 +273,19 @@ impl<'a> Chain
             let time = Arc::clone(&chain.time);
 
             // background thread - periodically compacts the chain into a smaller memory footprint
-            TaskEngine::spawn(Chain::worker_compactor(worker_inside_async, worker_inside_sync, worker_pipe, time, compact_rx, worker_exit));
+            TaskEngine::spawn(Chain::worker_compactor(
+                worker_inside_async,
+                worker_inside_sync,
+                worker_pipe,
+                time,
+                compact_rx,
+                worker_exit,
+            ));
         } else {
             debug!("compact-mode-off: {}", builder.cfg_ate.compact_mode);
         }
 
         // Create the chain
-        Ok(
-            chain
-        )
+        Ok(chain)
     }
 }

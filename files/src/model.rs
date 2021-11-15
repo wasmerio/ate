@@ -1,11 +1,11 @@
-use serde::*;
-use ate::prelude::*;
-use fxhash::FxHashMap;
 use super::api::*;
 use super::dir::Directory;
 use super::file::RegularFile;
 use super::fixed::FixedFile;
 use super::symlink::SymLink;
+use ate::prelude::*;
+use fxhash::FxHashMap;
+use serde::*;
 
 pub const PAGES_PER_BUNDLE: usize = 1024;
 pub const PAGE_SIZE: usize = 131072;
@@ -67,18 +67,35 @@ impl Inode {
     pub async fn as_file_spec(ino: u64, created: u64, updated: u64, dao: Dao<Inode>) -> FileSpec {
         match dao.kind {
             FileKind::Directory => FileSpec::Directory(Directory::new(dao, created, updated)),
-            FileKind::RegularFile => FileSpec::RegularFile(RegularFile::new(dao, created, updated).await),
+            FileKind::RegularFile => {
+                FileSpec::RegularFile(RegularFile::new(dao, created, updated).await)
+            }
             FileKind::SymLink => FileSpec::SymLink(SymLink::new(dao, created, updated)),
-            FileKind::FixedFile => FileSpec::FixedFile(FixedFile::new(ino, dao.dentry.name.clone(), FileKind::RegularFile).created(created).updated(updated))
+            FileKind::FixedFile => FileSpec::FixedFile(
+                FixedFile::new(ino, dao.dentry.name.clone(), FileKind::RegularFile)
+                    .created(created)
+                    .updated(updated),
+            ),
         }
     }
 
-    pub async fn as_file_spec_mut(ino: u64, created: u64, updated: u64, dao: DaoMut<Inode>) -> FileSpec {
+    pub async fn as_file_spec_mut(
+        ino: u64,
+        created: u64,
+        updated: u64,
+        dao: DaoMut<Inode>,
+    ) -> FileSpec {
         match dao.kind {
             FileKind::Directory => FileSpec::Directory(Directory::new_mut(dao, created, updated)),
-            FileKind::RegularFile => FileSpec::RegularFile(RegularFile::new_mut(dao, created, updated).await),
+            FileKind::RegularFile => {
+                FileSpec::RegularFile(RegularFile::new_mut(dao, created, updated).await)
+            }
             FileKind::SymLink => FileSpec::SymLink(SymLink::new_mut(dao, created, updated)),
-            FileKind::FixedFile => FileSpec::FixedFile(FixedFile::new(ino, dao.dentry.name.clone(), FileKind::RegularFile).created(created).updated(updated))
+            FileKind::FixedFile => FileSpec::FixedFile(
+                FixedFile::new(ino, dao.dentry.name.clone(), FileKind::RegularFile)
+                    .created(created)
+                    .updated(updated),
+            ),
         }
     }
 }

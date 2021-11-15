@@ -11,7 +11,6 @@ pub struct OptsService {
     pub purpose: OptsServiceFor,
 }
 
-
 #[derive(Parser, Clone)]
 pub enum OptsServiceFor {
     /// Services associated to you personally
@@ -49,8 +48,7 @@ pub struct OptsServiceForDomain {
 
 #[derive(Parser, Clone)]
 #[clap()]
-pub struct OptsSubscribe
-{
+pub struct OptsSubscribe {
     /// Name of the service to be subscribed to
     /// (refer to the list command for available services)
     #[clap(index = 1)]
@@ -59,8 +57,7 @@ pub struct OptsSubscribe
 
 #[derive(Parser, Clone)]
 #[clap()]
-pub struct OptsServiceDetails
-{
+pub struct OptsServiceDetails {
     /// Name of the service to retrieve more details for
     #[clap(index = 1)]
     pub service_name: String,
@@ -68,8 +65,7 @@ pub struct OptsServiceDetails
 
 #[derive(Parser, Clone)]
 #[clap()]
-pub enum OptsServiceAction
-{
+pub enum OptsServiceAction {
     /// Lists all the services available under this context
     #[clap()]
     List,
@@ -81,9 +77,7 @@ pub enum OptsServiceAction
     Subscribe(OptsSubscribe),
 }
 
-impl OptsPurpose<OptsServiceAction>
-for OptsServiceFor
-{
+impl OptsPurpose<OptsServiceAction> for OptsServiceFor {
     fn purpose(&self) -> Purpose<OptsServiceAction> {
         match self {
             OptsServiceFor::Personal(a) => Purpose::Personal {
@@ -94,7 +88,7 @@ for OptsServiceFor
                 domain_name: a.domain.clone(),
                 wallet_name: a.wallet_name.clone(),
                 action: a.action.clone(),
-            }
+            },
         }
     }
 }

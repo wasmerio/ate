@@ -1,20 +1,18 @@
-#[allow(unused_imports)]
-use serde::{Serialize, Deserialize};
-use std::sync::Arc;
 use ate::prelude::*;
-use rust_decimal::prelude::*;
 use names::Generator;
+use rust_decimal::prelude::*;
+#[allow(unused_imports)]
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-struct Person
-{
+struct Person {
     first_name: String,
     last_name: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-struct Transaction
-{
+struct Transaction {
     from: PrimaryKey,
     to: DaoWeak<Person>,
     description: String,
@@ -22,15 +20,16 @@ struct Transaction
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-struct Account
-{
+struct Account {
     name: String,
     transactions: DaoVec<Transaction>,
     balance: Decimal,
 }
 
-async fn make_account<'a>(chain: &Arc<Chain>, generator: &mut Generator<'a>) -> Result<(), AteError>
-{
+async fn make_account<'a>(
+    chain: &Arc<Chain>,
+    generator: &mut Generator<'a>,
+) -> Result<(), AteError> {
     let session = AteSessionUser::new();
     let dio = chain.dio_mut(&session).await;
 
@@ -62,8 +61,7 @@ async fn make_account<'a>(chain: &Arc<Chain>, generator: &mut Generator<'a>) -> 
 }
 
 #[tokio::main(flavor = "current_thread")]
-async fn main() -> Result<(), AteError>
-{
+async fn main() -> Result<(), AteError> {
     ate::log_init(0, true);
 
     // The default configuration will store the redo log locally in the temporary folder

@@ -1,11 +1,10 @@
 #![allow(unused_imports)]
-use tracing::{info};
-use serde::{Serialize, Deserialize};
 use ate::prelude::*;
+use serde::{Deserialize, Serialize};
+use tracing::info;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-struct MyTestObject
-{
+struct MyTestObject {
     firstname: String,
     lastname: String,
     data: [u128; 32],
@@ -13,8 +12,7 @@ struct MyTestObject
 }
 
 #[cfg(not(feature = "server"))]
-fn main() {
-}
+fn main() {}
 
 #[cfg(any(feature = "server"))]
 #[cfg_attr(feature = "enable_mt", tokio::main(flavor = "multi_thread"))]
@@ -30,7 +28,7 @@ async fn main() -> Result<(), AteError> {
     {
         // We create a chain with a specific key (this is used for the file name it creates)
         let chain = builder.open(&ChainKey::from("stress")).await?;
-        
+
         // Prepare
         let session = AteSessionUser::new();
 
@@ -63,6 +61,6 @@ async fn main() -> Result<(), AteError> {
         // Destroy the chain
         chain.single().await.destroy().await.unwrap();
     }
-    
+
     Ok(())
 }

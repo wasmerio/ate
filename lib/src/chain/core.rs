@@ -1,36 +1,36 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use tracing_futures::Instrument;
 use std::sync::Mutex as StdMutex;
 use std::time::Duration;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
+use tracing_futures::Instrument;
 
 use crate::error::*;
 
-use crate::comms::NodeId;
 use crate::comms::Metrics;
+use crate::comms::NodeId;
 use crate::comms::Throttle;
 use crate::transaction::*;
 
-use std::sync::{Arc};
-use tokio::sync::RwLock;
-use tokio::sync::broadcast;
+use std::sync::Arc;
 use std::sync::RwLock as StdRwLock;
+use tokio::sync::broadcast;
+use tokio::sync::RwLock;
 
-use crate::single::*;
+use crate::conf::ConfAte;
+use crate::conf::MeshAddress;
+use crate::engine::*;
+use crate::mesh::BackupMode;
+use crate::meta::*;
 use crate::multi::*;
 use crate::pipe::*;
-use crate::meta::*;
-use crate::spec::*;
-use crate::conf::ConfAte;
-use crate::mesh::BackupMode;
+use crate::prelude::PrimaryKey;
 use crate::redo::RedoLog;
+use crate::single::*;
+use crate::spec::*;
 use crate::time::TimeKeeper;
 use crate::transaction::TransactionScope;
-use crate::trust::ChainKey;
 use crate::trust::ChainHeader;
-use crate::engine::*;
-use crate::conf::MeshAddress;
-use crate::prelude::PrimaryKey;
+use crate::trust::ChainKey;
 
 use super::*;
 
@@ -49,8 +49,7 @@ use super::*;
 /// particular vectors (see the examples for details)
 ///
 #[derive(Clone)]
-pub struct Chain
-{
+pub struct Chain {
     pub(crate) key: ChainKey,
     #[allow(dead_code)]
     pub(crate) node_id: NodeId,
@@ -67,8 +66,7 @@ pub struct Chain
     pub(crate) throttle: Arc<StdMutex<Throttle>>,
 }
 
-impl<'a> Chain
-{    
+impl<'a> Chain {
     pub(crate) fn proxy(&mut self, mut proxy: Box<dyn EventPipe>) {
         proxy.set_next(Arc::clone(&self.pipe));
         let proxy = Arc::new(proxy);
@@ -120,12 +118,12 @@ impl<'a> Chain
     }
 
     async fn run_async<F>(&'a self, future: F) -> F::Output
-    where F: std::future::Future,
+    where
+        F: std::future::Future,
     {
         let key_str = self.key().to_string();
-        TaskEngine::run_until(future
-            .instrument(span!(Level::DEBUG, "dio", key=key_str.as_str()))
-        ).await
+        TaskEngine::run_until(future.instrument(span!(Level::DEBUG, "dio", key = key_str.as_str())))
+            .await
     }
 
     pub async fn flush(&'a self) -> Result<(), tokio::io::Error> {
@@ -133,24 +131,19 @@ impl<'a> Chain
     }
 
     async fn __flush(&'a self) -> Result<(), tokio::io::Error> {
-        Ok(
-            self.inside_async.write().await.chain.flush().await?
-        )
+        Ok(self.inside_async.write().await.chain.flush().await?)
     }
 
-    pub async fn sync(&'a self) -> Result<(), CommitError>
-    {
+    pub async fn sync(&'a self) -> Result<(), CommitError> {
         let timeout = Duration::from_secs(30);
         self.run_async(self.__sync(timeout)).await
     }
 
-    pub async fn sync_ext(&'a self, timeout: Duration) -> Result<(), CommitError>
-    {
+    pub async fn sync_ext(&'a self, timeout: Duration) -> Result<(), CommitError> {
         self.run_async(self.__sync(timeout)).await
     }
 
-    async fn __sync(&'a self, timeout: Duration) -> Result<(), CommitError>
-    {
+    async fn __sync(&'a self, timeout: Duration) -> Result<(), CommitError> {
         // Create the transaction
         let trans = Transaction {
             scope: TransactionScope::Full,
@@ -162,49 +155,51 @@ impl<'a> Chain
 
         // Feed the transaction into the chain
         let pipe = self.pipe.clone();
-        pipe.feed(ChainWork {
-            trans
-        }).await?;
+        pipe.feed(ChainWork { trans }).await?;
 
         // Success!
         Ok(())
     }
 
-    pub(crate) async fn get_pending_uploads(&self) -> Vec<MetaDelayedUpload>
-    {
+    pub(crate) async fn get_pending_uploads(&self) -> Vec<MetaDelayedUpload> {
         let guard = self.inside_async.read().await;
         guard.chain.timeline.pointers.get_pending_uploads()
     }
 
-    pub async fn shutdown(&self) -> Result<(), CompactError>
-    {
+    pub async fn shutdown(&self) -> Result<(), CompactError> {
         self.run_async(self.__shutdown()).await
     }
 
-    pub fn metrics(&'a self) -> &'a Arc<StdMutex<Metrics>>
-    {
+    pub fn metrics(&'a self) -> &'a Arc<StdMutex<Metrics>> {
         &self.metrics
     }
 
-    pub fn throttle(&'a self) -> &'a Arc<StdMutex<Throttle>>
-    {
+    pub fn throttle(&'a self) -> &'a Arc<StdMutex<Throttle>> {
         &self.throttle
     }
 
-    async fn __shutdown(&self) -> Result<(), CompactError>
-    {
+    async fn __shutdown(&self) -> Result<(), CompactError> {
         let include_active_files = match self.cfg_ate.backup_mode {
-            BackupMode::None => { return Ok(()); },
-            BackupMode::Restore => { return Ok(()); },
+            BackupMode::None => {
+                return Ok(());
+            }
+            BackupMode::Restore => {
+                return Ok(());
+            }
             BackupMode::Rotating => false,
             BackupMode::Full => true,
         };
-        
+
         let mut single = self.single().await;
         let we_are_the_one = if single.inside_async.is_shutdown == false {
             single.inside_async.is_shutdown = true;
-            
-            single.inside_async.chain.redo.backup(include_active_files)?.await?;
+
+            single
+                .inside_async
+                .chain
+                .redo
+                .backup(include_active_files)?
+                .await?;
             true
         } else {
             false
@@ -222,28 +217,20 @@ impl<'a> Chain
     }
 }
 
-impl Drop
-for Chain
-{
-    fn drop(&mut self)
-    {
+impl Drop for Chain {
+    fn drop(&mut self) {
         trace!("drop {}", self.key.to_string());
         let _ = self.exit.send(());
     }
 }
 
-impl RedoLog
-{
-    pub(crate) fn read_chain_header(&self) -> Result<ChainHeader, SerializationError>
-    {
+impl RedoLog {
+    pub(crate) fn read_chain_header(&self) -> Result<ChainHeader, SerializationError> {
         let header_bytes = self.header(u32::MAX);
-        Ok
-        (
-            if header_bytes.len() > 0 {
-                SerializationFormat::Json.deserialize(&header_bytes[..])?
-            } else {
-                ChainHeader::default()
-            }
-        )
+        Ok(if header_bytes.len() > 0 {
+            SerializationFormat::Json.deserialize(&header_bytes[..])?
+        } else {
+            ChainHeader::default()
+        })
     }
 }

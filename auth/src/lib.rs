@@ -1,14 +1,14 @@
-pub mod helper;
-#[cfg(all(feature = "server"))]
-pub mod flow;
-mod test;
-pub mod model;
-pub mod service;
 pub mod cmd;
 pub mod error;
-pub mod request;
-pub mod prelude;
+#[cfg(all(feature = "server"))]
+pub mod flow;
+pub mod helper;
+pub mod model;
 pub mod opt;
+pub mod prelude;
+pub mod request;
+pub mod service;
+mod test;
 pub mod work;
 
 pub static GENERIC_TERMS_AND_CONDITIONS: &str = include_str!("generic_terms.txt");

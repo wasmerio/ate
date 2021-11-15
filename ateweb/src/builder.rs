@@ -1,15 +1,14 @@
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
-use url::Url;
 use std::time::Duration;
+use url::Url;
 
 use ate::prelude::*;
 
 use super::conf::*;
 use super::server::*;
 
-pub struct ServerBuilder
-{
+pub struct ServerBuilder {
     pub(crate) remote: Url,
     pub(crate) auth_url: Url,
     pub(crate) conf: ServerConf,
@@ -18,10 +17,8 @@ pub struct ServerBuilder
     pub(crate) callback: Option<Arc<dyn ServerCallback>>,
 }
 
-impl ServerBuilder
-{
-    pub fn new(remote: Url, auth_url: Url, web_key: EncryptKey) -> ServerBuilder
-    {
+impl ServerBuilder {
+    pub fn new(remote: Url, auth_url: Url, web_key: EncryptKey) -> ServerBuilder {
         ServerBuilder {
             remote,
             auth_url,

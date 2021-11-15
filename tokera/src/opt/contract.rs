@@ -11,7 +11,6 @@ pub struct OptsContract {
     pub purpose: OptsContractFor,
 }
 
-
 #[derive(Parser, Clone)]
 pub enum OptsContractFor {
     /// Contracts associated to you personally
@@ -58,8 +57,7 @@ pub struct OptsContractForDomain {
 
 #[derive(Parser, Clone)]
 #[clap()]
-pub enum OptsContractAction
-{
+pub enum OptsContractAction {
     /// Lists all the active contracts
     #[clap()]
     List,
@@ -87,9 +85,7 @@ pub struct OptsContractCancel {
     pub reference_number: String,
 }
 
-impl OptsPurpose<OptsContractAction>
-for OptsContractFor
-{
+impl OptsPurpose<OptsContractAction> for OptsContractFor {
     fn purpose(&self) -> Purpose<OptsContractAction> {
         match self {
             OptsContractFor::Personal(a) => Purpose::Personal {
@@ -100,7 +96,7 @@ for OptsContractFor
                 domain_name: a.domain.clone(),
                 wallet_name: a.wallet_name.clone(),
                 action: a.action.clone(),
-            }
+            },
         }
     }
 }

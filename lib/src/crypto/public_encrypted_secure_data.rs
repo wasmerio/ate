@@ -1,18 +1,19 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use fxhash::FxHashMap;
-use serde::{Serialize, Deserialize};
-use std::{io::ErrorKind, marker::PhantomData};
-use std::result::Result;
 use crate::spec::SerializationFormat;
-use crate::utils::vec_serialize;
 use crate::utils::vec_deserialize;
+use crate::utils::vec_serialize;
+use fxhash::FxHashMap;
+use serde::{Deserialize, Serialize};
+use std::result::Result;
+use std::{io::ErrorKind, marker::PhantomData};
+#[allow(unused_imports)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use super::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PublicEncryptedSecureData<T>
-where T: serde::Serialize + serde::de::DeserializeOwned
+where
+    T: serde::Serialize + serde::de::DeserializeOwned,
 {
     format: SerializationFormat,
     ek_hash: AteHash,
@@ -24,32 +25,38 @@ where T: serde::Serialize + serde::de::DeserializeOwned
 }
 
 impl<T> PublicEncryptedSecureData<T>
-where T: serde::Serialize + serde::de::DeserializeOwned
+where
+    T: serde::Serialize + serde::de::DeserializeOwned,
 {
-    pub fn new(encrypt_key: &PublicEncryptKey, data: T) -> Result<PublicEncryptedSecureData<T>, std::io::Error> {
+    pub fn new(
+        encrypt_key: &PublicEncryptKey,
+        data: T,
+    ) -> Result<PublicEncryptedSecureData<T>, std::io::Error> {
         let format = SerializationFormat::Bincode;
         let data = match format.serialize(&data) {
             Ok(a) => a,
-            Err(err) => { return Err(std::io::Error::new(ErrorKind::Other, err.to_string())); }
+            Err(err) => {
+                return Err(std::io::Error::new(ErrorKind::Other, err.to_string()));
+            }
         };
         let result = encrypt_key.encrypt(&data[..]);
-        
-        Ok(
-            PublicEncryptedSecureData {
-                format,
-                ek_hash: encrypt_key.hash(),
-                sd_iv: result.iv,
-                sd_encrypted: result.data,
-                _marker: PhantomData,
-            }
-        )
+
+        Ok(PublicEncryptedSecureData {
+            format,
+            ek_hash: encrypt_key.hash(),
+            sd_iv: result.iv,
+            sd_encrypted: result.data,
+            _marker: PhantomData,
+        })
     }
 
     pub fn unwrap(&self, key: &PrivateEncryptKey) -> Result<T, std::io::Error> {
         let data = key.decrypt(&self.sd_iv, &self.sd_encrypted[..])?;
         Ok(match self.format.deserialize(&data[..]) {
             Ok(a) => a,
-            Err(err) => { return Err(std::io::Error::new(ErrorKind::Other, err.to_string())); }
+            Err(err) => {
+                return Err(std::io::Error::new(ErrorKind::Other, err.to_string()));
+            }
         })
     }
 
@@ -60,7 +67,8 @@ where T: serde::Serialize + serde::de::DeserializeOwned
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MultiEncryptedSecureData<T>
-where T: serde::Serialize + serde::de::DeserializeOwned
+where
+    T: serde::Serialize + serde::de::DeserializeOwned,
 {
     format: SerializationFormat,
     members: FxHashMap<String, PublicEncryptedSecureData<EncryptKey>>,
@@ -74,56 +82,69 @@ where T: serde::Serialize + serde::de::DeserializeOwned
 }
 
 impl<T> MultiEncryptedSecureData<T>
-where T: serde::Serialize + serde::de::DeserializeOwned
+where
+    T: serde::Serialize + serde::de::DeserializeOwned,
 {
-    pub fn new(encrypt_key: &PublicEncryptKey, meta: String, data: T) -> Result<MultiEncryptedSecureData<T>, std::io::Error> {
+    pub fn new(
+        encrypt_key: &PublicEncryptKey,
+        meta: String,
+        data: T,
+    ) -> Result<MultiEncryptedSecureData<T>, std::io::Error> {
         let shared_key = EncryptKey::generate(encrypt_key.size());
         MultiEncryptedSecureData::new_ext(encrypt_key, shared_key, meta, data)
     }
 
-    pub fn new_ext(encrypt_key: &PublicEncryptKey, shared_key: EncryptKey, meta: String, data: T) -> Result<MultiEncryptedSecureData<T>, std::io::Error> {
+    pub fn new_ext(
+        encrypt_key: &PublicEncryptKey,
+        shared_key: EncryptKey,
+        meta: String,
+        data: T,
+    ) -> Result<MultiEncryptedSecureData<T>, std::io::Error> {
         let format = SerializationFormat::Bincode;
-        
+
         let index = encrypt_key.hash().to_hex_string();
         let mut members = FxHashMap::default();
-        members.insert(index.clone(), PublicEncryptedSecureData::new(encrypt_key, shared_key)?);
+        members.insert(
+            index.clone(),
+            PublicEncryptedSecureData::new(encrypt_key, shared_key)?,
+        );
         let mut metadata = FxHashMap::default();
         metadata.insert(index, meta);
 
         let data = match format.serialize(&data) {
             Ok(a) => a,
-            Err(err) => { return Err(std::io::Error::new(ErrorKind::Other, err.to_string())); }
+            Err(err) => {
+                return Err(std::io::Error::new(ErrorKind::Other, err.to_string()));
+            }
         };
         let result = shared_key.encrypt(&data[..]);
         let hash = AteHash::from_bytes_twice(&result.iv.bytes[..], &data[..]);
-        
-        Ok(
-            MultiEncryptedSecureData {
-                format,
-                members,
-                metadata,
-                sd_iv: result.iv,
-                sd_hash: hash,
-                sd_encrypted: result.data,
-                _marker2: PhantomData,
-            }
-        )
+
+        Ok(MultiEncryptedSecureData {
+            format,
+            members,
+            metadata,
+            sd_iv: result.iv,
+            sd_hash: hash,
+            sd_encrypted: result.data,
+            _marker2: PhantomData,
+        })
     }
 
     pub fn unwrap(&self, key: &PrivateEncryptKey) -> Result<Option<T>, std::io::Error> {
-        Ok(
-            match self.members.get(&key.hash().to_hex_string()) {
-                Some(a) => {
-                    let shared_key = a.unwrap(key)?;
-                    let data = shared_key.decrypt(&self.sd_iv, &self.sd_encrypted[..]);
-                    Some(match self.format.deserialize::<T>(&data[..]) {
-                        Ok(a) => a,
-                        Err(err) => { return Err(std::io::Error::new(ErrorKind::Other, err.to_string())); }
-                    })
-                },
-                None => None
+        Ok(match self.members.get(&key.hash().to_hex_string()) {
+            Some(a) => {
+                let shared_key = a.unwrap(key)?;
+                let data = shared_key.decrypt(&self.sd_iv, &self.sd_encrypted[..]);
+                Some(match self.format.deserialize::<T>(&data[..]) {
+                    Ok(a) => a,
+                    Err(err) => {
+                        return Err(std::io::Error::new(ErrorKind::Other, err.to_string()));
+                    }
+                })
             }
-        )
+            None => None,
+        })
     }
 
     pub fn unwrap_shared(&self, shared_key: &EncryptKey) -> Result<Option<T>, std::io::Error> {
@@ -133,24 +154,32 @@ where T: serde::Serialize + serde::de::DeserializeOwned
             return Ok(None);
         }
 
-        Ok(
-            match self.format.deserialize::<T>(&data[..]) {
-                Ok(a) => Some(a),
-                Err(err) => { return Err(std::io::Error::new(ErrorKind::Other, err.to_string())); }
+        Ok(match self.format.deserialize::<T>(&data[..]) {
+            Ok(a) => Some(a),
+            Err(err) => {
+                return Err(std::io::Error::new(ErrorKind::Other, err.to_string()));
             }
-        )
+        })
     }
 
-    pub fn add(&mut self, encrypt_key: &PublicEncryptKey, meta: String, referrer: &PrivateEncryptKey) -> Result<bool, std::io::Error> {
+    pub fn add(
+        &mut self,
+        encrypt_key: &PublicEncryptKey,
+        meta: String,
+        referrer: &PrivateEncryptKey,
+    ) -> Result<bool, std::io::Error> {
         match self.members.get(&referrer.hash().to_hex_string()) {
             Some(a) => {
                 let shared_key = a.unwrap(referrer)?;
                 let index = encrypt_key.hash().to_hex_string();
-                self.members.insert(index.clone(), PublicEncryptedSecureData::new(encrypt_key, shared_key)?);
+                self.members.insert(
+                    index.clone(),
+                    PublicEncryptedSecureData::new(encrypt_key, shared_key)?,
+                );
                 self.metadata.insert(index, meta);
                 Ok(true)
-            },
-            None => Ok(false)
+            }
+            None => Ok(false),
         }
     }
 

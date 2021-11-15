@@ -1,7 +1,7 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use ate::{compact::CompactMode, prelude::*};
 use std::time::Duration;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 use url::Url;
 
 use clap::Parser;
@@ -97,7 +97,8 @@ fn ctrl_channel() -> tokio::sync::watch::Receiver<bool> {
     let (sender, receiver) = tokio::sync::watch::channel(false);
     ctrlc_async::set_handler(move || {
         let _ = sender.send(true);
-    }).unwrap();
+    })
+    .unwrap();
     receiver
 }
 
@@ -110,17 +111,13 @@ async fn main() -> Result<(), AteError> {
 
     let wire_encryption = match opts.wire_encryption {
         Some(a) => Some(a),
-        None => {
-            match opts.trust.is_centralized() {
-                true => {
-                    match opts.no_wire_encryption {
-                        false => Some(KeySize::Bit128),
-                        true => None,
-                    }
-                },
-                false => None
-            }
-        }
+        None => match opts.trust.is_centralized() {
+            true => match opts.no_wire_encryption {
+                false => Some(KeySize::Bit128),
+                true => None,
+            },
+            false => None,
+        },
     };
 
     let mut conf = AteConfig::default();
@@ -131,7 +128,7 @@ async fn main() -> Result<(), AteError> {
         false if opts.trust.is_centralized() => Some(opts.auth),
         _ => None,
     };
-    
+
     match opts.subcmd {
         SubCommand::Solo(solo) => {
             main_solo(solo, conf, auth, opts.trust, wire_encryption).await?;
@@ -143,21 +140,31 @@ async fn main() -> Result<(), AteError> {
     Ok(())
 }
 
-async fn main_solo(solo: Solo, mut cfg_ate: ConfAte, auth: Option<url::Url>, trust: TrustMode, wire_encryption: Option<KeySize>) -> Result<(), AteError>
-{
+async fn main_solo(
+    solo: Solo,
+    mut cfg_ate: ConfAte,
+    auth: Option<url::Url>,
+    trust: TrustMode,
+    wire_encryption: Option<KeySize>,
+) -> Result<(), AteError> {
     // Create the chain flow and generate configuration
     cfg_ate.log_path = Some(shellexpand::tilde(&solo.logs_path).to_string());
-    cfg_ate.backup_path = solo.backup_path.as_ref().map(|a| shellexpand::tilde(a).to_string());
-    cfg_ate.compact_mode = solo.compact_mode
+    cfg_ate.backup_path = solo
+        .backup_path
+        .as_ref()
+        .map(|a| shellexpand::tilde(a).to_string());
+    cfg_ate.compact_mode = solo
+        .compact_mode
         .with_growth_factor(solo.compact_threshold_factor)
         .with_growth_size(solo.compact_threshold_size)
         .with_timer_value(Duration::from_secs(solo.compact_timer));
-    
+
     // Create the chain flow and generate configuration
     let flow = ChainFlow::new(&cfg_ate, auth, solo.url.clone(), trust).await;
 
     // Create the server and listen on the port
-    let mut cfg_mesh = ConfMesh::solo_from_url(&cfg_ate, &solo.url, &solo.listen, None, solo.node_id).await?;
+    let mut cfg_mesh =
+        ConfMesh::solo_from_url(&cfg_ate, &solo.url, &solo.listen, None, solo.node_id).await?;
     cfg_mesh.wire_protocol = StreamProtocol::parse(&solo.url)?;
     cfg_mesh.wire_encryption = wire_encryption;
 

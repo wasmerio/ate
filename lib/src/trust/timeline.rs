@@ -1,25 +1,22 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use btreemultimap::BTreeMultiMap;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use crate::compact::*;
-use crate::meta::*;
-use crate::header::*;
 use crate::event::*;
+use crate::header::*;
 use crate::index::*;
+use crate::meta::*;
 use crate::time::*;
 
-pub(crate) struct ChainTimeline
-{
+pub(crate) struct ChainTimeline {
     pub(crate) history: BTreeMultiMap<ChainTimestamp, EventHeaderRaw>,
     pub(crate) pointers: BinaryTreeIndexer,
     pub(crate) compactors: Vec<Box<dyn EventCompactor>>,
 }
 
-impl<'a> ChainTimeline
-{
-    pub(crate) fn lookup_primary(&self, key: &PrimaryKey) -> Option<EventLeaf>
-    {
+impl<'a> ChainTimeline {
+    pub(crate) fn lookup_primary(&self, key: &PrimaryKey) -> Option<EventLeaf> {
         self.pointers.lookup_primary(key)
     }
 
@@ -27,18 +24,15 @@ impl<'a> ChainTimeline
         self.pointers.lookup_parent(key)
     }
 
-    pub(crate) fn lookup_secondary(&self, key: &MetaCollection) -> Option<Vec<EventLeaf>>
-    {
+    pub(crate) fn lookup_secondary(&self, key: &MetaCollection) -> Option<Vec<EventLeaf>> {
         self.pointers.lookup_secondary(key)
     }
 
-    pub(crate) fn lookup_secondary_raw(&self, key: &MetaCollection) -> Option<Vec<PrimaryKey>>
-    {
+    pub(crate) fn lookup_secondary_raw(&self, key: &MetaCollection) -> Option<Vec<PrimaryKey>> {
         self.pointers.lookup_secondary_raw(key)
     }
 
-    pub(crate) fn invalidate_caches(&mut self) {
-    }
+    pub(crate) fn invalidate_caches(&mut self) {}
 
     pub(crate) fn add_history(&mut self, header: EventHeader) {
         self.pointers.feed(&header);
@@ -53,7 +47,7 @@ impl<'a> ChainTimeline
             None => match self.history.iter().next_back() {
                 Some(a) => a.0.clone(),
                 None => ChainTimestamp::from(0u64),
-            }
+            },
         };
 
         if header.meta.include_in_history() {
@@ -66,7 +60,7 @@ impl<'a> ChainTimeline
         let last = self.history.iter().next();
         match last {
             Some(a) => a.0.clone(),
-            None => ChainTimestamp::from(0u64)
+            None => ChainTimestamp::from(0u64),
         }
     }
 
@@ -74,7 +68,7 @@ impl<'a> ChainTimeline
         let last = self.history.iter().next_back();
         match last {
             Some(a) => a.0.clone(),
-            None => ChainTimestamp::from(0u64)
+            None => ChainTimestamp::from(0u64),
         }
     }
 }

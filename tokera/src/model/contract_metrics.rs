@@ -1,12 +1,11 @@
-use serde::*;
 use chrono::DateTime;
 use chrono::Utc;
+use serde::*;
 
 /// Metrics are used to track provider services so that charges can
 /// be made to the consumer at appropriate moments
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct ContractMetrics
-{
+pub struct ContractMetrics {
     /// What are these metrics related to
     pub related_to: String,
 

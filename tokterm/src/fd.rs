@@ -1,58 +1,50 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
-#[allow(unused_imports, dead_code)]
-use tracing::{info, error, debug, trace, warn};
-use std::{
-    pin::Pin,
-    sync::Arc,
-    task::{self, Poll, Waker, Context},
-};
+use bytes::{Buf, BytesMut};
+use core::sync::atomic::AtomicBool;
+use core::sync::atomic::Ordering;
 use std::io::prelude::*;
 use std::io::SeekFrom;
 use std::sync::Mutex;
-use bytes::{Buf, BytesMut};
+use std::{
+    pin::Pin,
+    sync::Arc,
+    task::{self, Context, Poll, Waker},
+};
 use tokio::io::{self, AsyncRead, AsyncWrite, ReadBuf};
 use tokio::sync::mpsc;
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, trace, warn};
+use wasmer_wasi::vfs::{FileDescriptor, VirtualFile};
 use wasmer_wasi::{types as wasi_types, WasiFile, WasiFsError};
-use wasmer_wasi::vfs::{VirtualFile, FileDescriptor};
-use core::sync::atomic::AtomicBool;
-use core::sync::atomic::Ordering;
 
-use super::state::*;
-use super::reactor::*;
-use super::poll::*;
-use super::err::*;
 use super::common::*;
+use super::err::*;
+use super::poll::*;
+use super::reactor::*;
+use super::state::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct RawFd
-{
+pub struct RawFd {
     pub(crate) id: usize,
 }
 
-impl From<usize>
-for RawFd
-{
+impl From<usize> for RawFd {
     fn from(fd: usize) -> RawFd {
-        RawFd {
-            id: fd
-        }
+        RawFd { id: fd }
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct Fd
-{
+pub struct Fd {
     pub(crate) raw: RawFd,
     pub(crate) blocking: Arc<AtomicBool>,
     pub(crate) sender: Option<mpsc::Sender<Vec<u8>>>,
     pub(crate) receiver: Option<Arc<Mutex<ReactorPipeReceiver>>>,
 }
 
-impl Fd
-{
-    pub fn new(fd: RawFd, reactor: &Reactor) -> Fd
-    {
+impl Fd {
+    pub fn new(fd: RawFd, reactor: &Reactor) -> Fd {
         let sender = reactor.fd_pipe_tx.get(&fd).map(|a| a.clone());
         let receiver = reactor.fd_pipe_rx.get(&fd).map(|a| a.clone());
         Fd {
@@ -63,8 +55,7 @@ impl Fd
         }
     }
 
-    pub fn combine(fd1: &Fd, fd2: &Fd) -> Fd
-    {
+    pub fn combine(fd1: &Fd, fd2: &Fd) -> Fd {
         let mut ret = Fd {
             raw: fd1.raw,
             blocking: Arc::new(AtomicBool::new(fd1.blocking.load(Ordering::Relaxed))),
@@ -77,7 +68,7 @@ impl Fd
         } else if let Some(a) = fd2.sender.as_ref() {
             ret.sender = Some(a.clone());
         }
-        
+
         if let Some(a) = fd1.receiver.as_ref() {
             ret.receiver = Some(a.clone());
         } else if let Some(a) = fd2.receiver.as_ref() {
@@ -147,7 +138,7 @@ impl Write for Fd {
                     Ok(ret) => Ok(ret),
                     Err(mpsc::error::TrySendError::Full(_)) => {
                         return Err(std::io::ErrorKind::WouldBlock.into());
-                    },
+                    }
                     Err(mpsc::error::TrySendError::Closed(_)) => {
                         return Ok(0);
                     }
@@ -186,8 +177,8 @@ impl Read for Fd {
                         Ok(ret) => Some(ret),
                         Err(mpsc::error::TryRecvError::Empty) => {
                             return Err(std::io::ErrorKind::WouldBlock.into());
-                        },
-                        Err(mpsc::error::TryRecvError::Disconnected) => None
+                        }
+                        Err(mpsc::error::TryRecvError::Disconnected) => None,
                     }
                 };
                 if let Some(data) = ret {
@@ -207,7 +198,6 @@ impl Read for Fd {
         } else {
             return Err(std::io::ErrorKind::BrokenPipe.into());
         }
-        
     }
 }
 

@@ -1,33 +1,40 @@
-use async_trait::async_trait;
+use super::error::*;
+use super::transaction::*;
+use crate::chain::ChainWork;
 use crate::header::PrimaryKey;
 #[allow(unused_imports)]
 use crate::meta::*;
-use super::error::*;
-use crate::chain::ChainWork;
-use super::transaction::*;
+use async_trait::async_trait;
 use std::sync::Arc;
-use tokio::sync::mpsc;
 use tokio::sync::broadcast;
+use tokio::sync::mpsc;
 
-pub enum ConnectionStatusChange
-{
+pub enum ConnectionStatusChange {
     Disconnected,
-    ReadOnly
+    ReadOnly,
 }
 
 #[async_trait]
-pub(crate) trait EventPipe: Send + Sync
-{
-    async fn is_connected(&self) -> bool { true }
+pub(crate) trait EventPipe: Send + Sync {
+    async fn is_connected(&self) -> bool {
+        true
+    }
 
-    async fn connect(&self, _exit: broadcast::Sender<()>) -> Result<mpsc::Receiver<ConnectionStatusChange>, ChainCreationError> {
+    async fn connect(
+        &self,
+        _exit: broadcast::Sender<()>,
+    ) -> Result<mpsc::Receiver<ConnectionStatusChange>, ChainCreationError> {
         Err(ChainCreationErrorKind::NotImplemented.into())
     }
 
-    async fn on_disconnect(&self) -> Result<(), CommsError> { Ok(()) }
+    async fn on_disconnect(&self) -> Result<(), CommsError> {
+        Ok(())
+    }
 
-    async fn on_read_only(&self) -> Result<(), CommsError> { Ok(()) }
-    
+    async fn on_read_only(&self) -> Result<(), CommsError> {
+        Ok(())
+    }
+
     async fn feed(&self, work: ChainWork) -> Result<(), CommitError>;
 
     async fn try_lock(&self, key: PrimaryKey) -> Result<bool, CommitError>;
@@ -42,55 +49,53 @@ pub(crate) trait EventPipe: Send + Sync
 }
 
 #[derive(Debug, Default, Clone, Copy)]
-pub(crate) struct NullPipe {
-}
+pub(crate) struct NullPipe {}
 
-impl NullPipe
-{
+impl NullPipe {
     pub fn new() -> Arc<Box<dyn EventPipe>> {
-        Arc::new(Box::new(NullPipe { }))
+        Arc::new(Box::new(NullPipe {}))
     }
 }
 
 #[async_trait]
-impl EventPipe
-for NullPipe
-{
-    async fn feed(&self, _work: ChainWork) -> Result<(), CommitError> { Ok(()) }
+impl EventPipe for NullPipe {
+    async fn feed(&self, _work: ChainWork) -> Result<(), CommitError> {
+        Ok(())
+    }
 
-    async fn try_lock(&self, _key: PrimaryKey) -> Result<bool, CommitError> { Ok(false) }
+    async fn try_lock(&self, _key: PrimaryKey) -> Result<bool, CommitError> {
+        Ok(false)
+    }
 
-    async fn unlock(&self, _key: PrimaryKey) -> Result<(), CommitError> { Ok(()) }
+    async fn unlock(&self, _key: PrimaryKey) -> Result<(), CommitError> {
+        Ok(())
+    }
 
-    fn unlock_local(&self, _key: PrimaryKey) -> Result<(), CommitError> { Ok(()) }
+    fn unlock_local(&self, _key: PrimaryKey) -> Result<(), CommitError> {
+        Ok(())
+    }
 
-    fn set_next(&mut self, _next: Arc<Box<dyn EventPipe>>) { }
+    fn set_next(&mut self, _next: Arc<Box<dyn EventPipe>>) {}
 
-    async fn conversation(&self) -> Option<Arc<ConversationSession>> { None }
+    async fn conversation(&self) -> Option<Arc<ConversationSession>> {
+        None
+    }
 }
 
 #[derive(Clone)]
-pub(crate) struct DuelPipe
-{
+pub(crate) struct DuelPipe {
     first: Arc<Box<dyn EventPipe>>,
     second: Arc<Box<dyn EventPipe>>,
 }
 
-impl DuelPipe
-{
-    pub fn new(first: Arc<Box<dyn EventPipe>>, second: Arc<Box<dyn EventPipe>>) -> DuelPipe
-    {
-        DuelPipe {
-            first,
-            second
-        }
+impl DuelPipe {
+    pub fn new(first: Arc<Box<dyn EventPipe>>, second: Arc<Box<dyn EventPipe>>) -> DuelPipe {
+        DuelPipe { first, second }
     }
 }
 
 #[async_trait]
-impl EventPipe
-for DuelPipe
-{
+impl EventPipe for DuelPipe {
     async fn is_connected(&self) -> bool {
         if self.first.is_connected().await == false {
             return false;
@@ -101,53 +106,60 @@ for DuelPipe
         true
     }
 
-    async fn on_disconnect(&self) -> Result<(), CommsError>
-    {
+    async fn on_disconnect(&self) -> Result<(), CommsError> {
         let ret1 = self.first.on_disconnect().await;
         let ret2 = self.second.on_disconnect().await;
-        
+
         if let Ok(_) = ret1 {
-            return Ok(())
+            return Ok(());
         }
         if let Ok(_) = ret2 {
-            return Ok(())
+            return Ok(());
         }
 
         Err(CommsErrorKind::ShouldBlock.into())
     }
 
-    async fn on_read_only(&self) -> Result<(), CommsError>
-    {
+    async fn on_read_only(&self) -> Result<(), CommsError> {
         let ret1 = self.first.on_read_only().await;
         let ret2 = self.second.on_read_only().await;
-        
+
         if let Ok(_) = ret1 {
-            return Ok(())
+            return Ok(());
         }
         if let Ok(_) = ret2 {
-            return Ok(())
+            return Ok(());
         }
 
         Err(CommsErrorKind::ShouldBlock.into())
     }
 
-    async fn connect(&self, exit: broadcast::Sender<()>) -> Result<mpsc::Receiver<ConnectionStatusChange>, ChainCreationError>
-    {
+    async fn connect(
+        &self,
+        exit: broadcast::Sender<()>,
+    ) -> Result<mpsc::Receiver<ConnectionStatusChange>, ChainCreationError> {
         match self.first.connect(exit.clone()).await {
-            Ok(a) => { return Ok(a); },
-            Err(ChainCreationError(ChainCreationErrorKind::NotImplemented, _)) => { }
-            Err(err) => { return Err(err); }
+            Ok(a) => {
+                return Ok(a);
+            }
+            Err(ChainCreationError(ChainCreationErrorKind::NotImplemented, _)) => {}
+            Err(err) => {
+                return Err(err);
+            }
         }
         match self.second.connect(exit.clone()).await {
-            Ok(a) => { return Ok(a); },
-            Err(ChainCreationError(ChainCreationErrorKind::NotImplemented, _)) => { }
-            Err(err) => { return Err(err); }
+            Ok(a) => {
+                return Ok(a);
+            }
+            Err(ChainCreationError(ChainCreationErrorKind::NotImplemented, _)) => {}
+            Err(err) => {
+                return Err(err);
+            }
         }
         Err(ChainCreationErrorKind::NotImplemented.into())
     }
 
-    async fn feed(&self, work: ChainWork) -> Result<(), CommitError>
-    {
+    async fn feed(&self, work: ChainWork) -> Result<(), CommitError> {
         let join1 = self.first.feed(work.clone());
         let join2 = self.second.feed(work);
         let (notify1, notify2) = futures::join!(join1, join2);
@@ -158,32 +170,25 @@ for DuelPipe
         Ok(())
     }
 
-    async fn try_lock(&self, key: PrimaryKey) -> Result<bool, CommitError>
-    {
+    async fn try_lock(&self, key: PrimaryKey) -> Result<bool, CommitError> {
         Ok(self.first.try_lock(key).await? || self.second.try_lock(key).await?)
     }
 
-    async fn unlock(&self, key: PrimaryKey) -> Result<(), CommitError>
-    {
+    async fn unlock(&self, key: PrimaryKey) -> Result<(), CommitError> {
         self.first.unlock(key).await?;
         self.second.unlock(key).await?;
         Ok(())
     }
 
-    fn unlock_local(&self, key: PrimaryKey) -> Result<(), CommitError>
-    {
+    fn unlock_local(&self, key: PrimaryKey) -> Result<(), CommitError> {
         self.first.unlock_local(key)?;
         self.second.unlock_local(key)?;
         Ok(())
     }
 
-    fn set_next(&mut self, _next: Arc<Box<dyn EventPipe>>)
-    {
+    fn set_next(&mut self, _next: Arc<Box<dyn EventPipe>>) {}
 
-    }
-
-    async fn conversation(&self) -> Option<Arc<ConversationSession>>
-    {
+    async fn conversation(&self) -> Option<Arc<ConversationSession>> {
         if let Some(ret) = self.first.conversation().await {
             return Some(ret);
         }

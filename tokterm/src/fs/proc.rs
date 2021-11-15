@@ -1,35 +1,33 @@
 #![allow(dead_code)]
 #![allow(unused)]
-#[allow(unused_imports, dead_code)]
-use tracing::{info, error, debug, trace, warn};
-use wasmer_wasi::vfs::*;
-use wasmer_wasi::vfs::Result as FsResult;
-use std::io::{self};
 use std::io::prelude::*;
 use std::io::SeekFrom;
+use std::io::{self};
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
-use std::sync::Arc;
-use tokio::sync::mpsc;
 use std::result::Result as StdResult;
+use std::sync::Arc;
+use std::sync::Mutex;
+use tokio::sync::mpsc;
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, trace, warn};
+use wasmer_wasi::vfs::Result as FsResult;
+use wasmer_wasi::vfs::*;
+use wasmer_wasi::vfs::{FileDescriptor, VirtualFile};
 use wasmer_wasi::{types as wasi_types, WasiFile, WasiFsError};
-use wasmer_wasi::vfs::{VirtualFile, FileDescriptor};
 
-use crate::stdio::*;
 use crate::fd::*;
+use crate::stdio::*;
 use crate::tty::*;
 
 #[derive(Debug)]
-pub struct ProcFileSystem
-{
+pub struct ProcFileSystem {
     type_file: FileType,
     type_dir: FileType,
     type_char: FileType,
     stdio: Stdio,
 }
 
-impl ProcFileSystem
-{
+impl ProcFileSystem {
     pub fn new(stdio: Stdio) -> ProcFileSystem {
         let mut ret = ProcFileSystem {
             type_file: FileType::default(),
@@ -45,15 +43,14 @@ impl ProcFileSystem
     }
 }
 
-impl ProcFileSystem
-{
+impl ProcFileSystem {
     fn default_metadata(type_: &FileType) -> Metadata {
         Metadata {
             ft: type_.clone(),
             accessed: 0,
             created: 0,
             modified: 0,
-            len: 0
+            len: 0,
         }
     }
 
@@ -63,29 +60,44 @@ impl ProcFileSystem
             accessed: 0,
             created: 0,
             modified: 0,
-            len: size as u64
+            len: size as u64,
         }
     }
 }
 
-impl FileSystem
-for ProcFileSystem
-{
+impl FileSystem for ProcFileSystem {
     fn read_dir(&self, path: &Path) -> FsResult<ReadDir> {
         debug!("read_dir: path={}", path.display());
-        
+
         let mut entries = Vec::new();
         let path = path.to_string_lossy();
         let path = path.as_ref();
         match path {
             "/" | "" => {
-                entries.push(DirEntry { path: PathBuf::from("stdin"), metadata: Ok(Self::default_metadata(&self.type_file)) });
-                entries.push(DirEntry { path: PathBuf::from("stdout"), metadata: Ok(Self::default_metadata(&self.type_file)) });
-                entries.push(DirEntry { path: PathBuf::from("stderr"), metadata: Ok(Self::default_metadata(&self.type_file)) });
-                entries.push(DirEntry { path: PathBuf::from("tty"), metadata: Ok(Self::default_metadata(&self.type_file)) });
-                entries.push(DirEntry { path: PathBuf::from("web"), metadata: Ok(Self::default_metadata(&self.type_file)) });
-            },
-            _ => { return Err(FsError::EntityNotFound); }
+                entries.push(DirEntry {
+                    path: PathBuf::from("stdin"),
+                    metadata: Ok(Self::default_metadata(&self.type_file)),
+                });
+                entries.push(DirEntry {
+                    path: PathBuf::from("stdout"),
+                    metadata: Ok(Self::default_metadata(&self.type_file)),
+                });
+                entries.push(DirEntry {
+                    path: PathBuf::from("stderr"),
+                    metadata: Ok(Self::default_metadata(&self.type_file)),
+                });
+                entries.push(DirEntry {
+                    path: PathBuf::from("tty"),
+                    metadata: Ok(Self::default_metadata(&self.type_file)),
+                });
+                entries.push(DirEntry {
+                    path: PathBuf::from("web"),
+                    metadata: Ok(Self::default_metadata(&self.type_file)),
+                });
+            }
+            _ => {
+                return Err(FsError::EntityNotFound);
+            }
         }
         Ok(ReadDir::new(entries))
     }
@@ -112,7 +124,7 @@ for ProcFileSystem
             "/stderr" | "stderr" => Ok(Self::default_metadata(&self.type_file)),
             "/tty" | "tty" => Ok(Self::default_metadata(&self.type_file)),
             "/web" | "web" => Ok(Self::default_metadata(&self.type_file)),
-            _ => Err(FsError::EntityNotFound)
+            _ => Err(FsError::EntityNotFound),
         }
     }
     fn symlink_metadata(&self, path: &Path) -> FsResult<Metadata> {
@@ -136,8 +148,7 @@ pub struct CoreFileOpener {
     stdio: Stdio,
 }
 
-impl FileOpener
-for CoreFileOpener {
+impl FileOpener for CoreFileOpener {
     fn open(&mut self, path: &Path, conf: &OpenOptionsConfig) -> FsResult<Box<dyn VirtualFile>> {
         debug!("open: path={}", path.display());
         let path = path.to_string_lossy();
@@ -148,31 +159,28 @@ for CoreFileOpener {
             "/stderr" | "stderr" => Ok(Box::new(self.stdio.stderr.clone())),
             "/tty" | "tty" => Ok(Box::new(TtyFile::new(&self.stdio))),
             "/web" | "web" => Ok(Box::new(self.stdio.tok.create())),
-            _ => Err(FsError::EntityNotFound)
+            _ => Err(FsError::EntityNotFound),
         }
     }
 }
 
 #[derive(Debug)]
-pub struct TtyFile
-{
+pub struct TtyFile {
     fd: Fd,
     tty: Tty,
 }
 
 impl TtyFile {
-    pub fn new(stdio: &Stdio) -> TtyFile
-    {
+    pub fn new(stdio: &Stdio) -> TtyFile {
         stdio.tty.set_buffering(false);
         TtyFile {
             fd: Fd::combine(&stdio.stdin, &stdio.stdout),
-            tty: stdio.tty.clone()
+            tty: stdio.tty.clone(),
         }
     }
 }
 
-impl Drop
-for TtyFile {
+impl Drop for TtyFile {
     fn drop(&mut self) {
         self.tty.set_buffering(true);
     }

@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use super::meta::*;
 use super::crypto::*;
-use super::event::*;
-use super::signature::MetaSignature;
 use super::error::*;
+use super::event::*;
+use super::meta::*;
+use super::signature::MetaSignature;
 use super::transaction::*;
 use crate::spec::TrustMode;
 
@@ -16,14 +16,16 @@ pub enum ValidationResult {
     Abstain,
 }
 
-pub trait EventValidator: Send + Sync
-{
-    fn validate(&self, _header: &EventHeader, _conversation: Option<&Arc<ConversationSession>>) -> Result<ValidationResult, ValidationError> {
+pub trait EventValidator: Send + Sync {
+    fn validate(
+        &self,
+        _header: &EventHeader,
+        _conversation: Option<&Arc<ConversationSession>>,
+    ) -> Result<ValidationResult, ValidationError> {
         Ok(ValidationResult::Abstain)
     }
 
-    fn set_integrity_mode(&mut self, _mode: TrustMode) {
-    }
+    fn set_integrity_mode(&mut self, _mode: TrustMode) {}
 
     fn clone_validator(&self) -> Box<dyn EventValidator>;
 
@@ -31,19 +33,19 @@ pub trait EventValidator: Send + Sync
 }
 
 #[derive(Default, Clone)]
-pub struct RubberStampValidator {   
-}
+pub struct RubberStampValidator {}
 
-impl EventValidator
-for RubberStampValidator
-{
+impl EventValidator for RubberStampValidator {
     fn clone_validator(&self) -> Box<dyn EventValidator> {
         Box::new(self.clone())
     }
 
     #[allow(unused_variables)]
-    fn validate(&self, _header: &EventHeader, _conversation: Option<&Arc<ConversationSession>>) -> Result<ValidationResult, ValidationError>
-    {
+    fn validate(
+        &self,
+        _header: &EventHeader,
+        _conversation: Option<&Arc<ConversationSession>>,
+    ) -> Result<ValidationResult, ValidationError> {
         Ok(ValidationResult::Allow)
     }
 
@@ -58,26 +60,24 @@ pub struct StaticSignatureValidator {
     pk: PublicSignKey,
 }
 
-impl StaticSignatureValidator
-{
+impl StaticSignatureValidator {
     #[allow(dead_code)]
     pub fn new(key: &PublicSignKey) -> StaticSignatureValidator {
-        StaticSignatureValidator {
-            pk: key.clone(),
-        }
+        StaticSignatureValidator { pk: key.clone() }
     }
 }
 
-impl EventValidator
-for StaticSignatureValidator
-{
+impl EventValidator for StaticSignatureValidator {
     fn clone_validator(&self) -> Box<dyn EventValidator> {
         Box::new(self.clone())
     }
-    
+
     #[allow(unused_variables)]
-    fn validate(&self, _header: &EventHeader, _conversation: Option<&Arc<ConversationSession>>) -> Result<ValidationResult, ValidationError>
-    {
+    fn validate(
+        &self,
+        _header: &EventHeader,
+        _conversation: Option<&Arc<ConversationSession>>,
+    ) -> Result<ValidationResult, ValidationError> {
         Ok(ValidationResult::Allow)
     }
 
@@ -86,22 +86,17 @@ for StaticSignatureValidator
     }
 }
 
-impl Metadata
-{
+impl Metadata {
     #[allow(dead_code)]
-    pub fn add_signature(&mut self, _sig: MetaSignature) {
-    }
+    pub fn add_signature(&mut self, _sig: MetaSignature) {}
 
     pub fn get_signature<'a>(&'a self) -> Option<&'a MetaSignature> {
-        self.core.iter().filter_map(
-            |m| {
-                match m
-                {
-                    CoreMetadata::Signature(k) => Some(k),
-                     _ => None
-                }
-            }
-        )
-        .next()
+        self.core
+            .iter()
+            .filter_map(|m| match m {
+                CoreMetadata::Signature(k) => Some(k),
+                _ => None,
+            })
+            .next()
     }
 }

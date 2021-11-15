@@ -1,9 +1,9 @@
 #[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
-use serde::{Serialize, Deserialize};
-use crate::header::*;
 use crate::crypto::AteHash;
+use crate::header::*;
+use serde::{Deserialize, Serialize};
 
 /// Unique key that represents this chain-of-trust. The design must
 /// partition their data space into seperate chains to improve scalability
@@ -16,20 +16,18 @@ pub struct ChainKey {
     pub hash: Option<AteHash>,
 }
 
-impl std::fmt::Display
-for ChainKey {
+impl std::fmt::Display for ChainKey {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self.name)
     }
 }
 
-impl ChainKey
-{
+impl ChainKey {
     pub fn new(mut val: String) -> ChainKey {
         while val.starts_with("/") == true {
             val = val[1..].to_string();
         }
-        
+
         ChainKey {
             hash: Some(AteHash::from_bytes(val.as_bytes())),
             name: val,
@@ -41,61 +39,50 @@ impl ChainKey
         hash: None,
     };
 
-    pub fn with_name(&self, val: String) -> ChainKey
-    {
+    pub fn with_name(&self, val: String) -> ChainKey {
         let mut ret = self.clone();
         ret.name = val;
         ret
     }
 
-    pub fn with_temp_name(&self, val: String) -> ChainKey
-    {
+    pub fn with_temp_name(&self, val: String) -> ChainKey {
         let mut ret = self.clone();
         ret.name = format!("{}_{}", val, PrimaryKey::generate().as_hex_string());
         ret
     }
 
-    pub fn hash(&self) -> AteHash
-    {
+    pub fn hash(&self) -> AteHash {
         match &self.hash {
             Some(a) => a.clone(),
-            None => AteHash::from_bytes(self.name.as_bytes())
+            None => AteHash::from_bytes(self.name.as_bytes()),
         }
     }
 
-    pub fn hash64(&self) -> u64
-    {
+    pub fn hash64(&self) -> u64 {
         match &self.hash {
             Some(a) => a.to_u64(),
-            None => AteHash::from_bytes(self.name.as_bytes()).to_u64()
+            None => AteHash::from_bytes(self.name.as_bytes()).to_u64(),
         }
     }
 
-    pub fn to_string(&self) -> String
-    {
+    pub fn to_string(&self) -> String {
         self.name.clone()
     }
 }
 
-impl From<String>
-for ChainKey
-{
+impl From<String> for ChainKey {
     fn from(val: String) -> ChainKey {
         ChainKey::new(val)
     }
 }
 
-impl From<&'static str>
-for ChainKey
-{
+impl From<&'static str> for ChainKey {
     fn from(val: &'static str) -> ChainKey {
         ChainKey::new(val.to_string())
     }
 }
 
-impl From<u64>
-for ChainKey
-{
+impl From<u64> for ChainKey {
     fn from(val: u64) -> ChainKey {
         ChainKey::new(val.to_string())
     }

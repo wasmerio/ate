@@ -1,11 +1,10 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use ate::prelude::*;
 use crate::model::*;
+use ate::prelude::*;
 
-pub struct TokApi
-{
+pub struct TokApi {
     pub dio: Arc<DioMut>,
     pub wallet: DaoMut<Wallet>,
     pub auth: url::Url,
@@ -14,8 +13,12 @@ pub struct TokApi
     pub lock_timeout: Duration,
 }
 
-pub async fn build_api_accessor(dio: &Arc<DioMut>, wallet: DaoMut<Wallet>, auth: url::Url, registry: &Arc<Registry>) -> TokApi
-{
+pub async fn build_api_accessor(
+    dio: &Arc<DioMut>,
+    wallet: DaoMut<Wallet>,
+    auth: url::Url,
+    registry: &Arc<Registry>,
+) -> TokApi {
     TokApi {
         dio: Arc::clone(dio),
         wallet,
@@ -26,21 +29,17 @@ pub async fn build_api_accessor(dio: &Arc<DioMut>, wallet: DaoMut<Wallet>, auth:
     }
 }
 
-impl TokApi
-{
-    pub async fn commit(&mut self) -> Result<(), CommitError>
-    {
+impl TokApi {
+    pub async fn commit(&mut self) -> Result<(), CommitError> {
         self.dio.commit().await?;
         Ok(())
     }
 
-    pub fn session_identity(&self) -> String
-    {
+    pub fn session_identity(&self) -> String {
         self.dio.session().identity().to_string()
     }
 
-    pub fn user_identity(&self) -> String
-    {
+    pub fn user_identity(&self) -> String {
         self.dio.session().user().identity().to_string()
     }
 }

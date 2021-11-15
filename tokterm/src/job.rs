@@ -1,19 +1,18 @@
 #![allow(unused_imports)]
 #![allow(dead_code)]
-#[allow(unused_imports, dead_code)]
-use tracing::{info, error, debug, trace, warn};
-use tokio::sync::mpsc;
 use std::sync::Arc;
 use std::sync::Mutex;
+use tokio::sync::mpsc;
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, trace, warn};
 
 use crate::common::*;
 
-use super::stdio::*;
 use super::reactor::*;
+use super::stdio::*;
 
 #[derive(Debug)]
-pub struct Job
-{
+pub struct Job {
     pub id: u32,
     pub stdio: Stdio,
     pub stdin_tx: mpsc::Sender<Vec<u8>>,
@@ -21,9 +20,7 @@ pub struct Job
     pub job_list_rx: Arc<Mutex<mpsc::Receiver<Pid>>>,
 }
 
-impl Clone
-for Job
-{
+impl Clone for Job {
     fn clone(&self) -> Job {
         Job {
             id: self.id,
@@ -35,8 +32,7 @@ for Job
     }
 }
 
-impl Job
-{
+impl Job {
     pub fn new(id: u32, stdio: Stdio, stdin_tx: mpsc::Sender<Vec<u8>>) -> Job {
         let (job_list_tx, job_list_rx) = mpsc::channel(MAX_MPSC);
         Job {

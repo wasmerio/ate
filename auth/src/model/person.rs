@@ -1,7 +1,7 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use serde::*;
 use ate::prelude::*;
+use serde::*;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use super::*;
 
@@ -13,5 +13,5 @@ pub struct Person {
     pub date_of_birth: Option<chrono::naive::NaiveDate>,
     pub gender: Gender,
     pub nationalities: Vec<isocountry::CountryCode>,
-    pub foreign: DaoForeign
+    pub foreign: DaoForeign,
 }

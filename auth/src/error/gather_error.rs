@@ -1,7 +1,7 @@
 use error_chain::error_chain;
 
-use ::ate::prelude::*;
 use crate::request::*;
+use ::ate::prelude::*;
 
 error_chain! {
     types {
@@ -42,16 +42,13 @@ error_chain! {
     }
 }
 
-impl From<GatherError>
-for AteError
-{
+impl From<GatherError> for AteError {
     fn from(err: GatherError) -> AteError {
         AteErrorKind::ServiceError(err.to_string()).into()
     }
 }
 
-impl From<GatherFailed>
-for GatherError {
+impl From<GatherFailed> for GatherError {
     fn from(err: GatherFailed) -> GatherError {
         match err {
             GatherFailed::GroupNotFound(group) => GatherErrorKind::NotFound(group).into(),

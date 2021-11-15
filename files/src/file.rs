@@ -1,27 +1,26 @@
 #![allow(dead_code)]
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use error_chain::bail;
-use std::ops::Deref;
-use async_trait::async_trait;
-use crate::api::FileApi;
-use super::model::*;
 use super::api::FileKind;
+use super::model::*;
+use crate::api::FileApi;
+use async_trait::async_trait;
 use ate::prelude::*;
-use bytes::{Bytes};
-use tokio::sync::Mutex;
+use bytes::Bytes;
+use error_chain::bail;
+use fxhash::FxHashMap;
 use seqlock::SeqLock;
 use std::io::Cursor;
-use fxhash::FxHashMap;
+use std::ops::Deref;
+use tokio::sync::Mutex;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use crate::error::*;
 
-const CACHED_BUNDLES: usize = 10;      // Number of cached bundles per open file
-const CACHED_PAGES: usize = 80;       // Number of cached pages per open file
-const ZERO_PAGE: [u8; super::model::PAGE_SIZE] = [0 as u8; super::model::PAGE_SIZE];    // Page full of zeros
+const CACHED_BUNDLES: usize = 10; // Number of cached bundles per open file
+const CACHED_PAGES: usize = 80; // Number of cached pages per open file
+const ZERO_PAGE: [u8; super::model::PAGE_SIZE] = [0 as u8; super::model::PAGE_SIZE]; // Page full of zeros
 
-pub struct RegularFile
-{
+pub struct RegularFile {
     pub ino: u64,
     pub created: u64,
     pub updated: u64,
@@ -33,8 +32,7 @@ pub struct RegularFile
     pub state: Mutex<FileState>,
 }
 
-impl RegularFile
-{
+impl RegularFile {
     pub async fn new(inode: Dao<Inode>, created: u64, updated: u64) -> RegularFile {
         RegularFile {
             uid: inode.dentry.uid,
@@ -73,46 +71,54 @@ impl RegularFile
     }
 }
 
-pub enum FileState
-{
-    Immutable
-    {
+pub enum FileState {
+    Immutable {
         inode: Dao<Inode>,
         bundles: Box<[Option<Dao<PageBundle>>; CACHED_BUNDLES]>,
         pages: Box<[Option<Dao<Page>>; CACHED_PAGES]>,
     },
-    Mutable
-    {
+    Mutable {
         dirty: bool,
         inode: DaoMut<Inode>,
         bundles: Box<[Option<DaoMut<PageBundle>>; CACHED_BUNDLES]>,
         pages: Box<[Option<DaoMutGuardOwned<Page>>; CACHED_PAGES]>,
-    }
+    },
 }
 
-impl FileState
-{
-    fn __inode(&self) -> &Inode
-    {
+impl FileState {
+    fn __inode(&self) -> &Inode {
         match self {
-            FileState::Immutable { inode, bundles: _, pages: _ }
-                => inode.deref(),
-            FileState::Mutable { dirty: _, inode, bundles: _, pages: _ }
-                => inode.deref(),
+            FileState::Immutable {
+                inode,
+                bundles: _,
+                pages: _,
+            } => inode.deref(),
+            FileState::Mutable {
+                dirty: _,
+                inode,
+                bundles: _,
+                pages: _,
+            } => inode.deref(),
         }
     }
 
-    pub fn get_size(&self) -> Result<u64>
-    {
+    pub fn get_size(&self) -> Result<u64> {
         Ok(self.__inode().size)
     }
 
-    pub fn set_size(&mut self, val: u64) -> Result<()>
-    {
+    pub fn set_size(&mut self, val: u64) -> Result<()> {
         let (dirty, inode, _, _) = match self {
-            FileState::Mutable { dirty, inode, bundles, pages} =>
-                (dirty, inode, bundles, pages),
-            FileState::Immutable {  inode: _, bundles: _, pages: _ } => {
+            FileState::Mutable {
+                dirty,
+                inode,
+                bundles,
+                pages,
+            } => (dirty, inode, bundles, pages),
+            FileState::Immutable {
+                inode: _,
+                bundles: _,
+                pages: _,
+            } => {
                 bail!(FileSystemErrorKind::NoAccess);
             }
         };
@@ -122,8 +128,12 @@ impl FileState
         Ok(())
     }
 
-    pub async fn read_page(&mut self, mut offset: u64, mut size: u64, ret: &mut Cursor<&mut Vec<u8>>) -> Result<()>
-    {
+    pub async fn read_page(
+        &mut self,
+        mut offset: u64,
+        mut size: u64,
+        ret: &mut Cursor<&mut Vec<u8>>,
+    ) -> Result<()> {
         // Compute the strides
         let stride_page = super::model::PAGE_SIZE as u64;
         let stride_bundle = super::model::PAGES_PER_BUNDLE as u64 * stride_page;
@@ -148,18 +158,21 @@ impl FileState
 
         // There is code for read-only inodes ... and code for writable inodes
         match self {
-            FileState::Mutable { dirty: _, inode, bundles, pages} =>
-            {
+            FileState::Mutable {
+                dirty: _,
+                inode,
+                bundles,
+                pages,
+            } => {
                 // Use the cache-line to load the bundle
                 let dio = inode.trans();
                 let cache_index = bundle.as_u64() as usize % CACHED_BUNDLES;
                 let cache_line = &mut bundles[cache_index];
                 let bundle = match cache_line {
-                    Some(b)
-                        if *b.key() == bundle => {
+                    Some(b) if *b.key() == bundle => {
                         // Cache-hit
                         b
-                    },
+                    }
                     _ => {
                         // Cache-miss - load the bundle into the cacheline and return its pages
                         let dao = dio.load::<PageBundle>(&bundle).await?;
@@ -190,11 +203,10 @@ impl FileState
                 let cache_index = page.as_u64() as usize % CACHED_PAGES;
                 let cache_line = &mut pages[cache_index];
                 let page = match cache_line {
-                    Some(b)
-                    if *b.key() == page => {
+                    Some(b) if *b.key() == page => {
                         // Cache-hit
                         b
-                    },
+                    }
                     _ => {
                         // Cache-miss - load the bundle into the cacheline and return its pages
                         let dao = dio.load::<Page>(&page).await?;
@@ -207,23 +219,26 @@ impl FileState
                 let buf = &page.buf;
                 let sub_next = size.min(buf.len() as u64 - offset);
                 if sub_next > 0 {
-                    let mut reader = Cursor::new(&buf[offset as usize..(offset + sub_next) as usize]);
+                    let mut reader =
+                        Cursor::new(&buf[offset as usize..(offset + sub_next) as usize]);
                     tokio::io::copy(&mut reader, ret).await?;
                     size = size - sub_next;
                 }
             }
-            FileState::Immutable {  inode, bundles, pages } =>
-            {
+            FileState::Immutable {
+                inode,
+                bundles,
+                pages,
+            } => {
                 // Use the cache-line to load the bundle
                 let dio = inode.dio();
                 let cache_index = bundle.as_u64() as usize % CACHED_BUNDLES;
                 let cache_line = &mut bundles[cache_index];
                 let bundle = match cache_line {
-                    Some(b)
-                        if *b.key() == bundle => {
+                    Some(b) if *b.key() == bundle => {
                         // Cache-hit
                         b
-                    },
+                    }
                     _ => {
                         // Cache-miss - load the bundle into the cacheline and return its pages
                         let dao = dio.load::<PageBundle>(&bundle).await?;
@@ -254,11 +269,10 @@ impl FileState
                 let cache_index = page.as_u64() as usize % CACHED_PAGES;
                 let cache_line = &mut pages[cache_index];
                 let page = match cache_line {
-                    Some(b)
-                    if *b.key() == page => {
+                    Some(b) if *b.key() == page => {
                         // Cache-hit
                         b
-                    },
+                    }
                     _ => {
                         // Cache-miss - load the bundle into the cacheline and return its pages
                         let dao = dio.load::<Page>(&page).await?;
@@ -271,7 +285,8 @@ impl FileState
                 let buf = &page.buf;
                 let sub_next = size.min(buf.len() as u64 - offset);
                 if sub_next > 0 {
-                    let mut reader = Cursor::new(&buf[offset as usize..(offset + sub_next) as usize]);
+                    let mut reader =
+                        Cursor::new(&buf[offset as usize..(offset + sub_next) as usize]);
                     tokio::io::copy(&mut reader, ret).await?;
                     size = size - sub_next;
                 }
@@ -283,26 +298,32 @@ impl FileState
         Ok(())
     }
 
-    pub async fn write_zeros(ret: &mut Cursor<&mut Vec<u8>>, size: u64) -> Result<()>
-    {
+    pub async fn write_zeros(ret: &mut Cursor<&mut Vec<u8>>, size: u64) -> Result<()> {
         if size <= 0 {
-            return Ok(())
+            return Ok(());
         }
 
         let offset = super::model::PAGE_SIZE as u64 - size;
         let mut reader = Cursor::new(&ZERO_PAGE);
         reader.set_position(offset);
-        
+
         tokio::io::copy(&mut reader, ret).await?;
         Ok(())
     }
 
-    pub async fn write_page(&mut self, mut offset: u64, reader: &mut Cursor<&[u8]>) -> Result<()>
-    {
+    pub async fn write_page(&mut self, mut offset: u64, reader: &mut Cursor<&[u8]>) -> Result<()> {
         let (dirty, inode, bundles, pages) = match self {
-            FileState::Mutable { dirty, inode, bundles, pages} =>
-                (dirty, inode, bundles, pages),
-            FileState::Immutable {  inode: _, bundles: _, pages: _ } => {
+            FileState::Mutable {
+                dirty,
+                inode,
+                bundles,
+                pages,
+            } => (dirty, inode, bundles, pages),
+            FileState::Immutable {
+                inode: _,
+                bundles: _,
+                pages: _,
+            } => {
                 bail!(FileSystemErrorKind::NoAccess);
             }
         };
@@ -332,12 +353,9 @@ impl FileState
             Some(a) => a,
             None => {
                 // Create the bundle
-                let mut bundle = dio.store( 
-                    PageBundle {
-                            pages: Vec::new(),
-                        })?;
+                let mut bundle = dio.store(PageBundle { pages: Vec::new() })?;
                 bundle.attach_orphaned(&inode_key)?;
-                
+
                 let key = bundle.key().clone();
 
                 // Replace the cache-line with this new one (if something was left behind then commit it)
@@ -357,11 +375,10 @@ impl FileState
         let cache_index = bundle.as_u64() as usize % CACHED_BUNDLES;
         let cache_line = &mut bundles[cache_index];
         let bundle = match cache_line {
-            Some(b)
-                if *b.key() == bundle => {
+            Some(b) if *b.key() == bundle => {
                 // Cache-hit
                 b
-            },
+            }
             _ => {
                 // Cache-miss - load the bundle into the cacheline and return its pages
                 let dao = dio.load::<PageBundle>(&bundle).await?;
@@ -392,10 +409,7 @@ impl FileState
             Some(a) => a.clone(),
             None => {
                 // Create the page (and commit it for reference integrity)
-                let mut page = dio.store(Page {
-                        buf: Vec::new(),
-                    },
-                )?;
+                let mut page = dio.store(Page { buf: Vec::new() })?;
                 page.attach_orphaned(&bundle_key)?;
                 let key = page.key().clone();
 
@@ -416,11 +430,10 @@ impl FileState
         let cache_index = page.as_u64() as usize % CACHED_BUNDLES;
         let cache_line = &mut pages[cache_index];
         let page = match cache_line {
-            Some(b)
-                if *b.key() == page => {
+            Some(b) if *b.key() == page => {
                 // Cache-hit
                 b
-            },
+            }
             _ => {
                 // Cache-miss - load the page into the cacheline and return its pages
                 let dao = dio.load::<Page>(&page).await?;
@@ -442,12 +455,19 @@ impl FileState
         Ok(())
     }
 
-    pub async fn commit(&mut self) -> Result<()>
-    {
+    pub async fn commit(&mut self) -> Result<()> {
         let (dirty, inode, _, pages) = match self {
-            FileState::Mutable { dirty, inode, bundles, pages} =>
-                (dirty, inode, bundles, pages),
-            FileState::Immutable {  inode: _, bundles: _, pages: _ } => {
+            FileState::Mutable {
+                dirty,
+                inode,
+                bundles,
+                pages,
+            } => (dirty, inode, bundles, pages),
+            FileState::Immutable {
+                inode: _,
+                bundles: _,
+                pages: _,
+            } => {
                 return Ok(());
             }
         };
@@ -465,9 +485,23 @@ impl FileState
 
     pub async fn set_xattr(&mut self, name: &str, value: &str) -> Result<()> {
         match self {
-            FileState::Mutable { dirty: _, inode, bundles: _, pages: _ } =>
-                inode.as_mut().xattr.insert(name.to_string(), value.to_string()).await?,
-            FileState::Immutable {  inode: _, bundles: _, pages: _ } => {
+            FileState::Mutable {
+                dirty: _,
+                inode,
+                bundles: _,
+                pages: _,
+            } => {
+                inode
+                    .as_mut()
+                    .xattr
+                    .insert(name.to_string(), value.to_string())
+                    .await?
+            }
+            FileState::Immutable {
+                inode: _,
+                bundles: _,
+                pages: _,
+            } => {
                 bail!(FileSystemErrorKind::NoAccess);
             }
         };
@@ -477,9 +511,17 @@ impl FileState
     pub async fn remove_xattr(&mut self, name: &str) -> Result<bool> {
         let name = name.to_string();
         let ret = match self {
-            FileState::Mutable { dirty: _, inode, bundles: _, pages: _ } =>
-                inode.as_mut().xattr.delete(&name).await?,
-            FileState::Immutable {  inode: _, bundles: _, pages: _ } => {
+            FileState::Mutable {
+                dirty: _,
+                inode,
+                bundles: _,
+                pages: _,
+            } => inode.as_mut().xattr.delete(&name).await?,
+            FileState::Immutable {
+                inode: _,
+                bundles: _,
+                pages: _,
+            } => {
                 bail!(FileSystemErrorKind::NoAccess);
             }
         };
@@ -489,12 +531,17 @@ impl FileState
     pub async fn get_xattr(&self, name: &str) -> Result<Option<String>> {
         let name = name.to_string();
         let ret = match self {
-            FileState::Mutable { dirty: _, inode, bundles: _, pages: _ } => {
-                inode.xattr.get(&name).await?.map(|a| a.deref().clone())
-            },
-            FileState::Immutable { inode, bundles: _, pages: _ } => {
-                inode.xattr.get(&name).await?.map(|a| a.deref().clone())
-            }
+            FileState::Mutable {
+                dirty: _,
+                inode,
+                bundles: _,
+                pages: _,
+            } => inode.xattr.get(&name).await?.map(|a| a.deref().clone()),
+            FileState::Immutable {
+                inode,
+                bundles: _,
+                pages: _,
+            } => inode.xattr.get(&name).await?.map(|a| a.deref().clone()),
         };
         Ok(ret)
     }
@@ -502,12 +549,21 @@ impl FileState
     pub async fn list_xattr(&self) -> Result<FxHashMap<String, String>> {
         let mut ret = FxHashMap::default();
         match self {
-            FileState::Mutable { dirty: _, inode, bundles: _, pages: _ } => {
+            FileState::Mutable {
+                dirty: _,
+                inode,
+                bundles: _,
+                pages: _,
+            } => {
                 for (k, v) in inode.xattr.iter().await? {
                     ret.insert(k, v.deref().clone());
                 }
-            },
-            FileState::Immutable {  inode, bundles: _, pages: _ } => {
+            }
+            FileState::Immutable {
+                inode,
+                bundles: _,
+                pages: _,
+            } => {
                 for (k, v) in inode.xattr.iter().await? {
                     ret.insert(k, v.deref().clone());
                 }
@@ -518,9 +574,7 @@ impl FileState
 }
 
 #[async_trait]
-impl FileApi
-for RegularFile
-{
+impl FileApi for RegularFile {
     fn kind(&self) -> FileKind {
         FileKind::RegularFile
     }
@@ -561,16 +615,14 @@ for RegularFile
         self.updated
     }
 
-    async fn fallocate(&self, size: u64) -> Result<()>
-    {
+    async fn fallocate(&self, size: u64) -> Result<()> {
         let mut lock = self.state.lock().await;
         lock.set_size(size)?;
         *self.size.lock_write() = size;
         Ok(())
     }
 
-    async fn read(&self, mut offset: u64, mut size: u64) -> Result<Bytes>
-    {
+    async fn read(&self, mut offset: u64, mut size: u64) -> Result<Bytes> {
         // Clip the read to the correct size (or return EOF)
         let mut state = self.state.lock().await;
         let file_size = state.get_size()?;
@@ -587,7 +639,7 @@ for RegularFile
         let stride_page = super::model::PAGE_SIZE as u64;
         let mut ret = Vec::with_capacity(size as usize);
         let mut cursor = Cursor::new(&mut ret);
-        
+
         // Read the data (under a lock)
         while size > 0 {
             let sub_offset = offset % stride_page;
@@ -600,12 +652,11 @@ for RegularFile
             size = size - sub_size;
             offset = offset + sub_size;
         }
-        
+
         Ok(Bytes::from(ret))
     }
 
-    async fn write(&self, mut offset: u64, data: &[u8]) -> Result<u64>    
-    {
+    async fn write(&self, mut offset: u64, data: &[u8]) -> Result<u64> {
         // Validate
         let mut size = data.len();
         if size <= 0 {
@@ -621,14 +672,14 @@ for RegularFile
         if end > state.get_size()? {
             state.set_size(end)?;
         }
-        
+
         // Write the data (under a lock)
         let mut data_offset = 0 as usize;
         while size > 0 {
             let sub_offset = offset % stride_page as u64;
             let sub_size = size.min(stride_page - sub_offset as usize);
             if sub_size > 0 {
-                let mut reader = Cursor::new(&data[data_offset..(data_offset+sub_size) as usize]);
+                let mut reader = Cursor::new(&data[data_offset..(data_offset + sub_size) as usize]);
                 state.write_page(offset, &mut reader).await?;
             }
 

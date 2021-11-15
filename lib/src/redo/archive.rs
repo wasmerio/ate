@@ -1,33 +1,33 @@
 #[allow(unused_imports)]
-use tracing::{error, info, warn, debug};
+use tracing::{debug, error, info, warn};
 
 use async_trait::async_trait;
-use tokio::{io::{AsyncReadExt, AsyncWriteExt, AsyncSeekExt}};
-use tokio::io::Result;
-use std::mem::size_of;
 use std::io::SeekFrom;
+use std::mem::size_of;
 use tokio::fs::File;
-use tokio::sync::Mutex as Mutex;
+use tokio::io::Result;
+use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
+use tokio::sync::Mutex;
 use tokio::sync::MutexGuard;
 
-use crate::spec::*;
 use super::magic::*;
+use crate::spec::*;
 
 #[derive(Debug)]
-pub(crate) struct LogArchive
-{
+pub(crate) struct LogArchive {
     pub(crate) index: u32,
     pub(crate) path: String,
     file: Mutex<File>,
     header: Vec<u8>,
 }
 
-impl LogArchive
-{
-    pub async fn new(path: String, index: u32) -> Result<LogArchive>
-    {
+impl LogArchive {
+    pub async fn new(path: String, index: u32) -> Result<LogArchive> {
         let path = format!("{}.{}", path.clone(), index);
-        let log_random_access = tokio::fs::OpenOptions::new().read(true).open(path.clone()).await?;
+        let log_random_access = tokio::fs::OpenOptions::new()
+            .read(true)
+            .open(path.clone())
+            .await?;
 
         let mut ret = LogArchive {
             index,
@@ -46,35 +46,27 @@ impl LogArchive
             r
         };
 
-        Ok(
-            ret
-        )
+        Ok(ret)
     }
 
-    pub async fn clone(&self) -> Result<LogArchive>
-    {
+    pub async fn clone(&self) -> Result<LogArchive> {
         let log_back = self.file.lock().await.try_clone().await?;
-        Ok(
-            LogArchive {
-                index: self.index,
-                path: self.path.clone(),
-                header: self.header.clone(),
-                file: Mutex::new(log_back),                
-            }
-        )
+        Ok(LogArchive {
+            index: self.index,
+            path: self.path.clone(),
+            header: self.header.clone(),
+            file: Mutex::new(log_back),
+        })
     }
 
-    pub async fn lock_at(&self, off: u64) -> Result<LogArchiveGuard<'_>>
-    {
+    pub async fn lock_at(&self, off: u64) -> Result<LogArchiveGuard<'_>> {
         let mut file = self.file.lock().await;
         file.seek(SeekFrom::Start(off)).await?;
-        Ok(
-            LogArchiveGuard {
-                index: self.index,
-                offset: off,
-                file,
-            }
-        )
+        Ok(LogArchiveGuard {
+            index: self.index,
+            offset: off,
+            file,
+        })
     }
 
     pub async fn len(&self) -> Result<u64> {
@@ -87,24 +79,20 @@ impl LogArchive
 }
 
 #[derive(Debug)]
-pub(crate) struct LogArchiveGuard<'a>
-{
+pub(crate) struct LogArchiveGuard<'a> {
     index: u32,
     offset: u64,
     file: MutexGuard<'a, File>,
 }
 
-impl<'a> LogArchiveGuard<'a>
-{
+impl<'a> LogArchiveGuard<'a> {
     pub(super) fn index(&'a self) -> u32 {
         self.index
     }
 }
 
 #[async_trait]
-impl<'a> LogApi
-for LogArchiveGuard<'a>
-{
+impl<'a> LogApi for LogArchiveGuard<'a> {
     fn offset(&self) -> u64 {
         self.offset
     }
@@ -118,7 +106,7 @@ for LogArchiveGuard<'a>
         self.offset = off;
         Ok(())
     }
-    
+
     async fn read_u8(&mut self) -> Result<u8> {
         let ret = self.file.read_u8().await?;
         self.offset = self.offset + size_of::<u8>() as u64;

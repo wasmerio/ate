@@ -1,7 +1,7 @@
 use error_chain::error_chain;
 
-use ate::prelude::*;
 use crate::request::*;
+use ate::prelude::*;
 
 error_chain! {
     types {
@@ -77,16 +77,13 @@ error_chain! {
     }
 }
 
-impl From<CreateError>
-for AteError
-{
+impl From<CreateError> for AteError {
     fn from(err: CreateError) -> AteError {
         AteErrorKind::ServiceError(err.to_string()).into()
     }
 }
 
-impl From<CreateGroupFailed>
-for CreateError {
+impl From<CreateGroupFailed> for CreateError {
     fn from(err: CreateGroupFailed) -> CreateError {
         match err {
             CreateGroupFailed::OperatorBanned => CreateErrorKind::OperatorBanned.into(),
@@ -96,14 +93,15 @@ for CreateError {
             CreateGroupFailed::NoMoreRoom => CreateErrorKind::NoMoreRoom.into(),
             CreateGroupFailed::NoMasterKey => CreateErrorKind::NoMasterKey.into(),
             CreateGroupFailed::InvalidGroupName(msg) => CreateErrorKind::InvalidName(msg).into(),
-            CreateGroupFailed::ValidationError(reason) => CreateErrorKind::ValidationError(reason).into(),
+            CreateGroupFailed::ValidationError(reason) => {
+                CreateErrorKind::ValidationError(reason).into()
+            }
             CreateGroupFailed::InternalError(code) => CreateErrorKind::InternalError(code).into(),
         }
     }
 }
 
-impl From<CreateUserFailed>
-for CreateError {
+impl From<CreateUserFailed> for CreateError {
     fn from(err: CreateUserFailed) -> CreateError {
         match err {
             CreateUserFailed::AlreadyExists(msg) => CreateErrorKind::AlreadyExists(msg).into(),
@@ -111,7 +109,9 @@ for CreateError {
             CreateUserFailed::NoMasterKey => CreateErrorKind::NoMasterKey.into(),
             CreateUserFailed::NoMoreRoom => CreateErrorKind::NoMoreRoom.into(),
             CreateUserFailed::InternalError(code) => CreateErrorKind::InternalError(code).into(),
-            CreateUserFailed::TermsAndConditions(terms) => CreateErrorKind::TermsAndConditions(terms).into(),
+            CreateUserFailed::TermsAndConditions(terms) => {
+                CreateErrorKind::TermsAndConditions(terms).into()
+            }
         }
     }
 }

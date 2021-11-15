@@ -1,19 +1,18 @@
-#[allow(unused_imports, dead_code)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use std::sync::Arc;
 use ate::prelude::*;
-use parking_lot::RwLock;
-use tokio::sync::Mutex;
-use std::time::Duration;
-use ate_auth::service::AuthService;
 use ate_auth::cmd::gather_command;
 use ate_auth::error::GatherError;
+use ate_auth::service::AuthService;
 use ate_files::prelude::*;
-use ttl_cache::TtlCache;
 use bytes::Bytes;
+use parking_lot::RwLock;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::sync::Mutex;
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
+use ttl_cache::TtlCache;
 
-pub struct Repository
-{
+pub struct Repository {
     pub registry: Arc<Registry>,
     pub db_url: url::Url,
     pub auth_url: url::Url,
@@ -23,10 +22,14 @@ pub struct Repository
     pub ttl: Duration,
 }
 
-impl Repository
-{
-    pub async fn new(registry: &Arc<Registry>, db_url: url::Url, auth_url: url::Url, web_key: EncryptKey, ttl: Duration) -> Result<Arc<Repository>, AteError>
-    {
+impl Repository {
+    pub async fn new(
+        registry: &Arc<Registry>,
+        db_url: url::Url,
+        auth_url: url::Url,
+        web_key: EncryptKey,
+        ttl: Duration,
+    ) -> Result<Arc<Repository>, AteError> {
         let ret = Repository {
             registry: Arc::clone(registry),
             db_url,
@@ -41,10 +44,8 @@ impl Repository
     }
 }
 
-impl Repository
-{
-    pub async fn get_session(&self, sni: &String) -> Result<AteSessionGroup, GatherError>
-    {
+impl Repository {
+    pub async fn get_session(&self, sni: &String) -> Result<AteSessionGroup, GatherError> {
         // Check the check
         {
             let guard = self.sessions.read();
@@ -61,7 +62,13 @@ impl Repository
         session.add_user_read_key(&web_key);
 
         // Now gather the rights to the chain
-        let session = gather_command(&self.registry, sni.clone(), AteSessionInner::User(session), self.auth_url.clone()).await?;
+        let session = gather_command(
+            &self.registry,
+            sni.clone(),
+            AteSessionInner::User(session),
+            self.auth_url.clone(),
+        )
+        .await?;
 
         // Enter a write lock and check again
         let mut guard = self.sessions.write();
@@ -74,8 +81,7 @@ impl Repository
         Ok(session)
     }
 
-    pub async fn get_accessor(&self, host: &str) -> Result<Arc<FileAccessor>, GatherError>
-    {
+    pub async fn get_accessor(&self, host: &str) -> Result<Arc<FileAccessor>, GatherError> {
         // Get the session
         let sni = host.to_string();
         let session = self.get_session(&sni).await?;
@@ -98,8 +104,9 @@ impl Repository
                         TransactionScope::Local,
                         TransactionScope::Local,
                         false,
-                        false
-                    ).await
+                        false,
+                    )
+                    .await,
                 );
                 chains.insert(host, Arc::clone(&accessor), self.ttl);
                 accessor
@@ -112,57 +119,58 @@ impl Repository
     pub async fn get_file(&self, host: &str, path: &str) -> Result<Option<Bytes>, FileSystemError> {
         let path = path.to_string();
         let context = RequestContext::default();
-        
+
         let chain = self.get_accessor(host).await?;
-        Ok(
-            match chain.search(&context, path.as_str()).await {
-                Ok(Some(a)) => {
-                    let flags = libc::O_RDONLY as u32;
-                    let oh = match chain.open(&context, a.ino, flags).await {
-                        Ok(a) => Some(a),
-                        Err(FileSystemError(FileSystemErrorKind::IsDirectory, _)) => None,
-                        Err(err) => { return Err(err.into()); },
-                    };
-                    match oh {
-                        Some(oh) => Some(
-                            chain.read(&context, a.ino, oh.fh, 0, u32::MAX).await?
-                        ),
-                        None => None
+        Ok(match chain.search(&context, path.as_str()).await {
+            Ok(Some(a)) => {
+                let flags = libc::O_RDONLY as u32;
+                let oh = match chain.open(&context, a.ino, flags).await {
+                    Ok(a) => Some(a),
+                    Err(FileSystemError(FileSystemErrorKind::IsDirectory, _)) => None,
+                    Err(err) => {
+                        return Err(err.into());
                     }
-                },
-                Ok(None) => {
-                    None
-                },
-                Err(FileSystemError(FileSystemErrorKind::IsDirectory, _)) |
-                Err(FileSystemError(FileSystemErrorKind::DoesNotExist, _)) |
-                Err(FileSystemError(FileSystemErrorKind::NoEntry, _)) => {
-                    None
-                },
-                Err(err) => {
-                    return Err(err.into());
+                };
+                match oh {
+                    Some(oh) => Some(chain.read(&context, a.ino, oh.fh, 0, u32::MAX).await?),
+                    None => None,
                 }
             }
-        )
+            Ok(None) => None,
+            Err(FileSystemError(FileSystemErrorKind::IsDirectory, _))
+            | Err(FileSystemError(FileSystemErrorKind::DoesNotExist, _))
+            | Err(FileSystemError(FileSystemErrorKind::NoEntry, _)) => None,
+            Err(err) => {
+                return Err(err.into());
+            }
+        })
     }
 
-    pub async fn set_file(&self, host: &str, path: &str, data: &[u8]) -> Result<u64, FileSystemError> {
+    pub async fn set_file(
+        &self,
+        host: &str,
+        path: &str,
+        data: &[u8],
+    ) -> Result<u64, FileSystemError> {
         let path = path.to_string();
         let context = RequestContext::default();
-        
+
         let chain = self.get_accessor(host).await?;
         let file = chain.touch(&context, path.as_str()).await?;
         let flags = (libc::O_RDWR as u32) | (libc::O_TRUNC as u32);
         let oh = chain.open(&context, file.ino, flags).await?;
-        chain.fallocate(&context, file.ino, oh.fh, 0, 0, flags).await?;
-        let written = chain.write(&context, file.ino, oh.fh, 0, data, flags).await?;
+        chain
+            .fallocate(&context, file.ino, oh.fh, 0, 0, flags)
+            .await?;
+        let written = chain
+            .write(&context, file.ino, oh.fh, 0, data, flags)
+            .await?;
         chain.sync(&context, file.ino, oh.fh, 0).await?;
-        Ok(
-            written
-        )
+        Ok(written)
     }
 
     pub async fn house_keeping(&self) {
         let mut lock = self.chains.lock().await;
-        lock.iter();    // this will run the remove_expired function
+        lock.iter(); // this will run the remove_expired function
     }
 }

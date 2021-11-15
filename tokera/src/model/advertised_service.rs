@@ -7,8 +7,7 @@ use super::*;
 /// on the market interaction interface. This metadata helps users
 /// identify what they are subscribing for.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct AdvertisedService
-{
+pub struct AdvertisedService {
     /// Code assigned to this service
     pub code: String,
     /// The name of the service as seen by all consumers

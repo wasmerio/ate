@@ -1,35 +1,33 @@
 #![allow(unused_imports)]
 #![allow(dead_code)]
-#[allow(unused_imports, dead_code)]
-use tracing::{info, error, debug, trace, warn};
+use core::sync::atomic::AtomicBool;
+use core::sync::atomic::Ordering;
+use derivative::*;
+use parking_lot::Mutex as SyncMutex;
 use std::io::Write;
 use std::sync::Arc;
 use std::sync::Mutex;
 use tokio::sync::Mutex as AsyncMutex;
 use tokio::sync::RwLock;
-use derivative::*;
-use parking_lot::Mutex as SyncMutex;
-use core::sync::atomic::AtomicBool;
-use core::sync::atomic::Ordering;
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, trace, warn};
 
-use super::fd::*;
-use super::common::*;
 use super::cconst::*;
-use super::stdout::*;
+use super::common::*;
+use super::err;
+use super::fd::*;
 use super::job::*;
 use super::reactor::*;
-use super::err;
+use super::stdout::*;
 
 #[derive(Debug, Clone)]
-pub enum TtyMode
-{
+pub enum TtyMode {
     Null,
     Console,
     StdIn(Job),
 }
 
-struct TtyInnerAsync
-{
+struct TtyInnerAsync {
     pub line: String,
     pub paragraph: String,
     pub cursor_pos: usize,
@@ -44,13 +42,11 @@ struct TtyInnerAsync
 }
 
 #[derive(Debug)]
-struct TtyInnerSync
-{
+struct TtyInnerSync {
     pub buffering: AtomicBool,
 }
 
-impl TtyInnerAsync
-{
+impl TtyInnerAsync {
     pub fn reset_line(&mut self) {
         self.line.clear();
         self.cursor_pos = 0;
@@ -63,19 +59,16 @@ impl TtyInnerAsync
 
 #[derive(Derivative, Clone)]
 #[derivative(Debug)]
-pub struct Tty
-{
-    #[derivative(Debug="ignore")]
+pub struct Tty {
+    #[derivative(Debug = "ignore")]
     inner_async: Arc<AsyncMutex<TtyInnerAsync>>,
     inner_sync: Arc<TtyInnerSync>,
     stdout: Stdout,
     is_mobile: bool,
 }
 
-impl Tty
-{
-    pub fn new(stdout: Stdout, is_mobile: bool) -> Tty
-    {
+impl Tty {
+    pub fn new(stdout: Stdout, is_mobile: bool) -> Tty {
         Tty {
             inner_async: Arc::new(AsyncMutex::new(TtyInnerAsync {
                 line: String::new(),
@@ -94,7 +87,7 @@ impl Tty
                 buffering: AtomicBool::new(true),
             }),
             stdout,
-            is_mobile
+            is_mobile,
         }
     }
 
@@ -107,7 +100,7 @@ impl Tty
         if inner.cursor_history > inner.history.len() {
             return None;
         }
-        let cursor_history = inner.history.len() - inner.cursor_history;        
+        let cursor_history = inner.history.len() - inner.cursor_history;
         inner.history.get(cursor_history).map(|a| a.clone())
     }
 
@@ -121,10 +114,10 @@ impl Tty
             }
             inner.history.len() - inner.cursor_history
         };
-        
+
         self.set_cursor_to_start().await;
         self.draw_undo().await;
-        
+
         let right = {
             let mut inner = self.inner_async.lock().await;
             let last = inner.history.get(cursor_history).map(|a| a.clone());
@@ -143,19 +136,17 @@ impl Tty
         self.draw(right.as_str()).await
     }
 
-    pub async fn record_history(&self, cmd: String)
-    {
+    pub async fn record_history(&self, cmd: String) {
         if cmd.len() <= 0 {
             return;
         }
-        
+
         let mut inner = self.inner_async.lock().await;
         debug!("add-history: {}", cmd);
         inner.history.push(cmd);
     }
 
-    pub async fn get_paragraph(&self) -> String
-    {
+    pub async fn get_paragraph(&self) -> String {
         let mut inner = self.inner_async.lock().await;
         if inner.line.len() <= 0 {
             return String::new();
@@ -165,7 +156,7 @@ impl Tty
             inner.paragraph += " ";
         }
         let line = inner.line.clone();
-        inner.paragraph += line.as_str();  
+        inner.paragraph += line.as_str();
         inner.paragraph.clone()
     }
 
@@ -174,21 +165,18 @@ impl Tty
         inner.reset_history_cursor();
     }
 
-    pub async fn clear_paragraph(&self)
-    {
+    pub async fn clear_paragraph(&self) {
         let mut inner = self.inner_async.lock().await;
         inner.paragraph.clear();
     }
 
-    pub async fn set_bounds(&self, cols: u32, rows: u32)
-    {
+    pub async fn set_bounds(&self, cols: u32, rows: u32) {
         let mut inner = self.inner_async.lock().await;
         inner.cols = cols;
         inner.rows = rows;
     }
 
-    pub async fn backspace(&mut self)
-    {
+    pub async fn backspace(&mut self) {
         let echo = {
             let inner = self.inner_async.lock().await;
             if inner.cursor_pos <= 0 {
@@ -203,7 +191,7 @@ impl Tty
         }
         let right = {
             let mut inner = self.inner_async.lock().await;
-            let left = inner.line[..inner.cursor_pos-1].to_string();
+            let left = inner.line[..inner.cursor_pos - 1].to_string();
             let right = inner.line[inner.cursor_pos..].to_string();
             inner.line = format!("{}{}", left, right);
             inner.cursor_pos -= 1;
@@ -214,8 +202,7 @@ impl Tty
         }
     }
 
-    pub async fn delete(&mut self)
-    {
+    pub async fn delete(&mut self) {
         let echo = {
             let inner = self.inner_async.lock().await;
             if inner.cursor_pos >= inner.line.len() {
@@ -230,7 +217,7 @@ impl Tty
         let right = {
             let mut inner = self.inner_async.lock().await;
             let left = inner.line[..inner.cursor_pos].to_string();
-            let right = inner.line[inner.cursor_pos+1..].to_string();
+            let right = inner.line[inner.cursor_pos + 1..].to_string();
             inner.line = format!("{}{}", left, right);
             right
         };
@@ -239,8 +226,7 @@ impl Tty
         }
     }
 
-    pub async fn cursor_left(&mut self)
-    {
+    pub async fn cursor_left(&mut self) {
         let echo = {
             let mut inner = self.inner_async.lock().await;
             if inner.cursor_pos <= 0 {
@@ -254,8 +240,7 @@ impl Tty
         }
     }
 
-    pub async fn cursor_right(&mut self)
-    {
+    pub async fn cursor_right(&mut self) {
         let echo = {
             let mut inner = self.inner_async.lock().await;
             if inner.cursor_pos >= inner.line.len() {
@@ -269,8 +254,7 @@ impl Tty
         }
     }
 
-    pub async fn cursor_up(&mut self)
-    {
+    pub async fn cursor_up(&mut self) {
         let _echo = {
             let mut inner = self.inner_async.lock().await;
             if inner.cursor_history < inner.history.len() {
@@ -281,8 +265,7 @@ impl Tty
         self.restore_selected_history().await;
     }
 
-    pub async fn cursor_down(&mut self)
-    {
+    pub async fn cursor_down(&mut self) {
         let _echo = {
             let mut inner = self.inner_async.lock().await;
             if inner.cursor_history > 0 {
@@ -307,7 +290,7 @@ impl Tty
             TtyMode::StdIn(job) => {
                 reactor.close_job(job, err::ERR_TERMINATED);
             }
-            _ => { }
+            _ => {}
         }
     }
 
@@ -339,7 +322,6 @@ impl Tty
     }
 
     pub async fn add(&mut self, data: &str) {
-        
         let echo = self.inner_async.lock().await.echo;
         if echo {
             self.draw_undo().await;
@@ -349,7 +331,7 @@ impl Tty
             let cursor_pos = inner.cursor_pos;
             inner.line.insert_str(cursor_pos, data);
             inner.cursor_pos += data.len();
-            
+
             let right = if inner.cursor_pos < inner.line.len() {
                 Some(inner.line[inner.cursor_pos..].to_string())
             } else {
@@ -402,7 +384,9 @@ impl Tty
             pos
         };
 
-        let chars = std::iter::repeat(Tty::TERM_CURSOR_LEFT).take(shift_left).collect::<String>();
+        let chars = std::iter::repeat(Tty::TERM_CURSOR_LEFT)
+            .take(shift_left)
+            .collect::<String>();
         self.draw(chars.as_str()).await
     }
 
@@ -419,7 +403,9 @@ impl Tty
             }
         };
 
-        let chars = std::iter::repeat(Tty::TERM_CURSOR_RIGHT).take(shift_right).collect::<String>();
+        let chars = std::iter::repeat(Tty::TERM_CURSOR_RIGHT)
+            .take(shift_right)
+            .collect::<String>();
         self.draw(chars.as_str()).await
     }
 

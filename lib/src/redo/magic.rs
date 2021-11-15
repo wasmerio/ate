@@ -9,35 +9,37 @@ static LOG_MAGIC: &'static [u8; 3] = b"RED";
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, IntoPrimitive, TryFromPrimitive)]
 #[repr(u8)]
-pub enum RedoMagic
-{
+pub enum RedoMagic {
     V2 = b'1',
 }
 
 #[derive(Debug, Clone)]
-pub struct RedoHeader
-{
+pub struct RedoHeader {
     magic: RedoMagic,
     inner: Vec<u8>,
 }
 
-async fn read_byte(api: &mut impl LogApi) -> std::result::Result<Option<u8>, tokio::io::Error>
-{
-    match api.read_u8().await
-    {
+async fn read_byte(api: &mut impl LogApi) -> std::result::Result<Option<u8>, tokio::io::Error> {
+    match api.read_u8().await {
         Ok(a) => Ok(Some(a)),
         Err(err) => {
-            if err.kind() == ErrorKind::UnexpectedEof { return Ok(None); }
-            Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the event magic number at 0x{:x}", api.offset())))
-        },
+            if err.kind() == ErrorKind::UnexpectedEof {
+                return Ok(None);
+            }
+            Err(tokio::io::Error::new(
+                tokio::io::ErrorKind::Other,
+                format!(
+                    "Failed to read the event magic number at 0x{:x}",
+                    api.offset()
+                ),
+            ))
+        }
     }
 }
 
-impl RedoHeader
-{
+impl RedoHeader {
     #[allow(dead_code)]
-    pub fn new(magic: RedoMagic) -> RedoHeader
-    {
+    pub fn new(magic: RedoMagic) -> RedoHeader {
         RedoHeader {
             magic,
             inner: Vec::new(),
@@ -45,25 +47,23 @@ impl RedoHeader
     }
 
     #[allow(dead_code)]
-    pub(crate) async fn load(api: &mut impl LogApi, default_header_bytes: &[u8]) -> Result<Vec<u8>, tokio::io::Error> {
-        Ok(
-            match RedoHeader::read(api).await? {
-                Some(a) => {
-                    Vec::from(a.inner().clone())
-                },
-                None => {
-                    let mut magic = RedoHeader::new(RedoMagic::V2);
-                    magic.set_inner(default_header_bytes);
-                    let _ = magic.write(api).await?;
-                    api.sync().await?;
-                    Vec::from(default_header_bytes)
-                }
+    pub(crate) async fn load(
+        api: &mut impl LogApi,
+        default_header_bytes: &[u8],
+    ) -> Result<Vec<u8>, tokio::io::Error> {
+        Ok(match RedoHeader::read(api).await? {
+            Some(a) => Vec::from(a.inner().clone()),
+            None => {
+                let mut magic = RedoHeader::new(RedoMagic::V2);
+                magic.set_inner(default_header_bytes);
+                let _ = magic.write(api).await?;
+                api.sync().await?;
+                Vec::from(default_header_bytes)
             }
-        )
+        })
     }
 
-    pub async fn read(api: &mut impl LogApi) -> Result<Option<RedoHeader>, tokio::io::Error>
-    {
+    pub async fn read(api: &mut impl LogApi) -> Result<Option<RedoHeader>, tokio::io::Error> {
         let mut n = 0;
         while let Some(cur) = read_byte(api).await? {
             loop {
@@ -72,7 +72,7 @@ impl RedoHeader
                         n = n + 1;
                         break;
                     }
-                    if n > 0 { 
+                    if n > 0 {
                         n = 0;
                         continue;
                     }
@@ -91,18 +91,13 @@ impl RedoHeader
                             }
                         };
 
-                        return Ok(Some(
-                            RedoHeader {
-                                magic: a,
-                                inner,
-                            }
-                        ));
-                    },
-                    _ => { 
-                        n = 0;
-                        continue
+                        return Ok(Some(RedoHeader { magic: a, inner }));
                     }
-                }            
+                    _ => {
+                        n = 0;
+                        continue;
+                    }
+                }
             }
         }
 

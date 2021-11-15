@@ -1,12 +1,11 @@
-use async_trait::async_trait;
-use crate::api::FileApi;
-use super::model::*;
 use super::api::FileKind;
+use super::model::*;
+use crate::api::FileApi;
+use async_trait::async_trait;
 use ate::prelude::*;
 
 #[derive(Debug)]
-pub struct SymLink
-{
+pub struct SymLink {
     pub ino: u64,
     pub created: u64,
     pub updated: u64,
@@ -17,8 +16,7 @@ pub struct SymLink
     pub link: Option<String>,
 }
 
-impl SymLink
-{
+impl SymLink {
     pub fn new(inode: Dao<Inode>, created: u64, updated: u64) -> SymLink {
         SymLink {
             uid: inode.dentry.uid,
@@ -47,9 +45,7 @@ impl SymLink
 }
 
 #[async_trait]
-impl FileApi
-for SymLink
-{
+impl FileApi for SymLink {
     fn kind(&self) -> FileKind {
         FileKind::SymLink
     }
@@ -93,7 +89,7 @@ for SymLink
     fn size(&self) -> u64 {
         match &self.link {
             Some(a) => a.len() as u64,
-            None => 0
+            None => 0,
         }
     }
 }

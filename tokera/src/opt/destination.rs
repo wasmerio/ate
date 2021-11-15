@@ -31,20 +31,18 @@ pub enum OptsWalletDestination {
     Domain(OptWalletDestinationDomain),
 }
 
-impl OptsPurpose<()>
-for OptsWalletDestination
-{
+impl OptsPurpose<()> for OptsWalletDestination {
     fn purpose(&self) -> Purpose<()> {
         match self {
             OptsWalletDestination::Personal(a) => Purpose::Personal {
                 wallet_name: a.name.clone(),
-                action: ()
+                action: (),
             },
             OptsWalletDestination::Domain(a) => Purpose::Domain {
                 domain_name: a.domain.clone(),
                 wallet_name: a.name.clone(),
                 action: (),
-            }
+            },
         }
     }
 }

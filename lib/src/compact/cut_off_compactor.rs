@@ -4,29 +4,22 @@ use super::*;
 use crate::time::ChainTimestamp;
 
 #[derive(Default, Clone)]
-pub struct CutOffCompactor
-{
+pub struct CutOffCompactor {
     pub cut_off: ChainTimestamp,
 }
 
-impl CutOffCompactor
-{
+impl CutOffCompactor {
     pub fn new(after: ChainTimestamp) -> CutOffCompactor {
-        CutOffCompactor {
-            cut_off: after
-        }
+        CutOffCompactor { cut_off: after }
     }
 }
 
-impl EventCompactor
-for CutOffCompactor
-{
+impl EventCompactor for CutOffCompactor {
     fn clone_compactor(&self) -> Option<Box<dyn EventCompactor>> {
         None
     }
-    
-    fn relevance(&self, header: &EventHeader) -> EventRelevance
-    {
+
+    fn relevance(&self, header: &EventHeader) -> EventRelevance {
         if let Some(timestamp) = header.meta.get_timestamp() {
             if *timestamp >= self.cut_off {
                 return EventRelevance::ForceKeep;

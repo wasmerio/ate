@@ -1,15 +1,13 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace};
 use error_chain::*;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, trace, warn};
 
 use crate::error::*;
 
 use super::*;
 
-impl TokApi
-{
-    pub async fn is_wallet_empty(&self) -> Result<bool, WalletError>
-    {
+impl TokApi {
+    pub async fn is_wallet_empty(&self) -> Result<bool, WalletError> {
         if self.wallet.inbox.iter().await?.next().is_some() == true {
             return Ok(false);
         }
@@ -20,13 +18,12 @@ impl TokApi
         }
         Ok(true)
     }
-    
-    pub async fn delete_wallet(self, force: bool) -> Result<(), WalletError>
-    {
+
+    pub async fn delete_wallet(self, force: bool) -> Result<(), WalletError> {
         if self.is_wallet_empty().await? == false && force == false {
-            bail!(WalletErrorKind::WalletNotEmpty); 
+            bail!(WalletErrorKind::WalletNotEmpty);
         }
-    
+
         self.wallet.delete()?;
         self.dio.commit().await?;
         Ok(())

@@ -1,21 +1,18 @@
 use serde::*;
 use std::fmt;
 
-use crate::model::Decimal;
 use super::*;
+use crate::model::Decimal;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ChargeMetric
-{
+pub enum ChargeMetric {
     DownloadBandwidth,
     UploadBandwidth,
     DataStorage,
     Compute,
 }
 
-impl fmt::Display
-for ChargeMetric
-{
+impl fmt::Display for ChargeMetric {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ChargeMetric::DownloadBandwidth => write!(f, "downloaded bandwidth"),
@@ -27,8 +24,7 @@ for ChargeMetric
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ChargeUnits
-{
+pub enum ChargeUnits {
     FlatRate,
 
     Seconds(ChargeMetric),
@@ -45,10 +41,8 @@ pub enum ChargeUnits
     PetaBytes(ChargeMetric),
 }
 
-impl ChargeUnits
-{
-    pub fn scale(&self) -> Decimal
-    {
+impl ChargeUnits {
+    pub fn scale(&self) -> Decimal {
         match self {
             ChargeUnits::FlatRate => Decimal::from(1u64),
 
@@ -86,8 +80,7 @@ impl ChargeUnits
         }
     }
 
-    pub fn metric(&self) -> Option<ChargeMetric>
-    {
+    pub fn metric(&self) -> Option<ChargeMetric> {
         match self {
             ChargeUnits::FlatRate => None,
 
@@ -107,13 +100,11 @@ impl ChargeUnits
     }
 }
 
-impl fmt::Display
-for ChargeUnits
-{
+impl fmt::Display for ChargeUnits {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ChargeUnits::FlatRate => write!(f, "flat"),
-            
+
             ChargeUnits::Bytes(a) => write!(f, "bytes {}", a),
             ChargeUnits::KiloBytes(a) => write!(f, "kilobytes {}", a),
             ChargeUnits::MegaBytes(a) => write!(f, "megabytes {}", a),
@@ -133,16 +124,13 @@ for ChargeUnits
 /// Represents a particular charge that will be applied to your
 /// wallet thats triggered at specific trigger points
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Charge
-{
+pub struct Charge {
     pub amount: Decimal,
     pub units: ChargeUnits,
     pub frequency: ChargeFrequency,
 }
 
-impl fmt::Display
-for Charge
-{
+impl fmt::Display for Charge {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let freq = self.frequency.to_string().replace("-", " ");
         write!(f, "{} per {} {}", self.amount, self.units, freq)

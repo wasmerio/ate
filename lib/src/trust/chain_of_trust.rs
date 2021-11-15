@@ -1,20 +1,19 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use std::sync::Mutex as StdMutex;
 use std::sync::Arc;
+use std::sync::Mutex as StdMutex;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use crate::comms::Metrics;
-use crate::meta::*;
 use crate::error::*;
-use crate::header::*;
 use crate::event::*;
+use crate::header::*;
 use crate::index::*;
+use crate::meta::*;
 use crate::redo::*;
 
 use super::*;
 
-pub(crate) struct ChainOfTrust
-{
+pub(crate) struct ChainOfTrust {
     pub(crate) debug_id: u64,
     pub(crate) key: ChainKey,
     pub(crate) timeline: ChainTimeline,
@@ -22,21 +21,21 @@ pub(crate) struct ChainOfTrust
     pub metrics: Arc<StdMutex<Metrics>>,
 }
 
-impl std::fmt::Debug
-for ChainOfTrust
-{
+impl std::fmt::Debug for ChainOfTrust {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "chain-of-trust(key={},debug_id={})", self.key, self.debug_id)
+        write!(
+            f,
+            "chain-of-trust(key={},debug_id={})",
+            self.key, self.debug_id
+        )
     }
 }
 
-impl<'a> ChainOfTrust
-{
-    pub(crate) async fn load(&self, leaf: EventLeaf) -> Result<LoadResult, LoadError>
-    {
+impl<'a> ChainOfTrust {
+    pub(crate) async fn load(&self, leaf: EventLeaf) -> Result<LoadResult, LoadError> {
         #[cfg(feature = "enable_verbose")]
         debug!("loading: {}", leaf.record);
-        
+
         let data = self.redo.load(leaf.record.clone()).await?;
         Ok(LoadResult {
             lookup: data.lookup,
@@ -46,8 +45,10 @@ impl<'a> ChainOfTrust
         })
     }
 
-    pub(crate) async fn load_many(&self, leafs: Vec<EventLeaf>) -> Result<Vec<LoadResult>, LoadError>
-    {
+    pub(crate) async fn load_many(
+        &self,
+        leafs: Vec<EventLeaf>,
+    ) -> Result<Vec<LoadResult>, LoadError> {
         let mut ret = Vec::new();
 
         let mut futures = Vec::new();
@@ -69,8 +70,7 @@ impl<'a> ChainOfTrust
         Ok(ret)
     }
 
-    pub(crate) fn lookup_primary(&self, key: &PrimaryKey) -> Option<EventLeaf>
-    {
+    pub(crate) fn lookup_primary(&self, key: &PrimaryKey) -> Option<EventLeaf> {
         self.timeline.lookup_primary(key)
     }
 
@@ -78,13 +78,11 @@ impl<'a> ChainOfTrust
         self.timeline.lookup_parent(key)
     }
 
-    pub(crate) fn lookup_secondary(&self, key: &MetaCollection) -> Option<Vec<EventLeaf>>
-    {
+    pub(crate) fn lookup_secondary(&self, key: &MetaCollection) -> Option<Vec<EventLeaf>> {
         self.timeline.lookup_secondary(key)
     }
 
-    pub(crate) fn lookup_secondary_raw(&self, key: &MetaCollection) -> Option<Vec<PrimaryKey>>
-    {
+    pub(crate) fn lookup_secondary_raw(&self, key: &MetaCollection) -> Option<Vec<PrimaryKey>> {
         self.timeline.lookup_secondary_raw(key)
     }
 
@@ -105,8 +103,7 @@ impl<'a> ChainOfTrust
         self.key.name.clone()
     }
 
-    pub(crate) fn add_history(&mut self, header: EventHeader)
-    {
+    pub(crate) fn add_history(&mut self, header: EventHeader) {
         {
             let mut metrics = self.metrics.lock().unwrap();
             metrics.chain_size += header.raw.meta_bytes.len() as u64;

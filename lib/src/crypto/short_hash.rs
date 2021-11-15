@@ -1,8 +1,8 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use sha3::Digest;
 use std::convert::TryInto;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use crate::crypto::HashRoutine;
 
@@ -11,26 +11,30 @@ use crate::crypto::HashRoutine;
 /// the redo log metadata.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct ShortHash {
-    pub val: u32
+    pub val: u32,
 }
 
 impl ShortHash {
     pub fn from_bytes(input: &[u8]) -> ShortHash {
         Self::from_bytes_by_routine(input, crate::HASH_ROUTINE)
     }
-    
+
     pub fn from_bytes_twice(input1: &[u8], input2: &[u8]) -> ShortHash {
         Self::from_bytes_twice_by_routine(input1, input2, crate::HASH_ROUTINE)
     }
-    
+
     fn from_bytes_by_routine(input: &[u8], routine: HashRoutine) -> ShortHash {
         match routine {
             HashRoutine::Sha3 => ShortHash::from_bytes_sha3(input, 1),
             HashRoutine::Blake3 => ShortHash::from_bytes_blake3(input),
         }
     }
-    
-    fn from_bytes_twice_by_routine(input1: &[u8], input2: &[u8], routine: HashRoutine) -> ShortHash {
+
+    fn from_bytes_twice_by_routine(
+        input1: &[u8],
+        input2: &[u8],
+        routine: HashRoutine,
+    ) -> ShortHash {
         match routine {
             HashRoutine::Sha3 => ShortHash::from_bytes_twice_sha3(input1, input2),
             HashRoutine::Blake3 => ShortHash::from_bytes_twice_blake3(input1, input2),
@@ -43,7 +47,7 @@ impl ShortHash {
         let mut bytes4: [u8; 4] = Default::default();
         bytes4.copy_from_slice(&bytes[0..4]);
         ShortHash {
-            val: u32::from_be_bytes(bytes4)
+            val: u32::from_be_bytes(bytes4),
         }
     }
 
@@ -56,7 +60,7 @@ impl ShortHash {
         let mut bytes4: [u8; 4] = Default::default();
         bytes4.copy_from_slice(&bytes[0..4]);
         ShortHash {
-            val: u32::from_be_bytes(bytes4)
+            val: u32::from_be_bytes(bytes4),
         }
     }
 
@@ -66,17 +70,13 @@ impl ShortHash {
             hasher.update(input);
         }
         let result = hasher.finalize();
-        let result: Vec<u8> = result.into_iter()
-            .take(4)
-            .collect();
+        let result: Vec<u8> = result.into_iter().take(4).collect();
         let result: [u8; 4] = result
             .try_into()
             .expect("The hash should fit into 4 bytes!");
         let result = u32::from_be_bytes(result);
 
-        ShortHash {
-            val: result,
-        }
+        ShortHash { val: result }
     }
 
     fn from_bytes_twice_sha3(input1: &[u8], input2: &[u8]) -> ShortHash {
@@ -90,9 +90,7 @@ impl ShortHash {
             .expect("The hash should fit into 4 bytes!");
         let result = u32::from_be_bytes(result);
 
-        ShortHash {
-            val: result,
-        }
+        ShortHash { val: result }
     }
 
     pub fn to_hex_string(&self) -> String {
@@ -108,25 +106,19 @@ impl ShortHash {
     }
 }
 
-impl From<String>
-for ShortHash
-{
+impl From<String> for ShortHash {
     fn from(val: String) -> ShortHash {
         ShortHash::from_bytes(val.as_bytes())
     }
 }
 
-impl From<&'static str>
-for ShortHash
-{
+impl From<&'static str> for ShortHash {
     fn from(val: &'static str) -> ShortHash {
         ShortHash::from(val.to_string())
     }
 }
 
-impl From<u64>
-for ShortHash
-{
+impl From<u64> for ShortHash {
     fn from(val: u64) -> ShortHash {
         ShortHash::from_bytes(&val.to_be_bytes())
     }

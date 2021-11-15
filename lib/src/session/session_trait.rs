@@ -1,15 +1,15 @@
 #[allow(unused_imports)]
-use serde::{Serialize, Deserialize, de::DeserializeOwned};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use crate::{crypto::*};
-use super::session_user::*;
 use super::session_sudo::*;
-use super::AteSessionProperty;
-use super::AteRolePurpose;
+use super::session_user::*;
 use super::AteGroupRole;
-use super::AteSessionInner;
+use super::AteRolePurpose;
 use super::AteSessionGroup;
+use super::AteSessionInner;
+use super::AteSessionProperty;
 use super::AteSessionType;
+use crate::crypto::*;
 
 pub type SessionToken = Option<EncryptedSecureData<EncryptKey>>;
 
@@ -28,20 +28,31 @@ pub type SessionToken = Option<EncryptedSecureData<EncryptKey>>;
 ///
 /// Sessions are never cached and only exist in memory for the
 /// duration that you use them for security reasons.
-pub trait AteSession: Send + Sync + std::fmt::Display
-{
+pub trait AteSession: Send + Sync + std::fmt::Display {
     fn role<'a>(&'a self, purpose: &AteRolePurpose) -> Option<&'a AteGroupRole>;
 
-    fn read_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a EncryptKey> + 'a>;
+    fn read_keys<'a>(
+        &'a self,
+        category: AteSessionKeyCategory,
+    ) -> Box<dyn Iterator<Item = &'a EncryptKey> + 'a>;
 
-    fn write_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a PrivateSignKey> + 'a>;
+    fn write_keys<'a>(
+        &'a self,
+        category: AteSessionKeyCategory,
+    ) -> Box<dyn Iterator<Item = &'a PrivateSignKey> + 'a>;
 
-    fn public_read_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a PublicEncryptKey> + 'a>;
+    fn public_read_keys<'a>(
+        &'a self,
+        category: AteSessionKeyCategory,
+    ) -> Box<dyn Iterator<Item = &'a PublicEncryptKey> + 'a>;
 
-    fn private_read_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a PrivateEncryptKey> + 'a>;
+    fn private_read_keys<'a>(
+        &'a self,
+        category: AteSessionKeyCategory,
+    ) -> Box<dyn Iterator<Item = &'a PrivateEncryptKey> + 'a>;
 
     fn broker_read<'a>(&'a self) -> Option<&'a PrivateEncryptKey>;
-    
+
     fn broker_write<'a>(&'a self) -> Option<&'a PrivateSignKey>;
 
     fn identity<'a>(&'a self) -> &'a str;
@@ -56,56 +67,48 @@ pub trait AteSession: Send + Sync + std::fmt::Display
 
     fn properties<'a>(&'a self) -> Box<dyn Iterator<Item = &'a AteSessionProperty> + 'a>;
 
-    fn append<'a, 'b>(&'a mut self, properties: Box<dyn Iterator<Item = &'b AteSessionProperty> + 'b>);
+    fn append<'a, 'b>(
+        &'a mut self,
+        properties: Box<dyn Iterator<Item = &'b AteSessionProperty> + 'b>,
+    );
 
     fn clone_session(&self) -> Box<dyn AteSession>;
 
     fn clone_inner(&self) -> AteSessionInner;
 }
 
-impl From<AteSessionUser>
-for Box<dyn AteSession>
-{
+impl From<AteSessionUser> for Box<dyn AteSession> {
     fn from(session: AteSessionUser) -> Self {
         Box::new(session)
     }
 }
 
-impl From<AteSessionSudo>
-for Box<dyn AteSession>
-{
+impl From<AteSessionSudo> for Box<dyn AteSession> {
     fn from(session: AteSessionSudo) -> Self {
         Box::new(session)
     }
 }
 
-impl From<AteSessionGroup>
-for Box<dyn AteSession>
-{
+impl From<AteSessionGroup> for Box<dyn AteSession> {
     fn from(session: AteSessionGroup) -> Self {
         Box::new(session)
     }
 }
 
-impl From<AteSessionInner>
-for Box<dyn AteSession>
-{
+impl From<AteSessionInner> for Box<dyn AteSession> {
     fn from(session: AteSessionInner) -> Self {
         Box::new(session)
     }
 }
 
-impl From<AteSessionType>
-for Box<dyn AteSession>
-{
+impl From<AteSessionType> for Box<dyn AteSession> {
     fn from(session: AteSessionType) -> Self {
         Box::new(session)
     }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum AteSessionKeyCategory
-{
+pub enum AteSessionKeyCategory {
     UpperKeys,
     UserKeys,
     SudoKeys,
@@ -120,7 +123,7 @@ impl AteSessionKeyCategory {
             AteSessionKeyCategory::UserKeys => true,
             AteSessionKeyCategory::NonGroupKeys => true,
             AteSessionKeyCategory::AllKeys => true,
-            _ => false
+            _ => false,
         }
     }
     pub fn includes_sudo_keys(&self) -> bool {
@@ -128,14 +131,14 @@ impl AteSessionKeyCategory {
             AteSessionKeyCategory::SudoKeys => true,
             AteSessionKeyCategory::NonGroupKeys => true,
             AteSessionKeyCategory::AllKeys => true,
-            _ => false
+            _ => false,
         }
     }
     pub fn includes_group_keys(&self) -> bool {
         match self {
             AteSessionKeyCategory::GroupKeys => true,
             AteSessionKeyCategory::AllKeys => true,
-            _ => false
+            _ => false,
         }
     }
 }

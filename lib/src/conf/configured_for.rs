@@ -1,6 +1,6 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use crate::spec::*;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use super::*;
 
@@ -8,8 +8,7 @@ use super::*;
 /// group of usecases
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum ConfiguredFor
-{
+pub enum ConfiguredFor {
     /// ATE is left completely unconfigured with no-assumptions and no default functionality
     Raw,
     /// ATE is configured with the minimum that is considered at least functional
@@ -34,8 +33,7 @@ pub enum ConfiguredFor
     BestSecurity,
 }
 
-impl ConfiguredFor
-{
+impl ConfiguredFor {
     pub fn ntp_tolerance(&self) -> u32 {
         match self {
             ConfiguredFor::BestPerformance => 4000u32,
@@ -45,9 +43,7 @@ impl ConfiguredFor
     }
 }
 
-impl std::str::FromStr
-for ConfiguredFor
-{
+impl std::str::FromStr for ConfiguredFor {
     type Err = &'static str;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -67,29 +63,25 @@ for ConfiguredFor
     }
 }
 
-impl Default
-for ConfiguredFor
-{
+impl Default for ConfiguredFor {
     fn default() -> ConfiguredFor {
         ConfiguredFor::Balanced
     }
 }
 
-impl ConfAte
-{
-    pub fn configured_for(&mut self, configured_for: ConfiguredFor)
-    {
+impl ConfAte {
+    pub fn configured_for(&mut self, configured_for: ConfiguredFor) {
         self.configured_for = configured_for;
 
         match configured_for {
             ConfiguredFor::BestPerformance => {
                 self.log_format.meta = SerializationFormat::Bincode;
                 self.log_format.data = SerializationFormat::Bincode;
-            },
+            }
             ConfiguredFor::BestCompatibility => {
                 self.log_format.meta = SerializationFormat::Json;
                 self.log_format.data = SerializationFormat::Json;
-            },
+            }
             _ => {
                 self.log_format.meta = SerializationFormat::Bincode;
                 self.log_format.data = SerializationFormat::Json;

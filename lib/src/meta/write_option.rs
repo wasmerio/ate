@@ -1,5 +1,5 @@
 use fxhash::FxHashSet;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use crate::crypto::*;
 
@@ -8,8 +8,7 @@ use crate::crypto::*;
 /// will be able to write these records to the chain. The hash of the `PublicKey`
 /// side is stored in this enum.
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub enum WriteOption
-{
+pub enum WriteOption {
     Inherit,
     Everyone,
     Nobody,
@@ -17,17 +16,18 @@ pub enum WriteOption
     Any(Vec<AteHash>),
 }
 
-impl WriteOption
-{
+impl WriteOption {
     pub fn vals(&self) -> FxHashSet<AteHash> {
         let mut ret = FxHashSet::default();
         match self {
-            WriteOption::Specific(a) => { ret.insert(a.clone()); }
+            WriteOption::Specific(a) => {
+                ret.insert(a.clone());
+            }
             WriteOption::Any(hashes) => {
                 for a in hashes {
                     ret.insert(a.clone());
                 }
-            },
+            }
             _ => {}
         }
         return ret;
@@ -42,36 +42,33 @@ impl WriteOption
                     vals.insert(a.clone());
                 }
                 WriteOption::Any(vals.iter().map(|k| k.clone()).collect::<Vec<_>>())
-            },
+            }
             WriteOption::Specific(hash) => {
                 let mut vals = self.vals();
                 vals.insert(hash.clone());
                 let vals = vals.iter().map(|k| k.clone()).collect::<Vec<_>>();
                 match vals.len() {
                     1 => WriteOption::Specific(vals.into_iter().next().unwrap()),
-                    _ => WriteOption::Any(vals)
+                    _ => WriteOption::Any(vals),
                 }
-            },
+            }
             a => a.clone(),
         }
     }
 }
 
-impl Default
-for WriteOption
-{
+impl Default for WriteOption {
     fn default() -> WriteOption {
         WriteOption::Inherit
     }
 }
 
-impl std::fmt::Display
-for WriteOption {
+impl std::fmt::Display for WriteOption {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             WriteOption::Everyone => {
                 write!(f, "everyone")
-            },
+            }
             WriteOption::Any(vec) => {
                 write!(f, "any(")?;
                 let mut first = true;
@@ -84,16 +81,16 @@ for WriteOption {
                     write!(f, "{}", hash)?;
                 }
                 write!(f, ")")
-            },
+            }
             WriteOption::Inherit => {
                 write!(f, "inherit")
-            },
+            }
             WriteOption::Nobody => {
                 write!(f, "nobody")
-            },
+            }
             WriteOption::Specific(hash) => {
                 write!(f, "specifc({})", hash)
-            },
+            }
         }
     }
 }

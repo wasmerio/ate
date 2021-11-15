@@ -1,44 +1,40 @@
 #![allow(dead_code)]
 #![allow(unused)]
-#[allow(unused_imports, dead_code)]
-use tracing::{info, error, debug, trace, warn};
-use wasm_bindgen::prelude::*;
-use wasm_bindgen::JsCast;
-use web_sys::{ErrorEvent, MessageEvent, WebSocket};
-use tokio::sync::mpsc;
-use tokio::sync::broadcast;
+use bytes::*;
 use std::io;
 use std::io::prelude::*;
 use std::io::SeekFrom;
-use wasmer_wasi::{types as wasi_types, WasiFile, WasiFsError};
-use wasmer_wasi::vfs::{VirtualFile, FileDescriptor};
-use bytes::*;
-use std::sync::Arc;
-use tokio::sync::RwLock;
 use std::ops::*;
+use std::sync::Arc;
+use tokio::sync::broadcast;
+use tokio::sync::mpsc;
+use tokio::sync::RwLock;
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, trace, warn};
+use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast;
+use wasmer_wasi::vfs::{FileDescriptor, VirtualFile};
+use wasmer_wasi::{types as wasi_types, WasiFile, WasiFsError};
+use web_sys::{ErrorEvent, MessageEvent, WebSocket};
 
-use crate::err;
 use crate::common::*;
+use crate::err;
 use crate::fd::*;
 use crate::reactor::*;
 
 #[derive(Debug, Clone)]
-pub struct TokeraSocketFactory
-{
+pub struct TokeraSocketFactory {
     tx: mpsc::Sender<mpsc::Sender<Fd>>,
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
-enum SocketMessage
-{
+enum SocketMessage {
     Opened,
-    Closed
+    Closed,
 }
 
-impl TokeraSocketFactory
-{
-    pub fn new(reactor: &Arc<RwLock<Reactor>>) -> TokeraSocketFactory
-    {
+impl TokeraSocketFactory {
+    pub fn new(reactor: &Arc<RwLock<Reactor>>) -> TokeraSocketFactory {
         let reactor = Arc::clone(reactor);
         let (tx_factory, mut rx_factory) = mpsc::channel::<mpsc::Sender<Fd>>(10);
         wasm_bindgen_futures::spawn_local(async move {
@@ -47,16 +43,10 @@ impl TokeraSocketFactory
                 let (mut fd, tx, mut rx) = {
                     let mut reactor = reactor.write().await;
                     match reactor.bidirectional(MAX_MPSC, MAX_MPSC, ReceiverMode::Message(false)) {
-                        Ok((fd, tx, rx)) => {
-                            (
-                                Fd::new(fd, reactor.deref()),
-                                tx,
-                                rx
-                            )
-                        },
+                        Ok((fd, tx, rx)) => (Fd::new(fd, reactor.deref()), tx, rx),
                         Err(err) => {
                             debug!("failed to create file handle for web connection: {:?}", err);
-                            continue;    
+                            continue;
                         }
                     }
                 };
@@ -78,15 +68,25 @@ impl TokeraSocketFactory
                     match WebCommand::deserialize(req.as_str()) {
                         Ok(WebCommand::WebSocketVersion1 { url }) => {
                             open_web_socket(fd, url.as_str(), reactor, rx, tx).await;
-                        },
+                        }
                         Ok(WebCommand::WebRequestVersion1 {
                             url,
                             method,
                             headers,
-                            body
+                            body,
                         }) => {
-                            open_web_request(fd, url.as_str(), method.as_str(), headers, body, reactor, rx, tx).await;
-                        },
+                            open_web_request(
+                                fd,
+                                url.as_str(),
+                                method.as_str(),
+                                headers,
+                                body,
+                                reactor,
+                                rx,
+                                tx,
+                            )
+                            .await;
+                        }
                         Err(err) => {
                             debug!("failed to deserialize the command");
                             return;
@@ -96,9 +96,7 @@ impl TokeraSocketFactory
             }
         });
 
-        TokeraSocketFactory {
-            tx: tx_factory
-        }
+        TokeraSocketFactory { tx: tx_factory }
     }
 
     pub fn create(&self) -> Fd {
@@ -108,8 +106,7 @@ impl TokeraSocketFactory
     }
 }
 
-async fn read_line(rx: &mut mpsc::Receiver<Vec<u8>>) -> Option<String>
-{
+async fn read_line(rx: &mut mpsc::Receiver<Vec<u8>>) -> Option<String> {
     let mut line = String::new();
     loop {
         if let Some(a) = rx.recv().await {
@@ -119,7 +116,7 @@ async fn read_line(rx: &mut mpsc::Receiver<Vec<u8>>) -> Option<String>
                     if line.ends_with("\n") {
                         break;
                     }
-                },
+                }
                 Err(_err) => {
                     return None;
                 }
@@ -131,7 +128,13 @@ async fn read_line(rx: &mut mpsc::Receiver<Vec<u8>>) -> Option<String>
     Some(line.trim().to_string())
 }
 
-async fn open_web_socket(fd: Fd, url: &str, reactor: Arc<RwLock<Reactor>>, mut rx: mpsc::Receiver<Vec<u8>>, tx: mpsc::Sender<Vec<u8>>) {
+async fn open_web_socket(
+    fd: Fd,
+    url: &str,
+    reactor: Arc<RwLock<Reactor>>,
+    mut rx: mpsc::Receiver<Vec<u8>>,
+    tx: mpsc::Sender<Vec<u8>>,
+) {
     fd.set_blocking(false);
     let ws = match WebSocket::new(url) {
         Ok(a) => a,
@@ -141,9 +144,9 @@ async fn open_web_socket(fd: Fd, url: &str, reactor: Arc<RwLock<Reactor>>, mut r
         }
     };
     debug!("websocket successfully created");
-    
+
     let (tx_msg, mut rx_msg) = broadcast::channel::<SocketMessage>(100);
-    
+
     let onopen_callback = {
         let tx_msg = tx_msg.clone();
         Closure::wrap(Box::new(move |_e: web_sys::ProgressEvent| {
@@ -177,8 +180,8 @@ async fn open_web_socket(fd: Fd, url: &str, reactor: Arc<RwLock<Reactor>>, mut r
 
     {
         let mut rx_msg = tx_msg.subscribe();
-        
-        let ws = ws.clone();                    
+
+        let ws = ws.clone();
         let fd = fd.raw;
         wasm_bindgen_futures::spawn_local(async move {
             match rx_msg.recv().await {
@@ -195,8 +198,7 @@ async fn open_web_socket(fd: Fd, url: &str, reactor: Arc<RwLock<Reactor>>, mut r
                 }
             }
             loop {
-                tokio::select!
-                {
+                tokio::select! {
                     data = rx.recv() => {
                         if let Some(data) = data {
                             let data_len = data.len();
@@ -234,12 +236,12 @@ async fn open_web_socket(fd: Fd, url: &str, reactor: Arc<RwLock<Reactor>>, mut r
             crate::wasi::inc_idle_ver();
         }) as Box<dyn FnMut(web_sys::ProgressEvent)>)
     };
-    fr.set_onloadend(Some(onloadend_cb.as_ref().unchecked_ref()));                            
+    fr.set_onloadend(Some(onloadend_cb.as_ref().unchecked_ref()));
     onloadend_cb.forget();
 
     // Before we attach the message process let the caller know its all
     // running along nicely
-    let ret = wasi_net::web_response::WebResponse::WebSocketVersion1 { };
+    let ret = wasi_net::web_response::WebResponse::WebSocketVersion1 {};
     let mut ret = match ret.serialize() {
         Ok(a) => a,
         Err(err) => {
@@ -276,7 +278,16 @@ async fn open_web_socket(fd: Fd, url: &str, reactor: Arc<RwLock<Reactor>>, mut r
     let _ = rx_msg.recv().await;
 }
 
-async fn open_web_request(fd: Fd, url: &str, method: &str, headers: Vec<(String, String)>, data: Option<Vec<u8>>, reactor: Arc<RwLock<Reactor>>, mut rx: mpsc::Receiver<Vec<u8>>, tx: mpsc::Sender<Vec<u8>>) -> Result<(), i32> {
+async fn open_web_request(
+    fd: Fd,
+    url: &str,
+    method: &str,
+    headers: Vec<(String, String)>,
+    data: Option<Vec<u8>>,
+    reactor: Arc<RwLock<Reactor>>,
+    mut rx: mpsc::Receiver<Vec<u8>>,
+    tx: mpsc::Sender<Vec<u8>>,
+) -> Result<(), i32> {
     debug!("executing HTTP {}", method);
 
     let resp = fetch(url, method, headers, data).await?;
@@ -285,14 +296,14 @@ async fn open_web_request(fd: Fd, url: &str, method: &str, headers: Vec<(String,
     let headers = Vec::new();
     // we can't implement this as the method resp.headers().keys() is missing!
     // how else are we going to parse the headers
-    
+
     let ret = wasi_net::web_response::WebResponse::WebRequestVersion1 {
         ok: resp.ok(),
         redirected: resp.redirected(),
         status: resp.status(),
         status_text: resp.status_text(),
         headers,
-        has_data: true
+        has_data: true,
     };
     let mut ret = match ret.serialize() {
         Ok(a) => a,

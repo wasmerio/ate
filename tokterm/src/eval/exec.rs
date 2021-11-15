@@ -1,52 +1,50 @@
 #![allow(dead_code)]
 #![allow(unused)]
-#[allow(unused_imports, dead_code)]
-use tracing::{info, error, debug, trace, warn};
-use wasmer::{Instance, Module, Store};
-use wasmer_wasi::{Stdout, WasiState, WasiError, WasiProxy};
-use wasmer_wasi::{Stdin};
-use wasm_bindgen::JsCast;
-use wasm_bindgen::prelude::*;
-use wasm_bindgen_futures::JsFuture;
-use web_sys::{console, HtmlElement, HtmlInputElement, Worker};
-use web_sys::{Request, RequestInit, RequestMode, Response};
+use bytes::Bytes;
 use serde::{Deserialize, Serialize};
-use tokio::sync::watch;
-use tokio::sync::mpsc;
-use tokio::sync::oneshot;
-use tokio::sync::RwLock;
+use std::io::Read;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::path::{Path, PathBuf};
+use tokio::sync::mpsc;
+use tokio::sync::oneshot;
+use tokio::sync::watch;
+use tokio::sync::RwLock;
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, trace, warn};
+use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::JsFuture;
+use wasmer::{Instance, Module, Store};
 use wasmer_wasi::vfs::FileSystem;
-use bytes::Bytes;
-use std::io::Read;
+use wasmer_wasi::Stdin;
+use wasmer_wasi::{Stdout, WasiError, WasiProxy, WasiState};
+use web_sys::{console, HtmlElement, HtmlInputElement, Worker};
+use web_sys::{Request, RequestInit, RequestMode, Response};
 
 use super::*;
 
-use crate::wasi::*;
-use crate::state::*;
-use crate::common::*;
-use crate::builtins::*;
-use crate::stdio::*;
-use crate::reactor::*;
-use crate::poll::*;
-use crate::err::*;
-use crate::err;
-use crate::pool::*;
-use crate::environment::*;
-use crate::job::*;
 use crate::bin::*;
+use crate::builtins::*;
+use crate::common::*;
+use crate::environment::*;
+use crate::err;
+use crate::err::*;
 use crate::fs::*;
+use crate::job::*;
+use crate::poll::*;
+use crate::pool::*;
+use crate::reactor::*;
+use crate::state::*;
+use crate::stdio::*;
+use crate::wasi::*;
 
-pub enum ExecResponse
-{
+pub enum ExecResponse {
     Immediate(i32),
     Process(Process),
 }
 
-pub async fn exec
-(
+pub async fn exec(
     ctx: &mut EvalContext,
     builtins: &Builtins,
     cmd: &String,
@@ -54,8 +52,7 @@ pub async fn exec
     env_vars: &Vec<String>,
     show_result: &mut bool,
     mut stdio: Stdio,
-) -> Result<ExecResponse, i32>
-{
+) -> Result<ExecResponse, i32> {
     // If there is a built in then use it
     if let Some(builtin) = builtins.get(cmd) {
         *show_result = true;
@@ -78,7 +75,9 @@ pub async fn exec
         let (pid, exit_rx) = guard.generate_pid()?;
         let process = match guard.get_process(pid) {
             Some(a) => a,
-            None => { return Err(ERR_ESRCH); }
+            None => {
+                return Err(ERR_ESRCH);
+            }
         };
         let exit_tx = process.exit_tx.clone();
         (pid, exit_rx, exit_tx, process)
@@ -96,8 +95,7 @@ pub async fn exec
     let cmd = cmd.clone();
     let args = args.clone();
     let path = ctx.path.clone();
-    ctx.pool.spawn_blocking(move ||
-    {
+    ctx.pool.spawn_blocking(move || {
         // Compile the module (which)
         let _ = tty.blocking_write("Compiling...".as_bytes());
         let store = Store::default();
@@ -111,13 +109,13 @@ pub async fn exec
             }
         };
         tty.blocking_write_clear_line();
-        info!("compiled {}", module.name().unwrap_or_else(|| "unknown module"));
+        info!(
+            "compiled {}",
+            module.name().unwrap_or_else(|| "unknown module")
+        );
 
         // Build the list of arguments
-        let args = args.iter()
-            .skip(1)
-            .map(|a| a.as_str())
-            .collect::<Vec<_>>();
+        let args = args.iter().skip(1).map(|a| a.as_str()).collect::<Vec<_>>();
 
         // Create the WasiProxy
         let wasi_proxy = WasiTerm::new(&reactor, exit_rx);
@@ -136,7 +134,11 @@ pub async fn exec
 
             let mut union = UnionFileSystem::new();
             union.mount("root", Path::new("/"), Box::new(root));
-            union.mount("proc", Path::new("/dev"), Box::new(ProcFileSystem::new(stdio)));
+            union.mount(
+                "proc",
+                Path::new("/dev"),
+                Box::new(ProcFileSystem::new(stdio)),
+            );
             union.mount("tmp", Path::new("/tmp"), Box::new(TmpFileSystem::default()));
             union.mount("private", Path::new("/.private"), Box::new(fs_private));
             Box::new(union)
@@ -149,19 +151,19 @@ pub async fn exec
             .stdout(Box::new(stdout))
             .stderr(Box::new(stderr))
             .syscall_proxy(Box::new(wasi_proxy))
-            .preopen_dir(Path::new("/")).unwrap()
-            .map_dir(".", Path::new(path.as_str())).unwrap()
+            .preopen_dir(Path::new("/"))
+            .unwrap()
+            .map_dir(".", Path::new(path.as_str()))
+            .unwrap()
             .set_fs(fs)
             .finalize()
             .unwrap();
 
         // Generate an `ImportObject`.
-        let import_object = wasi_env.import_object(&module)
-            .unwrap();
+        let import_object = wasi_env.import_object(&module).unwrap();
 
         // Let's instantiate the module with the imports.
-        let instance = Instance::new(&module, &import_object)
-            .unwrap();
+        let instance = Instance::new(&module, &import_object).unwrap();
 
         // Let's call the `_start` function, which is our `main` function in Rust.
         let start = instance
@@ -170,46 +172,47 @@ pub async fn exec
             .ok();
 
         // Set the panic handler
-        
+
         // If there is a start function
         debug!("called main() on {}", cmd);
         let ret = if let Some(start) = start {
             match start.call() {
-                Ok(a) => {
-                    err::ERR_OK
-                },
+                Ok(a) => err::ERR_OK,
                 Err(e) => match e.downcast::<WasiError>() {
-                    Ok(WasiError::Exit(code)) => {
-                        code as i32
-                    },
+                    Ok(WasiError::Exit(code)) => code as i32,
                     Ok(WasiError::UnknownWasiVersion) => {
-                        let _ = stdio.stderr.blocking_write(&format!("exec-failed: unknown wasi version\n").as_bytes()[..]);
-                        err::ERR_ENOEXEC            
-                    },
+                        let _ = stdio.stderr.blocking_write(
+                            &format!("exec-failed: unknown wasi version\n").as_bytes()[..],
+                        );
+                        err::ERR_ENOEXEC
+                    }
                     Err(err) => {
-                        let _ = stdio.stderr.blocking_write(&format!("exec error: {}\n", err).as_bytes()[..]);
+                        let _ = stdio
+                            .stderr
+                            .blocking_write(&format!("exec error: {}\n", err).as_bytes()[..]);
                         err::ERR_PANIC
                     }
-                }
+                },
             }
         } else {
-            let _ = stdio.stderr.blocking_write(&format!("exec-failed: missing _start function\n").as_bytes()[..]);
+            let _ = stdio
+                .stderr
+                .blocking_write(&format!("exec-failed: missing _start function\n").as_bytes()[..]);
             err::ERR_ENOEXEC
         };
         debug!("exited with code {}", ret);
         exit_tx.send(Some(ret));
     });
-    
+
     Ok(ExecResponse::Process(process))
 }
 
-pub async fn waitpid(reactor: &Arc<RwLock<Reactor>>, pid: Pid) -> i32
-{
+pub async fn waitpid(reactor: &Arc<RwLock<Reactor>>, pid: Pid) -> i32 {
     let process = {
         let reactor = reactor.read().await;
         reactor.get_process(pid)
     };
-    if let Some(mut process) = process  {
+    if let Some(mut process) = process {
         process.wait_for_exit().await
     } else {
         ERR_ESRCH

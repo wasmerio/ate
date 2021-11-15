@@ -1,5 +1,5 @@
-mod core;
 mod all;
+mod core;
 mod web;
 
 pub use self::core::*;

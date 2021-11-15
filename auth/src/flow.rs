@@ -1,12 +1,12 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use std::sync::Arc;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use async_trait::async_trait;
-use regex::Regex;
-use ate::{error::ChainCreationError, prelude::*};
 use ate::crypto::EncryptKey;
 use ate::crypto::KeySize;
+use ate::{error::ChainCreationError, prelude::*};
+use regex::Regex;
 
 use crate::service::*;
 
@@ -23,9 +23,16 @@ pub struct ChainFlow {
     pub terms_and_conditions: Option<String>,
 }
 
-impl ChainFlow
-{
-    pub fn new(cfg: &ConfAte, root_key: PrivateSignKey, session: AteSessionUser, web_key: EncryptKey, edge_key: EncryptKey, contract_key: EncryptKey, auth_url: &url::Url) -> Self {        
+impl ChainFlow {
+    pub fn new(
+        cfg: &ConfAte,
+        root_key: PrivateSignKey,
+        session: AteSessionUser,
+        web_key: EncryptKey,
+        edge_key: EncryptKey,
+        contract_key: EncryptKey,
+        auth_url: &url::Url,
+    ) -> Self {
         ChainFlow {
             cfg: cfg.clone(),
             root_key,
@@ -42,25 +49,29 @@ impl ChainFlow
 }
 
 #[async_trait]
-impl OpenFlow
-for ChainFlow
-{
+impl OpenFlow for ChainFlow {
     fn hello_path(&self) -> &str {
         self.auth_url.path()
     }
 
-    async fn message_of_the_day(&self, _chain: &Arc<Chain>) -> Result<Option<String>, ChainCreationError> {
+    async fn message_of_the_day(
+        &self,
+        _chain: &Arc<Chain>,
+    ) -> Result<Option<String>, ChainCreationError> {
         Ok(None)
     }
 
-    async fn open(&self, mut builder: ChainBuilder, key: &ChainKey, wire_encryption: Option<KeySize>) -> Result<OpenAction, ChainCreationError>
-    {
+    async fn open(
+        &self,
+        mut builder: ChainBuilder,
+        key: &ChainKey,
+        wire_encryption: Option<KeySize>,
+    ) -> Result<OpenAction, ChainCreationError> {
         debug!("open_auth: {}", key);
 
         let name = key.name.clone();
         let name = name.as_str();
-        if self.regex_auth.is_match(name)
-        {
+        if self.regex_auth.is_match(name) {
             let chain = builder
                 .set_session(self.session.clone_session())
                 .add_root_public_key(&self.root_key.as_public_key())
@@ -69,15 +80,14 @@ for ChainFlow
                 .open(key)
                 .await?;
 
-            return Ok(OpenAction::DistributedChain {
-                chain: chain,
-            });
+            return Ok(OpenAction::DistributedChain { chain: chain });
         }
-        if self.regex_cmd.is_match(name)
-        {
+        if self.regex_cmd.is_match(name) {
             // Build a secure session
             let mut cmd_session = AteSessionUser::default();
-            cmd_session.user.add_read_key(&EncryptKey::generate(KeySize::Bit128));
+            cmd_session
+                .user
+                .add_read_key(&EncryptKey::generate(KeySize::Bit128));
 
             // For command based chains that are already encryption there is no need
             // to also add signatures which take lots of CPU power
@@ -97,11 +107,8 @@ for ChainFlow
                 builder = builder.add_root_public_key(&session_root_key.as_public_key())
             }
 
-            let chain = builder
-                .build()
-                .open(key)
-                .await?;
-                
+            let chain = builder.build().open(key).await?;
+
             // Add the services to this chain
             service_auth_handlers(
                 &self.cfg,
@@ -112,18 +119,22 @@ for ChainFlow
                 self.edge_key.clone(),
                 self.contract_key.clone(),
                 self.terms_and_conditions.clone(),
-                &Arc::clone(&chain)
-            ).await?;
+                &Arc::clone(&chain),
+            )
+            .await?;
 
             // Return the chain to the caller
-            return Ok(OpenAction::PrivateChain
-            {
+            return Ok(OpenAction::PrivateChain {
                 chain,
                 session: cmd_session,
             });
         }
         Ok(OpenAction::Deny {
-            reason: format!("The chain-key ({}) does not match a valid chain supported by this server.", key.to_string()).to_string()
+            reason: format!(
+                "The chain-key ({}) does not match a valid chain supported by this server.",
+                key.to_string()
+            )
+            .to_string(),
         })
     }
 }

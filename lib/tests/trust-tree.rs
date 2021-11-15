@@ -1,44 +1,44 @@
 #![cfg(any(feature = "enable_full"))]
 #![allow(unused_imports)]
-use tracing::{error, info, warn, debug};
-use serde::{Serialize, Deserialize};
 use ate::prelude::*;
-use rust_decimal::prelude::*;
 use names::Generator;
+use rust_decimal::prelude::*;
+use serde::{Deserialize, Serialize};
 use tokio::runtime::Runtime;
+use tracing::{debug, error, info, warn};
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
-struct Car
-{
+struct Car {
     name: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
-struct Garage
-{
+struct Garage {
     cars: DaoVec<Car>,
 }
 
-#[cfg(any(feature = "enable_server", feature = "enable_client" ))]
+#[cfg(any(feature = "enable_server", feature = "enable_client"))]
 #[cfg(feature = "enable_local_fs")]
 #[test]
-fn test_trust_tree_persistent() -> Result<(), AteError>
-{
+fn test_trust_tree_persistent() -> Result<(), AteError> {
     ate::utils::bootstrap_test_env();
 
     #[cfg(feature = "enable_mt")]
-    let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
     #[cfg(not(feature = "enable_mt"))]
-    let rt =tokio::runtime::Builder::new_current_thread().enable_all().build()?;
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?;
 
-    rt.block_on(async
-    {
+    rt.block_on(async {
         info!("generating crypto keys");
         let write_key = PrivateSignKey::generate(KeySize::Bit192);
         let write_key2 = PrivateSignKey::generate(KeySize::Bit256);
         let read_key = EncryptKey::generate(KeySize::Bit256);
         let root_public_key = write_key.as_public_key();
-        
+
         let mut conf = ConfAte::default();
         conf.log_path = Some("/tmp/ate".to_string());
         conf.log_format.meta = SerializationFormat::Json;
@@ -47,10 +47,19 @@ fn test_trust_tree_persistent() -> Result<(), AteError>
         let key1;
         {
             info!("building the session");
-            let mut session = AteSessionUser::new();    
-            session.user.properties.push(AteSessionProperty::WriteKey(write_key.clone()));
-            session.user.properties.push(AteSessionProperty::WriteKey(write_key2.clone()));
-            session.user.properties.push(AteSessionProperty::ReadKey(read_key.clone()));
+            let mut session = AteSessionUser::new();
+            session
+                .user
+                .properties
+                .push(AteSessionProperty::WriteKey(write_key.clone()));
+            session
+                .user
+                .properties
+                .push(AteSessionProperty::WriteKey(write_key2.clone()));
+            session
+                .user
+                .properties
+                .push(AteSessionProperty::ReadKey(read_key.clone()));
             session.identity = "author@here.com".to_string();
 
             info!("creating the chain-of-trust");
@@ -66,13 +75,13 @@ fn test_trust_tree_persistent() -> Result<(), AteError>
             let mut garage = dio.store(Garage::default())?;
             garage.auth_mut().read = ReadOption::from_key(&read_key);
             garage.auth_mut().write = WriteOption::Specific(write_key2.hash());
-            
+
             for n in 0..100 {
                 let name = format!("Car {}", n).to_string();
 
                 let mut car = Car::default();
                 car.name = name.clone();
-                
+
                 let car = garage.as_mut().cars.push(car)?;
                 assert_eq!(car.name, name);
             }
@@ -84,9 +93,15 @@ fn test_trust_tree_persistent() -> Result<(), AteError>
 
         {
             info!("building the session");
-            let mut session = AteSessionUser::new();    
-            session.user.properties.push(AteSessionProperty::WriteKey(write_key2.clone()));
-            session.user.properties.push(AteSessionProperty::ReadKey(read_key.clone()));
+            let mut session = AteSessionUser::new();
+            session
+                .user
+                .properties
+                .push(AteSessionProperty::WriteKey(write_key2.clone()));
+            session
+                .user
+                .properties
+                .push(AteSessionProperty::ReadKey(read_key.clone()));
             session.identity = "author@here.com".to_string();
 
             let chain = {
@@ -115,25 +130,27 @@ fn test_trust_tree_persistent() -> Result<(), AteError>
     })
 }
 
-#[cfg(any(feature = "enable_server", feature = "enable_client" ))]
+#[cfg(any(feature = "enable_server", feature = "enable_client"))]
 #[test]
-fn test_trust_tree_memory() -> Result<(), AteError>
-{
+fn test_trust_tree_memory() -> Result<(), AteError> {
     ate::utils::bootstrap_test_env();
 
     #[cfg(feature = "enable_mt")]
-    let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
     #[cfg(not(feature = "enable_mt"))]
-    let rt =tokio::runtime::Builder::new_current_thread().enable_all().build()?;
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?;
 
-    rt.block_on(TaskEngine::run_until(async
-    {
+    rt.block_on(TaskEngine::run_until(async {
         info!("generating crypto keys");
         let write_key = PrivateSignKey::generate(KeySize::Bit192);
         let write_key2 = PrivateSignKey::generate(KeySize::Bit256);
         let read_key = EncryptKey::generate(KeySize::Bit256);
         let root_public_key = write_key.as_public_key();
-        
+
         let mut conf = ConfAte::default();
         conf.log_format.meta = SerializationFormat::Json;
         conf.log_format.data = SerializationFormat::Json;
@@ -141,10 +158,19 @@ fn test_trust_tree_memory() -> Result<(), AteError>
         let key1;
         {
             info!("building the session");
-            let mut session = AteSessionUser::new();    
-            session.user.properties.push(AteSessionProperty::WriteKey(write_key.clone()));
-            session.user.properties.push(AteSessionProperty::WriteKey(write_key2.clone()));
-            session.user.properties.push(AteSessionProperty::ReadKey(read_key.clone()));
+            let mut session = AteSessionUser::new();
+            session
+                .user
+                .properties
+                .push(AteSessionProperty::WriteKey(write_key.clone()));
+            session
+                .user
+                .properties
+                .push(AteSessionProperty::WriteKey(write_key2.clone()));
+            session
+                .user
+                .properties
+                .push(AteSessionProperty::ReadKey(read_key.clone()));
             session.identity = "author@here.com".to_string();
 
             info!("creating the chain-of-trust");
@@ -160,13 +186,13 @@ fn test_trust_tree_memory() -> Result<(), AteError>
             let mut garage = dio.store(Garage::default())?;
             garage.auth_mut().read = ReadOption::from_key(&read_key);
             garage.auth_mut().write = WriteOption::Specific(write_key2.hash());
-            
+
             for n in 0..100 {
                 let name = format!("Car {}", n).to_string();
 
                 let mut car = Car::default();
                 car.name = name.clone();
-                
+
                 let car = garage.as_mut().cars.push(car)?;
                 assert_eq!(car.name, name);
             }
@@ -176,9 +202,15 @@ fn test_trust_tree_memory() -> Result<(), AteError>
             key1 = garage.key().clone();
 
             info!("building the session");
-            let mut session = AteSessionUser::new();    
-            session.user.properties.push(AteSessionProperty::WriteKey(write_key2.clone()));
-            session.user.properties.push(AteSessionProperty::ReadKey(read_key.clone()));
+            let mut session = AteSessionUser::new();
+            session
+                .user
+                .properties
+                .push(AteSessionProperty::WriteKey(write_key2.clone()));
+            session
+                .user
+                .properties
+                .push(AteSessionProperty::ReadKey(read_key.clone()));
             session.identity = "author@here.com".to_string();
 
             // Load the garage

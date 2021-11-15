@@ -75,20 +75,16 @@ error_chain! {
     }
 }
 
-#[cfg(feature="enable_dns")]
-impl From<::trust_dns_proto::error::ProtoError>
-for ChainCreationError
-{
+#[cfg(feature = "enable_dns")]
+impl From<::trust_dns_proto::error::ProtoError> for ChainCreationError {
     fn from(err: ::trust_dns_proto::error::ProtoError) -> ChainCreationError {
         ChainCreationErrorKind::DnsProtoError(err.to_string()).into()
-    }   
+    }
 }
 
-#[cfg(feature="enable_dns")]
-impl From<::trust_dns_client::error::ClientError>
-for ChainCreationError
-{
+#[cfg(feature = "enable_dns")]
+impl From<::trust_dns_client::error::ClientError> for ChainCreationError {
     fn from(err: ::trust_dns_client::error::ClientError) -> ChainCreationError {
         ChainCreationErrorKind::DnsClientError(err.to_string()).into()
-    }   
+    }
 }

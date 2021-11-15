@@ -1,8 +1,8 @@
 use error_chain::error_chain;
 use std::time::Duration;
 
-use ::ate::prelude::*;
 use crate::request::*;
+use ::ate::prelude::*;
 
 error_chain! {
     types {
@@ -58,16 +58,13 @@ error_chain! {
     }
 }
 
-impl From<SudoError>
-for AteError
-{
+impl From<SudoError> for AteError {
     fn from(err: SudoError) -> AteError {
         AteErrorKind::ServiceError(err.to_string()).into()
     }
 }
 
-impl From<SudoFailed>
-for SudoError {
+impl From<SudoFailed> for SudoError {
     fn from(err: SudoFailed) -> SudoError {
         match err {
             SudoFailed::AccountLocked(duration) => SudoErrorKind::AccountLocked(duration).into(),

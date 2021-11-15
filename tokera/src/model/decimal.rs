@@ -4,19 +4,18 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
 use std::str::FromStr;
 
-use std::ops::{
-    Add, AddAssign, Sub, SubAssign, Neg, Mul, MulAssign, Div, DivAssign, Rem, RemAssign
-};
-use std::cmp::{
-    Eq, PartialEq, Ord, PartialOrd, Ordering
-};
+use std::cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd};
 use std::iter::Sum;
+use std::ops::{
+    Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Rem, RemAssign, Sub, SubAssign,
+};
 
 #[allow(unused_imports)] // It's not actually dead code below, but the compiler thinks it is.
 #[cfg(not(feature = "std"))]
 use num_traits::float::FloatCore;
 use num_traits::{
-    CheckedAdd, CheckedDiv, CheckedMul, CheckedRem, CheckedSub, FromPrimitive, Num, One, Signed, ToPrimitive, Zero,
+    CheckedAdd, CheckedDiv, CheckedMul, CheckedRem, CheckedSub, FromPrimitive, Num, One, Signed,
+    ToPrimitive, Zero,
 };
 
 pub use rust_decimal::prelude::RoundingStrategy;
@@ -26,14 +25,18 @@ pub struct Decimal(InnerDecimal);
 
 impl Serialize for Decimal {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where S: Serializer {
+    where
+        S: Serializer,
+    {
         serializer.serialize_str(&self.0.to_string())
     }
 }
 
 impl<'de> Deserialize<'de> for Decimal {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where D: Deserializer<'de> {
+    where
+        D: Deserializer<'de>,
+    {
         deserializer.deserialize_str(DecimalVisitor)
     }
 }
@@ -48,16 +51,16 @@ impl<'de> Visitor<'de> for DecimalVisitor {
     }
 
     fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-    where E: de::Error {
+    where
+        E: de::Error,
+    {
         InnerDecimal::from_str(value)
             .map_err(|_| E::invalid_value(Unexpected::Str(value), &self))
             .map(Decimal)
     }
 }
 
-impl std::ops::Deref
-for Decimal
-{
+impl std::ops::Deref for Decimal {
     type Target = InnerDecimal;
 
     fn deref(&self) -> &Self::Target {
@@ -65,21 +68,18 @@ for Decimal
     }
 }
 
-impl std::ops::DerefMut
-for Decimal
-{
+impl std::ops::DerefMut for Decimal {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl Decimal
-{
+impl Decimal {
     #[must_use]
     pub fn new(num: i64, scale: u32) -> Decimal {
         Decimal(InnerDecimal::new(num, scale))
     }
-    
+
     #[must_use]
     pub fn from_i128_with_scale(num: i128, scale: u32) -> Decimal {
         Decimal(InnerDecimal::from_i128_with_scale(num, scale))

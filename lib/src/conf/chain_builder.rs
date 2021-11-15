@@ -1,38 +1,37 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use std::sync::Arc;
 use std::sync::Mutex as StdMutex;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use crate::anti_replay::AntiReplayPlugin;
 use crate::chain::Chain;
-use crate::time::TimestampEnforcer;
-use crate::tree::TreeAuthorityPlugin;
-use crate::validator::*;
+use crate::comms::Metrics;
+use crate::comms::NodeId;
+use crate::comms::Throttle;
 use crate::compact::*;
+use crate::crypto::PublicSignKey;
+use crate::engine::*;
+use crate::error::*;
 use crate::index::*;
 use crate::lint::*;
-use crate::transform::*;
-use crate::plugin::*;
-use crate::trust::ChainKey;
-use crate::crypto::PublicSignKey;
-use crate::error::*;
 use crate::pipe::*;
-use crate::engine::*;
-use crate::session::AteSessionUser;
-use crate::session::AteSession;
-use crate::comms::NodeId;
-use crate::comms::Metrics;
-use crate::comms::Throttle;
-use crate::prelude::TrustMode;
+use crate::plugin::*;
 use crate::prelude::CentralizedRole;
+use crate::prelude::TrustMode;
+use crate::session::AteSession;
+use crate::session::AteSessionUser;
+use crate::time::TimestampEnforcer;
+use crate::transform::*;
+use crate::tree::TreeAuthorityPlugin;
+use crate::trust::ChainKey;
+use crate::validator::*;
 
 use super::*;
 
 /// Building class used to construct a chain-of-trust with
 /// its user defined plugins and configuration. Nearly always
 /// this builder will be used to create and load your chains.
-pub struct ChainBuilder
-{
+pub struct ChainBuilder {
     pub(crate) cfg_ate: ConfAte,
     pub(crate) node_id: NodeId,
     pub(crate) configured_for: ConfiguredFor,
@@ -53,20 +52,42 @@ pub struct ChainBuilder
     pub(crate) idle_integrity: TrustMode,
 }
 
-impl Clone
-for ChainBuilder
-{
+impl Clone for ChainBuilder {
     fn clone(&self) -> Self {
         ChainBuilder {
             cfg_ate: self.cfg_ate.clone(),
             node_id: self.node_id.clone(),
             configured_for: self.configured_for.clone(),
-            validators: self.validators.iter().map(|a| a.clone_validator()).collect::<Vec<_>>(),
-            compactors: self.compactors.iter().filter_map(|a| a.clone_compactor()).collect::<Vec<_>>(),
-            linters: self.linters.iter().map(|a| a.clone_linter()).collect::<Vec<_>>(),
-            transformers: self.transformers.iter().map(|a| a.clone_transformer()).collect::<Vec<_>>(),
-            indexers: self.indexers.iter().map(|a| a.clone_indexer()).collect::<Vec<_>>(),
-            plugins: self.plugins.iter().map(|a| a.clone_plugin()).collect::<Vec<_>>(),
+            validators: self
+                .validators
+                .iter()
+                .map(|a| a.clone_validator())
+                .collect::<Vec<_>>(),
+            compactors: self
+                .compactors
+                .iter()
+                .filter_map(|a| a.clone_compactor())
+                .collect::<Vec<_>>(),
+            linters: self
+                .linters
+                .iter()
+                .map(|a| a.clone_linter())
+                .collect::<Vec<_>>(),
+            transformers: self
+                .transformers
+                .iter()
+                .map(|a| a.clone_transformer())
+                .collect::<Vec<_>>(),
+            indexers: self
+                .indexers
+                .iter()
+                .map(|a| a.clone_indexer())
+                .collect::<Vec<_>>(),
+            plugins: self
+                .plugins
+                .iter()
+                .map(|a| a.clone_plugin())
+                .collect::<Vec<_>>(),
             pipes: self.pipes.clone(),
             tree: self.tree.clone(),
             session: self.session.clone_session(),
@@ -80,8 +101,7 @@ for ChainBuilder
     }
 }
 
-impl ChainBuilder
-{
+impl ChainBuilder {
     #[allow(dead_code)]
     pub async fn new(cfg_ate: &ConfAte) -> ChainBuilder {
         ChainBuilder {
@@ -102,7 +122,7 @@ impl ChainBuilder
             metrics: Arc::new(StdMutex::new(Metrics::default())),
             throttle: Arc::new(StdMutex::new(Throttle::default())),
             load_integrity: TrustMode::Centralized(CentralizedRole::Client),
-            idle_integrity: TrustMode::Distributed
+            idle_integrity: TrustMode::Distributed,
         }
         .with_defaults()
         .await
@@ -123,18 +143,22 @@ impl ChainBuilder
             return self;
         }
 
-        self.compactors.push(Box::new(PublicKeyCompactor::default()));
-        self.compactors.push(Box::new(SignatureCompactor::default()));
-        self.compactors.push(Box::new(RemoveDuplicatesCompactor::default()));
-        self.compactors.push(Box::new(TombstoneCompactor::default()));
+        self.compactors
+            .push(Box::new(PublicKeyCompactor::default()));
+        self.compactors
+            .push(Box::new(SignatureCompactor::default()));
+        self.compactors
+            .push(Box::new(RemoveDuplicatesCompactor::default()));
+        self.compactors
+            .push(Box::new(TombstoneCompactor::default()));
         self.plugins.push(Box::new(AntiReplayPlugin::default()));
 
         match self.configured_for {
             ConfiguredFor::SmallestSize => {
-                self.transformers.insert(0, Box::new(CompressorWithSnapTransformer::default()));
-            },
-            ConfiguredFor::Balanced => {
-            },
+                self.transformers
+                    .insert(0, Box::new(CompressorWithSnapTransformer::default()));
+            }
+            ConfiguredFor::Balanced => {}
             ConfiguredFor::BestSecurity => {
                 self.cfg_ate.dns_sec = true;
             }
@@ -142,15 +166,18 @@ impl ChainBuilder
         }
 
         if self.configured_for == ConfiguredFor::Barebone {
-            self.validators.push(Box::new(RubberStampValidator::default()));
+            self.validators
+                .push(Box::new(RubberStampValidator::default()));
             return self;
-        }
-        else
-        {
+        } else {
             self.tree = Some(crate::tree::TreeAuthorityPlugin::new());
 
             let tolerance = self.configured_for.ntp_tolerance();
-            self.plugins.push(Box::new(TimestampEnforcer::new(&self.cfg_ate, tolerance).await.unwrap()));
+            self.plugins.push(Box::new(
+                TimestampEnforcer::new(&self.cfg_ate, tolerance)
+                    .await
+                    .unwrap(),
+            ));
         }
 
         self
@@ -222,7 +249,6 @@ impl ChainBuilder
         self
     }
 
-
     #[allow(dead_code)]
     pub fn add_plugin(mut self, plugin: Box<dyn EventPlugin>) -> Self {
         self.plugins.push(plugin);
@@ -249,8 +275,7 @@ impl ChainBuilder
 
     #[cfg(feature = "enable_local_fs")]
     #[allow(dead_code)]
-    pub fn postfix_log_path(mut self, postfix: &str) -> Self
-    {
+    pub fn postfix_log_path(mut self, postfix: &str) -> Self {
         let orig_path = match self.cfg_ate.log_path.as_ref() {
             Some(a) => a.clone(),
             None => {
@@ -269,7 +294,7 @@ impl ChainBuilder
 
         let path = match orig_path.ends_with("/") {
             true => format!("{}{}", orig_path, postfix),
-            false => format!("{}/{}", orig_path, postfix)
+            false => format!("{}/{}", orig_path, postfix),
         };
         self.cfg_ate.log_path = Some(path);
 
@@ -279,7 +304,7 @@ impl ChainBuilder
 
             let path = match backup_path.ends_with("/") {
                 true => format!("{}{}", backup_path, postfix),
-                false => format!("{}/{}", backup_path, postfix)
+                false => format!("{}/{}", backup_path, postfix),
             };
             self.cfg_ate.backup_path = Some(path);
         }
@@ -315,27 +340,24 @@ impl ChainBuilder
     }
 
     #[allow(dead_code)]
-    pub fn build
-    (
-        self,
-    )
-    -> Arc<ChainBuilder>
-    {
+    pub fn build(self) -> Arc<ChainBuilder> {
         Arc::new(self)
     }
 
-    pub async fn open(self: &Arc<Self>,
-                      key: &ChainKey
-    ) -> Result<Arc<Chain>, ChainCreationError>
-    {
+    pub async fn open(self: &Arc<Self>, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError> {
         TaskEngine::run_until(self.__open(key)).await
     }
-    
-    async fn __open(self: &Arc<Self>,
-                    key: &ChainKey
-    ) -> Result<Arc<Chain>, ChainCreationError>
-    {
-        let ret = Arc::new(Chain::new((**self).clone(), key, self.load_integrity, self.idle_integrity).await?);
+
+    async fn __open(self: &Arc<Self>, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError> {
+        let ret = Arc::new(
+            Chain::new(
+                (**self).clone(),
+                key,
+                self.load_integrity,
+                self.idle_integrity,
+            )
+            .await?,
+        );
         Ok(ret)
     }
 }

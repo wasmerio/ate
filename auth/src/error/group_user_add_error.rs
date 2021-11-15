@@ -1,7 +1,7 @@
 use error_chain::error_chain;
 
-use ::ate::prelude::*;
 use crate::request::*;
+use ::ate::prelude::*;
 
 error_chain! {
     types {
@@ -46,16 +46,13 @@ error_chain! {
     }
 }
 
-impl From<GroupUserAddError>
-for AteError
-{
+impl From<GroupUserAddError> for AteError {
     fn from(err: GroupUserAddError) -> AteError {
         AteErrorKind::ServiceError(err.to_string()).into()
     }
 }
 
-impl From<GroupUserAddFailed>
-for GroupUserAddError {
+impl From<GroupUserAddFailed> for GroupUserAddError {
     fn from(err: GroupUserAddFailed) -> GroupUserAddError {
         match err {
             GroupUserAddFailed::GroupNotFound => GroupUserAddErrorKind::GroupNotFound.into(),
@@ -63,7 +60,9 @@ for GroupUserAddError {
             GroupUserAddFailed::NoMasterKey => GroupUserAddErrorKind::NoMasterKey.into(),
             GroupUserAddFailed::UnknownIdentity => GroupUserAddErrorKind::UnknownIdentity.into(),
             GroupUserAddFailed::InvalidPurpose => GroupUserAddErrorKind::InvalidPurpose.into(),
-            GroupUserAddFailed::InternalError(code) => GroupUserAddErrorKind::InternalError(code).into(),
+            GroupUserAddFailed::InternalError(code) => {
+                GroupUserAddErrorKind::InternalError(code).into()
+            }
         }
     }
 }

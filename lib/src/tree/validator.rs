@@ -1,26 +1,27 @@
-#[allow(unused_imports)]
-use tracing::{error, info, warn, debug};
 use error_chain::bail;
 use std::sync::Arc;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, warn};
 
 use crate::error::*;
-use crate::meta::*;
-use crate::validator::*;
 use crate::event::*;
-use crate::transaction::*;
+use crate::meta::*;
 use crate::spec::*;
+use crate::transaction::*;
+use crate::validator::*;
 
 use super::*;
 
-impl EventValidator
-for TreeAuthorityPlugin
-{
+impl EventValidator for TreeAuthorityPlugin {
     fn clone_validator(&self) -> Box<dyn EventValidator> {
         Box::new(self.clone())
     }
 
-    fn validate(&self, header: &EventHeader, conversation: Option<&Arc<ConversationSession>>) -> Result<ValidationResult, ValidationError>
-    {
+    fn validate(
+        &self,
+        header: &EventHeader,
+        conversation: Option<&Arc<ConversationSession>>,
+    ) -> Result<ValidationResult, ValidationError> {
         // We need to check all the signatures are valid
         self.signature_plugin.validate(header, conversation)?;
 
@@ -35,39 +36,37 @@ for TreeAuthorityPlugin
         // It might be the case that everyone is allowed to write freely
         let dummy_trans_meta = TransactionMetadata::default();
         let auth = self.compute_auth(&header.meta, &dummy_trans_meta, ComputePhase::BeforeStore)?;
-        
+
         // Of course if everyone can write here then its allowed
         if auth.write == WriteOption::Everyone {
             return Ok(ValidationResult::Allow);
         }
-        
+
         // Make sure that it has a signature
         let verified_signatures = match self.signature_plugin.get_verified_signatures(&sig_hash) {
             Some(a) => a,
-            None =>
-            {
-                if let Some(conversation) = conversation
-                {
+            None => {
+                if let Some(conversation) = conversation {
                     // If we are to skip validation then do so
                     if conversation.weaken_validation {
-                        return Ok(ValidationResult::Allow)
+                        return Ok(ValidationResult::Allow);
                     }
 
                     // If integrity is centrally managed and we have seen this public key before in this
                     // particular conversation then we can trust the rest of the integrity of the chain
                     if self.integrity.is_centralized() {
                         if self.integrity == TrustMode::Centralized(CentralizedRole::Client) {
-                            return Ok(ValidationResult::Allow)
+                            return Ok(ValidationResult::Allow);
                         }
 
                         let lock = conversation.signatures.read().unwrap();
                         let already = match &auth.write {
                             WriteOption::Specific(hash) => lock.contains(hash),
                             WriteOption::Any(hashes) => hashes.iter().any(|h| lock.contains(h)),
-                            _ => false
+                            _ => false,
                         };
                         if already {
-                            return Ok(ValidationResult::Allow)
+                            return Ok(ValidationResult::Allow);
                         }
                     }
 
@@ -83,14 +82,17 @@ for TreeAuthorityPlugin
                     if let Some(sig) = header.meta.get_sign_with() {
                         debug!("rejected event ({}) as it is missing signautre [{}] no signatures ({})", sig_hash, sig, self.integrity);
                     } else {
-                        debug!("rejected event ({}) as it has no signatures ({})", sig_hash, self.integrity);
+                        debug!(
+                            "rejected event ({}) as it has no signatures ({})",
+                            sig_hash, self.integrity
+                        );
                     }
-                    
+
                     bail!(ValidationErrorKind::NoSignatures);
                 }
-           },
+            }
         };
-        
+
         // Compute the auth tree and if a signature exists for any of the auths then its allowed
         let auth_write = auth.write.vals();
         for hash in verified_signatures.iter() {
@@ -104,7 +106,10 @@ for TreeAuthorityPlugin
         // as all the other possible routes for it to be accepted into the tree have failed
         #[cfg(feature = "enable_verbose")]
         {
-            warn!("rejected event as it is detached from the tree with auth.write = ({})", auth.write);
+            warn!(
+                "rejected event as it is detached from the tree with auth.write = ({})",
+                auth.write
+            );
             for hash in verified_signatures.iter() {
                 warn!("- supplied hash signature ({})", hash);
             }

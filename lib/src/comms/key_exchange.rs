@@ -1,20 +1,24 @@
 #![allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use crate::crypto::{EncryptKey, InitializationVector, PublicEncryptKey};
 use error_chain::bail;
-use tokio::io::{ AsyncReadExt, AsyncWriteExt};
-use crate::crypto::{EncryptKey, PublicEncryptKey, InitializationVector};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
-use crate::error::*;
 use crate::crypto::KeySize;
 use crate::crypto::PrivateEncryptKey;
+use crate::error::*;
 
+use super::CertificateValidation;
 use super::StreamRx;
 use super::StreamTx;
-use super::CertificateValidation;
 
 #[cfg(feature = "enable_client")]
-pub(super) async fn mesh_key_exchange_sender(stream_rx: &mut StreamRx, stream_tx: &mut StreamTx, key_size: KeySize, validation: CertificateValidation) -> Result<EncryptKey, CommsError>
-{
+pub(super) async fn mesh_key_exchange_sender(
+    stream_rx: &mut StreamRx,
+    stream_tx: &mut StreamTx,
+    key_size: KeySize,
+    validation: CertificateValidation,
+) -> Result<EncryptKey, CommsError> {
     trace!("negotiating {}bit shared secret", key_size);
 
     // Generate the encryption keys
@@ -31,7 +35,12 @@ pub(super) async fn mesh_key_exchange_sender(stream_rx: &mut StreamRx, stream_tx
     let iv1 = InitializationVector::from(iv1_bytes);
     let ek1 = match sk1.decapsulate(&iv1) {
         Some(a) => a,
-        None => { bail!(CommsErrorKind::ReceiveError("Failed to decapsulate the encryption key from the received initialization vector.".to_string())); }
+        None => {
+            bail!(CommsErrorKind::ReceiveError(
+                "Failed to decapsulate the encryption key from the received initialization vector."
+                    .to_string()
+            ));
+        }
     };
     trace!("client received the servers half of the shared secret");
 
@@ -40,7 +49,11 @@ pub(super) async fn mesh_key_exchange_sender(stream_rx: &mut StreamRx, stream_tx
     trace!("client received the servers public key");
     let pk2 = match PublicEncryptKey::from_bytes(pk2_bytes) {
         Some(a) => a,
-        None => { bail!(CommsErrorKind::ReceiveError("Failed to receive a public key from the other side.".to_string())); }
+        None => {
+            bail!(CommsErrorKind::ReceiveError(
+                "Failed to receive a public key from the other side.".to_string()
+            ));
+        }
     };
 
     // Validate the public key against our validation rules
@@ -52,15 +65,18 @@ pub(super) async fn mesh_key_exchange_sender(stream_rx: &mut StreamRx, stream_tx
     let (iv2, ek2) = pk2.encapsulate();
     stream_tx.write_32bit(&iv2.bytes[..], false).await?;
     trace!("client sending its half of the shared secret");
-    
+
     // Merge the two halfs to make one shared secret
     trace!("client shared secret established");
     Ok(EncryptKey::xor(&ek1, &ek2))
 }
 
 #[cfg(feature = "enable_server")]
-pub(super) async fn mesh_key_exchange_receiver(stream_rx: &mut StreamRx, stream_tx: &mut StreamTx, server_key: PrivateEncryptKey) -> Result<EncryptKey, CommsError>
-{
+pub(super) async fn mesh_key_exchange_receiver(
+    stream_rx: &mut StreamRx,
+    stream_tx: &mut StreamTx,
+    server_key: PrivateEncryptKey,
+) -> Result<EncryptKey, CommsError> {
     trace!("negotiating {}bit shared secret", server_key.size());
 
     // Receive the public key from the caller side (which we will use in a sec)
@@ -68,7 +84,11 @@ pub(super) async fn mesh_key_exchange_receiver(stream_rx: &mut StreamRx, stream_
     trace!("server received clients public key");
     let pk1 = match PublicEncryptKey::from_bytes(pk1_bytes) {
         Some(a) => a,
-        None => { bail!(CommsErrorKind::ReceiveError("Failed to receive a valid public key from the sender".to_string())); }
+        None => {
+            bail!(CommsErrorKind::ReceiveError(
+                "Failed to receive a valid public key from the sender".to_string()
+            ));
+        }
     };
 
     // Generate one half of the secret and send the IV so the other side can recreate it
@@ -89,10 +109,14 @@ pub(super) async fn mesh_key_exchange_receiver(stream_rx: &mut StreamRx, stream_
     let iv2 = InitializationVector::from(iv2_bytes);
     let ek2 = match sk2.decapsulate(&iv2) {
         Some(a) => a,
-        None => { bail!(CommsErrorKind::ReceiveError("Failed to receive a public key from the other side.".to_string())); }
+        None => {
+            bail!(CommsErrorKind::ReceiveError(
+                "Failed to receive a public key from the other side.".to_string()
+            ));
+        }
     };
     trace!("server received client half of the shared secret");
-    
+
     // Merge the two halfs to make one shared secret
     trace!("server shared secret established");
     Ok(EncryptKey::xor(&ek1, &ek2))

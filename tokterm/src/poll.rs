@@ -1,25 +1,27 @@
 #![allow(unused_imports)]
 #![allow(dead_code)]
-#[allow(unused_imports, dead_code)]
-use tracing::{info, error, debug, trace, warn};
 use std::sync::Arc;
 use std::sync::Mutex;
 use tokio::sync::mpsc;
 use tokio::sync::RwLock;
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, trace, warn};
 
-use super::reactor::*;
-use super::fd::*;
 use super::err::*;
+use super::fd::*;
+use super::reactor::*;
 
 #[derive(Debug)]
-pub struct PollResult
-{
+pub struct PollResult {
     pub can_read: bool,
     pub can_write: bool,
     pub is_closed: bool,
 }
 
-pub fn poll_fd(rx: Option<&mut Arc<Mutex<ReactorPipeReceiver>>>, tx: Option<&mut mpsc::Sender<Vec<u8>>>) -> PollResult {
+pub fn poll_fd(
+    rx: Option<&mut Arc<Mutex<ReactorPipeReceiver>>>,
+    tx: Option<&mut mpsc::Sender<Vec<u8>>>,
+) -> PollResult {
     let mut has_fd = false;
     let can_write = if let Some(fd) = tx {
         has_fd = true;
@@ -46,7 +48,7 @@ pub fn poll_fd(rx: Option<&mut Arc<Mutex<ReactorPipeReceiver>>>, tx: Option<&mut
     let ret = PollResult {
         can_read,
         can_write,
-        is_closed: has_fd == false
+        is_closed: has_fd == false,
     };
     ret
 }

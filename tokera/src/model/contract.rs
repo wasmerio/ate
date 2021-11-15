@@ -1,7 +1,7 @@
-use serde::*;
 use ate::prelude::*;
 use chrono::DateTime;
 use chrono::Utc;
+use serde::*;
 
 use super::*;
 
@@ -9,8 +9,7 @@ use super::*;
 /// particular services. Only brokers may perform actions on
 /// active contracts
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Contract
-{
+pub struct Contract {
     /// Reference number assigned to this contract
     pub reference_number: String,
     /// The country that you pay GST tax in for this services

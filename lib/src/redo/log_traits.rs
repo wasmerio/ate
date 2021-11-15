@@ -1,29 +1,40 @@
-#[allow(unused_imports)]
-use tracing::{error, info, warn, debug};
 use async_trait::async_trait;
 use std::pin::Pin;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, warn};
 
-use tokio::io::{Result};
+use tokio::io::Result;
 
-use crate::{crypto::*, redo::LogLookup};
-use crate::event::*;
 use crate::error::*;
+use crate::event::*;
 use crate::loader::*;
+use crate::{crypto::*, redo::LogLookup};
 
 #[async_trait]
 pub trait LogFile
-where Self: Sync + Send
+where
+    Self: Sync + Send,
 {
     #[cfg(feature = "enable_rotate")]
     async fn rotate(&mut self, header_bytes: Vec<u8>) -> Result<()>;
 
-    fn backup(&mut self, include_active_files: bool) -> Result<Pin<Box<dyn futures::Future<Output=Result<()>> + Send + Sync >>>;
+    fn backup(
+        &mut self,
+        include_active_files: bool,
+    ) -> Result<Pin<Box<dyn futures::Future<Output = Result<()>> + Send + Sync>>>;
 
     async fn copy(&mut self) -> Result<Box<dyn LogFile>>;
 
-    async fn write(&mut self, evt: &EventData) -> std::result::Result<LogLookup, SerializationError>;
+    async fn write(
+        &mut self,
+        evt: &EventData,
+    ) -> std::result::Result<LogLookup, SerializationError>;
 
-    async fn copy_event(&mut self, from_log: &Box<dyn LogFile>, hash: AteHash) -> std::result::Result<LogLookup, LoadError>;
+    async fn copy_event(
+        &mut self,
+        from_log: &Box<dyn LogFile>,
+        hash: AteHash,
+    ) -> std::result::Result<LogLookup, LoadError>;
 
     async fn load(&self, hash: AteHash) -> std::result::Result<LoadData, LoadError>;
 

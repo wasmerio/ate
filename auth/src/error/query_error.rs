@@ -1,7 +1,7 @@
 use error_chain::error_chain;
 
-use ::ate::prelude::*;
 use crate::request::*;
+use ::ate::prelude::*;
 
 error_chain! {
     types {
@@ -36,16 +36,13 @@ error_chain! {
     }
 }
 
-impl From<QueryError>
-for AteError
-{
+impl From<QueryError> for AteError {
     fn from(err: QueryError) -> AteError {
         AteErrorKind::ServiceError(err.to_string()).into()
     }
 }
 
-impl From<QueryFailed>
-for QueryError {
+impl From<QueryFailed> for QueryError {
     fn from(err: QueryFailed) -> QueryError {
         match err {
             QueryFailed::Banned => QueryErrorKind::Banned.into(),

@@ -1,15 +1,16 @@
 use fxhash::FxHashMap;
 use multimap::MultiMap;
 
+use super::error::*;
 use super::event::*;
 use super::header::*;
 use super::meta::*;
 use super::sink::*;
-use super::error::*;
 use super::time::*;
 
 pub trait EventIndexer
-where Self: EventSink + Send + Sync + std::fmt::Debug,
+where
+    Self: EventSink + Send + Sync + std::fmt::Debug,
 {
     fn rebuild(&mut self, _data: &Vec<EventHeader>) -> Result<(), SinkError> {
         Ok(())
@@ -19,24 +20,21 @@ where Self: EventSink + Send + Sync + std::fmt::Debug,
 }
 
 #[derive(Debug, Copy, Clone)]
-pub struct EventLeaf
-{
+pub struct EventLeaf {
     pub record: super::crypto::AteHash,
     pub created: u64,
     pub updated: u64,
 }
 
 #[derive(Default, Debug)]
-pub(crate) struct BinaryTreeIndexer
-{
+pub(crate) struct BinaryTreeIndexer {
     primary: FxHashMap<PrimaryKey, EventLeaf>,
     secondary: MultiMap<MetaCollection, PrimaryKey>,
     parents: FxHashMap<PrimaryKey, MetaParent>,
     uploads: FxHashMap<ChainTimestamp, MetaDelayedUpload>,
 }
 
-impl BinaryTreeIndexer
-{
+impl BinaryTreeIndexer {
     #[allow(dead_code)]
     pub(crate) fn contains_key(&self, key: &PrimaryKey) -> bool {
         self.primary.contains_key(key)
@@ -59,8 +57,8 @@ impl BinaryTreeIndexer
                         }
                     }
                     return;
-                },
-                _ => { },
+                }
+                _ => {}
             }
         }
 
@@ -73,12 +71,18 @@ impl BinaryTreeIndexer
                     let when = entry.meta.get_timestamp();
                     let v = self.primary.entry(key.clone()).or_insert(EventLeaf {
                         record: crate::crypto::AteHash { val: [0; 16] },
-                        created: match when { Some(t) => t.time_since_epoch_ms, None => 0 },
+                        created: match when {
+                            Some(t) => t.time_since_epoch_ms,
+                            None => 0,
+                        },
                         updated: 0,
                     });
                     v.record = entry.raw.event_hash.clone();
-                    v.updated = match when { Some(t) => t.time_since_epoch_ms, None => 0 };
-                },
+                    v.updated = match when {
+                        Some(t) => t.time_since_epoch_ms,
+                        None => 0,
+                    };
+                }
                 CoreMetadata::Parent(parent) => {
                     if let Some(key) = entry.meta.get_data_key() {
                         if let Some(parent) = self.parents.remove(&key) {
@@ -89,7 +93,7 @@ impl BinaryTreeIndexer
                         self.parents.insert(key.clone(), parent.clone());
 
                         let vec = parent.vec.clone();
-                        let exists = match self.secondary.get_vec(&vec)  {
+                        let exists = match self.secondary.get_vec(&vec) {
                             Some(a) => a.contains(&key),
                             None => false,
                         };
@@ -97,11 +101,11 @@ impl BinaryTreeIndexer
                             self.secondary.insert(vec, key);
                         }
                     }
-                },
+                }
                 CoreMetadata::DelayedUpload(upload) => {
                     self.uploads.insert(upload.from, upload.clone());
                 }
-                _ => { },
+                _ => {}
             }
         }
     }
@@ -109,76 +113,65 @@ impl BinaryTreeIndexer
     pub(crate) fn lookup_primary(&self, key: &PrimaryKey) -> Option<EventLeaf> {
         match self.primary.get(key) {
             None => None,
-            Some(a) => Some(a.clone())
+            Some(a) => Some(a.clone()),
         }
     }
 
     pub(crate) fn lookup_parent(&self, key: &PrimaryKey) -> Option<MetaParent> {
         match self.parents.get(key) {
             None => None,
-            Some(a) => Some(a.clone())
+            Some(a) => Some(a.clone()),
         }
     }
 
     pub(crate) fn lookup_secondary(&self, key: &MetaCollection) -> Option<Vec<EventLeaf>> {
         match self.secondary.get_vec(key) {
-            Some(vec) => {
-                Some(vec.iter()
+            Some(vec) => Some(
+                vec.iter()
                     .map(|a| a.clone())
                     .filter_map(|a| self.primary.get(&a))
                     .map(|a| a.clone())
-                    .collect::<Vec<_>>())
-            },
+                    .collect::<Vec<_>>(),
+            ),
             None => None,
         }
     }
 
     pub(crate) fn lookup_secondary_raw(&self, key: &MetaCollection) -> Option<Vec<PrimaryKey>> {
         match self.secondary.get_vec(key) {
-            Some(vec) => {
-                Some(vec.iter()
-                    .map(|a| a.clone())
-                    .collect::<Vec<_>>())
-            },
+            Some(vec) => Some(vec.iter().map(|a| a.clone()).collect::<Vec<_>>()),
             None => None,
         }
     }
 
-    pub(crate) fn get_delayed_upload(&self, from: ChainTimestamp) -> Option<MetaDelayedUpload>
-    {
+    pub(crate) fn get_delayed_upload(&self, from: ChainTimestamp) -> Option<MetaDelayedUpload> {
         self.uploads.get(&from).map(|e| e.clone())
     }
 
-    pub(crate) fn get_pending_uploads(&self) -> Vec<MetaDelayedUpload>
-    {
-        self.uploads.values().filter(|d| d.complete == false).map(|d| d.clone()).collect::<Vec<_>>()
+    pub(crate) fn get_pending_uploads(&self) -> Vec<MetaDelayedUpload> {
+        self.uploads
+            .values()
+            .filter(|d| d.complete == false)
+            .map(|d| d.clone())
+            .collect::<Vec<_>>()
     }
 
-    pub(crate) fn all_keys(&self) -> impl Iterator<Item=&PrimaryKey>
-    {
+    pub(crate) fn all_keys(&self) -> impl Iterator<Item = &PrimaryKey> {
         self.primary.keys()
     }
 }
 
 #[derive(Default, Debug)]
-pub struct UselessIndexer
-{
-}
+pub struct UselessIndexer {}
 
-impl EventSink
-for UselessIndexer
-{
-}
+impl EventSink for UselessIndexer {}
 
-impl EventIndexer
-for UselessIndexer
-{
+impl EventIndexer for UselessIndexer {
     fn clone_indexer(&self) -> Box<dyn EventIndexer> {
         Box::new(UselessIndexer::default())
     }
 
-    fn rebuild(&mut self, _headers: &Vec<EventHeader>) -> Result<(), SinkError>
-    {
+    fn rebuild(&mut self, _headers: &Vec<EventHeader>) -> Result<(), SinkError> {
         Ok(())
     }
 }

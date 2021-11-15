@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use tracing::{error, info, warn, debug};
+use tracing::{debug, error, info, warn};
 
 use crate::crypto::*;
 use crate::error::*;
@@ -9,10 +9,14 @@ use crate::transaction::*;
 
 use super::*;
 
-impl TreeAuthorityPlugin
-{
-    pub(super) fn get_encrypt_key(&self, meta: &Metadata, confidentiality: &MetaConfidentiality, iv: Option<&InitializationVector>, session: &'_ dyn AteSession) -> Result<Option<EncryptKey>, TransformError>
-    {
+impl TreeAuthorityPlugin {
+    pub(super) fn get_encrypt_key(
+        &self,
+        meta: &Metadata,
+        confidentiality: &MetaConfidentiality,
+        iv: Option<&InitializationVector>,
+        session: &'_ dyn AteSession,
+    ) -> Result<Option<EncryptKey>, TransformError> {
         let trans_meta = TransactionMetadata::default();
         let auth_store;
         let auth = match &confidentiality._cache {
@@ -24,9 +28,7 @@ impl TreeAuthorityPlugin
         };
 
         match auth {
-            ReadOption::Inherit => {
-                Err(TransformErrorKind::UnspecifiedReadability.into())
-            },
+            ReadOption::Inherit => Err(TransformErrorKind::UnspecifiedReadability.into()),
             ReadOption::Everyone(key) => {
                 if let Some(_iv) = iv {
                     if let Some(key) = key {
@@ -34,7 +36,7 @@ impl TreeAuthorityPlugin
                     }
                 }
                 Ok(None)
-            },
+            }
             ReadOption::Specific(key_hash, derived) => {
                 for key in session.read_keys(AteSessionKeyCategory::AllKeys) {
                     if key.hash() == *key_hash {

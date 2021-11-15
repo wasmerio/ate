@@ -1,15 +1,13 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace};
 use error_chain::*;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, trace, warn};
 
 use crate::error::*;
 
 use super::*;
 
-impl TokApi
-{
-    pub async fn reconcile(&mut self) -> Result<(), WalletError>
-    {
+impl TokApi {
+    pub async fn reconcile(&mut self) -> Result<(), WalletError> {
         // If anything has been left on the DIO then we need to fail
         // as this loop will invoke cancel during its recovery process
         if self.dio.has_uncommitted() {
@@ -32,8 +30,7 @@ impl TokApi
         ret
     }
 
-    pub(super) async fn __reconcile(&mut self) -> Result<(), WalletError>
-    {
+    pub(super) async fn __reconcile(&mut self) -> Result<(), WalletError> {
         trace!("collecting coins...");
         self.__collect_coins().await?;
         trace!("combining coins...");

@@ -75,9 +75,7 @@ error_chain! {
     }
 }
 
-impl From<ServiceFindFailed>
-for CoreError
-{
+impl From<ServiceFindFailed> for CoreError {
     fn from(err: ServiceFindFailed) -> CoreError {
         match err {
             ServiceFindFailed::Forbidden => CoreErrorKind::Forbidden.into(),

@@ -1,28 +1,32 @@
-mod cd;
-mod export;
-mod readonly;
 mod about;
-mod help;
-mod unset;
+mod cd;
 mod exec;
+mod export;
+mod help;
+mod readonly;
+mod unset;
 
-use cd::*;
-use export::*;
-use readonly::*;
 use about::*;
-use help::*;
-use unset::*;
+use cd::*;
 use exec::*;
+use export::*;
+use help::*;
+use readonly::*;
+use unset::*;
 
 use std::collections::HashMap;
-use std::pin::Pin;
 use std::future::Future;
+use std::pin::Pin;
 
-use super::stdio::*;
 use super::eval::EvalContext;
 use super::eval::ExecResponse;
+use super::stdio::*;
 
-pub type Command = fn(&[String], &mut EvalContext, Stdio) -> Pin<Box<dyn Future<Output = Result<ExecResponse, i32>>>>;
+pub type Command = fn(
+    &[String],
+    &mut EvalContext,
+    Stdio,
+) -> Pin<Box<dyn Future<Output = Result<ExecResponse, i32>>>>;
 
 #[derive(Default)]
 pub struct Builtins {

@@ -1,22 +1,25 @@
-use std::fs::File;
-use std::io::Write;
 use ate::error::AteError;
 use ate::prelude::*;
+use std::fs::File;
+use std::io::Write;
 
 #[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
+use std::env::temp_dir;
 #[cfg(unix)]
 use std::os::unix::fs::symlink;
 #[cfg(unix)]
-use std::env::temp_dir;
+use std::os::unix::fs::PermissionsExt;
 
 use ate_auth::cmd::*;
 use ate_auth::helper::*;
 
 use crate::opt::*;
 
-pub async fn main_opts_login(action: OptsLogin, token_path: String, auth: url::Url) -> Result<(), AteError>
-{
+pub async fn main_opts_login(
+    action: OptsLogin,
+    token_path: String,
+    auth: url::Url,
+) -> Result<(), AteError> {
     // Convert the token path to a real path
     let token_path = shellexpand::tilde(&token_path).to_string();
 
@@ -68,21 +71,21 @@ pub async fn main_opts_login(action: OptsLogin, token_path: String, auth: url::U
     // Update the token path so that it points to this temporary token
     #[cfg(unix)]
     symlink(save_path, token_path)?;
-    
+
     Ok(())
 }
 
 #[cfg(unix)]
 fn random_file() -> String {
     let mut tmp = temp_dir();
-    
+
     let rnd = ate::prelude::PrimaryKey::default().as_hex_string();
- 
+
     let file_name = format!("{}", rnd);
     tmp.push(file_name);
 
     let tmp_str = tmp.into_os_string().into_string().unwrap();
     let tmp_str = shellexpand::tilde(&tmp_str).to_string();
-    
+
     tmp_str
 }

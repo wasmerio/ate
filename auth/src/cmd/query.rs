@@ -1,24 +1,27 @@
 #![allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use error_chain::bail;
 use ate::prelude::*;
-use std::sync::Arc;
-use url::Url;
+use error_chain::bail;
 use std::io::stdout;
 use std::io::Write;
+use std::sync::Arc;
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
+use url::Url;
 
-use crate::prelude::*;
-use crate::model::Advert;
-use crate::helper::*;
 use crate::error::*;
-use crate::request::*;
+use crate::helper::*;
+use crate::model::Advert;
 use crate::opt::*;
+use crate::prelude::*;
+use crate::request::*;
 
-pub async fn query_command(registry: &Registry, username: String, auth: Url) -> Result<QueryResponse, QueryError>
-{
+pub async fn query_command(
+    registry: &Registry,
+    username: String,
+    auth: Url,
+) -> Result<QueryResponse, QueryError> {
     // Open a command chain
     let chain = registry.open_cmd(&auth).await?;
-    
+
     // Create the query command
     let query = QueryRequest {
         identity: username.clone(),
@@ -31,23 +34,21 @@ pub async fn query_command(registry: &Registry, username: String, auth: Url) -> 
     Ok(result)
 }
 
-pub async fn main_query(
-    username: Option<String>,
-    auth: Url
-) -> Result<Advert, QueryError>
-{
+pub async fn main_query(username: Option<String>, auth: Url) -> Result<Advert, QueryError> {
     let username = match username {
         Some(a) => a,
         None => {
             print!("Username: ");
             stdout().lock().flush()?;
             let mut s = String::new();
-            std::io::stdin().read_line(&mut s).expect("Did not enter a valid username");
+            std::io::stdin()
+                .read_line(&mut s)
+                .expect("Did not enter a valid username");
             s.trim().to_string()
         }
     };
 
-    let registry = ate::mesh::Registry::new( &conf_cmd()).await.cement();
+    let registry = ate::mesh::Registry::new(&conf_cmd()).await.cement();
     let result = query_command(&registry, username, auth).await?;
     Ok(result.advert)
 }

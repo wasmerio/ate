@@ -1,28 +1,27 @@
 #![allow(unused_imports)]
 #![allow(dead_code)]
+use bytes::{Buf, BytesMut};
 use std::collections::HashMap;
-use tokio::sync::mpsc;
-use tokio::sync::watch;
 use std::sync::Arc;
 use std::sync::Mutex;
-use tokio::sync::Mutex as AsyncMutex;
-use bytes::{Buf, BytesMut};
+use tokio::sync::mpsc;
 use tokio::sync::oneshot;
+use tokio::sync::watch;
+use tokio::sync::Mutex as AsyncMutex;
 
 use crate::common::*;
 use crate::fd::*;
 
-use super::eval::Process;
 use super::environment::Environment;
+use super::eval::Process;
+use super::eval::*;
+use super::fd::*;
+use super::poll::*;
 use super::pool::ThreadPool as Pool;
 use super::reactor::*;
-use super::poll::*;
-use super::fd::*;
-use super::eval::*;
 use super::tty::*;
 
-pub struct ConsoleState
-{
+pub struct ConsoleState {
     pub path: String,
     pub user: String,
     pub env: Environment,
@@ -30,8 +29,7 @@ pub struct ConsoleState
     pub unfinished_line: bool,
 }
 
-impl ConsoleState
-{
+impl ConsoleState {
     pub fn new() -> ConsoleState {
         ConsoleState {
             path: "/".to_string(),
@@ -42,8 +40,7 @@ impl ConsoleState
         }
     }
 
-    pub fn compute_prompt(&self, need_more_text: bool, color: bool) -> String
-    {
+    pub fn compute_prompt(&self, need_more_text: bool, color: bool) -> String {
         let prompt_symbol = {
             if need_more_text {
                 ">".to_string()
@@ -53,7 +50,17 @@ impl ConsoleState
         };
 
         if color {
-            format!("{}{}{}:{}{}{}{} {}", Tty::COL_GREEN, self.user, Tty::COL_WHITE, Tty::COL_BLUE, self.path, Tty::COL_WHITE, prompt_symbol, Tty::COL_RESET)
+            format!(
+                "{}{}{}:{}{}{}{} {}",
+                Tty::COL_GREEN,
+                self.user,
+                Tty::COL_WHITE,
+                Tty::COL_BLUE,
+                self.path,
+                Tty::COL_WHITE,
+                prompt_symbol,
+                Tty::COL_RESET
+            )
         } else {
             format!("{}:{}{} ", self.user, self.path, prompt_symbol)
         }
