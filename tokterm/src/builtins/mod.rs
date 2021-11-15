@@ -3,6 +3,7 @@ mod cd;
 mod exec;
 mod export;
 mod help;
+mod pwd;
 mod readonly;
 mod unset;
 
@@ -11,6 +12,7 @@ use cd::*;
 use exec::*;
 use export::*;
 use help::*;
+use pwd::*;
 use readonly::*;
 use unset::*;
 
@@ -43,6 +45,7 @@ impl Builtins {
         b.insert("help", help);
         b.insert("about", about);
         b.insert("exec", exec);
+        b.insert("pwd", pwd);
         b
     }
 

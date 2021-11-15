@@ -15,7 +15,7 @@ pub(super) fn cd(
     if args.len() > 2 {
         return Box::pin(async move {
             let _ = stdio
-                .stdout
+                .stderr
                 .write(format!("cd: too many arguments\r\n").as_bytes())
                 .await;
             Ok(ExecResponse::Immediate(0))
@@ -32,7 +32,7 @@ pub(super) fn cd(
         } else {
             return Box::pin(async move {
                 let _ = stdio
-                    .stdout
+                    .stderr
                     .write(format!("cd: -: OLDPWD not set\r\n").as_bytes())
                     .await;
                 Ok(ExecResponse::Immediate(0))
@@ -48,7 +48,7 @@ pub(super) fn cd(
         if ctx.stdio.root.read_dir(Path::new(dir.as_str())).is_err() {
             return Box::pin(async move {
                 let _ = stdio
-                    .stdout
+                    .stderr
                     .write(format!("cd: {}: No such directory\r\n", dir).as_bytes())
                     .await;
                 Ok(ExecResponse::Immediate(0))
