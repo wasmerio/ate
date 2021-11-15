@@ -6,6 +6,7 @@ mod help;
 mod pwd;
 mod readonly;
 mod unset;
+mod reset;
 
 use about::*;
 use cd::*;
@@ -15,6 +16,7 @@ use help::*;
 use pwd::*;
 use readonly::*;
 use unset::*;
+use reset::*;
 
 use std::collections::HashMap;
 use std::future::Future;
@@ -46,6 +48,7 @@ impl Builtins {
         b.insert("about", about);
         b.insert("exec", exec);
         b.insert("pwd", pwd);
+        b.insert("reset", reset);
         b
     }
 
