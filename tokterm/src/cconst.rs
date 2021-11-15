@@ -88,4 +88,5 @@ impl Tty {
     pub const ABOUT_TOKERA: &'static str = include_str!("txt/about_tokera.md");
     pub const ABOUT_WASMER: &'static str = include_str!("txt/about_wasmer.md");
     pub const HELP: &'static str = include_str!("txt/help.md");
+    pub const BAD_WORKER: &'static str = include_str!("txt/bad_worker.md");
 }

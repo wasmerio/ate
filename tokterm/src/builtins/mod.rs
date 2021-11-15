@@ -3,7 +3,9 @@ mod cd;
 mod exec;
 mod export;
 mod help;
+mod pwd;
 mod readonly;
+mod reset;
 mod unset;
 
 use about::*;
@@ -11,7 +13,9 @@ use cd::*;
 use exec::*;
 use export::*;
 use help::*;
+use pwd::*;
 use readonly::*;
+use reset::*;
 use unset::*;
 
 use std::collections::HashMap;
@@ -43,6 +47,8 @@ impl Builtins {
         b.insert("help", help);
         b.insert("about", about);
         b.insert("exec", exec);
+        b.insert("pwd", pwd);
+        b.insert("reset", reset);
         b
     }
 

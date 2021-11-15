@@ -6,15 +6,13 @@ export function startWorker(module, memory, state, opts, helper) {
     const worker = new Worker(new URL('./worker.js',
         import.meta.url), opts);
 
-    worker.postMessage([module, memory, state, helper.mainJS()]);
-    /*
     try {
-        //throw 'test exception';
         worker.postMessage([module, memory, state, helper.mainJS()]);
     } catch(err) {
-        console.log("pool::worker(entry) failed to start worker thread" + err.message);
+        return new Promise((res, rej) => {
+            rej(err);
+        });
     }
-    */
 
     return new Promise((res, rej) => {
       worker.onmessage = ev => {

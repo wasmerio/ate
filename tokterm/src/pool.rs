@@ -18,9 +18,12 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use wasm_bindgen::{prelude::*, JsCast};
 use web_sys::{DedicatedWorkerGlobalScope, WorkerOptions, WorkerType};
+use xterm_js_rs::Terminal;
 
 use super::common::*;
+use super::fd::*;
 use super::interval::*;
+use super::tty::Tty;
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 pub type BoxTask<'a, T> = Box<dyn FnOnce() -> T + Send + 'a>;
@@ -121,7 +124,7 @@ extern "C" {
 }
 
 impl ThreadPool {
-    pub fn new(size: usize) -> Result<ThreadPool, JsValue> {
+    pub fn new(size: usize, terminal: Terminal) -> Result<ThreadPool, JsValue> {
         info!("pool::create(size={})", size);
 
         let (tx1, _) = broadcast::channel(64);
@@ -172,13 +175,13 @@ impl ThreadPool {
             manager: Arc::new(manager),
         };
 
-        pool.pool_reactors.expand_now();
-        pool.pool_blocking.expand_now();
+        pool.pool_reactors.expand_now(Some(terminal));
+        pool.pool_blocking.expand_now(None);
 
         Ok(pool)
     }
 
-    pub fn new_with_max_threads() -> Result<ThreadPool, JsValue> {
+    pub fn new_with_max_threads(terminal: Terminal) -> Result<ThreadPool, JsValue> {
         #[wasm_bindgen]
         extern "C" {
             #[wasm_bindgen(js_namespace = navigator, js_name = hardwareConcurrency)]
@@ -186,7 +189,7 @@ impl ThreadPool {
         }
         let pool_size = std::cmp::max(*HARDWARE_CONCURRENCY, 1);
         debug!("pool::max_threads={}", pool_size);
-        Self::new(pool_size)
+        Self::new(pool_size, terminal)
     }
 
     pub fn spawn<Fut>(&self, future: Fut)
@@ -205,30 +208,57 @@ impl ThreadPool {
 }
 
 impl PoolState {
-    pub fn expand_now(self: &Arc<PoolState>) {
+    pub fn expand_now(self: &Arc<PoolState>, should_warn_on_error: Option<Terminal>) {
         let pool = self.clone();
 
         let idx = pool.id_seed.fetch_add(1, Ordering::Relaxed);
         pool.starting.fetch_add(1, Ordering::Relaxed);
 
         let state = Arc::new(ThreadState { pool: pool, idx });
-        Self::start_worker_now(idx, state)
+        Self::start_worker_now(idx, state, should_warn_on_error);
     }
 
-    pub fn start_worker_now(idx: usize, state: Arc<ThreadState>) {
+    pub fn start_worker_now(
+        idx: usize,
+        state: Arc<ThreadState>,
+        should_warn_on_error: Option<Terminal>,
+    ) {
         let mut opts = WorkerOptions::new();
         opts.type_(WorkerType::Module);
         opts.name(&*format!("Worker-{}", idx));
 
         let ptr = Arc::into_raw(state);
 
-        let _ = start_worker(
+        let result = wasm_bindgen_futures::JsFuture::from(start_worker(
             wasm_bindgen::module(),
             wasm_bindgen::memory(),
             JsValue::from(ptr as u32),
             opts,
             LoaderHelper {},
-        );
+        ));
+
+        wasm_bindgen_futures::spawn_local(async move {
+            let ret = result.await;
+            if let Err(err) = ret {
+                let err = err
+                    .as_string()
+                    .unwrap_or_else(|| "unknown error".to_string());
+                error!("failed to start worker thread - {}", err);
+
+                if let Some(term) = should_warn_on_error {
+                    term.write(
+                        Tty::BAD_WORKER
+                            .replace("\n", "\r\n")
+                            .replace("\\x1B", "\x1B")
+                            .replace("{error}", err.as_str())
+                            .as_str(),
+                    );
+                }
+
+                return;
+            }
+            info!("worker thread spawned - index={}", idx);
+        });
     }
 
     pub fn shrink(self: &Arc<PoolState>) {
@@ -243,11 +273,11 @@ impl PoolState {
 
         if backlog >= starting + idle {
             if size < self.max_size {
-                self.expand_now();
+                self.expand_now(None);
             }
         } else if backlog <= 0 && idle <= 0 {
             if size > self.min_size {
-                self.expand_now();
+                self.expand_now(None);
             }
         }
     }

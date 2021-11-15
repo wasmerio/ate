@@ -106,7 +106,7 @@ pub fn start() -> Result<(), JsValue> {
         .map_err(|_| ())
         .unwrap();
 
-    let pool = ThreadPool::new_with_max_threads().unwrap();
+    let pool = ThreadPool::new_with_max_threads(terminal.clone().dyn_into().unwrap()).unwrap();
 
     let mut console = Console::new(
         terminal.clone().dyn_into().unwrap(),
