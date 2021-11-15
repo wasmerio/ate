@@ -17,12 +17,13 @@
     <link rel="stylesheet" href="tokera.css" />
     <link rel="stylesheet" href="assets/fonts/Zeitung/Zeitung.css" />
     <link rel="icon" href="/assets/favicon.ico">
+    <link rel="preload" href="assets/fonts/Zeitung/ZeitungMonoPro-Regular.woff" as="font" type="font/woff" crossorigin="anonymous">
     <title>WAPM Shell</title>
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <script defer="defer" src="main.js"></script>
   </head>
 
-  <body>
+  <body onload="window.dispatchEvent(new Event('resize'));">
     <canvas id="frontBuffer"></canvas>
     <div id="terminal"></div>
   </body>
