@@ -1,17 +1,16 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use std::sync::Arc;
 use std::ops::Deref;
+use std::sync::Arc;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use ate::prelude::*;
 
+use crate::cmd::gather_command;
+use crate::cmd::main_session_prompt;
 use crate::error::*;
 use crate::helper::b64_to_session;
-use crate::cmd::main_session_prompt;
-use crate::cmd::gather_command;
 
-pub struct DioBuilder
-{
+pub struct DioBuilder {
     cfg_ate: ConfAte,
     url_db: url::Url,
     url_auth: url::Url,
@@ -20,9 +19,7 @@ pub struct DioBuilder
     group: Option<String>,
 }
 
-impl Default
-for DioBuilder
-{
+impl Default for DioBuilder {
     fn default() -> DioBuilder {
         DioBuilder {
             cfg_ate: ConfAte::default(),
@@ -35,8 +32,7 @@ for DioBuilder
     }
 }
 
-impl DioBuilder
-{
+impl DioBuilder {
     pub fn cfg<'a>(&'a mut self) -> &'a mut ConfAte {
         &mut self.cfg_ate
     }
@@ -77,8 +73,7 @@ impl DioBuilder
         self
     }
 
-    pub async fn get_registry(&mut self) -> Arc<Registry>
-    {
+    pub async fn get_registry(&mut self) -> Arc<Registry> {
         if self.registry.is_none() {
             self.registry = Some(Arc::new(Registry::new(&self.cfg_ate).await));
         }
@@ -97,14 +92,19 @@ impl DioBuilder
 
     pub async fn with_group(mut self, group: &str) -> Result<Self, GatherError> {
         let registry = self.get_registry().await;
-        let session = gather_command(&registry, group.to_string(), self.session.clone_inner(), self.url_auth.clone()).await?;
+        let session = gather_command(
+            &registry,
+            group.to_string(),
+            self.session.clone_inner(),
+            self.url_auth.clone(),
+        )
+        .await?;
         self.session = Box::new(session);
         self.group = Some(group.to_string());
         Ok(self)
     }
 
-    pub fn generate_key(&self, name: &str) -> String
-    {
+    pub fn generate_key(&self, name: &str) -> String {
         match &self.group {
             Some(a) => format!("{}/{}", a, name),
             None => {
@@ -122,7 +122,6 @@ impl DioBuilder
     }
 
     pub async fn build(&mut self, name: &str) -> Result<Arc<DioMut>, LoginError> {
-        
         let key = ChainKey::new(self.generate_key(name));
         let registry = self.get_registry().await;
         let chain = registry.open(&self.url_db, &key).await?;

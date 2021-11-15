@@ -1,40 +1,39 @@
+use crate::engine::timeout;
 use async_trait::async_trait;
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use error_chain::bail;
-use std::sync::Mutex as StdMutex;
-use std::{sync::Arc, sync::Weak};
-use tokio::sync::watch;
-use tokio::sync::RwLock;
 use fxhash::FxHashMap;
-use std::sync::RwLock as StdRwLock;
 use std::ops::Rem;
+use std::sync::Mutex as StdMutex;
+use std::sync::RwLock as StdRwLock;
 use std::time::Duration;
 use std::time::Instant;
+use std::{sync::Arc, sync::Weak};
 use tokio::sync::broadcast;
-use crate::engine::timeout;
+use tokio::sync::watch;
+use tokio::sync::RwLock;
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
-use super::*;
-use super::recoverable_session_pipe::*;
-use super::lock_request::*;
 use super::core::*;
-use crate::{anti_replay::AntiReplayPlugin, comms::*};
-use crate::trust::*;
-use crate::chain::*;
-use crate::error::*;
-use crate::conf::*;
-use crate::transaction::*;
+use super::lock_request::*;
 use super::msg::*;
-use crate::pipe::*;
-use crate::header::*;
-use crate::spec::*;
-use crate::loader::*;
+use super::recoverable_session_pipe::*;
+use super::*;
+use crate::chain::*;
+use crate::conf::*;
 use crate::crypto::*;
+use crate::error::*;
+use crate::header::*;
+use crate::loader::*;
 use crate::meta::*;
+use crate::pipe::*;
 use crate::session::*;
+use crate::spec::*;
 use crate::time::*;
+use crate::transaction::*;
+use crate::trust::*;
+use crate::{anti_replay::AntiReplayPlugin, comms::*};
 
-pub(super) struct ActiveSessionPipe
-{
+pub(super) struct ActiveSessionPipe {
     pub(super) key: ChainKey,
     pub(super) tx: Tx,
     pub(super) mode: RecoveryMode,
@@ -47,14 +46,15 @@ pub(super) struct ActiveSessionPipe
     pub(super) outbound_conversation: Arc<ConversationSession>,
 }
 
-impl ActiveSessionPipe
-{
+impl ActiveSessionPipe {
     pub(super) fn mark_connected(&mut self) {
         self.connected = true;
     }
 
     pub(super) fn is_connected(&self) -> bool {
-        if self.connected == false { return false; }
+        if self.connected == false {
+            return false;
+        }
         true
     }
 
@@ -73,15 +73,16 @@ impl ActiveSessionPipe
         Ok(())
     }
 
-    pub(super) async fn feed_internal(&mut self, trans: &mut Transaction) -> Result<Option<mpsc::Receiver<Result<u64, CommitError>>>, CommitError>
-    {
+    pub(super) async fn feed_internal(
+        &mut self,
+        trans: &mut Transaction,
+    ) -> Result<Option<mpsc::Receiver<Result<u64, CommitError>>>, CommitError> {
         // Convert the event data into message events
         let evts = MessageEvent::convert_to(&trans.events);
-        
+
         // If the scope requires synchronization with the remote server then allocate a commit ID
         let (commit, receiver) = match &trans.scope {
-            TransactionScope::Full =>
-            {
+            TransactionScope::Full => {
                 // Generate a sender/receiver pair
                 let (sender, receiver) = mpsc::channel(1);
 
@@ -89,29 +90,28 @@ impl ActiveSessionPipe
                 let id = fastrand::u64(..);
                 self.commit.lock().unwrap().insert(id, sender);
                 (Some(id), Some(receiver))
-            },
+            }
             _ => (None, None),
         };
 
         // Send the same packet to all the transmit nodes (if there is only one then don't clone)
         trace!("tx wire_format={}", self.tx.wire_format);
-        self.tx.send_all_msg(Message::Events{ commit, evts, }).await?;
+        self.tx
+            .send_all_msg(Message::Events { commit, evts })
+            .await?;
 
         Ok(receiver)
     }
 }
 
-impl ActiveSessionPipe
-{
-    pub(super) async fn feed(&mut self, trans: &mut Transaction) -> Result<(), CommitError>
-    {
+impl ActiveSessionPipe {
+    pub(super) async fn feed(&mut self, trans: &mut Transaction) -> Result<(), CommitError> {
         // Only transmit the packet if we are meant to
-        if trans.transmit == true
-        {
+        if trans.transmit == true {
             // If we are likely in a read only situation then all transactions
             // should go to the server in synchronous mode until we can confirm
             // normal writability is restored
-            if self.likely_read_only &&  self.mode.should_go_readonly() {
+            if self.likely_read_only && self.mode.should_go_readonly() {
                 trans.scope = TransactionScope::Full;
             }
 
@@ -122,7 +122,7 @@ impl ActiveSessionPipe
                 } else if self.mode.should_go_readonly() {
                     return Err(CommitErrorKind::CommsError(CommsErrorKind::ReadOnly).into());
                 } else {
-                    return Ok(())
+                    return Ok(());
                 }
             }
 
@@ -138,11 +138,11 @@ impl ActiveSessionPipe
                         self.likely_read_only = false;
                         let commit_id = result?;
                         trace!("transaction committed: {}", commit_id);
-                    },
-                    Ok(None) => { 
+                    }
+                    Ok(None) => {
                         debug!("transaction has aborted");
                         bail!(CommitErrorKind::Aborted);
-                    },
+                    }
                     Err(elapsed) => {
                         debug!("transaction has timed out");
                         bail!(CommitErrorKind::Timeout(elapsed.to_string()));
@@ -154,8 +154,7 @@ impl ActiveSessionPipe
         Ok(())
     }
 
-    pub(super) async fn try_lock(&mut self, key: PrimaryKey) -> Result<bool, CommitError>
-    {
+    pub(super) async fn try_lock(&mut self, key: PrimaryKey) -> Result<bool, CommitError> {
         // If we are still connecting then don't do it
         if self.connected == false {
             bail!(CommitErrorKind::LockError(CommsErrorKind::Disconnected));
@@ -169,30 +168,34 @@ impl ActiveSessionPipe
             negative: 0,
             tx,
         };
-        self.lock_requests.lock().unwrap().insert(key.clone(), my_lock);
+        self.lock_requests
+            .lock()
+            .unwrap()
+            .insert(key.clone(), my_lock);
 
         // Send a message up to the main server asking for a lock on the data object
         trace!("tx lock key={}", key);
-        self.tx.send_all_msg(Message::Lock {
-            key: key.clone(),
-        }).await?;
+        self.tx
+            .send_all_msg(Message::Lock { key: key.clone() })
+            .await?;
 
         // Wait for the response from the server
         let ret = match crate::engine::timeout(self.lock_attempt_timeout, rx.changed()).await {
             Ok(a) => {
                 self.likely_read_only = false;
                 if let Err(_) = a {
-                    bail!(CommitErrorKind::LockError(CommsErrorKind::Disconnected.into()));
+                    bail!(CommitErrorKind::LockError(
+                        CommsErrorKind::Disconnected.into()
+                    ));
                 }
                 *rx.borrow()
-            },
-            Err(_) => bail!(CommitErrorKind::LockError(CommsErrorKind::Timeout.into()))
+            }
+            Err(_) => bail!(CommitErrorKind::LockError(CommsErrorKind::Timeout.into())),
         };
         Ok(ret)
     }
 
-    pub(super) async fn unlock(&mut self, key: PrimaryKey) -> Result<(), CommitError>
-    {
+    pub(super) async fn unlock(&mut self, key: PrimaryKey) -> Result<(), CommitError> {
         // If we are still connecting then don't do it
         if self.connected == false {
             bail!(CommitErrorKind::CommsError(CommsErrorKind::Disconnected));
@@ -200,9 +203,9 @@ impl ActiveSessionPipe
 
         // Send a message up to the main server asking for an unlock on the data object
         trace!("tx unlock key={}", key);
-        self.tx.send_all_msg(Message::Unlock {
-            key: key.clone(),
-        }).await?;
+        self.tx
+            .send_all_msg(Message::Unlock { key: key.clone() })
+            .await?;
 
         // Success
         Ok(())
@@ -213,11 +216,8 @@ impl ActiveSessionPipe
     }
 }
 
-impl Drop
-for ActiveSessionPipe
-{
-    fn drop(&mut self)
-    {
+impl Drop for ActiveSessionPipe {
+    fn drop(&mut self) {
         #[cfg(feature = "enable_verbose")]
         debug!("drop {}", self.key.to_string());
     }

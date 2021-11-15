@@ -1,9 +1,8 @@
 #![allow(dead_code)]
-use super::tty::Tty;
 use super::console::Console;
+use super::tty::Tty;
 
-impl Console
-{
+impl Console {
     pub const TERM_KEY_ENTER: u32 = 13;
     pub const TERM_KEY_BACKSPACE: u32 = 8;
     pub const TERM_KEY_INSERT: u32 = 45;
@@ -33,8 +32,7 @@ impl Console
     pub const TERM_KEY_F12: u32 = 123;
 }
 
-impl Tty
-{
+impl Tty {
     pub const TERM_CURSOR_UP: &'static str = "\x1b[A";
     pub const TERM_CURSOR_DOWN: &'static str = "\x1b[B";
     pub const TERM_CURSOR_RIGHT: &'static str = "\x1b[C";
@@ -57,25 +55,34 @@ impl Tty
     pub const TERM_NO_WRAPAROUND: &'static str = "\x1b[?7l";
     pub const TERM_NO_REVERSE_WRAPAROUND: &'static str = "\x1b[?45l";
 
-    pub const COL_RESET: &'static str ="\x1B[0m";
-    pub const COL_BLACK: &'static str ="\x1B[0;30m";
-    pub const COL_GRAY: &'static str ="\x1B[1;30m";
-    pub const COL_RED: &'static str ="\x1B[0;31m";
-    pub const COL_LIGHT_RED: &'static str ="\x1B[1;31m";
-    pub const COL_GREEN: &'static str ="\x1B[0;32m";
-    pub const COL_LIGHT_GREEN: &'static str ="\x1B[1;32m";
-    pub const COL_BROWN: &'static str ="\x1B[0;33m";
-    pub const COL_YELLOW: &'static str ="\x1B[1;33m";
-    pub const COL_BLUE: &'static str ="\x1B[0;34m";
-    pub const COL_LIGHT_BLUE: &'static str ="\x1B[1;34m";
-    pub const COL_PURPLE: &'static str ="\x1B[0;35m";
-    pub const COL_LIGHT_PURPLE: &'static str ="\x1B[1;35m";
-    pub const COL_CYAN: &'static str ="\x1B[0;36m";
-    pub const COL_LIGHT_CYAN: &'static str ="\x1B[1;36m";
-    pub const COL_LIGHT_GRAY: &'static str ="\x1B[0;37m";
-    pub const COL_WHITE: &'static str ="\x1B[1;37m";
+    pub const COL_RESET: &'static str = "\x1B[0m";
+    pub const COL_BLACK: &'static str = "\x1B[0;30m";
+    pub const COL_GRAY: &'static str = "\x1B[1;30m";
+    pub const COL_RED: &'static str = "\x1B[0;31m";
+    pub const COL_LIGHT_RED: &'static str = "\x1B[1;31m";
+    pub const COL_GREEN: &'static str = "\x1B[0;32m";
+    pub const COL_LIGHT_GREEN: &'static str = "\x1B[1;32m";
+    pub const COL_BROWN: &'static str = "\x1B[0;33m";
+    pub const COL_YELLOW: &'static str = "\x1B[1;33m";
+    pub const COL_BLUE: &'static str = "\x1B[0;34m";
+    pub const COL_LIGHT_BLUE: &'static str = "\x1B[1;34m";
+    pub const COL_PURPLE: &'static str = "\x1B[0;35m";
+    pub const COL_LIGHT_PURPLE: &'static str = "\x1B[1;35m";
+    pub const COL_CYAN: &'static str = "\x1B[0;36m";
+    pub const COL_LIGHT_CYAN: &'static str = "\x1B[1;36m";
+    pub const COL_LIGHT_GRAY: &'static str = "\x1B[0;37m";
+    pub const COL_WHITE: &'static str = "\x1B[1;37m";
 
     pub const WELCOME: &'static str = r#""#;
+
+    pub const WELCOME_SMALL: &'static str = r#"\x1B[1;31m   _____     _                    \r
+  |_   _|__ | | _____ ___ __ _    \r
+    | |/ _ \| |/ / _ \  _/ _  |   \r
+    | | (_) |   <  __/ || (_| |   \r
+    |_|\___/|_|\_\___|_| \__/_|   \x1B[33;1m\r
+ ________________________________ \x1B[37;1m\r
+ Terminal v1.0 ( www.tokera.com ) \x1B[30;1m\r
+      \powered by wasmer.io/      \r\n"#;
 
     pub const ABOUT: &'static str = include_str!("txt/about.md");
     pub const ABOUT_TOKERA: &'static str = include_str!("txt/about_tokera.md");

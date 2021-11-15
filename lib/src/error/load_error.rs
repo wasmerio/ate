@@ -1,9 +1,9 @@
 use error_chain::error_chain;
-use rmp_serde::encode::Error as RmpEncodeError;
 use rmp_serde::decode::Error as RmpDecodeError;
+use rmp_serde::encode::Error as RmpEncodeError;
 
-use crate::header::PrimaryKey;
 use crate::crypto::AteHash;
+use crate::header::PrimaryKey;
 
 error_chain! {
     types {
@@ -65,47 +65,41 @@ error_chain! {
     }
 }
 
-impl From<tokio::io::Error>
-for LoadError {
+impl From<tokio::io::Error> for LoadError {
     fn from(err: tokio::io::Error) -> LoadError {
         LoadErrorKind::IO(err.to_string()).into()
     }
 }
 
-impl From<RmpEncodeError>
-for LoadError {
+impl From<RmpEncodeError> for LoadError {
     fn from(err: RmpEncodeError) -> LoadError {
-        LoadErrorKind::SerializationError(super::SerializationErrorKind::EncodeError(err).into()).into()
+        LoadErrorKind::SerializationError(super::SerializationErrorKind::EncodeError(err).into())
+            .into()
     }
 }
 
-impl From<RmpDecodeError>
-for LoadError {
+impl From<RmpDecodeError> for LoadError {
     fn from(err: RmpDecodeError) -> LoadError {
-        LoadErrorKind::SerializationError(super::SerializationErrorKind::DecodeError(err).into()).into()
+        LoadErrorKind::SerializationError(super::SerializationErrorKind::DecodeError(err).into())
+            .into()
     }
 }
 
-impl From<bincode::Error>
-for LoadError
-{
+impl From<bincode::Error> for LoadError {
     fn from(err: bincode::Error) -> LoadError {
-        LoadErrorKind::SerializationError(super::SerializationErrorKind::BincodeError(err).into()).into()
-    }   
+        LoadErrorKind::SerializationError(super::SerializationErrorKind::BincodeError(err).into())
+            .into()
+    }
 }
 
-impl From<super::ChainCreationError>
-for LoadError
-{
+impl From<super::ChainCreationError> for LoadError {
     fn from(err: super::ChainCreationError) -> LoadError {
         LoadErrorKind::ChainCreationError(err.to_string()).into()
-    }   
+    }
 }
 
-impl From<super::ChainCreationErrorKind>
-for LoadError
-{
+impl From<super::ChainCreationErrorKind> for LoadError {
     fn from(err: super::ChainCreationErrorKind) -> LoadError {
         LoadErrorKind::ChainCreationError(err.to_string()).into()
-    }   
+    }
 }

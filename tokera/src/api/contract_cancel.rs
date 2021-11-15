@@ -1,16 +1,18 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace};
 use error_chain::*;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, trace, warn};
 
 use crate::error::*;
 use crate::request::*;
 
 use super::*;
 
-impl TokApi
-{
-    pub async fn contract_cancel(&mut self, reference_number: &str, consumer_identity: &str) -> Result<ContractActionResponse, ContractError>
-    {
+impl TokApi {
+    pub async fn contract_cancel(
+        &mut self,
+        reference_number: &str,
+        consumer_identity: &str,
+    ) -> Result<ContractActionResponse, ContractError> {
         let contracts = self.contract_summary().await?;
 
         // Grab the contract this action is for
@@ -22,17 +24,21 @@ impl TokApi
         let contract = match contract {
             Some(a) => a.clone(),
             None => {
-                bail!(ContractErrorKind::InvalidReference(reference_number.to_string()));
+                bail!(ContractErrorKind::InvalidReference(
+                    reference_number.to_string()
+                ));
             }
         };
 
-        let ret = self.contract_action(
+        let ret = self
+            .contract_action(
                 &contract.service.code,
                 consumer_identity,
                 consumer_identity,
                 ContractAction::Cancel,
-                None
-            ).await?;
+                None,
+            )
+            .await?;
         Ok(ret)
     }
 }

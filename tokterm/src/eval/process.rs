@@ -1,24 +1,20 @@
-#[allow(unused_imports, dead_code)]
-use tracing::{info, error, debug, trace, warn};
-use tokio::sync::watch;
 use std::sync::Arc;
 use std::sync::Mutex;
+use tokio::sync::watch;
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, trace, warn};
 
-use crate::err::*;
 use crate::common::*;
-
+use crate::err::*;
 
 #[derive(Debug)]
-pub struct Process
-{
+pub struct Process {
     pub(crate) pid: Pid,
     pub(crate) exit_rx: watch::Receiver<Option<i32>>,
     pub(crate) exit_tx: Arc<watch::Sender<Option<i32>>>,
 }
 
-impl Clone
-for Process
-{
+impl Clone for Process {
     fn clone(&self) -> Process {
         Process {
             pid: self.pid,
@@ -28,8 +24,7 @@ for Process
     }
 }
 
-impl Process
-{
+impl Process {
     pub async fn wait_for_exit(&mut self) -> i32 {
         let mut ret = self.exit_rx.borrow().clone();
         while ret.is_none() {
@@ -44,7 +39,7 @@ impl Process
             Some(a) => {
                 debug!("process {} exited with code {}", self.pid, a);
                 a
-            },
+            }
             None => {
                 debug!("process {} silently exited", self.pid);
                 ERR_PANIC

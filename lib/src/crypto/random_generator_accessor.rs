@@ -1,8 +1,8 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use rand::{RngCore};
-use std::{cell::RefCell};
+use rand::RngCore;
+use std::cell::RefCell;
 use std::result::Result;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use super::fast_random::*;
 use super::*;
@@ -13,33 +13,23 @@ thread_local! {
 }
 
 #[derive(Default)]
-pub struct RandomGeneratorAccessor { }
+pub struct RandomGeneratorAccessor {}
 
-impl RngCore
-for RandomGeneratorAccessor
-{
+impl RngCore for RandomGeneratorAccessor {
     fn next_u32(&mut self) -> u32 {
-        THREAD_LOCAL_SECURE_AND_FAST_RANDOM.with(|s| {
-            s.borrow_mut().rng.next_u32()
-        })
+        THREAD_LOCAL_SECURE_AND_FAST_RANDOM.with(|s| s.borrow_mut().rng.next_u32())
     }
 
     fn next_u64(&mut self) -> u64 {
-        THREAD_LOCAL_SECURE_AND_FAST_RANDOM.with(|s| {
-            s.borrow_mut().rng.next_u64()
-        })
+        THREAD_LOCAL_SECURE_AND_FAST_RANDOM.with(|s| s.borrow_mut().rng.next_u64())
     }
 
     fn fill_bytes(&mut self, dest: &mut [u8]) {
-        THREAD_LOCAL_SECURE_AND_FAST_RANDOM.with(|s| {
-            s.borrow_mut().rng.fill_bytes(dest)
-        })
+        THREAD_LOCAL_SECURE_AND_FAST_RANDOM.with(|s| s.borrow_mut().rng.fill_bytes(dest))
     }
 
     fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand::Error> {
-        THREAD_LOCAL_SECURE_AND_FAST_RANDOM.with(|s| {
-            s.borrow_mut().rng.try_fill_bytes(dest)
-        })
+        THREAD_LOCAL_SECURE_AND_FAST_RANDOM.with(|s| s.borrow_mut().rng.try_fill_bytes(dest))
     }
 }
 
@@ -52,12 +42,12 @@ impl RandomGeneratorAccessor {
                     let mut aes_key = [0; 16];
                     rng.fill_bytes(&mut aes_key);
                     EncryptKey::Aes128(aes_key)
-                },
+                }
                 KeySize::Bit192 => {
                     let mut aes_key = [0; 24];
                     rng.fill_bytes(&mut aes_key);
                     EncryptKey::Aes192(aes_key)
-                },
+                }
                 KeySize::Bit256 => {
                     let mut aes_key = [0; 32];
                     rng.fill_bytes(&mut aes_key);
@@ -72,9 +62,7 @@ impl RandomGeneratorAccessor {
             let rng = &mut s.borrow_mut().rng;
             let mut val = [0; 16];
             rng.fill_bytes(&mut val);
-            AteHash {
-                val,
-            }
+            AteHash { val }
         })
     }
 }

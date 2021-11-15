@@ -1,8 +1,8 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use serde::{Serialize, Deserialize};
-use crate::utils::vec_serialize;
 use crate::utils::vec_deserialize;
+use crate::utils::vec_serialize;
+use serde::{Deserialize, Serialize};
+#[allow(unused_imports)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use super::*;
 
@@ -12,11 +12,10 @@ pub struct EncryptedPrivateKey {
     ek_hash: AteHash,
     sk_iv: InitializationVector,
     #[serde(serialize_with = "vec_serialize", deserialize_with = "vec_deserialize")]
-    sk_encrypted: Vec<u8>
+    sk_encrypted: Vec<u8>,
 }
 
-impl EncryptedPrivateKey
-{
+impl EncryptedPrivateKey {
     #[allow(dead_code)]
     pub fn generate(encrypt_key: &EncryptKey) -> EncryptedPrivateKey {
         let pair = PrivateSignKey::generate(encrypt_key.size());
@@ -27,7 +26,7 @@ impl EncryptedPrivateKey
     pub fn from_pair(pair: &PrivateSignKey, encrypt_key: &EncryptKey) -> EncryptedPrivateKey {
         let sk = pair.sk();
         let sk = encrypt_key.encrypt(&sk[..]);
-        
+
         EncryptedPrivateKey {
             pk: pair.as_public_key().clone(),
             ek_hash: encrypt_key.hash(),
@@ -40,17 +39,13 @@ impl EncryptedPrivateKey
     pub fn as_private_key(&self, key: &EncryptKey) -> PrivateSignKey {
         let data = key.decrypt(&self.sk_iv, &self.sk_encrypted[..]);
         match &self.pk {
-            PublicSignKey::Falcon512 { pk } => {
-                PrivateSignKey::Falcon512 {
-                    pk: PublicSignKey::Falcon512 { pk: pk.clone() },
-                    sk: data,
-                }
+            PublicSignKey::Falcon512 { pk } => PrivateSignKey::Falcon512 {
+                pk: PublicSignKey::Falcon512 { pk: pk.clone() },
+                sk: data,
             },
-            PublicSignKey::Falcon1024{ pk } => {
-                PrivateSignKey::Falcon1024 {
-                    pk: PublicSignKey::Falcon1024 { pk: pk.clone() },
-                    sk: data,
-                }
+            PublicSignKey::Falcon1024 { pk } => PrivateSignKey::Falcon1024 {
+                pk: PublicSignKey::Falcon1024 { pk: pk.clone() },
+                sk: data,
             },
         }
     }

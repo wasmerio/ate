@@ -1,45 +1,43 @@
+use crate::engine::timeout;
 use async_trait::async_trait;
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use std::sync::Mutex as StdMutex;
-use std::{sync::Arc, sync::Weak};
-use tokio::sync::watch;
-use tokio::sync::RwLock;
 use fxhash::FxHashMap;
-use std::sync::RwLock as StdRwLock;
 use std::ops::Rem;
+use std::sync::Mutex as StdMutex;
+use std::sync::RwLock as StdRwLock;
 use std::time::Duration;
 use std::time::Instant;
+use std::{sync::Arc, sync::Weak};
 use tokio::sync::broadcast;
-use crate::engine::timeout;
+use tokio::sync::watch;
+use tokio::sync::RwLock;
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use super::core::*;
-use crate::{anti_replay::AntiReplayPlugin, comms::*};
-use crate::trust::*;
-use crate::chain::*;
-use crate::error::*;
-use crate::conf::*;
-use crate::transaction::*;
 use super::msg::*;
-use crate::pipe::*;
-use crate::header::*;
-use crate::spec::*;
-use crate::loader::*;
+use crate::chain::*;
+use crate::conf::*;
 use crate::crypto::*;
+use crate::error::*;
+use crate::header::*;
+use crate::loader::*;
 use crate::meta::*;
+use crate::pipe::*;
 use crate::session::*;
+use crate::spec::*;
 use crate::time::*;
+use crate::transaction::*;
+use crate::trust::*;
+use crate::{anti_replay::AntiReplayPlugin, comms::*};
 
 #[derive(Debug)]
-pub(super) struct LockRequest
-{
+pub(super) struct LockRequest {
     pub(super) needed: u32,
     pub(super) positive: u32,
     pub(super) negative: u32,
     pub(super) tx: watch::Sender<bool>,
 }
 
-impl LockRequest
-{
+impl LockRequest {
     /// returns true if the vote is finished
     pub(super) fn entropy(&mut self, result: bool) -> bool {
         match result {

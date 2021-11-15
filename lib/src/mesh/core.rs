@@ -1,35 +1,34 @@
-use async_trait::async_trait;
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use serde::{Serialize, Deserialize};
-use std::{collections::BTreeMap, sync::Arc};
 use crate::{header::PrimaryKey, meta::Metadata, pipe::EventPipe};
+use async_trait::async_trait;
 use bytes::Bytes;
-use tokio::sync::mpsc;
+use serde::{Deserialize, Serialize};
 use std::ops::*;
+use std::{collections::BTreeMap, sync::Arc};
+use tokio::sync::mpsc;
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
-use crate::crypto::*;
-use crate::event::*;
-use crate::trust::*;
 use crate::chain::*;
-use crate::error::*;
-use crate::index::*;
-use crate::conf::*;
-use crate::mesh::msg::*;
-use crate::mesh::MeshSession;
 use crate::comms::PacketData;
-use crate::spec::*;
-use crate::redo::LogLookup;
-use crate::time::ChainTimestamp;
 use crate::comms::StreamTx;
 use crate::comms::StreamTxChannel;
 use crate::comms::Tx;
+use crate::conf::*;
+use crate::crypto::*;
+use crate::error::*;
+use crate::event::*;
+use crate::index::*;
+use crate::mesh::msg::*;
+use crate::mesh::MeshSession;
+use crate::redo::LogLookup;
+use crate::spec::*;
+use crate::time::ChainTimestamp;
+use crate::trust::*;
 
 // Determines how the file-system will react while it is nominal and when it is
 // recovering from a communication failure (valid options are 'async', 'readonly-async',
 // 'readonly-sync' or 'sync')
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum RecoveryMode
-{
+pub enum RecoveryMode {
     // Fully asynchronous mode which allows staging of all writes locally giving
     // maximum availability however split-brain scenarios are the responsibility
     // of the user
@@ -47,17 +46,16 @@ pub enum RecoveryMode
     // local and remote locations at all times. This gives maximum integrity however
     // nominal writes will be considerable slower while reads will be blocked when in
     // a disconnected state
-    Sync
+    Sync,
 }
 
-impl RecoveryMode
-{
+impl RecoveryMode {
     pub fn should_go_readonly(&self) -> bool {
         match self {
             RecoveryMode::Async => false,
             RecoveryMode::Sync => false,
             RecoveryMode::ReadOnlyAsync => true,
-            RecoveryMode::ReadOnlySync => true
+            RecoveryMode::ReadOnlySync => true,
         }
     }
 
@@ -66,7 +64,7 @@ impl RecoveryMode
             RecoveryMode::Async => false,
             RecoveryMode::Sync => true,
             RecoveryMode::ReadOnlyAsync => true,
-            RecoveryMode::ReadOnlySync => true
+            RecoveryMode::ReadOnlySync => true,
         }
     }
 
@@ -75,7 +73,7 @@ impl RecoveryMode
             RecoveryMode::Async => false,
             RecoveryMode::Sync => true,
             RecoveryMode::ReadOnlyAsync => false,
-            RecoveryMode::ReadOnlySync => true
+            RecoveryMode::ReadOnlySync => true,
         }
     }
 
@@ -84,14 +82,12 @@ impl RecoveryMode
             RecoveryMode::Async => false,
             RecoveryMode::Sync => true,
             RecoveryMode::ReadOnlyAsync => true,
-            RecoveryMode::ReadOnlySync => true
+            RecoveryMode::ReadOnlySync => true,
         }
     }
 }
 
-impl std::str::FromStr
-for RecoveryMode
-{
+impl std::str::FromStr for RecoveryMode {
     type Err = &'static str;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -109,8 +105,7 @@ for RecoveryMode
 // actions. Backup and restoration is required for expansions of the cluster
 // and for storage capacity management.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum BackupMode
-{
+pub enum BackupMode {
     // No backups or restorations will take place fro this set of redo logs. Using this
     // mode does not improve performance but can save disk space and simplify the
     // deployment model. This comes at the price of essentially having no backups.
@@ -129,9 +124,7 @@ pub enum BackupMode
     Full,
 }
 
-impl std::str::FromStr
-for BackupMode
-{
+impl std::str::FromStr for BackupMode {
     type Err = &'static str;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -149,22 +142,19 @@ for BackupMode
 }
 
 /// Result of opening a chain-of-trust
-pub struct OpenedChain
-{
+pub struct OpenedChain {
     pub chain: Arc<Chain>,
     pub integrity: TrustMode,
     pub message_of_the_day: Option<String>,
 }
 
 #[derive(Default)]
-pub struct MeshHashTable
-{
+pub struct MeshHashTable {
     pub(super) address_lookup: Vec<MeshAddress>,
     pub(super) hash_table: BTreeMap<AteHash, usize>,
 }
 
-impl MeshHashTable
-{
+impl MeshHashTable {
     pub(crate) fn lookup(&self, key: &ChainKey) -> Option<(MeshAddress, u32)> {
         let hash = key.hash();
 
@@ -175,7 +165,7 @@ impl MeshHashTable
                     Some(a) => {
                         pointer = Some(a.clone());
                         break;
-                    },
+                    }
                     None => {
                         pointer = Some(v.clone());
                         break;
@@ -190,7 +180,7 @@ impl MeshHashTable
                 return Some((a.clone(), index as u32));
             }
         }
-        
+
         None
     }
 
@@ -199,13 +189,13 @@ impl MeshHashTable
         while n < self.address_lookup.len() {
             let test = &self.address_lookup[n];
 
-            #[cfg(feature="enable_dns")]
+            #[cfg(feature = "enable_dns")]
             match test.host.is_loopback() {
                 true if test.port == addr.port => {
                     if addr.host.is_loopback() || addr.host.is_unspecified() {
                         return Some(n as u32);
                     }
-                },
+                }
                 _ => {
                     if *test == *addr {
                         return Some(n as u32);
@@ -213,7 +203,7 @@ impl MeshHashTable
                 }
             }
 
-            #[cfg(not(feature="enable_dns"))]
+            #[cfg(not(feature = "enable_dns"))]
             if *test == *addr {
                 return Some(n as u32);
             }
@@ -224,12 +214,11 @@ impl MeshHashTable
     }
 
     #[allow(dead_code)]
-    pub(crate) fn new(cfg_mesh: &ConfMesh) -> MeshHashTable
-    {
+    pub(crate) fn new(cfg_mesh: &ConfMesh) -> MeshHashTable {
         let mut index: usize = 0;
 
         let mut addresses = Vec::new();
-        let mut hash_table = BTreeMap::new();            
+        let mut hash_table = BTreeMap::new();
         for addr in cfg_mesh.roots.iter() {
             addresses.push(addr.clone());
             hash_table.insert(addr.hash(), index);
@@ -247,9 +236,9 @@ async fn stream_events<R>(
     range: R,
     tx: &mut Tx,
     strip_signatures: bool,
-)
--> Result<(), CommsError>
-where R: RangeBounds<ChainTimestamp>
+) -> Result<(), CommsError>
+where
+    R: RangeBounds<ChainTimestamp>,
 {
     // Declare vars
     let multi = chain.multi().await;
@@ -259,20 +248,20 @@ where R: RangeBounds<ChainTimestamp>
             let guard = multi.inside_async.read().await;
             let r = match guard.range(..).map(|a| a.0).next() {
                 Some(a) => a.clone(),
-                None => return Ok(())
+                None => return Ok(()),
             };
             drop(guard);
             r
-        },
+        }
         Bound::Included(a) => a.clone(),
-        Bound::Excluded(a) => ChainTimestamp::from(a.time_since_epoch_ms + 1u64)
+        Bound::Excluded(a) => ChainTimestamp::from(a.time_since_epoch_ms + 1u64),
     };
     let end = match range.end_bound() {
         Bound::Unbounded => Bound::Unbounded,
         Bound::Included(a) => Bound::Included(a.clone()),
-        Bound::Excluded(a) => Bound::Excluded(a.clone())
+        Bound::Excluded(a) => Bound::Excluded(a.clone()),
     };
-    
+
     // We work in batches of 2000 events releasing the lock between iterations so that the
     // server has time to process new events (capped at 2MB of data per send)
     let max_send: usize = 2 * 1024 * 1024;
@@ -284,7 +273,7 @@ where R: RangeBounds<ChainTimestamp>
                 .range((Bound::Included(start), end))
                 .skip(skip)
                 .take(2000);
-            
+
             let mut amount = 0usize;
             while let Some((k, v)) = iter.next() {
                 if *k != start {
@@ -293,7 +282,7 @@ where R: RangeBounds<ChainTimestamp>
                 } else {
                     skip = skip + 1;
                 }
-                
+
                 leafs.push(EventLeaf {
                     record: v.event_hash,
                     created: 0,
@@ -317,7 +306,7 @@ where R: RangeBounds<ChainTimestamp>
             if strip_signatures {
                 meta.strip_signatures();
             }
-            
+
             let evt = MessageEvent {
                 meta,
                 data: match evt.data.data_bytes {
@@ -330,10 +319,8 @@ where R: RangeBounds<ChainTimestamp>
         }
 
         trace!("sending {} events", evts.len());
-        tx.send_reply_msg(Message::Events {
-            commit: None,
-            evts
-        }).await?;
+        tx.send_reply_msg(Message::Events { commit: None, evts })
+            .await?;
     }
 }
 
@@ -342,9 +329,7 @@ pub(super) async fn stream_empty_history(
     to: Option<ChainTimestamp>,
     tx: &mut StreamTxChannel,
     wire_format: SerializationFormat,
-)
--> Result<(), CommsError>
-{
+) -> Result<(), CommsError> {
     // Extract the root keys and integrity mode
     let (integrity, root_keys) = {
         let chain = chain.inside_sync.read().unwrap();
@@ -358,14 +343,18 @@ pub(super) async fn stream_empty_history(
 
     // Let the caller know we will be streaming them events
     trace!("sending start-of-history (size={})", 0);
-    PacketData::reply_at(tx, wire_format,Message::StartOfHistory
-        {
+    PacketData::reply_at(
+        tx,
+        wire_format,
+        Message::StartOfHistory {
             size: 0,
             from: None,
             to,
             root_keys,
             integrity,
-        }).await?;
+        },
+    )
+    .await?;
 
     // Let caller know we have sent all the events that were requested
     trace!("sending end-of-history");
@@ -378,9 +367,9 @@ pub(super) async fn stream_history_range<R>(
     range: R,
     tx: &mut Tx,
     strip_signatures: bool,
-)
--> Result<(), CommsError>
-where R: RangeBounds<ChainTimestamp>,
+) -> Result<(), CommsError>
+where
+    R: RangeBounds<ChainTimestamp>,
 {
     // Extract the root keys and integrity mode
     let (integrity, root_keys) = {
@@ -392,34 +381,35 @@ where R: RangeBounds<ChainTimestamp>,
             .collect::<Vec<_>>();
         (chain.integrity, root_keys)
     };
-    
+
     // Determine how many more events are left to sync
     let size = {
         let guard = chain.multi().await;
         let guard = guard.inside_async.read().await;
-        guard.range((range.start_bound(), range.end_bound())).count()
+        guard
+            .range((range.start_bound(), range.end_bound()))
+            .count()
     };
 
     // Let the caller know we will be streaming them events
     trace!("sending start-of-history (size={})", size);
-    tx.send_reply_msg(Message::StartOfHistory
-        {
-            size,
-            from: match range.start_bound() {
-                Bound::Unbounded => None,
-                Bound::Included(a) | Bound::Excluded(a) => Some(a.clone())
-            },
-            to: match range.end_bound() {
-                Bound::Unbounded => None,
-                Bound::Included(a) | Bound::Excluded(a) => Some(a.clone())
-            },
-            root_keys,
-            integrity: integrity.as_client(),
-        }).await?;
+    tx.send_reply_msg(Message::StartOfHistory {
+        size,
+        from: match range.start_bound() {
+            Bound::Unbounded => None,
+            Bound::Included(a) | Bound::Excluded(a) => Some(a.clone()),
+        },
+        to: match range.end_bound() {
+            Bound::Unbounded => None,
+            Bound::Included(a) | Bound::Excluded(a) => Some(a.clone()),
+        },
+        root_keys,
+        integrity: integrity.as_client(),
+    })
+    .await?;
 
     // Only if there are things to send
-    if size > 0
-    {
+    if size > 0 {
         // Sync the events
         trace!("streaming requested events");
         stream_events(&chain, range, tx, strip_signatures).await?;

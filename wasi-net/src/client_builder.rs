@@ -2,13 +2,11 @@
 use super::*;
 
 #[derive(Debug, Default)]
-pub struct ClientBuilder
-{
-    gzip: bool
+pub struct ClientBuilder {
+    gzip: bool,
 }
 
-impl ClientBuilder
-{
+impl ClientBuilder {
     pub fn new() -> Self {
         ClientBuilder::default()
     }
@@ -19,10 +17,6 @@ impl ClientBuilder
     }
 
     pub fn build(self) -> Result<Client, Error> {
-        Ok(
-            Client {
-                builder: self
-            }
-        )
+        Ok(Client { builder: self })
     }
 }

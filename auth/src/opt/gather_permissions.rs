@@ -8,5 +8,5 @@ pub struct GatherPermissions {
     pub group: String,
     /// Determines if sudo permissions should be sought
     #[clap(long)]
-    pub sudo: bool
+    pub sudo: bool,
 }

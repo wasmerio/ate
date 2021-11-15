@@ -1,7 +1,7 @@
-mod resolver;
 mod acme;
+mod resolver;
 mod security;
 
-pub use resolver::*;
 pub use acme::*;
+pub use resolver::*;
 pub use security::*;

@@ -1,15 +1,14 @@
-use serde::*;
-use strum_macros::EnumIter;
-use strum_macros::Display;
 use ate::prelude::*;
+use serde::*;
+use strum_macros::Display;
+use strum_macros::EnumIter;
 
 use crate::model::*;
 
 /// Represent a line item in an invoice that breaks down the
 /// charges and what they are for.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct InvoiceItem
-{
+pub struct InvoiceItem {
     /// The name of the line item
     pub name: String,
     /// Amount of quantity that was consumed
@@ -23,9 +22,10 @@ pub struct InvoiceItem
 }
 
 /// Determines the status of the invoice
-#[derive(Serialize, Deserialize, Debug, Display, Clone, Copy, PartialOrd, Ord, PartialEq, Eq, EnumIter)]
-pub enum InvoiceStatus
-{
+#[derive(
+    Serialize, Deserialize, Debug, Display, Clone, Copy, PartialOrd, Ord, PartialEq, Eq, EnumIter,
+)]
+pub enum InvoiceStatus {
     Unpaid,
     Paid,
 }
@@ -33,8 +33,7 @@ pub enum InvoiceStatus
 /// Represents an invoice for some services that were charged
 /// to a customer
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Invoice
-{
+pub struct Invoice {
     /// The current status of this invoice
     pub status: InvoiceStatus,
     /// Reference number of the contract this invoice is related to

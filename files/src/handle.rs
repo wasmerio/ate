@@ -1,11 +1,12 @@
 #[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use super::api::*;
 use super::attr::*;
 
 pub struct OpenHandle
-where Self: Send + Sync
+where
+    Self: Send + Sync,
 {
     pub dirty: seqlock::SeqLock<bool>,
 
@@ -15,12 +16,13 @@ where Self: Send + Sync
     pub kind: FileKind,
     pub attr: FileAttr,
     pub read_only: bool,
-    
+
     pub children: Vec<DirectoryEntry>,
 }
 
 pub struct DirectoryEntry
-where Self: Send + Sync
+where
+    Self: Send + Sync,
 {
     pub inode: u64,
     pub kind: FileKind,
@@ -30,8 +32,7 @@ where Self: Send + Sync
     pub gid: u32,
 }
 
-impl OpenHandle
-{
+impl OpenHandle {
     pub fn add_child(&mut self, spec: &FileSpec, uid: u32, gid: u32) {
         self.children.push(DirectoryEntry {
             inode: spec.ino(),
@@ -39,7 +40,7 @@ impl OpenHandle
             name: spec.name(),
             attr: FileAttr::new(spec, uid, gid),
             uid,
-            gid
+            gid,
         });
     }
 }

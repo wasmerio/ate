@@ -1,6 +1,6 @@
-#[allow(unused_imports)]
-use tracing::{info, error, debug, trace, warn};
 use std::sync::Arc;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, trace, warn};
 use url::Url;
 
 use ate::prelude::*;
@@ -9,8 +9,12 @@ use crate::error::*;
 use crate::model::*;
 use crate::request::*;
 
-pub async fn coin_combine_command(registry: &Arc<Registry>, coins: Vec<CarvedCoin>, new_ownership: Ownership, auth: Url) -> Result<CoinCombineResponse, CoinError>
-{
+pub async fn coin_combine_command(
+    registry: &Arc<Registry>,
+    coins: Vec<CarvedCoin>,
+    new_ownership: Ownership,
+    auth: Url,
+) -> Result<CoinCombineResponse, CoinError> {
     let req = CoinCombineRequest {
         coins,
         new_ownership,

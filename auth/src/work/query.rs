@@ -1,30 +1,31 @@
 #![allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use error_chain::bail;
+use qrcode::render::unicode;
+use qrcode::QrCode;
 use std::io::stdout;
 use std::io::Write;
-use url::Url;
 use std::ops::Deref;
-use qrcode::QrCode;
-use qrcode::render::unicode;
 use std::sync::Arc;
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
+use url::Url;
 
-use ate::prelude::*;
 use ate::error::LoadError;
+use ate::prelude::*;
 use ate::utils::chain_key_4hex;
 
-use crate::prelude::*;
-use crate::request::*;
-use crate::model::*;
-use crate::service::AuthService;
-use crate::helper::*;
 use crate::error::*;
 use crate::helper::*;
+use crate::helper::*;
+use crate::model::*;
+use crate::prelude::*;
+use crate::request::*;
+use crate::service::AuthService;
 
-impl AuthService
-{
-    pub async fn process_query(self: Arc<Self>, request: QueryRequest) -> Result<QueryResponse, QueryFailed>
-    {
+impl AuthService {
+    pub async fn process_query(
+        self: Arc<Self>,
+        request: QueryRequest,
+    ) -> Result<QueryResponse, QueryFailed> {
         info!("query user/group: {}", request.identity);
 
         // Compute which chain the user should exist within

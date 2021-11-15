@@ -1,11 +1,10 @@
 #![allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use serde::*;
 use ate::prelude::*;
+use serde::*;
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ResetRequest
-{
+pub struct ResetRequest {
     pub auth: String,
     pub email: String,
     pub new_secret: EncryptKey,
@@ -15,8 +14,7 @@ pub struct ResetRequest
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ResetResponse
-{
+pub struct ResetResponse {
     pub key: PrimaryKey,
     pub qr_code: String,
     pub qr_secret: String,
@@ -25,8 +23,7 @@ pub struct ResetResponse
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum ResetFailed
-{
+pub enum ResetFailed {
     InvalidEmail(String),
     InvalidRecoveryCode,
     InvalidAuthenticatorCode,
@@ -35,9 +32,9 @@ pub enum ResetFailed
     InternalError(u16),
 }
 
-impl<E> From<E>
-for ResetFailed
-where E: std::error::Error + Sized
+impl<E> From<E> for ResetFailed
+where
+    E: std::error::Error + Sized,
 {
     fn from(err: E) -> Self {
         ResetFailed::InternalError(ate::utils::obscure_error(err))

@@ -1,19 +1,22 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace};
 use error_chain::*;
 use std::ops::Deref;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, trace, warn};
 
-use crate::model::*;
-use crate::error::*;
 use crate::cmd::*;
+use crate::error::*;
+use crate::model::*;
 use crate::request::*;
 
 use super::*;
 
-impl TokApi
-{
-    pub async fn withdraw(&mut self, currency: NationalCurrency, amount: Decimal, wallet_name: String) -> Result<WithdrawResponse, WalletError>
-    {
+impl TokApi {
+    pub async fn withdraw(
+        &mut self,
+        currency: NationalCurrency,
+        amount: Decimal,
+        wallet_name: String,
+    ) -> Result<WithdrawResponse, WalletError> {
         // If anything has been left on the DIO then we need to fail
         // as this loop will invoke cancel during its recovery process
         if self.dio.has_uncommitted() {
@@ -33,26 +36,42 @@ impl TokApi
         ret
     }
 
-    pub async fn __withdraw(&mut self, currency: NationalCurrency, amount: Decimal, wallet_name: String) -> Result<WithdrawResponse, WalletError>
-    {
+    pub async fn __withdraw(
+        &mut self,
+        currency: NationalCurrency,
+        amount: Decimal,
+        wallet_name: String,
+    ) -> Result<WithdrawResponse, WalletError> {
         // Make the session
         let session = self.dio.session().clone_session();
-            
+
         // First carve out the coins we want
         let carved = self.__carve_bag(currency, amount, true).await?;
 
         // Now withdraw the amount specified
-        let ret = withdraw_command(&self.registry, carved.coins, session.deref(), self.auth.clone(), wallet_name).await?;
+        let ret = withdraw_command(
+            &self.registry,
+            carved.coins,
+            session.deref(),
+            self.auth.clone(),
+            wallet_name,
+        )
+        .await?;
 
         // Now add the history
-        if let Err(err) = self.record_activity(HistoricActivity::FundsWithdrawn(activities::FundsWithdrawn {
-            when: chrono::offset::Utc::now(),
-            by: self.user_identity(),
-            receipt_number: ret.receipt_number.clone(),
-            amount_less_fees: ret.amount_less_fees,
-            fees: ret.fees,
-            currency,
-        })).await {
+        if let Err(err) = self
+            .record_activity(HistoricActivity::FundsWithdrawn(
+                activities::FundsWithdrawn {
+                    when: chrono::offset::Utc::now(),
+                    by: self.user_identity(),
+                    receipt_number: ret.receipt_number.clone(),
+                    amount_less_fees: ret.amount_less_fees,
+                    fees: ret.fees,
+                    currency,
+                },
+            ))
+            .await
+        {
             error!("Error writing activity: {}", err);
         }
 

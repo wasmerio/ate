@@ -3,13 +3,11 @@ use std::collections::HashMap;
 
 use super::*;
 
-pub struct Client
-{
-    pub(crate) builder: ClientBuilder
+pub struct Client {
+    pub(crate) builder: ClientBuilder,
 }
 
-impl Client
-{
+impl Client {
     pub fn get<U: IntoUrl>(self, url: U) -> RequestBuilder {
         self.request(http::Method::GET, url)
     }

@@ -1,6 +1,6 @@
+use serde::{Deserialize, Serialize};
 #[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use serde::{Serialize, Deserialize};
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use super::*;
 

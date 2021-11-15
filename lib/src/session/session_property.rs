@@ -1,19 +1,18 @@
 #[allow(unused_imports)]
-use serde::{Serialize, Deserialize, de::DeserializeOwned};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use crate::{crypto::*};
+use crate::crypto::*;
 
 #[allow(dead_code)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum AteSessionProperty
-{
+pub enum AteSessionProperty {
     None,
     ReadKey(EncryptKey),
     PrivateReadKey(PrivateEncryptKey),
     PublicReadKey(PublicEncryptKey),
     WriteKey(PrivateSignKey),
     Uid(u32),
-    Gid(u32)
+    Gid(u32),
 }
 
 impl Default for AteSessionProperty {
@@ -22,9 +21,7 @@ impl Default for AteSessionProperty {
     }
 }
 
-impl std::fmt::Display
-for AteSessionProperty
-{
+impl std::fmt::Display for AteSessionProperty {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             AteSessionProperty::None => write!(f, "none"),

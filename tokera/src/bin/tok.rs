@@ -1,11 +1,11 @@
 #![allow(unused_imports)]
-use tracing::{info, warn, debug, error};
-use ate::{prelude::*};
+use ate::prelude::*;
 use clap::Parser;
-use tokera::prelude::*;
+use tokera::cmd::*;
 use tokera::error::*;
 use tokera::opt::*;
-use tokera::cmd::*;
+use tokera::prelude::*;
+use tracing::{debug, error, info, warn};
 
 #[allow(dead_code)]
 #[derive(Parser)]
@@ -80,8 +80,7 @@ enum SubCommand {
 }
 
 #[tokio::main(flavor = "current_thread")]
-async fn main() -> Result<(), Box<dyn std::error::Error>>
-{
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let opts: Opts = Opts::parse();
     //let opts = debug_opts();
     ate::log_init(opts.verbose, opts.debug);
@@ -103,7 +102,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>>
     }
 
     // If the domain is localhost then load certificates from dev.tokera.com
-    #[cfg(feature="enable_dns")]
+    #[cfg(feature = "enable_dns")]
     if let Some(domain) = auth.domain() {
         if domain == "localhost" {
             let test_registry = Registry::new(&conf).await;
@@ -115,9 +114,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>>
 
     // Do we need a token
     let needs_token = match &opts.subcmd {
-        SubCommand::Login( .. ) => false,
-        SubCommand::Token( .. ) => false,
-        _ => true
+        SubCommand::Login(..) => false,
+        SubCommand::Token(..) => false,
+        _ => true,
     };
 
     // Make sure the token exists
@@ -133,28 +132,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>>
     match opts.subcmd {
         SubCommand::User(opts_user) => {
             main_opts_user(opts_user, None, Some(opts.token_path), auth).await?;
-        },
+        }
         SubCommand::Domain(opts_group) => {
             main_opts_group(opts_group, None, Some(opts.token_path), auth, "Domain name").await?;
-        },
+        }
         SubCommand::Token(opts_token) => {
             main_opts_token(opts_token, None, Some(opts.token_path), auth, "Domain name").await?;
         }
         SubCommand::Wallet(opts_wallet) => {
             main_opts_wallet(opts_wallet.source, opts.token_path, auth).await?
-        },
+        }
         SubCommand::Contract(opts_contract) => {
             main_opts_contract(opts_contract.purpose, opts.token_path, auth).await?;
-        },
+        }
         SubCommand::Service(opts_service) => {
             main_opts_service(opts_service.purpose, opts.token_path, auth).await?;
-        },
-        SubCommand::Login(opts_login) => {
-            main_opts_login(opts_login, opts.token_path, auth).await?
-        },
-        SubCommand::Logout(opts_logout) => {
-            main_opts_logout(opts_logout, opts.token_path).await?
         }
+        SubCommand::Login(opts_login) => main_opts_login(opts_login, opts.token_path, auth).await?,
+        SubCommand::Logout(opts_logout) => main_opts_logout(opts_logout, opts.token_path).await?,
     }
 
     // We are done

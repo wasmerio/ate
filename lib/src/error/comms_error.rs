@@ -1,7 +1,7 @@
 use error_chain::error_chain;
 use rmp_serde::decode::Error as RmpDecodeError;
 use serde_json::Error as JsonError;
-use tokio::sync::mpsc as mpsc;
+use tokio::sync::mpsc;
 
 use crate::crypto::KeySize;
 
@@ -110,109 +110,104 @@ error_chain! {
     }
 }
 
-impl From<tokio::time::error::Elapsed>
-for CommsError
-{
+impl From<tokio::time::error::Elapsed> for CommsError {
     fn from(_err: tokio::time::error::Elapsed) -> CommsError {
-        CommsErrorKind::IO(std::io::Error::new(std::io::ErrorKind::TimedOut, format!("Timeout while waiting for communication channel").to_string())).into()
+        CommsErrorKind::IO(std::io::Error::new(
+            std::io::ErrorKind::TimedOut,
+            format!("Timeout while waiting for communication channel").to_string(),
+        ))
+        .into()
     }
 }
 
-impl From<crate::engine::Elapsed>
-for CommsError
-{
+impl From<crate::engine::Elapsed> for CommsError {
     fn from(_err: crate::engine::Elapsed) -> CommsError {
-        CommsErrorKind::IO(std::io::Error::new(std::io::ErrorKind::TimedOut, format!("Timeout while waiting for communication channel").to_string())).into()
+        CommsErrorKind::IO(std::io::Error::new(
+            std::io::ErrorKind::TimedOut,
+            format!("Timeout while waiting for communication channel").to_string(),
+        ))
+        .into()
     }
 }
 
-impl<T> From<mpsc::error::SendError<T>>
-for CommsError
-{
+impl<T> From<mpsc::error::SendError<T>> for CommsError {
     fn from(err: mpsc::error::SendError<T>) -> CommsError {
         CommsErrorKind::SendError(err.to_string()).into()
-    }   
-}
-
-#[cfg(feature = "enable_full")]
-impl From<tokio_tungstenite::tungstenite::Error>
-for CommsError
-{
-    fn from(err: tokio_tungstenite::tungstenite::Error) -> CommsError {
-        CommsErrorKind::WebSocketError(err.to_string()).into()
-    }   
-}
-
-#[cfg(feature = "enable_full")]
-impl From<tokio_tungstenite::tungstenite::http::uri::InvalidUri>
-for CommsError
-{
-    fn from(err: tokio_tungstenite::tungstenite::http::uri::InvalidUri) -> CommsError {
-        CommsErrorKind::WebSocketInternalError(format!("Failed to establish websocket due to an invalid URI - {}", err.to_string())).into()
-    }   
-}
-
-impl<T> From<tokio::sync::broadcast::error::SendError<T>>
-for CommsError
-{
-    fn from(err: tokio::sync::broadcast::error::SendError<T>) -> CommsError {
-        CommsErrorKind::SendError(err.to_string()).into()
-    }   
-}
-
-impl From<tokio::sync::broadcast::error::RecvError>
-for CommsError
-{
-    fn from(err: tokio::sync::broadcast::error::RecvError) -> CommsError {
-        CommsErrorKind::ReceiveError(err.to_string()).into()
-    }   
-}
-
-impl From<super::CommitError>
-for CommsError
-{
-    fn from(err: super::CommitError) -> CommsError {
-        match err {
-            super::CommitError(super::CommitErrorKind::ValidationError(errs), _) => CommsErrorKind::ValidationError(errs).into(),
-            err => CommsErrorKind::InternalError(format!("commit-failed - {}", err.to_string())).into(),
-        }
-    }   
-}
-
-impl From<super::ChainCreationError>
-for CommsError
-{
-    fn from(err: super::ChainCreationError) -> CommsError {
-        CommsErrorKind::FatalError(err.to_string()).into()
-    }   
-}
-
-impl From<super::ChainCreationErrorKind>
-for CommsError
-{
-    fn from(err: super::ChainCreationErrorKind) -> CommsError {
-        CommsErrorKind::FatalError(err.to_string()).into()
-    }   
-}
-
-impl From<bincode::Error>
-for CommsError
-{
-    fn from(err: bincode::Error) -> CommsError {
-        CommsErrorKind::SerializationError(super::SerializationErrorKind::BincodeError(err).into()).into()
-    }   
-}
-
-impl From<RmpDecodeError>
-for CommsError {
-    fn from(err: RmpDecodeError) -> CommsError {
-        CommsErrorKind::SerializationError(super::SerializationErrorKind::DecodeError(err).into()).into()
     }
 }
 
-impl From<JsonError>
-for CommsError {
+#[cfg(feature = "enable_full")]
+impl From<tokio_tungstenite::tungstenite::Error> for CommsError {
+    fn from(err: tokio_tungstenite::tungstenite::Error) -> CommsError {
+        CommsErrorKind::WebSocketError(err.to_string()).into()
+    }
+}
+
+#[cfg(feature = "enable_full")]
+impl From<tokio_tungstenite::tungstenite::http::uri::InvalidUri> for CommsError {
+    fn from(err: tokio_tungstenite::tungstenite::http::uri::InvalidUri) -> CommsError {
+        CommsErrorKind::WebSocketInternalError(format!(
+            "Failed to establish websocket due to an invalid URI - {}",
+            err.to_string()
+        ))
+        .into()
+    }
+}
+
+impl<T> From<tokio::sync::broadcast::error::SendError<T>> for CommsError {
+    fn from(err: tokio::sync::broadcast::error::SendError<T>) -> CommsError {
+        CommsErrorKind::SendError(err.to_string()).into()
+    }
+}
+
+impl From<tokio::sync::broadcast::error::RecvError> for CommsError {
+    fn from(err: tokio::sync::broadcast::error::RecvError) -> CommsError {
+        CommsErrorKind::ReceiveError(err.to_string()).into()
+    }
+}
+
+impl From<super::CommitError> for CommsError {
+    fn from(err: super::CommitError) -> CommsError {
+        match err {
+            super::CommitError(super::CommitErrorKind::ValidationError(errs), _) => {
+                CommsErrorKind::ValidationError(errs).into()
+            }
+            err => {
+                CommsErrorKind::InternalError(format!("commit-failed - {}", err.to_string())).into()
+            }
+        }
+    }
+}
+
+impl From<super::ChainCreationError> for CommsError {
+    fn from(err: super::ChainCreationError) -> CommsError {
+        CommsErrorKind::FatalError(err.to_string()).into()
+    }
+}
+
+impl From<super::ChainCreationErrorKind> for CommsError {
+    fn from(err: super::ChainCreationErrorKind) -> CommsError {
+        CommsErrorKind::FatalError(err.to_string()).into()
+    }
+}
+
+impl From<bincode::Error> for CommsError {
+    fn from(err: bincode::Error) -> CommsError {
+        CommsErrorKind::SerializationError(super::SerializationErrorKind::BincodeError(err).into())
+            .into()
+    }
+}
+
+impl From<RmpDecodeError> for CommsError {
+    fn from(err: RmpDecodeError) -> CommsError {
+        CommsErrorKind::SerializationError(super::SerializationErrorKind::DecodeError(err).into())
+            .into()
+    }
+}
+
+impl From<JsonError> for CommsError {
     fn from(err: JsonError) -> CommsError {
-        CommsErrorKind::SerializationError(super::SerializationErrorKind::JsonError(err).into()).into()
+        CommsErrorKind::SerializationError(super::SerializationErrorKind::JsonError(err).into())
+            .into()
     }
 }

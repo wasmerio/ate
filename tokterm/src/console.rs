@@ -1,39 +1,42 @@
 #![allow(unused_imports)]
 #![allow(dead_code)]
-#[allow(unused_imports, dead_code)]
-use tracing::{info, error, debug, trace, warn};
-use xterm_js_rs::{Terminal};
 use std::collections::HashMap;
-use tokio::sync::mpsc;
-use wasm_bindgen::JsCast;
+use std::path::Path;
 use std::sync::Arc;
 use std::sync::Mutex;
+use tokio::sync::mpsc;
 use tokio::sync::RwLock;
-use std::path::Path;
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, trace, warn};
+use wasm_bindgen::JsCast;
 use wasmer_wasi::vfs::FileSystem;
+use web_sys::HtmlCanvasElement;
+use xterm_js_rs::Terminal;
 
 use crate::tty::TtyMode;
 
-use super::eval::*;
-use super::common::*;
-use super::fd::*;
-use super::state::*;
-use super::environment::*;
+use super::bin::*;
 use super::builtins::*;
-use super::pool::ThreadPool as Pool;
+use super::common::*;
+use super::environment::*;
 use super::err;
+use super::eval::*;
+use super::fd::*;
+use super::fs::*;
+use super::job::*;
+use super::pool::ThreadPool as Pool;
+use super::reactor::*;
+use super::state::*;
+use super::stdio::*;
 use super::stdout::*;
 use super::tty::*;
-use super::reactor::*;
-use super::job::*;
-use super::stdio::*;
-use super::bin::*;
-use super::fs::*;
 
-pub struct Console
-{
+pub struct Console {
     terminal: Terminal,
+    front_buffer: HtmlCanvasElement,
     location: url::Url,
+    user_agent: String,
+    is_mobile: bool,
     state: Arc<Mutex<ConsoleState>>,
     bins: BinFactory,
     tok: TokeraSocketFactory,
@@ -45,10 +48,14 @@ pub struct Console
     stderr: RawFd,
 }
 
-impl Console
-{
-    pub fn new(terminal: Terminal, location: String, pool: Pool) -> Console
-    {
+impl Console {
+    pub fn new(
+        terminal: Terminal,
+        front_buffer: HtmlCanvasElement,
+        location: String,
+        user_agent: String,
+        pool: Pool,
+    ) -> Console {
         let mut reactor = Reactor::new();
 
         let state = Arc::new(Mutex::new(ConsoleState::new()));
@@ -77,13 +84,17 @@ impl Console
 
         let location = url::Url::parse(&location).unwrap();
 
-        let tty = Tty::new(stdout.clone());
+        let is_mobile = is_mobile(&user_agent);
+        let tty = Tty::new(stdout.clone(), is_mobile);
 
         let mounts = super::fs::create_root_fs();
-        
+
         Console {
             terminal,
+            front_buffer,
             location,
+            is_mobile,
+            user_agent,
             bins: BinFactory::new(),
             tok: TokeraSocketFactory::new(&reactor),
             state,
@@ -96,32 +107,41 @@ impl Console
         }
     }
 
-    pub async fn init(&mut self)
-    {
-        let mut location_file = self.mounts.new_open_options()
-              .create_new(true)
-              .write(true)
-              .open(Path::new("/etc/location"))
-              .unwrap();
-        location_file.write_all(self.location.as_str().as_bytes()).unwrap();
+    pub async fn init(&mut self) {
+        crate::glue::show_terminal();
 
-        let run_command = self.location.query_pairs()
+        let mut location_file = self
+            .mounts
+            .new_open_options()
+            .create_new(true)
+            .write(true)
+            .open(Path::new("/etc/location"))
+            .unwrap();
+        location_file
+            .write_all(self.location.as_str().as_bytes())
+            .unwrap();
+
+        let run_command = self
+            .location
+            .query_pairs()
             .filter(|(key, _)| key == "run-command" || key == "init")
             .next()
             .map(|(_, val)| val.to_string());
 
         if let Some(run_command) = &run_command {
-            let mut init_file = self.mounts.new_open_options()
-              .create_new(true)
-              .write(true)
-              .open(Path::new("/bin/init"))
-              .unwrap();
+            let mut init_file = self
+                .mounts
+                .new_open_options()
+                .create_new(true)
+                .write(true)
+                .open(Path::new("/bin/init"))
+                .unwrap();
             init_file.write_all(run_command.as_bytes()).unwrap();
         }
 
         let cols = self.terminal.get_cols();
         let rows = self.terminal.get_rows();
-        self.tty.set_bounds(cols, rows).await;  
+        self.tty.set_bounds(cols, rows).await;
 
         Console::update_prompt(false, &self.state, &self.tty).await;
 
@@ -134,13 +154,11 @@ impl Console
         }
     }
 
-    pub fn tty(&self) -> &Tty
-    {
+    pub fn tty(&self) -> &Tty {
         &self.tty
     }
 
-    pub async fn on_enter(&mut self)
-    {
+    pub async fn on_enter(&mut self) {
         let mode = self.tty.mode().await;
 
         self.tty.set_cursor_to_end().await;
@@ -179,7 +197,9 @@ impl Console
                 Ok(a) => a,
                 Err(_) => {
                     drop(reactor);
-                    self.tty.draw("term: insufficient file handle space\r\n").await;
+                    self.tty
+                        .draw("term: insufficient file handle space\r\n")
+                        .await;
                     self.tty.reset_line().await;
                     self.tty.draw_prompt().await;
                     return;
@@ -217,9 +237,9 @@ impl Console
             path,
             input: cmd.clone(),
             console: self.state.clone(),
-            stdio
+            stdio,
         };
-        
+
         let rx = eval(ctx).await;
 
         let mut tty = self.tty.clone();
@@ -228,8 +248,7 @@ impl Console
         tty.enter_mode(TtyMode::StdIn(job), &self.reactor).await;
 
         let state = self.state.clone();
-        wasm_bindgen_futures::spawn_local(async move
-        {
+        wasm_bindgen_futures::spawn_local(async move {
             let rx = rx.await;
 
             tty.reset_line().await;
@@ -242,10 +261,14 @@ impl Console
                 true
             };
             tty.reset_history_cursor().await;
-            
+
             let mut multiline_input = false;
             match rx {
-                Ok(EvalPlan::Executed { code, ctx, show_result }) => {
+                Ok(EvalPlan::Executed {
+                    code,
+                    ctx,
+                    show_result,
+                }) => {
                     debug!("eval executed (code={})", code);
                     let should_line_feed = {
                         let mut state = state.lock().unwrap();
@@ -264,7 +287,7 @@ impl Console
                     } else if should_line_feed {
                         tty.draw("\r\n").await;
                     }
-                },
+                }
                 Ok(EvalPlan::InternalError) => {
                     debug!("eval internal error");
                     tty.draw("term: internal error\r\n").await;
@@ -277,10 +300,11 @@ impl Console
                 Ok(EvalPlan::Invalid) => {
                     debug!("eval invalid");
                     tty.draw("term: invalid command\r\n").await;
-                },
+                }
                 Err(err) => {
                     debug!("eval recv error (err={})", err);
-                    tty.draw(format!("term: command failed - {} \r\n", err).as_str()).await;
+                    tty.draw(format!("term: command failed - {} \r\n", err).as_str())
+                        .await;
                 }
             };
             tty.reset_line().await;
@@ -289,8 +313,7 @@ impl Console
         });
     }
 
-    async fn update_prompt(multiline_input: bool, state: &Arc<Mutex<ConsoleState>>, tty: &Tty)
-    {
+    async fn update_prompt(multiline_input: bool, state: &Arc<Mutex<ConsoleState>>, tty: &Tty) {
         let (prompt, prompt_color) = {
             let state = state.lock().unwrap();
             let prompt = state.compute_prompt(multiline_input, false);
@@ -301,53 +324,48 @@ impl Console
         tty.set_prompt(prompt, prompt_color).await;
     }
 
-    pub async fn on_ctrl_l(&mut self)
-    {
+    pub async fn on_ctrl_l(&mut self) {
         self.tty.reset_line().await;
         self.tty.draw_prompt().await;
         self.terminal.clear();
     }
 
-    pub async fn on_tab(&mut self, _job: Option<Job>)
-    {
+    pub async fn on_tab(&mut self, _job: Option<Job>) {
         // Later we need to implement auto-complete here when the process is not running
         // and implement spaces when it is
     }
 
-    pub async fn on_page_up(&mut self) { }
-    pub async fn on_page_down(&mut self) { }
-    pub async fn on_f1(&mut self) { }
-    pub async fn on_f2(&mut self) { }
-    pub async fn on_f3(&mut self) { }
-    pub async fn on_f4(&mut self) { }
-    pub async fn on_f5(&mut self) { }
-    pub async fn on_f6(&mut self) { }
-    pub async fn on_f7(&mut self) { }
-    pub async fn on_f8(&mut self) { }
-    pub async fn on_f9(&mut self) { }
-    pub async fn on_f10(&mut self) { }
-    pub async fn on_f11(&mut self) { }
-    pub async fn on_f12(&mut self) { }
+    pub async fn on_page_up(&mut self) {}
+    pub async fn on_page_down(&mut self) {}
+    pub async fn on_f1(&mut self) {}
+    pub async fn on_f2(&mut self) {}
+    pub async fn on_f3(&mut self) {}
+    pub async fn on_f4(&mut self) {}
+    pub async fn on_f5(&mut self) {}
+    pub async fn on_f6(&mut self) {}
+    pub async fn on_f7(&mut self) {}
+    pub async fn on_f8(&mut self) {}
+    pub async fn on_f9(&mut self) {}
+    pub async fn on_f10(&mut self) {}
+    pub async fn on_f11(&mut self) {}
+    pub async fn on_f12(&mut self) {}
 
-    pub async fn on_ctrl_c(&mut self, job: Option<Job>)
-    {
+    pub async fn on_ctrl_c(&mut self, job: Option<Job>) {
         if job.is_none() {
             self.tty.draw("\r\n").await;
-        }
-        else {
+        } else {
             self.tty.draw("^C\r\n").await;
         }
 
         let mode = self.tty.mode().await;
         match mode {
-            TtyMode::Null => {
-            },
+            TtyMode::Null => {}
             TtyMode::Console => {
                 self.tty.clear_paragraph().await;
                 self.tty.reset_line().await;
                 Console::update_prompt(false, &self.state, &self.tty).await;
                 self.tty.draw_prompt().await;
-            },
+            }
             TtyMode::StdIn(job) => {
                 {
                     let mut reactor = self.reactor.write().await;
@@ -358,8 +376,7 @@ impl Console
         }
     }
 
-    pub async fn on_resize(&mut self)
-    {
+    pub async fn on_resize(&mut self) {
         let cols = self.terminal.get_cols();
         let rows = self.terminal.get_rows();
         self.tty.set_bounds(cols, rows).await;
@@ -370,92 +387,74 @@ impl Console
         match data {
             "\r" => {
                 self.on_enter().await;
-            },
-            "\u{0003}" => { // Ctrl-C
+            }
+            "\u{0003}" => {
+                // Ctrl-C
                 self.on_ctrl_c(job).await;
-            },
+            }
             "\u{007F}" => {
                 self.tty.backspace().await;
-            },
+            }
             "\u{0009}" => {
                 self.on_tab(job).await;
-            },
+            }
             "\u{001B}\u{005B}\u{0044}" => {
                 self.tty.cursor_left().await;
-            },
+            }
             "\u{001B}\u{005B}\u{0043}" => {
                 self.tty.cursor_right().await;
-            },
-            "\u{0001}" |
-            "\u{001B}\u{005B}\u{0048}" => {
+            }
+            "\u{0001}" | "\u{001B}\u{005B}\u{0048}" => {
                 self.tty.set_cursor_to_start().await;
-            },
+            }
             "\u{001B}\u{005B}\u{0046}" => {
                 self.tty.set_cursor_to_end().await;
-            },
+            }
             "\u{001B}\u{005B}\u{0041}" => {
                 if job.is_none() {
                     self.tty.cursor_up().await;
                 }
-            },
+            }
             "\u{001B}\u{005B}\u{0042}" => {
                 if job.is_none() {
                     self.tty.cursor_down().await;
                 }
-            },
+            }
             "\u{000C}" => {
                 self.on_ctrl_l().await;
-            },
+            }
             "\u{001B}\u{005B}\u{0035}\u{007E}" => {
                 self.on_page_up().await;
-            },
+            }
             "\u{001B}\u{005B}\u{0036}\u{007E}" => {
                 self.on_page_down().await;
-            },
-            "\u{001B}\u{004F}\u{0050}" => {
-                self.on_f1().await
-            },
-            "\u{001B}\u{004F}\u{0051}" => {
-                self.on_f2().await
-            },
-            "\u{001B}\u{004F}\u{0052}" => {
-                self.on_f3().await
-            },
-            "\u{001B}\u{004F}\u{0053}" => {
-                self.on_f4().await
-            },
-            "\u{001B}\u{005B}\u{0031}\u{0035}\u{007E}" => {
-                self.on_f5().await
-            },
-            "\u{001B}\u{005B}\u{0031}\u{0037}\u{007E}" => {
-                self.on_f6().await
-            },
-            "\u{001B}\u{005B}\u{0031}\u{0038}\u{007E}" => {
-                self.on_f7().await
-            },
-            "\u{001B}\u{005B}\u{0031}\u{0039}\u{007E}" => {
-                self.on_f8().await
-            },
-            "\u{001B}\u{005B}\u{0032}\u{0030}\u{007E}" => {
-                self.on_f9().await
-            },
-            "\u{001B}\u{005B}\u{0032}\u{0031}\u{007E}" => {
-                self.on_f10().await
-            },
-            "\u{001B}\u{005B}\u{0032}\u{0033}\u{007E}" => {
-                self.on_f11().await
-            },
-            "\u{001B}\u{005B}\u{0032}\u{0034}\u{007E}" => {
-                self.on_f12().await
-            },
+            }
+            "\u{001B}\u{004F}\u{0050}" => self.on_f1().await,
+            "\u{001B}\u{004F}\u{0051}" => self.on_f2().await,
+            "\u{001B}\u{004F}\u{0052}" => self.on_f3().await,
+            "\u{001B}\u{004F}\u{0053}" => self.on_f4().await,
+            "\u{001B}\u{005B}\u{0031}\u{0035}\u{007E}" => self.on_f5().await,
+            "\u{001B}\u{005B}\u{0031}\u{0037}\u{007E}" => self.on_f6().await,
+            "\u{001B}\u{005B}\u{0031}\u{0038}\u{007E}" => self.on_f7().await,
+            "\u{001B}\u{005B}\u{0031}\u{0039}\u{007E}" => self.on_f8().await,
+            "\u{001B}\u{005B}\u{0032}\u{0030}\u{007E}" => self.on_f9().await,
+            "\u{001B}\u{005B}\u{0032}\u{0031}\u{007E}" => self.on_f10().await,
+            "\u{001B}\u{005B}\u{0032}\u{0033}\u{007E}" => self.on_f11().await,
+            "\u{001B}\u{005B}\u{0032}\u{0034}\u{007E}" => self.on_f12().await,
             data => {
                 self.tty.add(data).await;
             }
         }
     }
 
-    pub async fn on_key(&mut self, _key_code: u32, _key: String, _alt_key: bool, _ctrl_key: bool, _meta_key: bool)
-    {
+    pub async fn on_key(
+        &mut self,
+        _key_code: u32,
+        _key: String,
+        _alt_key: bool,
+        _ctrl_key: bool,
+        _meta_key: bool,
+    ) {
         // Do nothing for now
     }
 
@@ -484,11 +483,8 @@ impl Console
                     let _ = job.stdin_tx.send(data.into_bytes()).await;
                 }
             }
-            TtyMode::Null => {
-            }
-            TtyMode::Console => {
-                self.on_parse(&data, None).await
-            }
+            TtyMode::Null => {}
+            TtyMode::Console => self.on_parse(&data, None).await,
         }
     }
 }

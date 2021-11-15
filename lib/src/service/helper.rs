@@ -1,34 +1,44 @@
-#[allow(unused_imports)]
-use tracing::{info, error, warn, debug};
-use std::{sync::Weak};
-use tokio::sync::mpsc;
 use std::sync::Arc;
 use std::sync::RwLockReadGuard as StdRwLockReadGuard;
+use std::sync::Weak;
+use tokio::sync::mpsc;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, warn};
 
-use crate::{error::*, event::*};
 use crate::chain::*;
 use crate::header::*;
+use crate::{error::*, event::*};
 
 use super::*;
 
-pub(crate) fn callback_events_prepare(guard: &StdRwLockReadGuard<ChainProtectedSync>, events: &Vec<EventData>) -> Vec<Notify>
-{
+pub(crate) fn callback_events_prepare(
+    guard: &StdRwLockReadGuard<ChainProtectedSync>,
+    events: &Vec<EventData>,
+) -> Vec<Notify> {
     let mut ret = Vec::new();
 
     for sniffer in guard.sniffers.iter() {
-        if let Some(key) = events.iter().filter_map(|e| match (*sniffer.filter)(e) {
-            true => e.meta.get_data_key(),
-            false => None,
-        }).next() {
+        if let Some(key) = events
+            .iter()
+            .filter_map(|e| match (*sniffer.filter)(e) {
+                true => e.meta.get_data_key(),
+                false => None,
+            })
+            .next()
+        {
             ret.push(sniffer.convert(key));
         }
     }
 
     for service in guard.services.iter() {
-        for key in events.iter().filter(|e| service.filter(&e)).filter_map(|e| e.meta.get_data_key()) {
+        for key in events
+            .iter()
+            .filter(|e| service.filter(&e))
+            .filter_map(|e| e.meta.get_data_key())
+        {
             ret.push(Notify {
                 key,
-                who: NotifyWho::Service(Arc::clone(service))
+                who: NotifyWho::Service(Arc::clone(service)),
             });
         }
     }
@@ -36,8 +46,7 @@ pub(crate) fn callback_events_prepare(guard: &StdRwLockReadGuard<ChainProtectedS
     ret
 }
 
-pub(crate) async fn callback_events_notify(mut notifies: Vec<Notify>) -> Result<(), InvokeError>
-{
+pub(crate) async fn callback_events_notify(mut notifies: Vec<Notify>) -> Result<(), InvokeError> {
     let mut joins = Vec::new();
     for notify in notifies.drain(..) {
         joins.push(notify.notify());
@@ -53,15 +62,16 @@ pub(crate) async fn callback_events_notify(mut notifies: Vec<Notify>) -> Result<
     Ok(())
 }
 
-pub(super) struct SniffCommandHandle
-{
+pub(super) struct SniffCommandHandle {
     id: u64,
     rx: mpsc::Receiver<PrimaryKey>,
     chain: Weak<Chain>,
 }
 
-pub(super) fn sniff_for_command_begin(chain: Weak<Chain>, what: Box<dyn Fn(&EventData) -> bool + Send + Sync>) -> SniffCommandHandle
-{
+pub(super) fn sniff_for_command_begin(
+    chain: Weak<Chain>,
+    what: Box<dyn Fn(&EventData) -> bool + Send + Sync>,
+) -> SniffCommandHandle {
     // Create a sniffer
     let id = fastrand::u64(..);
     let (tx, rx) = mpsc::channel(1);
@@ -84,8 +94,7 @@ pub(super) fn sniff_for_command_begin(chain: Weak<Chain>, what: Box<dyn Fn(&Even
     }
 }
 
-pub(super) async fn sniff_for_command_finish(mut handle: SniffCommandHandle) -> Option<PrimaryKey>
-{
+pub(super) async fn sniff_for_command_finish(mut handle: SniffCommandHandle) -> Option<PrimaryKey> {
     // Now wait for the response
     let ret = handle.rx.recv().await;
 

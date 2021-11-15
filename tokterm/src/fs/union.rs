@@ -1,37 +1,31 @@
 #![allow(dead_code)]
 #![allow(unused)]
-#[allow(unused_imports, dead_code)]
-use tracing::{info, error, debug, trace, warn};
-use wasmer_wasi::vfs::*;
-use std::path::{Path, PathBuf};
 use std::borrow::Cow;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, trace, warn};
+use wasmer_wasi::vfs::*;
 
 #[derive(Debug, Clone)]
-struct MountPoint
-{
+struct MountPoint {
     path: String,
     name: String,
     fs: Arc<Box<dyn FileSystem>>,
 }
 
 #[derive(Debug, Clone)]
-pub struct UnionFileSystem
-{
-    mounts: Vec<MountPoint>
+pub struct UnionFileSystem {
+    mounts: Vec<MountPoint>,
 }
 
-impl UnionFileSystem
-{
+impl UnionFileSystem {
     pub fn new() -> UnionFileSystem {
-        UnionFileSystem {
-            mounts: Vec::new(),
-        }
+        UnionFileSystem { mounts: Vec::new() }
     }
 }
 
-impl UnionFileSystem
-{
+impl UnionFileSystem {
     pub fn mount(&mut self, name: &str, path: &Path, fs: Box<dyn FileSystem>) {
         let path = path.to_string_lossy().into_owned();
         self.mounts.push(MountPoint {
@@ -43,9 +37,7 @@ impl UnionFileSystem
 
     pub fn unmount(&mut self, path: &Path) {
         let path = path.to_string_lossy().into_owned();
-        self.mounts.retain(|mount| {
-            mount.path != path
-        });
+        self.mounts.retain(|mount| mount.path != path);
     }
 
     fn read_dir_internal(&self, path: &Path) -> Result<ReadDir> {
@@ -68,14 +60,12 @@ impl UnionFileSystem
 
         match ret {
             Some(ret) => Ok(ReadDir::new(ret)),
-            None => Err(FsError::EntityNotFound)
+            None => Err(FsError::EntityNotFound),
         }
     }
 }
 
-impl FileSystem
-for UnionFileSystem
-{
+impl FileSystem for UnionFileSystem {
     fn read_dir(&self, path: &Path) -> Result<ReadDir> {
         debug!("read_dir: path={}", path.display());
         self.read_dir_internal(path)
@@ -84,7 +74,7 @@ for UnionFileSystem
         debug!("create_dir: path={}", path.display());
         if self.read_dir_internal(path).is_ok() {
             //return Err(FsError::AlreadyExists);
-            return Ok(())
+            return Ok(());
         }
         let path = path.to_string_lossy();
         for (path, mount) in filter_mounts(&self.mounts, path.as_ref()) {
@@ -152,18 +142,21 @@ for UnionFileSystem
     }
     fn new_open_options(&self) -> OpenOptions {
         let opener = Box::new(UnionFileOpener {
-            mounts: self.mounts.clone()
+            mounts: self.mounts.clone(),
         });
         OpenOptions::new(opener)
     }
 }
 
-fn filter_mounts<'a, 'b>(mounts: &'a Vec<MountPoint>, mut path: &'b str) -> impl Iterator<Item = (&'b str, &'a MountPoint)> {
+fn filter_mounts<'a, 'b>(
+    mounts: &'a Vec<MountPoint>,
+    mut path: &'b str,
+) -> impl Iterator<Item = (&'b str, &'a MountPoint)> {
     let mut ret = Vec::new();
     for mount in mounts.iter().rev() {
         if path.starts_with(mount.path.as_str()) || path.starts_with(&mount.path[1..]) {
             let path = if mount.path.ends_with("/") {
-                &path[mount.path.len()-1..]
+                &path[mount.path.len() - 1..]
             } else {
                 &path[mount.path.len()..]
             };
@@ -175,18 +168,18 @@ fn filter_mounts<'a, 'b>(mounts: &'a Vec<MountPoint>, mut path: &'b str) -> impl
 
 #[derive(Debug)]
 pub struct UnionFileOpener {
-    mounts: Vec<MountPoint>
+    mounts: Vec<MountPoint>,
 }
 
-impl FileOpener
-for UnionFileOpener {
+impl FileOpener for UnionFileOpener {
     fn open(&mut self, path: &Path, conf: &OpenOptionsConfig) -> Result<Box<dyn VirtualFile>> {
         debug!("open: path={}", path.display());
         let mut ret_err = FsError::EntityNotFound;
         let path = path.to_string_lossy();
         if conf.create() || conf.create_new() {
             for (path, mount) in filter_mounts(&self.mounts, path.as_ref()) {
-                if let Ok(mut ret) = mount.fs
+                if let Ok(mut ret) = mount
+                    .fs
                     .new_open_options()
                     .truncate(conf.truncate())
                     .append(conf.append())
@@ -203,12 +196,17 @@ for UnionFileOpener {
             }
         }
         for (path, mount) in filter_mounts(&self.mounts, path.as_ref()) {
-            match mount.fs.new_open_options().set_options(conf.clone()).open(path) {
-                Ok(ret) => { return Ok(ret) }
+            match mount
+                .fs
+                .new_open_options()
+                .set_options(conf.clone())
+                .open(path)
+            {
+                Ok(ret) => return Ok(ret),
                 Err(err) if ret_err == FsError::EntityNotFound => {
                     ret_err = err;
                 }
-                _ => { }
+                _ => {}
             }
         }
         Err(ret_err)

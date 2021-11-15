@@ -1,38 +1,41 @@
-#[allow(unused_imports)]
-use tracing::{info, debug, warn, error, trace};
-use std::sync::{Arc};
-use tokio::sync::RwLock;
-use std::sync::RwLock as StdRwLock;
 use btreemultimap::BTreeMultiMap;
+use std::sync::Arc;
+use std::sync::RwLock as StdRwLock;
+use tokio::sync::RwLock;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, trace, warn};
 
-use crate::trust::*;
-use crate::spec::*;
+use super::*;
 use crate::compact::*;
 use crate::error::*;
 use crate::index::*;
-use crate::transaction::*;
-use crate::redo::*;
-use crate::pipe::EventPipe;
-use crate::single::ChainSingleUser;
 use crate::multi::ChainMultiUser;
-use crate::time::*;
+use crate::pipe::EventPipe;
+use crate::redo::*;
 use crate::session::*;
-use super::*;
+use crate::single::ChainSingleUser;
+use crate::spec::*;
+use crate::time::*;
+use crate::transaction::*;
+use crate::trust::*;
 
-impl<'a> Chain
-{
-    pub async fn compact(self: &'a Chain) -> Result<(), CompactError>
-    {
+impl<'a> Chain {
+    pub async fn compact(self: &'a Chain) -> Result<(), CompactError> {
         Chain::compact_ext(
             Arc::clone(&self.inside_async),
             Arc::clone(&self.inside_sync),
             Arc::clone(&self.pipe),
-            Arc::clone(&self.time)
-        ).await
+            Arc::clone(&self.time),
+        )
+        .await
     }
 
-    pub(crate) async fn compact_ext(inside_async: Arc<RwLock<ChainProtectedAsync>>, inside_sync: Arc<StdRwLock<ChainProtectedSync>>, pipe: Arc<Box<dyn EventPipe>>, time: Arc<TimeKeeper>) -> Result<(), CompactError>
-    {
+    pub(crate) async fn compact_ext(
+        inside_async: Arc<RwLock<ChainProtectedAsync>>,
+        inside_sync: Arc<StdRwLock<ChainProtectedSync>>,
+        pipe: Arc<Box<dyn EventPipe>>,
+        time: Arc<TimeKeeper>,
+    ) -> Result<(), CompactError> {
         // Compacting requires an accure time
         time.wait_for_high_accuracy().await;
 
@@ -44,14 +47,18 @@ impl<'a> Chain
             // Compute the minimum cut off which is whatever is recorded in the header
             // as otherwise the repeated compaction would reload data
             let min_cut_off = guard.chain.redo.read_chain_header()?.cut_off;
-            
+
             // The maximum cut off is to prevent very recent events from being lost
             // due to a compaction which creates a hard cut off while events are still
             // being streamed
-            let max_cut_off = time.current_timestamp()?.time_since_epoch_ms - guard.sync_tolerance.as_millis() as u64;
+            let max_cut_off = time.current_timestamp()?.time_since_epoch_ms
+                - guard.sync_tolerance.as_millis() as u64;
             let max_cut_off = ChainTimestamp::from(max_cut_off);
-            info!("compacting chain: {} min {} max {}", key, min_cut_off, max_cut_off);
-            
+            info!(
+                "compacting chain: {} min {} max {}",
+                key, min_cut_off, max_cut_off
+            );
+
             // The cut-off can not be higher than the actual history
             let mut end = guard.chain.timeline.end();
             if end > ChainTimestamp::from(0u64) {
@@ -73,13 +80,16 @@ impl<'a> Chain
             let mut single = ChainSingleUser::new_ext(&inside_async, &inside_sync).await;
 
             // Build the header
-            let header = ChainHeader {
-                cut_off,
-            };
+            let header = ChainHeader { cut_off };
             let header_bytes = SerializationFormat::Json.serialize(&header)?;
-            
+
             // Now start the flip
-            let ret = single.inside_async.chain.redo.begin_flip(header_bytes).await?;
+            let ret = single
+                .inside_async
+                .chain
+                .redo
+                .begin_flip(header_bytes)
+                .await?;
             single.inside_async.chain.redo.flush().await?;
             ret
         };
@@ -89,7 +99,10 @@ impl<'a> Chain
             let guard_async = multi.inside_async.read().await;
 
             // step0 - zip up the headers with keep status flags
-            let mut headers = guard_async.chain.timeline.history
+            let mut headers = guard_async
+                .chain
+                .timeline
+                .history
                 .iter()
                 .filter_map(|a| {
                     if let Some(header) = a.1.as_header().ok() {
@@ -107,7 +120,9 @@ impl<'a> Chain
                 headers.iter().for_each(|a| debug!("=> [{}]", a.0.meta));
 
                 debug!("step0");
-                headers.iter().for_each(|a| debug!("[{}]->{}", a.1, a.0.raw.event_hash));
+                headers
+                    .iter()
+                    .for_each(|a| debug!("[{}]->{}", a.1, a.0.raw.event_hash));
             }
 
             // step1 - reset all the compactors
@@ -119,13 +134,15 @@ impl<'a> Chain
 
             // step2 - add a compactor that will add all events close to the current time within a particular
             //         tolerance as multi-consumers could be in need of these events
-            new_timeline.compactors.push(Box::new(CutOffCompactor::new(cut_off)));
-            
+            new_timeline
+                .compactors
+                .push(Box::new(CutOffCompactor::new(cut_off)));
+
             // step3 - feed all the events into the compactors so they charged up and ready to make decisions
             //         (we keep looping until the keep status stops changing which means we have reached equilibrium)
             loop {
                 let mut changed = false;
-                
+
                 // We feed the events into the compactors in reverse order
                 for (header, keep) in headers.iter_mut().rev() {
                     for compactor in new_timeline.compactors.iter_mut() {
@@ -135,7 +152,8 @@ impl<'a> Chain
 
                 // Next we update all the keep status flags and detect if the state changed at all
                 for (header, keep) in headers.iter_mut() {
-                    let test = crate::compact::compute_relevance(new_timeline.compactors.iter(), header);
+                    let test =
+                        crate::compact::compute_relevance(new_timeline.compactors.iter(), header);
                     if *keep != test {
                         *keep = test;
                         changed = true;
@@ -145,11 +163,15 @@ impl<'a> Chain
                 #[cfg(feature = "enable_super_verbose")]
                 {
                     debug!("step3");
-                    headers.iter().for_each(|a| debug!("[{}]->{}", a.1, a.0.raw.event_hash));
+                    headers
+                        .iter()
+                        .for_each(|a| debug!("[{}]->{}", a.1, a.0.raw.event_hash));
                 }
-                
+
                 // If nother changed on this run then we have reached equilibrum
-                if changed == false { break; }
+                if changed == false {
+                    break;
+                }
             }
 
             // step4 - create a fake sync that will be used by the validators
@@ -159,9 +181,17 @@ impl<'a> Chain
                     sniffers: Vec::new(),
                     services: Vec::new(),
                     indexers: Vec::new(),
-                    plugins: guard_sync.plugins.iter().map(|a| a.clone_plugin()).collect::<Vec<_>>(),
+                    plugins: guard_sync
+                        .plugins
+                        .iter()
+                        .map(|a| a.clone_plugin())
+                        .collect::<Vec<_>>(),
                     linters: Vec::new(),
-                    validators: guard_sync.validators.iter().map(|a| a.clone_validator()).collect::<Vec<_>>(),
+                    validators: guard_sync
+                        .validators
+                        .iter()
+                        .map(|a| a.clone_validator())
+                        .collect::<Vec<_>>(),
                     transformers: Vec::new(),
                     default_session: AteSessionUser::default().into(),
                     integrity: guard_sync.integrity,
@@ -182,7 +212,7 @@ impl<'a> Chain
                         if let Err(_err) = _r {
                             debug!("err-while-compacting: {}", _err);
                         }
-                    }                    
+                    }
                 } else {
                     *keep = false;
                 }
@@ -191,17 +221,24 @@ impl<'a> Chain
             #[cfg(feature = "enable_super_verbose")]
             {
                 debug!("step5");
-                headers.iter().for_each(|a| debug!("[{}]->{}", a.1, a.0.raw.event_hash));
+                headers
+                    .iter()
+                    .for_each(|a| debug!("[{}]->{}", a.1, a.0.raw.event_hash));
             }
 
             // write the events out only loading the ones that are actually needed
             let how_many_keepers = headers.iter().filter(|a| a.1).count();
-            debug!("compact: kept {} events of {} events for cut-off {}", how_many_keepers, total, cut_off);
+            debug!(
+                "compact: kept {} events of {} events for cut-off {}",
+                how_many_keepers, total, cut_off
+            );
 
             // step6 - build a list of the events that are actually relevant to a compacted log
             for header in headers.into_iter().filter(|a| a.1).map(|a| a.0) {
                 flip.event_summary.push(header.raw.clone());
-                let _lookup = flip.copy_event(&guard_async.chain.redo, header.raw.event_hash).await?;
+                let _lookup = flip
+                    .copy_event(&guard_async.chain.redo, header.raw.event_hash)
+                    .await?;
                 new_timeline.add_history(header);
             }
         }
@@ -211,18 +248,22 @@ impl<'a> Chain
 
         // finish the flips
         debug!("compact: finished the flip");
-        let new_events = single.inside_async.chain.redo.finish_flip(flip, |_l, h| {
-            new_timeline.add_history(h);
-        })
-        .await?;
+        let new_events = single
+            .inside_async
+            .chain
+            .redo
+            .finish_flip(flip, |_l, h| {
+                new_timeline.add_history(h);
+            })
+            .await?;
 
         // complete the transaction under another lock
         {
             let mut lock = single.inside_sync.write().unwrap();
-            let new_events= new_events
+            let new_events = new_events
                 .into_iter()
                 .map(|e| e.as_header())
-                .collect::<Result<Vec<_>,_>>()?;
+                .collect::<Result<Vec<_>, _>>()?;
 
             // Flip all the indexes
             let chain = &mut single.inside_async.chain;
@@ -237,7 +278,7 @@ impl<'a> Chain
                 plugin.rebuild(&new_events, Some(&conversation))?;
             }
         }
-        
+
         // Flush the log again
         single.inside_async.chain.flush().await?;
         single.inside_async.chain.invalidate_caches();

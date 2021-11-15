@@ -1,53 +1,88 @@
-#[allow(unused_imports)]
-use tracing::{info, error, debug};
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::sync::Arc;
 use std::time::Duration;
+#[allow(unused_imports)]
+use tracing::{debug, error, info};
 
 use ate::prelude::*;
 
+use crate::api::*;
 use crate::error::*;
 use crate::model::*;
-use crate::api::*;
 use crate::opt::*;
 
 use super::*;
 
-pub async fn session_with_permissions<A>(purpose: &dyn OptsPurpose<A>, token_path: &str, auth_url: &url::Url, sudo: bool)
--> Result<(A, AteSessionType), AteError>
-where A: Clone
+pub async fn session_with_permissions<A>(
+    purpose: &dyn OptsPurpose<A>,
+    token_path: &str,
+    auth_url: &url::Url,
+    sudo: bool,
+) -> Result<(A, AteSessionType), AteError>
+where
+    A: Clone,
 {
     let session: AteSessionType;
-    if let Purpose::<A>::Domain { domain_name: group_name, wallet_name: _, action: _} = purpose.purpose() {
-        session = main_session_group(None, Some(token_path.to_string()), group_name, sudo, None, Some(auth_url.clone()), "Domain name").await?.into();
+    if let Purpose::<A>::Domain {
+        domain_name: group_name,
+        wallet_name: _,
+        action: _,
+    } = purpose.purpose()
+    {
+        session = main_session_group(
+            None,
+            Some(token_path.to_string()),
+            group_name,
+            sudo,
+            None,
+            Some(auth_url.clone()),
+            "Domain name",
+        )
+        .await?
+        .into();
     } else if sudo {
-        session = main_session_sudo(None, Some(token_path.to_string()), None, Some(auth_url.clone())).await?.into();
+        session = main_session_sudo(
+            None,
+            Some(token_path.to_string()),
+            None,
+            Some(auth_url.clone()),
+        )
+        .await?
+        .into();
     } else {
-        session = main_session_user(None, Some(token_path.to_string()), Some(auth_url.clone())).await?.into();
+        session = main_session_user(None, Some(token_path.to_string()), Some(auth_url.clone()))
+            .await?
+            .into();
     }
     Ok((purpose.action(), session))
 }
 
-pub async fn get_identity<A>(purpose: &dyn OptsPurpose<A>, session: &dyn AteSession)
--> Result<String, AteError>
-where A: Clone
+pub async fn get_identity<A>(
+    purpose: &dyn OptsPurpose<A>,
+    session: &dyn AteSession,
+) -> Result<String, AteError>
+where
+    A: Clone,
 {
     let identity = match purpose.purpose() {
-        Purpose::Personal { wallet_name: _, action: _ } => {
-            session.user().identity().to_string()
-        },
-        Purpose::Domain { domain_name: group_name, wallet_name: _, action: _ } => {
-            group_name
-        }
+        Purpose::Personal {
+            wallet_name: _,
+            action: _,
+        } => session.user().identity().to_string(),
+        Purpose::Domain {
+            domain_name: group_name,
+            wallet_name: _,
+            action: _,
+        } => group_name,
     };
     debug!("identity={}", identity);
     Ok(identity)
 }
 
-pub fn get_wallet_name<A>(purpose: &dyn OptsPurpose<A>)
--> std::result::Result<String, AteError>
-where A: Clone
+pub fn get_wallet_name<A>(purpose: &dyn OptsPurpose<A>) -> std::result::Result<String, AteError>
+where
+    A: Clone,
 {
     // Validate a wallet name is supplied correctly
     let wallet_name = purpose.wallet_name().to_lowercase();
@@ -56,13 +91,19 @@ where A: Clone
         std::process::exit(1);
     }
     debug!("wallet_name={}", wallet_name);
-    
+
     Ok(wallet_name)
 }
 
-pub async fn create_wallet(dio: &Arc<DioMut>, auth: &url::Url, registry: &Arc<Registry>, identity: &String, wallet_name: &String, parent_key: &PrimaryKey, gst_country: Country)
--> std::result::Result<DaoMut<Wallet>, AteError>
-{
+pub async fn create_wallet(
+    dio: &Arc<DioMut>,
+    auth: &url::Url,
+    registry: &Arc<Registry>,
+    identity: &String,
+    wallet_name: &String,
+    parent_key: &PrimaryKey,
+    gst_country: Country,
+) -> std::result::Result<DaoMut<Wallet>, AteError> {
     // Get the sudo rights from the session (as we will use these for the wallet)
     let session = dio.session();
     let sudo_read = {
@@ -73,7 +114,11 @@ pub async fn create_wallet(dio: &Arc<DioMut>, auth: &url::Url, registry: &Arc<Re
                 std::process::exit(1);
             }
         };
-        if session.write_keys(AteSessionKeyCategory::SudoKeys).next().is_none() {
+        if session
+            .write_keys(AteSessionKeyCategory::SudoKeys)
+            .next()
+            .is_none()
+        {
             eprintln!("Login sudo rights do not have a write key.");
             std::process::exit(1);
         };
@@ -93,15 +138,18 @@ pub async fn create_wallet(dio: &Arc<DioMut>, auth: &url::Url, registry: &Arc<Re
     }
 
     // Create the new wallet
-    let mut wallet = dio.store_with_key(Wallet {
-        name: wallet_name.clone(),
-        inbox: DaoVec::default(),
-        bags: DaoMap::default(),
-        history: DaoVec::default(),
-        gst_country,
-        broker_key,
-        broker_unlock_key,
-    }, wallet_key)?;
+    let mut wallet = dio.store_with_key(
+        Wallet {
+            name: wallet_name.clone(),
+            inbox: DaoVec::default(),
+            bags: DaoMap::default(),
+            history: DaoVec::default(),
+            gst_country,
+            broker_key,
+            broker_unlock_key,
+        },
+        wallet_key,
+    )?;
 
     // Set its permissions and attach it to the parent
     wallet.auth_mut().read = ReadOption::from_key(sudo_read);
@@ -111,10 +159,13 @@ pub async fn create_wallet(dio: &Arc<DioMut>, auth: &url::Url, registry: &Arc<Re
     // Now add the history
     let wallet = {
         let mut api = crate::api::build_api_accessor(&dio, wallet, auth.clone(), registry).await;
-        if let Err(err) = api.record_activity(HistoricActivity::WalletCreated(activities::WalletCreated {
-            when: chrono::offset::Utc::now(),
-            by: api.user_identity(),
-        })).await {
+        if let Err(err) = api
+            .record_activity(HistoricActivity::WalletCreated(activities::WalletCreated {
+                when: chrono::offset::Utc::now(),
+                by: api.user_identity(),
+            }))
+            .await
+        {
             error!("Error writing activity: {}", err);
         }
         api.wallet
@@ -123,9 +174,13 @@ pub async fn create_wallet(dio: &Arc<DioMut>, auth: &url::Url, registry: &Arc<Re
     Ok(wallet)
 }
 
-pub async fn get_wallet<A>(purpose: &dyn OptsPurpose<A>, dio: &Arc<DioMut>, identity: &String)
--> std::result::Result<DaoMut<Wallet>, AteError>
-where A: Clone
+pub async fn get_wallet<A>(
+    purpose: &dyn OptsPurpose<A>,
+    dio: &Arc<DioMut>,
+    identity: &String,
+) -> std::result::Result<DaoMut<Wallet>, AteError>
+where
+    A: Clone,
 {
     // Make sure the parent exists
     let parent_key = PrimaryKey::from(identity.clone());
@@ -138,7 +193,8 @@ where A: Clone
     // Grab a reference to the wallet
     let wallet_name = get_wallet_name(purpose)?;
     let mut wallet_vec = DaoVec::<Wallet>::new_orphaned_mut(dio, parent_key, WALLET_COLLECTION_ID);
-    let wallet = wallet_vec.iter_mut()
+    let wallet = wallet_vec
+        .iter_mut()
         .await?
         .into_iter()
         .filter(|a| a.name.eq_ignore_ascii_case(wallet_name.as_str()))
@@ -147,7 +203,10 @@ where A: Clone
     let wallet = match wallet {
         Some(a) => a,
         None => {
-            eprintln!("Wallet ({}) does not exist - you must first 'create' the wallet before using it.", wallet_name);
+            eprintln!(
+                "Wallet ({}) does not exist - you must first 'create' the wallet before using it.",
+                wallet_name
+            );
             std::process::exit(1);
         }
     };
@@ -156,7 +215,8 @@ where A: Clone
 }
 
 pub(crate) struct PurposeContextPrelude<A>
-where A: Clone
+where
+    A: Clone,
 {
     pub action: A,
     #[allow(dead_code)]
@@ -171,15 +231,16 @@ where A: Clone
 }
 
 pub(crate) struct PurposeContext<A>
-where A: Clone
+where
+    A: Clone,
 {
     pub inner: PurposeContextPrelude<A>,
     pub api: TokApi,
 }
 
-impl<A> Deref
-for PurposeContext<A>
-where A: Clone
+impl<A> Deref for PurposeContext<A>
+where
+    A: Clone,
 {
     type Target = PurposeContextPrelude<A>;
 
@@ -188,9 +249,9 @@ where A: Clone
     }
 }
 
-impl<A> DerefMut
-for PurposeContext<A>
-where A: Clone
+impl<A> DerefMut for PurposeContext<A>
+where
+    A: Clone,
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
@@ -198,18 +259,25 @@ where A: Clone
 }
 
 impl<A> PurposeContextPrelude<A>
-where A: Clone
+where
+    A: Clone,
 {
-    pub async fn new(purpose: &dyn OptsPurpose<A>, token_path: &str, auth_url: &url::Url, sudo: bool) -> Result<PurposeContextPrelude<A>, CoreError>
-    {
+    pub async fn new(
+        purpose: &dyn OptsPurpose<A>,
+        token_path: &str,
+        auth_url: &url::Url,
+        sudo: bool,
+    ) -> Result<PurposeContextPrelude<A>, CoreError> {
         // Build a session with all the needed permissions
-        let (action, session) = session_with_permissions(purpose, token_path, auth_url, sudo).await?;
+        let (action, session) =
+            session_with_permissions(purpose, token_path, auth_url, sudo).await?;
 
         // Compute the identity of the requesting user or group
         let identity = get_identity(purpose, &session).await?;
 
         // Open the chain
-        let registry = ate::mesh::Registry::new(&ate_auth::helper::conf_auth()).await
+        let registry = ate::mesh::Registry::new(&ate_auth::helper::conf_auth())
+            .await
             .keep_alive(Duration::from_secs(10))
             .cement();
         let chain_key = chain_key_4hex(&identity, Some("redo"));
@@ -220,38 +288,34 @@ where A: Clone
         // Open the DIO
         let dio = chain.dio_trans(&session, TransactionScope::Full).await;
 
-        Ok(
-            PurposeContextPrelude
-            {
-                action,
-                session,
-                identity,
-                registry,
-                chain_key,
-                chain,
-                dio,
-            }
-        )
+        Ok(PurposeContextPrelude {
+            action,
+            session,
+            identity,
+            registry,
+            chain_key,
+            chain,
+            dio,
+        })
     }
 }
 
 impl<A> PurposeContext<A>
-where A: Clone
+where
+    A: Clone,
 {
-    pub async fn new(purpose: &dyn OptsPurpose<A>, token_path: &str, auth_url: &url::Url, sudo: bool) -> Result<PurposeContext<A>, CoreError>
-    {
+    pub async fn new(
+        purpose: &dyn OptsPurpose<A>,
+        token_path: &str,
+        auth_url: &url::Url,
+        sudo: bool,
+    ) -> Result<PurposeContext<A>, CoreError> {
         let inner = PurposeContextPrelude::new(purpose, token_path, auth_url, sudo).await?;
 
         // Create the API to the wallet
         let wallet = get_wallet(purpose, &inner.dio, &inner.identity).await?;
         let api = build_api_accessor(&inner.dio, wallet, auth_url.clone(), &inner.registry).await;
 
-        Ok(
-            PurposeContext
-            {
-                inner,
-                api,
-            }
-        )
+        Ok(PurposeContext { inner, api })
     }
 }

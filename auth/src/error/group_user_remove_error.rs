@@ -1,7 +1,7 @@
 use error_chain::error_chain;
 
-use ::ate::prelude::*;
 use crate::request::*;
+use ::ate::prelude::*;
 
 error_chain! {
     types {
@@ -50,24 +50,25 @@ error_chain! {
     }
 }
 
-impl From<GroupUserRemoveError>
-for AteError
-{
+impl From<GroupUserRemoveError> for AteError {
     fn from(err: GroupUserRemoveError) -> AteError {
         AteErrorKind::ServiceError(err.to_string()).into()
     }
 }
 
-impl From<GroupUserRemoveFailed>
-for GroupUserRemoveError {
+impl From<GroupUserRemoveFailed> for GroupUserRemoveError {
     fn from(err: GroupUserRemoveFailed) -> GroupUserRemoveError {
         match err {
             GroupUserRemoveFailed::GroupNotFound => GroupUserRemoveErrorKind::GroupNotFound.into(),
             GroupUserRemoveFailed::NoAccess => GroupUserRemoveErrorKind::NoAccess.into(),
             GroupUserRemoveFailed::NoMasterKey => GroupUserRemoveErrorKind::NoMasterKey.into(),
-            GroupUserRemoveFailed::NothingToRemove => GroupUserRemoveErrorKind::NothingToRemove.into(),
+            GroupUserRemoveFailed::NothingToRemove => {
+                GroupUserRemoveErrorKind::NothingToRemove.into()
+            }
             GroupUserRemoveFailed::RoleNotFound => GroupUserRemoveErrorKind::RoleNotFound.into(),
-            GroupUserRemoveFailed::InternalError(code) => GroupUserRemoveErrorKind::InternalError(code).into(),
+            GroupUserRemoveFailed::InternalError(code) => {
+                GroupUserRemoveErrorKind::InternalError(code).into()
+            }
         }
     }
 }

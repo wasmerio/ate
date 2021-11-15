@@ -1,27 +1,32 @@
-#[allow(unused_imports)]
-use tracing::{error, info, warn, debug};
-use error_chain::bail;
 use bytes::Bytes;
+use error_chain::bail;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, warn};
 
 use crate::error::*;
 use crate::meta::*;
 use crate::session::*;
-use crate::transform::*;
 use crate::transaction::*;
+use crate::transform::*;
 
 use super::*;
 
-impl EventDataTransformer
-for TreeAuthorityPlugin
-{
+impl EventDataTransformer for TreeAuthorityPlugin {
     fn clone_transformer(&self) -> Box<dyn EventDataTransformer> {
         Box::new(self.clone())
     }
 
     #[allow(unused_variables)]
-    fn data_as_underlay(&self, meta: &mut Metadata, with: Bytes, session: &'_ dyn AteSession, trans_meta: &TransactionMetadata) -> Result<Bytes, TransformError>
-    {
-        let mut with = self.signature_plugin.data_as_underlay(meta, with, session, trans_meta)?;
+    fn data_as_underlay(
+        &self,
+        meta: &mut Metadata,
+        with: Bytes,
+        session: &'_ dyn AteSession,
+        trans_meta: &TransactionMetadata,
+    ) -> Result<Bytes, TransformError> {
+        let mut with = self
+            .signature_plugin
+            .data_as_underlay(meta, with, session, trans_meta)?;
 
         let cache = match meta.get_confidentiality() {
             Some(a) => a._cache.as_ref(),
@@ -47,8 +52,12 @@ for TreeAuthorityPlugin
     }
 
     #[allow(unused_variables)]
-    fn data_as_overlay(&self, meta: &Metadata, with: Bytes, session: &'_ dyn AteSession) -> Result<Bytes, TransformError>
-    {
+    fn data_as_overlay(
+        &self,
+        meta: &Metadata,
+        with: Bytes,
+        session: &'_ dyn AteSession,
+    ) -> Result<Bytes, TransformError> {
         let mut with = self.signature_plugin.data_as_overlay(meta, with, session)?;
 
         let iv = meta.get_iv().ok();
@@ -57,16 +66,20 @@ for TreeAuthorityPlugin
                 if let Some(key) = self.get_encrypt_key(meta, confidentiality, iv, session)? {
                     let iv = match iv {
                         Some(a) => a,
-                        None => { bail!(TransformErrorKind::CryptoError(CryptoErrorKind::NoIvPresent)); }
+                        None => {
+                            bail!(TransformErrorKind::CryptoError(
+                                CryptoErrorKind::NoIvPresent
+                            ));
+                        }
                     };
                     let decrypted = key.decrypt(&iv, &with[..]);
                     with = Bytes::from(decrypted);
                 }
-            },
-            None if iv.is_some() => { bail!(TransformErrorKind::UnspecifiedReadability); }
-            None => {
-
             }
+            None if iv.is_some() => {
+                bail!(TransformErrorKind::UnspecifiedReadability);
+            }
+            None => {}
         };
 
         Ok(with)

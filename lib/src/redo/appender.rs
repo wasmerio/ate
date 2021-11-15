@@ -1,24 +1,23 @@
-#[cfg(feature = "enable_buffered")]
-use tokio::io::BufStream;
+use async_trait::async_trait;
+use std::io::SeekFrom;
+use std::mem::size_of;
 use tokio::fs::File;
 use tokio::fs::OpenOptions;
-use tokio::io::{AsyncReadExt, AsyncWriteExt, AsyncSeekExt};
-use std::mem::size_of;
-use async_trait::async_trait;
+#[cfg(feature = "enable_buffered")]
+use tokio::io::BufStream;
 use tokio::io::Result;
-use std::io::SeekFrom;
+use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 
-use super::LogLookup;
 use super::archive::*;
 use super::magic::*;
+use super::LogLookup;
 
-use crate::spec::LogApi;
-use crate::event::*;
 use crate::error::*;
+use crate::event::*;
+use crate::spec::LogApi;
 
 #[derive(Debug)]
-pub(crate) struct LogAppender
-{
+pub(crate) struct LogAppender {
     path: String,
     pub(super) file: File,
     #[cfg(feature = "enable_buffered")]
@@ -28,18 +27,42 @@ pub(crate) struct LogAppender
     pub(crate) index: u32,
 }
 
-impl LogAppender
-{
-    pub async fn new(path_log: String, truncate: bool, read_only: bool, index: u32, header_bytes: &[u8]) -> Result<(LogAppender, LogArchive)>
-    {
+impl LogAppender {
+    pub async fn new(
+        path_log: String,
+        truncate: bool,
+        read_only: bool,
+        index: u32,
+        header_bytes: &[u8],
+    ) -> Result<(LogAppender, LogArchive)> {
         // Compute the log file name
         let log_back_path = format!("{}.{}", path_log.clone(), index);
         let log_back = match read_only {
-            true => OpenOptions::new().read(true).open(log_back_path.clone()).await?,
-            false => match truncate {
-                true => OpenOptions::new().read(true).write(true).truncate(true).create(true).open(log_back_path.clone()).await?,
-                _ => OpenOptions::new().read(true).write(true).create(true).open(log_back_path.clone()).await?,
+            true => {
+                OpenOptions::new()
+                    .read(true)
+                    .open(log_back_path.clone())
+                    .await?
             }
+            false => match truncate {
+                true => {
+                    OpenOptions::new()
+                        .read(true)
+                        .write(true)
+                        .truncate(true)
+                        .create(true)
+                        .open(log_back_path.clone())
+                        .await?
+                }
+                _ => {
+                    OpenOptions::new()
+                        .read(true)
+                        .write(true)
+                        .create(true)
+                        .open(log_back_path.clone())
+                        .await?
+                }
+            },
         };
 
         // Build the appender
@@ -52,67 +75,66 @@ impl LogAppender
             index,
             header: Vec::new(),
         };
-        
+
         // If it does not have a magic then add one - otherwise read it and check the value
         appender.header = RedoHeader::load(&mut appender, header_bytes).await?;
         appender.flush().await?;
 
         // Seek to the end of the appender
         appender.seek_to_end().await?;
-        
+
         // Create the archive
         let archive = LogArchive::new(path_log, index).await?;
 
         // Return the result
-        Ok(
-            (appender, archive)
-        )
+        Ok((appender, archive))
     }
 
-    pub(super) async fn clone(&mut self) -> Result<LogAppender>
-    {
+    pub(super) async fn clone(&mut self) -> Result<LogAppender> {
         // We have to flush the stream in-case there is outstanding IO that is not yet written to the backing disk
         #[cfg(feature = "enable_buffered")]
         self.stream.flush().await?;
 
         // Copy the file handles
-        Ok(
-            LogAppender {
-                path: self.path.clone(),
-                file: self.file.try_clone().await?,
-                #[cfg(feature = "enable_buffered")]
-                stream: BufStream::new(self.file.try_clone().await?),
-                offset: self.offset,
-                index: self.index,
-                header: self.header.clone(),
-            }
-        )
+        Ok(LogAppender {
+            path: self.path.clone(),
+            file: self.file.try_clone().await?,
+            #[cfg(feature = "enable_buffered")]
+            stream: BufStream::new(self.file.try_clone().await?),
+            offset: self.offset,
+            index: self.index,
+            header: self.header.clone(),
+        })
     }
 
-    pub(super) async fn write(&mut self, evt: &EventData, header: &EventHeaderRaw) -> std::result::Result<LogLookup, SerializationError>
-    {
-        let log_header = crate::LOG_VERSION.write(
-            self, 
-            &header.meta_bytes[..], 
-            match &evt.data_bytes {
-                Some(d) => Some(&d[..]),
-                None => None
-            },
-            evt.format
-        ).await?;
+    pub(super) async fn write(
+        &mut self,
+        evt: &EventData,
+        header: &EventHeaderRaw,
+    ) -> std::result::Result<LogLookup, SerializationError> {
+        let log_header = crate::LOG_VERSION
+            .write(
+                self,
+                &header.meta_bytes[..],
+                match &evt.data_bytes {
+                    Some(d) => Some(&d[..]),
+                    None => None,
+                },
+                evt.format,
+            )
+            .await?;
 
         // Record the lookup map
         let lookup = LogLookup {
             index: self.index,
-            offset: log_header.offset
+            offset: log_header.offset,
         };
 
         // Return the log pointer
         Ok(lookup)
     }
 
-    pub(crate) fn path(&self) -> &String
-    {
+    pub(crate) fn path(&self) -> &String {
         &self.path
     }
 
@@ -120,15 +142,13 @@ impl LogAppender
         &self.header[..]
     }
 
-    pub(super) async fn flush(&mut self) -> Result<()>
-    {
+    pub(super) async fn flush(&mut self) -> Result<()> {
         #[cfg(feature = "enable_buffered")]
         self.stream.flush().await?;
         Ok(())
     }
 
-    pub(super) async fn seek_to_end(&mut self) -> Result<()>
-    {
+    pub(super) async fn seek_to_end(&mut self) -> Result<()> {
         #[cfg(feature = "enable_buffered")]
         self.stream.flush().await?;
         self.offset = self.file.seek(SeekFrom::End(0)).await?;
@@ -141,9 +161,7 @@ impl LogAppender
 }
 
 #[async_trait]
-impl LogApi
-for LogAppender
-{
+impl LogApi for LogAppender {
     fn offset(&self) -> u64 {
         self.offset
     }
@@ -163,7 +181,7 @@ for LogAppender
         }
         Ok(())
     }
-    
+
     async fn read_u8(&mut self) -> Result<u8> {
         #[cfg(feature = "enable_buffered")]
         let ret = self.stream.read_u8().await?;
@@ -254,8 +272,7 @@ for LogAppender
         Ok(())
     }
 
-    async fn sync(&mut self) -> Result<()>
-    {
+    async fn sync(&mut self) -> Result<()> {
         self.flush().await?;
         self.file.sync_all().await?;
         Ok(())
@@ -263,9 +280,7 @@ for LogAppender
 }
 
 #[cfg(feature = "enable_buffered")]
-impl Drop
-for LogAppender
-{
+impl Drop for LogAppender {
     fn drop(&mut self) {
         let exec = async_executor::LocalExecutor::default();
         let _ = futures::executor::block_on(exec.run(self.stream.shutdown()));

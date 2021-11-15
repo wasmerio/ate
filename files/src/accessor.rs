@@ -1,34 +1,35 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use error_chain::bail;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
-use std::sync::Arc;
-use parking_lot::Mutex;
 use bytes::Bytes;
+use parking_lot::Mutex;
+use std::sync::Arc;
 
-use ::ate::{crypto::DerivedEncryptKey, prelude::TransactionScope};
-use ::ate::dio::Dio;
-use ::ate::dio::Dao;
-use ::ate::dio::DaoObj;
+use crate::fixed::FixedFile;
 use ::ate::chain::*;
 use ::ate::crypto::*;
+use ::ate::dio::Dao;
+use ::ate::dio::DaoObj;
+use ::ate::dio::Dio;
 use ::ate::header::PrimaryKey;
-use ::ate::prelude::*;
 use ::ate::prelude::AteRolePurpose;
 use ::ate::prelude::ReadOption;
-use crate::fixed::FixedFile;
+use ::ate::prelude::*;
+use ::ate::{crypto::DerivedEncryptKey, prelude::TransactionScope};
 
-use super::model::*;
 use super::api::*;
-use super::handle::*;
-use super::error::*;
-use super::prelude::*;
 use super::codes::*;
+use super::error::*;
+use super::handle::*;
+use super::model::*;
+use super::prelude::*;
 
 use fxhash::FxHashMap;
 
 pub struct FileAccessor
-where Self: Send + Sync
+where
+    Self: Send + Sync,
 {
     pub chain: Arc<Chain>,
     pub dio: Arc<Dio>,
@@ -46,15 +47,12 @@ where Self: Send + Sync
     pub impersonate_uid: bool,
 }
 
-pub struct RequestContext
-{
+pub struct RequestContext {
     pub uid: u32,
     pub gid: u32,
 }
 
-impl Default
-for RequestContext
-{
+impl Default for RequestContext {
     fn default() -> RequestContext {
         RequestContext {
             uid: 0u32,
@@ -63,9 +61,16 @@ for RequestContext
     }
 }
 
-impl FileAccessor
-{
-    pub async fn new(chain: Arc<Chain>, group: Option<String>, session: AteSessionType, scope_io: TransactionScope, scope_meta: TransactionScope, no_auth: bool, impersonate_uid: bool) -> FileAccessor {
+impl FileAccessor {
+    pub async fn new(
+        chain: Arc<Chain>,
+        group: Option<String>,
+        session: AteSessionType,
+        scope_io: TransactionScope,
+        scope_meta: TransactionScope,
+        no_auth: bool,
+        impersonate_uid: bool,
+    ) -> FileAccessor {
         let is_www = chain.key().to_string().ends_with("/www");
         let is_edge = chain.key().to_string().ends_with("/edge");
         let dio = chain.dio(&session).await;
@@ -88,34 +93,28 @@ impl FileAccessor
         }
     }
 
-    pub async fn init(&self, req: &RequestContext) -> Result<()>
-    {
+    pub async fn init(&self, req: &RequestContext) -> Result<()> {
         let dio = self.dio_mut_meta().await;
-        if let Err(LoadError(LoadErrorKind::NotFound(_), _)) = self.dio.load::<Inode>(&PrimaryKey::from(1)).await {
+        if let Err(LoadError(LoadErrorKind::NotFound(_), _)) =
+            self.dio.load::<Inode>(&PrimaryKey::from(1)).await
+        {
             info!("creating-root-node");
-            
+
             let mode = 0o770;
             let uid = self.translate_uid(req.uid, req);
             let gid = self.translate_gid(req.gid, req);
-            let root = Inode::new(
-                "/".to_string(),
-                mode,
-                uid,
-                gid,
-                FileKind::Directory
-            );
-            match dio.store_with_key(root, PrimaryKey::from(1))
-            {
+            let root = Inode::new("/".to_string(), mode, uid, gid, FileKind::Directory);
+            match dio.store_with_key(root, PrimaryKey::from(1)) {
                 Ok(mut root) => {
                     self.update_auth(mode, uid, gid, root.auth_mut())?;
-                },
+                }
                 Err(err) => {
                     error!("{}", err);
                 }
-            }     
+            }
         };
         debug!("init");
-        
+
         // All good
         self.tick().await?;
         self.commit().await?;
@@ -134,7 +133,8 @@ impl FileAccessor
         } else {
             AteRolePurpose::Observer
         };
-        self.session.role(&purpose)
+        self.session
+            .role(&purpose)
             .iter()
             .filter(|g| g.gid() == Some(gid))
             .flat_map(|r| r.read_keys())
@@ -149,7 +149,8 @@ impl FileAccessor
         } else {
             AteRolePurpose::Contributor
         };
-        self.session.role(&purpose)
+        self.session
+            .role(&purpose)
             .iter()
             .filter(|g| g.gid() == Some(gid))
             .flat_map(|r| r.write_keys())
@@ -203,8 +204,12 @@ impl FileAccessor
         Ok(dao)
     }
 
-    pub async fn create_open_handle(&self, inode: u64, req: &RequestContext, flags: i32) -> Result<OpenHandle>
-    {
+    pub async fn create_open_handle(
+        &self,
+        inode: u64,
+        req: &RequestContext,
+        flags: i32,
+    ) -> Result<OpenHandle> {
         let mut writable = false;
         if flags & O_TRUNC != 0 || flags & O_RDWR != 0 || flags & O_WRONLY != 0 {
             self.access_internal(&req, inode, 0o2).await?;
@@ -224,7 +229,7 @@ impl FileAccessor
         let gid = data.dentry.gid;
 
         let mut dirty = false;
-        
+
         let mut children = Vec::new();
         if data.kind == FileKind::Directory {
             let fixed = FixedFile::new(data.key().as_u64(), ".".to_string(), FileKind::Directory)
@@ -246,25 +251,37 @@ impl FileAccessor
                     let mut data = self.load_mut_io(inode).await?;
                     let mut data = data.as_mut();
                     for child in data.children.iter_mut_ext(true, true).await? {
-                        let child_spec = Inode::as_file_spec_mut(child.key().as_u64(), child.when_created(), child.when_updated(), child).await;
+                        let child_spec = Inode::as_file_spec_mut(
+                            child.key().as_u64(),
+                            child.when_created(),
+                            child.when_updated(),
+                            child,
+                        )
+                        .await;
                         children.push(child_spec);
                     }
                 }
                 false => {
                     for child in data.children.iter_ext(true, true).await? {
-                        let child_spec = Inode::as_file_spec(child.key().as_u64(), child.when_created(), child.when_updated(), child).await;
+                        let child_spec = Inode::as_file_spec(
+                            child.key().as_u64(),
+                            child.when_created(),
+                            child.when_updated(),
+                            child,
+                        )
+                        .await;
                         children.push(child_spec);
                     }
                 }
             }
         }
-        
+
         let spec = match writable {
             true => {
                 let data = self.load_mut_io(inode).await?;
                 Inode::as_file_spec_mut(data.key().as_u64(), created, updated, data).await
             }
-            false => Inode::as_file_spec(data.key().as_u64(), created, updated, data).await
+            false => Inode::as_file_spec(data.key().as_u64(), created, updated, data).await,
         };
         if flags & O_TRUNC != 0 {
             spec.fallocate(0).await?;
@@ -288,11 +305,9 @@ impl FileAccessor
                     let uid = self.reverse_uid(child.uid(), req);
                     let gid = self.reverse_gid(child.gid(), req);
                     (uid, gid)
-                },
-                false => {
-                    (child.uid(), child.gid())
                 }
-            };            
+                false => (child.uid(), child.gid()),
+            };
             open.add_child(&child, uid, gid);
         }
 
@@ -300,17 +315,14 @@ impl FileAccessor
     }
 }
 
-impl FileAccessor
-{
-    pub async fn dio_mut_io(&self) -> Arc<DioMut>
-    {
+impl FileAccessor {
+    pub async fn dio_mut_io(&self) -> Arc<DioMut> {
         let ret = self.dio.trans(self.scope_io).await;
         ret.auto_cancel();
         ret
     }
 
-    pub async fn dio_mut_meta(&self) -> Arc<DioMut>
-    {
+    pub async fn dio_mut_meta(&self) -> Arc<DioMut> {
         let ret = self.dio.trans(self.scope_meta).await;
         ret.auto_cancel();
         ret
@@ -323,7 +335,6 @@ impl FileAccessor
         name: &str,
         mode: u32,
     ) -> Result<DaoMut<Inode>> {
-        
         let key = PrimaryKey::from(parent);
         let dio = self.dio_mut_meta().await;
         let mut data = dio.load::<Inode>(&key).await?;
@@ -332,21 +343,21 @@ impl FileAccessor
             trace!("create parent={} not-a-directory", parent);
             bail!(FileSystemErrorKind::NotDirectory);
         }
-        
-        if let Some(_) = data.children.iter().await?.filter(|c| *c.dentry.name == *name).next() {
+
+        if let Some(_) = data
+            .children
+            .iter()
+            .await?
+            .filter(|c| *c.dentry.name == *name)
+            .next()
+        {
             trace!("create parent={} name={}: already-exists", parent, name);
             bail!(FileSystemErrorKind::DoesNotExist);
         }
 
         let uid = self.translate_uid(req.uid, req);
         let gid = self.translate_gid(req.gid, req);
-        let child = Inode::new(
-            name.to_string(),
-            mode, 
-            uid,
-            gid,
-            FileKind::RegularFile,
-        );
+        let child = Inode::new(name.to_string(), mode, uid, gid, FileKind::RegularFile);
 
         let mut child = data.as_mut().children.push(child)?;
         self.update_auth(mode, uid, gid, child.auth_mut())?;
@@ -389,7 +400,13 @@ impl FileAccessor
         Ok(())
     }
 
-    pub fn update_auth(&self, mode: u32, uid: u32, gid: u32, mut auth: DaoAuthGuard<'_>) -> Result<()> {
+    pub fn update_auth(
+        &self,
+        mode: u32,
+        uid: u32,
+        gid: u32,
+        mut auth: DaoAuthGuard<'_>,
+    ) -> Result<()> {
         let inner_key = {
             match &auth.read {
                 ReadOption::Inherit => None,
@@ -401,18 +418,22 @@ impl FileAccessor
                             None => match self.get_user_read_key(uid) {
                                 Some(a) => a.size(),
                                 None => KeySize::Bit192,
-                            }
+                            },
                         };
                         Some(EncryptKey::generate(keysize))
-                    },
+                    }
                 },
                 ReadOption::Specific(hash, derived) => {
-                    let key = match self.session.read_keys(AteSessionKeyCategory::AllKeys)
+                    let key = match self
+                        .session
+                        .read_keys(AteSessionKeyCategory::AllKeys)
                         .filter(|k| k.hash() == *hash)
                         .next()
                     {
                         Some(a) => a.clone(),
-                        None => { bail!(FileSystemErrorKind::NoAccess); }
+                        None => {
+                            bail!(FileSystemErrorKind::NoAccess);
+                        }
                     };
                     Some(derived.transmute(&key)?)
                 }
@@ -432,14 +453,23 @@ impl FileAccessor
             if let Some(new_key) = new_key {
                 let inner_key = match inner_key {
                     Some(a) => a.clone(),
-                    None => EncryptKey::generate(new_key.size())
+                    None => EncryptKey::generate(new_key.size()),
                 };
-                auth.read = ReadOption::Specific(new_key.hash(), DerivedEncryptKey::reverse(&new_key, &inner_key));
+                auth.read = ReadOption::Specific(
+                    new_key.hash(),
+                    DerivedEncryptKey::reverse(&new_key, &inner_key),
+                );
             } else if self.no_auth == false {
                 if mode & 0o040 != 0 {
-                    error!("Session does not have the required group ({}) read key embedded within it", gid);
+                    error!(
+                        "Session does not have the required group ({}) read key embedded within it",
+                        gid
+                    );
                 } else {
-                    error!("Session does not have the required user ({}) read key embedded within it", uid);
+                    error!(
+                        "Session does not have the required user ({}) read key embedded within it",
+                        uid
+                    );
                 }
                 debug!("...we have...{}", self.session);
                 bail!(FileSystemErrorKind::NoAccess);
@@ -464,7 +494,10 @@ impl FileAccessor
                 if mode & 0o020 != 0 {
                     error!("Session does not have the required group ({}) write key embedded within it", gid);
                 } else {
-                    error!("Session does not have the required user ({}) write key embedded within it", uid);
+                    error!(
+                        "Session does not have the required user ({}) write key embedded within it",
+                        uid
+                    );
                 }
                 debug!("...we have...{}", self.session);
                 bail!(FileSystemErrorKind::NoAccess);
@@ -507,10 +540,9 @@ impl FileAccessor
     pub async fn access_internal(&self, req: &RequestContext, inode: u64, mask: u32) -> Result<()> {
         self.tick().await?;
         trace!("access inode={} mask={:#02x}", inode, mask);
-        
+
         let dao = self.load(inode).await?;
-        if (dao.dentry.mode & mask) != 0
-        {
+        if (dao.dentry.mode & mask) != 0 {
             trace!("access mode={:#02x} - ok", dao.dentry.mode);
             return Ok(());
         }
@@ -519,8 +551,7 @@ impl FileAccessor
         if uid == dao.dentry.uid {
             trace!("access has_user");
             let mask_shift = mask << 6;
-            if (dao.dentry.mode & mask_shift) != 0
-            {
+            if (dao.dentry.mode & mask_shift) != 0 {
                 trace!("access mode={:#02x} - ok", dao.dentry.mode);
                 return Ok(());
             }
@@ -530,8 +561,7 @@ impl FileAccessor
         if gid == dao.dentry.gid && self.session.gid() == Some(gid) {
             trace!("access has_group");
             let mask_shift = mask << 3;
-            if (dao.dentry.mode & mask_shift) != 0
-            {
+            if (dao.dentry.mode & mask_shift) != 0 {
                 trace!("access mode={:#02x} - ok", dao.dentry.mode);
                 return Ok(());
             }
@@ -545,7 +575,7 @@ impl FileAccessor
         trace!("access mode={:#02x} - EACCES", dao.dentry.mode);
         bail!(FileSystemErrorKind::NoAccess);
     }
-    
+
     pub async fn getattr(
         &self,
         req: &RequestContext,
@@ -559,7 +589,7 @@ impl FileAccessor
         if let Some(fh) = fh {
             let lock = self.open_handles.lock();
             if let Some(open) = lock.get(&fh) {
-                return Ok(open.attr.clone())
+                return Ok(open.attr.clone());
             }
         }
 
@@ -567,7 +597,7 @@ impl FileAccessor
         let spec = Inode::as_file_spec(inode, dao.when_created(), dao.when_updated(), dao).await;
         Ok(match self.impersonate_uid {
             true => self.spec_as_attr_reverse(&spec, &req),
-            false => FileAttr::new(&spec, spec.uid(), spec.gid())
+            false => FileAttr::new(&spec, spec.uid(), spec.gid()),
         })
     }
 
@@ -584,7 +614,7 @@ impl FileAccessor
         let key = PrimaryKey::from(inode);
         let dio = self.dio_mut_meta().await;
         let mut dao = dio.load::<Inode>(&key).await?;
-        
+
         let mut changed = false;
         if let Some(uid) = set_attr.uid {
             let new_uid = self.translate_uid(uid, req);
@@ -612,15 +642,26 @@ impl FileAccessor
         }
 
         if changed == true {
-            self.update_auth(dao.dentry.mode, dao.dentry.uid, dao.dentry.gid, dao.auth_mut())?;
+            self.update_auth(
+                dao.dentry.mode,
+                dao.dentry.uid,
+                dao.dentry.gid,
+                dao.auth_mut(),
+            )?;
             dio.commit().await?;
         }
 
-        let spec = Inode::as_file_spec(inode, dao.when_created(), dao.when_updated(), dao.into()).await;
+        let spec =
+            Inode::as_file_spec(inode, dao.when_created(), dao.when_updated(), dao.into()).await;
         Ok(self.spec_as_attr_reverse(&spec, req))
     }
 
-    pub async fn opendir(&self, req: &RequestContext, inode: u64, flags: u32) -> Result<Arc<OpenHandle>> {
+    pub async fn opendir(
+        &self,
+        req: &RequestContext,
+        inode: u64,
+        flags: u32,
+    ) -> Result<Arc<OpenHandle>> {
         self.tick().await?;
         debug!("atefs::opendir inode={}", inode);
 
@@ -637,7 +678,13 @@ impl FileAccessor
         Ok(handle)
     }
 
-    pub async fn releasedir(&self, _req: &RequestContext, inode: u64, fh: u64, _flags: u32) -> Result<()> {
+    pub async fn releasedir(
+        &self,
+        _req: &RequestContext,
+        inode: u64,
+        fh: u64,
+        _flags: u32,
+    ) -> Result<()> {
         self.tick().await?;
         debug!("atefs::releasedir inode={}", inode);
 
@@ -648,7 +695,12 @@ impl FileAccessor
         Ok(())
     }
 
-    pub async fn lookup(&self, req: &RequestContext, parent: u64, name: &str) -> Result<Option<FileAttr>> {
+    pub async fn lookup(
+        &self,
+        req: &RequestContext,
+        parent: u64,
+        name: &str,
+    ) -> Result<Option<FileAttr>> {
         self.tick().await?;
         let open = self.create_open_handle(parent, req, O_RDONLY).await?;
 
@@ -656,8 +708,13 @@ impl FileAccessor
             debug!("atefs::lookup parent={} not-a-directory", parent);
             bail!(FileSystemErrorKind::NotDirectory);
         }
-        
-        if let Some(entry) = open.children.iter().filter(|c| c.name.as_str() == name).next() {
+
+        if let Some(entry) = open
+            .children
+            .iter()
+            .filter(|c| c.name.as_str() == name)
+            .next()
+        {
             debug!("atefs::lookup parent={} name={}: found", parent, name);
             return Ok(Some(entry.attr.clone()));
         }
@@ -666,20 +723,22 @@ impl FileAccessor
         Ok(None)
     }
 
-    pub async fn root(&self, req: &RequestContext)-> Result<Option<FileAttr>> {
+    pub async fn root(&self, req: &RequestContext) -> Result<Option<FileAttr>> {
         match self.getattr(req, 1u64, None, 0u32).await {
             Ok(a) => Ok(Some(a)),
-            Err(FileSystemError(FileSystemErrorKind::DoesNotExist, _)) |
-            Err(FileSystemError(FileSystemErrorKind::NoAccess, _)) |
-            Err(FileSystemError(FileSystemErrorKind::NoEntry, _)) => Ok(None),
-            Err(err) => Err(err)
+            Err(FileSystemError(FileSystemErrorKind::DoesNotExist, _))
+            | Err(FileSystemError(FileSystemErrorKind::NoAccess, _))
+            | Err(FileSystemError(FileSystemErrorKind::NoEntry, _)) => Ok(None),
+            Err(err) => Err(err),
         }
     }
 
     pub async fn search(&self, req: &RequestContext, path: &str) -> Result<Option<FileAttr>> {
         let mut ret = match self.root(req).await? {
             Some(a) => a,
-            None => { return Ok(None); }
+            None => {
+                return Ok(None);
+            }
         };
         for comp in path.split("/") {
             if comp.len() <= 0 {
@@ -697,7 +756,11 @@ impl FileAccessor
 
     pub async fn touch(&self, req: &RequestContext, path: &str) -> Result<FileAttr> {
         let mut ret = self.getattr(req, 1u64, None, 0u32).await?;
-        let comps = path.split("/").map(|a| a.to_string()).filter(|a| a.len() > 0).collect::<Vec<_>>();
+        let comps = path
+            .split("/")
+            .map(|a| a.to_string())
+            .filter(|a| a.len() > 0)
+            .collect::<Vec<_>>();
         let comps_len = comps.len();
 
         let mut n = 0usize;
@@ -708,7 +771,7 @@ impl FileAccessor
             ret = match self.lookup(req, parent, comp.as_str()).await? {
                 Some(a) => a,
                 None if n < comps_len => self.mkdir(req, parent, comp.as_str(), 0o770).await?,
-                None => self.mknod(req, parent, comp.as_str(), 0o660).await?
+                None => self.mknod(req, parent, comp.as_str(), 0o660).await?,
             };
         }
 
@@ -720,14 +783,26 @@ impl FileAccessor
         let _ = self.tick().await;
     }
 
-    pub async fn fsync(&self, _req: &RequestContext, inode: u64, _fh: u64, _datasync: bool) -> Result<()> {
+    pub async fn fsync(
+        &self,
+        _req: &RequestContext,
+        inode: u64,
+        _fh: u64,
+        _datasync: bool,
+    ) -> Result<()> {
         self.tick().await?;
         debug!("atefs::fsync inode={}", inode);
 
         Ok(())
     }
 
-    pub async fn flush(&self, _req: &RequestContext, inode: u64, fh: u64, _lock_owner: u64) -> Result<()> {
+    pub async fn flush(
+        &self,
+        _req: &RequestContext,
+        inode: u64,
+        fh: u64,
+        _lock_owner: u64,
+    ) -> Result<()> {
         self.tick().await?;
         self.commit().await?;
         debug!("atefs::flush inode={}", inode);
@@ -747,7 +822,13 @@ impl FileAccessor
         Ok(())
     }
 
-    pub async fn sync(&self, req: &RequestContext, inode: u64, fh: u64, lock_owner: u64) -> Result<()> {
+    pub async fn sync(
+        &self,
+        req: &RequestContext,
+        inode: u64,
+        fh: u64,
+        lock_owner: u64,
+    ) -> Result<()> {
         self.flush(req, inode, fh, lock_owner).await?;
         self.chain.sync().await?;
         Ok(())
@@ -769,26 +850,26 @@ impl FileAccessor
 
         let dio = self.dio.trans(self.scope_meta).await;
         let mut data = dio.load::<Inode>(&PrimaryKey::from(parent)).await?;
-        
+
         if data.kind != FileKind::Directory {
             bail!(FileSystemErrorKind::NotDirectory);
         }
 
         let uid = self.translate_uid(req.uid, req);
         let gid = self.translate_gid(req.gid, req);
-        let child = Inode::new(
-            name.to_string(),
-            mode, 
-            uid,
-            gid,
-            FileKind::Directory,
-        );
+        let child = Inode::new(name.to_string(), mode, uid, gid, FileKind::Directory);
 
         let mut child = data.as_mut().children.push(child)?;
         self.update_auth(mode, uid, gid, child.auth_mut())?;
         dio.commit().await?;
 
-        let child_spec = Inode::as_file_spec(child.key().as_u64(), child.when_created(), child.when_updated(), child.into()).await;
+        let child_spec = Inode::as_file_spec(
+            child.key().as_u64(),
+            child.when_created(),
+            child.when_updated(),
+            child.into(),
+        )
+        .await;
         Ok(self.spec_as_attr_reverse(&child_spec, req))
     }
 
@@ -802,14 +883,19 @@ impl FileAccessor
             debug!("atefs::rmdir parent={} not-a-directory", parent);
             bail!(FileSystemErrorKind::NotDirectory);
         }
-        
-        if let Some(entry) = open.children.iter().filter(|c| c.name.as_str() == name).next() {
+
+        if let Some(entry) = open
+            .children
+            .iter()
+            .filter(|c| c.name.as_str() == name)
+            .next()
+        {
             debug!("atefs::rmdir parent={} name={}: found", parent, name);
 
             let dio = self.dio.trans(self.scope_meta).await;
             dio.delete(&PrimaryKey::from(entry.inode)).await?;
             dio.commit().await?;
-            return Ok(())
+            return Ok(());
         }
 
         debug!("atefs::rmdir parent={} name={}: not found", parent, name);
@@ -836,7 +922,13 @@ impl FileAccessor
         let dao = self.mknod_internal(&req, parent, name, mode).await?;
         dao.trans().commit().await?;
 
-        let spec = Inode::as_file_spec(dao.key().as_u64(), dao.when_created(), dao.when_updated(), dao.into()).await;
+        let spec = Inode::as_file_spec(
+            dao.key().as_u64(),
+            dao.when_created(),
+            dao.when_updated(),
+            dao.into(),
+        )
+        .await;
         Ok(self.spec_as_attr_reverse(&spec, &req))
     }
 
@@ -853,7 +945,13 @@ impl FileAccessor
         let data = self.mknod_internal(req, parent, name, mode).await?;
         data.trans().commit().await?;
 
-        let spec = Inode::as_file_spec_mut(data.key().as_u64(), data.when_created(), data.when_updated(), data.into()).await;
+        let spec = Inode::as_file_spec_mut(
+            data.key().as_u64(),
+            data.when_created(),
+            data.when_updated(),
+            data.into(),
+        )
+        .await;
         let attr = self.spec_as_attr_reverse(&spec, req);
         let open = OpenHandle {
             inode: spec.ino(),
@@ -878,18 +976,26 @@ impl FileAccessor
         debug!("atefs::unlink parent={} name={}", parent, name);
 
         let parent_key = PrimaryKey::from(parent);
-        
+
         let data_parent = self.dio.load::<Inode>(&parent_key).await?;
 
         if data_parent.kind != FileKind::Directory {
             debug!("atefs::unlink parent={} not-a-directory", parent);
             bail!(FileSystemErrorKind::NotDirectory);
         }
-        
-        if let Some(data) = data_parent.children.iter().await?.filter(|c| c.dentry.name.as_str() == name).next()
+
+        if let Some(data) = data_parent
+            .children
+            .iter()
+            .await?
+            .filter(|c| c.dentry.name.as_str() == name)
+            .next()
         {
             if data.kind == FileKind::Directory {
-                debug!("atefs::unlink parent={} name={} is-a-directory", parent, name);
+                debug!(
+                    "atefs::unlink parent={} name={} is-a-directory",
+                    parent, name
+                );
                 bail!(FileSystemErrorKind::IsDirectory);
             }
 
@@ -912,51 +1018,70 @@ impl FileAccessor
     ) -> Result<()> {
         self.tick().await?;
         debug!("atefs::rename name={} new_name={}", name, new_name);
-        
+
         let mut parent_data = self.load_mut(parent).await?;
         if parent_data.kind != FileKind::Directory {
             debug!("atefs::rename parent={} not-a-directory", parent);
             bail!(FileSystemErrorKind::NotDirectory);
         }
-        
+
         let dio = parent_data.trans();
         let mut parent_data = parent_data.as_mut();
-        if let Some(mut data) = parent_data.children.iter_mut().await?.filter(|c| c.dentry.name.as_str() == name).next()
+        if let Some(mut data) = parent_data
+            .children
+            .iter_mut()
+            .await?
+            .filter(|c| c.dentry.name.as_str() == name)
+            .next()
         {
             // If the parent has changed then move it
-            if parent != new_parent
-            {
+            if parent != new_parent {
                 let new_parent_key = PrimaryKey::from(new_parent);
                 let new_parent_data = self.dio.load::<Inode>(&new_parent_key).await?;
-                
+
                 if new_parent_data.kind != FileKind::Directory {
                     debug!("atefs::rename new_parent={} not-a-directory", new_parent);
                     bail!(FileSystemErrorKind::NotDirectory);
                 }
 
-                if let Some(existing) = new_parent_data.children.iter().await?.filter(|c| c.dentry.name.as_str() == new_name).next() {
+                if let Some(existing) = new_parent_data
+                    .children
+                    .iter()
+                    .await?
+                    .filter(|c| c.dentry.name.as_str() == new_name)
+                    .next()
+                {
                     dio.delete(existing.key()).await?;
                 }
                 data.detach()?;
                 data.attach(&new_parent_data, &new_parent_data.children)?;
-            }
-            else
-            {
-                if let Some(existing) = parent_data.children.iter().await?.filter(|c| c.dentry.name.as_str() == new_name).next() {
+            } else {
+                if let Some(existing) = parent_data
+                    .children
+                    .iter()
+                    .await?
+                    .filter(|c| c.dentry.name.as_str() == new_name)
+                    .next()
+                {
                     dio.delete(existing.key()).await?;
                 }
             }
 
             data.as_mut().dentry.name = new_name.to_string();
             drop(parent_data);
-            
+
             dio.commit().await?;
             return Ok(());
         }
         bail!(FileSystemErrorKind::NoEntry);
     }
 
-    pub async fn open(&self, req: &RequestContext, inode: u64, flags: u32) -> Result<Arc<OpenHandle>> {
+    pub async fn open(
+        &self,
+        req: &RequestContext,
+        inode: u64,
+        flags: u32,
+    ) -> Result<Arc<OpenHandle>> {
         self.tick().await?;
         debug!("atefs::open inode={}", inode);
 
@@ -983,7 +1108,7 @@ impl FileAccessor
     ) -> Result<()> {
         self.tick().await?;
         debug!("atefs::release inode={}", inode);
-        
+
         let open = self.open_handles.lock().remove(&fh);
         if let Some(open) = open {
             open.spec.commit().await?
@@ -1005,15 +1130,18 @@ impl FileAccessor
         size: u32,
     ) -> Result<Bytes> {
         self.tick().await?;
-        debug!("atefs::read inode={} offset={} size={}", inode, offset, size);
-        
+        debug!(
+            "atefs::read inode={} offset={} size={}",
+            inode, offset, size
+        );
+
         let open = {
             let lock = self.open_handles.lock();
             match lock.get(&fh) {
                 Some(a) => Arc::clone(a),
                 None => {
                     bail!(FileSystemErrorKind::NotImplemented);
-                },
+                }
             }
         };
         open.spec.read(offset, size as u64).await
@@ -1029,16 +1157,26 @@ impl FileAccessor
         _flags: u32,
     ) -> Result<u64> {
         self.tick().await?;
-        debug!("atefs::write inode={} offset={} size={}", inode, offset, data.len());
+        debug!(
+            "atefs::write inode={} offset={} size={}",
+            inode,
+            offset,
+            data.len()
+        );
 
         let open = {
             let lock = self.open_handles.lock();
             match lock.get(&fh) {
                 Some(a) => Arc::clone(a),
                 None => {
-                    debug!("atefs::write-failed inode={} offset={} size={}", inode, offset, data.len());
+                    debug!(
+                        "atefs::write-failed inode={} offset={} size={}",
+                        inode,
+                        offset,
+                        data.len()
+                    );
                     bail!(FileSystemErrorKind::NotImplemented);
-                },
+                }
             }
         };
 
@@ -1051,7 +1189,10 @@ impl FileAccessor
             *open.dirty.lock_write() = true;
         }
 
-        debug!("atefs::wrote inode={} offset={} size={}", inode, offset, wrote);
+        debug!(
+            "atefs::wrote inode={} offset={} size={}",
+            inode, offset, wrote
+        );
         Ok(wrote)
     }
 
@@ -1079,7 +1220,7 @@ impl FileAccessor
                 if open.read_only {
                     bail!(FileSystemErrorKind::ReadOnly);
                 }
-                
+
                 open.spec.fallocate(offset + length).await?;
                 if open.dirty.read() == false {
                     *open.dirty.lock_write() = true;
@@ -1118,7 +1259,7 @@ impl FileAccessor
             }
             let size = match size {
                 Some(a) => a,
-                None => self.load(inode).await?.size
+                None => self.load(inode).await?.size,
             };
             offset + size
         } else {
@@ -1135,7 +1276,10 @@ impl FileAccessor
         link: &str,
     ) -> Result<FileAttr> {
         self.tick().await?;
-        debug!("atefs::symlink parent={}, name={}, link={}", parent, name, link);
+        debug!(
+            "atefs::symlink parent={}, name={}, link={}",
+            parent, name, link
+        );
 
         let link = link.to_string();
         let spec = {
@@ -1147,12 +1291,18 @@ impl FileAccessor
             }
             dao.trans().commit().await?;
 
-            Inode::as_file_spec(dao.key().as_u64(), dao.when_created(), dao.when_updated(), dao.into()).await
+            Inode::as_file_spec(
+                dao.key().as_u64(),
+                dao.when_created(),
+                dao.when_updated(),
+                dao.into(),
+            )
+            .await
         };
-        
+
         Ok(self.spec_as_attr_reverse(&spec, &req))
     }
-    
+
     pub async fn setxattr(
         &self,
         req: &RequestContext,
@@ -1161,19 +1311,14 @@ impl FileAccessor
         value: &str,
     ) -> Result<()> {
         self.tick().await?;
-        
+
         let flags = O_RDWR;
         let mut open = self.create_open_handle(inode, &req, flags).await?;
         open.spec.set_xattr(name, value).await
     }
 
     /// remove an extended attribute.
-    pub async fn removexattr(
-        &self,
-        req: &RequestContext,
-        inode: u64,
-        name: &str
-    ) -> Result<bool> {
+    pub async fn removexattr(&self, req: &RequestContext, inode: u64, name: &str) -> Result<bool> {
         self.tick().await?;
         debug!("atefs::removexattr not-implemented");
 
@@ -1181,7 +1326,7 @@ impl FileAccessor
         let mut open = self.create_open_handle(inode, &req, flags).await?;
         open.spec.remove_xattr(name).await
     }
-    
+
     pub async fn getxattr(
         &self,
         req: &RequestContext,
@@ -1189,12 +1334,12 @@ impl FileAccessor
         name: &str,
     ) -> Result<Option<String>> {
         self.tick().await?;
-        
+
         let flags = O_RDONLY;
         let open = self.create_open_handle(inode, &req, flags).await?;
         open.spec.get_xattr(name).await
     }
-    
+
     pub async fn listxattr(
         &self,
         req: &RequestContext,

@@ -58,89 +58,71 @@ error_chain! {
     }
 }
 
-impl From<LoadError>
-for FileSystemError
-{
+impl From<LoadError> for FileSystemError {
     fn from(err: LoadError) -> FileSystemError {
         FileSystemError::from_kind(err.0.into())
     }
 }
 
-impl From<LoadErrorKind>
-for FileSystemErrorKind
-{
+impl From<LoadErrorKind> for FileSystemErrorKind {
     fn from(err: LoadErrorKind) -> FileSystemErrorKind {
         match err {
             LoadErrorKind::NotFound(_) => FileSystemErrorKind::NoEntry,
             LoadErrorKind::SerializationError(err) => err.into(),
             LoadErrorKind::TransformationError(err) => err.into(),
-            err => FileSystemErrorKind::AteError(AteErrorKind::LoadError(err))
+            err => FileSystemErrorKind::AteError(AteErrorKind::LoadError(err)),
         }
     }
 }
 
-impl From<TransformError>
-for FileSystemError
-{
+impl From<TransformError> for FileSystemError {
     fn from(err: TransformError) -> FileSystemError {
         FileSystemError::from_kind(err.0.into())
     }
 }
 
-impl From<TransformErrorKind>
-for FileSystemErrorKind
-{
+impl From<TransformErrorKind> for FileSystemErrorKind {
     fn from(err: TransformErrorKind) -> FileSystemErrorKind {
         match err {
             TransformErrorKind::MissingReadKey(_) => FileSystemErrorKind::NoAccess,
-            err => FileSystemErrorKind::AteError(AteErrorKind::TransformError(err))
+            err => FileSystemErrorKind::AteError(AteErrorKind::TransformError(err)),
         }
     }
 }
 
-impl From<SerializationError>
-for FileSystemError
-{
+impl From<SerializationError> for FileSystemError {
     fn from(err: SerializationError) -> FileSystemError {
         FileSystemError::from_kind(err.0.into())
     }
 }
 
-impl From<SerializationErrorKind>
-for FileSystemErrorKind
-{
+impl From<SerializationErrorKind> for FileSystemErrorKind {
     fn from(err: SerializationErrorKind) -> FileSystemErrorKind {
         match err {
-            err => FileSystemErrorKind::AteError(AteErrorKind::SerializationError(err))
+            err => FileSystemErrorKind::AteError(AteErrorKind::SerializationError(err)),
         }
     }
 }
 
-impl From<CommitError>
-for FileSystemError
-{
+impl From<CommitError> for FileSystemError {
     fn from(err: CommitError) -> FileSystemError {
         FileSystemError::from_kind(err.0.into())
     }
 }
 
-impl From<CommitErrorKind>
-for FileSystemErrorKind
-{
+impl From<CommitErrorKind> for FileSystemErrorKind {
     fn from(err: CommitErrorKind) -> FileSystemErrorKind {
         match err {
             CommitErrorKind::CommsError(CommsErrorKind::ReadOnly) => FileSystemErrorKind::NoAccess,
             CommitErrorKind::ReadOnly => FileSystemErrorKind::NoAccess,
             CommitErrorKind::SerializationError(err) => err.into(),
             CommitErrorKind::TransformError(err) => err.into(),
-            err => FileSystemErrorKind::AteError(AteErrorKind::CommitError(err))
+            err => FileSystemErrorKind::AteError(AteErrorKind::CommitError(err)),
         }
     }
 }
 
-impl From<FileSystemError>
-for AteError
-{
+impl From<FileSystemError> for AteError {
     fn from(err: FileSystemError) -> AteError {
         AteErrorKind::ServiceError(err.to_string()).into()
     }

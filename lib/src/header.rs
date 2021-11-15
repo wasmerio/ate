@@ -1,13 +1,13 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;
 
 #[allow(unused_imports)]
-use fastrand::u64;
-use std::{mem::size_of};
+use super::meta::*;
 use crate::crypto::AteHash;
 #[allow(unused_imports)]
-use super::meta::*;
+use fastrand::u64;
+use std::mem::size_of;
 
 /// All event and data objects within ATE have a primary key that uniquely represents
 /// it and allows it to be indexed and referenced. This primary key can be derived from
@@ -15,63 +15,54 @@ use super::meta::*;
 /// static (e.g. root nodes)
 #[allow(dead_code)]
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
-pub struct PrimaryKey
-{
+pub struct PrimaryKey {
     key: u64,
 }
 
-impl Default for PrimaryKey
-{
+impl Default for PrimaryKey {
     fn default() -> PrimaryKey {
         PrimaryKey::generate()
     }
 }
 
-pub(crate) struct PrimaryKeyScope
-{
+pub(crate) struct PrimaryKeyScope {
     pop: Option<PrimaryKey>,
     _negative: Rc<()>,
 }
 
-impl PrimaryKeyScope
-{
+impl PrimaryKeyScope {
     pub fn new(key: PrimaryKey) -> Self {
         PrimaryKeyScope {
             pop: PrimaryKey::current_set(Some(key)),
-            _negative: Rc::new(())
+            _negative: Rc::new(()),
         }
     }
 }
 
-impl Drop
-for PrimaryKeyScope
-{
+impl Drop for PrimaryKeyScope {
     fn drop(&mut self) {
         PrimaryKey::current_set(self.pop.take());
     }
 }
 
-impl PrimaryKey
-{
+impl PrimaryKey {
     thread_local! {
         static CURRENT: RefCell<Option<PrimaryKey>> = RefCell::new(None)
     }
 
-    pub(crate) fn current_get() -> Option<PrimaryKey>
-    {
+    pub(crate) fn current_get() -> Option<PrimaryKey> {
         PrimaryKey::CURRENT.with(|key| {
             let key = key.borrow();
-            return key.clone()
+            return key.clone();
         })
     }
 
-    fn current_set(val: Option<PrimaryKey>) -> Option<PrimaryKey>
-    {
+    fn current_set(val: Option<PrimaryKey>) -> Option<PrimaryKey> {
         PrimaryKey::CURRENT.with(|key| {
             let mut key = key.borrow_mut();
             match val {
                 Some(a) => key.replace(a),
-                None => key.take()
+                None => key.take(),
             }
         })
     }
@@ -85,9 +76,7 @@ impl PrimaryKey
 
     #[allow(dead_code)]
     pub fn new(key: u64) -> PrimaryKey {
-        PrimaryKey {
-            key: key
-        }
+        PrimaryKey { key: key }
     }
 
     #[allow(dead_code)]
@@ -115,15 +104,11 @@ impl PrimaryKey
 
         let range = max - min;
         let key = (u64::from_be_bytes(bytes) % range) + min;
-        PrimaryKey {
-            key,
-        }
+        PrimaryKey { key }
     }
 }
 
-impl From<AteHash>
-for PrimaryKey
-{
+impl From<AteHash> for PrimaryKey {
     fn from(val: AteHash) -> PrimaryKey {
         let v = val.val;
         let bytes = [v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7]];
@@ -133,29 +118,21 @@ for PrimaryKey
     }
 }
 
-impl From<String>
-for PrimaryKey
-{
+impl From<String> for PrimaryKey {
     fn from(val: String) -> PrimaryKey {
         PrimaryKey::from(AteHash::from(val))
     }
 }
 
-impl From<&'static str>
-for PrimaryKey
-{
+impl From<&'static str> for PrimaryKey {
     fn from(val: &'static str) -> PrimaryKey {
         PrimaryKey::from(AteHash::from(val))
     }
 }
 
-impl From<u64>
-for PrimaryKey
-{
+impl From<u64> for PrimaryKey {
     fn from(val: u64) -> PrimaryKey {
-        PrimaryKey {
-            key: val
-        }
+        PrimaryKey { key: val }
     }
 }
 
@@ -165,26 +142,22 @@ impl std::fmt::Display for PrimaryKey {
     }
 }
 
-impl Metadata
-{
+impl Metadata {
     pub fn for_data(key: PrimaryKey) -> Metadata {
         let mut ret = Metadata::default();
         ret.core.push(CoreMetadata::Data(key));
         return ret;
     }
-    
+
     pub fn get_data_key(&self) -> Option<PrimaryKey> {
-        self.core.iter().filter_map(
-            |m| {
-                match m
-                {
-                    CoreMetadata::Data(k) => Some(k.clone()),
-                    CoreMetadata::Tombstone(k) => Some(k.clone()),
-                     _ => None
-                }
-            }
-        )
-        .next()
+        self.core
+            .iter()
+            .filter_map(|m| match m {
+                CoreMetadata::Data(k) => Some(k.clone()),
+                CoreMetadata::Tombstone(k) => Some(k.clone()),
+                _ => None,
+            })
+            .next()
     }
 
     #[allow(dead_code)]
@@ -192,10 +165,12 @@ impl Metadata
         for core in self.core.iter_mut() {
             match core {
                 CoreMetadata::Data(k) => {
-                    if *k == key { return; }
+                    if *k == key {
+                        return;
+                    }
                     *k = key;
                     return;
-                },
+                }
                 _ => {}
             }
         }
@@ -204,8 +179,7 @@ impl Metadata
 }
 
 #[test]
-fn test_key_hex()
-{
+fn test_key_hex() {
     let key = PrimaryKey::from(1 as u64);
     assert_eq!(key.as_fixed_hex_string(), "0000000000000001".to_string());
 }

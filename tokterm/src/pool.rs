@@ -1,17 +1,17 @@
 #![allow(unused_imports)]
 #![allow(dead_code)]
 #[allow(unused_imports, dead_code)]
-use tracing::{info, error, debug, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 
-use tokio::sync::oneshot;
-use tokio::sync::mpsc;
-use tokio::sync::broadcast;
-use tokio::sync::Semaphore;
-use std::collections::VecDeque;
-use std::sync::Mutex;
 use std::borrow::Borrow;
+use std::collections::VecDeque;
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::Mutex;
+use tokio::sync::broadcast;
+use tokio::sync::mpsc;
+use tokio::sync::oneshot;
+use tokio::sync::Semaphore;
 
 use js_sys::{JsString, Promise};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -123,7 +123,7 @@ extern "C" {
 impl ThreadPool {
     pub fn new(size: usize) -> Result<ThreadPool, JsValue> {
         info!("pool::create(size={})", size);
-        
+
         let (tx1, _) = broadcast::channel(64);
         let (tx2, _) = broadcast::channel(64);
 
@@ -137,7 +137,7 @@ impl ThreadPool {
             starting: AtomicUsize::new(0),
             min_size: 1,
             max_size: size,
-            type_: PoolType::Reactor
+            type_: PoolType::Reactor,
         });
 
         let pool_blocking = Arc::new(PoolState {
@@ -150,7 +150,7 @@ impl ThreadPool {
             starting: AtomicUsize::new(0),
             min_size: 1,
             max_size: 1000usize,
-            type_: PoolType::Thread
+            type_: PoolType::Thread,
         });
 
         let manager = {
@@ -211,10 +211,7 @@ impl PoolState {
         let idx = pool.id_seed.fetch_add(1, Ordering::Relaxed);
         pool.starting.fetch_add(1, Ordering::Relaxed);
 
-        let state = Arc::new(ThreadState {
-            pool: pool,
-            idx,
-        });
+        let state = Arc::new(ThreadState { pool: pool, idx });
         Self::start_worker_now(idx, state)
     }
 
@@ -243,7 +240,7 @@ impl PoolState {
         let idle = self.idle.load(Ordering::Relaxed);
         let starting = self.starting.load(Ordering::Relaxed);
         let backlog = self.queue.lock().unwrap().len();
-        
+
         if backlog >= starting + idle {
             if size < self.max_size {
                 self.expand_now();
@@ -274,7 +271,7 @@ impl ThreadState {
             pool.size.fetch_add(1, Ordering::Relaxed);
             pool.idle.fetch_add(1, Ordering::Relaxed);
             pool.starting.fetch_sub(1, Ordering::Relaxed);
-       
+
             loop {
                 let msg = {
                     let mut queue = pool.queue.lock().unwrap();
@@ -286,21 +283,19 @@ impl ThreadState {
                             pool.idle.fetch_sub(1, Ordering::Relaxed);
                             task();
                             pool.idle.fetch_add(1, Ordering::Relaxed);
-                        },
-                        Message::RunAsync(future) => {
-                            wasm_bindgen_futures::spawn_local(future)
-                        },
+                        }
+                        Message::RunAsync(future) => wasm_bindgen_futures::spawn_local(future),
                         Message::Close => {
                             debug!("pool - thread closed");
-                            break
-                        },
+                            break;
+                        }
                     }
                 }
 
                 let _ = rx.recv().await;
             }
             info!("{}: Shutting down", global.name());
-            
+
             pool.idle.fetch_sub(1, Ordering::Relaxed);
             pool.size.fetch_sub(1, Ordering::Relaxed);
             global.close();
@@ -313,7 +308,7 @@ impl ThreadState {
 pub fn worker_entry_point(state_ptr: u32) {
     info!("worker started");
     let state = unsafe { Arc::<ThreadState>::from_raw(state_ptr as *const ThreadState) };
-    
+
     let name = js_sys::global()
         .unchecked_into::<DedicatedWorkerGlobalScope>()
         .name();

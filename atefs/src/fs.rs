@@ -1,42 +1,43 @@
 #![allow(unused_imports)]
 use ate_files::accessor::FileAccessor;
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
+use parking_lot::Mutex;
 use std::ffi::{OsStr, OsString};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 use std::vec::IntoIter;
-use parking_lot::Mutex;
 
-use ::ate::{crypto::DerivedEncryptKey, prelude::TransactionScope};
-use ::ate::dio::Dio;
-use ::ate::dio::Dao;
-use ::ate::dio::DaoObj;
-use ::ate::error::*;
 use ::ate::chain::*;
 use ::ate::crypto::*;
-use ::ate::session::AteSessionUser;
+use ::ate::dio::Dao;
+use ::ate::dio::DaoObj;
+use ::ate::dio::Dio;
+use ::ate::error::*;
 use ::ate::header::PrimaryKey;
-use ::ate::prelude::*;
 use ::ate::prelude::AteRolePurpose;
 use ::ate::prelude::ReadOption;
+use ::ate::prelude::*;
+use ::ate::session::AteSessionUser;
+use ::ate::{crypto::DerivedEncryptKey, prelude::TransactionScope};
 
 use ate_files::prelude::*;
 
 use async_trait::async_trait;
 use futures_util::stream;
-use futures_util::stream::{Iter};
+use futures_util::stream::Iter;
 use fxhash::FxHashMap;
 
 const FUSE_TTL: Duration = Duration::from_secs(1);
 
 use ate_files::model;
 
-use super::fuse;
 use super::error::conv_result;
+use super::fuse;
 
 pub struct AteFS
-where Self: Send + Sync
+where
+    Self: Send + Sync,
 {
     accessor: FileAccessor,
     umask: u32,
@@ -73,9 +74,17 @@ fn conv_kind(kind: FileKind) -> fuse::FileType {
     }
 }
 
-impl AteFS
-{
-    pub async fn new(chain: Arc<Chain>, group: Option<String>, session: AteSessionType, scope_io: TransactionScope, scope_meta: TransactionScope, no_auth: bool, impersonate_uid: bool, umask: u32) -> AteFS {
+impl AteFS {
+    pub async fn new(
+        chain: Arc<Chain>,
+        group: Option<String>,
+        session: AteSessionType,
+        scope_io: TransactionScope,
+        scope_meta: TransactionScope,
+        no_auth: bool,
+        impersonate_uid: bool,
+        umask: u32,
+    ) -> AteFS {
         AteFS {
             accessor: FileAccessor::new(
                 chain,
@@ -84,9 +93,10 @@ impl AteFS
                 scope_io,
                 scope_meta,
                 no_auth,
-                impersonate_uid
-            ).await,
-            umask
+                impersonate_uid,
+            )
+            .await,
+            umask,
         }
     }
 
@@ -102,14 +112,18 @@ impl AteFS
         conv_result(self.accessor.load_mut_io(inode).await)
     }
 
-    async fn create_open_handle(&self, inode: u64, req: &fuse::Request, flags: i32) -> fuse::Result<OpenHandle> {
+    async fn create_open_handle(
+        &self,
+        inode: u64,
+        req: &fuse::Request,
+        flags: i32,
+    ) -> fuse::Result<OpenHandle> {
         let req = req_ctx(req);
         conv_result(self.accessor.create_open_handle(inode, &req, flags).await)
     }
 }
 
-impl AteFS
-{
+impl AteFS {
     async fn tick(&self) -> fuse::Result<()> {
         conv_result(self.accessor.tick().await)
     }
@@ -118,19 +132,16 @@ impl AteFS
 fn req_ctx(req: &fuse::Request) -> RequestContext {
     RequestContext {
         uid: req.uid,
-        gid: req.gid
+        gid: req.gid,
     }
 }
 
 #[async_trait]
-impl fuse::Filesystem
-for AteFS
-{
+impl fuse::Filesystem for AteFS {
     type DirEntryStream = Iter<IntoIter<fuse::Result<fuse3::raw::prelude::DirectoryEntry>>>;
     type DirEntryPlusStream = Iter<IntoIter<fuse::Result<fuse3::raw::prelude::DirectoryEntryPlus>>>;
 
-    async fn init(&self, req: fuse::Request) -> fuse::Result<()>
-    {
+    async fn init(&self, req: fuse::Request) -> fuse::Result<()> {
         let req = req_ctx(&req);
         conv_result(self.accessor.init(&req).await)
     }
@@ -147,12 +158,12 @@ for AteFS
         flags: u32,
     ) -> fuse::Result<fuse::ReplyAttr> {
         let req = req_ctx(&req);
-        Ok(
-            fuse::ReplyAttr {
-                ttl: FUSE_TTL,
-                attr: conv_attr(&conv_result(self.accessor.getattr(&req, inode, fh, flags).await)?),
-            }
-        )
+        Ok(fuse::ReplyAttr {
+            ttl: FUSE_TTL,
+            attr: conv_attr(&conv_result(
+                self.accessor.getattr(&req, inode, fh, flags).await,
+            )?),
+        })
     }
 
     async fn setattr(
@@ -170,20 +181,49 @@ for AteFS
             gid: set_attr.gid,
             size: set_attr.size,
             lock_owner: set_attr.lock_owner,
-            accessed: set_attr.atime.iter().filter_map(|a| a.duration_since(SystemTime::UNIX_EPOCH).ok().map(|a| a.as_millis() as u64)).next(),
-            updated: set_attr.mtime.iter().filter_map(|a| a.duration_since(SystemTime::UNIX_EPOCH).ok().map(|a| a.as_millis() as u64)).next(),
-            created: set_attr.ctime.iter().filter_map(|a| a.duration_since(SystemTime::UNIX_EPOCH).ok().map(|a| a.as_millis() as u64)).next(),
+            accessed: set_attr
+                .atime
+                .iter()
+                .filter_map(|a| {
+                    a.duration_since(SystemTime::UNIX_EPOCH)
+                        .ok()
+                        .map(|a| a.as_millis() as u64)
+                })
+                .next(),
+            updated: set_attr
+                .mtime
+                .iter()
+                .filter_map(|a| {
+                    a.duration_since(SystemTime::UNIX_EPOCH)
+                        .ok()
+                        .map(|a| a.as_millis() as u64)
+                })
+                .next(),
+            created: set_attr
+                .ctime
+                .iter()
+                .filter_map(|a| {
+                    a.duration_since(SystemTime::UNIX_EPOCH)
+                        .ok()
+                        .map(|a| a.as_millis() as u64)
+                })
+                .next(),
         };
-        let attr = conv_attr(&conv_result(self.accessor.setattr(&req, inode, fh, set_attr).await)?);
-        Ok(
-            fuse::ReplyAttr {
-                ttl: FUSE_TTL,
-                attr,
-            }
-        )
+        let attr = conv_attr(&conv_result(
+            self.accessor.setattr(&req, inode, fh, set_attr).await,
+        )?);
+        Ok(fuse::ReplyAttr {
+            ttl: FUSE_TTL,
+            attr,
+        })
     }
 
-    async fn opendir(&self, req: fuse::Request, inode: u64, flags: u32) -> fuse::Result<fuse::ReplyOpen> {
+    async fn opendir(
+        &self,
+        req: fuse::Request,
+        inode: u64,
+        flags: u32,
+    ) -> fuse::Result<fuse::ReplyOpen> {
         let req = req_ctx(&req);
         Ok(fuse::ReplyOpen {
             fh: conv_result(self.accessor.opendir(&req, inode, flags).await)?.fh,
@@ -191,7 +231,13 @@ for AteFS
         })
     }
 
-    async fn releasedir(&self, req: fuse::Request, inode: u64, fh: u64, flags: u32) -> fuse::Result<()> {
+    async fn releasedir(
+        &self,
+        req: fuse::Request,
+        inode: u64,
+        fh: u64,
+        flags: u32,
+    ) -> fuse::Result<()> {
         let req = req_ctx(&req);
         conv_result(self.accessor.releasedir(&req, inode, fh, flags).await)
     }
@@ -208,40 +254,52 @@ for AteFS
         debug!("atefs::readdirplus id={} offset={}", parent, offset);
 
         if fh == 0 {
-            let open = self.create_open_handle(parent, &req, libc::O_RDONLY).await?;
-            let entries = open.children.iter().skip(offset as usize)
-                .map(|a| Ok(fuse::DirectoryEntryPlus {
-                    inode: a.inode,
-                    kind: conv_kind(a.kind),
-                    name: OsString::from(a.name.as_str()),
-                    generation: 0,
-                    attr: conv_attr(&a.attr),
-                    entry_ttl: FUSE_TTL,
-                    attr_ttl: FUSE_TTL,
-                }))
+            let open = self
+                .create_open_handle(parent, &req, libc::O_RDONLY)
+                .await?;
+            let entries = open
+                .children
+                .iter()
+                .skip(offset as usize)
+                .map(|a| {
+                    Ok(fuse::DirectoryEntryPlus {
+                        inode: a.inode,
+                        kind: conv_kind(a.kind),
+                        name: OsString::from(a.name.as_str()),
+                        generation: 0,
+                        attr: conv_attr(&a.attr),
+                        entry_ttl: FUSE_TTL,
+                        attr_ttl: FUSE_TTL,
+                    })
+                })
                 .map(|a| conv_result(a))
                 .collect::<Vec<_>>();
             return Ok(fuse::ReplyDirectoryPlus {
-                entries: stream::iter(entries.into_iter())
+                entries: stream::iter(entries.into_iter()),
             });
         }
 
         let lock = self.accessor.open_handles.lock();
         if let Some(open) = lock.get(&fh) {
-            let entries = open.children.iter().skip(offset as usize)
-                .map(|a| Ok(fuse::DirectoryEntryPlus {
-                    inode: a.inode,
-                    kind: conv_kind(a.kind),
-                    name: OsString::from(a.name.as_str()),
-                    generation: 0,
-                    attr: conv_attr(&a.attr),
-                    entry_ttl: FUSE_TTL,
-                    attr_ttl: FUSE_TTL,
-                }))
+            let entries = open
+                .children
+                .iter()
+                .skip(offset as usize)
+                .map(|a| {
+                    Ok(fuse::DirectoryEntryPlus {
+                        inode: a.inode,
+                        kind: conv_kind(a.kind),
+                        name: OsString::from(a.name.as_str()),
+                        generation: 0,
+                        attr: conv_attr(&a.attr),
+                        entry_ttl: FUSE_TTL,
+                        attr_ttl: FUSE_TTL,
+                    })
+                })
                 .map(|a| conv_result(a))
                 .collect::<Vec<_>>();
             Ok(fuse::ReplyDirectoryPlus {
-                entries: stream::iter(entries.into_iter())
+                entries: stream::iter(entries.into_iter()),
             })
         } else {
             Err(libc::ENOSYS.into())
@@ -259,56 +317,68 @@ for AteFS
         debug!("atefs::readdir parent={}", parent);
 
         if fh == 0 {
-            let open = self.create_open_handle(parent, &req, libc::O_RDONLY).await?;
-            let entries = open.children.iter()
+            let open = self
+                .create_open_handle(parent, &req, libc::O_RDONLY)
+                .await?;
+            let entries = open
+                .children
+                .iter()
                 .skip(offset as usize)
-                .map(|a| Ok(fuse::DirectoryEntry {
-                    inode: a.inode,
-                    kind: conv_kind(a.kind),
-                    name: OsString::from(a.name.as_str()),
-                }))
+                .map(|a| {
+                    Ok(fuse::DirectoryEntry {
+                        inode: a.inode,
+                        kind: conv_kind(a.kind),
+                        name: OsString::from(a.name.as_str()),
+                    })
+                })
                 .map(|a| conv_result(a))
                 .collect::<Vec<_>>();
             return Ok(fuse::ReplyDirectory {
-                entries: stream::iter(entries.into_iter())
+                entries: stream::iter(entries.into_iter()),
             });
         }
 
         let lock = self.accessor.open_handles.lock();
         if let Some(open) = lock.get(&fh) {
-            let entries = open.children.iter()
+            let entries = open
+                .children
+                .iter()
                 .skip(offset as usize)
-                .map(|a| Ok(fuse::DirectoryEntry {
-                    inode: a.inode,
-                    kind: conv_kind(a.kind),
-                    name: OsString::from(a.name.as_str()),
-                }))
+                .map(|a| {
+                    Ok(fuse::DirectoryEntry {
+                        inode: a.inode,
+                        kind: conv_kind(a.kind),
+                        name: OsString::from(a.name.as_str()),
+                    })
+                })
                 .map(|a| conv_result(a))
                 .collect::<Vec<_>>();
             Ok(fuse::ReplyDirectory {
-                entries: stream::iter(entries.into_iter())
+                entries: stream::iter(entries.into_iter()),
             })
         } else {
             Err(libc::ENOSYS.into())
         }
     }
 
-    async fn lookup(&self, req: fuse::Request, parent: u64, name: &OsStr) -> fuse::Result<fuse::ReplyEntry> {
+    async fn lookup(
+        &self,
+        req: fuse::Request,
+        parent: u64,
+        name: &OsStr,
+    ) -> fuse::Result<fuse::ReplyEntry> {
         let req = req_ctx(&req);
         let name = name.to_str().unwrap();
-        Ok(
-            fuse::ReplyEntry
-            {
-                ttl: FUSE_TTL,
-                attr: match conv_result(self.accessor.lookup(&req, parent, name).await)? {
-                    Some(a) => conv_attr(&a),
-                    None => {
-                        return Err(libc::ENOENT.into());
-                    }
-                },
-                generation: 0,
-            }
-        )
+        Ok(fuse::ReplyEntry {
+            ttl: FUSE_TTL,
+            attr: match conv_result(self.accessor.lookup(&req, parent, name).await)? {
+                Some(a) => conv_attr(&a),
+                None => {
+                    return Err(libc::ENOENT.into());
+                }
+            },
+            generation: 0,
+        })
     }
 
     async fn forget(&self, req: fuse::Request, inode: u64, nlookup: u64) {
@@ -316,12 +386,24 @@ for AteFS
         self.accessor.forget(&req, inode, nlookup).await;
     }
 
-    async fn fsync(&self, req: fuse::Request, inode: u64, fh: u64, datasync: bool) -> fuse::Result<()> {
+    async fn fsync(
+        &self,
+        req: fuse::Request,
+        inode: u64,
+        fh: u64,
+        datasync: bool,
+    ) -> fuse::Result<()> {
         let req = req_ctx(&req);
         conv_result(self.accessor.fsync(&req, inode, fh, datasync).await)
     }
 
-    async fn flush(&self, req: fuse::Request, inode: u64, fh: u64, lock_owner: u64) -> fuse::Result<()> {
+    async fn flush(
+        &self,
+        req: fuse::Request,
+        inode: u64,
+        fh: u64,
+        lock_owner: u64,
+    ) -> fuse::Result<()> {
         let req = req_ctx(&req);
         conv_result(self.accessor.flush(&req, inode, fh, lock_owner).await)
     }
@@ -345,7 +427,11 @@ for AteFS
         } else {
             mode
         };
-        let attr = conv_result(self.accessor.mkdir(&req, parent, name.to_str().unwrap(), mode).await)?;
+        let attr = conv_result(
+            self.accessor
+                .mkdir(&req, parent, name.to_str().unwrap(), mode)
+                .await,
+        )?;
         Ok(fuse::ReplyEntry {
             ttl: FUSE_TTL,
             attr: conv_attr(&attr),
@@ -355,7 +441,11 @@ for AteFS
 
     async fn rmdir(&self, req: fuse::Request, parent: u64, name: &OsStr) -> fuse::Result<()> {
         let req = req_ctx(&req);
-        conv_result(self.accessor.rmdir(&req, parent, name.to_str().unwrap()).await)
+        conv_result(
+            self.accessor
+                .rmdir(&req, parent, name.to_str().unwrap())
+                .await,
+        )
     }
 
     async fn interrupt(&self, req: fuse::Request, unique: u64) -> fuse::Result<()> {
@@ -377,14 +467,15 @@ for AteFS
         } else {
             mode
         };
-        let node = self.accessor.mknod(&req, parent, name.to_str().unwrap(), mode).await;
-        Ok(
-            fuse::ReplyEntry {
-                ttl: FUSE_TTL,
-                attr: conv_attr(&conv_result(node)?),
-                generation: 0,
-            }
-        )
+        let node = self
+            .accessor
+            .mknod(&req, parent, name.to_str().unwrap(), mode)
+            .await;
+        Ok(fuse::ReplyEntry {
+            ttl: FUSE_TTL,
+            attr: conv_attr(&conv_result(node)?),
+            generation: 0,
+        })
     }
 
     async fn create(
@@ -401,21 +492,27 @@ for AteFS
         } else {
             mode
         };
-        let handle = conv_result(self.accessor.create(&req, parent, name.to_str().unwrap(), mode).await)?;
-        Ok(
-            fuse::ReplyCreated {
-                ttl: FUSE_TTL,
-                attr: conv_attr(&handle.attr),
-                generation: 0,
-                fh: handle.fh,
-                flags,
-            }
-        )
+        let handle = conv_result(
+            self.accessor
+                .create(&req, parent, name.to_str().unwrap(), mode)
+                .await,
+        )?;
+        Ok(fuse::ReplyCreated {
+            ttl: FUSE_TTL,
+            attr: conv_attr(&handle.attr),
+            generation: 0,
+            fh: handle.fh,
+            flags,
+        })
     }
 
     async fn unlink(&self, req: fuse::Request, parent: u64, name: &OsStr) -> fuse::Result<()> {
         let req = req_ctx(&req);
-        conv_result(self.accessor.unlink(&req, parent, name.to_str().unwrap()).await)
+        conv_result(
+            self.accessor
+                .unlink(&req, parent, name.to_str().unwrap())
+                .await,
+        )
     }
 
     async fn rename(
@@ -427,18 +524,31 @@ for AteFS
         new_name: &OsStr,
     ) -> fuse::Result<()> {
         let req = req_ctx(&req);
-        conv_result(self.accessor.rename(&req, parent, name.to_str().unwrap(), new_parent, new_name.to_str().unwrap()).await)
+        conv_result(
+            self.accessor
+                .rename(
+                    &req,
+                    parent,
+                    name.to_str().unwrap(),
+                    new_parent,
+                    new_name.to_str().unwrap(),
+                )
+                .await,
+        )
     }
 
-    async fn open(&self, req: fuse::Request, inode: u64, flags: u32) -> fuse::Result<fuse::ReplyOpen> {
+    async fn open(
+        &self,
+        req: fuse::Request,
+        inode: u64,
+        flags: u32,
+    ) -> fuse::Result<fuse::ReplyOpen> {
         let req = req_ctx(&req);
         let handle = conv_result(self.accessor.open(&req, inode, flags).await)?;
-        Ok(
-            fuse::ReplyOpen {
-                fh: handle.fh,
-                flags
-            }
-        )
+        Ok(fuse::ReplyOpen {
+            fh: handle.fh,
+            flags,
+        })
     }
 
     async fn release(
@@ -451,7 +561,11 @@ for AteFS
         flush: bool,
     ) -> fuse::Result<()> {
         let req = req_ctx(&req);
-        conv_result(self.accessor.release(&req, inode, fh, flags, lock_owner, flush).await)
+        conv_result(
+            self.accessor
+                .release(&req, inode, fh, flags, lock_owner, flush)
+                .await,
+        )
     }
 
     async fn read(
@@ -464,11 +578,7 @@ for AteFS
     ) -> fuse::Result<fuse::ReplyData> {
         let req = req_ctx(&req);
         let data = conv_result(self.accessor.read(&req, inode, fh, offset, size).await)?;
-        Ok(
-            fuse::ReplyData {
-                data
-            }
-        )
+        Ok(fuse::ReplyData { data })
     }
 
     async fn write(
@@ -481,12 +591,12 @@ for AteFS
         flags: u32,
     ) -> fuse::Result<fuse::ReplyWrite> {
         let req = req_ctx(&req);
-        let wrote = conv_result(self.accessor.write(&req, inode, fh, offset, data, flags).await)?;
-        Ok(
-            fuse::ReplyWrite {
-                written: wrote,
-            }
-        )
+        let wrote = conv_result(
+            self.accessor
+                .write(&req, inode, fh, offset, data, flags)
+                .await,
+        )?;
+        Ok(fuse::ReplyWrite { written: wrote })
     }
 
     async fn fallocate(
@@ -499,7 +609,11 @@ for AteFS
         mode: u32,
     ) -> fuse::Result<()> {
         let req = req_ctx(&req);
-        conv_result(self.accessor.fallocate(&req, inode, fh, offset, length, mode).await)
+        conv_result(
+            self.accessor
+                .fallocate(&req, inode, fh, offset, length, mode)
+                .await,
+        )
     }
 
     async fn lseek(
@@ -512,11 +626,7 @@ for AteFS
     ) -> fuse::Result<fuse::ReplyLSeek> {
         let req = req_ctx(&req);
         let offset = conv_result(self.accessor.lseek(&req, inode, fh, offset, whence).await)?;
-        Ok(
-            fuse::ReplyLSeek {
-                offset
-            }
-        )
+        Ok(fuse::ReplyLSeek { offset })
     }
 
     async fn symlink(
@@ -527,22 +637,20 @@ for AteFS
         link: &OsStr,
     ) -> fuse::Result<fuse::ReplyEntry> {
         let req = req_ctx(&req);
-        let attr = conv_result(self.accessor.symlink(&req, parent, name.to_str().unwrap(), link.to_str().unwrap()).await)?;
-        Ok(
-            fuse::ReplyEntry {
-                ttl: FUSE_TTL,
-                attr: conv_attr(&attr),
-                generation: 0,
-            }
-        )
+        let attr = conv_result(
+            self.accessor
+                .symlink(&req, parent, name.to_str().unwrap(), link.to_str().unwrap())
+                .await,
+        )?;
+        Ok(fuse::ReplyEntry {
+            ttl: FUSE_TTL,
+            attr: conv_attr(&attr),
+            generation: 0,
+        })
     }
 
     /// read symbolic link.
-    async fn readlink(
-        &self,
-        req: fuse::Request,
-        _inode: u64
-    ) -> fuse::Result<fuse::ReplyData> {
+    async fn readlink(&self, req: fuse::Request, _inode: u64) -> fuse::Result<fuse::ReplyData> {
         let _req = req_ctx(&req);
         Err(libc::ENOSYS.into())
     }
@@ -560,11 +668,7 @@ for AteFS
     }
 
     /// get filesystem statistics.
-    async fn statsfs(
-        &self,
-        req: fuse::Request,
-        _inode: u64
-    ) -> fuse::Result<fuse::ReplyStatFs> {
+    async fn statsfs(&self, req: fuse::Request, _inode: u64) -> fuse::Result<fuse::ReplyStatFs> {
         let _req = req_ctx(&req);
         Err(libc::ENOSYS.into())
     }
@@ -580,7 +684,11 @@ for AteFS
         _position: u32,
     ) -> fuse::Result<()> {
         let req = req_ctx(&req);
-        conv_result(self.accessor.setxattr(&req, inode, name.to_str().unwrap(), value.to_str().unwrap()).await)
+        conv_result(
+            self.accessor
+                .setxattr(&req, inode, name.to_str().unwrap(), value.to_str().unwrap())
+                .await,
+        )
     }
 
     /// get an extended attribute. If size is too small, use [`ReplyXAttr::Size`] to return correct
@@ -593,7 +701,11 @@ for AteFS
         size: u32,
     ) -> fuse::Result<fuse::ReplyXAttr> {
         let req = req_ctx(&req);
-        let ret = match conv_result(self.accessor.getxattr(&req, inode, name.to_str().unwrap()).await)? {
+        let ret = match conv_result(
+            self.accessor
+                .getxattr(&req, inode, name.to_str().unwrap())
+                .await,
+        )? {
             Some(a) => a,
             None => {
                 return Err(libc::ENODATA.into());
@@ -607,7 +719,7 @@ for AteFS
         };
         let ret = ret.into_bytes();
         if ret.len() as u32 > size {
-            Ok(fuse::ReplyXAttr::Size(ret.len() as u32))    
+            Ok(fuse::ReplyXAttr::Size(ret.len() as u32))
         } else {
             Ok(fuse::ReplyXAttr::Data(bytes::Bytes::from(ret)))
         }
@@ -619,7 +731,7 @@ for AteFS
         &self,
         req: fuse::Request,
         inode: u64,
-        size: u32
+        size: u32,
     ) -> fuse::Result<fuse::ReplyXAttr> {
         let req = req_ctx(&req);
         let attr = conv_result(self.accessor.listxattr(&req, inode).await)?;
@@ -630,21 +742,20 @@ for AteFS
         }
         let ret = ret.into_bytes();
         if ret.len() as u32 > size {
-            Ok(fuse::ReplyXAttr::Size(ret.len() as u32))    
+            Ok(fuse::ReplyXAttr::Size(ret.len() as u32))
         } else {
             Ok(fuse::ReplyXAttr::Data(bytes::Bytes::from(ret)))
         }
     }
 
     /// remove an extended attribute.
-    async fn removexattr(
-        &self,
-        req: fuse::Request,
-        inode: u64,
-        name: &OsStr
-    ) -> fuse::Result<()> {
+    async fn removexattr(&self, req: fuse::Request, inode: u64, name: &OsStr) -> fuse::Result<()> {
         let req = req_ctx(&req);
-        conv_result(self.accessor.removexattr(&req, inode, name.to_str().unwrap()).await)?;
+        conv_result(
+            self.accessor
+                .removexattr(&req, inode, name.to_str().unwrap())
+                .await,
+        )?;
         Ok(())
     }
 
@@ -690,12 +801,7 @@ for AteFS
     }
 
     /// forget more than one inode. This is a batch version [`forget`][Filesystem::forget]
-    async fn batch_forget(
-        &self,
-        req: fuse::Request,
-        _inodes: &[u64]
-    )
-    {
+    async fn batch_forget(&self, req: fuse::Request, _inodes: &[u64]) {
         let _req = req_ctx(&req);
     }
 

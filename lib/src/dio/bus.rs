@@ -1,25 +1,23 @@
-
-#[allow(unused_imports)]
-use tracing::{error, info, debug};
-use serde::{Serialize, de::DeserializeOwned};
-use std::marker::PhantomData;
-use tokio::sync::mpsc;
-use std::sync::Arc;
 use error_chain::bail;
+use serde::{de::DeserializeOwned, Serialize};
+use std::marker::PhantomData;
+use std::sync::Arc;
+use tokio::sync::mpsc;
+#[allow(unused_imports)]
+use tracing::{debug, error, info};
 
-use super::*;
-use super::dio_mut::*;
-use crate::header::PrimaryKeyScope;
-use crate::{error::*, event::*, meta::MetaCollection};
-use super::dao_mut::*;
 use super::dao::*;
+use super::dao_mut::*;
+use super::dio_mut::*;
+use super::vec::DaoVecState;
+use super::*;
 use crate::chain::*;
 use crate::engine::*;
-use super::vec::DaoVecState;
+use crate::header::PrimaryKeyScope;
+use crate::{error::*, event::*, meta::MetaCollection};
 
 #[allow(dead_code)]
-pub struct Bus<D>
-{
+pub struct Bus<D> {
     dio: Arc<Dio>,
     chain: Arc<Chain>,
     vec: MetaCollection,
@@ -27,19 +25,14 @@ pub struct Bus<D>
     _marker: PhantomData<D>,
 }
 
-impl<D> Bus<D>
-{
-    pub(crate) async fn new(dio: &Arc<Dio>, vec: MetaCollection) -> Bus<D>
-    {
+impl<D> Bus<D> {
+    pub(crate) async fn new(dio: &Arc<Dio>, vec: MetaCollection) -> Bus<D> {
         let id = fastrand::u64(..);
         let (tx, rx) = mpsc::channel(100);
-        
+
         {
             let mut lock = dio.chain().inside_async.write().await;
-            let listener = ChainListener {
-                id: id,
-                sender: tx,
-            };
+            let listener = ChainListener { id: id, sender: tx };
             lock.listeners.insert(vec.clone(), listener);
         }
 
@@ -53,27 +46,33 @@ impl<D> Bus<D>
     }
 
     pub async fn recv(&mut self) -> Result<Dao<D>, BusError>
-    where D: DeserializeOwned
+    where
+        D: DeserializeOwned,
     {
         TaskEngine::run_until(self.__recv()).await
     }
 
     async fn __recv(&mut self) -> Result<Dao<D>, BusError>
-    where D: DeserializeOwned
+    where
+        D: DeserializeOwned,
     {
         while let Some(evt) = self.receiver.recv().await {
             if evt.data_bytes.is_none() {
                 continue;
             }
-            
+
             let when = evt.meta.get_timestamp();
             let when = match when {
                 Some(t) => t.time_since_epoch_ms,
-                None => 0
+                None => 0,
             };
 
             let _pop1 = DioScope::new(&self.dio);
-            let _pop2 = evt.meta.get_data_key().as_ref().map(|a| PrimaryKeyScope::new(a.clone()));
+            let _pop2 = evt
+                .meta
+                .get_data_key()
+                .as_ref()
+                .map(|a| PrimaryKeyScope::new(a.clone()));
 
             let (row_header, row) = super::row::Row::from_event(&self.dio, &evt, when, when)?;
             return Ok(Dao::new(&self.dio, row_header, row));
@@ -82,14 +81,16 @@ impl<D> Bus<D>
     }
 
     pub async fn process(&mut self, trans: &Arc<DioMut>) -> Result<DaoMut<D>, BusError>
-    where D: Serialize + DeserializeOwned
+    where
+        D: Serialize + DeserializeOwned,
     {
         let trans = Arc::clone(&trans);
         TaskEngine::run_until(self.__process(&trans)).await
     }
 
     async fn __process(&mut self, trans: &Arc<DioMut>) -> Result<DaoMut<D>, BusError>
-    where D: Serialize + DeserializeOwned
+    where
+        D: Serialize + DeserializeOwned,
     {
         loop {
             let dao = self.__recv().await?;
@@ -101,12 +102,12 @@ impl<D> Bus<D>
     }
 }
 
-impl<D> DaoVec<D>
-{
-    pub async fn bus(&self) -> Result<Bus<D>, BusError>
-    {
+impl<D> DaoVec<D> {
+    pub async fn bus(&self) -> Result<Bus<D>, BusError> {
         let parent_id = match &self.state {
-            DaoVecState::Unsaved => { bail!(BusErrorKind::SaveParentFirst); },
+            DaoVecState::Unsaved => {
+                bail!(BusErrorKind::SaveParentFirst);
+            }
             DaoVecState::Saved(a) => a.clone(),
         };
 
@@ -114,10 +115,12 @@ impl<D> DaoVec<D>
             parent_id: parent_id,
             collection_id: self.vec_id,
         };
-        
+
         let dio = match self.dio() {
             Some(a) => a,
-            None => { bail!(BusErrorKind::WeakDio); }
+            None => {
+                bail!(BusErrorKind::WeakDio);
+            }
         };
 
         Ok(Bus::new(&dio, vec).await)

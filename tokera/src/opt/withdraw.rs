@@ -1,7 +1,7 @@
 use clap::Parser;
 
-use crate::model::NationalCurrency;
 use crate::model::Decimal;
+use crate::model::NationalCurrency;
 
 #[derive(Parser, Clone)]
 #[clap()]

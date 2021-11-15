@@ -12,12 +12,17 @@ error_chain! {
     }
 }
 
-impl From<CryptoError>
-for std::io::Error {
+impl From<CryptoError> for std::io::Error {
     fn from(error: CryptoError) -> Self {
         match error {
-            CryptoError(CryptoErrorKind::NoIvPresent, _) => std::io::Error::new(std::io::ErrorKind::Other, "The metadata does not have IV component present"),
-            _ => std::io::Error::new(std::io::ErrorKind::Other, "An unknown error occured while performing ate crypto")
+            CryptoError(CryptoErrorKind::NoIvPresent, _) => std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "The metadata does not have IV component present",
+            ),
+            _ => std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "An unknown error occured while performing ate crypto",
+            ),
         }
     }
 }

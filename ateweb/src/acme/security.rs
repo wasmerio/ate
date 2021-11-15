@@ -30,10 +30,7 @@ pub fn sign(
     Ok(serde_json::to_string(&body)?)
 }
 
-pub fn key_authorization_sha256(
-    key: &EcdsaKeyPair,
-    token: &str,
-) -> Result<Digest, SecurityError> {
+pub fn key_authorization_sha256(key: &EcdsaKeyPair, token: &str) -> Result<Digest, SecurityError> {
     let jwk = Jwk::new(key);
     let key_authorization = format!("{}.{}", token, jwk.thumb_sha256_base64()?);
     Ok(digest(&SHA256, key_authorization.as_bytes()))

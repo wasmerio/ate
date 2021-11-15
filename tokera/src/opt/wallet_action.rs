@@ -1,12 +1,12 @@
 use clap::Parser;
 
 use super::OptsBalance;
+use super::OptsCreateWallet;
+use super::OptsDeposit;
+use super::OptsRemoveWallet;
 use super::OptsTransactionHistory;
 use super::OptsTransfer;
-use super::OptsDeposit;
 use super::OptsWithdraw;
-use super::OptsRemoveWallet;
-use super::OptsCreateWallet;
 
 #[derive(Parser, Clone)]
 pub enum OptWalletAction {

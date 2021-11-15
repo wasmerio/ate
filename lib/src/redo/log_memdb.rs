@@ -1,32 +1,29 @@
-#[allow(unused_imports)]
-use tracing::{error, info, warn, debug};
-use error_chain::bail;
 use async_trait::async_trait;
-use fxhash::FxHashMap;
 use bytes::*;
-use tokio::io::Result;
+use error_chain::bail;
+use fxhash::FxHashMap;
 use std::pin::Pin;
+use tokio::io::Result;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, warn};
 
-use crate::{crypto::*, redo::LogLookup};
-use crate::event::*;
 use crate::error::*;
-use crate::spec::*;
+use crate::event::*;
 use crate::loader::*;
+use crate::spec::*;
+use crate::{crypto::*, redo::LogLookup};
 
 use super::*;
 
-pub(super) struct LogFileMemDb
-{
+pub(super) struct LogFileMemDb {
     pub(crate) offset: u64,
     pub(crate) lookup: FxHashMap<AteHash, LogLookup>,
     pub(crate) memdb: FxHashMap<LogLookup, LogEntry>,
     pub(crate) header: Vec<u8>,
 }
 
-impl LogFileMemDb
-{
-    pub(super) async fn new(header_bytes: Vec<u8>) -> Result<Box<LogFileMemDb>>
-    {
+impl LogFileMemDb {
+    pub(super) async fn new(header_bytes: Vec<u8>) -> Result<Box<LogFileMemDb>> {
         // Log file
         let ret = LogFileMemDb {
             offset: 0u64,
@@ -40,38 +37,34 @@ impl LogFileMemDb
 }
 
 #[async_trait]
-impl LogFile
-for LogFileMemDb
-{
+impl LogFile for LogFileMemDb {
     #[cfg(feature = "enable_rotate")]
-    async fn rotate(&mut self, header_bytes: Vec<u8>) -> Result<()>
-    {
+    async fn rotate(&mut self, header_bytes: Vec<u8>) -> Result<()> {
         self.header = header_bytes;
         Ok(())
     }
 
-    fn backup(&mut self, _include_active_files: bool) -> Result<Pin<Box<dyn futures::Future<Output=Result<()>> + Send + Sync>>>
-    {
-        let ret = async move {
-            Ok(())
-        };
+    fn backup(
+        &mut self,
+        _include_active_files: bool,
+    ) -> Result<Pin<Box<dyn futures::Future<Output = Result<()>> + Send + Sync>>> {
+        let ret = async move { Ok(()) };
         Ok(Box::pin(ret))
     }
 
-    async fn copy(&mut self) -> Result<Box<dyn LogFile>>
-    {
-        Ok(
-            Box::new(LogFileMemDb {
-                offset: self.offset,
-                lookup: self.lookup.clone(),
-                memdb: self.memdb.clone(),
-                header: self.header.clone(),
-            })
-        )
+    async fn copy(&mut self) -> Result<Box<dyn LogFile>> {
+        Ok(Box::new(LogFileMemDb {
+            offset: self.offset,
+            lookup: self.lookup.clone(),
+            memdb: self.memdb.clone(),
+            header: self.header.clone(),
+        }))
     }
 
-    async fn write(&mut self, evt: &EventData) -> std::result::Result<LogLookup, SerializationError>
-    {
+    async fn write(
+        &mut self,
+        evt: &EventData,
+    ) -> std::result::Result<LogLookup, SerializationError> {
         // Write the appender
         let header = evt.as_header_raw()?;
         let lookup = LogLookup {
@@ -79,7 +72,7 @@ for LogFileMemDb
             offset: self.offset,
         };
         self.offset = self.offset + 1u64;
-        
+
         // Record the lookup map
         self.lookup.insert(header.event_hash, lookup);
 
@@ -89,21 +82,27 @@ for LogFileMemDb
         debug!("log-write: {:?} - {:?}", header, evt);
 
         // If we are running as a memory datachain then store it in the RAM
-        self.memdb.insert(lookup, LogEntry {
-            header: LogHeader {
-                offset: lookup.offset,
-                format: evt.format
+        self.memdb.insert(
+            lookup,
+            LogEntry {
+                header: LogHeader {
+                    offset: lookup.offset,
+                    format: evt.format,
+                },
+                meta: header.meta_bytes.to_vec(),
+                data: evt.data_bytes.as_ref().map(|a| a.to_vec()),
             },
-            meta: header.meta_bytes.to_vec(),
-            data: evt.data_bytes.as_ref().map(|a| a.to_vec()),
-        });
+        );
 
         // Return the result
         Ok(lookup)
     }
 
-    async fn copy_event(&mut self, from_log: &Box<dyn LogFile>, hash: AteHash) -> std::result::Result<LogLookup, LoadError>
-    {
+    async fn copy_event(
+        &mut self,
+        from_log: &Box<dyn LogFile>,
+        hash: AteHash,
+    ) -> std::result::Result<LogLookup, LoadError> {
         // Load the data from the log file
         let result = from_log.load(hash).await?;
 
@@ -118,20 +117,22 @@ for LogFileMemDb
         self.lookup.insert(hash.clone(), lookup);
 
         // Inser the data
-        self.memdb.insert(lookup, LogEntry {
-            header: LogHeader {
-                offset: lookup.offset,
-                format: result.data.format,
+        self.memdb.insert(
+            lookup,
+            LogEntry {
+                header: LogHeader {
+                    offset: lookup.offset,
+                    format: result.data.format,
+                },
+                meta: result.header.meta_bytes.to_vec(),
+                data: result.data.data_bytes.as_ref().map(|a| a.to_vec()),
             },
-            meta: result.header.meta_bytes.to_vec(),
-            data: result.data.data_bytes.as_ref().map(|a| a.to_vec()),
-        });
+        );
 
         Ok(lookup)
     }
 
-    async fn load(&self, hash: AteHash) -> std::result::Result<LoadData, LoadError>
-    {
+    async fn load(&self, hash: AteHash) -> std::result::Result<LoadData, LoadError> {
         // Lookup the record in the redo log
         let lookup = match self.lookup.get(&hash) {
             Some(a) => a.clone(),
@@ -144,9 +145,9 @@ for LogFileMemDb
         // If we are running as a memory datachain then just lookup the value
         let result = match self.memdb.get(&lookup) {
             Some(a) => std::result::Result::<LogEntry, LoadError>::Ok(a.clone()),
-            None => Err(LoadErrorKind::NotFoundByHash(hash).into())
+            None => Err(LoadErrorKind::NotFoundByHash(hash).into()),
         }?;
-        
+
         // Hash body
         let data_hash = match &result.data {
             Some(data) => Some(AteHash::from_bytes(&data[..])),
@@ -154,7 +155,7 @@ for LogFileMemDb
         };
         let data_size = match &result.data {
             Some(data) => data.len(),
-            None => 0
+            None => 0,
         };
         let data = match result.data {
             Some(data) => Some(Bytes::from(data)),
@@ -180,13 +181,10 @@ for LogFileMemDb
         };
         assert_eq!(hash.to_string(), ret.header.event_hash.to_string());
 
-        Ok(
-            ret
-        )
+        Ok(ret)
     }
 
-    async fn flush(&mut self) -> Result<()>
-    {
+    async fn flush(&mut self) -> Result<()> {
         Ok(())
     }
 
@@ -210,13 +208,11 @@ for LogFileMemDb
         self.header.clone()
     }
 
-    fn destroy(&mut self) -> Result<()>
-    {
+    fn destroy(&mut self) -> Result<()> {
         Ok(())
     }
 
-    fn move_log_file(&mut self, _new_path: &String) -> Result<()>
-    {
+    fn move_log_file(&mut self, _new_path: &String) -> Result<()> {
         Ok(())
     }
 

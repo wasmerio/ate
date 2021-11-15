@@ -1,36 +1,31 @@
 use fxhash::FxHashSet;
 
-use crate::{header::*, meta::MetaAuthorization};
-use crate::event::*;
 use crate::crypto::AteHash;
+use crate::event::*;
+use crate::{header::*, meta::MetaAuthorization};
 
 use super::*;
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
-pub struct UniqueEvent
-{
+pub struct UniqueEvent {
     key: PrimaryKey,
     auth: Option<MetaAuthorization>,
 }
 
 #[derive(Default, Clone)]
-pub struct RemoveDuplicatesCompactor
-{
+pub struct RemoveDuplicatesCompactor {
     keep: FxHashSet<AteHash>,
     drop: FxHashSet<AteHash>,
     already: FxHashSet<UniqueEvent>,
     parent_override: FxHashSet<PrimaryKey>,
 }
 
-impl EventCompactor
-for RemoveDuplicatesCompactor
-{
+impl EventCompactor for RemoveDuplicatesCompactor {
     fn clone_compactor(&self) -> Option<Box<dyn EventCompactor>> {
         Some(Box::new(Self::default()))
     }
-    
-    fn relevance(&self, header: &EventHeader) -> EventRelevance
-    {
+
+    fn relevance(&self, header: &EventHeader) -> EventRelevance {
         if self.keep.contains(&header.raw.event_hash) {
             return EventRelevance::Keep;
         }
@@ -45,11 +40,12 @@ for RemoveDuplicatesCompactor
         }
     }
 
-    fn feed(&mut self, header: &EventHeader, _keep: bool)
-    {
+    fn feed(&mut self, header: &EventHeader, _keep: bool) {
         let key = match header.meta.get_data_key() {
             Some(key) => key,
-            None => { return; }
+            None => {
+                return;
+            }
         };
 
         if let Some(parent) = header.meta.get_parent() {

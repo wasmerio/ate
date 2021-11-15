@@ -1,7 +1,7 @@
 #[allow(unused_imports)]
-use serde::{Serialize, Deserialize, de::DeserializeOwned};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use crate::{crypto::*};
+use crate::crypto::*;
 
 use super::*;
 
@@ -23,8 +23,7 @@ pub type SessionToken = Option<EncryptedSecureData<EncryptKey>>;
 /// Sessions are never cached and only exist in memory for the
 /// duration that you use them for security reasons.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct AteSessionUser
-{
+pub struct AteSessionUser {
     pub user: AteGroupRole,
     pub token: SessionToken,
     pub identity: String,
@@ -32,14 +31,12 @@ pub struct AteSessionUser
     pub broker_write: Option<PrivateSignKey>,
 }
 
-impl Default
-for AteSessionUser
-{
+impl Default for AteSessionUser {
     fn default() -> AteSessionUser {
         AteSessionUser {
             user: AteGroupRole {
                 purpose: AteRolePurpose::Personal,
-                properties: Vec::new()
+                properties: Vec::new(),
             },
             token: None,
             identity: "nobody@nowhere.com".to_string(),
@@ -49,8 +46,7 @@ for AteSessionUser
     }
 }
 
-impl AteSessionUser
-{
+impl AteSessionUser {
     pub fn new() -> AteSessionUser {
         AteSessionUser::default()
     }
@@ -72,45 +68,63 @@ impl AteSessionUser
     }
 }
 
-impl AteSession
-for AteSessionUser
-{
+impl AteSession for AteSessionUser {
     fn role<'a>(&'a self, _purpose: &AteRolePurpose) -> Option<&'a AteGroupRole> {
         None
     }
 
-    fn read_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a EncryptKey> + 'a> {
+    fn read_keys<'a>(
+        &'a self,
+        category: AteSessionKeyCategory,
+    ) -> Box<dyn Iterator<Item = &'a EncryptKey> + 'a> {
         if category == AteSessionKeyCategory::UpperKeys {
             return Box::new(self.user.read_keys());
         }
-        let ret1 = self.user.read_keys()
+        let ret1 = self
+            .user
+            .read_keys()
             .filter(move |_| category.includes_user_keys());
         Box::new(ret1)
     }
 
-    fn write_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a PrivateSignKey> + 'a> {
+    fn write_keys<'a>(
+        &'a self,
+        category: AteSessionKeyCategory,
+    ) -> Box<dyn Iterator<Item = &'a PrivateSignKey> + 'a> {
         if category == AteSessionKeyCategory::UpperKeys {
             return Box::new(self.user.write_keys());
         }
-        let ret1 = self.user.write_keys()
+        let ret1 = self
+            .user
+            .write_keys()
             .filter(move |_| category.includes_user_keys());
         Box::new(ret1)
     }
 
-    fn public_read_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a PublicEncryptKey> + 'a> {
+    fn public_read_keys<'a>(
+        &'a self,
+        category: AteSessionKeyCategory,
+    ) -> Box<dyn Iterator<Item = &'a PublicEncryptKey> + 'a> {
         if category == AteSessionKeyCategory::UpperKeys {
             return Box::new(self.user.public_read_keys());
         }
-        let ret1 = self.user.public_read_keys()
+        let ret1 = self
+            .user
+            .public_read_keys()
             .filter(move |_| category.includes_user_keys());
         Box::new(ret1)
     }
 
-    fn private_read_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a PrivateEncryptKey> + 'a> {
+    fn private_read_keys<'a>(
+        &'a self,
+        category: AteSessionKeyCategory,
+    ) -> Box<dyn Iterator<Item = &'a PrivateEncryptKey> + 'a> {
         if category == AteSessionKeyCategory::UpperKeys {
             return Box::new(self.user.private_read_keys());
         }
-        let ret1 = self.user.private_read_keys()
+        let ret1 = self
+            .user
+            .private_read_keys()
             .filter(move |_| category.includes_user_keys());
         Box::new(ret1)
     }
@@ -118,7 +132,7 @@ for AteSessionUser
     fn broker_read<'a>(&'a self) -> Option<&'a PrivateEncryptKey> {
         self.broker_read.as_ref()
     }
-    
+
     fn broker_write<'a>(&'a self) -> Option<&'a PrivateSignKey> {
         self.broker_write.as_ref()
     }
@@ -152,7 +166,10 @@ for AteSessionUser
         Box::new(ret1)
     }
 
-    fn append<'a, 'b>(&'a mut self, properties: Box<dyn Iterator<Item = &'b AteSessionProperty> + 'b>) {
+    fn append<'a, 'b>(
+        &'a mut self,
+        properties: Box<dyn Iterator<Item = &'b AteSessionProperty> + 'b>,
+    ) {
         let mut properties = properties.map(|a| a.clone()).collect::<Vec<_>>();
         self.user.properties.append(&mut properties);
     }
@@ -166,9 +183,7 @@ for AteSessionUser
     }
 }
 
-impl std::fmt::Display
-for AteSessionUser
-{
+impl std::fmt::Display for AteSessionUser {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "[")?;
         self.user.fmt(f)?;

@@ -1,7 +1,7 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use url::Url;
 use std::net::IpAddr;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
+use url::Url;
 
 use clap::Parser;
 

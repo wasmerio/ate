@@ -1,40 +1,41 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use std::sync::Arc;
-use tokio::sync::Mutex;
-use serde::{Serialize, de::DeserializeOwned};
-#[cfg(feature = "enable_full")]
-use tokio::{net::{TcpStream}};
+use async_trait::async_trait;
 use bytes::Bytes;
-#[allow(unused_imports)]
-use tokio::io::{self};
+use serde::{de::DeserializeOwned, Serialize};
+use std::net::SocketAddr;
+use std::sync::Arc;
+use std::sync::Mutex as StdMutex;
 use tokio::io::Error as TError;
 use tokio::io::ErrorKind;
-use tokio::sync::broadcast;
-use async_trait::async_trait;
-use std::net::SocketAddr;
-use std::sync::Mutex as StdMutex;
+#[allow(unused_imports)]
+use tokio::io::{self};
+#[cfg(feature = "enable_full")]
+use tokio::net::TcpStream;
 use tokio::select;
+use tokio::sync::broadcast;
+use tokio::sync::Mutex;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
+use crate::comms::NodeId;
 use crate::comms::*;
-use crate::spec::*;
 use crate::crypto::*;
 use crate::error::*;
-use crate::comms::NodeId;
+use crate::spec::*;
 
+use super::Metrics;
 use super::Packet;
 use super::PacketData;
 use super::PacketWithContext;
 use super::StreamRx;
-use super::Metrics;
 use super::Throttle;
 use crate::conf::MeshConnectAddr;
 
 #[async_trait]
 pub(crate) trait InboxProcessor<M, C>
-where Self: Send + Sync,
-      M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
-      C: Send + Sync,
+where
+    Self: Send + Sync,
+    M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
+    C: Send + Sync,
 {
     async fn process(&mut self, pck: PacketWithContext<M, C>) -> Result<(), CommsError>;
 
@@ -60,10 +61,11 @@ pub(super) async fn process_inbox<M, C>(
     context: Arc<C>,
     wire_format: SerializationFormat,
     wire_encryption: Option<EncryptKey>,
-    mut exit: broadcast::Receiver<()>
+    mut exit: broadcast::Receiver<()>,
 ) -> Result<(), CommsError>
-where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
-      C: Send + Sync,
+where
+    M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
+    C: Send + Sync,
 {
     let ret = async {
         // Throttling variables
@@ -74,18 +76,16 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
         let mut hickup_count = 0u32;
 
         // Main read loop
-        loop
-        {
+        loop {
             // Read the next request
             let mut total_read = 0u64;
-            let buf = async
-            {
+            let buf = async {
                 // If the throttle has triggered
                 let now = chrono::offset::Utc::now();
                 let delta = now - last_throttle;
                 if delta > throttle_interval {
                     last_throttle = now;
-                    
+
                     // Compute the deltas
                     let (mut delta_received, mut delta_sent) = {
                         let metrics = metrics.lock().unwrap();
@@ -105,14 +105,24 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
                     // We throttle the connection based off the current metrics and a calculated wait time
                     let wait_time = {
                         let throttle = throttle.lock().unwrap();
-                        let wait1 = throttle.download_per_second
+                        let wait1 = throttle
+                            .download_per_second
                             .map(|limit| limit as i64)
                             .filter(|limit| delta_sent.gt(limit))
-                            .map(|limit| chrono::Duration::milliseconds(((delta_sent-limit) * 1000i64) / limit));
-                        let wait2 = throttle.upload_per_second
+                            .map(|limit| {
+                                chrono::Duration::milliseconds(
+                                    ((delta_sent - limit) * 1000i64) / limit,
+                                )
+                            });
+                        let wait2 = throttle
+                            .upload_per_second
                             .map(|limit| limit as i64)
                             .filter(|limit| delta_received.gt(limit))
-                            .map(|limit| chrono::Duration::milliseconds(((delta_received-limit) * 1000i64) / limit));
+                            .map(|limit| {
+                                chrono::Duration::milliseconds(
+                                    ((delta_received - limit) * 1000i64) / limit,
+                                )
+                            });
 
                         // Whichever is the longer wait is the one we shall do
                         match (wait1, wait2) {
@@ -120,7 +130,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
                             (Some(_), Some(b)) => Some(b),
                             (Some(a), None) => Some(a),
                             (None, Some(b)) => Some(b),
-                            (None, None) => None
+                            (None, None) => None,
                         }
                     };
 
@@ -148,7 +158,10 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
                                 let cipher_bytes = rx.read_32bit().await?;
                                 total_read += 4u64;
                                 match cipher_bytes.len() {
-                                    0 => Err(TError::new(ErrorKind::BrokenPipe, "cipher_bytes-len is zero")),
+                                    0 => Err(TError::new(
+                                        ErrorKind::BrokenPipe,
+                                        "cipher_bytes-len is zero",
+                                    )),
                                     l => {
                                         total_read += l as u64;
                                         Ok(key.decrypt(&iv, &cipher_bytes))
@@ -156,7 +169,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
                                 }
                             }
                         }
-                    },
+                    }
                     None => {
                         // Read the next message
                         let buf = rx.read_32bit().await?;
@@ -187,13 +200,11 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
                 metrics.received += total_read;
                 metrics.requests += 1u64;
             }
-                
+
             // Deserialize it
             let msg: M = wire_format.deserialize(&buf[..])?;
-            let pck = Packet {
-                msg,
-            };
-            
+            let pck = Packet { msg };
+
             // Process it
             let pck = PacketWithContext {
                 data: PacketData {
@@ -211,13 +222,17 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
             match rcv.await {
                 Ok(a) => {
                     if hickup_count > 0 {
-                        debug!("inbox-recovered: recovered from hickups {}", hickup_count);    
+                        debug!("inbox-recovered: recovered from hickups {}", hickup_count);
                     }
                     hickup_count = 0;
                     a
-                },
-                Err(CommsError(CommsErrorKind::Disconnected, _)) => { break; }
-                Err(CommsError(CommsErrorKind::IO(err), _)) if err.kind() == std::io::ErrorKind::BrokenPipe => {
+                }
+                Err(CommsError(CommsErrorKind::Disconnected, _)) => {
+                    break;
+                }
+                Err(CommsError(CommsErrorKind::IO(err), _))
+                    if err.kind() == std::io::ErrorKind::BrokenPipe =>
+                {
                     if rx.protocol().is_web_socket() && hickup_count < 10 {
                         hickup_count += 1;
                         continue;
@@ -225,25 +240,36 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
                     debug!("inbox-debug: {}", err);
                     break;
                 }
-                Err(CommsError(CommsErrorKind::IO(err), _)) if err.kind() == std::io::ErrorKind::UnexpectedEof => {
+                Err(CommsError(CommsErrorKind::IO(err), _))
+                    if err.kind() == std::io::ErrorKind::UnexpectedEof =>
+                {
                     debug!("inbox-debug: {}", err);
                     break;
                 }
-                Err(CommsError(CommsErrorKind::IO(err), _)) if err.kind() == std::io::ErrorKind::ConnectionAborted => {
+                Err(CommsError(CommsErrorKind::IO(err), _))
+                    if err.kind() == std::io::ErrorKind::ConnectionAborted =>
+                {
                     warn!("inbox-err: {}", err);
                     break;
                 }
-                Err(CommsError(CommsErrorKind::IO(err), _)) if err.kind() == std::io::ErrorKind::ConnectionReset => {
+                Err(CommsError(CommsErrorKind::IO(err), _))
+                    if err.kind() == std::io::ErrorKind::ConnectionReset =>
+                {
                     warn!("inbox-err: {}", err);
                     break;
                 }
-                Err(CommsError(CommsErrorKind::ReadOnly, _)) => { continue; }
+                Err(CommsError(CommsErrorKind::ReadOnly, _)) => {
+                    continue;
+                }
                 Err(CommsError(CommsErrorKind::NotYetSubscribed, _)) => {
                     error!("inbox-err: {}", CommsErrorKind::NotYetSubscribed);
                     break;
                 }
                 Err(CommsError(CommsErrorKind::CertificateTooWeak(needed, actual), _)) => {
-                    error!("inbox-err: {}", CommsErrorKind::CertificateTooWeak(needed, actual));
+                    error!(
+                        "inbox-err: {}",
+                        CommsErrorKind::CertificateTooWeak(needed, actual)
+                    );
                     break;
                 }
                 Err(CommsError(CommsErrorKind::MissingCertificate, _)) => {
@@ -266,7 +292,10 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
                     warn!("inbox-err: {}", err);
                     break;
                 }
-                Err(CommsError(CommsErrorKind::ValidationError(ValidationErrorKind::Many(errs)), _)) => {
+                Err(CommsError(
+                    CommsErrorKind::ValidationError(ValidationErrorKind::Many(errs)),
+                    _,
+                )) => {
                     for err in errs.iter() {
                         trace!("val-err: {}", err);
                     }
@@ -291,7 +320,8 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
             }
         }
         Ok(())
-    }.await;
+    }
+    .await;
 
     inbox.shutdown(sock_addr).await;
     ret

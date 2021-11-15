@@ -1,7 +1,7 @@
 use error_chain::error_chain;
 
-use ::ate::prelude::*;
 use crate::request::*;
+use ::ate::prelude::*;
 
 error_chain! {
     types {
@@ -54,21 +54,20 @@ error_chain! {
     }
 }
 
-impl From<ResetError>
-for AteError
-{
+impl From<ResetError> for AteError {
     fn from(err: ResetError) -> AteError {
         AteErrorKind::ServiceError(err.to_string()).into()
     }
 }
 
-impl From<ResetFailed>
-for ResetError {
+impl From<ResetFailed> for ResetError {
     fn from(err: ResetFailed) -> ResetError {
         match err {
             ResetFailed::InvalidEmail(email) => ResetErrorKind::NotFound(email).into(),
             ResetFailed::InvalidRecoveryCode => ResetErrorKind::InvalidRecoveryCode.into(),
-            ResetFailed::InvalidAuthenticatorCode => ResetErrorKind::InvalidAuthenticatorCode.into(),
+            ResetFailed::InvalidAuthenticatorCode => {
+                ResetErrorKind::InvalidAuthenticatorCode.into()
+            }
             ResetFailed::RecoveryImpossible => ResetErrorKind::RecoveryImpossible.into(),
             ResetFailed::NoMasterKey => ResetErrorKind::NoMasterKey.into(),
             ResetFailed::InternalError(code) => ResetErrorKind::InternalError(code).into(),

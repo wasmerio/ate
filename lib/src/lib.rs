@@ -1,4 +1,7 @@
-#![cfg_attr(not(debug_assertions), allow(dead_code, unused_imports, unused_variables))]
+#![cfg_attr(
+    not(debug_assertions),
+    allow(dead_code, unused_imports, unused_variables)
+)]
 #![warn(unused_extern_crates)]
 
 /// You can change the log file format with these features
@@ -9,43 +12,43 @@ pub const HASH_ROUTINE: crypto::HashRoutine = crypto::HashRoutine::Blake3;
 
 pub const LOG_VERSION: spec::EventVersion = spec::EventVersion::V2;
 
-pub mod utils;
-pub mod error;
-pub mod spec;
-pub mod crypto;
-pub mod header;
-pub mod meta;
-pub mod event;
-pub mod conf;
+pub mod anti_replay;
+pub mod chain;
 pub mod comms;
-pub mod mesh;
-pub mod redo;
-pub mod sink;
-pub mod session;
-pub mod validator;
 pub mod compact;
+pub mod conf;
+pub mod crypto;
+pub mod dio;
+#[cfg(feature = "enable_dns")]
+pub mod dns;
+pub mod engine;
+pub mod error;
+pub mod event;
+#[cfg(feature = "enable_server")]
+pub mod flow;
+pub mod header;
 pub mod index;
 pub mod lint;
 pub mod loader;
-pub mod transform;
+pub mod mesh;
+pub mod meta;
+pub mod multi;
+pub mod pipe;
 pub mod plugin;
+pub mod prelude;
+pub mod redo;
+pub mod service;
+pub mod session;
 pub mod signature;
+pub mod single;
+pub mod sink;
+pub mod spec;
 pub mod time;
+pub mod transaction;
+pub mod transform;
 pub mod tree;
 pub mod trust;
-pub mod chain;
-pub mod single;
-pub mod multi;
-pub mod transaction;
-pub mod dio;
-pub mod service;
-pub mod pipe;
-pub mod prelude;
-pub mod anti_replay;
-#[cfg(feature = "enable_server")]
-pub mod flow;
-pub mod engine;
-#[cfg(feature="enable_dns")]
-pub mod dns;
+pub mod utils;
+pub mod validator;
 
 pub use utils::log_init;

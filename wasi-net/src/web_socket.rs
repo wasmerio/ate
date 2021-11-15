@@ -2,21 +2,17 @@ use std::io;
 use std::io::Read;
 use std::io::Write;
 
-pub struct WebSocket
-{
-    pub(super) file: std::fs::File
+pub struct WebSocket {
+    pub(super) file: std::fs::File,
 }
 
-impl WebSocket
-{
+impl WebSocket {
     pub fn to_std_file(self) -> std::fs::File {
         self.file
     }
 }
 
-impl Read
-for WebSocket
-{
+impl Read for WebSocket {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.file.read(buf)
     }
@@ -26,9 +22,7 @@ for WebSocket
     }
 }
 
-impl Write
-for WebSocket
-{
+impl Write for WebSocket {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.file.write(buf)
     }

@@ -1,15 +1,17 @@
-use crate::ast;
 use super::*;
+use crate::ast;
 
 pub(super) async fn exec_pipeline<'a>(
     ctx: &mut EvalContext,
     builtins: &Builtins,
     exec_sync: bool,
     show_result: &mut bool,
-    pipeline: &'a ast::Pipeline<'a>
-) -> i32
-{
-    debug!("eval (stdin={}, stdout={}, stderr={})", ctx.stdio.stdin.raw.id, ctx.stdio.stdout.raw.id, ctx.stdio.stderr.raw.id);
+    pipeline: &'a ast::Pipeline<'a>,
+) -> i32 {
+    debug!(
+        "eval (stdin={}, stdout={}, stderr={})",
+        ctx.stdio.stdin.raw.id, ctx.stdio.stdout.raw.id, ctx.stdio.stderr.raw.id
+    );
 
     let mut child_list: Vec<Process> = Vec::new();
     let mut final_return: Option<i32> = None;
@@ -37,8 +39,7 @@ pub(super) async fn exec_pipeline<'a>(
                         ast::Arg::Arg(s) => eval_arg(&ctx.env, ctx.last_return, *s),
                         ast::Arg::Backquote(_quoted_args) => String::new(),
                     }));
-                    let parsed_env: Vec<String> =
-                        assign.iter().map(|a| a.to_string()).collect();
+                    let parsed_env: Vec<String> = assign.iter().map(|a| a.to_string()).collect();
 
                     cur_stdin = next_stdin.clone();
                     if i + 1 < pipeline.commands.len() {
@@ -67,21 +68,23 @@ pub(super) async fn exec_pipeline<'a>(
                         root: ctx.stdio.root.clone(),
                     };
 
-                    debug!("exec {} (stdin={}, stdout={}, stderr={})", parsed_cmd, stdio.stdin.raw.id, stdio.stdout.raw.id, stdio.stderr.raw.id);
+                    debug!(
+                        "exec {} (stdin={}, stdout={}, stderr={})",
+                        parsed_cmd, stdio.stdin.raw.id, stdio.stdout.raw.id, stdio.stderr.raw.id
+                    );
 
-                    match exec::exec (
+                    match exec::exec(
                         ctx,
                         builtins,
                         &parsed_cmd,
                         &parsed_args,
                         &parsed_env,
                         show_result,
-                        stdio
-                    ).await
+                        stdio,
+                    )
+                    .await
                     {
-                        Ok(ExecResponse::Immediate(ret)) => {
-                            final_return = Some(ret)
-                        }
+                        Ok(ExecResponse::Immediate(ret)) => final_return = Some(ret),
                         Ok(ExecResponse::Process(process)) => {
                             child_list.push(process);
                         }
@@ -103,7 +106,10 @@ pub(super) async fn exec_pipeline<'a>(
     if exec_sync {
         for child in child_list.iter_mut().rev() {
             let result = child.wait_for_exit().await;
-            debug!("process (pid={}) finished (exit_code={})", child.pid, result);
+            debug!(
+                "process (pid={}) finished (exit_code={})",
+                child.pid, result
+            );
             final_return.get_or_insert(result);
         }
     }

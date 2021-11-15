@@ -1,17 +1,16 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use error_chain::bail;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
-use crate::error::*;
-use serde::{Serialize, Deserialize};
 use crate::crypto::KeySize;
+use crate::error::*;
 use crate::spec::*;
+use serde::{Deserialize, Serialize};
 
 use super::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct HelloMetadata
-{
+pub struct HelloMetadata {
     pub client_id: NodeId,
     pub server_id: NodeId,
     pub path: String,
@@ -20,8 +19,7 @@ pub struct HelloMetadata
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-struct SenderHello
-{
+struct SenderHello {
     pub id: NodeId,
     pub path: String,
     pub domain: String,
@@ -29,16 +27,21 @@ struct SenderHello
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-struct ReceiverHello
-{
+struct ReceiverHello {
     pub id: NodeId,
     pub encryption: Option<KeySize>,
     pub wire_format: SerializationFormat,
 }
 
 #[cfg(feature = "enable_client")]
-pub(super) async fn mesh_hello_exchange_sender(stream_rx: &mut StreamRx, stream_tx: &mut StreamTx, client_id: NodeId, hello_path: String, domain: String, key_size: Option<KeySize>) -> Result<HelloMetadata, CommsError>
-{
+pub(super) async fn mesh_hello_exchange_sender(
+    stream_rx: &mut StreamRx,
+    stream_tx: &mut StreamTx,
+    client_id: NodeId,
+    hello_path: String,
+    domain: String,
+    key_size: Option<KeySize>,
+) -> Result<HelloMetadata, CommsError> {
     // Send over the hello message and wait for a response
     trace!("client sending hello");
     let hello_client = SenderHello {
@@ -48,7 +51,9 @@ pub(super) async fn mesh_hello_exchange_sender(stream_rx: &mut StreamRx, stream_
         key_size,
     };
     let hello_client_bytes = serde_json::to_vec(&hello_client)?;
-    stream_tx.write_16bit(&hello_client_bytes[..], false).await?;
+    stream_tx
+        .write_16bit(&hello_client_bytes[..], false)
+        .await?;
 
     // Read the hello message from the other side
     let hello_server_bytes = stream_rx.read_16bit().await?;
@@ -59,19 +64,26 @@ pub(super) async fn mesh_hello_exchange_sender(stream_rx: &mut StreamRx, stream_
     // Validate the encryption is strong enough
     if let Some(needed_size) = &key_size {
         match &hello_server.encryption {
-            None => { bail!(CommsErrorKind::ServerEncryptionWeak); },
-            Some(a) if *a < *needed_size => { bail!(CommsErrorKind::ServerEncryptionWeak); },
-            _ => { }
+            None => {
+                bail!(CommsErrorKind::ServerEncryptionWeak);
+            }
+            Some(a) if *a < *needed_size => {
+                bail!(CommsErrorKind::ServerEncryptionWeak);
+            }
+            _ => {}
         }
     }
 
     // Upgrade the key_size if the server is bigger
-    trace!("client encryption={}", match &hello_server.encryption {
-        Some(a) => a.as_str(),
-        None => "none"
-    });
+    trace!(
+        "client encryption={}",
+        match &hello_server.encryption {
+            Some(a) => a.as_str(),
+            None => "none",
+        }
+    );
     trace!("client wire_format={}", hello_server.wire_format);
-    
+
     Ok(HelloMetadata {
         client_id,
         server_id: hello_server.id,
@@ -82,16 +94,21 @@ pub(super) async fn mesh_hello_exchange_sender(stream_rx: &mut StreamRx, stream_
 }
 
 #[cfg(feature = "enable_server")]
-pub(super) async fn mesh_hello_exchange_receiver(stream_rx: &mut StreamRx, stream_tx: &mut StreamTx, server_id: NodeId, key_size: Option<KeySize>, wire_format: SerializationFormat) -> Result<HelloMetadata, CommsError>
-{
+pub(super) async fn mesh_hello_exchange_receiver(
+    stream_rx: &mut StreamRx,
+    stream_tx: &mut StreamTx,
+    server_id: NodeId,
+    key_size: Option<KeySize>,
+    wire_format: SerializationFormat,
+) -> Result<HelloMetadata, CommsError> {
     // Read the hello message from the other side
     let hello_client_bytes = stream_rx.read_16bit().await?;
     trace!("server received hello from client");
     let hello_client: SenderHello = serde_json::from_slice(&hello_client_bytes[..])?;
-    
+
     // Upgrade the key_size if the client is bigger
     let encryption = mesh_hello_upgrade_key(key_size, hello_client.key_size);
-    
+
     // Send over the hello message and wait for a response
     trace!("server sending hello (wire_format={})", wire_format);
     let hello_server = ReceiverHello {
@@ -100,7 +117,9 @@ pub(super) async fn mesh_hello_exchange_receiver(stream_rx: &mut StreamRx, strea
         wire_format,
     };
     let hello_server_bytes = serde_json::to_vec(&hello_server)?;
-    stream_tx.write_16bit(&hello_server_bytes[..], false).await?;
+    stream_tx
+        .write_16bit(&hello_server_bytes[..], false)
+        .await?;
 
     Ok(HelloMetadata {
         client_id: hello_client.id,
@@ -112,8 +131,7 @@ pub(super) async fn mesh_hello_exchange_receiver(stream_rx: &mut StreamRx, strea
 }
 
 #[cfg(feature = "enable_server")]
-fn mesh_hello_upgrade_key(key1: Option<KeySize>, key2: Option<KeySize>) -> Option<KeySize>
-{
+fn mesh_hello_upgrade_key(key1: Option<KeySize>, key2: Option<KeySize>) -> Option<KeySize> {
     // If both don't want encryption then who are we to argue about that?
     if key1.is_none() && key2.is_none() {
         return None;

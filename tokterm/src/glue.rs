@@ -1,10 +1,12 @@
+use chrono::prelude::*;
+use tokio::sync::mpsc;
 #[allow(unused_imports, dead_code)]
-use tracing::{info, error, debug, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::KeyboardEvent;
 use wasm_bindgen_futures::spawn_local;
-use tokio::sync::mpsc;
+use web_sys::HtmlCanvasElement;
+use web_sys::KeyboardEvent;
 
 #[allow(unused_imports)]
 use xterm_js_rs::addons::fit::FitAddon;
@@ -13,12 +15,12 @@ use xterm_js_rs::addons::web_links::WebLinksAddon;
 #[allow(unused_imports)]
 use xterm_js_rs::addons::webgl::WebglAddon;
 
-use xterm_js_rs::{OnKeyEvent, LogLevel, Terminal, TerminalOptions};
+use xterm_js_rs::{LogLevel, OnKeyEvent, Terminal, TerminalOptions};
 
 use super::common::*;
-use xterm_js_rs::{Theme};
 use super::console::Console;
 use super::pool::*;
+use xterm_js_rs::Theme;
 
 #[macro_export]
 #[doc(hidden)]
@@ -40,11 +42,19 @@ pub enum InputEvent {
 
 #[wasm_bindgen]
 pub fn start() -> Result<(), JsValue> {
+    #[wasm_bindgen]
+    extern "C" {
+        #[wasm_bindgen(js_namespace = navigator, js_name = userAgent)]
+        static USER_AGENT: String;
+    }
+
     //ate::log_init(0i32, false);
-    tracing_wasm::set_as_global_default_with_config(tracing_wasm::WASMLayerConfigBuilder::new()
-        .set_report_logs_in_timings(false)
-        .set_max_level(tracing::Level::DEBUG)
-        .build());
+    tracing_wasm::set_as_global_default_with_config(
+        tracing_wasm::WASMLayerConfigBuilder::new()
+            .set_report_logs_in_timings(false)
+            .set_max_level(tracing::Level::DEBUG)
+            .build(),
+    );
 
     info!("glue::start");
 
@@ -63,13 +73,13 @@ pub fn start() -> Result<(), JsValue> {
             ),
     );
 
-    let window = web_sys::window()
-        .unwrap();
+    let window = web_sys::window().unwrap();
 
-    let location = window
-        .location()
-        .href()
-        .unwrap();
+    let location = window.location().href().unwrap();
+
+    let user_agent = USER_AGENT.clone();
+    let is_mobile = crate::common::is_mobile(&user_agent);
+    debug!("user_agent: {}", user_agent);
 
     let elem = window
         .document()
@@ -79,17 +89,29 @@ pub fn start() -> Result<(), JsValue> {
 
     terminal.open(elem.clone().dyn_into()?);
 
+    let front_buffer = window
+        .document()
+        .unwrap()
+        .get_element_by_id("frontBuffer")
+        .unwrap();
+    let front_buffer: HtmlCanvasElement = front_buffer
+        .dyn_into::<HtmlCanvasElement>()
+        .map_err(|_| ())
+        .unwrap();
+
     let pool = ThreadPool::new_with_max_threads().unwrap();
 
     let mut console = Console::new(
         terminal.clone().dyn_into().unwrap(),
+        front_buffer.clone().dyn_into().unwrap(),
         location,
-        pool
+        user_agent,
+        pool,
     );
     let tty = console.tty().clone();
 
     let (tx, mut rx) = mpsc::channel(MAX_MPSC);
-    
+
     let tx_key = tx.clone();
     let callback = {
         Closure::wrap(Box::new(move |e: OnKeyEvent| {
@@ -131,43 +153,75 @@ pub fn start() -> Result<(), JsValue> {
         terminal.load_addon(addon.clone().dyn_into::<WebglAddon>()?.into());
     }
     */
-    
 
     {
+        let front_buffer: HtmlCanvasElement = front_buffer.clone().dyn_into().unwrap();
         let terminal: Terminal = terminal.clone().dyn_into().unwrap();
-        term_fit(terminal.clone().dyn_into().unwrap());
+        term_fit(terminal, front_buffer);
     }
 
     {
+        let front_buffer: HtmlCanvasElement = front_buffer.clone().dyn_into().unwrap();
         let terminal: Terminal = terminal.clone().dyn_into().unwrap();
-        let closure: Closure<dyn FnMut()> = Closure::new(
-            move || {
-                let terminal: Terminal = terminal.clone().dyn_into().unwrap();
-                term_fit(terminal.clone().dyn_into().unwrap());
-                
-                let tty = tty.clone();
-                wasm_bindgen_futures::spawn_local(async move {
-                    let cols = terminal.get_cols();
-                    let rows = terminal.get_rows();
-                    tty.set_bounds(cols, rows).await;  
-                });
+        let closure: Closure<dyn FnMut()> = Closure::new(move || {
+            let front_buffer: HtmlCanvasElement = front_buffer.clone().dyn_into().unwrap();
+            let terminal: Terminal = terminal.clone().dyn_into().unwrap();
+            term_fit(
+                terminal.clone().dyn_into().unwrap(),
+                front_buffer.clone().dyn_into().unwrap(),
+            );
+
+            let tty = tty.clone();
+            wasm_bindgen_futures::spawn_local(async move {
+                let cols = terminal.get_cols();
+                let rows = terminal.get_rows();
+                tty.set_bounds(cols, rows).await;
             });
+        });
         window.add_event_listener_with_callback("resize", closure.as_ref().unchecked_ref())?;
+        window.add_event_listener_with_callback(
+            "orientationchange",
+            closure.as_ref().unchecked_ref(),
+        )?;
         closure.forget();
     }
-    
+
     terminal.focus();
 
     spawn_local(async move {
         console.init().await;
+
+        let mut last = None;
         while let Some(event) = rx.recv().await {
             match event {
                 InputEvent::Key(event) => {
-                    console.on_key(event.key_code(), event.key(), event.alt_key(), event.ctrl_key(), event.meta_key()).await;
-                },
+                    console
+                        .on_key(
+                            event.key_code(),
+                            event.key(),
+                            event.alt_key(),
+                            event.ctrl_key(),
+                            event.meta_key(),
+                        )
+                        .await;
+                }
                 InputEvent::Data(data) => {
+                    // Due to a nasty bug in xterm.js on Android mobile it sends the keys you press
+                    // twice in a row with a short interval between - this hack will avoid that bug
+                    if is_mobile {
+                        let now: DateTime<Local> = Local::now();
+                        let now = now.timestamp_millis();
+                        if let Some((what, when)) = last {
+                            if what == data && now - when < 200 {
+                                last = None;
+                                continue;
+                            }
+                        }
+                        last = Some((data.clone(), now))
+                    }
+
                     console.on_data(data).await;
-                },
+                }
             }
         }
     });
@@ -178,7 +232,13 @@ pub fn start() -> Result<(), JsValue> {
 #[wasm_bindgen(module = "/src/js/fit.ts")]
 extern "C" {
     #[wasm_bindgen(js_name = "termFit")]
-    fn term_fit(
-        terminal: Terminal,
-    );
+    fn term_fit(terminal: Terminal, front: HtmlCanvasElement);
+}
+
+#[wasm_bindgen(module = "/src/js/gl.js")]
+extern "C" {
+    #[wasm_bindgen(js_name = "showTerminal")]
+    pub fn show_terminal();
+    #[wasm_bindgen(js_name = "showCanvas")]
+    pub fn show_canvas();
 }

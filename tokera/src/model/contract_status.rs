@@ -1,10 +1,9 @@
-use serde::*;
 use chrono::DateTime;
 use chrono::Utc;
+use serde::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct ThrottleTriggers
-{
+pub struct ThrottleTriggers {
     pub download_per_second: Option<u64>,
     pub upload_per_second: Option<u64>,
     pub read_only_threshold: Option<u64>,
@@ -12,8 +11,7 @@ pub struct ThrottleTriggers
 
 /// The contract status determines if aggrements are being honoured
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum ContractStatus
-{
+pub enum ContractStatus {
     MissingContract {
         throttle: ThrottleTriggers,
     },
@@ -26,8 +24,7 @@ pub enum ContractStatus
     },
 }
 
-impl ContractStatus
-{
+impl ContractStatus {
     pub fn throttle(&self) -> &ThrottleTriggers {
         match self {
             ContractStatus::Nominal { throttle } => throttle,
@@ -37,14 +34,14 @@ impl ContractStatus
     }
 }
 
-impl std::fmt::Display
-for ContractStatus
-{
+impl std::fmt::Display for ContractStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ContractStatus::Nominal { throttle: _ } => write!(f, "nominal"),
             ContractStatus::MissingContract { throttle: _ } => write!(f, "missing"),
-            ContractStatus::InDefault { since, throttle: _ } => write!(f, "default-since-{}", since),
+            ContractStatus::InDefault { since, throttle: _ } => {
+                write!(f, "default-since-{}", since)
+            }
         }
     }
 }

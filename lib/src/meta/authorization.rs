@@ -1,24 +1,20 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use super::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default, Hash, PartialEq, Eq)]
-pub struct MetaAuthorization
-{
+pub struct MetaAuthorization {
     pub read: ReadOption,
     pub write: WriteOption,
 }
 
-impl MetaAuthorization
-{
+impl MetaAuthorization {
     pub fn is_relevant(&self) -> bool {
         self.read != ReadOption::Inherit || self.write != WriteOption::Inherit
     }
 }
 
-impl std::fmt::Display
-for MetaAuthorization
-{
+impl std::fmt::Display for MetaAuthorization {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let r = match &self.read {
             ReadOption::Everyone(key) => {
@@ -27,7 +23,7 @@ for MetaAuthorization
                 } else {
                     "everyone".to_string()
                 }
-            },
+            }
             ReadOption::Inherit => "inherit".to_string(),
             ReadOption::Specific(a, _derived) => format!("specific-{}", a),
         };

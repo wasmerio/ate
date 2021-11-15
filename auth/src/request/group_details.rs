@@ -1,18 +1,16 @@
 #![allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use serde::*;
 use ate::prelude::*;
+use serde::*;
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct GroupDetailsRequest
-{
+pub struct GroupDetailsRequest {
     pub group: String,
     pub session: Option<AteSessionGroup>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct GroupDetailsRoleResponse
-{
+pub struct GroupDetailsRoleResponse {
     pub purpose: AteRolePurpose,
     pub name: String,
     pub read: AteHash,
@@ -23,8 +21,7 @@ pub struct GroupDetailsRoleResponse
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct GroupDetailsResponse
-{
+pub struct GroupDetailsResponse {
     pub key: PrimaryKey,
     pub name: String,
     pub roles: Vec<GroupDetailsRoleResponse>,
@@ -32,17 +29,16 @@ pub struct GroupDetailsResponse
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum GroupDetailsFailed
-{
+pub enum GroupDetailsFailed {
     GroupNotFound,
     NoMasterKey,
     NoAccess,
     InternalError(u16),
 }
 
-impl<E> From<E>
-for GroupDetailsFailed
-where E: std::error::Error + Sized
+impl<E> From<E> for GroupDetailsFailed
+where
+    E: std::error::Error + Sized,
 {
     fn from(err: E) -> Self {
         GroupDetailsFailed::InternalError(ate::utils::obscure_error(err))

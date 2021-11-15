@@ -1,23 +1,27 @@
 #![allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use error_chain::bail;
 use ate::prelude::*;
-use std::sync::Arc;
-use url::Url;
+use error_chain::bail;
 use std::io::stdout;
 use std::io::Write;
+use std::sync::Arc;
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
+use url::Url;
 
-use crate::prelude::*;
-use crate::helper::*;
 use crate::error::*;
-use crate::request::*;
+use crate::helper::*;
 use crate::opt::*;
+use crate::prelude::*;
+use crate::request::*;
 
-pub async fn group_details_command(registry: &Registry, group: String, auth: Url, session: Option<&AteSessionGroup>) -> Result<GroupDetailsResponse, GroupDetailsError>
-{
+pub async fn group_details_command(
+    registry: &Registry,
+    group: String,
+    auth: Url,
+    session: Option<&AteSessionGroup>,
+) -> Result<GroupDetailsResponse, GroupDetailsError> {
     // Open a command chain
     let chain = registry.open_cmd(&auth).await?;
-    
+
     // Make the create request and fire it over to the authentication server
     let create = GroupDetailsRequest {
         group,
@@ -34,22 +38,23 @@ pub async fn main_group_details(
     group: Option<String>,
     auth: Url,
     session: Option<&AteSessionGroup>,
-    hint_group: &str
-) -> Result<(), GroupDetailsError>
-{
+    hint_group: &str,
+) -> Result<(), GroupDetailsError> {
     let group = match group {
         Some(a) => a,
         None => {
             print!("{}: ", hint_group);
             stdout().lock().flush()?;
             let mut s = String::new();
-            std::io::stdin().read_line(&mut s).expect(format!("Did not enter a valid {}", hint_group.to_lowercase()).as_str());
+            std::io::stdin()
+                .read_line(&mut s)
+                .expect(format!("Did not enter a valid {}", hint_group.to_lowercase()).as_str());
             s.trim().to_string()
         }
     };
 
     // Looks up the details of a group and prints them to the console
-    let registry = ate::mesh::Registry::new( &conf_cmd()).await.cement();
+    let registry = ate::mesh::Registry::new(&conf_cmd()).await.cement();
     let result = group_details_command(&registry, group, auth, session).await?;
 
     println!("# Group Details");

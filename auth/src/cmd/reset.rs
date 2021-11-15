@@ -1,20 +1,27 @@
 #![allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use error_chain::bail;
 use ate::prelude::*;
-use std::sync::Arc;
-use url::Url;
+use error_chain::bail;
 use std::io::stdout;
 use std::io::Write;
+use std::sync::Arc;
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
+use url::Url;
 
-use crate::prelude::*;
-use crate::helper::*;
 use crate::error::*;
-use crate::request::*;
+use crate::helper::*;
 use crate::opt::*;
+use crate::prelude::*;
+use crate::request::*;
 
-pub async fn reset_command(registry: &Registry, email: String, new_password: String, recovery_key: EncryptKey, sudo_code: String, sudo_code_2: String, auth: Url) -> Result<ResetResponse, ResetError>
-{
+pub async fn reset_command(
+    registry: &Registry,
+    email: String,
+    new_password: String,
+    recovery_key: EncryptKey,
+    sudo_code: String,
+    sudo_code_2: String,
+    auth: Url,
+) -> Result<ResetResponse, ResetError> {
     // Open a command chain
     let chain = registry.open_cmd(&auth).await?;
 
@@ -23,7 +30,7 @@ pub async fn reset_command(registry: &Registry, email: String, new_password: Str
     //  which means that neither the client nor the server can get at the data alone)
     let prefix = format!("remote-login:{}:", email);
     let new_secret = password_to_read_key(&prefix, &new_password, 15, KeySize::Bit192);
-    
+
     // Create the query command
     let auth = match auth.domain() {
         Some(a) => a.to_string(),
@@ -49,18 +56,18 @@ pub async fn main_reset(
     sudo_code: Option<String>,
     sudo_code_2: Option<String>,
     new_password: Option<String>,
-    auth: Url
-) -> Result<ResetResponse, ResetError>
-{
-    if recovery_code.is_none() ||
-       sudo_code.is_none() {
-        eprintln!(r#"# Account Reset Process
+    auth: Url,
+) -> Result<ResetResponse, ResetError> {
+    if recovery_code.is_none() || sudo_code.is_none() {
+        eprintln!(
+            r#"# Account Reset Process
 
 You will need *both* of the following to reset your account:
 - Your 'recovery code' that you saved during account creation - if not - then
   the recovery code is likely still in your email inbox.
 - Two sequential 'authenticator code' response challenges from your mobile app.
-"#);
+"#
+        );
     }
 
     let username = match username {
@@ -69,7 +76,9 @@ You will need *both* of the following to reset your account:
             print!("Username: ");
             stdout().lock().flush()?;
             let mut s = String::new();
-            std::io::stdin().read_line(&mut s).expect("Did not enter a valid username");
+            std::io::stdin()
+                .read_line(&mut s)
+                .expect("Did not enter a valid username");
             s.trim().to_string()
         }
     };
@@ -80,7 +89,9 @@ You will need *both* of the following to reset your account:
             print!("Recovery Code: ");
             stdout().lock().flush()?;
             let mut s = String::new();
-            std::io::stdin().read_line(&mut s).expect("Did not enter a valid recovery code");
+            std::io::stdin()
+                .read_line(&mut s)
+                .expect("Did not enter a valid recovery code");
             s.trim().to_string()
         }
     };
@@ -106,7 +117,9 @@ You will need *both* of the following to reset your account:
             print!("Authenticator Code: ");
             stdout().lock().flush()?;
             let mut s = String::new();
-            std::io::stdin().read_line(&mut s).expect("Did not enter a valid authenticator code");
+            std::io::stdin()
+                .read_line(&mut s)
+                .expect("Did not enter a valid authenticator code");
             s.trim().to_string()
         }
     };
@@ -117,7 +130,9 @@ You will need *both* of the following to reset your account:
             print!("Next Authenticator Code: ");
             stdout().lock().flush()?;
             let mut s = String::new();
-            std::io::stdin().read_line(&mut s).expect("Did not enter a valid authenticator code");
+            std::io::stdin()
+                .read_line(&mut s)
+                .expect("Did not enter a valid authenticator code");
             s = s.trim().to_string();
 
             if sudo_code == s {
@@ -128,7 +143,7 @@ You will need *both* of the following to reset your account:
         }
     };
 
-    let registry = ate::mesh::Registry::new( &conf_cmd()).await.cement();
+    let registry = ate::mesh::Registry::new(&conf_cmd()).await.cement();
     let result = match reset_command(
         &registry,
         username,
@@ -136,8 +151,10 @@ You will need *both* of the following to reset your account:
         recovery_key,
         sudo_code,
         sudo_code_2,
-        auth
-    ).await {
+        auth,
+    )
+    .await
+    {
         Ok(a) => a,
         Err(err) => {
             bail!(err);

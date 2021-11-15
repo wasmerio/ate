@@ -19,10 +19,7 @@ pub struct Environment {
 
 impl Environment {
     pub fn set_var(&mut self, key: &str, val: String) {
-        self.set_vareq_with_key(
-            key.to_string(),
-            format!("{}={}", key, val),
-        );
+        self.set_vareq_with_key(key.to_string(), format!("{}={}", key, val));
     }
 
     pub fn set_vareq(&mut self, var_eq: String) {

@@ -1,40 +1,46 @@
 #![allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use error_chain::bail;
+use once_cell::sync::Lazy;
+use qrcode::render::unicode;
+use qrcode::QrCode;
+use regex::Regex;
 use std::io::stdout;
 use std::io::Write;
-use url::Url;
 use std::ops::Deref;
-use qrcode::QrCode;
-use qrcode::render::unicode;
-use regex::Regex;
 use std::sync::Arc;
-use once_cell::sync::Lazy;
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
+use url::Url;
 
-use ate::prelude::*;
 use ate::error::LoadError;
+use ate::prelude::*;
 use ate::utils::chain_key_4hex;
 
+use crate::error::*;
+use crate::helper::*;
+use crate::model::*;
 use crate::prelude::*;
 use crate::request::*;
 use crate::service::AuthService;
-use crate::helper::*;
-use crate::error::*;
-use crate::model::*;
 
-static BANNED_USERNAMES: Lazy<Vec<&'static str>> = Lazy::new(|| vec!["nobody", "admin", "support", "help", "root"]);
+static BANNED_USERNAMES: Lazy<Vec<&'static str>> =
+    Lazy::new(|| vec!["nobody", "admin", "support", "help", "root"]);
 
-impl AuthService
-{
-    pub async fn process_create_user(self: Arc<Self>, request: CreateUserRequest) -> Result<CreateUserResponse, CreateUserFailed>
-    {
-        Ok(self.process_create_user_internal(request, UserStatus::Nominal)
+impl AuthService {
+    pub async fn process_create_user(
+        self: Arc<Self>,
+        request: CreateUserRequest,
+    ) -> Result<CreateUserResponse, CreateUserFailed> {
+        Ok(self
+            .process_create_user_internal(request, UserStatus::Nominal)
             .await?
             .0)
     }
 
-    pub async fn process_create_user_internal(self: Arc<Self>, request: CreateUserRequest, initial_status: UserStatus) -> Result<(CreateUserResponse, DaoMut<User>), CreateUserFailed>
-    {
+    pub async fn process_create_user_internal(
+        self: Arc<Self>,
+        request: CreateUserRequest,
+        initial_status: UserStatus,
+    ) -> Result<(CreateUserResponse, DaoMut<User>), CreateUserFailed> {
         info!("create user: {}", request.email);
 
         // Check the username matches the regex
@@ -63,14 +69,14 @@ impl AuthService
         let key_size = request.secret.size();
         let (super_key, token) = match self.compute_master_key(&request.secret) {
             Some(a) => a,
-            None => { 
+            None => {
                 warn!("failed to generate super key");
                 return Err(CreateUserFailed::NoMasterKey);
             }
         };
         let (super_super_key, super_token) = match self.compute_master_key(&super_key) {
             Some(a) => a,
-            None => { 
+            None => {
                 warn!("failed to generate super super key");
                 return Err(CreateUserFailed::NoMasterKey);
             }
@@ -82,12 +88,20 @@ impl AuthService
 
         // Generate the recovery code
         let recovery_code = AteHash::generate().to_hex_string().to_uppercase();
-        let recovery_code = format!("{}-{}-{}-{}-{}", &recovery_code[0..4], &recovery_code[4..8], &recovery_code[8..12], &recovery_code[12..16], &recovery_code[16..20]);
+        let recovery_code = format!(
+            "{}-{}-{}-{}-{}",
+            &recovery_code[0..4],
+            &recovery_code[4..8],
+            &recovery_code[8..12],
+            &recovery_code[12..16],
+            &recovery_code[16..20]
+        );
         let recovery_prefix = format!("recover-login:{}:", request.email);
-        let recovery_key = password_to_read_key(&recovery_prefix, &recovery_code, 15, KeySize::Bit192);
+        let recovery_key =
+            password_to_read_key(&recovery_prefix, &recovery_code, 15, KeySize::Bit192);
         let (super_recovery_key, _) = match self.compute_master_key(&recovery_key) {
             Some(a) => a,
-            None => { 
+            None => {
                 warn!("failed to generate recovery key");
                 return Err(CreateUserFailed::NoMasterKey);
             }
@@ -102,7 +116,7 @@ impl AuthService
         access.push(Authorization {
             read: read_key.clone(),
             private_read: private_read_key.clone(),
-            write: write_key.clone()
+            write: write_key.clone(),
         });
 
         // Create an aggregation session
@@ -121,7 +135,9 @@ impl AuthService
         let mut uid = None;
         for n in 0u32..50u32 {
             let mut uid_test = estimate_user_name_as_uid(request.email.clone());
-            if uid_test < 1000 { uid_test = uid_test + 1000; }
+            if uid_test < 1000 {
+                uid_test = uid_test + 1000;
+            }
             uid_test = uid_test + n;
             if dio.exists(&PrimaryKey::from(uid_test as u64)).await {
                 continue;
@@ -147,15 +163,21 @@ impl AuthService
         // Generate a QR code
         let google_auth = google_authenticator::GoogleAuthenticator::new();
         let secret = google_auth.create_secret(32);
-        let google_auth_secret = format!("otpauth://totp/{}:{}?secret={}", request.auth.to_string(), request.email, secret.clone());
+        let google_auth_secret = format!(
+            "otpauth://totp/{}:{}?secret={}",
+            request.auth.to_string(),
+            request.email,
+            secret.clone()
+        );
 
         // Build the QR image
-        let qr_code = QrCode::new(google_auth_secret.as_bytes()).unwrap()
+        let qr_code = QrCode::new(google_auth_secret.as_bytes())
+            .unwrap()
             .render::<unicode::Dense1x2>()
             .dark_color(unicode::Dense1x2::Light)
             .light_color(unicode::Dense1x2::Dark)
             .build();
-        
+
         // Create all the sudo keys
         let sudo_read_key = EncryptKey::generate(key_size);
         let sudo_private_read_key = PrivateEncryptKey::generate(key_size);
@@ -164,38 +186,42 @@ impl AuthService
         sudo_access.push(Authorization {
             read: sudo_read_key.clone(),
             private_read: sudo_private_read_key.clone(),
-            write: sudo_write_key.clone()
+            write: sudo_write_key.clone(),
         });
 
         // We generate a derived contract encryption key which we will give back to the caller
         let contract_read_key = {
             let contract_read_key_entropy = format!("contract-read:{}", request.email);
-            let contract_read_key_entropy = AteHash::from_bytes(contract_read_key_entropy.as_bytes());
+            let contract_read_key_entropy =
+                AteHash::from_bytes(contract_read_key_entropy.as_bytes());
             self.compute_contract_key_from_hash(&contract_read_key_entropy)
         };
 
         // Attempt to load it as maybe it is still being verified
         // Otherwise create the record
         let user_key = PrimaryKey::from(request.email.clone());
-        let mut user = match dio.load::<User>(&user_key).await.ok()
-        {
+        let mut user = match dio.load::<User>(&user_key).await.ok() {
             Some(user) => {
                 if user.last_login.is_none() {
                     user
                 } else {
                     // Fail
                     warn!("username already active: {}", request.email);
-                    return Err(CreateUserFailed::AlreadyExists("your account already exists and is in use".to_string()));
+                    return Err(CreateUserFailed::AlreadyExists(
+                        "your account already exists and is in use".to_string(),
+                    ));
                 }
-            },
+            }
             None => {
                 // If it already exists then fail
                 if dio.exists(&user_key).await {
                     // Fail
                     warn!("username already exists: {}", request.email);
-                    return Err(CreateUserFailed::AlreadyExists("an account already exists for this username".to_string()));
+                    return Err(CreateUserFailed::AlreadyExists(
+                        "an account already exists for this username".to_string(),
+                    ));
                 }
-            
+
                 // Generate the broker encryption keys used to extend trust without composing
                 // the confidentiality of the chain through wide blast radius
                 let broker_read = PrivateEncryptKey::generate(key_size);
@@ -209,7 +235,7 @@ impl AuthService
                 } else {
                     None
                 };
-            
+
                 // Create the user and save it
                 let user = User {
                     person: DaoChild::new(),
@@ -235,10 +261,11 @@ impl AuthService
                     broker_write: broker_write.clone(),
                 };
                 dio.store_with_key(user, user_key.clone())?
-            }   
+            }
         };
         user.auth_mut().read = ReadOption::from_key(&super_key);
-        user.auth_mut().write = WriteOption::Any(vec![master_write_key.hash(), sudo_write_key.hash()]);
+        user.auth_mut().write =
+            WriteOption::Any(vec![master_write_key.hash(), sudo_write_key.hash()]);
 
         // Generate the account recovery object
         let recovery_key_entropy = format!("recovery:{}", request.email.clone()).to_string();
@@ -308,14 +335,17 @@ impl AuthService
             if let Some(mut terms) = user.accepted_terms.load_mut().await? {
                 terms.as_mut().terms_and_conditions = accepted_terms.clone();
             } else {
-                let mut terms = user.accepted_terms.store(AcceptedTerms {
-                    terms_and_conditions: accepted_terms.clone()
-                }).await?;
+                let mut terms = user
+                    .accepted_terms
+                    .store(AcceptedTerms {
+                        terms_and_conditions: accepted_terms.clone(),
+                    })
+                    .await?;
                 terms.auth_mut().read = ReadOption::Everyone(None);
                 terms.auth_mut().write = WriteOption::Specific(master_write_key.hash());
             }
         }
-        
+
         // Create the advert object and save it using public read
         let advert_key_entropy = format!("advert:{}", request.email.clone()).to_string();
         let advert_key = PrimaryKey::from(advert_key_entropy);
@@ -332,7 +362,7 @@ impl AuthService
                 advert_mut.broker_auth = user.broker_write.as_public_key().clone();
                 drop(advert_mut);
                 advert
-            },
+            }
             None => {
                 let advert = Advert {
                     identity: request.email.clone(),
@@ -344,12 +374,15 @@ impl AuthService
                     broker_encrypt: user.broker_read.as_public_key().clone(),
                     broker_auth: user.broker_write.as_public_key().clone(),
                 };
-                user.as_mut().advert.store_with_key(advert, advert_key.clone()).await?
+                user.as_mut()
+                    .advert
+                    .store_with_key(advert, advert_key.clone())
+                    .await?
             }
         };
         advert.auth_mut().read = ReadOption::Everyone(None);
         advert.auth_mut().write = WriteOption::Inherit;
-        
+
         // Save the data
         dio.commit().await?;
 
@@ -358,13 +391,16 @@ impl AuthService
         session.token = Some(token);
 
         // Return success to the caller
-        Ok((CreateUserResponse {
-            key: user.key().clone(),
-            qr_code: qr_code,
-            qr_secret: secret.clone(),
-            recovery_code,
-            authority: session,
-            message_of_the_day: None,
-        }, user))
+        Ok((
+            CreateUserResponse {
+                key: user.key().clone(),
+                qr_code: qr_code,
+                qr_secret: secret.clone(),
+                recovery_code,
+                authority: session,
+                message_of_the_day: None,
+            },
+            user,
+        ))
     }
 }

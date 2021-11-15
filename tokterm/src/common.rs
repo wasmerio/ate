@@ -1,9 +1,9 @@
-#[allow(unused_imports, dead_code)]
-use tracing::{info, error, debug, trace, warn};
 use js_sys::Function;
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, trace, warn};
 use wasm_bindgen::{prelude::*, JsCast};
-use web_sys::Window;
 use wasm_bindgen_futures::JsFuture;
+use web_sys::Window;
 use web_sys::{Request, RequestInit, RequestMode, Response};
 
 use std::cell::Cell;
@@ -64,10 +64,7 @@ impl AnimationFrameCallbackWrapper /*<'a>*/ {
     /// This is extremely prone to crashing and is probably unsound; use at your
     /// own peril.
     #[inline(never)]
-    pub unsafe fn start<'s, 'f: 's>(
-        &'s mut self,
-        func: impl FnMut() -> bool + 'f,
-    ) {
+    pub unsafe fn start<'s, 'f: 's>(&'s mut self, func: impl FnMut() -> bool + 'f) {
         debug!(""); // load bearing, somehow...
         self.inner(func)
     }
@@ -80,8 +77,7 @@ impl AnimationFrameCallbackWrapper /*<'a>*/ {
 
         let func: Box<dyn FnMut() -> bool + 'f> = Box::new(func);
         // Crime!
-        let func: Box<dyn FnMut() -> bool + 'static> =
-            unsafe { core::mem::transmute(func) };
+        let func: Box<dyn FnMut() -> bool + 'static> = unsafe { core::mem::transmute(func) };
         self.func = Some(func);
 
         // This is the dangerous part; we're saying this is okay because we
@@ -125,8 +121,7 @@ impl AnimationFrameCallbackWrapper /*<'a>*/ {
             val.dyn_into().unwrap()
         }
 
-        let func: &'static mut Box<dyn FnMut() -> bool + 'static> =
-            wrapper.func.as_mut().unwrap();
+        let func: &'static mut Box<dyn FnMut() -> bool + 'static> = wrapper.func.as_mut().unwrap();
         let starting = recurse(func, &wrapper.handle, window.clone());
         wrapper
             .handle
@@ -134,8 +129,12 @@ impl AnimationFrameCallbackWrapper /*<'a>*/ {
     }
 }
 
-pub async fn fetch(url: &str, method: &str, headers: Vec<(String, String)>, data: Option<Vec<u8>>) -> Result<Response, i32>
-{
+pub async fn fetch(
+    url: &str,
+    method: &str,
+    headers: Vec<(String, String)>,
+    data: Option<Vec<u8>>,
+) -> Result<Response, i32> {
     let request = {
         let mut opts = RequestInit::new();
         opts.method(method);
@@ -146,26 +145,23 @@ pub async fn fetch(url: &str, method: &str, headers: Vec<(String, String)>, data
             let array = js_sys::Uint8Array::new_with_length(data_len as u32);
             array.copy_from(&data[..]);
 
-            opts.body(Some(
-                &array
-            ));
+            opts.body(Some(&array));
         }
 
-        let request = Request::new_with_str_and_init(&url, &opts)
-            .map_err(|_| err::ERR_EIO)?;
+        let request = Request::new_with_str_and_init(&url, &opts).map_err(|_| err::ERR_EIO)?;
 
         let set_headers = request.headers();
         for (name, val) in headers {
-            set_headers.set(name.as_str(), val.as_str()).map_err(|_| err::ERR_EIO)?;
+            set_headers
+                .set(name.as_str(), val.as_str())
+                .map_err(|_| err::ERR_EIO)?;
         }
 
         let window = web_sys::window().unwrap();
-        JsFuture::from( window.fetch_with_request(&request))
+        JsFuture::from(window.fetch_with_request(&request))
     };
 
-    let resp_value = request
-        .await
-        .map_err(|_| err::ERR_EIO)?;
+    let resp_value = request.await.map_err(|_| err::ERR_EIO)?;
     assert!(resp_value.is_instance_of::<Response>());
     let resp: Response = resp_value.dyn_into().unwrap();
 
@@ -173,26 +169,25 @@ pub async fn fetch(url: &str, method: &str, headers: Vec<(String, String)>, data
         debug!("fetch-failed: {}", resp.status_text());
         return Err(match resp.status() {
             404 => err::ERR_ENOENT,
-            _ => err::ERR_EIO
+            _ => err::ERR_EIO,
         });
     }
     Ok(resp)
 }
 
-pub async fn fetch_data(url: &str, method: &str, headers: Vec<(String, String)>, data: Option<Vec<u8>>) -> Result<Vec<u8>, i32>
-{
+pub async fn fetch_data(
+    url: &str,
+    method: &str,
+    headers: Vec<(String, String)>,
+    data: Option<Vec<u8>>,
+) -> Result<Vec<u8>, i32> {
     Ok(get_response_data(fetch(url, method, headers, data).await?).await?)
 }
 
-pub async fn get_response_data(resp: Response) -> Result<Vec<u8>, i32>
-{
-    let resp = {
-        JsFuture::from(resp.array_buffer().unwrap())
-    };
+pub async fn get_response_data(resp: Response) -> Result<Vec<u8>, i32> {
+    let resp = { JsFuture::from(resp.array_buffer().unwrap()) };
 
-    let arrbuff_value = resp
-        .await
-        .map_err(|_| err::ERR_ENOEXEC)?;
+    let arrbuff_value = resp.await.map_err(|_| err::ERR_ENOEXEC)?;
     assert!(arrbuff_value.is_instance_of::<js_sys::ArrayBuffer>());
     //let arrbuff: js_sys::ArrayBuffer = arrbuff_value.dyn_into().unwrap();
 
@@ -201,10 +196,18 @@ pub async fn get_response_data(resp: Response) -> Result<Vec<u8>, i32>
     Ok(ret)
 }
 
-pub fn is_cleared_line(text: &str) -> bool
-{
+pub fn is_cleared_line(text: &str) -> bool {
     // returns true if the displayed line is all blank on the screen
-    text.ends_with("\r\x1b[0K") ||
-    text.ends_with("\x1b[0K\r") ||
-    text.ends_with("\n")
+    text.ends_with("\r\x1b[0K") || text.ends_with("\x1b[0K\r") || text.ends_with("\n")
+}
+
+pub fn is_mobile(user_agent: &str) -> bool {
+    user_agent.contains("Android")
+        || user_agent.contains("BlackBerry")
+        || user_agent.contains("iPhone")
+        || user_agent.contains("iPad")
+        || user_agent.contains("iPod")
+        || user_agent.contains("Open Mini")
+        || user_agent.contains("IEMobile")
+        || user_agent.contains("WPDesktop")
 }

@@ -1,11 +1,10 @@
 #![allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use serde::*;
 use ate::prelude::*;
+use serde::*;
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct CreateUserRequest
-{
+pub struct CreateUserRequest {
     pub auth: String,
     pub email: String,
     pub secret: EncryptKey,
@@ -13,8 +12,7 @@ pub struct CreateUserRequest
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct CreateUserResponse
-{
+pub struct CreateUserResponse {
     pub key: PrimaryKey,
     pub qr_code: String,
     pub qr_secret: String,
@@ -24,8 +22,7 @@ pub struct CreateUserResponse
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum CreateUserFailed
-{
+pub enum CreateUserFailed {
     AlreadyExists(String),
     InvalidEmail,
     NoMoreRoom,
@@ -34,9 +31,9 @@ pub enum CreateUserFailed
     InternalError(u16),
 }
 
-impl<E> From<E>
-for CreateUserFailed
-where E: std::error::Error + Sized
+impl<E> From<E> for CreateUserFailed
+where
+    E: std::error::Error + Sized,
 {
     fn from(err: E) -> Self {
         CreateUserFailed::InternalError(ate::utils::obscure_error(err))

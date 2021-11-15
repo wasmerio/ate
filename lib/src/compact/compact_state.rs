@@ -1,31 +1,28 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::time::Duration;
 use std::time::Instant;
-use tokio::sync::watch;
-use std::sync::Mutex;
 use tokio::select;
+use tokio::sync::watch;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use super::CompactMode;
 
 const GROWTH_FACTOR_IGNORE_SMALLER_THAN_SIZE: u64 = 2097152;
 
-pub(crate) struct CompactNotifications
-{
+pub(crate) struct CompactNotifications {
     pub log_size: watch::Sender<u64>,
 }
 
-pub(crate) struct CompactState
-{
+pub(crate) struct CompactState {
     pub mode: CompactMode,
     pub log_size: watch::Receiver<u64>,
     pub last_size: Arc<Mutex<u64>>,
-    pub last_compact: Arc<Mutex<Option<Instant>>>
+    pub last_compact: Arc<Mutex<Option<Instant>>>,
 }
 
-impl CompactState
-{
+impl CompactState {
     pub fn new(mode: CompactMode, size: u64) -> (CompactNotifications, CompactState) {
         let (modified_tx, modified_rx) = watch::channel::<u64>(size);
 
@@ -47,14 +44,14 @@ impl CompactState
             let initial_size = {
                 let mut guard = self.last_size.lock().unwrap();
                 let mut ret = *guard;
-                
+
                 // If the size has gone backwards (likely due to compaction) then move the cursor back
                 let cur = *self.log_size.borrow();
                 if cur < ret {
                     *guard = cur;
                     ret = cur;
                 }
-                
+
                 ret
             };
 
@@ -80,7 +77,7 @@ impl CompactState
             match self.mode {
                 CompactMode::Never => {
                     crate::engine::sleep(Duration::from_secs(u64::MAX)).await;
-                },
+                }
                 CompactMode::Timer(duration) => {
                     let deadtime = deadtime(duration);
                     crate::engine::sleep(deadtime).await;

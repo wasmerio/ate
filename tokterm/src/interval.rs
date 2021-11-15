@@ -7,14 +7,14 @@ extern "C" {
 }
 
 #[wasm_bindgen]
-pub struct LeakyInterval
-{
+pub struct LeakyInterval {
     token: f64,
 }
 
 impl LeakyInterval {
     pub fn new<F: 'static>(duration: std::time::Duration, f: F) -> LeakyInterval
-    where F: FnMut()
+    where
+        F: FnMut(),
     {
         let closure = Closure::new(f);
         let millis = duration.as_millis() as u32;

@@ -1,22 +1,21 @@
-#[allow(unused_imports)]
-use tracing::{error, info, warn, debug};
 use fxhash::FxHashMap;
 use std::sync::Arc;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, warn};
 
 use crate::crypto::*;
-use crate::signature::*;
 use crate::error::*;
-use crate::sink::*;
-use crate::meta::*;
-use crate::plugin::*;
 use crate::event::*;
 use crate::header::*;
-use crate::transaction::*;
+use crate::meta::*;
+use crate::plugin::*;
+use crate::signature::*;
+use crate::sink::*;
 use crate::spec::*;
+use crate::transaction::*;
 
 #[derive(Debug, Clone)]
-pub struct TreeAuthorityPlugin
-{
+pub struct TreeAuthorityPlugin {
     pub(super) root: WriteOption,
     pub(super) root_keys: FxHashMap<AteHash, PublicSignKey>,
     pub(super) auth: FxHashMap<PrimaryKey, MetaAuthorization>,
@@ -25,8 +24,7 @@ pub struct TreeAuthorityPlugin
     pub(super) integrity: TrustMode,
 }
 
-impl TreeAuthorityPlugin
-{
+impl TreeAuthorityPlugin {
     pub fn new() -> TreeAuthorityPlugin {
         TreeAuthorityPlugin {
             root: WriteOption::Everyone,
@@ -39,27 +37,27 @@ impl TreeAuthorityPlugin
     }
 
     #[allow(dead_code)]
-    pub fn add_root_public_key(&mut self, key: &PublicSignKey)
-    {
+    pub fn add_root_public_key(&mut self, key: &PublicSignKey) {
         self.root_keys.insert(key.hash(), key.clone());
         self.root = WriteOption::Any(self.root_keys.keys().map(|k| k.clone()).collect::<Vec<_>>());
     }
 }
 
-impl EventPlugin
-for TreeAuthorityPlugin
-{
+impl EventPlugin for TreeAuthorityPlugin {
     fn clone_plugin(&self) -> Box<dyn EventPlugin> {
         Box::new(self.clone())
     }
 
-    fn rebuild(&mut self, headers: &Vec<EventHeader>, conversation: Option<&Arc<ConversationSession>>) -> Result<(), SinkError>
-    {
+    fn rebuild(
+        &mut self,
+        headers: &Vec<EventHeader>,
+        conversation: Option<&Arc<ConversationSession>>,
+    ) -> Result<(), SinkError> {
         self.reset();
         self.signature_plugin.rebuild(headers, conversation)?;
         for header in headers {
             match self.feed(header, conversation) {
-                Ok(_) => { },
+                Ok(_) => {}
                 Err(err) => {
                     debug!("feed error: {}", err);
                 }
@@ -68,13 +66,14 @@ for TreeAuthorityPlugin
         Ok(())
     }
 
-    fn root_keys(&self) -> Vec<PublicSignKey>
-    {
-        self.root_keys.values().map(|a| a.clone()).collect::<Vec<_>>()
+    fn root_keys(&self) -> Vec<PublicSignKey> {
+        self.root_keys
+            .values()
+            .map(|a| a.clone())
+            .collect::<Vec<_>>()
     }
 
-    fn set_root_keys(&mut self, root_keys: &Vec<PublicSignKey>)
-    {
+    fn set_root_keys(&mut self, root_keys: &Vec<PublicSignKey>) {
         self.root_keys.clear();
         self.root = WriteOption::Everyone;
 

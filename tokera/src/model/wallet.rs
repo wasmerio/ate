@@ -9,8 +9,7 @@ use super::*;
 /// achieved by proving ownership of the wallet itself. Attaching
 /// the wallet is done by making it a child of user/group.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Wallet
-{
+pub struct Wallet {
     /// Name that can be associated with the wallet for organization purposes (default=default)
     pub name: String,
     /// The country you are resident in for tax purposes

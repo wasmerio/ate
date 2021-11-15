@@ -1,33 +1,34 @@
 #![allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use error_chain::bail;
+use qrcode::render::unicode;
+use qrcode::QrCode;
 use std::io::stdout;
 use std::io::Write;
-use std::sync::Arc;
-use url::Url;
 use std::ops::Deref;
-use qrcode::QrCode;
-use qrcode::render::unicode;
+use std::sync::Arc;
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
+use url::Url;
 
-use ate::prelude::*;
 use ate::error::LoadError;
 use ate::error::TransformError;
+use ate::prelude::*;
 use ate::session::AteRolePurpose;
 use ate::utils::chain_key_4hex;
 
+use crate::error::*;
+use crate::helper::*;
+use crate::model::*;
 use crate::prelude::*;
 use crate::request::*;
 use crate::service::AuthService;
-use crate::helper::*;
-use crate::error::*;
-use crate::model::*;
 
-impl AuthService
-{
-    pub async fn process_group_details(self: Arc<Self>, request: GroupDetailsRequest) -> Result<GroupDetailsResponse, GroupDetailsFailed>
-    {
+impl AuthService {
+    pub async fn process_group_details(
+        self: Arc<Self>,
+        request: GroupDetailsRequest,
+    ) -> Result<GroupDetailsResponse, GroupDetailsFailed> {
         debug!("group ({}) details", request.group);
-        
+
         // Compute which chain the group should exist within
         let group_chain_key = chain_key_4hex(&request.group, Some("redo"));
         let chain = self.registry.open(&self.auth_url, &group_chain_key).await?;
@@ -39,20 +40,31 @@ impl AuthService
             Ok(a) => a,
             Err(LoadError(LoadErrorKind::NotFound(_), _)) => {
                 return Err(GroupDetailsFailed::GroupNotFound);
-            },
-            Err(LoadError(LoadErrorKind::TransformationError(TransformErrorKind::MissingReadKey(_)), _)) => {
+            }
+            Err(LoadError(
+                LoadErrorKind::TransformationError(TransformErrorKind::MissingReadKey(_)),
+                _,
+            )) => {
                 return Err(GroupDetailsFailed::NoMasterKey);
-            },
+            }
             Err(err) => {
                 bail!(err);
             }
-        };       
+        };
 
         // Check that we actually have the rights to view the details of this group
         let has_access = match &request.session {
             Some(session) => {
-                let hashes = session.private_read_keys(AteSessionKeyCategory::AllKeys).map(|k| k.hash()).collect::<Vec<_>>();
-                group.roles.iter().filter(|r| r.purpose == AteRolePurpose::Owner || r.purpose == AteRolePurpose::Delegate)
+                let hashes = session
+                    .private_read_keys(AteSessionKeyCategory::AllKeys)
+                    .map(|k| k.hash())
+                    .collect::<Vec<_>>();
+                group
+                    .roles
+                    .iter()
+                    .filter(|r| {
+                        r.purpose == AteRolePurpose::Owner || r.purpose == AteRolePurpose::Delegate
+                    })
                     .any(|r| {
                         for hash in hashes.iter() {
                             if r.access.exists(hash) {
@@ -61,8 +73,8 @@ impl AuthService
                         }
                         return false;
                     })
-            },
-            None => false
+            }
+            None => false,
         };
 
         // Build the list of roles in this group
@@ -76,9 +88,13 @@ impl AuthService
                 write: role.write.clone(),
                 hidden: has_access == false,
                 members: match has_access {
-                    true => role.access.meta_list().map(|m| m.clone()).collect::<Vec<_>>(),
+                    true => role
+                        .access
+                        .meta_list()
+                        .map(|m| m.clone())
+                        .collect::<Vec<_>>(),
                     false => Vec::new(),
-                }
+                },
             });
         }
 

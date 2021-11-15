@@ -1,13 +1,13 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use serde::{Serialize, Deserialize};
-use std::result::Result;
+use crate::utils::vec_deserialize;
+use crate::utils::vec_serialize;
 use pqcrypto_ntru_wasi::ntruhps2048509 as ntru128;
 use pqcrypto_ntru_wasi::ntruhps2048677 as ntru192;
 use pqcrypto_ntru_wasi::ntruhps4096821 as ntru256;
 use pqcrypto_traits_wasi::kem::*;
-use crate::utils::vec_serialize;
-use crate::utils::vec_deserialize;
+use serde::{Deserialize, Serialize};
+use std::result::Result;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use super::*;
 
@@ -35,29 +35,34 @@ pub enum PrivateEncryptKey {
     },
 }
 
-impl PrivateEncryptKey
-{
+impl PrivateEncryptKey {
     #[allow(dead_code)]
     pub fn generate(size: KeySize) -> PrivateEncryptKey {
         match size {
             KeySize::Bit128 => {
                 let (pk, sk) = ntru128::keypair();
                 PrivateEncryptKey::Ntru128 {
-                    pk: PublicEncryptKey::Ntru128 { pk: Vec::from(pk.as_bytes()) },
+                    pk: PublicEncryptKey::Ntru128 {
+                        pk: Vec::from(pk.as_bytes()),
+                    },
                     sk: Vec::from(sk.as_bytes()),
                 }
-            },
+            }
             KeySize::Bit192 => {
                 let (pk, sk) = ntru192::keypair();
                 PrivateEncryptKey::Ntru192 {
-                    pk: PublicEncryptKey::Ntru192 { pk: Vec::from(pk.as_bytes()) },
+                    pk: PublicEncryptKey::Ntru192 {
+                        pk: Vec::from(pk.as_bytes()),
+                    },
                     sk: Vec::from(sk.as_bytes()),
                 }
-            },
+            }
             KeySize::Bit256 => {
                 let (pk, sk) = ntru256::keypair();
                 PrivateEncryptKey::Ntru256 {
-                    pk: PublicEncryptKey::Ntru256 { pk: Vec::from(pk.as_bytes()) },
+                    pk: PublicEncryptKey::Ntru256 {
+                        pk: Vec::from(pk.as_bytes()),
+                    },
                     sk: Vec::from(sk.as_bytes()),
                 }
             }
@@ -67,15 +72,9 @@ impl PrivateEncryptKey
     #[allow(dead_code)]
     pub fn as_public_key<'a>(&'a self) -> &'a PublicEncryptKey {
         match &self {
-            PrivateEncryptKey::Ntru128 { sk: _, pk } => {
-                pk
-            },
-            PrivateEncryptKey::Ntru192 { sk: _, pk } => {
-                pk
-            },
-            PrivateEncryptKey::Ntru256 { sk: _, pk } => {
-                pk
-            },
+            PrivateEncryptKey::Ntru128 { sk: _, pk } => pk,
+            PrivateEncryptKey::Ntru192 { sk: _, pk } => pk,
+            PrivateEncryptKey::Ntru256 { sk: _, pk } => pk,
         }
     }
 
@@ -89,7 +88,7 @@ impl PrivateEncryptKey
     }
 
     #[allow(dead_code)]
-    pub fn pk<'a>(&'a self) -> &'a [u8] { 
+    pub fn pk<'a>(&'a self) -> &'a [u8] {
         match &self {
             PrivateEncryptKey::Ntru128 { pk, sk: _ } => pk.pk(),
             PrivateEncryptKey::Ntru192 { pk, sk: _ } => pk.pk(),
@@ -98,7 +97,7 @@ impl PrivateEncryptKey
     }
 
     #[allow(dead_code)]
-    pub fn sk<'a>(&'a self) -> &'a [u8] { 
+    pub fn sk<'a>(&'a self) -> &'a [u8] {
         match &self {
             PrivateEncryptKey::Ntru128 { pk: _, sk } => &sk[..],
             PrivateEncryptKey::Ntru192 { pk: _, sk } => &sk[..],
@@ -110,34 +109,47 @@ impl PrivateEncryptKey
     pub fn decapsulate(&self, iv: &InitializationVector) -> Option<EncryptKey> {
         match &self {
             PrivateEncryptKey::Ntru128 { pk: _, sk } => {
-                if iv.bytes.len() != ntru128::ciphertext_bytes() { return None; }
+                if iv.bytes.len() != ntru128::ciphertext_bytes() {
+                    return None;
+                }
                 let ct = ntru128::Ciphertext::from_bytes(&iv.bytes[..]).unwrap();
                 let sk = ntru128::SecretKey::from_bytes(&sk[..]).unwrap();
                 let ss = ntru128::decapsulate(&ct, &sk);
                 Some(EncryptKey::from_seed_bytes(ss.as_bytes(), KeySize::Bit128))
-            },
+            }
             PrivateEncryptKey::Ntru192 { pk: _, sk } => {
-                if iv.bytes.len() != ntru192::ciphertext_bytes() { return None; }
+                if iv.bytes.len() != ntru192::ciphertext_bytes() {
+                    return None;
+                }
                 let ct = ntru192::Ciphertext::from_bytes(&iv.bytes[..]).unwrap();
                 let sk = ntru192::SecretKey::from_bytes(&sk[..]).unwrap();
                 let ss = ntru192::decapsulate(&ct, &sk);
                 Some(EncryptKey::from_seed_bytes(ss.as_bytes(), KeySize::Bit192))
-            },
+            }
             PrivateEncryptKey::Ntru256 { pk: _, sk } => {
-                if iv.bytes.len() != ntru256::ciphertext_bytes() { return None; }
+                if iv.bytes.len() != ntru256::ciphertext_bytes() {
+                    return None;
+                }
                 let ct = ntru256::Ciphertext::from_bytes(&iv.bytes[..]).unwrap();
                 let sk = ntru256::SecretKey::from_bytes(&sk[..]).unwrap();
                 let ss = ntru256::decapsulate(&ct, &sk);
                 Some(EncryptKey::from_seed_bytes(ss.as_bytes(), KeySize::Bit256))
-            },
+            }
         }
     }
-    
-    pub fn decrypt(&self, iv: &InitializationVector, data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
+
+    pub fn decrypt(
+        &self,
+        iv: &InitializationVector,
+        data: &[u8],
+    ) -> Result<Vec<u8>, std::io::Error> {
         let ek = match self.decapsulate(iv) {
             Some(a) => a,
             None => {
-                return Err(std::io::Error::new(std::io::ErrorKind::Other, "The encryption key could not be decapsulated from the initialization vector."));
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "The encryption key could not be decapsulated from the initialization vector.",
+                ));
             }
         };
         Ok(ek.decrypt(iv, data))
@@ -152,14 +164,18 @@ impl PrivateEncryptKey
     }
 }
 
-impl std::fmt::Display
-for PrivateEncryptKey
-{
+impl std::fmt::Display for PrivateEncryptKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PrivateEncryptKey::Ntru128 { pk: _, sk: _ } => write!(f, "ntru128:pk:{}+sk", self.hash()),
-            PrivateEncryptKey::Ntru192 { pk: _, sk: _ } => write!(f, "ntru192:pk:{}+sk", self.hash()),
-            PrivateEncryptKey::Ntru256 { pk: _, sk: _ } => write!(f, "ntru256:pk:{}+sk", self.hash()),
+            PrivateEncryptKey::Ntru128 { pk: _, sk: _ } => {
+                write!(f, "ntru128:pk:{}+sk", self.hash())
+            }
+            PrivateEncryptKey::Ntru192 { pk: _, sk: _ } => {
+                write!(f, "ntru192:pk:{}+sk", self.hash())
+            }
+            PrivateEncryptKey::Ntru256 { pk: _, sk: _ } => {
+                write!(f, "ntru256:pk:{}+sk", self.hash())
+            }
         }
     }
 }
@@ -182,13 +198,11 @@ pub enum PublicEncryptKey {
     Ntru256 {
         #[serde(serialize_with = "vec_serialize", deserialize_with = "vec_deserialize")]
         pk: Vec<u8>,
-    }
+    },
 }
 
-impl PublicEncryptKey
-{
-    pub fn from_bytes(bytes: Vec<u8>) -> Option<PublicEncryptKey>
-    {
+impl PublicEncryptKey {
+    pub fn from_bytes(bytes: Vec<u8>) -> Option<PublicEncryptKey> {
         match bytes.len() {
             a if a == ntru128::public_key_bytes() => Some(PublicEncryptKey::Ntru128 { pk: bytes }),
             a if a == ntru192::public_key_bytes() => Some(PublicEncryptKey::Ntru192 { pk: bytes }),
@@ -197,7 +211,7 @@ impl PublicEncryptKey
         }
     }
 
-    pub fn pk<'a>(&'a self) -> &'a [u8] { 
+    pub fn pk<'a>(&'a self) -> &'a [u8] {
         match &self {
             PublicEncryptKey::Ntru128 { pk } => &pk[..],
             PublicEncryptKey::Ntru192 { pk } => &pk[..],
@@ -221,30 +235,36 @@ impl PublicEncryptKey
                 let pk = ntru128::PublicKey::from_bytes(&pk[..]).unwrap();
                 let (ss, ct) = ntru128::encapsulate(&pk);
                 let iv = InitializationVector::from(ct.as_bytes());
-                (iv, EncryptKey::from_seed_bytes(ss.as_bytes(), KeySize::Bit128))
-            },
+                (
+                    iv,
+                    EncryptKey::from_seed_bytes(ss.as_bytes(), KeySize::Bit128),
+                )
+            }
             PublicEncryptKey::Ntru192 { pk } => {
                 let pk = ntru192::PublicKey::from_bytes(&pk[..]).unwrap();
                 let (ss, ct) = ntru192::encapsulate(&pk);
                 let iv = InitializationVector::from(ct.as_bytes());
-                (iv, EncryptKey::from_seed_bytes(ss.as_bytes(), KeySize::Bit192))
-            },
+                (
+                    iv,
+                    EncryptKey::from_seed_bytes(ss.as_bytes(), KeySize::Bit192),
+                )
+            }
             PublicEncryptKey::Ntru256 { pk } => {
                 let pk = ntru256::PublicKey::from_bytes(&pk[..]).unwrap();
                 let (ss, ct) = ntru256::encapsulate(&pk);
                 let iv = InitializationVector::from(ct.as_bytes());
-                (iv, EncryptKey::from_seed_bytes(ss.as_bytes(), KeySize::Bit256))
-            },
+                (
+                    iv,
+                    EncryptKey::from_seed_bytes(ss.as_bytes(), KeySize::Bit256),
+                )
+            }
         }
     }
 
     pub fn encrypt(&self, data: &[u8]) -> EncryptResult {
         let (iv, ek) = self.encapsulate();
         let data = ek.encrypt_with_iv(&iv, data);
-        EncryptResult {
-            iv,
-            data,
-        }
+        EncryptResult { iv, data }
     }
 
     pub fn size(&self) -> KeySize {
@@ -256,9 +276,7 @@ impl PublicEncryptKey
     }
 }
 
-impl std::fmt::Display
-for PublicEncryptKey
-{
+impl std::fmt::Display for PublicEncryptKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             PublicEncryptKey::Ntru128 { pk: _ } => write!(f, "ntru128:pk:{}", self.hash()),

@@ -1,28 +1,28 @@
-#[allow(unused_imports, dead_code)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use error_chain::bail;
 use async_trait::async_trait;
+use error_chain::bail;
+use fxhash::FxHashMap;
+use std::collections::hash_map::Entry as StdEntry;
+use std::convert::Infallible;
+use std::net::SocketAddr;
+use std::ops::Deref;
 use std::sync::Arc;
 use std::sync::Weak;
-use std::convert::Infallible;
-use fxhash::FxHashMap;
-use tokio::sync::Mutex;
-use std::time::Instant;
-use std::ops::Deref;
-use std::collections::hash_map::Entry as StdEntry;
 use std::time::Duration;
-use std::net::SocketAddr;
+use std::time::Instant;
 use tokio::net::TcpListener;
+use tokio::sync::Mutex;
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use hyper;
+use hyper::header::HeaderValue;
 use hyper::service::{make_service_fn, service_fn};
-use hyper::Request;
-use hyper::Response;
+use hyper::upgrade::Upgraded;
 use hyper::Body;
 use hyper::Method;
+use hyper::Request;
+use hyper::Response;
 use hyper::StatusCode;
-use hyper::upgrade::Upgraded;
-use hyper::header::HeaderValue;
 use hyper_tungstenite::WebSocketStream;
 
 use ate::prelude::*;
@@ -30,33 +30,33 @@ use ate_files::prelude::*;
 
 use crate::model::WebConf;
 
+use super::acceptor::*;
+use super::acme::AcmeResolver;
+use super::builder::*;
+use super::conf::*;
 use super::error::WebServerError;
 use super::error::WebServerErrorKind;
-use super::conf::*;
-use super::builder::*;
-use super::acceptor::*;
-use super::stream::*;
-use super::acme::AcmeResolver;
-use super::repo::*;
 use super::model::*;
+use super::repo::*;
+use super::stream::*;
 
-pub struct ServerWebConf
-{   
+pub struct ServerWebConf {
     web_conf: WebConf,
     web_conf_when: Option<Instant>,
 }
 
 #[async_trait]
-pub trait ServerCallback: Send + Sync
-{
-    async fn web_socket(&self, _ws: WebSocketStream<Upgraded>, _sock_addr: SocketAddr) -> Result<(), Box<dyn std::error::Error>>
-    {
+pub trait ServerCallback: Send + Sync {
+    async fn web_socket(
+        &self,
+        _ws: WebSocketStream<Upgraded>,
+        _sock_addr: SocketAddr,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         Ok(())
     }
 }
 
-pub struct Server
-{
+pub struct Server {
     repo: Arc<Repository>,
     web_conf: Mutex<FxHashMap<String, ServerWebConf>>,
     server_conf: ServerConf,
@@ -64,14 +64,22 @@ pub struct Server
     mime: FxHashMap<String, String>,
 }
 
-async fn process(server: Arc<Server>, listen: Arc<ServerListen>, req: Request<Body>, sock_addr: SocketAddr) -> Result<Response<Body>, hyper::Error> {
+async fn process(
+    server: Arc<Server>,
+    listen: Arc<ServerListen>,
+    req: Request<Body>,
+    sock_addr: SocketAddr,
+) -> Result<Response<Body>, hyper::Error> {
     let path = req.uri().path().to_string();
     match server.process(req, sock_addr, listen.deref()).await {
         Ok(resp) => {
             trace!("res: status={}", resp.status().as_u16());
             Ok(resp)
-        },
-        Err(WebServerError(WebServerErrorKind::FileSystemError(FileSystemErrorKind::NoAccess), _)) => {
+        }
+        Err(WebServerError(
+            WebServerErrorKind::FileSystemError(FileSystemErrorKind::NoAccess),
+            _,
+        )) => {
             let err = format!("Access Denied - {}\n", path);
             let mut resp = Response::new(Body::from(err));
             *resp.status_mut() = StatusCode::FORBIDDEN;
@@ -87,33 +95,27 @@ async fn process(server: Arc<Server>, listen: Arc<ServerListen>, req: Request<Bo
     }
 }
 
-impl Server
-{
-    pub(crate) async fn new(builder: ServerBuilder) -> Result<Arc<Server>, AteError>
-    {
+impl Server {
+    pub(crate) async fn new(builder: ServerBuilder) -> Result<Arc<Server>, AteError> {
         let registry = Arc::new(Registry::new(&builder.conf.cfg_ate).await);
         let repo = Repository::new(
             &registry,
             builder.remote.clone(),
             builder.auth_url.clone(),
             builder.web_key.clone(),
-            builder.conf.ttl
-        ).await?;
-        Ok(
-            Arc::new(
-                Server {
-                    repo,
-                    web_conf: Mutex::new(FxHashMap::default()),
-                    server_conf: builder.conf,
-                    callback: builder.callback,
-                    mime: Server::init_mime(),
-                }
-            )
+            builder.conf.ttl,
         )
+        .await?;
+        Ok(Arc::new(Server {
+            repo,
+            web_conf: Mutex::new(FxHashMap::default()),
+            server_conf: builder.conf,
+            callback: builder.callback,
+            mime: Server::init_mime(),
+        }))
     }
 
-    pub async fn run(self: &Arc<Self>) -> Result<(), Box<dyn std::error::Error>>
-    {
+    pub async fn run(self: &Arc<Self>) -> Result<(), Box<dyn std::error::Error>> {
         trace!("running web server");
 
         let acme = AcmeResolver::new(&self.repo).await?;
@@ -127,7 +129,11 @@ impl Server
                     let addr = conn.remote_addr().clone();
                     let server = server.clone();
                     let listen = listen.clone();
-                    async move { Ok::<_, Infallible>(service_fn(move |req| process(server.clone(), listen.clone(), req, addr))) }
+                    async move {
+                        Ok::<_, Infallible>(service_fn(move |req| {
+                            process(server.clone(), listen.clone(), req, addr)
+                        }))
+                    }
                 })
             };
 
@@ -137,7 +143,7 @@ impl Server
             let server = hyper::Server::builder(acceptor)
                 .http1_preserve_header_case(true)
                 .http1_title_case_headers(true)
-                .serve(make_service);    
+                .serve(make_service);
             println!("Listening on {}", listen.addr);
             joins.push(server);
         }
@@ -159,7 +165,7 @@ impl Server
                     ate::engine::sleep(Duration::from_secs(1)).await;
                     let server = match Weak::upgrade(&server) {
                         Some(a) => a,
-                        None => break
+                        None => break,
                     };
                     n += 1;
                     if n >= ttl_check {
@@ -170,8 +176,7 @@ impl Server
             });
         }
 
-        for res in futures::future::join_all(joins).await
-        {
+        for res in futures::future::join_all(joins).await {
             if let Err(e) = res {
                 eprintln!("server error: {}", e);
             }
@@ -183,14 +188,15 @@ impl Server
         self.repo.house_keeping().await;
     }
 
-    pub(crate) fn get_host(&self, req: &Request<Body>) -> Result<String, WebServerError>
-    {
+    pub(crate) fn get_host(&self, req: &Request<Body>) -> Result<String, WebServerError> {
         if let Some(host) = req.uri().host() {
             return Ok(host.to_string());
         }
         match req.headers().get("Host") {
             Some(a) => Ok(a.to_str()?.to_string()),
-            None => { bail!(WebServerErrorKind::UnknownHost); }
+            None => {
+                bail!(WebServerErrorKind::UnknownHost);
+            }
         }
     }
 
@@ -200,64 +206,76 @@ impl Server
         let mut lock = self.web_conf.lock().await;
         let conf = match lock.entry(host.clone()) {
             StdEntry::Occupied(a) => a.into_mut(),
-            StdEntry::Vacant(a) => {
-                a.insert(ServerWebConf {
-                    web_conf: WebConf::default(),
-                    web_conf_when: None
-                })
-            }
+            StdEntry::Vacant(a) => a.insert(ServerWebConf {
+                web_conf: WebConf::default(),
+                web_conf_when: None,
+            }),
         };
 
         let trigger = match &conf.web_conf_when {
             Some(a) if a.elapsed().as_millis() > 4000u128 => true,
             None => true,
-            _ => { return Ok(conf.web_conf.clone()); },
+            _ => {
+                return Ok(conf.web_conf.clone());
+            }
         };
         if trigger {
             conf.web_conf_when = Some(Instant::now());
-            conf.web_conf =
-                match self.repo.get_file(host.as_str(), WEB_CONF_FILES_CONF)
-                    .await.ok().flatten()
-                {
-                    Some(data) => {
-                        let data = String::from_utf8_lossy(&data[..]);
-                        serde_yaml::from_str::<WebConf>(&data)
-                            .map_err(|err| WebServerError::from_kind(WebServerErrorKind::BadConfiguration(err.to_string())))?
-                    },
-                    None => {
-                        let mut ret = WebConf::default();
-                        ret.default_page = Some("index.html".to_string());
-                        ret.force_https = true;
+            conf.web_conf = match self
+                .repo
+                .get_file(host.as_str(), WEB_CONF_FILES_CONF)
+                .await
+                .ok()
+                .flatten()
+            {
+                Some(data) => {
+                    let data = String::from_utf8_lossy(&data[..]);
+                    serde_yaml::from_str::<WebConf>(&data).map_err(|err| {
+                        WebServerError::from_kind(WebServerErrorKind::BadConfiguration(
+                            err.to_string(),
+                        ))
+                    })?
+                }
+                None => {
+                    let mut ret = WebConf::default();
+                    ret.default_page = Some("index.html".to_string());
+                    ret.force_https = true;
 
-                        if let Some(ret_str) = serde_yaml::to_string(&ret).ok() {
-                            let err = self.repo.set_file(host.as_str(), WEB_CONF_FILES_CONF, ret_str.as_bytes()).await;
-                            if let Err(err) = err {
-                                warn!("failed to save default web.yaml - {}", err);
-                            }
+                    if let Some(ret_str) = serde_yaml::to_string(&ret).ok() {
+                        let err = self
+                            .repo
+                            .set_file(host.as_str(), WEB_CONF_FILES_CONF, ret_str.as_bytes())
+                            .await;
+                        if let Err(err) = err {
+                            warn!("failed to save default web.yaml - {}", err);
                         }
-                        ret
-                    },
-                };
+                    }
+                    ret
+                }
+            };
         }
 
         match serde_yaml::to_string(&conf.web_conf) {
             Ok(conf) => trace!("web-conf: {}", conf),
-            Err(err) => trace!("web-conf-err: {}", err)
+            Err(err) => trace!("web-conf-err: {}", err),
         };
         Ok(conf.web_conf.clone())
     }
 
-    pub(crate) async fn force_https(&self, req: Request<Body>) -> Result<Response<Body>, WebServerError> {
+    pub(crate) async fn force_https(
+        &self,
+        req: Request<Body>,
+    ) -> Result<Response<Body>, WebServerError> {
         let host = match req.uri().authority() {
             Some(a) => a.to_string(),
-            None => {
-                match req.headers().get("Host") {
-                    Some(a) => a.to_str()?.to_string(),
-                    None => {
-                        bail!(WebServerErrorKind::BadRequest("unknown host address needed for redirect to https".to_string()))
-                    }
+            None => match req.headers().get("Host") {
+                Some(a) => a.to_str()?.to_string(),
+                None => {
+                    bail!(WebServerErrorKind::BadRequest(
+                        "unknown host address needed for redirect to https".to_string()
+                    ))
                 }
-            }
+            },
         };
         let mut uri = http::Uri::builder()
             .authority(host.as_str())
@@ -270,15 +288,19 @@ impl Server
             Err(err) => {
                 bail!(WebServerErrorKind::BadRequest(err.to_string()))
             }
-        }.to_string();
-        
+        }
+        .to_string();
+
         self.process_redirect(uri.as_str()).await
     }
 
-    pub(crate) async fn process_redirect_host(&self, req: Request<Body>, listen: &ServerListen, redirect: &str) -> Result<Response<Body>, WebServerError>
-    {
-        let mut uri = http::Uri::builder()
-            .authority(redirect);
+    pub(crate) async fn process_redirect_host(
+        &self,
+        req: Request<Body>,
+        listen: &ServerListen,
+        redirect: &str,
+    ) -> Result<Response<Body>, WebServerError> {
+        let mut uri = http::Uri::builder().authority(redirect);
         if let Some(scheme) = req.uri().scheme() {
             uri = uri.scheme(scheme.clone());
         } else if listen.tls {
@@ -294,15 +316,19 @@ impl Server
             Err(err) => {
                 bail!(WebServerErrorKind::BadRequest(err.to_string()))
             }
-        }.to_string();
-        
+        }
+        .to_string();
+
         self.process_redirect(uri.as_str()).await
     }
 
-    pub(crate) async fn process_redirect(&self, uri: &str) -> Result<Response<Body>, WebServerError>
-    {
+    pub(crate) async fn process_redirect(
+        &self,
+        uri: &str,
+    ) -> Result<Response<Body>, WebServerError> {
         let mut resp = Response::new(Body::from(crate::helper::redirect_body(uri)));
-        resp.headers_mut().append("Location", HeaderValue::from_str(uri)?);
+        resp.headers_mut()
+            .append("Location", HeaderValue::from_str(uri)?);
         *resp.status_mut() = StatusCode::PERMANENT_REDIRECT;
         return Ok(resp);
     }
@@ -312,15 +338,25 @@ impl Server
             path = &path[1..];
         }
         if path.contains("..") {
-            bail!(WebServerErrorKind::BadRequest("Accessing parent directories is forbidden".to_string()));
+            bail!(WebServerErrorKind::BadRequest(
+                "Accessing parent directories is forbidden".to_string()
+            ));
         }
         if path.starts_with(WEB_CONF_FILES) {
-            bail!(WebServerErrorKind::BadRequest("Accessing configuration files is forbidden".to_string()));
+            bail!(WebServerErrorKind::BadRequest(
+                "Accessing configuration files is forbidden".to_string()
+            ));
         }
         Ok(())
     }
 
-    pub(crate) async fn process_get(&self, host: &str, path: &str, is_head: bool, conf: &WebConf) -> Result<Option<Response<Body>>, WebServerError> {
+    pub(crate) async fn process_get(
+        &self,
+        host: &str,
+        path: &str,
+        is_head: bool,
+        conf: &WebConf,
+    ) -> Result<Option<Response<Body>>, WebServerError> {
         self.sanitize(path)?;
         if let Some(data) = self.repo.get_file(host, path).await? {
             let len_str = data.len().to_string();
@@ -330,11 +366,18 @@ impl Server
             } else {
                 Response::new(Body::from(data))
             };
-            resp.headers_mut().append("Content-Length", HeaderValue::from_str(len_str.as_str())?);
+            resp.headers_mut()
+                .append("Content-Length", HeaderValue::from_str(len_str.as_str())?);
             self.apply_mime(path, &mut resp)?;
             if conf.coop {
-                resp.headers_mut().append("Cross-Origin-Embedder-Policy", HeaderValue::from_str("require-corp")?);
-                resp.headers_mut().append("Cross-Origin-Opener-Policy", HeaderValue::from_str("same-origin")?);
+                resp.headers_mut().append(
+                    "Cross-Origin-Embedder-Policy",
+                    HeaderValue::from_str("require-corp")?,
+                );
+                resp.headers_mut().append(
+                    "Cross-Origin-Opener-Policy",
+                    HeaderValue::from_str("same-origin")?,
+                );
             }
             *resp.status_mut() = StatusCode::OK;
             Ok(Some(resp))
@@ -343,23 +386,31 @@ impl Server
         }
     }
 
-    pub(crate) fn apply_mime(&self, path: &str, resp: &mut Response<Body>) -> Result<(), WebServerError> {
+    pub(crate) fn apply_mime(
+        &self,
+        path: &str,
+        resp: &mut Response<Body>,
+    ) -> Result<(), WebServerError> {
         if let Some(ext) = path.split(".").collect::<Vec<_>>().into_iter().rev().next() {
             let ext = ext.to_string();
             if let Some(mime) = self.mime.get(&ext) {
-                resp.headers_mut().append("Content-Type", HeaderValue::from_str(mime.as_str())?);
+                resp.headers_mut()
+                    .append("Content-Type", HeaderValue::from_str(mime.as_str())?);
             }
         }
         Ok(())
     }
 
     fn init_mime() -> FxHashMap<String, String> {
-        let mut ret = FxHashMap::default();        
+        let mut ret = FxHashMap::default();
         ret.insert("aac".to_string(), "audio/aac".to_string());
         ret.insert("abw".to_string(), "application/x-abiword".to_string());
         ret.insert("arc".to_string(), "application/x-freearc".to_string());
         ret.insert("avi".to_string(), "video/x-msvideo".to_string());
-        ret.insert("azw".to_string(), "application/vnd.amazon.ebook".to_string());
+        ret.insert(
+            "azw".to_string(),
+            "application/vnd.amazon.ebook".to_string(),
+        );
         ret.insert("bin".to_string(), "application/octet-stream".to_string());
         ret.insert("bmp".to_string(), "image/bmp".to_string());
         ret.insert("bz".to_string(), "application/x-bzip".to_string());
@@ -369,8 +420,14 @@ impl Server
         ret.insert("css".to_string(), "text/css".to_string());
         ret.insert("csv".to_string(), "text/csv".to_string());
         ret.insert("doc".to_string(), "application/msword".to_string());
-        ret.insert("docx".to_string(), "application/vnd.openxmlformats-officedocument.wordprocessingml.document".to_string());
-        ret.insert("eot".to_string(), "application/vnd.ms-fontobject".to_string());
+        ret.insert(
+            "docx".to_string(),
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document".to_string(),
+        );
+        ret.insert(
+            "eot".to_string(),
+            "application/vnd.ms-fontobject".to_string(),
+        );
         ret.insert("epub".to_string(), "application/epub+zip".to_string());
         ret.insert("gz".to_string(), "application/gzip".to_string());
         ret.insert("gif".to_string(), "image/gif".to_string());
@@ -390,10 +447,22 @@ impl Server
         ret.insert("mp3".to_string(), "audio/mpeg".to_string());
         ret.insert("mp4".to_string(), "video/mp4".to_string());
         ret.insert("mpeg".to_string(), "video/mpeg".to_string());
-        ret.insert("mpkg".to_string(), "application/vnd.apple.installer+xml".to_string());
-        ret.insert("odp".to_string(), "application/vnd.oasis.opendocument.presentation".to_string());
-        ret.insert("ods".to_string(), "application/vnd.oasis.opendocument.spreadsheet".to_string());
-        ret.insert("odt".to_string(), "application/vnd.oasis.opendocument.text".to_string());
+        ret.insert(
+            "mpkg".to_string(),
+            "application/vnd.apple.installer+xml".to_string(),
+        );
+        ret.insert(
+            "odp".to_string(),
+            "application/vnd.oasis.opendocument.presentation".to_string(),
+        );
+        ret.insert(
+            "ods".to_string(),
+            "application/vnd.oasis.opendocument.spreadsheet".to_string(),
+        );
+        ret.insert(
+            "odt".to_string(),
+            "application/vnd.oasis.opendocument.text".to_string(),
+        );
         ret.insert("oga".to_string(), "audio/ogg".to_string());
         ret.insert("ogv".to_string(), "video/ogg".to_string());
         ret.insert("ogx".to_string(), "application/ogg".to_string());
@@ -402,13 +471,22 @@ impl Server
         ret.insert("png".to_string(), "image/png".to_string());
         ret.insert("pdf".to_string(), "application/pdf".to_string());
         ret.insert("php".to_string(), "application/x-httpd-php".to_string());
-        ret.insert("ppt".to_string(), "application/vnd.ms-powerpoint".to_string());
-        ret.insert("pptx".to_string(), "application/vnd.openxmlformats-officedocument.presentationml.presentation".to_string());
+        ret.insert(
+            "ppt".to_string(),
+            "application/vnd.ms-powerpoint".to_string(),
+        );
+        ret.insert(
+            "pptx".to_string(),
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation".to_string(),
+        );
         ret.insert("rar".to_string(), "application/vnd.rar".to_string());
         ret.insert("rtf".to_string(), "application/rtf".to_string());
         ret.insert("sh".to_string(), "application/x-sh".to_string());
         ret.insert("svg".to_string(), "image/svg+xml".to_string());
-        ret.insert("swf".to_string(), "application/x-shockwave-flash".to_string());
+        ret.insert(
+            "swf".to_string(),
+            "application/x-shockwave-flash".to_string(),
+        );
         ret.insert("tar".to_string(), "application/x-tar".to_string());
         ret.insert("tif".to_string(), "image/tiff".to_string());
         ret.insert("tiff".to_string(), "image/tiff".to_string());
@@ -425,15 +503,27 @@ impl Server
         ret.insert("woff2".to_string(), "font/woff2".to_string());
         ret.insert("xhtml".to_string(), "application/xhtml+xml".to_string());
         ret.insert("xls".to_string(), "application/vnd.ms-excel".to_string());
-        ret.insert("xlsx".to_string(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet".to_string());
+        ret.insert(
+            "xlsx".to_string(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet".to_string(),
+        );
         ret.insert("xml".to_string(), "application/xml".to_string());
-        ret.insert("xul".to_string(), "application/vnd.mozilla.xul+xml".to_string());
+        ret.insert(
+            "xul".to_string(),
+            "application/vnd.mozilla.xul+xml".to_string(),
+        );
         ret.insert("zip".to_string(), "application/zip".to_string());
         ret.insert("7z".to_string(), "application/x-7z-compressed".to_string());
         ret
     }
 
-    pub(crate) async fn process_get_with_default(&self, host: &str, path: &str, is_head: bool, conf: &WebConf) -> Result<Response<Body>, WebServerError> {
+    pub(crate) async fn process_get_with_default(
+        &self,
+        host: &str,
+        path: &str,
+        is_head: bool,
+        conf: &WebConf,
+    ) -> Result<Response<Body>, WebServerError> {
         self.sanitize(path)?;
 
         // If it has parameters passed to the web server we ignore them
@@ -447,7 +537,7 @@ impl Server
         match self.process_get(host, path.as_str(), is_head, conf).await? {
             Some(a) => {
                 return Ok(a);
-            },
+            }
             None => {
                 // Otherwise we attempt to get a default file
                 let default_page = conf.default_page.as_ref();
@@ -470,7 +560,12 @@ impl Server
         Ok(resp)
     }
 
-    pub(crate) async fn process(&self, req: Request<Body>, sock_addr: SocketAddr, listen: &ServerListen) -> Result<Response<Body>, WebServerError> {
+    pub(crate) async fn process(
+        &self,
+        req: Request<Body>,
+        sock_addr: SocketAddr,
+        listen: &ServerListen,
+    ) -> Result<Response<Body>, WebServerError> {
         trace!("req: {:?}", req);
 
         if hyper_tungstenite::is_upgrade_request(&req) {
@@ -485,9 +580,15 @@ impl Server
         match ret {
             Ok(a) => Ok(a),
             Err(err) => {
-                let page = conf.status_pages.get(&err.status_code().as_u16()).map(|a| a.clone());
+                let page = conf
+                    .status_pages
+                    .get(&err.status_code().as_u16())
+                    .map(|a| a.clone());
                 if let Some(page) = page {
-                    if let Some(ret) = self.process_get(host.as_str(), page.as_str(), is_head, &conf).await? {
+                    if let Some(ret) = self
+                        .process_get(host.as_str(), page.as_str(), is_head, &conf)
+                        .await?
+                    {
                         return Ok(ret);
                     }
                 }
@@ -496,8 +597,11 @@ impl Server
         }
     }
 
-    pub(crate) async fn process_upgrade(&self, req: Request<Body>, sock_addr: SocketAddr) -> Result<Response<Body>, WebServerError>
-    {
+    pub(crate) async fn process_upgrade(
+        &self,
+        req: Request<Body>,
+        sock_addr: SocketAddr,
+    ) -> Result<Response<Body>, WebServerError> {
         if let Some(callback) = &self.callback {
             let callback = Arc::clone(callback);
             let (response, websocket) = hyper_tungstenite::upgrade(req, None)?;
@@ -508,11 +612,11 @@ impl Server
                         if let Err(err) = ret {
                             error!("web socket failed - {}", err);
                         }
-                    },
+                    }
                     Err(err) => {
                         error!("web socket failed - {}", err);
                     }
-                }                
+                }
             });
             Ok(response)
         } else {
@@ -520,7 +624,12 @@ impl Server
         }
     }
 
-    pub(crate) async fn process_internal(&self, req: Request<Body>, listen: &ServerListen, conf: &WebConf) -> Result<Response<Body>, WebServerError> {
+    pub(crate) async fn process_internal(
+        &self,
+        req: Request<Body>,
+        listen: &ServerListen,
+        conf: &WebConf,
+    ) -> Result<Response<Body>, WebServerError> {
         if let Some(redirect) = conf.redirect.as_ref() {
             return self.process_redirect_host(req, listen, &redirect).await;
         }
@@ -536,8 +645,9 @@ impl Server
             &Method::HEAD | &Method::GET => {
                 let path = req.uri().path();
                 self.sanitize(path)?;
-                self.process_get_with_default(host.as_str(), path, is_head, conf).await
-            },
+                self.process_get_with_default(host.as_str(), path, is_head, conf)
+                    .await
+            }
             _ => {
                 let mut resp = Response::new(Body::from(StatusCode::METHOD_NOT_ALLOWED.as_str()));
                 *resp.status_mut() = StatusCode::METHOD_NOT_ALLOWED;

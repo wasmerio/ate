@@ -1,6 +1,6 @@
-#[allow(unused_imports)]
-use tracing::{error, info, warn, debug};
 use error_chain::bail;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, warn};
 
 use crate::error::*;
 use crate::meta::*;
@@ -9,26 +9,26 @@ use crate::transaction::*;
 use super::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(super) enum ComputePhase
-{
+pub(super) enum ComputePhase {
     BeforeStore,
     AfterStore,
 }
 
-impl TreeAuthorityPlugin
-{
-    pub(super) fn compute_auth(&self, meta: &Metadata, trans_meta: &TransactionMetadata, phase: ComputePhase) -> Result<MetaAuthorization, TrustError>
-    {
+impl TreeAuthorityPlugin {
+    pub(super) fn compute_auth(
+        &self,
+        meta: &Metadata,
+        trans_meta: &TransactionMetadata,
+        phase: ComputePhase,
+    ) -> Result<MetaAuthorization, TrustError> {
         // If its not got a key then it just inherits the permissions of the root
         let key = match meta.get_data_key() {
             Some(a) => a,
             None => {
-                return Ok(
-                    MetaAuthorization {
-                        read: ReadOption::Everyone(None),
-                        write: self.root.clone(),
-                    }
-                );
+                return Ok(MetaAuthorization {
+                    read: ReadOption::Everyone(None),
+                    write: self.root.clone(),
+                });
             }
         };
         #[cfg(feature = "enable_super_verbose")]
@@ -39,7 +39,7 @@ impl TreeAuthorityPlugin
             ComputePhase::BeforeStore => None,
             ComputePhase::AfterStore => meta.get_authorization(),
         };
-        
+
         // In the scenarios that this is before the record is saved or
         // if no authorization is attached to the record then we fall
         // back to whatever is the value in the existing chain of trust
@@ -61,9 +61,7 @@ impl TreeAuthorityPlugin
 
         // Resolve any inheritance through recursive queries
         let mut parent = meta.get_parent();
-        while (read == ReadOption::Inherit || write == WriteOption::Inherit)
-               && parent.is_some()
-        {
+        while (read == ReadOption::Inherit || write == WriteOption::Inherit) && parent.is_some() {
             {
                 let parent = match parent {
                     Some(a) => a.vec.parent_id,
@@ -111,9 +109,11 @@ impl TreeAuthorityPlugin
                     }
                     match r {
                         Some(b) if b.vec.parent_id != a.vec.parent_id => Some(b),
-                        _ => { break; }
+                        _ => {
+                            break;
+                        }
                     }
-                },
+                }
                 None => unreachable!(),
             }
         }
@@ -131,10 +131,7 @@ impl TreeAuthorityPlugin
         #[cfg(feature = "enable_super_verbose")]
         trace!("compute_auth(): read={}, write={}", read, write);
 
-        let auth = MetaAuthorization {
-            read,
-            write,
-        };
+        let auth = MetaAuthorization { read, write };
 
         // Return the result
         Ok(auth)

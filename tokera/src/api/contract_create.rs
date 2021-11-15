@@ -1,20 +1,21 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace};
 use error_chain::*;
 use std::ops::Deref;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, trace, warn};
 
-use ate::prelude::*;
-use crate::model::*;
-use crate::error::*;
 use crate::cmd::*;
+use crate::error::*;
+use crate::model::*;
 use crate::request::*;
+use ate::prelude::*;
 
 use super::*;
 
-impl TokApi
-{
-    pub async fn contract_create(&mut self, service: AdvertisedService) -> Result<ContractCreateResponse, ContractError>
-    {
+impl TokApi {
+    pub async fn contract_create(
+        &mut self,
+        service: AdvertisedService,
+    ) -> Result<ContractCreateResponse, ContractError> {
         // Make the session
         let session = self.dio.session().clone_session();
 
@@ -29,30 +30,36 @@ impl TokApi
                 }
             }.advert
         };
-        let broker_key = PublicEncryptedSecureData::new(&advert.broker_encrypt, self.wallet.broker_key.clone())?;
+        let broker_key =
+            PublicEncryptedSecureData::new(&advert.broker_encrypt, self.wallet.broker_key.clone())?;
 
         // Create the contract
         let gst_country = self.wallet.gst_country;
-        let ret = contract_create_command
-            (
-                &self.registry,
-                session.deref(),
-                self.auth.clone(),
-                service.code.clone(),
-                self.session_identity(),
-                gst_country,
-                self.wallet.key().clone(),
-                broker_key,
-                self.wallet.broker_unlock_key.clone()
-            ).await?;
+        let ret = contract_create_command(
+            &self.registry,
+            session.deref(),
+            self.auth.clone(),
+            service.code.clone(),
+            self.session_identity(),
+            gst_country,
+            self.wallet.key().clone(),
+            broker_key,
+            self.wallet.broker_unlock_key.clone(),
+        )
+        .await?;
 
         // Now add the history
-        if let Err(err) = self.record_activity(HistoricActivity::ContractCreated(activities::ContractCreated {
-            when: chrono::offset::Utc::now(),
-            by: self.user_identity(),
-            service: service.clone(),
-            contract_reference: ret.contract_reference.clone(),
-        })).await {
+        if let Err(err) = self
+            .record_activity(HistoricActivity::ContractCreated(
+                activities::ContractCreated {
+                    when: chrono::offset::Utc::now(),
+                    by: self.user_identity(),
+                    service: service.clone(),
+                    contract_reference: ret.contract_reference.clone(),
+                },
+            ))
+            .await
+        {
             error!("Error writing activity: {}", err);
         }
 

@@ -1,22 +1,20 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use fxhash::FxHashSet;
-use crate::event::*;
 use crate::crypto::*;
+use crate::event::*;
+use fxhash::FxHashSet;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use super::*;
 
 #[derive(Default, Clone)]
-pub struct SignatureCompactor
-{
+pub struct SignatureCompactor {
     sigs: FxHashSet<AteHash>,
     sigs_already: FxHashSet<AteHash>,
     sign_with: FxHashSet<AteHash>,
     signed_events: FxHashSet<AteHash>,
 }
 
-impl SignatureCompactor
-{
+impl SignatureCompactor {
     pub fn new() -> SignatureCompactor {
         SignatureCompactor {
             sigs: FxHashSet::default(),
@@ -27,15 +25,12 @@ impl SignatureCompactor
     }
 }
 
-impl EventCompactor
-for SignatureCompactor
-{
+impl EventCompactor for SignatureCompactor {
     fn clone_compactor(&self) -> Option<Box<dyn EventCompactor>> {
         Some(Box::new(Self::default()))
     }
-    
-    fn relevance(&self, header: &EventHeader) -> EventRelevance
-    {
+
+    fn relevance(&self, header: &EventHeader) -> EventRelevance {
         if let Some(sig) = header.meta.get_signature() {
             if self.sigs.contains(&header.raw.event_hash) {
                 return EventRelevance::ForceKeep;

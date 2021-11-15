@@ -1,24 +1,24 @@
 #![allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use ascii_tree::Tree;
+use async_trait::async_trait;
 use ate::conf::conf_ate;
-use serde::{Serialize, Deserialize};
-use ate::prelude::*;
-use clap::Parser;
-use ate::redo::RedoLog;
-use ate::loader::Loader;
-use ate::loader::LoadData;
 use ate::event::*;
+use ate::loader::LoadData;
+use ate::loader::Loader;
+use ate::prelude::*;
 use ate::redo::OpenFlags;
+use ate::redo::RedoLog;
 use ate::spec::TrustMode;
 use ate::trust::ChainHeader;
-use async_trait::async_trait;
 use ate::utils::LoadProgress;
-use tokio::sync::mpsc;
+use clap::Parser;
+use colored::*;
 use fxhash::FxHashMap;
 use fxhash::FxHashSet;
-use ascii_tree::Tree;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use colored::*;
+use tokio::sync::mpsc;
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 #[derive(Parser)]
 #[clap(version = "1.4", author = "John S. <johnathan.sharratt@gmail.com>")]
@@ -35,31 +35,26 @@ struct Opts {
     no_short_names: bool,
 }
 
-pub struct DumpLoader
-{
+pub struct DumpLoader {
     tx: mpsc::Sender<LoadData>,
 }
 
 #[async_trait]
-impl Loader
-for DumpLoader
-{
+impl Loader for DumpLoader {
     async fn feed_load_data(&mut self, evt: LoadData) {
         self.tx.send(evt).await.unwrap();
     }
 }
 
 #[derive(Default)]
-struct EventNode
-{
+struct EventNode {
     name: String,
     versions: Vec<AteHash>,
     children: Vec<PrimaryKey>,
 }
 
 #[derive(Default)]
-struct EventData
-{
+struct EventData {
     data: Option<String>,
     data_hash: Option<AteHash>,
     event_hash: Option<AteHash>,
@@ -71,7 +66,7 @@ struct EventData
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), AteError> {
     let opts: Opts = Opts::parse();
-    
+
     ate::log_init(0, true);
 
     // Configure
@@ -96,13 +91,11 @@ async fn main() -> Result<(), AteError> {
     let (tx, mut rx) = mpsc::channel(u32::MAX as usize);
     let mut loader = Box::new(ate::loader::CompositionLoader::default());
     loader.loaders.push(Box::new(progress_loader));
-    loader.loaders.push(Box::new(DumpLoader {
-        tx,
-    }));
-    
+    loader.loaders.push(Box::new(DumpLoader { tx }));
+
     // Load the log file and dump its contents
     RedoLog::open_ext(&cfg_ate, &key, flags, loader, header_bytes).await?;
-    
+
     // Build a tree and dump it to console
     let mut hash_pk = FxHashSet::default();
     let mut tree_pks = Vec::new();
@@ -110,8 +103,7 @@ async fn main() -> Result<(), AteError> {
     let mut tree_roots: Vec<PrimaryKey> = Vec::new();
     let mut tree_event: FxHashMap<AteHash, EventData> = FxHashMap::default();
     let mut tree_lookup: FxHashMap<PrimaryKey, EventNode> = FxHashMap::default();
-    while let Some(evt) = rx.recv().await
-    {
+    while let Some(evt) = rx.recv().await {
         let header = match evt.header.as_header() {
             Ok(a) => a,
             Err(err) => {
@@ -159,7 +151,7 @@ async fn main() -> Result<(), AteError> {
         } else {
             "unknown".bold().to_string()
         };
-        
+
         // Insert some data into the node
         let key = match header.meta.get_data_key() {
             Some(a) => a,
@@ -209,7 +201,7 @@ async fn main() -> Result<(), AteError> {
                         a.children.push(key);
                     }
                 }
-            },
+            }
             None => {
                 if tree_roots.iter().any(|a| a.eq(&key)) == false {
                     tree_roots.push(key);
@@ -226,12 +218,14 @@ async fn main() -> Result<(), AteError> {
     }
     for tree_sig in tree_sigs {
         let no_compact = opts.no_compact;
-        let mut data = tree_sig.hashes.into_iter()
+        let mut data = tree_sig
+            .hashes
+            .into_iter()
             .filter_map(|d| {
                 if tree_event.contains_key(&d) {
                     match no_compact {
                         true => Some(format!("{}({})", "event", d.to_8hex())),
-                        false => None
+                        false => None,
                     }
                 } else {
                     Some(format!("{}({}) {}", "event", d.to_8hex(), "missing".red()))
@@ -243,8 +237,16 @@ async fn main() -> Result<(), AteError> {
         }
         data.insert(0, format!("sig-data({} bytes)", tree_sig.signature.len()));
         let name = match hash_pk.contains(&tree_sig.public_key_hash) {
-            true => format!("signature({}) {}", "pk-ref".green(), tree_sig.public_key_hash.to_8hex()),
-            false => format!("signature({}) {}", "pk-missing".red(), tree_sig.public_key_hash.to_8hex()),
+            true => format!(
+                "signature({}) {}",
+                "pk-ref".green(),
+                tree_sig.public_key_hash.to_8hex()
+            ),
+            false => format!(
+                "signature({}) {}",
+                "pk-missing".red(),
+                tree_sig.public_key_hash.to_8hex()
+            ),
         };
         let tree = Tree::Node(name, vec![Tree::Leaf(data)]);
         ascii_tree::write_tree(&mut output, &tree).unwrap();
@@ -256,35 +258,60 @@ async fn main() -> Result<(), AteError> {
         }
     }
     print!("{}", output);
-    
+
     Ok(())
 }
 
-fn build_tree(key: &PrimaryKey, tree_lookup: &FxHashMap<PrimaryKey, EventNode>, tree_data: &FxHashMap<AteHash, EventData>) -> Option<Tree>
-{
+fn build_tree(
+    key: &PrimaryKey,
+    tree_lookup: &FxHashMap<PrimaryKey, EventNode>,
+    tree_data: &FxHashMap<AteHash, EventData>,
+) -> Option<Tree> {
     if let Some(node) = tree_lookup.get(&key) {
         let mut children = Vec::new();
         if node.versions.len() > 0 {
-            let versions = node.versions.iter()
+            let versions = node
+                .versions
+                .iter()
                 .filter_map(|a| tree_data.get(a))
                 .map(|a| {
-                    let e = a.event_hash.map_or_else(|| "none".to_string(), |f| f.to_8hex());
+                    let e = a
+                        .event_hash
+                        .map_or_else(|| "none".to_string(), |f| f.to_8hex());
                     match &a.data {
                         Some(b) => (b.clone(), a, a.data_hash.clone(), e),
-                        None => ("missing".to_string(), a, a.data_hash.clone(), e)
+                        None => ("missing".to_string(), a, a.data_hash.clone(), e),
                     }
                 })
                 .map(|(d, a, h, e)| {
                     if let Some(s) = a.sig.clone() {
                         if a.bad_order {
-                            format!("{} {}({}) evt={}", d.yellow(), "sig-bad-order".red(), s.to_8hex(), e)    
+                            format!(
+                                "{} {}({}) evt={}",
+                                d.yellow(),
+                                "sig-bad-order".red(),
+                                s.to_8hex(),
+                                e
+                            )
                         } else if a.bad_pk {
-                            format!("{} {}({}) evt={}", d.yellow(), "sig-bad-pk".red(), s.to_8hex(), e)    
+                            format!(
+                                "{} {}({}) evt={}",
+                                d.yellow(),
+                                "sig-bad-pk".red(),
+                                s.to_8hex(),
+                                e
+                            )
                         } else {
                             format!("{} {}({}) evt={}", d, "sig".green(), s.to_8hex(), e)
                         }
                     } else if let Some(h) = h {
-                        format!("{} {}({}) evt={}", d.yellow(), "no-sig".red(), h.to_8hex(), e)
+                        format!(
+                            "{} {}({}) evt={}",
+                            d.yellow(),
+                            "no-sig".red(),
+                            h.to_8hex(),
+                            e
+                        )
                     } else {
                         format!("{} {}, evt={}", d.yellow(), "no-sig".red(), e)
                     }

@@ -24,7 +24,10 @@ impl IntoUrlSealed for Url {
         if self.has_host() {
             Ok(self)
         } else {
-            Err(std::io::Error::new(std::io::ErrorKind::Other, "url_bad_scheme"))
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "url_bad_scheme",
+            ))
         }
     }
 
@@ -35,9 +38,11 @@ impl IntoUrlSealed for Url {
 
 impl<'a> IntoUrlSealed for &'a str {
     fn into_url(self) -> std::io::Result<Url> {
-        Url::parse(self).map_err(|e| {
-            std::io::Error::new(std::io::ErrorKind::Other, format!("url_parse_error {}", e))
-        })?.into_url()
+        Url::parse(self)
+            .map_err(|e| {
+                std::io::Error::new(std::io::ErrorKind::Other, format!("url_parse_error {}", e))
+            })?
+            .into_url()
     }
 
     fn as_str(&self) -> &str {

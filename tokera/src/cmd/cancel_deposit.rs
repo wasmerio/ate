@@ -1,6 +1,6 @@
-#[allow(unused_imports)]
-use tracing::{info, error, debug, trace, warn};
 use std::sync::Arc;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, trace, warn};
 use url::Url;
 
 use ate::prelude::*;
@@ -9,11 +9,14 @@ use crate::error::*;
 use crate::model::*;
 use crate::request::*;
 
-pub async fn cancel_deposit_command(registry: &Arc<Registry>, coin_ancestor: Ownership, auth: Url) -> Result<CancelDepositResponse, WalletError>
-{
+pub async fn cancel_deposit_command(
+    registry: &Arc<Registry>,
+    coin_ancestor: Ownership,
+    auth: Url,
+) -> Result<CancelDepositResponse, WalletError> {
     // Open a command chain
     let chain = registry.open_cmd(&auth).await?;
-    
+
     // Create the login command
     let query = CancelDepositRequest {
         owner: coin_ancestor,

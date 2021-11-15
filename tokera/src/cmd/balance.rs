@@ -1,13 +1,12 @@
-#[allow(unused_imports)]
-use tracing::{info, error, debug};
 use ate::prelude::*;
+#[allow(unused_imports)]
+use tracing::{debug, error, info};
 
-use crate::error::*;
 use crate::api::*;
+use crate::error::*;
 use crate::opt::*;
 
-pub async fn main_opts_balance(opts: OptsBalance, api: &mut TokApi) -> Result<(), WalletError>
-{
+pub async fn main_opts_balance(opts: OptsBalance, api: &mut TokApi) -> Result<(), WalletError> {
     if opts.no_reconcile == false {
         api.reconcile().await?;
     }
@@ -20,8 +19,7 @@ pub async fn main_opts_balance(opts: OptsBalance, api: &mut TokApi) -> Result<()
     }
 
     let mut first = true;
-    for currency in result.currencies.values()
-    {
+    for currency in result.currencies.values() {
         // Display this currency summary to the user
         if short_form == false {
             if first == false {
@@ -31,13 +29,15 @@ pub async fn main_opts_balance(opts: OptsBalance, api: &mut TokApi) -> Result<()
         }
 
         println!("{:8} {}", currency.currency, currency.total);
-        
-        if opts.coins
-        {
+
+        if opts.coins {
             println!("");
             println!("Denomination Quantity Total ({})", currency.currency);
             for denomination in currency.denominations.values() {
-                println!("{:12} {:8} {}", denomination.denomination, denomination.cnt, denomination.total);
+                println!(
+                    "{:12} {:8} {}",
+                    denomination.denomination, denomination.cnt, denomination.total
+                );
             }
         }
 

@@ -1,39 +1,37 @@
 #![allow(unused_imports)]
-use tracing::{warn, debug};
 use error_chain::bail;
 use fxhash::FxHashSet;
+use tracing::{debug, warn};
 
-use serde::{Serialize, de::DeserializeOwned};
 use bytes::Bytes;
+use serde::{de::DeserializeOwned, Serialize};
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::sync::{Mutex, MutexGuard};
 
 use crate::crypto::{EncryptedPrivateKey, PrivateSignKey};
-use crate::{crypto::EncryptKey, session::{AteSessionProperty}};
+use crate::{crypto::EncryptKey, session::AteSessionProperty};
 
 use super::dio_mut::*;
-use crate::header::*;
-use crate::event::*;
-use crate::meta::*;
-use crate::error::*;
 use crate::crypto::AteHash;
 use crate::dio::*;
-use crate::spec::*;
+use crate::error::*;
+use crate::event::*;
+use crate::header::*;
 use crate::index::*;
+use crate::meta::*;
+use crate::spec::*;
 
 pub use super::vec::DaoVec;
 
 #[derive(Debug, Clone)]
-pub(crate) struct RowHeader
-{
+pub(crate) struct RowHeader {
     pub key: PrimaryKey,
     pub parent: Option<MetaParent>,
     pub auth: MetaAuthorization,
 }
 
-pub(super) struct Row<D>
-{
+pub(super) struct Row<D> {
     pub(super) key: PrimaryKey,
     pub(super) type_name: String,
     pub(super) created: u64,
@@ -45,12 +43,11 @@ pub(super) struct Row<D>
     pub(super) is_new: bool,
 }
 
-impl<D> Clone
-for Row<D>
-where D: Clone,
+impl<D> Clone for Row<D>
+where
+    D: Clone,
 {
-    fn clone(&self) -> Self
-    {
+    fn clone(&self) -> Self {
         Row {
             key: self.key.clone(),
             type_name: self.type_name.clone(),
@@ -65,26 +62,37 @@ where D: Clone,
     }
 }
 
-impl<D> std::fmt::Debug
-for Row<D>
-where D: std::fmt::Debug
+impl<D> std::fmt::Debug for Row<D>
+where
+    D: std::fmt::Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "row(key={}, created={}, updated={}, data=", self.key, self.created, self.updated)?;
+        write!(
+            f,
+            "row(key={}, created={}, updated={}, data=",
+            self.key, self.created, self.updated
+        )?;
         let ret = self.data.fmt(f);
         write!(f, ")")?;
         ret
     }
 }
 
-impl<D> Row<D>
-{
-    pub(crate) fn from_event(dio: &Arc<Dio>, evt: &EventData, created: u64, updated: u64) -> Result<(RowHeader, Row<D>), SerializationError>
-    where D: DeserializeOwned,
+impl<D> Row<D> {
+    pub(crate) fn from_event(
+        dio: &Arc<Dio>,
+        evt: &EventData,
+        created: u64,
+        updated: u64,
+    ) -> Result<(RowHeader, Row<D>), SerializationError>
+    where
+        D: DeserializeOwned,
     {
         let key = match evt.meta.get_data_key() {
             Some(key) => key,
-            None => { bail!(SerializationErrorKind::NoPrimarykey) }
+            None => {
+                bail!(SerializationErrorKind::NoPrimarykey)
+            }
         };
         let mut collections = FxHashSet::default();
         for a in evt.meta.get_collections() {
@@ -96,7 +104,10 @@ impl<D> Row<D>
                     Some(a) => a.clone(),
                     None => MetaAuthorization::default(),
                 };
-                let parent = match evt.meta.get_parent() { Some(a) => Some(a.clone()), None => None };
+                let parent = match evt.meta.get_parent() {
+                    Some(a) => Some(a.clone()),
+                    None => None,
+                };
 
                 let data = {
                     let _pop1 = DioScope::new(dio);
@@ -109,7 +120,7 @@ impl<D> Row<D>
                     RowHeader {
                         key: key.clone(),
                         parent,
-                        auth
+                        auth,
                     },
                     Row {
                         key,
@@ -121,15 +132,19 @@ impl<D> Row<D>
                         updated,
                         extra_meta: Vec::new(),
                         is_new: false,
-                    }
+                    },
                 ))
             }
             None => bail!(SerializationErrorKind::NoData),
         }
     }
 
-    pub(crate) fn from_row_data(dio: &Arc<Dio>, row: &RowData) -> Result<(RowHeader, Row<D>), SerializationError>
-    where D: DeserializeOwned,
+    pub(crate) fn from_row_data(
+        dio: &Arc<Dio>,
+        row: &RowData,
+    ) -> Result<(RowHeader, Row<D>), SerializationError>
+    where
+        D: DeserializeOwned,
     {
         let data = {
             let _pop1 = DioScope::new(dio);
@@ -154,38 +169,38 @@ impl<D> Row<D>
                 updated: row.updated,
                 extra_meta: row.extra_meta.clone(),
                 is_new: false,
-            }
+            },
         ))
     }
 
-    pub(crate) fn as_row_data(&self, header: &RowHeader) -> std::result::Result<RowData, SerializationError>
-    where D: Serialize,
+    pub(crate) fn as_row_data(
+        &self,
+        header: &RowHeader,
+    ) -> std::result::Result<RowData, SerializationError>
+    where
+        D: Serialize,
     {
-        let data = Bytes::from(self.format.data.serialize(&self.data)?);            
+        let data = Bytes::from(self.format.data.serialize(&self.data)?);
         let data_hash = AteHash::from_bytes(&data[..]);
-        Ok
-        (
-            RowData {
-                key: self.key.clone(),
-                type_name: self.type_name.clone(),
-                format: self.format,
-                parent: header.parent.clone(),
-                data_hash,
-                data,
-                auth: header.auth.clone(),
-                collections: self.collections.clone(),
-                created: self.created,
-                updated: self.updated,
-                extra_meta: self.extra_meta.clone(),
-                is_new: self.is_new,
-            }
-        )
+        Ok(RowData {
+            key: self.key.clone(),
+            type_name: self.type_name.clone(),
+            format: self.format,
+            parent: header.parent.clone(),
+            data_hash,
+            data,
+            auth: header.auth.clone(),
+            collections: self.collections.clone(),
+            created: self.created,
+            updated: self.updated,
+            extra_meta: self.extra_meta.clone(),
+            is_new: self.is_new,
+        })
     }
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct RowData
-{
+pub(crate) struct RowData {
     pub key: PrimaryKey,
     pub type_name: String,
     pub format: MessageFormat,

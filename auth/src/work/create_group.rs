@@ -1,32 +1,33 @@
 #![allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use error_chain::bail;
+use qrcode::render::unicode;
+use qrcode::QrCode;
+use regex::Regex;
 use std::io::stdout;
 use std::io::Write;
-use std::sync::Arc;
-use url::Url;
 use std::ops::Deref;
-use qrcode::QrCode;
-use qrcode::render::unicode;
-use regex::Regex;
+use std::sync::Arc;
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
+use url::Url;
 
-use ate::prelude::*;
 use ate::error::LoadError;
 use ate::error::TransformError;
+use ate::prelude::*;
 use ate::session::AteRolePurpose;
 use ate::utils::chain_key_4hex;
 
+use crate::error::*;
+use crate::helper::*;
+use crate::model::*;
 use crate::prelude::*;
 use crate::request::*;
 use crate::service::AuthService;
-use crate::helper::*;
-use crate::error::*;
-use crate::model::*;
 
-impl AuthService
-{
-    pub async fn process_create_group(self: Arc<Self>, request: CreateGroupRequest) -> Result<CreateGroupResponse, CreateGroupFailed>
-    {
+impl AuthService {
+    pub async fn process_create_group(
+        self: Arc<Self>,
+        request: CreateGroupRequest,
+    ) -> Result<CreateGroupResponse, CreateGroupFailed> {
         info!("create group: {}", request.group);
 
         // There are certain areas that need a derived encryption key
@@ -42,15 +43,19 @@ impl AuthService
         };
 
         // First we query the user that needs to be added so that we can get their public encrypt key
-        let advert = match Arc::clone(&self).process_query(QueryRequest {
-            identity: request.identity.clone(),
-        }).await {
+        let advert = match Arc::clone(&self)
+            .process_query(QueryRequest {
+                identity: request.identity.clone(),
+            })
+            .await
+        {
             Ok(a) => Ok(a),
             Err(QueryFailed::Banned) => Err(CreateGroupFailed::OperatorBanned),
             Err(QueryFailed::NotFound) => Err(CreateGroupFailed::OperatorNotFound),
             Err(QueryFailed::Suspended) => Err(CreateGroupFailed::AccountSuspended),
             Err(QueryFailed::InternalError(code)) => Err(CreateGroupFailed::InternalError(code)),
-        }?.advert;
+        }?
+        .advert;
 
         // Extract the read key(s) from the query
         let request_nominal_read_key = advert.nominal_encrypt;
@@ -60,10 +65,14 @@ impl AuthService
         let regex = Regex::new("^/{0,1}([a-zA-Z0-9_\\.\\-]{1,})$").unwrap();
         if let Some(_captures) = regex.captures(request.group.as_str()) {
             if request.group.len() <= 0 {
-                return Err(CreateGroupFailed::InvalidGroupName("the group name you specified is not long enough".to_string()));
+                return Err(CreateGroupFailed::InvalidGroupName(
+                    "the group name you specified is not long enough".to_string(),
+                ));
             }
         } else {
-            return Err(CreateGroupFailed::InvalidGroupName("the group name you specified is invalid".to_string()));
+            return Err(CreateGroupFailed::InvalidGroupName(
+                "the group name you specified is invalid".to_string(),
+            ));
         }
 
         // Get the master write key
@@ -79,9 +88,11 @@ impl AuthService
         let key_size = request_nominal_read_key.size();
         let master_key = match self.master_key() {
             Some(a) => a,
-            None => { return Err(CreateGroupFailed::NoMasterKey); }
+            None => {
+                return Err(CreateGroupFailed::NoMasterKey);
+            }
         };
-        
+
         // Compute which chain the group should exist within
         let group_chain_key = chain_key_4hex(&request.group, Some("redo"));
         let chain = self.registry.open(&self.auth_url, &group_chain_key).await?;
@@ -92,12 +103,17 @@ impl AuthService
         let mut gid = None;
         for n in 0u32..50u32 {
             let mut gid_test = estimate_group_name_as_gid(request.group.clone());
-            if gid_test < 1000 { gid_test = gid_test + 1000; }
+            if gid_test < 1000 {
+                gid_test = gid_test + 1000;
+            }
             gid_test = gid_test + n;
             if dio.exists(&PrimaryKey::from(gid_test as u64)).await {
                 continue;
             }
-            if dio.exists(&PrimaryKey::from(gid_test as u64 + gid_offset)).await {
+            if dio
+                .exists(&PrimaryKey::from(gid_test as u64 + gid_offset))
+                .await
+            {
                 continue;
             }
             gid = Some(gid_test);
@@ -109,11 +125,13 @@ impl AuthService
                 return Err(CreateGroupFailed::NoMoreRoom);
             }
         };
-        
+
         // If it already exists then fail
         let group_key = PrimaryKey::from(request.group.clone());
         if dio.exists(&group_key).await {
-            return Err(CreateGroupFailed::AlreadyExists("the group with this name already exists".to_string()));
+            return Err(CreateGroupFailed::AlreadyExists(
+                "the group with this name already exists".to_string(),
+            ));
         }
 
         // Generate the owner encryption keys used to protect this role
@@ -144,7 +162,8 @@ impl AuthService
         // We generate a derived contract encryption key which we will give back to the caller
         let contract_read_key = {
             let contract_read_key_entropy = format!("contract-read:{}", request.group);
-            let contract_read_key_entropy = AteHash::from_bytes(contract_read_key_entropy.as_bytes());
+            let contract_read_key_entropy =
+                AteHash::from_bytes(contract_read_key_entropy.as_bytes());
             self.compute_contract_key_from_hash(&contract_read_key_entropy)
         };
         let finance_read = contract_read_key;
@@ -166,11 +185,13 @@ impl AuthService
         super_session.user.add_read_key(&owner_read);
         super_session.user.add_read_key(&delegate_read);
         super_session.user.add_private_read_key(&owner_private_read);
-        super_session.user.add_private_read_key(&delegate_private_read);
+        super_session
+            .user
+            .add_private_read_key(&delegate_private_read);
         super_session.user.add_write_key(&owner_write);
         super_session.user.add_write_key(&delegate_write);
         let dio = chain.dio_full(&super_session).await;
-        
+
         // Create the group and save it
         let group = Group {
             name: request.group.clone(),
@@ -192,8 +213,9 @@ impl AuthService
                 AteRolePurpose::Finance,
                 AteRolePurpose::WebServer,
                 AteRolePurpose::EdgeCompute,
-                AteRolePurpose::Observer
-            ].iter()
+                AteRolePurpose::Observer,
+            ]
+            .iter()
             {
                 // Generate the keys
                 let role_read;
@@ -204,32 +226,32 @@ impl AuthService
                         role_read = owner_read.clone();
                         role_private_read = owner_private_read.clone();
                         role_write = owner_write.clone();
-                    },
+                    }
                     AteRolePurpose::Delegate => {
                         role_read = delegate_read.clone();
                         role_private_read = delegate_private_read.clone();
                         role_write = delegate_write.clone();
-                    },
+                    }
                     AteRolePurpose::Contributor => {
                         role_read = contributor_read.clone();
                         role_private_read = contributor_private_read.clone();
                         role_write = contributor_write.clone();
-                    },
+                    }
                     AteRolePurpose::Finance => {
                         role_read = finance_read.clone();
                         role_private_read = finance_private_read.clone();
                         role_write = finance_write.clone();
-                    },
+                    }
                     AteRolePurpose::Observer => {
                         role_read = observer_read.clone();
                         role_private_read = observer_private_read.clone();
                         role_write = observer_write.clone();
-                    },
+                    }
                     AteRolePurpose::WebServer => {
                         role_read = web_server_read.clone();
                         role_private_read = web_server_private_read.clone();
                         role_write = web_server_write.clone();
-                    },
+                    }
                     AteRolePurpose::EdgeCompute => {
                         role_read = edge_compute_read.clone();
                         role_private_read = edge_compute_private_read.clone();
@@ -246,7 +268,7 @@ impl AuthService
                 let access_key = match purpose {
                     AteRolePurpose::WebServer => web_key.clone(),
                     AteRolePurpose::EdgeCompute => edge_key.clone(),
-                    _ => EncryptKey::generate(owner_private_read.size())
+                    _ => EncryptKey::generate(owner_private_read.size()),
                 };
                 let mut access = MultiEncryptedSecureData::new_ext(
                     &owner_private_read.as_public_key(),
@@ -255,27 +277,63 @@ impl AuthService
                     Authorization {
                         read: role_read.clone(),
                         private_read: role_private_read.clone(),
-                        write: role_write.clone()
-                    }
+                        write: role_write.clone(),
+                    },
                 )?;
 
                 // Create the role permission tree
                 if let AteRolePurpose::Owner = purpose {
-                    access.add(&request_sudo_read_key, request.identity.clone(), &owner_private_read)?;
+                    access.add(
+                        &request_sudo_read_key,
+                        request.identity.clone(),
+                        &owner_private_read,
+                    )?;
                 } else if let AteRolePurpose::Finance = purpose {
-                    access.add(&request_sudo_read_key, request.identity.clone(), &owner_private_read)?;
+                    access.add(
+                        &request_sudo_read_key,
+                        request.identity.clone(),
+                        &owner_private_read,
+                    )?;
                 } else if let AteRolePurpose::Delegate = purpose {
-                    access.add(&request_nominal_read_key, request.identity.clone(), &owner_private_read)?;
+                    access.add(
+                        &request_nominal_read_key,
+                        request.identity.clone(),
+                        &owner_private_read,
+                    )?;
                 } else if let AteRolePurpose::Observer = purpose {
-                    access.add(&delegate_private_read.as_public_key(), "delegate".to_string(), &owner_private_read)?;
-                    access.add(&contributor_private_read.as_public_key(), "contributor".to_string(), &owner_private_read)?;
+                    access.add(
+                        &delegate_private_read.as_public_key(),
+                        "delegate".to_string(),
+                        &owner_private_read,
+                    )?;
+                    access.add(
+                        &contributor_private_read.as_public_key(),
+                        "contributor".to_string(),
+                        &owner_private_read,
+                    )?;
                 } else if let AteRolePurpose::WebServer = purpose {
-                    access.add(&delegate_private_read.as_public_key(), "delegate".to_string(), &owner_private_read)?;
-                    access.add(&contributor_private_read.as_public_key(), "contributor".to_string(), &owner_private_read)?;
+                    access.add(
+                        &delegate_private_read.as_public_key(),
+                        "delegate".to_string(),
+                        &owner_private_read,
+                    )?;
+                    access.add(
+                        &contributor_private_read.as_public_key(),
+                        "contributor".to_string(),
+                        &owner_private_read,
+                    )?;
                 } else if let AteRolePurpose::EdgeCompute = purpose {
-                    access.add(&delegate_private_read.as_public_key(), "delegate".to_string(), &owner_private_read)?;
+                    access.add(
+                        &delegate_private_read.as_public_key(),
+                        "delegate".to_string(),
+                        &owner_private_read,
+                    )?;
                 } else {
-                    access.add(&delegate_private_read.as_public_key(), "delegate".to_string(), &owner_private_read)?;
+                    access.add(
+                        &delegate_private_read.as_public_key(),
+                        "delegate".to_string(),
+                        &owner_private_read,
+                    )?;
                 }
 
                 // Add the owner role to the group (as its a super_key the authentication server
@@ -296,7 +354,8 @@ impl AuthService
         // the data held within the structure is itself encrypted using the MultiEncryptedSecureData
         // object which allows one to multiplex the access to the keys
         group.auth_mut().read = ReadOption::from_key(&master_key);
-        group.auth_mut().write = WriteOption::Any(vec![master_write_key.hash(), owner_write.hash()]);
+        group.auth_mut().write =
+            WriteOption::Any(vec![master_write_key.hash(), owner_write.hash()]);
 
         // Create the advert object and save it using public read
         let advert_key_entropy = format!("advert:{}", request.group.clone()).to_string();

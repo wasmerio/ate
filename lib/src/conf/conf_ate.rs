@@ -1,19 +1,18 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use std::time::Duration;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
-use crate::spec::*;
-use crate::mesh::RecoveryMode;
-use crate::mesh::BackupMode;
 use crate::compact::CompactMode;
+use crate::mesh::BackupMode;
+use crate::mesh::RecoveryMode;
+use crate::spec::*;
 
 use super::*;
 
 /// Configuration settings for the ATE datastore
 ///
 #[derive(Debug, Clone)]
-pub struct ConfAte
-{
+pub struct ConfAte {
     /// Optimizes ATE for a specific group of usecases.
     pub(super) configured_for: ConfiguredFor,
 
@@ -87,9 +86,7 @@ pub struct ConfAte
     pub record_type_name: bool,
 }
 
-impl Default
-for ConfAte
-{
+impl Default for ConfAte {
     fn default() -> ConfAte {
         ConfAte {
             #[cfg(feature = "enable_local_fs")]

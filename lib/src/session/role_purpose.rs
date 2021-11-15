@@ -1,9 +1,8 @@
 #[allow(unused_imports)]
-use serde::{Serialize, Deserialize, de::DeserializeOwned};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub enum AteRolePurpose
-{
+pub enum AteRolePurpose {
     Owner,
     Personal,
     Delegate,
@@ -15,9 +14,7 @@ pub enum AteRolePurpose
     Other(String),
 }
 
-impl std::fmt::Display
-for AteRolePurpose
-{
+impl std::fmt::Display for AteRolePurpose {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             AteRolePurpose::Owner => write!(f, "owner"),
@@ -33,9 +30,7 @@ for AteRolePurpose
     }
 }
 
-impl std::str::FromStr
-for AteRolePurpose
-{
+impl std::str::FromStr for AteRolePurpose {
     type Err = &'static str;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {

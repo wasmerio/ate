@@ -1,17 +1,15 @@
 #[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use crate::error::*;
-use crate::trust::ChainHeader;
 use crate::spec::*;
+use crate::trust::ChainHeader;
 
 use super::*;
 
-impl<'a> Chain
-{
+impl<'a> Chain {
     #[cfg(feature = "enable_rotate")]
-    pub async fn rotate(&'a self) -> Result<(), SerializationError>
-    {
+    pub async fn rotate(&'a self) -> Result<(), SerializationError> {
         let delayed_operations = {
             // Switch to single-user mode while we make the rotation
             // of the log file - this will effectively freeze all IO

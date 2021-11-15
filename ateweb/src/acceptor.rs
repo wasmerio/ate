@@ -1,36 +1,34 @@
-#[allow(unused_imports, dead_code)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use std::pin::Pin;
-use std::io;
+use super::acme::ACME_TLS_ALPN_NAME;
 use core::task::{Context, Poll};
-use tokio::net::TcpListener;
-use tokio_rustls::TlsAcceptor;
-use std::sync::Arc;
-use tokio::net::TcpStream;
-use std::net::SocketAddr;
 use std::future::Future;
-use super::acme::{
-    ACME_TLS_ALPN_NAME
-};
+use std::io;
+use std::net::SocketAddr;
+use std::pin::Pin;
+use std::sync::Arc;
+use tokio::net::TcpListener;
+use tokio::net::TcpStream;
+use tokio_rustls::TlsAcceptor;
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use hyper;
 
-use super::stream::*;
 use super::acme::*;
+use super::stream::*;
 
 pub struct HyperAcceptor
-where Self: Send
+where
+    Self: Send,
 {
     pub tcp: TcpListener,
     pub tls: Option<TlsAcceptor>,
     pub acme: Arc<AcmeResolver>,
-    pub accepting: Vec<Pin<Box<dyn Future<Output=Result<HyperStream, Box<dyn std::error::Error>>> + Send>>>,
+    pub accepting:
+        Vec<Pin<Box<dyn Future<Output = Result<HyperStream, Box<dyn std::error::Error>>> + Send>>>,
 }
 
-impl HyperAcceptor
-{
-    pub fn new(listener: TcpListener, acme: Arc<AcmeResolver>, enable_tls: bool) -> HyperAcceptor
-    {
+impl HyperAcceptor {
+    pub fn new(listener: TcpListener, acme: Arc<AcmeResolver>, enable_tls: bool) -> HyperAcceptor {
         let tls = match enable_tls {
             false => None,
             true => {
@@ -38,12 +36,14 @@ impl HyperAcceptor
                 let tls_cfg = {
                     let mut cfg = rustls::ServerConfig::new(rustls::NoClientAuth::new());
                     cfg.cert_resolver = acme;
-                    cfg.set_protocols(&[b"h2".to_vec(), b"http/1.1".to_vec(), b"acme-tls/1".to_vec()]);
+                    cfg.set_protocols(&[
+                        b"h2".to_vec(),
+                        b"http/1.1".to_vec(),
+                        b"acme-tls/1".to_vec(),
+                    ]);
                     Arc::new(cfg)
                 };
-                Some(
-                    TlsAcceptor::from(tls_cfg)
-                )
+                Some(TlsAcceptor::from(tls_cfg))
             }
         };
         HyperAcceptor {
@@ -54,8 +54,12 @@ impl HyperAcceptor
         }
     }
 
-    pub async fn accept(tls: TlsAcceptor, acme: Arc<AcmeResolver>, socket: TcpStream, addr: SocketAddr) -> Result<HyperStream, Box<dyn std::error::Error>>
-    {
+    pub async fn accept(
+        tls: TlsAcceptor,
+        acme: Arc<AcmeResolver>,
+        socket: TcpStream,
+        addr: SocketAddr,
+    ) -> Result<HyperStream, Box<dyn std::error::Error>> {
         // Enter a loop peeking for the hello client message
         let mut peek_size = 128usize;
         while peek_size <= 16384usize {
@@ -70,29 +74,32 @@ impl HyperAcceptor
 
             // Attempt to get a TlsMessage
             let record = match tls_parser::parse_tls_plaintext(&buf[..n]) {
-                Ok((_rem, record)) => {
-                    record
-                },
+                Ok((_rem, record)) => record,
                 Err(tls_parser::Err::Incomplete(_needed)) => {
                     continue;
-                },
+                }
                 Err(e) => {
-                    warn!("parse_tls_record_with_header failed: {:?}",e);
+                    warn!("parse_tls_record_with_header failed: {:?}", e);
                     break;
                 }
             };
 
             // Find the handshake / client hello message
-            let msg = record.msg.iter()
+            let msg = record
+                .msg
+                .iter()
                 .filter_map(|a| match a {
-                    tls_parser::TlsMessage::Handshake(tls_parser::TlsMessageHandshake::ClientHello(hello)) =>
-                        Some(hello),
+                    tls_parser::TlsMessage::Handshake(
+                        tls_parser::TlsMessageHandshake::ClientHello(hello),
+                    ) => Some(hello),
                     _ => None,
                 })
                 .next();
             let hello = match msg {
                 Some(a) => a,
-                None => { continue; }
+                None => {
+                    continue;
+                }
             };
 
             // Grab all the extensions
@@ -120,33 +127,36 @@ impl HyperAcceptor
             }
 
             // We are looking for the SNI extension
-            let sni = exts.iter()
+            let sni = exts
+                .iter()
                 .filter_map(|a| match a {
-                    tls_parser::TlsExtension::SNI(snis) => {
-                        snis.iter()
-                            .filter_map(|a| match a {
-                                (tls_parser::SNIType::HostName, sni_bytes) => {
-                                    Some(String::from_utf8_lossy(sni_bytes))
-                                },
-                                _ => None
-                            })
-                            .next()
-                    },
-                    _ => None
+                    tls_parser::TlsExtension::SNI(snis) => snis
+                        .iter()
+                        .filter_map(|a| match a {
+                            (tls_parser::SNIType::HostName, sni_bytes) => {
+                                Some(String::from_utf8_lossy(sni_bytes))
+                            }
+                            _ => None,
+                        })
+                        .next(),
+                    _ => None,
                 })
                 .next();
             let sni = match sni {
                 Some(a) => a,
-                None => { break; }
+                None => {
+                    break;
+                }
             };
-            
+
             // Load the object
             if alpn {
                 trace!("alpn challenge for SNI: {}", sni);
                 acme.touch_alpn(sni.to_string()).await?;
             } else {
                 trace!("connection attempt SNI: {}", sni);
-                acme.touch_web(sni.to_string(), chrono::Duration::days(30)).await?;
+                acme.touch_web(sni.to_string(), chrono::Duration::days(30))
+                    .await?;
             }
             break;
         }
@@ -166,29 +176,27 @@ impl hyper::server::accept::Accept for HyperAcceptor {
     fn poll_accept(
         mut self: Pin<&mut Self>,
         cx: &mut Context,
-    ) -> Poll<Option<Result<Self::Conn, Self::Error>>>
-    {
+    ) -> Poll<Option<Result<Self::Conn, Self::Error>>> {
         loop {
             match self.tcp.poll_accept(cx) {
                 Poll::Pending => break,
                 Poll::Ready(Err(err)) => {
                     return Poll::Ready(Some(Err(err)));
-                },
-                Poll::Ready(Ok((socket, addr))) =>
-                {
+                }
+                Poll::Ready(Ok((socket, addr))) => {
                     // For HTTP streams there is nothing more to do
                     let tls = match &self.tls {
                         None => {
                             return Poll::Ready(Some(Ok(HyperStream::PlainTcp((socket, addr)))));
-                        },
-                        Some(tls) => tls.clone()
+                        }
+                        Some(tls) => tls.clone(),
                     };
 
                     // Otherwise its time to accept the TLS connection
                     let acme = self.acme.clone();
                     let accept = HyperAcceptor::accept(tls, acme, socket, addr);
-                    self.accepting.push(Box::pin(accept));                    
-                },
+                    self.accepting.push(Box::pin(accept));
+                }
             };
         }
 
@@ -206,10 +214,10 @@ impl hyper::server::accept::Accept for HyperAcceptor {
             match accept.as_mut().poll(cx) {
                 Poll::Pending => {
                     self.accepting.push(accept);
-                },
+                }
                 Poll::Ready(Ok(stream)) => {
                     ret = Some(stream);
-                },
+                }
                 Poll::Ready(Err(err)) => {
                     warn!("failed to accept TLS stream - {}", err);
                     continue;

@@ -6,8 +6,7 @@ use super::*;
 /// on the market interaction interface. This metadata helps users
 /// identify what they are trading.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct CommodityKindType
-{
+pub struct CommodityKindType {
     pub name: String,
     pub category: CommodityCategory,
     pub description: Option<String>,
@@ -16,13 +15,11 @@ pub struct CommodityKindType
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum CommodityKind
-{
+pub enum CommodityKind {
     Coin(NationalCurrency),
 }
 
-impl CommodityKind
-{
+impl CommodityKind {
     pub fn params(&self) -> CommodityKindType {
         match self {
             CommodityKind::Coin(c) => CommodityKindType {

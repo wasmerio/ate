@@ -1,49 +1,56 @@
 #![allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use error_chain::bail;
+use qrcode::render::unicode;
+use qrcode::QrCode;
 use std::io::stdout;
 use std::io::Write;
-use url::Url;
 use std::ops::Deref;
-use qrcode::QrCode;
-use qrcode::render::unicode;
 use std::sync::Arc;
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
+use url::Url;
 
-use ate::prelude::*;
 use ate::error::LoadError;
+use ate::prelude::*;
 use ate::utils::chain_key_4hex;
 
-use crate::prelude::*;
-use crate::request::*;
-use crate::model::*;
-use crate::service::AuthService;
-use crate::helper::*;
 use crate::error::*;
 use crate::helper::*;
+use crate::helper::*;
+use crate::model::*;
+use crate::prelude::*;
+use crate::request::*;
+use crate::service::AuthService;
 
-impl AuthService
-{
-    pub async fn process_reset(self: Arc<Self>, request: ResetRequest) -> Result<ResetResponse, ResetFailed>
-    {
-        Ok(self.process_reset_internal(request)
-            .await?
-            .0)
+impl AuthService {
+    pub async fn process_reset(
+        self: Arc<Self>,
+        request: ResetRequest,
+    ) -> Result<ResetResponse, ResetFailed> {
+        Ok(self.process_reset_internal(request).await?.0)
     }
 
-    pub async fn process_reset_internal(self: Arc<Self>, request: ResetRequest) -> Result<(ResetResponse, DaoMut<User>), ResetFailed>
-    {
+    pub async fn process_reset_internal(
+        self: Arc<Self>,
+        request: ResetRequest,
+    ) -> Result<(ResetResponse, DaoMut<User>), ResetFailed> {
         info!("reset user: {}", request.email);
 
         // Compute the super_key, super_super_key (elevated rights) and the super_session
-        let (super_key, token) = self.compute_master_key(&request.new_secret).ok_or_else(|| ResetFailed::NoMasterKey)?;
-        let (super_super_key, super_token) = self.compute_master_key(&super_key).ok_or_else(|| ResetFailed::NoMasterKey)?;
+        let (super_key, token) = self
+            .compute_master_key(&request.new_secret)
+            .ok_or_else(|| ResetFailed::NoMasterKey)?;
+        let (super_super_key, super_token) = self
+            .compute_master_key(&super_key)
+            .ok_or_else(|| ResetFailed::NoMasterKey)?;
         let mut super_session = self.master_session.clone();
         super_session.user.add_read_key(&super_key);
         super_session.user.add_read_key(&super_super_key);
         super_session.token = Some(super_token);
 
         // Convert the recovery code
-        let (super_recovery_key, _) = self.compute_master_key(&request.recovery_key).ok_or_else(|| ResetFailed::NoMasterKey)?;
+        let (super_recovery_key, _) = self
+            .compute_master_key(&request.recovery_key)
+            .ok_or_else(|| ResetFailed::NoMasterKey)?;
         super_session.user.add_read_key(&super_recovery_key);
 
         // Compute which chain the user should exist within
@@ -66,11 +73,17 @@ impl AuthService
             Err(LoadError(LoadErrorKind::NotFound(_), _)) => {
                 warn!("reset attempt denied ({}) - not found", request.email);
                 return Err(ResetFailed::InvalidRecoveryCode);
-            },
-            Err(LoadError(LoadErrorKind::TransformationError(TransformErrorKind::MissingReadKey(_)), _)) => {
-                warn!("reset attempt denied ({}) - invalid recovery code", request.email);
+            }
+            Err(LoadError(
+                LoadErrorKind::TransformationError(TransformErrorKind::MissingReadKey(_)),
+                _,
+            )) => {
+                warn!(
+                    "reset attempt denied ({}) - invalid recovery code",
+                    request.email
+                );
                 return Err(ResetFailed::InvalidRecoveryCode);
-            },
+            }
             Err(err) => {
                 warn!("reset attempt denied ({}) - error - ", err);
                 bail!(err);
@@ -82,14 +95,22 @@ impl AuthService
         let time = self.time_keeper.current_timestamp_as_duration()?;
         let time = time.as_secs() / 30;
         let google_auth = google_authenticator::GoogleAuthenticator::new();
-        if request.sudo_code != request.sudo_code_2 &&
-           google_auth.verify_code(recovery.sudo_secret.as_str(), request.sudo_code.as_str(), 4, time) &&
-           google_auth.verify_code(recovery.sudo_secret.as_str(), request.sudo_code_2.as_str(), 4, time)
+        if request.sudo_code != request.sudo_code_2
+            && google_auth.verify_code(
+                recovery.sudo_secret.as_str(),
+                request.sudo_code.as_str(),
+                4,
+                time,
+            )
+            && google_auth.verify_code(
+                recovery.sudo_secret.as_str(),
+                request.sudo_code_2.as_str(),
+                4,
+                time,
+            )
         {
             debug!("code authenticated");
-        }
-        else
-        {            
+        } else {
             warn!("reset attempt denied ({}) - wrong code", request.email);
             return Err(ResetFailed::InvalidAuthenticatorCode);
         }
@@ -97,8 +118,12 @@ impl AuthService
         // We can now add the original encryption key that we grant us access to this account
         {
             let mut session_mut = dio.session_mut();
-            let (super_key, _) = self.compute_master_key(&recovery.login_secret).ok_or_else(|| ResetFailed::NoMasterKey)?;
-            let (super_super_key, _) = self.compute_master_key(&super_key.clone()).ok_or_else(|| ResetFailed::NoMasterKey)?;
+            let (super_key, _) = self
+                .compute_master_key(&recovery.login_secret)
+                .ok_or_else(|| ResetFailed::NoMasterKey)?;
+            let (super_super_key, _) = self
+                .compute_master_key(&super_key.clone())
+                .ok_or_else(|| ResetFailed::NoMasterKey)?;
             session_mut.user_mut().add_user_read_key(&super_key);
             session_mut.user_mut().add_user_read_key(&super_super_key);
         }
@@ -110,11 +135,17 @@ impl AuthService
             Err(LoadError(LoadErrorKind::NotFound(_), _)) => {
                 warn!("reset attempt denied ({}) - not found", request.email);
                 return Err(ResetFailed::InvalidEmail(request.email));
-            },
-            Err(LoadError(LoadErrorKind::TransformationError(TransformErrorKind::MissingReadKey(_)), _)) => {
-                warn!("reset attempt denied ({}) - recovery is not possible", request.email);
+            }
+            Err(LoadError(
+                LoadErrorKind::TransformationError(TransformErrorKind::MissingReadKey(_)),
+                _,
+            )) => {
+                warn!(
+                    "reset attempt denied ({}) - recovery is not possible",
+                    request.email
+                );
                 return Err(ResetFailed::RecoveryImpossible);
-            },
+            }
             Err(err) => {
                 warn!("reset attempt denied ({}) - error - ", err);
                 bail!(err);
@@ -133,10 +164,13 @@ impl AuthService
                 warn!("reset attempt denied ({}) - sudo not found", request.email);
                 return Err(ResetFailed::InvalidEmail(request.email));
             }
-            Err(LoadError(LoadErrorKind::TransformationError(TransformErrorKind::MissingReadKey(_)), _)) => {
+            Err(LoadError(
+                LoadErrorKind::TransformationError(TransformErrorKind::MissingReadKey(_)),
+                _,
+            )) => {
                 warn!("reset attempt denied ({}) - wrong password", request.email);
                 return Err(ResetFailed::RecoveryImpossible);
-            },
+            }
             Err(err) => {
                 warn!("reset attempt denied ({}) - error - ", err);
                 bail!(err);
@@ -146,10 +180,16 @@ impl AuthService
         // Generate a QR code
         let google_auth = google_authenticator::GoogleAuthenticator::new();
         let secret = google_auth.create_secret(32);
-        let google_auth_secret = format!("otpauth://totp/{}:{}?secret={}", request.auth.to_string(), request.email, secret.clone());
+        let google_auth_secret = format!(
+            "otpauth://totp/{}:{}?secret={}",
+            request.auth.to_string(),
+            request.email,
+            secret.clone()
+        );
 
         // Build the QR image
-        let qr_code = QrCode::new(google_auth_secret.as_bytes()).unwrap()
+        let qr_code = QrCode::new(google_auth_secret.as_bytes())
+            .unwrap()
             .render::<unicode::Dense1x2>()
             .dark_color(unicode::Dense1x2::Light)
             .light_color(unicode::Dense1x2::Dark)
@@ -184,12 +224,15 @@ impl AuthService
         session.token = Some(token);
 
         // Return success to the caller
-        Ok((ResetResponse {
-            key: user.key().clone(),
-            qr_code: qr_code,
-            qr_secret: secret.clone(),
-            authority: session,
-            message_of_the_day: None,
-        }, user))
+        Ok((
+            ResetResponse {
+                key: user.key().clone(),
+                qr_code: qr_code,
+                qr_secret: secret.clone(),
+                authority: session,
+                message_of_the_day: None,
+            },
+            user,
+        ))
     }
 }

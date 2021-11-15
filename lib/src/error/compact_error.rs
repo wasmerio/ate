@@ -1,6 +1,6 @@
 use error_chain::error_chain;
-use tokio::sync::watch;
 use tokio::sync::broadcast;
+use tokio::sync::watch;
 
 error_chain! {
     types {
@@ -31,32 +31,30 @@ error_chain! {
     }
 }
 
-impl From<watch::error::RecvError>
-for CompactError {
+impl From<watch::error::RecvError> for CompactError {
     fn from(err: watch::error::RecvError) -> CompactError {
         CompactErrorKind::WatchError(err.to_string()).into()
     }
 }
 
-impl<T> From<watch::error::SendError<T>>
-for CompactError
-where T: std::fmt::Debug
+impl<T> From<watch::error::SendError<T>> for CompactError
+where
+    T: std::fmt::Debug,
 {
     fn from(err: watch::error::SendError<T>) -> CompactError {
         CompactErrorKind::WatchError(err.to_string()).into()
     }
 }
 
-impl From<broadcast::error::RecvError>
-for CompactError {
+impl From<broadcast::error::RecvError> for CompactError {
     fn from(err: broadcast::error::RecvError) -> CompactError {
         CompactErrorKind::BroadcastError(err.to_string()).into()
     }
 }
 
-impl<T> From<broadcast::error::SendError<T>>
-for CompactError
-where T: std::fmt::Debug
+impl<T> From<broadcast::error::SendError<T>> for CompactError
+where
+    T: std::fmt::Debug,
 {
     fn from(err: broadcast::error::SendError<T>) -> CompactError {
         CompactErrorKind::BroadcastError(err.to_string()).into()

@@ -1,9 +1,9 @@
 #[allow(unused_imports)]
-use serde::{Serialize, Deserialize, de::DeserializeOwned};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::ops::Deref;
 use std::ops::DerefMut;
 
-use crate::{crypto::*};
+use crate::crypto::*;
 
 use super::*;
 
@@ -14,28 +14,24 @@ use super::*;
 /// duration that you use them for security reasons.
 #[allow(dead_code)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct AteSessionSudo
-{
+pub struct AteSessionSudo {
     pub inner: AteSessionUser,
     pub sudo: AteGroupRole,
 }
 
-impl Default
-for AteSessionSudo
-{
+impl Default for AteSessionSudo {
     fn default() -> AteSessionSudo {
         AteSessionSudo {
             inner: AteSessionUser::default(),
             sudo: AteGroupRole {
                 purpose: AteRolePurpose::Owner,
-                properties: Vec::new()
+                properties: Vec::new(),
             },
         }
     }
 }
 
-impl AteSessionSudo
-{
+impl AteSessionSudo {
     pub fn new() -> AteSessionSudo {
         AteSessionSudo::default()
     }
@@ -53,49 +49,67 @@ impl AteSessionSudo
     }
 }
 
-impl AteSession
-for AteSessionSudo
-{
+impl AteSession for AteSessionSudo {
     fn role<'a>(&'a self, _purpose: &AteRolePurpose) -> Option<&'a AteGroupRole> {
         None
     }
 
-    fn read_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a EncryptKey> + 'a> {
+    fn read_keys<'a>(
+        &'a self,
+        category: AteSessionKeyCategory,
+    ) -> Box<dyn Iterator<Item = &'a EncryptKey> + 'a> {
         if category == AteSessionKeyCategory::UpperKeys {
             return Box::new(self.sudo.read_keys());
         }
         let ret1 = self.inner.read_keys(category);
-        let ret2 = self.sudo.read_keys()
+        let ret2 = self
+            .sudo
+            .read_keys()
             .filter(move |_| category.includes_sudo_keys());
         Box::new(ret1.chain(ret2))
     }
 
-    fn write_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a PrivateSignKey> + 'a> {
+    fn write_keys<'a>(
+        &'a self,
+        category: AteSessionKeyCategory,
+    ) -> Box<dyn Iterator<Item = &'a PrivateSignKey> + 'a> {
         if category == AteSessionKeyCategory::UpperKeys {
             return Box::new(self.sudo.write_keys());
         }
         let ret1 = self.inner.write_keys(category);
-        let ret2 = self.sudo.write_keys()
+        let ret2 = self
+            .sudo
+            .write_keys()
             .filter(move |_| category.includes_sudo_keys());
         Box::new(ret1.chain(ret2))
     }
 
-    fn public_read_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a PublicEncryptKey> + 'a> {
+    fn public_read_keys<'a>(
+        &'a self,
+        category: AteSessionKeyCategory,
+    ) -> Box<dyn Iterator<Item = &'a PublicEncryptKey> + 'a> {
         if category == AteSessionKeyCategory::UpperKeys {
             return Box::new(self.sudo.public_read_keys());
         }
         let ret1 = self.inner.public_read_keys(category);
-        let ret2 = self.sudo.public_read_keys()
+        let ret2 = self
+            .sudo
+            .public_read_keys()
             .filter(move |_| category.includes_sudo_keys());
         Box::new(ret1.chain(ret2))
     }
 
-    fn private_read_keys<'a>(&'a self, category: AteSessionKeyCategory) -> Box<dyn Iterator<Item = &'a PrivateEncryptKey> + 'a> {
+    fn private_read_keys<'a>(
+        &'a self,
+        category: AteSessionKeyCategory,
+    ) -> Box<dyn Iterator<Item = &'a PrivateEncryptKey> + 'a> {
         if category == AteSessionKeyCategory::UpperKeys {
             return Box::new(self.sudo.private_read_keys());
         }
         let ret1 = self.inner.private_read_keys(category);
-        let ret2 = self.sudo.private_read_keys()
+        let ret2 = self
+            .sudo
+            .private_read_keys()
             .filter(move |_| category.includes_sudo_keys());
         Box::new(ret1.chain(ret2))
     }
@@ -103,7 +117,7 @@ for AteSessionSudo
     fn broker_read<'a>(&'a self) -> Option<&'a PrivateEncryptKey> {
         self.inner.broker_read()
     }
-    
+
     fn broker_write<'a>(&'a self) -> Option<&'a PrivateSignKey> {
         self.inner.broker_write()
     }
@@ -142,14 +156,15 @@ for AteSessionSudo
         Box::new(ret1.chain(ret2))
     }
 
-    fn append<'a, 'b>(&'a mut self, properties: Box<dyn Iterator<Item = &'b AteSessionProperty> + 'b>) {
+    fn append<'a, 'b>(
+        &'a mut self,
+        properties: Box<dyn Iterator<Item = &'b AteSessionProperty> + 'b>,
+    ) {
         self.inner.append(properties);
     }
 }
 
-impl Deref
-for AteSessionSudo
-{
+impl Deref for AteSessionSudo {
     type Target = AteSessionUser;
 
     fn deref(&self) -> &Self::Target {
@@ -157,17 +172,13 @@ for AteSessionSudo
     }
 }
 
-impl DerefMut
-for AteSessionSudo
-{
+impl DerefMut for AteSessionSudo {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }
 }
 
-impl std::fmt::Display
-for AteSessionSudo
-{
+impl std::fmt::Display for AteSessionSudo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "[user=")?;
         self.inner.user.fmt(f)?;

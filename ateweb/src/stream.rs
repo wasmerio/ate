@@ -1,24 +1,23 @@
-#[allow(unused_imports, dead_code)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use tokio::net::TcpStream;
-use tokio_rustls::server::TlsStream;
-use std::pin::Pin;
 use core::task::{Context, Poll};
-use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use std::io;
 use std::net::SocketAddr;
+use std::pin::Pin;
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tokio::net::TcpStream;
+use tokio_rustls::server::TlsStream;
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 pub enum HyperStream
-where Self: Send + Sync
+where
+    Self: Send + Sync,
 {
     PlainTcp((TcpStream, SocketAddr)),
-    Tls((TlsStream<TcpStream>, SocketAddr))
+    Tls((TlsStream<TcpStream>, SocketAddr)),
 }
 
-impl HyperStream
-{
-    pub fn remote_addr(&self) -> &SocketAddr
-    {
+impl HyperStream {
+    pub fn remote_addr(&self) -> &SocketAddr {
         match self {
             HyperStream::PlainTcp((_, addr)) => addr,
             HyperStream::Tls((_, addr)) => addr,

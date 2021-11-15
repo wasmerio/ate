@@ -1,17 +1,17 @@
 #![allow(unused_imports)]
-use tracing::{error, info, debug};
+use crate::engine::timeout;
 use error_chain::bail;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use tokio::io;
-use crate::engine::timeout;
 use std::mem;
-use tokio::net;
-use tokio::net::UdpSocket;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::str;
 use std::time;
 use std::time::Duration;
+use tokio::io;
+use tokio::net;
+use tokio::net::UdpSocket;
+use tracing::{debug, error, info};
 
 use crate::error::*;
 
@@ -49,7 +49,7 @@ pub(crate) struct NtpResult {
     /// Offset of the current system time with one received from a NTP server
     pub offset: i64,
     /// Flag that indicates if this result is likely to be accurate or not
-    pub accurate: bool
+    pub accurate: bool,
 }
 
 impl NtpResult {
@@ -229,7 +229,11 @@ impl From<&NtpPacket> for RawNtpPacket {
     }
 }
 
-pub(crate) async fn request(pool: &str, port: u16, timeout: time::Duration) -> io::Result<NtpResult> {
+pub(crate) async fn request(
+    pool: &str,
+    port: u16,
+    timeout: time::Duration,
+) -> io::Result<NtpResult> {
     let socket = net::UdpSocket::bind("0.0.0.0:0")
         .await
         .expect("Unable to create a UDP socket");
@@ -244,9 +248,10 @@ pub(crate) async fn request(pool: &str, port: u16, timeout: time::Duration) -> i
     let req = NtpPacket::new();
     let dest = process_request(dest, &req, &socket).await?;
     let mut buf: RawNtpPacket = RawNtpPacket::default();
-    let (response, src) = crate::engine::timeout(timeout, socket.recv_from(buf.0.as_mut())).await??;
+    let (response, src) =
+        crate::engine::timeout(timeout, socket.recv_from(buf.0.as_mut())).await??;
     let recv_timestamp = get_ntp_timestamp();
-    
+
     if src != dest {
         return Err(io::Error::new(
             io::ErrorKind::Other,
@@ -258,9 +263,7 @@ pub(crate) async fn request(pool: &str, port: u16, timeout: time::Duration) -> i
         let result = process_response(&req, buf, recv_timestamp);
 
         return match result {
-            Ok(result) => {
-                Ok(result)
-            }
+            Ok(result) => Ok(result),
             Err(err_str) => Err(io::Error::new(io::ErrorKind::Other, err_str)),
         };
     }
@@ -282,7 +285,7 @@ async fn process_request(
                 assert_eq!(write_bytes, mem::size_of::<NtpPacket>());
                 return Ok(addr);
             }
-            Err(_) => { },
+            Err(_) => {}
         }
     }
 
@@ -306,9 +309,7 @@ fn process_response(
     req: &NtpPacket,
     resp: RawNtpPacket,
     recv_timestamp: u64,
-)
- -> Result<NtpResult, &str>
-{
+) -> Result<NtpResult, &str> {
     const SNTP_UNICAST: u8 = 4;
     const SNTP_BROADCAST: u8 = 5;
     const LI_MAX_VALUE: u8 = 3;
@@ -317,7 +318,7 @@ fn process_response(
     let mut packet = NtpPacket::from(resp);
 
     convert_from_network(&mut packet);
-    
+
     if req.tx_timestamp != packet.origin_timestamp {
         return Err("Incorrect origin timestamp");
     }
@@ -352,8 +353,7 @@ fn process_response(
     //      - T4 = client's RX timestamp
     let delta = (recv_timestamp - packet.origin_timestamp) as i64
         - (packet.tx_timestamp - packet.recv_timestamp) as i64;
-    let theta = ((packet.recv_timestamp as i64
-        - packet.origin_timestamp as i64)
+    let theta = ((packet.recv_timestamp as i64 - packet.origin_timestamp as i64)
         + (recv_timestamp as i64 - packet.tx_timestamp as i64))
         / 2;
 
@@ -382,17 +382,19 @@ fn get_ntp_timestamp() -> u64 {
     let now_since_unix = time::SystemTime::now()
         .duration_since(time::SystemTime::UNIX_EPOCH)
         .unwrap();
-    let timestamp = ((now_since_unix.as_secs()
-        + (u64::from(NtpPacket::NTP_TIMESTAMP_DELTA)))
+    let timestamp = ((now_since_unix.as_secs() + (u64::from(NtpPacket::NTP_TIMESTAMP_DELTA)))
         << 32)
         + u64::from(now_since_unix.subsec_micros());
 
     timestamp
 }
 
-pub(crate) async fn query_ntp(pool: &String, port: u16, tolerance_ms: u32) -> Result<NtpResult, TimeError>
-{
-    let timeout =  Duration::from_millis(tolerance_ms as u64) + Duration::from_millis(50);
+pub(crate) async fn query_ntp(
+    pool: &String,
+    port: u16,
+    tolerance_ms: u32,
+) -> Result<NtpResult, TimeError> {
+    let timeout = Duration::from_millis(tolerance_ms as u64) + Duration::from_millis(50);
     let ret = request(pool.as_str(), port, timeout).await?;
     let ping = Duration::from_micros(ret.roundtrip()).as_millis() as u32;
     if ping > tolerance_ms {
@@ -402,8 +404,12 @@ pub(crate) async fn query_ntp(pool: &String, port: u16, tolerance_ms: u32) -> Re
 }
 
 #[allow(dead_code)]
-pub(crate) async fn query_ntp_with_backoff(pool: &String, port: u16, tolerance_ms: u32, samples: u32) -> NtpResult
-{
+pub(crate) async fn query_ntp_with_backoff(
+    pool: &String,
+    port: u16,
+    tolerance_ms: u32,
+    samples: u32,
+) -> NtpResult {
     let mut wait_time = 50;
     loop {
         if let Ok(result) = query_ntp_retry(pool, port, tolerance_ms, samples).await {
@@ -419,14 +425,17 @@ pub(crate) async fn query_ntp_with_backoff(pool: &String, port: u16, tolerance_m
     }
 }
 
-pub(crate) async fn query_ntp_retry(pool: &String, port: u16, tolerance_ms: u32, samples: u32) -> Result<NtpResult, TimeError>
-{
+pub(crate) async fn query_ntp_retry(
+    pool: &String,
+    port: u16,
+    tolerance_ms: u32,
+    samples: u32,
+) -> Result<NtpResult, TimeError> {
     let mut best: Option<NtpResult> = None;
     let mut positives = 0;
     let mut wait_time = 50;
 
-    for _ in 0..samples
-    {
+    for _ in 0..samples {
         let timeout = match &best {
             Some(b) => Duration::from_micros(b.roundtrip()) + Duration::from_millis(50),
             None => Duration::from_millis(tolerance_ms as u64),
@@ -436,7 +445,11 @@ pub(crate) async fn query_ntp_retry(pool: &String, port: u16, tolerance_ms: u32,
         trace!("ntp request timeout={}ms", timeout.as_millis());
         if let Ok(ret) = request(pool.as_str(), port, timeout).await {
             #[cfg(feature = "enable_super_verbose")]
-            trace!("ntp response roundtrip={}, offset={}", ret.roundtrip, ret.offset);
+            trace!(
+                "ntp response roundtrip={}, offset={}",
+                ret.roundtrip,
+                ret.offset
+            );
 
             let current_ping = match &best {
                 Some(b) => b.roundtrip(),
@@ -450,9 +463,7 @@ pub(crate) async fn query_ntp_retry(pool: &String, port: u16, tolerance_ms: u32,
                 break;
             }
             wait_time = 50;
-        }
-        else
-        {
+        } else {
             crate::engine::sleep(Duration::from_millis(wait_time)).await;
             wait_time = (wait_time * 120) / 100;
             wait_time = wait_time + 50;

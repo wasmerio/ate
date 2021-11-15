@@ -1,19 +1,16 @@
-pub mod activities
-{
-    use serde::*;
-    use chrono::prelude::*;
+pub mod activities {
     use crate::model::*;
+    use chrono::prelude::*;
+    use serde::*;
 
     #[derive(Serialize, Deserialize, Debug, Clone)]
-    pub struct WalletCreated
-    {
+    pub struct WalletCreated {
         pub when: DateTime<Utc>,
         pub by: String,
     }
 
     #[derive(Serialize, Deserialize, Debug, Clone)]
-    pub struct DepositCreated
-    {
+    pub struct DepositCreated {
         pub when: DateTime<Utc>,
         pub by: String,
         pub invoice_number: String,
@@ -24,8 +21,7 @@ pub mod activities
     }
 
     #[derive(Serialize, Deserialize, Debug, Clone)]
-    pub struct DepositCompleted
-    {
+    pub struct DepositCompleted {
         pub when: DateTime<Utc>,
         pub by: String,
         pub invoice_number: String,
@@ -35,8 +31,7 @@ pub mod activities
     }
 
     #[derive(Serialize, Deserialize, Debug, Clone)]
-    pub struct FundsTransferred
-    {
+    pub struct FundsTransferred {
         pub when: DateTime<Utc>,
         pub by: String,
         pub amount: Decimal,
@@ -46,8 +41,7 @@ pub mod activities
     }
 
     #[derive(Serialize, Deserialize, Debug, Clone)]
-    pub struct FundsWithdrawn
-    {
+    pub struct FundsWithdrawn {
         pub when: DateTime<Utc>,
         pub by: String,
         pub amount_less_fees: Decimal,
@@ -57,8 +51,7 @@ pub mod activities
     }
 
     #[derive(Serialize, Deserialize, Debug, Clone)]
-    pub struct ContractCreated
-    {
+    pub struct ContractCreated {
         pub when: DateTime<Utc>,
         pub by: String,
         pub service: AdvertisedService,
@@ -66,25 +59,23 @@ pub mod activities
     }
 
     #[derive(Serialize, Deserialize, Debug, Clone)]
-    pub struct ContractInvoice
-    {
+    pub struct ContractInvoice {
         pub when: DateTime<Utc>,
         pub by: String,
         pub invoice: Invoice,
     }
 }
 
-use serde::*;
 use chrono::prelude::*;
 use num_traits::*;
+use serde::*;
 
 use crate::model::*;
 
 use activities::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum HistoricActivity
-{
+pub enum HistoricActivity {
     WalletCreated(WalletCreated),
     DepositCreated(DepositCreated),
     DepositCompleted(DepositCompleted),
@@ -96,11 +87,9 @@ pub enum HistoricActivity
     ContractIncome(ContractInvoice),
 }
 
-impl HistoricActivity
-{
+impl HistoricActivity {
     pub fn when(&self) -> &DateTime<Utc> {
-        match self
-        {
+        match self {
             HistoricActivity::WalletCreated(a) => &a.when,
             HistoricActivity::DepositCreated(a) => &a.when,
             HistoricActivity::DepositCompleted(a) => &a.when,
@@ -114,8 +103,7 @@ impl HistoricActivity
     }
 
     pub fn by(&self) -> &str {
-        match self
-        {
+        match self {
             HistoricActivity::WalletCreated(a) => a.by.as_str(),
             HistoricActivity::DepositCreated(a) => a.by.as_str(),
             HistoricActivity::DepositCompleted(a) => a.by.as_str(),
@@ -129,8 +117,7 @@ impl HistoricActivity
     }
 
     pub fn financial<'a>(&'a self) -> Option<HistoricFinancialActivity<'a>> {
-        match self
-        {
+        match self {
             HistoricActivity::WalletCreated(_) => None,
             HistoricActivity::DepositCreated(_) => None,
             HistoricActivity::ContractCreated(_) => None,
@@ -168,35 +155,34 @@ impl HistoricActivity
     }
 
     pub fn summary(&self) -> String {
-        match self
-        {
+        match self {
             HistoricActivity::WalletCreated(_) => {
                 format!("Wallet created")
-            },
+            }
             HistoricActivity::ContractCreated(a) => {
                 format!("Contract created ({})", a.contract_reference)
-            },
+            }
             HistoricActivity::ContractCharge(a) => {
                 format!("Invoice was paid ({})", a.invoice.related_to)
-            },
+            }
             HistoricActivity::ContractIncome(a) => {
                 format!("Invoice was paid ({})", a.invoice.related_to)
-            },
+            }
             HistoricActivity::DepositCreated(a) => {
                 format!("Deposit invoiced ({})", a.invoice_number)
-            },
+            }
             HistoricActivity::DepositCompleted(a) => {
                 format!("Deposit was paid ({})", a.invoice_number)
-            },
+            }
             HistoricActivity::TransferIn(a) => {
                 format!("Transfer from {}", a.from)
-            },
+            }
             HistoricActivity::TransferOut(a) => {
                 format!("Transfer to {}", a.to)
-            },
+            }
             HistoricActivity::FundsWithdrawn(_) => {
                 format!("Funds withdrawn")
-            },
+            }
         }
     }
 
@@ -205,8 +191,7 @@ impl HistoricActivity
     }
 }
 
-pub struct HistoricFinancialActivity<'a>
-{
+pub struct HistoricFinancialActivity<'a> {
     pub activity: &'a HistoricActivity,
     pub currency: NationalCurrency,
     pub amount: Decimal,

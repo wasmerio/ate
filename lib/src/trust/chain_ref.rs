@@ -1,6 +1,6 @@
+use serde::{Deserialize, Serialize};
 #[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use serde::{Serialize, Deserialize};
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 use url::Url;
 
 use super::ChainKey;
@@ -16,24 +16,18 @@ pub struct ChainRef {
     pub key: ChainKey,
 }
 
-impl std::fmt::Display
-for ChainRef {
+impl std::fmt::Display for ChainRef {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}/{}", self.url, self.key)
     }
 }
 
-impl ChainRef
-{
+impl ChainRef {
     pub fn new(url: url::Url, key: ChainKey) -> ChainRef {
-        ChainRef {
-            url: url,
-            key: key,
-        }
+        ChainRef { url: url, key: key }
     }
 
-    pub fn to_string(&self) -> String
-    {
+    pub fn to_string(&self) -> String {
         format!("{}/{}", self.url, self.key)
     }
 }

@@ -1,13 +1,12 @@
-use serde::*;
 use ate::crypto::*;
+use serde::*;
 
+use crate::model::BagOfCoins;
 use crate::model::ContractStatus;
 use crate::model::Invoice;
-use crate::model::BagOfCoins;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ContractEntropy
-{
+pub struct ContractEntropy {
     /// What is this consumption related to
     pub related_to: String,
     /// Any coins created by this entropy should be
@@ -28,32 +27,28 @@ pub struct ContractEntropy
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum ContractAction
-{
+pub enum ContractAction {
     Cancel,
     Elevate,
-    Entropy(ContractEntropy)
+    Entropy(ContractEntropy),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ContractActionRequestParams
-{
+pub struct ContractActionRequestParams {
     pub service_code: String,
     pub consumer_identity: String,
     pub action: ContractAction,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ContractActionRequest
-{
+pub struct ContractActionRequest {
     pub requester_identity: String,
     pub action_key: Option<EncryptKey>,
-    pub params: SignedProtectedData<ContractActionRequestParams>,    
+    pub params: SignedProtectedData<ContractActionRequestParams>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum ContractActionResponse
-{
+pub enum ContractActionResponse {
     ContractTerminated,
     Elevated {
         broker_key: PublicEncryptedSecureData<EncryptKey>,
@@ -62,12 +57,11 @@ pub enum ContractActionResponse
         coins: Option<MultiEncryptedSecureData<BagOfCoins>>,
         status: ContractStatus,
         invoice: Option<Invoice>,
-    }
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum ContractActionFailed
-{
+pub enum ContractActionFailed {
     OperatorNotFound,
     OperatorBanned,
     AccountSuspended,
@@ -78,42 +72,48 @@ pub enum ContractActionFailed
     InternalError(u16),
 }
 
-impl<E> From<E>
-for ContractActionFailed
-where E: std::error::Error + Sized
+impl<E> From<E> for ContractActionFailed
+where
+    E: std::error::Error + Sized,
 {
     fn from(err: E) -> Self {
         ContractActionFailed::InternalError(ate::utils::obscure_error(err))
     }
 }
 
-impl std::fmt::Display
-for ContractActionFailed {
+impl std::fmt::Display for ContractActionFailed {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             ContractActionFailed::OperatorNotFound => {
                 write!(f, "The operator could not be found")
-            },
+            }
             ContractActionFailed::OperatorBanned => {
                 write!(f, "The operator is currently banned")
-            },
+            }
             ContractActionFailed::AccountSuspended => {
                 write!(f, "The account is suspended")
-            },
+            }
             ContractActionFailed::AuthenticationFailed => {
-                write!(f, "The calling user failed the proof authentication check")  
-            },
+                write!(f, "The calling user failed the proof authentication check")
+            }
             ContractActionFailed::InvalidContractReference(reference) => {
-                write!(f, "The contract does not exist ({})", reference)  
-            },
+                write!(f, "The contract does not exist ({})", reference)
+            }
             ContractActionFailed::NoMasterKey => {
-                write!(f, "The authentication server has not been properly initialized")
-            },
+                write!(
+                    f,
+                    "The authentication server has not been properly initialized"
+                )
+            }
             ContractActionFailed::Forbidden => {
                 write!(f, "This operation is forbidden")
-            },
+            }
             ContractActionFailed::InternalError(a) => {
-                write!(f, "An internal error occured while attempting the contract creation (code={})", a)
+                write!(
+                    f,
+                    "An internal error occured while attempting the contract creation (code={})",
+                    a
+                )
             }
         }
     }

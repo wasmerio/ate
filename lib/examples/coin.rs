@@ -1,6 +1,6 @@
-#[allow(unused_imports)]
-use serde::{Serialize, Deserialize};
 use ate::prelude::*;
+#[allow(unused_imports)]
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
 struct TrustedRecord {
@@ -8,8 +8,7 @@ struct TrustedRecord {
 }
 
 #[tokio::main(flavor = "current_thread")]
-async fn main() -> Result<(), AteError>
-{
+async fn main() -> Result<(), AteError> {
     // Make the keys that will protect the data
     let root = PrivateSignKey::generate(KeySize::Bit192);
     let ek = EncryptKey::generate(KeySize::Bit192);
@@ -29,8 +28,7 @@ async fn main() -> Result<(), AteError>
     session.add_user_write_key(&sk);
     session.add_user_read_key(&ek);
 
-    let key =
-    {
+    let key = {
         // Now create the data using the keys we have
         let dio = chain.dio_mut(&session).await;
         let mut dao = dio.store(TrustedRecord {
@@ -46,7 +44,7 @@ async fn main() -> Result<(), AteError>
     let mut session = AteSessionUser::new();
     session.add_user_write_key(&sk);
     session.add_user_read_key(&ek);
-    
+
     {
         // Only we can read or write this record (and anything attached to it) in the chain-of-trust
         let dio = chain.dio(&session).await;

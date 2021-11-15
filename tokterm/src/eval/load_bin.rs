@@ -1,29 +1,30 @@
 #![allow(dead_code)]
 #![allow(unused)]
-#[allow(unused_imports, dead_code)]
-use tracing::{info, error, debug, trace, warn};
 use bytes::Bytes;
-use wasmer_wasi::vfs::FileSystem;
 use std::io::Read;
 use std::path::Path;
 use std::path::PathBuf;
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, trace, warn};
+use wasmer_wasi::vfs::FileSystem;
 
 use super::EvalContext;
+use crate::err::*;
 use crate::fs::*;
 use crate::stdio::*;
-use crate::err::*;
 
-pub async fn load_bin
-(
+pub async fn load_bin(
     ctx: &mut EvalContext,
     cmd: &String,
     stdio: &mut Stdio,
-) -> Option<(Bytes, TmpFileSystem)>
-{
+) -> Option<(Bytes, TmpFileSystem)> {
     // Check if there is an alias
     let _ = stdio.stderr.write("Searching...".as_bytes()).await;
     let mut cmd = cmd.clone();
-    if let Ok(mut file) = stdio.root.new_open_options().read(true)
+    if let Ok(mut file) = stdio
+        .root
+        .new_open_options()
+        .read(true)
         .open(format!("/bin/{}.alias", cmd))
     {
         let mut d = Vec::new();
@@ -34,9 +35,7 @@ pub async fn load_bin
 
     // Check if there is a file in the /bin and /wapm_packages/.bin folder
     let mut data = None;
-    let mut file_checks = vec! [
-        format!("/bin/{}", cmd),
-    ];
+    let mut file_checks = vec![format!("/bin/{}", cmd)];
     if cmd.starts_with("/") {
         file_checks.push(cmd.clone());
     } else if cmd.starts_with("./") && cmd.len() > 2 {
@@ -71,9 +70,7 @@ pub async fn load_bin
         Some(data) => {
             let fs_private = ctx.bins.fs(&data).await;
             Some((data, fs_private))
-        },
-        None => {
-            None
         }
+        None => None,
     }
 }

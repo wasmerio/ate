@@ -1,8 +1,8 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use serde::*;
 use ate::crypto::*;
 use ate::prelude::*;
+use serde::*;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use super::*;
 
@@ -13,7 +13,7 @@ pub struct User {
     pub accepted_terms: DaoChild<AcceptedTerms>,
     pub verification_code: Option<String>,
     pub uid: u32,
-    pub role: UserRole,    
+    pub role: UserRole,
     pub status: UserStatus,
     pub last_login: Option<chrono::naive::NaiveDate>,
     pub access: Vec<Authorization>,

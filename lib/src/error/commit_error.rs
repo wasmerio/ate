@@ -48,18 +48,14 @@ error_chain! {
     }
 }
 
-impl<T> From<tokio::sync::mpsc::error::SendError<T>>
-for CommitError
-{
+impl<T> From<tokio::sync::mpsc::error::SendError<T>> for CommitError {
     fn from(err: tokio::sync::mpsc::error::SendError<T>) -> CommitError {
         CommitErrorKind::PipeError(err.to_string()).into()
-    }   
+    }
 }
 
-impl<T> From<tokio::sync::broadcast::error::SendError<T>>
-for CommitError
-{
+impl<T> From<tokio::sync::broadcast::error::SendError<T>> for CommitError {
     fn from(err: tokio::sync::broadcast::error::SendError<T>) -> CommitError {
         CommitErrorKind::PipeError(err.to_string()).into()
-    }   
+    }
 }

@@ -1,42 +1,40 @@
-#[allow(unused_imports)]
-use tracing::{error, info, warn, debug};
-use error_chain::bail;
 use async_trait::async_trait;
+use error_chain::bail;
 use std::pin::Pin;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, warn};
 
+use bytes::Bytes;
 #[allow(unused_imports)]
 #[cfg(feature = "enable_caching")]
 use cached::Cached;
-use tokio::io::{Result};
-use tokio::io::ErrorKind;
-use bytes::Bytes;
 #[cfg(feature = "enable_caching")]
 use cached::*;
-use fxhash::{FxHashMap};
+use fxhash::FxHashMap;
 #[cfg(feature = "enable_caching")]
 use std::sync::Mutex as MutexSync;
+use tokio::io::ErrorKind;
+use tokio::io::Result;
 
-use crate::{crypto::*, redo::LogLookup};
-use crate::event::*;
 use crate::error::*;
-use crate::spec::*;
+use crate::event::*;
 use crate::loader::*;
+use crate::spec::*;
+use crate::{crypto::*, redo::LogLookup};
 
-use super::*;
-use super::magic::*;
-use super::archive::*;
 use super::appender::*;
+use super::archive::*;
+use super::magic::*;
+use super::*;
 
 #[cfg(feature = "enable_caching")]
-pub(crate) struct LogFileCache
-{
+pub(crate) struct LogFileCache {
     pub(crate) flush: FxHashMap<AteHash, LoadData>,
     pub(crate) write: TimedSizedCache<AteHash, LoadData>,
     pub(crate) read: TimedSizedCache<AteHash, LoadData>,
 }
 
-pub(super) struct LogFileLocalFs
-{
+pub(super) struct LogFileLocalFs {
     pub(crate) log_path: String,
     pub(crate) backup_path: Option<String>,
     pub(crate) temp: bool,
@@ -47,10 +45,18 @@ pub(super) struct LogFileLocalFs
     pub(crate) cache: MutexSync<LogFileCache>,
 }
 
-impl LogFileLocalFs
-{
-    pub(super) async fn new(temp_file: bool, read_only: bool, path_log: String, backup_path: Option<String>, restore_path: Option<String>, truncate: bool, _cache_size: usize, _cache_ttl: u64, header_bytes: Vec<u8>) -> Result<Box<LogFileLocalFs>>
-    {
+impl LogFileLocalFs {
+    pub(super) async fn new(
+        temp_file: bool,
+        read_only: bool,
+        path_log: String,
+        backup_path: Option<String>,
+        restore_path: Option<String>,
+        truncate: bool,
+        _cache_size: usize,
+        _cache_ttl: u64,
+        header_bytes: Vec<u8>,
+    ) -> Result<Box<LogFileLocalFs>> {
         info!("open at {}", path_log);
 
         // Load all the archives
@@ -61,8 +67,7 @@ impl LogFileLocalFs
         // archive file
         if let Some(restore_path) = &restore_path {
             let mut n = 0 as u32;
-            loop
-            {
+            loop {
                 let source_path = format!("{}.{}", restore_path, n);
                 let source = std::path::Path::new(source_path.as_str());
                 if source.exists() == false {
@@ -78,7 +83,10 @@ impl LogFileLocalFs
 
                 // If its a temp file then fail as this would be unsupported behaviour
                 if temp_file {
-                    return Err(tokio::io::Error::new(ErrorKind::AlreadyExists, "Can not start a temporary redo log when there are existing backup files."));
+                    return Err(tokio::io::Error::new(
+                        ErrorKind::AlreadyExists,
+                        "Can not start a temporary redo log when there are existing backup files.",
+                    ));
                 }
 
                 // We stage the file copy first so that if its interrupted that it will
@@ -91,19 +99,17 @@ impl LogFileLocalFs
                     return Err(err);
                 }
                 std::fs::rename(dest_stage, dest)?;
-                
+
                 // Add the file as pure archive with no appender
-                archives.insert(n , LogArchive::new(path_log.clone(), n).await?);
+                archives.insert(n, LogArchive::new(path_log.clone(), n).await?);
                 n = n + 1;
             }
-
         }
 
         // Now load any archives that exist but have not yet been loaded, archives
         // exist when there is more than one file remaining thus the very last
         // file is actually considered the active log file.
-        loop
-        {
+        loop {
             // If the next file does not exist then there are no more archives
             let test = format!("{}.{}", path_log.clone(), n + 1);
             if std::path::Path::new(test.as_str()).exists() == false {
@@ -112,29 +118,27 @@ impl LogFileLocalFs
 
             // If its a temp file then fail as this would be unsupported behaviour
             if temp_file {
-                return Err(tokio::io::Error::new(ErrorKind::AlreadyExists, "Can not start a temporary redo log when there are existing archives."));
+                return Err(tokio::io::Error::new(
+                    ErrorKind::AlreadyExists,
+                    "Can not start a temporary redo log when there are existing archives.",
+                ));
             }
-            
+
             // Add the file as pure archive with no appender
-            archives.insert(n , LogArchive::new(path_log.clone(), n).await?);
+            archives.insert(n, LogArchive::new(path_log.clone(), n).await?);
             n = n + 1;
         }
 
         // Create the log appender
-        let (appender, archive) = LogAppender::new(
-            path_log.clone(),
-            truncate,
-            read_only,
-            n,
-            &header_bytes[..]
-        ).await?;
+        let (appender, archive) =
+            LogAppender::new(path_log.clone(), truncate, read_only, n, &header_bytes[..]).await?;
         archives.insert(n, archive);
 
         // If we are temporary log file then kill the file
         if temp_file && read_only == false {
             let _ = std::fs::remove_file(appender.path());
         }
-        
+
         // Log file
         let ret = LogFileLocalFs {
             log_path: path_log,
@@ -155,7 +159,10 @@ impl LogFileLocalFs
     }
 
     /// Read all the log files from all the archives including the current one representing the appender
-    pub(super) async fn read_all(&mut self, mut loader: Box<impl Loader>) -> std::result::Result<usize, SerializationError> {
+    pub(super) async fn read_all(
+        &mut self,
+        mut loader: Box<impl Loader>,
+    ) -> std::result::Result<usize, SerializationError> {
         let mut lookup = FxHashMap::default();
 
         let archives = self.archives.values_mut().collect::<Vec<_>>();
@@ -167,8 +174,7 @@ impl LogFileLocalFs
         loader.start_of_history(total).await;
 
         let mut cnt: usize = 0;
-        for archive in archives
-        {
+        for archive in archives {
             let mut lock = archive.lock_at(0).await?;
 
             let _version = match RedoHeader::read(&mut lock).await? {
@@ -189,7 +195,7 @@ impl LogFileLocalFs
 
                         loader.feed_load_data(head).await;
                         cnt = cnt + 1;
-                    },
+                    }
                     Ok(None) => break,
                     Err(err) => {
                         debug!("log-load-error: {}", err.to_string());
@@ -208,10 +214,11 @@ impl LogFileLocalFs
         Ok(cnt)
     }
 
-    async fn read_once_internal(guard: &mut LogArchiveGuard<'_>) -> std::result::Result<Option<LoadData>, SerializationError>
-    {
+    async fn read_once_internal(
+        guard: &mut LogArchiveGuard<'_>,
+    ) -> std::result::Result<Option<LoadData>, SerializationError> {
         let offset = guard.offset();
-        
+
         #[cfg(feature = "enable_super_verbose")]
         info!("log-read-event: offset={}", offset);
 
@@ -222,7 +229,7 @@ impl LogFileLocalFs
                 return Ok(None);
             }
         };
-        
+
         // Deserialize the meta bytes into a metadata object
         let meta = evt.header.format.meta.deserialize(&evt.meta[..])?;
         let data_hash = match &evt.data {
@@ -247,32 +254,25 @@ impl LogFileLocalFs
             evt.header.format,
         );
 
-        Ok(
-            Some(
-                LoadData {
-                    header,
-                    data: EventData {
-                        meta: meta,
-                        data_bytes: data,
-                        format: evt.header.format,
-                    },
-                    lookup: LogLookup {
-                        index: guard.index(),
-                        offset,
-                    },
-                }
-            )
-        )
+        Ok(Some(LoadData {
+            header,
+            data: EventData {
+                meta: meta,
+                data_bytes: data,
+                format: evt.header.format,
+            },
+            lookup: LogLookup {
+                index: guard.index(),
+                offset,
+            },
+        }))
     }
 }
 
 #[async_trait]
-impl LogFile
-for LogFileLocalFs
-{
+impl LogFile for LogFileLocalFs {
     #[cfg(feature = "enable_rotate")]
-    async fn rotate(&mut self, header_bytes: Vec<u8>) -> Result<()>
-    {
+    async fn rotate(&mut self, header_bytes: Vec<u8>) -> Result<()> {
         // If this a temporary file then fail
         if self.temp {
             return Err(tokio::io::Error::new(ErrorKind::PermissionDenied, "Can not rotate a temporary redo log - only persistent logs support this behaviour."));
@@ -280,27 +280,30 @@ for LogFileLocalFs
 
         // Flush and close and increment the log index
         self.appender.sync().await?;
-        let next_index = self.appender.index  + 1;
-        
+        let next_index = self.appender.index + 1;
+
         // Create a new appender
         let (new_appender, new_archive) = LogAppender::new(
             self.log_path.clone(),
             false,
             false,
             next_index,
-            &header_bytes[..]
-        ).await?;
-    
+            &header_bytes[..],
+        )
+        .await?;
+
         // Set the new appender
-        self.archives.insert(next_index , new_archive);
+        self.archives.insert(next_index, new_archive);
         self.appender = new_appender;
 
         // Success
         Ok(())
     }
 
-    fn backup(&mut self, include_active_files: bool) -> Result<Pin<Box<dyn futures::Future<Output=Result<()>> + Send + Sync>>>
-    {
+    fn backup(
+        &mut self,
+        include_active_files: bool,
+    ) -> Result<Pin<Box<dyn futures::Future<Output = Result<()>> + Send + Sync>>> {
         // If this a temporary file then fail
         if self.temp {
             return Err(tokio::io::Error::new(ErrorKind::PermissionDenied, "Can not backup a temporary redo log - only persistent logs support this behaviour."));
@@ -315,8 +318,7 @@ for LogFileLocalFs
                 self.appender.index
             };
             let mut n = 0 as u32;
-            while n < end
-            {
+            while n < end {
                 let source_path = format!("{}.{}", self.log_path, n);
                 let source = std::path::Path::new(source_path.as_str());
                 if source.exists() == false {
@@ -359,8 +361,7 @@ for LogFileLocalFs
         Ok(Box::pin(ret))
     }
 
-    async fn copy(&mut self) -> Result<Box<dyn LogFile>>
-    {
+    async fn copy(&mut self) -> Result<Box<dyn LogFile>> {
         // Copy all the archives
         let mut log_archives = FxHashMap::default();
         for (k, v) in self.archives.iter() {
@@ -372,32 +373,38 @@ for LogFileLocalFs
             let cache = self.cache.lock().unwrap();
             MutexSync::new(LogFileCache {
                 flush: cache.flush.clone(),
-                read: cached::TimedSizedCache::with_size_and_lifespan(cache.read.cache_capacity().unwrap(), cache.read.cache_lifespan().unwrap()),
-                write: cached::TimedSizedCache::with_size_and_lifespan(cache.write.cache_capacity().unwrap(), cache.write.cache_lifespan().unwrap()),
+                read: cached::TimedSizedCache::with_size_and_lifespan(
+                    cache.read.cache_capacity().unwrap(),
+                    cache.read.cache_lifespan().unwrap(),
+                ),
+                write: cached::TimedSizedCache::with_size_and_lifespan(
+                    cache.write.cache_capacity().unwrap(),
+                    cache.write.cache_lifespan().unwrap(),
+                ),
             })
         };
 
-        Ok(
-            Box::new(LogFileLocalFs {
-                log_path: self.log_path.clone(),
-                backup_path: self.backup_path.clone(),
-                temp: self.temp,
-                lookup: self.lookup.clone(),
-                appender: self.appender.clone().await?,
-                #[cfg(feature = "enable_caching")]
-                cache,
-                archives: log_archives,
-            })
-        )
+        Ok(Box::new(LogFileLocalFs {
+            log_path: self.log_path.clone(),
+            backup_path: self.backup_path.clone(),
+            temp: self.temp,
+            lookup: self.lookup.clone(),
+            appender: self.appender.clone().await?,
+            #[cfg(feature = "enable_caching")]
+            cache,
+            archives: log_archives,
+        }))
     }
 
-    async fn write(&mut self, evt: &EventData) -> std::result::Result<LogLookup, SerializationError>
-    {
+    async fn write(
+        &mut self,
+        evt: &EventData,
+    ) -> std::result::Result<LogLookup, SerializationError> {
         // Write the appender
         let header = evt.as_header_raw()?;
         #[cfg(feature = "enable_local_fs")]
         let lookup = self.appender.write(evt, &header).await?;
-        
+
         // Record the lookup map
         self.lookup.insert(header.event_hash, lookup);
 
@@ -410,19 +417,25 @@ for LogFileLocalFs
         #[cfg(feature = "enable_caching")]
         {
             let mut cache = self.cache.lock().unwrap();
-            cache.flush.insert(header.event_hash, LoadData {
-                lookup,
-                header,
-                data: evt.clone(),
-            });
+            cache.flush.insert(
+                header.event_hash,
+                LoadData {
+                    lookup,
+                    header,
+                    data: evt.clone(),
+                },
+            );
         }
 
         // Return the result
         Ok(lookup)
     }
 
-    async fn copy_event(&mut self, from_log: &Box<dyn LogFile>, hash: AteHash) -> std::result::Result<LogLookup, LoadError>
-    {
+    async fn copy_event(
+        &mut self,
+        from_log: &Box<dyn LogFile>,
+        hash: AteHash,
+    ) -> std::result::Result<LogLookup, LoadError> {
         // Load the data from the log file
         let result = from_log.load(hash).await?;
 
@@ -436,18 +449,20 @@ for LogFileLocalFs
         #[cfg(feature = "enable_caching")]
         {
             let mut cache = self.cache.lock().unwrap();
-            cache.flush.insert(hash.clone(), LoadData {
-                header: result.header,
-                lookup,
-                data: result.data,
-            });
+            cache.flush.insert(
+                hash.clone(),
+                LoadData {
+                    header: result.header,
+                    lookup,
+                    data: result.data,
+                },
+            );
         }
 
         Ok(lookup)
     }
 
-    async fn load(&self, hash: AteHash) -> std::result::Result<LoadData, LoadError>
-    {
+    async fn load(&self, hash: AteHash) -> std::result::Result<LoadData, LoadError> {
         // Check the caches
         #[cfg(feature = "enable_caching")]
         {
@@ -485,10 +500,12 @@ for LogFileLocalFs
             let mut loader = archive.lock_at(_offset).await?;
             match EventVersion::read(&mut loader).await? {
                 Some(a) => a,
-                None => { bail!(LoadErrorKind::NotFoundByHash(hash)); }
+                None => {
+                    bail!(LoadErrorKind::NotFoundByHash(hash));
+                }
             }
         };
-        
+
         // Hash body
         let data_hash = match &result.data {
             Some(data) => Some(AteHash::from_bytes(&data[..])),
@@ -496,7 +513,7 @@ for LogFileLocalFs
         };
         let data_size = match &result.data {
             Some(data) => data.len(),
-            None => 0
+            None => 0,
         };
         let data = match result.data {
             Some(data) => Some(Bytes::from(data)),
@@ -529,15 +546,11 @@ for LogFileLocalFs
             cache.read.cache_set(ret.header.event_hash, ret.clone());
         }
 
-        Ok(
-            ret
-        )
+        Ok(ret)
     }
 
-    fn move_log_file(&mut self, new_path: &String) -> Result<()>
-    {
-        if self.temp == false
-        {
+    fn move_log_file(&mut self, new_path: &String) -> Result<()> {
+        if self.temp == false {
             // First rename the orginal logs as a backup
             let mut n = 0;
             loop {
@@ -582,8 +595,7 @@ for LogFileLocalFs
         Ok(())
     }
 
-    async fn flush(&mut self) -> Result<()>
-    {
+    async fn flush(&mut self) -> Result<()> {
         // Make a note of all the cache lines we need to move
         #[cfg(feature = "enable_caching")]
         let mut keys = Vec::new();
@@ -605,7 +617,7 @@ for LogFileLocalFs
         {
             let mut cache = self.cache.lock().unwrap();
             for k in keys.into_iter() {
-                if let Some(v) =  cache.flush.remove(&k) {
+                if let Some(v) = cache.flush.remove(&k) {
                     cache.write.cache_set(k, v);
                 }
             }
@@ -642,8 +654,7 @@ for LogFileLocalFs
         }
     }
 
-    fn destroy(&mut self) -> Result<()>
-    {
+    fn destroy(&mut self) -> Result<()> {
         // Now delete all the log files
         let mut n = 0;
         loop {
@@ -670,18 +681,16 @@ for LogFileLocalFs
                 (cache_size, cache_ttl)
             };
             #[cfg(not(feature = "enable_caching"))]
-            let (cache_size, cache_ttl) = {
-                (0, u64::MAX)
-            };
+            let (cache_size, cache_ttl) = { (0, u64::MAX) };
 
             LogFileLocalFs::new(
-                self.temp, 
+                self.temp,
                 false,
                 path_flip,
                 self.backup_path.clone(),
                 None,
-                true, 
-                cache_size, 
+                true,
+                cache_size,
                 cache_ttl,
                 header_bytes,
             )

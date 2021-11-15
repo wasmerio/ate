@@ -1,5 +1,5 @@
-use crate::ast;
 use super::*;
+use crate::ast;
 
 pub(super) async fn complete_command<'a>(
     ctx: &mut EvalContext,

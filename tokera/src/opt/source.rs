@@ -1,7 +1,7 @@
 use clap::Parser;
 
-use super::wallet_action::*;
 use super::purpose::*;
+use super::wallet_action::*;
 
 #[derive(Parser, Clone)]
 pub enum OptsWalletSource {
@@ -47,9 +47,7 @@ pub struct OptWalletDomain {
     pub action: OptWalletAction,
 }
 
-impl OptsPurpose<OptWalletAction>
-for OptsWalletSource
-{
+impl OptsPurpose<OptWalletAction> for OptsWalletSource {
     fn purpose(&self) -> Purpose<OptWalletAction> {
         match self {
             OptsWalletSource::Personal(a) => Purpose::Personal {
@@ -60,7 +58,7 @@ for OptsWalletSource
                 domain_name: a.domain.clone(),
                 wallet_name: a.name.clone(),
                 action: a.action.clone(),
-            }
+            },
         }
     }
 }

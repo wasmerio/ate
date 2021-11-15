@@ -8,10 +8,10 @@ mod parent;
 mod read_option;
 mod write_option;
 
-pub use authorization::*;
-pub use confidentiality::*;
-pub use collection::*;
 pub use self::core::*;
+pub use authorization::*;
+pub use collection::*;
+pub use confidentiality::*;
 pub use delayed_upload::*;
 pub use meta_type::*;
 pub use parent::*;

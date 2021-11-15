@@ -1,14 +1,13 @@
 #![allow(unused_imports)]
-use async_trait::async_trait;
-use crate::api::FileApi;
-use serde::*;
-use super::model::*;
-use ate::prelude::PrimaryKey;
 use super::api::FileKind;
+use super::model::*;
+use crate::api::FileApi;
+use async_trait::async_trait;
+use ate::prelude::PrimaryKey;
+use serde::*;
 
 #[derive(Debug, Clone)]
-pub struct FixedFile
-{
+pub struct FixedFile {
     ino: u64,
     kind: FileKind,
     uid: u32,
@@ -20,8 +19,7 @@ pub struct FixedFile
     updated: u64,
 }
 
-impl FixedFile
-{
+impl FixedFile {
     pub fn new(ino: u64, name: String, kind: FileKind) -> FixedFile {
         FixedFile {
             ino,
@@ -32,7 +30,7 @@ impl FixedFile
             mode: 0,
             name: name,
             created: 0,
-            updated: 0
+            updated: 0,
         }
     }
 
@@ -72,9 +70,7 @@ impl FixedFile
 }
 
 #[async_trait]
-impl FileApi
-for FixedFile
-{
+impl FileApi for FixedFile {
     fn kind(&self) -> FileKind {
         FileKind::FixedFile
     }

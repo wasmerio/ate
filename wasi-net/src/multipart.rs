@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use urlencoding::encode;
 
 pub struct Form {
-    parts: Vec<(String, String)>
+    parts: Vec<(String, String)>,
 }
 
 impl Default for Form {
@@ -14,9 +14,7 @@ impl Default for Form {
 impl Form {
     /// Creates a new Form without any content.
     pub fn new() -> Form {
-        Form {
-            parts: Vec::new(),
-        }
+        Form { parts: Vec::new() }
     }
 
     pub fn text<T, U>(mut self, name: T, value: U) -> Form
@@ -24,7 +22,8 @@ impl Form {
         T: Into<Cow<'static, str>>,
         U: Into<Cow<'static, str>>,
     {
-        self.parts.push((name.into().to_string(), value.into().to_string()));
+        self.parts
+            .push((name.into().to_string(), value.into().to_string()));
         self
     }
 

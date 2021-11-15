@@ -1,21 +1,26 @@
 #![allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use error_chain::bail;
 use ate::prelude::*;
-use std::sync::Arc;
-use url::Url;
+use error_chain::bail;
 use std::io::stdout;
 use std::io::Write;
+use std::sync::Arc;
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
+use url::Url;
 
-use crate::prelude::*;
-use crate::helper::*;
 use crate::error::*;
-use crate::request::*;
+use crate::helper::*;
 use crate::opt::*;
+use crate::prelude::*;
+use crate::request::*;
 
 #[allow(dead_code)]
-pub async fn create_user_command(registry: &Registry, username: String, password: String, auth: Url, accepted_terms: Option<String>) -> Result<CreateUserResponse, CreateError>
-{
+pub async fn create_user_command(
+    registry: &Registry,
+    username: String,
+    password: String,
+    auth: Url,
+    accepted_terms: Option<String>,
+) -> Result<CreateUserResponse, CreateError> {
     // Open a command chain
     let chain = registry.open_cmd(&auth).await?;
 
@@ -24,7 +29,7 @@ pub async fn create_user_command(registry: &Registry, username: String, password
     //  which means that neither the client nor the server can get at the data alone)
     let prefix = format!("remote-login:{}:", username);
     let read_key = password_to_read_key(&prefix, &password, 15, KeySize::Bit192);
-    
+
     // Create the login command
     let auth = match auth.domain() {
         Some(a) => a.to_string(),
@@ -47,9 +52,8 @@ pub async fn create_user_command(registry: &Registry, username: String, password
 pub async fn main_create_user(
     username: Option<String>,
     password: Option<String>,
-    auth: Url
-) -> Result<CreateUserResponse, CreateError>
-{
+    auth: Url,
+) -> Result<CreateUserResponse, CreateError> {
     let username = match username {
         Some(a) => a,
         None => {
@@ -61,7 +65,9 @@ pub async fn main_create_user(
             print!("Username: ");
             stdout().lock().flush()?;
             let mut s = String::new();
-            std::io::stdin().read_line(&mut s).expect("Did not enter a valid username");
+            std::io::stdin()
+                .read_line(&mut s)
+                .expect("Did not enter a valid username");
             s.trim().to_string()
         }
     };
@@ -88,22 +94,22 @@ pub async fn main_create_user(
     };
 
     // Create a user using the authentication server which will give us a session with all the tokens
-    let registry = ate::mesh::Registry::new( &conf_cmd()).await.cement();
+    let registry = ate::mesh::Registry::new(&conf_cmd()).await.cement();
     let result = match create_user_command(
         &registry,
         username.clone(),
         password.clone(),
         auth.clone(),
-        None
-    ).await {
+        None,
+    )
+    .await
+    {
         Ok(a) => a,
-        Err(CreateError(CreateErrorKind::AlreadyExists(msg), _)) =>
-        {
+        Err(CreateError(CreateErrorKind::AlreadyExists(msg), _)) => {
             eprintln!("{}", msg);
             std::process::exit(1);
         }
-        Err(CreateError(CreateErrorKind::TermsAndConditions(terms), _)) =>
-        {
+        Err(CreateError(CreateErrorKind::TermsAndConditions(terms), _)) => {
             if !is_tty_stdin() {
                 bail!(CreateErrorKind::InvalidArguments);
             }
@@ -112,10 +118,14 @@ pub async fn main_create_user(
             println!("");
             println!("{}", terms);
             println!("");
-            println!("If you agree to the above terms and conditions then type the word 'agree' below");
-            
+            println!(
+                "If you agree to the above terms and conditions then type the word 'agree' below"
+            );
+
             let mut s = String::new();
-            std::io::stdin().read_line(&mut s).expect("Did not enter a valid response");
+            std::io::stdin()
+                .read_line(&mut s)
+                .expect("Did not enter a valid response");
             let agreement = s.trim().to_string().to_lowercase();
             if agreement != "agree" {
                 eprintln!("You may only create an account by specifically agreeing to the terms");
@@ -128,7 +138,7 @@ pub async fn main_create_user(
 
             // Try again but this time with an aggrement to the terms and conditions
             create_user_command(&registry, username, password, auth, Some(terms)).await?
-        },
+        }
         Err(err) => {
             bail!(err);
         }

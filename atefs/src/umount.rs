@@ -1,7 +1,7 @@
+use libc::{self, c_char, c_int};
+use std::ffi::{CStr, CString};
 use std::io;
-use std::ffi::{CString, CStr};
-use std::path::{Path};
-use libc::{self, c_int, c_char};
+use std::path::Path;
 
 extern "C" {
     // *_compat25 functions were introduced in FUSE 2.6 when function signatures changed.
@@ -18,15 +18,27 @@ pub fn unmount(mountpoint: &Path) -> io::Result<()> {
     // directly, which is what osxfuse does anyway, since we already converted
     // to the real path when we first mounted.
 
-    #[cfg(any(target_os = "macos", target_os = "freebsd", target_os = "dragonfly",
-              target_os = "openbsd", target_os = "bitrig", target_os = "netbsd"))]
+    #[cfg(any(
+        target_os = "macos",
+        target_os = "freebsd",
+        target_os = "dragonfly",
+        target_os = "openbsd",
+        target_os = "bitrig",
+        target_os = "netbsd"
+    ))]
     #[inline]
     fn libc_umount(mnt: &CStr) -> c_int {
         unsafe { libc::unmount(mnt.as_ptr(), 0) }
     }
 
-    #[cfg(not(any(target_os = "macos", target_os = "freebsd", target_os = "dragonfly",
-                  target_os = "openbsd", target_os = "bitrig", target_os = "netbsd")))]
+    #[cfg(not(any(
+        target_os = "macos",
+        target_os = "freebsd",
+        target_os = "dragonfly",
+        target_os = "openbsd",
+        target_os = "bitrig",
+        target_os = "netbsd"
+    )))]
     #[inline]
     fn libc_umount(mnt: &CStr) -> c_int {
         use std::io::ErrorKind::PermissionDenied;
@@ -35,14 +47,22 @@ pub fn unmount(mountpoint: &Path) -> io::Result<()> {
         if rc < 0 && io::Error::last_os_error().kind() == PermissionDenied {
             // Linux always returns EPERM for non-root users.  We have to let the
             // library go through the setuid-root "fusermount -u" to unmount.
-            unsafe { fuse_unmount_compat22(mnt.as_ptr()); }
+            unsafe {
+                fuse_unmount_compat22(mnt.as_ptr());
+            }
             0
         } else {
             rc
         }
     }
 
-    let mnt = CString::new(mountpoint.to_path_buf().into_os_string().into_string().unwrap())?;
+    let mnt = CString::new(
+        mountpoint
+            .to_path_buf()
+            .into_os_string()
+            .into_string()
+            .unwrap(),
+    )?;
     let rc = libc_umount(&mnt);
     if rc < 0 {
         Err(io::Error::last_os_error())

@@ -1,40 +1,40 @@
 #[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
-use crate::transaction::TransactionScope;
-use crate::transaction::*;
+use crate::chain::Chain;
 use crate::compact::*;
+use crate::engine::TaskEngine;
 use crate::error::*;
 use crate::pipe::*;
-use crate::chain::Chain;
 use crate::time::*;
-use crate::engine::TaskEngine;
+use crate::transaction::TransactionScope;
+use crate::transaction::*;
 
-use std::sync::RwLock as StdRwLock;
 use std::sync::Arc;
-use tokio::sync::RwLock;
-use tokio::sync::broadcast;
+use std::sync::RwLock as StdRwLock;
 use tokio::select;
+use tokio::sync::broadcast;
+use tokio::sync::RwLock;
 
 use super::*;
 
 #[derive(Debug, Clone)]
-pub(crate) struct ChainWork
-{
+pub(crate) struct ChainWork {
     pub(crate) trans: Transaction,
 }
 
-pub(crate) struct ChainWorkProcessor
-{
+pub(crate) struct ChainWorkProcessor {
     pub(crate) inside_async: Arc<RwLock<ChainProtectedAsync>>,
     pub(crate) inside_sync: Arc<StdRwLock<ChainProtectedSync>>,
     pub(crate) compact_tx: CompactNotifications,
 }
 
-impl ChainWorkProcessor
-{
-    pub(crate) fn new(inside_async: Arc<RwLock<ChainProtectedAsync>>, inside_sync: Arc<StdRwLock<ChainProtectedSync>>, compact_tx: CompactNotifications) -> ChainWorkProcessor
-    {
+impl ChainWorkProcessor {
+    pub(crate) fn new(
+        inside_async: Arc<RwLock<ChainProtectedAsync>>,
+        inside_sync: Arc<StdRwLock<ChainProtectedSync>>,
+        compact_tx: CompactNotifications,
+    ) -> ChainWorkProcessor {
         ChainWorkProcessor {
             inside_async,
             inside_sync,
@@ -42,10 +42,12 @@ impl ChainWorkProcessor
         }
     }
 
-    pub(crate) async fn process(&self, work: ChainWork) -> Result<(), CommitError>
-    {
+    pub(crate) async fn process(&self, work: ChainWork) -> Result<(), CommitError> {
         // Check all the sniffers
-        let notifies = crate::service::callback_events_prepare(&self.inside_sync.read().unwrap(), &work.trans.events);
+        let notifies = crate::service::callback_events_prepare(
+            &self.inside_sync.read().unwrap(),
+            &work.trans.events,
+        );
         let trans = work.trans;
 
         // We lock the chain of trust while we update the local chain
@@ -53,12 +55,19 @@ impl ChainWorkProcessor
 
         // Push the events into the chain of trust and release the lock on it before
         // we transmit the result so that there is less lock thrashing
-        match lock.feed_async_internal(&self.inside_sync, &trans.events, trans.conversation.as_ref()).await {
+        match lock
+            .feed_async_internal(
+                &self.inside_sync,
+                &trans.events,
+                trans.conversation.as_ref(),
+            )
+            .await
+        {
             Ok(_) => {
                 let log_size = lock.chain.redo.size() as u64;
                 let _ = self.compact_tx.log_size.send(log_size);
                 Ok(())
-            },
+            }
             Err(err) => Err(err),
         }?;
 
@@ -67,8 +76,8 @@ impl ChainWorkProcessor
             TransactionScope::Full => {
                 lock.chain.flush().await.unwrap();
                 false
-            },
-            _ => true
+            }
+            _ => true,
         };
 
         // Drop the lock
@@ -82,8 +91,7 @@ impl ChainWorkProcessor
         }
 
         TaskEngine::spawn(async move {
-            match crate::service::callback_events_notify(notifies)
-            .await {
+            match crate::service::callback_events_notify(notifies).await {
                 Ok(_) => {}
                 Err(err) => {
                     #[cfg(debug_assertions)]
@@ -100,27 +108,30 @@ impl ChainWorkProcessor
             let mut lock = flush_async.write().await;
             let _ = lock.chain.flush().await;
         };
-        
+
         Ok(())
     }
 }
 
-struct ChainExitNotifier
-{
-    exit: broadcast::Sender<()>    
+struct ChainExitNotifier {
+    exit: broadcast::Sender<()>,
 }
 
-impl Drop
-for ChainExitNotifier {
+impl Drop for ChainExitNotifier {
     fn drop(&mut self) {
         let _ = self.exit.send(());
     }
 }
 
-impl<'a> Chain
-{
-    pub(super) async fn worker_compactor(inside_async: Arc<RwLock<ChainProtectedAsync>>, inside_sync: Arc<StdRwLock<ChainProtectedSync>>, pipe: Arc<Box<dyn EventPipe>>, time: Arc<TimeKeeper>, mut compact_state: CompactState, mut exit: broadcast::Receiver<()>) -> Result<(), CompactError>
-    {
+impl<'a> Chain {
+    pub(super) async fn worker_compactor(
+        inside_async: Arc<RwLock<ChainProtectedAsync>>,
+        inside_sync: Arc<StdRwLock<ChainProtectedSync>>,
+        pipe: Arc<Box<dyn EventPipe>>,
+        time: Arc<TimeKeeper>,
+        mut compact_state: CompactState,
+        mut exit: broadcast::Receiver<()>,
+    ) -> Result<(), CompactError> {
         loop {
             select! {
                 a = compact_state.wait_for_compact() => { a?; },

@@ -1,36 +1,38 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use fxhash::FxHashSet;
-use error_chain::bail;
 use async_trait::async_trait;
-use std::sync::{Arc, Weak};
 use bytes::Bytes;
+use error_chain::bail;
+use fxhash::FxHashSet;
 use std::ops::Deref;
+use std::sync::{Arc, Weak};
+#[allow(unused_imports)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
-use crate::{crypto::AteHash, error::*, event::*, meta::{CoreMetadata}, spec::MessageFormat};
 use crate::chain::*;
-use crate::session::*;
-use crate::meta::*;
-use crate::header::*;
-use crate::prelude::TransactionScope;
-use crate::prelude::DioMut;
 use crate::dio::row::RowData;
 use crate::dio::row::RowHeader;
 use crate::engine::TaskEngine;
+use crate::header::*;
+use crate::meta::*;
+use crate::prelude::DioMut;
+use crate::prelude::TransactionScope;
+use crate::session::*;
+use crate::{crypto::AteHash, error::*, event::*, meta::CoreMetadata, spec::MessageFormat};
 
 use super::*;
 
-pub struct ServiceHook
-{
+pub struct ServiceHook {
     pub session: Box<dyn AteSession>,
     pub scope: TransactionScope,
     handler: Arc<dyn ServiceInvoker>,
     chain: Weak<Chain>,
 }
 
-impl ServiceHook
-{
-    pub(crate) fn new(chain: &Arc<Chain>, session: Box<dyn AteSession>, handler: &Arc<dyn ServiceInvoker>) -> ServiceHook {
+impl ServiceHook {
+    pub(crate) fn new(
+        chain: &Arc<Chain>,
+        session: Box<dyn AteSession>,
+        handler: &Arc<dyn ServiceInvoker>,
+    ) -> ServiceHook {
         ServiceHook {
             chain: Arc::downgrade(chain),
             session,
@@ -41,9 +43,7 @@ impl ServiceHook
 }
 
 #[async_trait]
-impl Service
-for ServiceHook
-{
+impl Service for ServiceHook {
     fn filter(&self, evt: &EventData) -> bool {
         if let Some(t) = evt.meta.get_type_name() {
             return t.type_name == self.handler.request_type_name();
@@ -51,8 +51,7 @@ for ServiceHook
         false
     }
 
-    async fn notify(&self, key: PrimaryKey) -> Result<(), InvokeError>
-    {
+    async fn notify(&self, key: PrimaryKey) -> Result<(), InvokeError> {
         // Get a reference to the chain
         let chain = match self.chain.upgrade() {
             Some(a) => a,
@@ -68,17 +67,19 @@ for ServiceHook
         // Lock the data row
         if dio.try_lock(key).await? == false {
             debug!("service call skipped - someone else locked it");
-            return Ok(())
+            return Ok(());
         }
 
         // Load the object and lock it (to prevent others processing it)
         let mut evt = dio.load_raw(&key).await?;
-        
+
         // Convert the data using the encryption and decryption routines
         dio.data_as_overlay(self.session.deref(), &mut evt)?;
         let req = match evt.data_bytes {
             Some(a) => a,
-            None => { bail!(InvokeErrorKind::NoData); }
+            None => {
+                bail!(InvokeErrorKind::NoData);
+            }
         };
 
         // Invoke the callback in the service
@@ -95,11 +96,19 @@ for ServiceHook
         // Process the results
         let reply_ret = match ret {
             Ok(res) => {
-                debug!("service [{}] sending OK({})", self.handler.request_type_name(), self.handler.response_type_name());
+                debug!(
+                    "service [{}] sending OK({})",
+                    self.handler.request_type_name(),
+                    self.handler.response_type_name()
+                );
                 self.send_reply(&dio, key, res, self.handler.response_type_name())
-            },
+            }
             Err(err) => {
-                debug!("service [{}] sending ERR({})", self.handler.request_type_name(), self.handler.error_type_name());
+                debug!(
+                    "service [{}] sending ERR({})",
+                    self.handler.request_type_name(),
+                    self.handler.error_type_name()
+                );
                 self.send_reply(&dio, key, err, self.handler.error_type_name())
             }
         };
@@ -119,24 +128,34 @@ for ServiceHook
     }
 }
 
-impl ServiceHook
-{
-    fn send_reply(&self, dio: &Arc<DioMut>, req: PrimaryKey, res: Bytes, res_type: String) -> Result<(), InvokeError>
-    {
+impl ServiceHook {
+    fn send_reply(
+        &self,
+        dio: &Arc<DioMut>,
+        req: PrimaryKey,
+        res: Bytes,
+        res_type: String,
+    ) -> Result<(), InvokeError> {
         let key = PrimaryKey::generate();
         let format = self.handler.data_format();
         let data = res;
         let data_hash = AteHash::from_bytes(&data[..]);
 
         let mut auth = MetaAuthorization::default();
-        if let Some(key) = self.session.read_keys(AteSessionKeyCategory::AllKeys).into_iter().map(|a| a.clone()).next() {
+        if let Some(key) = self
+            .session
+            .read_keys(AteSessionKeyCategory::AllKeys)
+            .into_iter()
+            .map(|a| a.clone())
+            .next()
+        {
             auth.read = ReadOption::from_key(&key);
         }
         auth.write = WriteOption::Inherit;
 
         let mut extra_meta = Vec::new();
         extra_meta.push(CoreMetadata::Type(MetaType {
-            type_name: res_type.clone()
+            type_name: res_type.clone(),
         }));
         extra_meta.push(CoreMetadata::Reply(req));
 

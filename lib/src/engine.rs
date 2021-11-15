@@ -1,51 +1,47 @@
 #![allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use std::collections::VecDeque;
-use std::ops::DerefMut;
-use std::sync::Arc;
-use std::future::Future;
-use std::task::*;
-use std::pin::Pin;
-use std::cell::RefCell;
-use pin_project_lite::pin_project;
-use std::sync::atomic::*;
 use cooked_waker::*;
 use fxhash::FxHashMap;
-use std::thread::AccessError;
-use tokio::sync::broadcast;
-use tokio::sync::oneshot;
 use once_cell::sync::Lazy;
+use pin_project_lite::pin_project;
+use std::cell::RefCell;
+use std::collections::VecDeque;
+use std::future::Future;
+use std::ops::DerefMut;
+use std::pin::Pin;
+use std::sync::atomic::*;
+use std::sync::Arc;
 use std::sync::Mutex;
+use std::task::*;
+use std::thread::AccessError;
 use std::time::Duration;
 use std::time::Instant;
+use tokio::sync::broadcast;
+use tokio::sync::oneshot;
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 #[cfg(not(feature = "enable_mt"))]
-type Task = Pin<Box<dyn Future<Output=()>>>;
+type Task = Pin<Box<dyn Future<Output = ()>>>;
 
 #[no_mangle]
 pub extern "C" fn __thread_entry() {
     TaskEngine::thread_entry();
 }
 
-pub struct BackgroundTask
-{
-    work: Box<dyn FnOnce() + Send + 'static>
+pub struct BackgroundTask {
+    work: Box<dyn FnOnce() + Send + 'static>,
 }
 
-pub struct BackgroundTaskPool
-{
+pub struct BackgroundTaskPool {
     wake: broadcast::Sender<()>,
     jobs: Mutex<VecDeque<BackgroundTask>>,
 }
 
 #[derive(Default)]
-pub struct PendingOnce
-{
-    used: bool
+pub struct PendingOnce {
+    used: bool,
 }
 
-impl Future for PendingOnce
-{
+impl Future for PendingOnce {
     type Output = ();
     fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<()> {
         if self.used == true {
@@ -58,8 +54,7 @@ impl Future for PendingOnce
     }
 }
 
-pub struct TaskEngine
-{
+pub struct TaskEngine {
     #[cfg(not(feature = "enable_mt"))]
     tasks: VecDeque<Task>,
 }
@@ -73,9 +68,9 @@ pin_project! {
     }
 }
 
-impl<T> Future
-for RunUntil<T>
-where T: Future,
+impl<T> Future for RunUntil<T>
+where
+    T: Future,
 {
     type Output = T::Output;
 
@@ -103,9 +98,7 @@ pin_project! {
 #[derive(Debug, Default, PartialEq)]
 pub struct Elapsed(Duration);
 
-impl std::fmt::Display
-for Elapsed
-{
+impl std::fmt::Display for Elapsed {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self.0)
     }
@@ -146,15 +139,12 @@ where
     }
 }
 
-pub struct TickTask
-{
+pub struct TickTask {
     #[allow(dead_code)]
-    idle: bool
+    idle: bool,
 }
 
-impl Future
-for TickTask
-{
+impl Future for TickTask {
     type Output = ();
 
     #[allow(unused_variables)]
@@ -174,12 +164,11 @@ static POOL: Lazy<BackgroundTaskPool> = Lazy::new(|| {
     let (tx_wake, _) = broadcast::channel(100);
     BackgroundTaskPool {
         wake: tx_wake,
-        jobs: Mutex::new(VecDeque::new())
+        jobs: Mutex::new(VecDeque::new()),
     }
 });
 
-impl TaskEngine
-{
+impl TaskEngine {
     #[cfg(not(feature = "enable_mt"))]
     thread_local! {
         static LOCAL: RefCell<TaskEngine> = RefCell::new(
@@ -190,25 +179,21 @@ impl TaskEngine
     }
 
     pub async fn run_until<F>(future: F) -> F::Output
-    where F: Future,
+    where
+        F: Future,
     {
-        RunUntil {
-            future,
-        }.await
+        RunUntil { future }.await
     }
 
     pub async fn tick(idle: bool) {
         if idle {
             PendingOnce::default().await
         }
-        TickTask {
-            idle
-        }.await
+        TickTask { idle }.await
     }
 
     #[cfg(not(feature = "enable_mt"))]
-    fn process(cx: &mut std::task::Context<'_>) -> usize
-    {
+    fn process(cx: &mut std::task::Context<'_>) -> usize {
         let mut cnt = 0usize;
         let mut again = Vec::new();
         let mut again_back = Vec::new();
@@ -231,22 +216,27 @@ impl TaskEngine
             for task in again_back {
                 e.tasks.push_back(task);
             }
-        }).unwrap();
+        })
+        .unwrap();
         cnt
     }
 
     #[cfg(not(feature = "enable_mt"))]
     pub fn spawn<T>(task: T)
-    where T: Future + 'static,
+    where
+        T: Future + 'static,
     {
-        let task = Box::pin(async { task.await; });
+        let task = Box::pin(async {
+            task.await;
+        });
         TaskEngine::instance(|e| e.tasks.push_back(task)).unwrap();
     }
 
     #[cfg(feature = "enable_mt")]
     pub fn spawn<T>(task: T) -> tokio::task::JoinHandle<T::Output>
-    where T: Future + Send + 'static,
-          T::Output: Send + 'static,
+    where
+        T: Future + Send + 'static,
+        T::Output: Send + 'static,
     {
         tokio::spawn(task)
     }
@@ -276,7 +266,7 @@ impl TaskEngine
 
             let mut pool = POOL.jobs.lock();
             pool.push_back(BackgroundTask {
-                work: Box::new(work)
+                work: Box::new(work),
             });
         }
         let _ = POOL.wake.send(());
@@ -319,7 +309,8 @@ impl TaskEngine
 
     #[cfg(not(feature = "enable_mt"))]
     pub fn instance<F, R>(f: F) -> Result<R, AccessError>
-    where F: FnOnce(&mut TaskEngine) -> R
+    where
+        F: FnOnce(&mut TaskEngine) -> R,
     {
         TaskEngine::LOCAL.try_with(|e| {
             let mut guard = e.borrow_mut();
@@ -341,18 +332,20 @@ pub async fn sleep(duration: Duration) {
 
 #[cfg(feature = "enable_mt")]
 pub fn timeout<T>(duration: Duration, future: T) -> tokio::time::Timeout<T>
-where T: Future,
+where
+    T: Future,
 {
     tokio::time::timeout(duration, future)
 }
 
 #[cfg(not(feature = "enable_mt"))]
 pub fn timeout<T>(duration: Duration, future: T) -> Timeout<T>
-where T: Future,
+where
+    T: Future,
 {
     Timeout {
         future,
         duration,
-        start: Instant::now()
+        start: Instant::now(),
     }
 }

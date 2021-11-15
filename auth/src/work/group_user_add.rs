@@ -1,31 +1,32 @@
 #![allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use error_chain::bail;
+use qrcode::render::unicode;
+use qrcode::QrCode;
 use std::io::stdout;
 use std::io::Write;
-use std::sync::Arc;
-use url::Url;
 use std::ops::Deref;
-use qrcode::QrCode;
-use qrcode::render::unicode;
+use std::sync::Arc;
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
+use url::Url;
 
-use ate::prelude::*;
 use ate::error::LoadError;
 use ate::error::TransformError;
+use ate::prelude::*;
 use ate::session::AteRolePurpose;
 use ate::utils::chain_key_4hex;
 
+use crate::error::*;
+use crate::helper::*;
+use crate::model::*;
 use crate::prelude::*;
 use crate::request::*;
 use crate::service::AuthService;
-use crate::helper::*;
-use crate::error::*;
-use crate::model::*;
 
-impl AuthService
-{
-    pub fn get_delegate_write(request_session: &AteSessionGroup, needed_role: AteRolePurpose) -> Result<Option<PrivateEncryptKey>, LoadError>
-    {
+impl AuthService {
+    pub fn get_delegate_write(
+        request_session: &AteSessionGroup,
+        needed_role: AteRolePurpose,
+    ) -> Result<Option<PrivateEncryptKey>, LoadError> {
         let val = {
             request_session
                 .get_group_role(&needed_role)
@@ -36,11 +37,9 @@ impl AuthService
         };
 
         // Extract the controlling role as this is what we will use to create the role
-        let delegate_write = match val
-        {
+        let delegate_write = match val {
             Some(a) => a,
-            None =>
-            {
+            None => {
                 // If it fails again then give up
                 debug!("group-user-add-failed with {}", request_session);
                 return Ok(None);
@@ -50,8 +49,10 @@ impl AuthService
         Ok(Some(delegate_write))
     }
 
-    pub async fn process_group_user_add(self: Arc<Self>, request: GroupUserAddRequest) -> Result<GroupUserAddResponse, GroupUserAddFailed>
-    {
+    pub async fn process_group_user_add(
+        self: Arc<Self>,
+        request: GroupUserAddRequest,
+    ) -> Result<GroupUserAddResponse, GroupUserAddFailed> {
         info!("group ({}) user add", request.group);
 
         // Copy the request session
@@ -60,7 +61,11 @@ impl AuthService
 
         // Load the master key which will be used to encrypt the group so that only
         // the authentication server can access it
-        let key_size = request_session.read_keys(AteSessionKeyCategory::AllKeys).map(|k| k.size()).next().unwrap_or_else(|| KeySize::Bit192);
+        let key_size = request_session
+            .read_keys(AteSessionKeyCategory::AllKeys)
+            .map(|k| k.size())
+            .next()
+            .unwrap_or_else(|| KeySize::Bit192);
 
         // Compute which chain the group should exist within
         let group_chain_key = chain_key_4hex(&request.group, Some("redo"));
@@ -77,10 +82,13 @@ impl AuthService
             Ok(a) => a,
             Err(LoadError(LoadErrorKind::NotFound(_), _)) => {
                 return Err(GroupUserAddFailed::GroupNotFound);
-            },
-            Err(LoadError(LoadErrorKind::TransformationError(TransformErrorKind::MissingReadKey(_)), _)) => {
+            }
+            Err(LoadError(
+                LoadErrorKind::TransformationError(TransformErrorKind::MissingReadKey(_)),
+                _,
+            )) => {
                 return Err(GroupUserAddFailed::NoMasterKey);
-            },
+            }
             Err(err) => {
                 bail!(err);
             }
@@ -90,7 +98,7 @@ impl AuthService
         let needed_role = match &request_purpose {
             AteRolePurpose::Owner => AteRolePurpose::Owner,
             AteRolePurpose::Delegate => AteRolePurpose::Owner,
-            _ => AteRolePurpose::Delegate
+            _ => AteRolePurpose::Delegate,
         };
 
         // Get the delegate write key
@@ -102,8 +110,7 @@ impl AuthService
         };
 
         // If the role does not exist then add it
-        if group.roles.iter().any(|r| r.purpose == request_purpose) == false
-        {
+        if group.roles.iter().any(|r| r.purpose == request_purpose) == false {
             // Get our own identity
             let referrer_identity = request_session.inner.identity().to_string();
 
@@ -115,11 +122,15 @@ impl AuthService
             // Add this customer role and attach it back to the delegate role
             group.as_mut().roles.push(Role {
                 purpose: request_purpose.clone(),
-                access: MultiEncryptedSecureData::new(&delegate_write.as_public_key(), referrer_identity, Authorization {
-                    read: role_read.clone(),
-                    private_read: role_private_read.clone(),
-                    write: role_write.clone()
-                })?,
+                access: MultiEncryptedSecureData::new(
+                    &delegate_write.as_public_key(),
+                    referrer_identity,
+                    Authorization {
+                        read: role_read.clone(),
+                        private_read: role_private_read.clone(),
+                        write: role_write.clone(),
+                    },
+                )?,
                 read: role_read.hash(),
                 private_read: role_private_read.as_public_key().clone(),
                 write: role_write.as_public_key().clone(),
@@ -127,8 +138,14 @@ impl AuthService
         }
 
         // Perform the operation that will add the other user to the specific group role
-        for role in group.as_mut().roles.iter_mut().filter(|r| r.purpose == request_purpose) {
-            role.access.add(&request.who_key, request.who_name.clone(), &delegate_write)?;
+        for role in group
+            .as_mut()
+            .roles
+            .iter_mut()
+            .filter(|r| r.purpose == request_purpose)
+        {
+            role.access
+                .add(&request.who_key, request.who_name.clone(), &delegate_write)?;
         }
 
         // Commit

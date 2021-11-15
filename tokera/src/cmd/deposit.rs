@@ -1,20 +1,25 @@
-#[allow(unused_imports)]
-use tracing::{info, error, debug, trace, warn};
 use error_chain::*;
 use std::sync::Arc;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, trace, warn};
 use url::Url;
 
 use ate::prelude::*;
 
+use crate::api::*;
 use crate::error::*;
 use crate::model::*;
-use crate::request::*;
-use crate::api::*;
 use crate::opt::*;
+use crate::request::*;
 
 #[allow(dead_code)]
-pub async fn deposit_command(registry: &Arc<Registry>, amount: Decimal, currency: NationalCurrency, session: &'_ dyn AteSession, auth: Url) -> Result<DepositResponse, WalletError>
-{
+pub async fn deposit_command(
+    registry: &Arc<Registry>,
+    amount: Decimal,
+    currency: NationalCurrency,
+    session: &'_ dyn AteSession,
+    auth: Url,
+) -> Result<DepositResponse, WalletError> {
     // Open a command chain
     let chain = registry.open_cmd(&auth).await?;
 
@@ -26,15 +31,18 @@ pub async fn deposit_command(registry: &Arc<Registry>, amount: Decimal, currency
             bail!(WalletErrorKind::CoreError(CoreErrorKind::MissingTokenKey));
         }
     };
-    
+
     // Create the login command
     let deposit = DepositRequest {
         proof: CoinProof {
-            inner: SignedProtectedData::new(&sign_key, CoinProofInner {
-                amount,
-                currency,
-                email,
-            })?
+            inner: SignedProtectedData::new(
+                &sign_key,
+                CoinProofInner {
+                    amount,
+                    currency,
+                    email,
+                },
+            )?,
         },
     };
 
@@ -45,10 +53,12 @@ pub async fn deposit_command(registry: &Arc<Registry>, amount: Decimal, currency
 }
 
 #[allow(unreachable_code)]
-pub async fn main_opts_deposit_new(opts: OptsDepositNew, api: &mut TokApi) -> Result<(), WalletError>
-{
+pub async fn main_opts_deposit_new(
+    opts: OptsDepositNew,
+    api: &mut TokApi,
+) -> Result<(), WalletError> {
     let ret = api.deposit_create(opts.currency, opts.amount).await?;
-    
+
     println!("Deposit invoice created (id={})", ret.invoice_id);
     println!("");
 
@@ -65,29 +75,42 @@ pub async fn main_opts_deposit_new(opts: OptsDepositNew, api: &mut TokApi) -> Re
 }
 
 #[allow(unreachable_code)]
-pub async fn main_opts_deposit_pending(_opts: OptsDepositPending, api: &mut TokApi) -> Result<(), WalletError>
-{
+pub async fn main_opts_deposit_pending(
+    _opts: OptsDepositPending,
+    api: &mut TokApi,
+) -> Result<(), WalletError> {
     let query = api.deposit_query().await?;
-    
+
     println!("Id               Status Value");
     for c in query.pending_deposits {
-        println!("{:16} UNPAID {} {} - {}", c.invoice_number, c.reserve, c.currency, c.pay_url);
+        println!(
+            "{:16} UNPAID {} {} - {}",
+            c.invoice_number, c.reserve, c.currency, c.pay_url
+        );
     }
 
     Ok(())
 }
 
 #[allow(unreachable_code)]
-pub async fn main_opts_deposit_cancel(opts: OptsDepositCancel, api: &mut TokApi) -> Result<(), WalletError>
-{
+pub async fn main_opts_deposit_cancel(
+    opts: OptsDepositCancel,
+    api: &mut TokApi,
+) -> Result<(), WalletError> {
     match api.deposit_cancel(opts.id.as_str()).await {
         Ok(a) => a,
         Err(WalletError(WalletErrorKind::InvalidReference(invoice_number), _)) => {
-            eprintln!("Wallet has no deposit request with this ID ({}).", invoice_number);
+            eprintln!(
+                "Wallet has no deposit request with this ID ({}).",
+                invoice_number
+            );
             std::process::exit(1);
-        },
+        }
         Err(WalletError(WalletErrorKind::InvoiceAlreadyPaid(invoice_number), _)) => {
-            eprintln!("Can not cancel a deposit that is already paid ({}).", invoice_number);
+            eprintln!(
+                "Can not cancel a deposit that is already paid ({}).",
+                invoice_number
+            );
             std::process::exit(1);
         }
         Err(err) => return Err(err),
@@ -98,18 +121,17 @@ pub async fn main_opts_deposit_cancel(opts: OptsDepositCancel, api: &mut TokApi)
 }
 
 #[allow(unreachable_code)]
-pub async fn main_opts_deposit(opts: OptsDeposit, api: &mut TokApi) -> Result<(), WalletError>
-{
+pub async fn main_opts_deposit(opts: OptsDeposit, api: &mut TokApi) -> Result<(), WalletError> {
     match opts.action {
         OptsDepositAction::Pending(opts) => {
             main_opts_deposit_pending(opts, api).await?;
-        },
+        }
         OptsDepositAction::New(opts) => {
             main_opts_deposit_new(opts, api).await?;
-        },
+        }
         OptsDepositAction::Cancel(opts) => {
             main_opts_deposit_cancel(opts, api).await?;
-        },
+        }
     }
     Ok(())
 }

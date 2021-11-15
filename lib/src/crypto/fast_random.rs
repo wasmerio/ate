@@ -1,27 +1,26 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use rand::{RngCore, SeedableRng, rngs::adapter::ReseedingRng};
-use rand_chacha::{ChaCha20Core, ChaCha20Rng};
-use std::sync::{Mutex, MutexGuard};
 use once_cell::sync::Lazy;
+use rand::{rngs::adapter::ReseedingRng, RngCore, SeedableRng};
+use rand_chacha::{ChaCha20Core, ChaCha20Rng};
 use std::result::Result;
+use std::sync::{Mutex, MutexGuard};
+#[allow(unused_imports)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
-static GLOBAL_SECURE_AND_FAST_RANDOM: Lazy<Mutex<ChaCha20Rng>> = Lazy::new(|| {
-    Mutex::new(ChaCha20Rng::from_entropy())
-});
+static GLOBAL_SECURE_AND_FAST_RANDOM: Lazy<Mutex<ChaCha20Rng>> =
+    Lazy::new(|| Mutex::new(ChaCha20Rng::from_entropy()));
 
 #[derive(Default)]
-pub(super) struct SingleThreadedSecureAndFastRandom {
-}
+pub(super) struct SingleThreadedSecureAndFastRandom {}
 
 impl<'a> SingleThreadedSecureAndFastRandom {
     pub(super) fn lock(&'a mut self) -> MutexGuard<'static, ChaCha20Rng> {
-        GLOBAL_SECURE_AND_FAST_RANDOM.lock().expect("Failed to create the crypto generator seedering engine")
+        GLOBAL_SECURE_AND_FAST_RANDOM
+            .lock()
+            .expect("Failed to create the crypto generator seedering engine")
     }
 }
 
-impl<'a> RngCore
-for SingleThreadedSecureAndFastRandom {
+impl<'a> RngCore for SingleThreadedSecureAndFastRandom {
     fn next_u32(&mut self) -> u32 {
         self.lock().next_u32()
     }
@@ -39,15 +38,15 @@ for SingleThreadedSecureAndFastRandom {
     }
 }
 
-pub(super) struct SecureAndFastRandom
-{
+pub(super) struct SecureAndFastRandom {
     pub(super) rng: Box<dyn RngCore>,
 }
 
 impl SecureAndFastRandom {
     pub(super) fn new() -> SecureAndFastRandom {
         let mut seeder = SingleThreadedSecureAndFastRandom::default();
-        let rng = ChaCha20Core::from_rng(&mut seeder).expect("Failed to properly seed the secure random number generator");
+        let rng = ChaCha20Core::from_rng(&mut seeder)
+            .expect("Failed to properly seed the secure random number generator");
         let reseeding_rng = ReseedingRng::new(rng, 0, seeder);
         SecureAndFastRandom {
             rng: Box::new(reseeding_rng),

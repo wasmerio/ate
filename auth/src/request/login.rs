@@ -1,20 +1,18 @@
 #![allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use serde::*;
 use ate::prelude::*;
+use serde::*;
 use std::time::Duration;
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct LoginRequest
-{
+pub struct LoginRequest {
     pub email: String,
     pub secret: EncryptKey,
     pub verification_code: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct LoginResponse
-{
+pub struct LoginResponse {
     pub user_key: PrimaryKey,
     pub nominal_read: ate::crypto::AteHash,
     pub nominal_write: PublicSignKey,
@@ -25,8 +23,7 @@ pub struct LoginResponse
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum LoginFailed
-{
+pub enum LoginFailed {
     UserNotFound(String),
     WrongPassword,
     AccountLocked(Duration),
@@ -35,9 +32,9 @@ pub enum LoginFailed
     InternalError(u16),
 }
 
-impl<E> From<E>
-for LoginFailed
-where E: std::error::Error + Sized
+impl<E> From<E> for LoginFailed
+where
+    E: std::error::Error + Sized,
 {
     fn from(err: E) -> Self {
         LoginFailed::InternalError(ate::utils::obscure_error(err))

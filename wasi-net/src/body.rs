@@ -92,9 +92,7 @@ impl Body {
             inner: stream.map_ok(Bytes::from).map_err(Into::into),
         });
         Body {
-            inner: Inner::Streaming {
-                body,
-            },
+            inner: Inner::Streaming { body },
         }
     }
 
@@ -189,12 +187,12 @@ impl HttpBody for ImplStream {
         cx: &mut Context,
     ) -> Poll<Option<Result<Self::Data, Self::Error>>> {
         let opt_try_chunk = match self.0.inner {
-            Inner::Streaming {
-                ref mut body
-            } => {
-                futures_core::ready!(Pin::new(body).poll_data(cx))
-                    .map(|opt_chunk| opt_chunk.map(Into::into).map_err(|e| crate::Error::new(crate::ErrorKind::Other, e)))
-            }
+            Inner::Streaming { ref mut body } => futures_core::ready!(Pin::new(body).poll_data(cx))
+                .map(|opt_chunk| {
+                    opt_chunk
+                        .map(Into::into)
+                        .map_err(|e| crate::Error::new(crate::ErrorKind::Other, e))
+                }),
             Inner::Reusable(ref mut bytes) => {
                 if bytes.is_empty() {
                     None
