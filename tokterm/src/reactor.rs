@@ -129,6 +129,12 @@ impl Reactor {
         Ok((fd, tx_send, rx_recv))
     }
 
+    pub fn bidirectional_with_defaults(
+        &mut self,
+    ) -> Result<(RawFd, mpsc::Sender<Vec<u8>>, mpsc::Receiver<Vec<u8>>), i32> {
+        self.bidirectional(100, 100, ReceiverMode::Stream)
+    }
+
     pub fn pipe_out(&mut self) -> Result<(RawFd, mpsc::Receiver<Vec<u8>>), i32> {
         let fd = self.generate_fd()?;
         let (tx, rx) = mpsc::channel(MAX_MPSC);

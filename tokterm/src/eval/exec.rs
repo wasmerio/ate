@@ -3,6 +3,7 @@
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use std::io::Read;
+use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -17,6 +18,7 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 use wasmer::{Instance, Module, Store};
 use wasmer_wasi::vfs::FileSystem;
+use wasmer_wasi::vfs::FsError;
 use wasmer_wasi::Stdin;
 use wasmer_wasi::{Stdout, WasiError, WasiProxy, WasiState};
 use web_sys::{console, HtmlElement, HtmlInputElement, Worker};
@@ -52,11 +54,28 @@ pub async fn exec(
     env_vars: &Vec<String>,
     show_result: &mut bool,
     mut stdio: Stdio,
+    redirect: &Vec<Redirect>,
 ) -> Result<ExecResponse, i32> {
+    // Make an error message function
+    let mut early_stderr = stdio.stderr.clone();
+    let on_early_exit = |msg: Option<String>, res: ExecResponse| async move {
+        *show_result = true;
+        if let Some(msg) = msg {
+            let _ = early_stderr.write(msg.as_bytes()).await;
+        }
+        Ok(res)
+    };
+
     // If there is a built in then use it
     if let Some(builtin) = builtins.get(cmd) {
-        *show_result = true;
-        return builtin(args, ctx, stdio).await;
+        return on_early_exit(
+            None,
+            match builtin(args, ctx, stdio).await {
+                Ok(a) => a,
+                Err(err) => ExecResponse::Immediate(err),
+            },
+        )
+        .await;
     }
 
     // Grab the private file system for this binary (if the binary changes the private
@@ -64,10 +83,111 @@ pub async fn exec(
     let (data, fs_private) = match load_bin(ctx, cmd, &mut stdio).await {
         Some(a) => a,
         None => {
-            *show_result = true;
-            return Ok(ExecResponse::Immediate(err::ERR_ENOENT));
+            return on_early_exit(None, ExecResponse::Immediate(err::ERR_ENOENT)).await;
         }
     };
+
+    // Create the filesystem
+    let fs = {
+        let root = stdio.root.clone();
+        let stdio = stdio.clone();
+
+        let mut union = UnionFileSystem::new();
+        union.mount("root", Path::new("/"), Box::new(root));
+        union.mount(
+            "proc",
+            Path::new("/dev"),
+            Box::new(ProcFileSystem::new(stdio)),
+        );
+        union.mount("tmp", Path::new("/tmp"), Box::new(TmpFileSystem::default()));
+        union.mount("private", Path::new("/.private"), Box::new(fs_private));
+        Box::new(union)
+    };
+
+    // Perfform all the redirects
+    for redirect in redirect.iter() {
+        // Attempt to open the file
+        let file = fs
+            .new_open_options()
+            .create(redirect.op.write())
+            .create_new(redirect.op.write() && redirect.op.append() == false)
+            .truncate(redirect.op.write() && redirect.op.append() == false)
+            .append(redirect.op.append())
+            .read(redirect.op.read())
+            .write(redirect.op.write())
+            .open(redirect.filename.clone());
+        match file {
+            Ok(mut file) => {
+                // Open a new file description
+                let (tx, mut rx) = {
+                    let mut reactor = ctx.reactor.write().await;
+                    let ret = reactor.bidirectional_with_defaults();
+                    let ret = match ret {
+                        Ok(a) => a,
+                        Err(err) => {
+                            return on_early_exit(
+                                Some(format!("failed to open a new file description")),
+                                ExecResponse::Immediate(err::ERR_EIO),
+                            )
+                            .await;
+                        }
+                    };
+                    let (fd, tx, rx) = ret;
+                    let fd = Fd::new(fd, reactor.deref());
+
+                    // We now connect the newly opened file descriptor with the read file
+                    match redirect.fd {
+                        -1 => {
+                            if redirect.op.read() {
+                                stdio.stdin = fd.clone();
+                            }
+                            if redirect.op.write() {
+                                stdio.stdout = fd;
+                            }
+                        }
+                        0 => stdio.stdin = fd,
+                        1 => stdio.stdout = fd,
+                        2 => stdio.stderr = fd,
+                        _ => {
+                            return on_early_exit(Some(format!("redirecting non-standard file descriptors is not yet supported")), ExecResponse::Immediate(err::ERR_EINVAL)).await;
+                        }
+                    };
+
+                    // Now we need to hook up the receiver and sender
+                    (tx, rx)
+                };
+
+                // Now hook up the sender and receiver
+                let is_read = redirect.op.read();
+                let is_write = redirect.op.write();
+                ctx.pool.spawn_blocking(move || {
+                    if is_read {
+                        let mut buf = [0u8; 4096];
+                        while let Ok(read) = file.read(&mut buf) {
+                            let _ = tx.blocking_send((&buf[0..read]).to_vec());
+                        }
+                    }
+                    if is_write {
+                        wasm_bindgen_futures::spawn_local(async move {
+                            while let Some(data) = rx.recv().await {
+                                let _ = file.write_all(&data[..]);
+                            }
+                        });
+                    }
+                });
+            }
+            Err(err) => {
+                return on_early_exit(
+                    Some(format!("failed to open the redirected file")),
+                    ExecResponse::Immediate(match err {
+                        FsError::EntityNotFound => ERR_ENOENT,
+                        _ => ERR_EIO,
+                    }),
+                )
+                .await;
+            }
+        }
+    }
 
     // Generate a PID for this process
     let (pid, exit_rx, exit_tx, process) = {
@@ -84,13 +204,8 @@ pub async fn exec(
     };
     debug!("process created (pid={})", pid);
 
-    // Get the stdout and stderr
-    let stdin = stdio.stdin.clone();
-    let stdout = stdio.stdout.clone();
-    let stderr = stdio.stderr.clone();
-    let mut tty = ctx.stdio.stderr.clone();
-
     // Spawn the process on a background thread
+    let mut tty = ctx.stdio.stderr.clone();
     let reactor = ctx.reactor.clone();
     let cmd = cmd.clone();
     let args = args.clone();
@@ -103,7 +218,7 @@ pub async fn exec(
             Ok(a) => a,
             Err(err) => {
                 tty.blocking_write_clear_line();
-                let _ = tty.blocking_write(&format!("compile-error: {}\n", err).as_bytes()[..]);
+                let _ = tty.blocking_write(format!("compile-error: {}\n", err).as_bytes());
                 exit_tx.send(Some(ERR_ENOEXEC));
                 return;
             }
@@ -120,36 +235,12 @@ pub async fn exec(
         // Create the WasiProxy
         let wasi_proxy = WasiTerm::new(&reactor, exit_rx);
 
-        // Create the filesystem
-        let fs = {
-            let root = stdio.root.clone();
-            let stdio = Stdio {
-                stdin: stdin.clone(),
-                stdout: stdout.clone(),
-                stderr: stderr.clone(),
-                tty: stdio.tty.clone(),
-                tok: stdio.tok.clone(),
-                root: root.clone(),
-            };
-
-            let mut union = UnionFileSystem::new();
-            union.mount("root", Path::new("/"), Box::new(root));
-            union.mount(
-                "proc",
-                Path::new("/dev"),
-                Box::new(ProcFileSystem::new(stdio)),
-            );
-            union.mount("tmp", Path::new("/tmp"), Box::new(TmpFileSystem::default()));
-            union.mount("private", Path::new("/.private"), Box::new(fs_private));
-            Box::new(union)
-        };
-
         // Create the `WasiEnv`.
         let mut wasi_env = WasiState::new(cmd.as_str())
             .args(&args)
-            .stdin(Box::new(stdin))
-            .stdout(Box::new(stdout))
-            .stderr(Box::new(stderr))
+            .stdin(Box::new(stdio.stdin.clone()))
+            .stdout(Box::new(stdio.stdout.clone()))
+            .stderr(Box::new(stdio.stderr.clone()))
             .syscall_proxy(Box::new(wasi_proxy))
             .preopen_dir(Path::new("/"))
             .unwrap()

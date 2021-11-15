@@ -1,3 +1,6 @@
+use std::str::FromStr;
+use regex::Regex;
+
 use crate::ast::{
     Program,
     CompleteCommands,
@@ -7,7 +10,9 @@ use crate::ast::{
     Pipeline,
     Command,
     Arg,
-    TermOp
+    TermOp,
+    Redirect,
+    RedirectionType,
 };
 
 grammar;
@@ -87,12 +92,40 @@ command: Command<'input> = {
 }
 
 simple_command: Command<'input> = {
-    <assign:cmd_prefix> <cmd:cmd_word> <args:cmd_suffix> => Command::Simple{ assign, cmd: Arg::Arg(cmd), args },
-    <assign:cmd_prefix> <cmd:cmd_word>                   => Command::Simple{ assign, cmd: Arg::Arg(cmd), args: vec![] },
-    <assign:cmd_prefix>                                  => Command::Simple{ assign, cmd: Arg::Arg(""), args: vec![] },
-    <cmd:cmd_name> <args:cmd_suffix>                     => Command::Simple{ assign: vec![], cmd: Arg::Arg(cmd), args },
-    cmd_name                                             => Command::Simple{ assign: vec![], cmd: Arg::Arg(<>), args: vec![] },
+    simple_command_inner => <>,
+    <mut s:simple_command> <r:redirect> => { s.redirect().push(r); s },
+}
+
+simple_command_inner: Command<'input> = {
+
+    <assign:cmd_prefix> <cmd:cmd_word> <args:cmd_suffix>
+        => Command::Simple{ assign, cmd: Arg::Arg(cmd), args, redirect: vec![] },
+
+    <assign:cmd_prefix> <cmd:cmd_word>
+        => Command::Simple{ assign, cmd: Arg::Arg(cmd), args: vec![], redirect: vec![] },
+
+    <assign:cmd_prefix>
+        => Command::Simple{ assign, cmd: Arg::Arg(""), args: vec![], redirect: vec![] },
+
+    <cmd:cmd_name> <args:cmd_suffix>
+        => Command::Simple{ assign: vec![], cmd: Arg::Arg(cmd), args, redirect: vec![] },
+        
+    cmd_name
+        => Command::Simple{ assign: vec![], cmd: Arg::Arg(<>), args: vec![], redirect: vec![] },
 };
+
+redirect: Redirect = {
+    <s:REDIRECT> => {
+        let re = Regex::new(r"(?P<fd>[0-9]+)?[\s]?(?P<op>(?:[<]{1,1}[><&]{0,1})|(?:[>]{1,1}[><|&]{0,1}))[\s]?(?P<path>[^\s]+)").unwrap();
+        let caps = re.captures(&s).unwrap();
+        let op = RedirectionType::from_str(&caps["op"]).unwrap();
+        Redirect {
+            fd: i32::from_str(caps.get(1).map(|a| a.as_str()).unwrap_or_else(|| "-1")).unwrap(),
+            op,
+            filename: caps["path"].to_string(),
+        }
+    }
+}
 
 WORD = {
     DQUOTE_WORD,
@@ -129,14 +162,16 @@ sequential_sep: () = {
 match {
     "&&" => AND_IF,
     "||" => OR_IF,
-    ";;" => DSEMI,
-    "<<" => DLESS,
-    ">>" => DGREAT,
-    "<&" => LESSAND,
-    ">&" => GREATAND,
-    "<>" => LESSGREAT,
-    "<<-" => DLESSDASH,
-    ">|" => CLOBBER,
+    ";;",
+    "<<",
+    ">>",
+    "<&",
+    ">&",
+    "<>",
+    "<<-",
+    ">|",
+    "<",
+    ">",
 
     "if" => If,
     "then" => Then,
@@ -161,11 +196,12 @@ match {
     "!" => Bang,
     "in" => In,
 
+    r"([0-9]+)?[\s]?((?:[<]{1,1}[><&]{0,1})|(?:[>]{1,1}[><|&]{0,1}))[\s]?([^\s]+)" => REDIRECT,
     r"[a-zA-Z_][a-zA-Z0-9_]*=\S+" => ASSIGNMENT_WORD,
 } else {
     r"(\n|(\r\n))" => NEWLINE,
     r"\x22([^\x22]|\\\x22)+\x22" => DQUOTE_WORD,
     r"'([^']|\\')+'" => SQUOTE_WORD,
     r"`([^`]|\\`)+`" => BACKTICK_WORD,
-    r"[^\s'\x22`][^\s|&;{}!><]*" => BARE_WORD,    
+    r"[^\s'\x22`][^\s|&;{}!><]*" => BARE_WORD,
 }

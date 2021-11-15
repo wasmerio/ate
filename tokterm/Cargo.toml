@@ -37,6 +37,7 @@ base64 = { version = "^0.13" }
 sha2 = { version = "^0.9" }
 wasi-net = { version = "^0.3", path = "../wasi-net" }
 url = { version = "^2" }
+regex = { version = "^1.5" }
 
 [dependencies.parking_lot]
 version = "^0.11"
