@@ -1,0 +1,9 @@
+@font-face {
+	font-family: 'Zeitung Mono Pro';
+	src: url('ZeitungMonoPro-Regular.eot?#iefix') format('embedded-opentype'),
+		 url('ZeitungMonoPro-Regular.woff') format('woff'),
+		 url('ZeitungMonoPro-Regular.ttf') format('truetype');
+	font-display: swap;
+	font-style: normal;
+	font-weight: 400;
+}
