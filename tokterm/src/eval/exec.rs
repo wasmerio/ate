@@ -40,6 +40,7 @@ use crate::reactor::*;
 use crate::state::*;
 use crate::stdio::*;
 use crate::wasi::*;
+use crate::pipe::*;
 
 pub enum ExecResponse {
     Immediate(i32),
@@ -121,21 +122,8 @@ pub async fn exec(
             Ok(mut file) => {
                 // Open a new file description
                 let (tx, mut rx) = {
-                    let mut reactor = ctx.reactor.write().await;
-                    let ret = reactor.bidirectional_with_defaults();
-                    let ret = match ret {
-                        Ok(a) => a,
-                        Err(err) => {
-                            return on_early_exit(
-                                Some(format!("failed to open a new file description")),
-                                ExecResponse::Immediate(err::ERR_EIO),
-                            )
-                            .await;
-                        }
-                    };
-                    let (fd, tx, rx) = ret;
-                    let fd = Fd::new(fd, reactor.deref());
-
+                    let (fd, tx, rx) = bidirectional_with_defaults();
+                    
                     // We now connect the newly opened file descriptor with the read file
                     match redirect.fd {
                         -1 => {
@@ -193,7 +181,7 @@ pub async fn exec(
     // Generate a PID for this process
     let (pid, exit_rx, exit_tx, process) = {
         let mut guard = ctx.reactor.write().await;
-        let (pid, exit_rx) = guard.generate_pid()?;
+        let (pid, exit_rx) = guard.generate_pid(ctx.pool.clone())?;
         let process = match guard.get_process(pid) {
             Some(a) => a,
             None => {

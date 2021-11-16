@@ -2,6 +2,7 @@ use std::ops::Deref;
 
 use super::*;
 use crate::ast;
+use crate::pipe::*;
 use tokio::select;
 use wasmer_wasi::vfs::FileSystem;
 use wasmer_wasi::vfs::FsError;
@@ -13,23 +14,14 @@ pub(super) async fn exec_pipeline<'a>(
     show_result: &mut bool,
     pipeline: &'a ast::Pipeline<'a>,
 ) -> i32 {
-    debug!(
-        "eval (stdin={}, stdout={}, stderr={})",
-        ctx.stdio.stdin.raw.id, ctx.stdio.stdout.raw.id, ctx.stdio.stderr.raw.id
-    );
-
     let mut child_list: Vec<Process> = Vec::new();
     let mut final_return: Option<i32> = None;
     {
-        let (mut next_stdin, mut cur_stdin, mut cur_stdout, mut end_stdout, mut cur_stderr) = {
-            let reactor = ctx.reactor.read().await;
-            let next_stdin: Fd = reactor.fd(ctx.stdio.stdin.raw);
-            let cur_stdin: Fd = reactor.fd(ctx.stdio.stdin.raw);
-            let cur_stdout: Fd = reactor.fd(ctx.stdio.stdout.raw);
-            let end_stdout: Fd = reactor.fd(ctx.stdio.stdout.raw);
-            let cur_stderr: Fd = reactor.fd(ctx.stdio.stderr.raw);
-            (next_stdin, cur_stdin, cur_stdout, end_stdout, cur_stderr)
-        };
+        let mut next_stdin = ctx.stdio.stdin.clone();
+        let mut cur_stdin = ctx.stdio.stdin.clone();
+        let mut cur_stdout = ctx.stdio.stdout.clone();
+        let mut cur_stderr = ctx.stdio.stderr.clone();
+        let end_stdout = ctx.stdio.stdout.clone();
 
         for i in 0..pipeline.commands.len() {
             let command = &pipeline.commands[i];
@@ -53,18 +45,9 @@ pub(super) async fn exec_pipeline<'a>(
 
                     cur_stdin = next_stdin.clone();
                     if i + 1 < pipeline.commands.len() {
-                        let mut reactor = ctx.reactor.write().await;
-                        let (w, r) = match reactor.pipe(ReceiverMode::Stream) {
-                            Ok(a) => a,
-                            Err(err) => {
-                                return err::ERR_EMFILE;
-                            }
-                        };
-                        debug!("pipe created {} -> {}", w.id, r.id);
-                        next_stdin = reactor.fd(r);
-                        cur_stdout = reactor.fd(w);
-                        reactor.remove_pipe(w);
-                        reactor.remove_pipe(r);
+                        let (w, r) = pipe(ReceiverMode::Stream);
+                        next_stdin = r;
+                        cur_stdout = w;
                     } else {
                         cur_stdout = end_stdout.clone();
                     }
@@ -76,11 +59,7 @@ pub(super) async fn exec_pipeline<'a>(
                         tty: ctx.stdio.tty.clone(),
                     };
 
-                    debug!(
-                        "exec {} (stdin={}, stdout={}, stderr={})",
-                        parsed_cmd, stdio.stdin.raw.id, stdio.stdout.raw.id, stdio.stderr.raw.id
-                    );
-
+                    debug!("exec {}", parsed_cmd);
                     match exec::exec(
                         ctx,
                         builtins,

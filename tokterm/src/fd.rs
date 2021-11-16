@@ -23,41 +23,26 @@ use super::err::*;
 use super::poll::*;
 use super::reactor::*;
 use super::state::*;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct RawFd {
-    pub(crate) id: usize,
-}
-
-impl From<usize> for RawFd {
-    fn from(fd: usize) -> RawFd {
-        RawFd { id: fd }
-    }
-}
+use super::pipe::*;
 
 #[derive(Debug, Clone)]
 pub struct Fd {
-    pub(crate) raw: RawFd,
     pub(crate) blocking: Arc<AtomicBool>,
     pub(crate) sender: Option<mpsc::Sender<Vec<u8>>>,
     pub(crate) receiver: Option<Arc<Mutex<ReactorPipeReceiver>>>,
 }
 
 impl Fd {
-    pub fn new(fd: RawFd, reactor: &Reactor) -> Fd {
-        let sender = reactor.fd_pipe_tx.get(&fd).map(|a| a.clone());
-        let receiver = reactor.fd_pipe_rx.get(&fd).map(|a| a.clone());
+    pub fn new(tx: Option<mpsc::Sender<Vec<u8>>>, rx: Option<Arc<Mutex<ReactorPipeReceiver>>>) -> Fd {
         Fd {
-            raw: fd,
             blocking: Arc::new(AtomicBool::new(true)),
-            sender,
-            receiver,
+            sender: tx,
+            receiver: rx,
         }
     }
 
     pub fn combine(fd1: &Fd, fd2: &Fd) -> Fd {
         let mut ret = Fd {
-            raw: fd1.raw,
             blocking: Arc::new(AtomicBool::new(fd1.blocking.load(Ordering::Relaxed))),
             sender: None,
             receiver: None,
@@ -227,6 +212,6 @@ impl VirtualFile for Fd {
     }
 
     fn get_fd(&self) -> Option<FileDescriptor> {
-        Some(FileDescriptor::new(self.raw.id))
+        None
     }
 }

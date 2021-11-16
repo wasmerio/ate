@@ -6,12 +6,22 @@ use tracing::{debug, error, info, trace, warn};
 
 use crate::common::*;
 use crate::err::*;
+use crate::pool::*;
 
-#[derive(Debug)]
 pub struct Process {
     pub(crate) pid: Pid,
     pub(crate) exit_rx: watch::Receiver<Option<i32>>,
     pub(crate) exit_tx: Arc<watch::Sender<Option<i32>>>,
+    pub(crate) pool: ThreadPool,
+}
+
+impl std::fmt::Debug
+for Process
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result
+    {
+        write!(f, "process (pid={})", self.pid)
+    }
 }
 
 impl Clone for Process {
@@ -20,6 +30,7 @@ impl Clone for Process {
             pid: self.pid,
             exit_rx: self.exit_rx.clone(),
             exit_tx: self.exit_tx.clone(),
+            pool: self.pool.clone(),
         }
     }
 }
@@ -48,6 +59,9 @@ impl Process {
     }
 
     pub fn terminate(&mut self, exit_code: i32) {
-        self.exit_tx.send(Some(exit_code));
+        let tx = self.exit_tx.clone();
+        self.pool.spawn_blocking(move || {
+            tx.send(Some(exit_code));
+        });        
     }
 }

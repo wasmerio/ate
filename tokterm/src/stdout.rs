@@ -12,7 +12,7 @@ use super::tty::*;
 
 #[derive(Debug, Clone)]
 pub struct Stdout {
-    fd: Fd,
+    pub(super) fd: Fd,
 }
 
 impl Deref for Stdout {
