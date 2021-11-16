@@ -75,7 +75,6 @@ pub(super) async fn exec_pipeline<'a>(
                         stderr: cur_stderr.clone(),
                         tty: ctx.stdio.tty.clone(),
                         tok: ctx.stdio.tok.clone(),
-                        root: ctx.stdio.root.clone(),
                     };
 
                     debug!(

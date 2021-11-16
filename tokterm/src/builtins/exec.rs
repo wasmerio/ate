@@ -24,7 +24,6 @@ pub(super) fn exec(
     // Read the script
     let script = args[1].clone();
     let script = ctx
-        .stdio
         .root
         .new_open_options()
         .read(true)

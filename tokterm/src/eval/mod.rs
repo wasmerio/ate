@@ -40,6 +40,7 @@ use super::pool::*;
 use super::reactor::*;
 use super::state::*;
 use super::stdio::*;
+use super::fs::*;
 
 pub enum EvalPlan {
     Executed {
@@ -64,6 +65,7 @@ pub struct EvalContext {
     pub input: String,
     pub console: Arc<Mutex<ConsoleState>>,
     pub stdio: Stdio,
+    pub root: UnionFileSystem,
 }
 
 pub(crate) async fn eval(mut ctx: EvalContext) -> oneshot::Receiver<EvalPlan> {

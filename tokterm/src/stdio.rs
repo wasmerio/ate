@@ -21,7 +21,6 @@ pub struct Stdio {
     pub stderr: Fd,
     pub tty: Tty,
     pub tok: TokeraSocketFactory,
-    pub root: UnionFileSystem,
 }
 
 impl Stdio {

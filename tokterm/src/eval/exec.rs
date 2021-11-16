@@ -89,7 +89,7 @@ pub async fn exec(
 
     // Create the filesystem
     let fs = {
-        let root = stdio.root.clone();
+        let root = ctx.root.clone();
         let stdio = stdio.clone();
 
         let mut union = UnionFileSystem::new();
