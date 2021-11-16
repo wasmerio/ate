@@ -20,7 +20,6 @@ pub struct Stdio {
     pub stdout: Fd,
     pub stderr: Fd,
     pub tty: Tty,
-    pub tok: TokeraSocketFactory,
 }
 
 impl Stdio {

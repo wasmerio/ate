@@ -34,13 +34,13 @@ use super::builtins::*;
 use super::common::*;
 use super::err;
 use super::fd::*;
+use super::fs::*;
 use super::grammar;
 use super::job::*;
 use super::pool::*;
 use super::reactor::*;
 use super::state::*;
 use super::stdio::*;
-use super::fs::*;
 
 pub enum EvalPlan {
     Executed {
@@ -66,6 +66,7 @@ pub struct EvalContext {
     pub console: Arc<Mutex<ConsoleState>>,
     pub stdio: Stdio,
     pub root: UnionFileSystem,
+    pub tok: TokeraSocketFactory,
 }
 
 pub(crate) async fn eval(mut ctx: EvalContext) -> oneshot::Receiver<EvalPlan> {

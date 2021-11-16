@@ -210,7 +210,6 @@ impl Console {
                 stdout: reactor.fd(self.stdout.raw.clone()),
                 stderr: reactor.fd(self.stderr.clone()),
                 tty: self.tty.clone(),
-                tok: self.tok.clone(),
             };
 
             let job = match reactor.generate_job(stdio.clone(), stdin_tx) {
@@ -238,6 +237,7 @@ impl Console {
             console: self.state.clone(),
             stdio,
             root: self.mounts.clone(),
+            tok: self.tok.clone(),
         };
 
         let rx = eval(ctx).await;

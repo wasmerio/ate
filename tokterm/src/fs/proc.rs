@@ -15,6 +15,7 @@ use wasmer_wasi::vfs::*;
 use wasmer_wasi::vfs::{FileDescriptor, VirtualFile};
 use wasmer_wasi::{types as wasi_types, WasiFile, WasiFsError};
 
+use super::TokeraSocketFactory;
 use crate::fd::*;
 use crate::stdio::*;
 use crate::tty::*;
@@ -25,15 +26,17 @@ pub struct ProcFileSystem {
     type_dir: FileType,
     type_char: FileType,
     stdio: Stdio,
+    tok: TokeraSocketFactory,
 }
 
 impl ProcFileSystem {
-    pub fn new(stdio: Stdio) -> ProcFileSystem {
+    pub fn new(stdio: Stdio, tok: TokeraSocketFactory) -> ProcFileSystem {
         let mut ret = ProcFileSystem {
             type_file: FileType::default(),
             type_dir: FileType::default(),
             type_char: FileType::default(),
             stdio,
+            tok,
         };
         ret.type_file.file = true;
         ret.type_dir.dir = true;
@@ -142,6 +145,7 @@ impl FileSystem for ProcFileSystem {
     fn new_open_options(&self) -> OpenOptions {
         let opener = Box::new(CoreFileOpener {
             stdio: self.stdio.clone(),
+            tok: self.tok.clone(),
         });
         OpenOptions::new(opener)
     }
@@ -150,6 +154,7 @@ impl FileSystem for ProcFileSystem {
 #[derive(Debug)]
 pub struct CoreFileOpener {
     stdio: Stdio,
+    tok: TokeraSocketFactory,
 }
 
 impl FileOpener for CoreFileOpener {
@@ -163,7 +168,7 @@ impl FileOpener for CoreFileOpener {
             "/stderr" | "stderr" => Ok(Box::new(self.stdio.stderr.clone())),
             "/null" | "null" => Ok(Box::new(NullFile::default())),
             "/tty" | "tty" => Ok(Box::new(TtyFile::new(&self.stdio))),
-            "/web" | "web" => Ok(Box::new(self.stdio.tok.create())),
+            "/web" | "web" => Ok(Box::new(self.tok.create())),
             _ => Err(FsError::EntityNotFound),
         }
     }

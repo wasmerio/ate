@@ -91,13 +91,14 @@ pub async fn exec(
     let fs = {
         let root = ctx.root.clone();
         let stdio = stdio.clone();
+        let tok = ctx.tok.clone();
 
         let mut union = UnionFileSystem::new();
         union.mount("root", Path::new("/"), Box::new(root));
         union.mount(
             "proc",
             Path::new("/dev"),
-            Box::new(ProcFileSystem::new(stdio)),
+            Box::new(ProcFileSystem::new(stdio, tok)),
         );
         union.mount("tmp", Path::new("/tmp"), Box::new(TmpFileSystem::default()));
         union.mount("private", Path::new("/.private"), Box::new(fs_private));
