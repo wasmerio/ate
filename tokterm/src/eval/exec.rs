@@ -34,6 +34,7 @@ use crate::err;
 use crate::err::*;
 use crate::fs::*;
 use crate::job::*;
+use crate::pipe::*;
 use crate::poll::*;
 use crate::pool::*;
 use crate::reactor::*;
@@ -89,15 +90,16 @@ pub async fn exec(
 
     // Create the filesystem
     let fs = {
-        let root = stdio.root.clone();
+        let root = ctx.root.clone();
         let stdio = stdio.clone();
+        let tok = ctx.tok.clone();
 
         let mut union = UnionFileSystem::new();
         union.mount("root", Path::new("/"), Box::new(root));
         union.mount(
             "proc",
             Path::new("/dev"),
-            Box::new(ProcFileSystem::new(stdio)),
+            Box::new(ProcFileSystem::new(stdio, tok)),
         );
         union.mount("tmp", Path::new("/tmp"), Box::new(TmpFileSystem::default()));
         union.mount("private", Path::new("/.private"), Box::new(fs_private));
@@ -120,20 +122,7 @@ pub async fn exec(
             Ok(mut file) => {
                 // Open a new file description
                 let (tx, mut rx) = {
-                    let mut reactor = ctx.reactor.write().await;
-                    let ret = reactor.bidirectional_with_defaults();
-                    let ret = match ret {
-                        Ok(a) => a,
-                        Err(err) => {
-                            return on_early_exit(
-                                Some(format!("failed to open a new file description")),
-                                ExecResponse::Immediate(err::ERR_EIO),
-                            )
-                            .await;
-                        }
-                    };
-                    let (fd, tx, rx) = ret;
-                    let fd = Fd::new(fd, reactor.deref());
+                    let (fd, tx, rx) = bidirectional_with_defaults();
 
                     // We now connect the newly opened file descriptor with the read file
                     match redirect.fd {
@@ -192,7 +181,7 @@ pub async fn exec(
     // Generate a PID for this process
     let (pid, exit_rx, exit_tx, process) = {
         let mut guard = ctx.reactor.write().await;
-        let (pid, exit_rx) = guard.generate_pid()?;
+        let (pid, exit_rx) = guard.generate_pid(ctx.pool.clone())?;
         let process = match guard.get_process(pid) {
             Some(a) => a,
             None => {

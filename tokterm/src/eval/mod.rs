@@ -34,6 +34,7 @@ use super::builtins::*;
 use super::common::*;
 use super::err;
 use super::fd::*;
+use super::fs::*;
 use super::grammar;
 use super::job::*;
 use super::pool::*;
@@ -64,6 +65,8 @@ pub struct EvalContext {
     pub input: String,
     pub console: Arc<Mutex<ConsoleState>>,
     pub stdio: Stdio,
+    pub root: UnionFileSystem,
+    pub tok: TokeraSocketFactory,
 }
 
 pub(crate) async fn eval(mut ctx: EvalContext) -> oneshot::Receiver<EvalPlan> {

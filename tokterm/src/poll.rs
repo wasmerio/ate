@@ -9,6 +9,7 @@ use tracing::{debug, error, info, trace, warn};
 
 use super::err::*;
 use super::fd::*;
+use super::pipe::*;
 use super::reactor::*;
 
 #[derive(Debug)]

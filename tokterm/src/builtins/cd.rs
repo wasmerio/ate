@@ -45,7 +45,7 @@ pub(super) fn cd(
         }
 
         dir = canonicalize(dir.as_str());
-        if ctx.stdio.root.read_dir(Path::new(dir.as_str())).is_err() {
+        if ctx.root.read_dir(Path::new(dir.as_str())).is_err() {
             return Box::pin(async move {
                 let _ = stdio
                     .stderr

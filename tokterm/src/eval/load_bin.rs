@@ -21,7 +21,7 @@ pub async fn load_bin(
     // Check if there is an alias
     let _ = stdio.stderr.write("Searching...".as_bytes()).await;
     let mut cmd = cmd.clone();
-    if let Ok(mut file) = stdio
+    if let Ok(mut file) = ctx
         .root
         .new_open_options()
         .read(true)
@@ -43,7 +43,7 @@ pub async fn load_bin(
         file_checks.push(format!("{}{}", state.path, &cmd[2..]));
     }
     for file_check in file_checks {
-        if let Ok(mut file) = stdio.root.new_open_options().read(true).open(file_check) {
+        if let Ok(mut file) = ctx.root.new_open_options().read(true).open(file_check) {
             stdio.stderr.write_clear_line().await;
             let _ = stdio.stderr.write("Loading...".as_bytes()).await;
 

@@ -24,6 +24,7 @@ use super::eval::*;
 use super::fd::*;
 use super::fs::*;
 use super::job::*;
+use super::pipe::*;
 use super::pool::ThreadPool as Pool;
 use super::reactor::*;
 use super::state::*;
@@ -45,7 +46,7 @@ pub struct Console {
     reactor: Arc<RwLock<Reactor>>,
     mounts: UnionFileSystem,
     stdout: Stdout,
-    stderr: RawFd,
+    stderr: Fd,
 }
 
 impl Console {
@@ -56,13 +57,11 @@ impl Console {
         user_agent: String,
         pool: Pool,
     ) -> Console {
-        let mut reactor = Reactor::new();
+        let reactor = Reactor::new();
 
         let state = Arc::new(Mutex::new(ConsoleState::new()));
-        let (stdout, mut tty_rx) = reactor.pipe_out().unwrap();
-        let stderr = reactor.dup(&stdout).unwrap();
-
-        let stdout = reactor.fd(stdout);
+        let (stdout, mut tty_rx) = pipe_out();
+        let stderr = stdout.clone();
         let stdout = Stdout::new(stdout);
 
         let reactor = Arc::new(RwLock::new(reactor));
@@ -192,28 +191,15 @@ impl Console {
         };
 
         let (job, stdio) = {
-            let mut reactor = reactor.write().await;
-            let (stdin, stdin_tx) = match reactor.pipe_in(ReceiverMode::Stream) {
-                Ok(a) => a,
-                Err(_) => {
-                    drop(reactor);
-                    self.tty
-                        .draw("term: insufficient file handle space\r\n")
-                        .await;
-                    self.tty.reset_line().await;
-                    self.tty.draw_prompt().await;
-                    return;
-                }
-            };
+            let (stdin, stdin_tx) = pipe_in(ReceiverMode::Stream);
             let stdio = Stdio {
-                stdin: reactor.fd(stdin),
-                stdout: reactor.fd(self.stdout.raw.clone()),
-                stderr: reactor.fd(self.stderr.clone()),
+                stdin: stdin.clone(),
+                stdout: self.stdout.fd.clone(),
+                stderr: self.stderr.clone(),
                 tty: self.tty.clone(),
-                tok: self.tok.clone(),
-                root: self.mounts.clone(),
             };
 
+            let mut reactor = reactor.write().await;
             let job = match reactor.generate_job(stdio.clone(), stdin_tx) {
                 Ok((_, job)) => job,
                 Err(_) => {
@@ -238,6 +224,8 @@ impl Console {
             input: cmd.clone(),
             console: self.state.clone(),
             stdio,
+            root: self.mounts.clone(),
+            tok: self.tok.clone(),
         };
 
         let rx = eval(ctx).await;

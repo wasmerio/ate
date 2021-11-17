@@ -17,6 +17,7 @@ mod fs;
 mod glue;
 mod interval;
 mod job;
+mod pipe;
 mod poll;
 mod pool;
 mod reactor;

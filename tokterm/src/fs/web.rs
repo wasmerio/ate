@@ -20,6 +20,7 @@ use web_sys::{ErrorEvent, MessageEvent, WebSocket};
 use crate::common::*;
 use crate::err;
 use crate::fd::*;
+use crate::pipe::*;
 use crate::reactor::*;
 
 #[derive(Debug, Clone)]
@@ -39,23 +40,15 @@ impl TokeraSocketFactory {
         let (tx_factory, mut rx_factory) = mpsc::channel::<mpsc::Sender<Fd>>(10);
         wasm_bindgen_futures::spawn_local(async move {
             while let Some(tx_request) = rx_factory.recv().await {
-                let reactor = reactor.clone();
-                let (mut fd, tx, mut rx) = {
-                    let mut reactor = reactor.write().await;
-                    match reactor.bidirectional(MAX_MPSC, MAX_MPSC, ReceiverMode::Message(false)) {
-                        Ok((fd, tx, rx)) => (Fd::new(fd, reactor.deref()), tx, rx),
-                        Err(err) => {
-                            debug!("failed to create file handle for web connection: {:?}", err);
-                            continue;
-                        }
-                    }
-                };
+                let (mut fd, tx, mut rx) =
+                    bidirectional(MAX_MPSC, MAX_MPSC, ReceiverMode::Message(false));
                 fd.set_blocking(false);
 
                 // Give the open channel back to the caller
                 tx_request.send(fd.clone()).await;
 
                 // Now we wait for the connection type and spawn based of it
+                let reactor = Arc::clone(&reactor);
                 wasm_bindgen_futures::spawn_local(async move {
                     use wasi_net::web_command::WebCommand;
 
@@ -161,16 +154,8 @@ async fn open_web_socket(
     let onclose_callback = {
         let reactor = reactor.clone();
         let tx_msg = tx_msg.clone();
-        let fd = fd.raw;
         Closure::wrap(Box::new(move |_e: web_sys::ProgressEvent| {
             debug!("websocket closed");
-            {
-                let reactor = reactor.clone();
-                wasm_bindgen_futures::spawn_local(async move {
-                    let mut reactor = reactor.write().await;
-                    reactor.remove_pipe(fd);
-                });
-            }
             tx_msg.send(SocketMessage::Closed);
             crate::wasi::inc_idle_ver();
         }) as Box<dyn FnMut(web_sys::ProgressEvent)>)
@@ -182,7 +167,6 @@ async fn open_web_socket(
         let mut rx_msg = tx_msg.subscribe();
 
         let ws = ws.clone();
-        let fd = fd.raw;
         wasm_bindgen_futures::spawn_local(async move {
             match rx_msg.recv().await {
                 Ok(SocketMessage::Opened) => {
@@ -231,8 +215,10 @@ async fn open_web_socket(
         Closure::wrap(Box::new(move |_e: web_sys::ProgressEvent| {
             let array = js_sys::Uint8Array::new(&fr_c.result().unwrap());
             let len = array.byte_length() as usize;
-            debug!("websocket recv {} bytes", len);
-            tx.blocking_send(array.to_vec());
+            debug!("websocket recv {} bytes (web_sys::Blob)", len);
+            if let Err(err) = tx.blocking_send(array.to_vec()) {
+                debug!("websocket bytes silently dropped - {}", err);
+            }
             crate::wasi::inc_idle_ver();
         }) as Box<dyn FnMut(web_sys::ProgressEvent)>)
     };
@@ -258,8 +244,13 @@ async fn open_web_socket(
         Closure::wrap(Box::new(move |e: MessageEvent| {
             if let Ok(abuf) = e.data().dyn_into::<js_sys::ArrayBuffer>() {
                 let data = js_sys::Uint8Array::new(&abuf).to_vec();
-                debug!("websocket recv {} bytes", data.len());
-                tx.blocking_send(data);
+                debug!(
+                    "websocket recv {} bytes (via js_sys::ArrayBuffer)",
+                    data.len()
+                );
+                if let Err(err) = tx.blocking_send(data) {
+                    debug!("websocket bytes silently dropped - {}", err);
+                }
                 crate::wasi::inc_idle_ver();
             } else if let Ok(blob) = e.data().dyn_into::<web_sys::Blob>() {
                 fr.read_as_array_buffer(&blob).expect("blob not readable");
@@ -317,6 +308,9 @@ async fn open_web_request(
 
     let ret = get_response_data(resp).await?;
     debug!("received {} bytes", ret.len());
+
     let _ = tx.send(ret).await;
+    let _ = rx.recv().await;
+
     Ok(())
 }

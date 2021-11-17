@@ -271,7 +271,8 @@ impl WasiProxy for WasiTerm {
         nread: WasmPtr<u32>,
     ) -> __wasi_errno_t {
         self.tick(env);
-        wasmer_wasi::native::fd_read(env, fd, iovs, iovs_len, nread)
+        let ret = wasmer_wasi::native::fd_read(env, fd, iovs, iovs_len, nread);
+        ret
     }
     fn fd_readdir(
         &self,
@@ -497,6 +498,7 @@ impl WasiProxy for WasiTerm {
         seen_events: &mut [PollEventSet],
     ) -> Result<u32, FsError> {
         self.tick(env);
+        /*
         let mut fds = {
             let reactor = self.spin_read_lock(env);
             let fds = files
@@ -547,6 +549,8 @@ impl WasiProxy for WasiTerm {
         }
 
         Ok(ret)
+        */
+        wasmer_wasi::native::poll(env, files, events, seen_events)
     }
     fn proc_exit(&self, env: &WasiEnv, code: __wasi_exitcode_t) {
         self.tick(env);
