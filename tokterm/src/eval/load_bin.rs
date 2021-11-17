@@ -6,7 +6,7 @@ use std::path::Path;
 use std::path::PathBuf;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use wasmer_wasi::vfs::FileSystem;
+use wasmer_vfs::FileSystem;
 
 use super::EvalContext;
 use crate::err::*;

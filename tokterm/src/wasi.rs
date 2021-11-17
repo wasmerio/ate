@@ -1,4 +1,4 @@
-#![allow(unused_imports, dead_code)]
+#![allow(unused, dead_code)]
 use super::reactor::Reactor;
 use chrono::prelude::*;
 use core::sync::atomic::{AtomicUsize, Ordering};
@@ -11,19 +11,18 @@ use tokio::sync::watch;
 use tokio::sync::RwLock;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use wasmer_wasi::vfs::{FsError, VirtualFile};
+use wasmer_vfs::{FsError, VirtualFile};
+use wasmer_wasi::{
+    types::*, WasiEnv
+};
+/*
 use wasmer_wasi::{
     iterate_poll_events, types::*, Array, PollEvent, PollEventBuilder, PollEventIter, PollEventSet,
     WasiEnv, WasiProxy, WasmPtr,
 };
+*/
 
 use super::fd::*;
-
-static IDLE_VER: Lazy<AtomicUsize> = Lazy::new(|| AtomicUsize::new(0));
-
-pub fn inc_idle_ver() {
-    IDLE_VER.fetch_add(1, Ordering::Relaxed);
-}
 
 #[derive(Debug)]
 pub struct WasiTerm {
@@ -42,42 +41,12 @@ impl WasiTerm {
         }
     }
 
-    #[inline]
-    pub fn tick(&self, env: &WasiEnv) {
-        if let Some(code) = *self.terminate.borrow() {
-            wasmer_wasi::native::proc_exit(env, code as u32);
-        }
-    }
-
     pub fn idle(&self) {
         ::std::thread::yield_now();
     }
-
-    #[inline]
-    pub fn spin_read_lock(&self, env: &WasiEnv) -> tokio::sync::OwnedRwLockReadGuard<Reactor> {
-        loop {
-            self.tick(env);
-            let reactor = self.reactor.clone();
-            if let Ok(reactor) = reactor.try_read_owned() {
-                return reactor;
-            }
-            wasmer_wasi::native::sched_yield(env);
-        }
-    }
-
-    #[inline]
-    pub fn spin_write_lock(&self, env: &WasiEnv) -> tokio::sync::OwnedRwLockWriteGuard<Reactor> {
-        loop {
-            self.tick(env);
-            let reactor = self.reactor.clone();
-            if let Ok(reactor) = reactor.try_write_owned() {
-                return reactor;
-            }
-            wasmer_wasi::native::sched_yield(env);
-        }
-    }
 }
 
+/*
 impl WasiProxy for WasiTerm {
     fn args_get(
         &self,
@@ -604,3 +573,4 @@ impl WasiProxy for WasiTerm {
         wasmer_wasi::native::fd_close(env, sock)
     }
 }
+*/

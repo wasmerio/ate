@@ -4,8 +4,8 @@ use super::*;
 use crate::ast;
 use crate::pipe::*;
 use tokio::select;
-use wasmer_wasi::vfs::FileSystem;
-use wasmer_wasi::vfs::FsError;
+use wasmer_vfs::FileSystem;
+use wasmer_vfs::FsError;
 
 pub(super) async fn exec_pipeline<'a>(
     ctx: &mut EvalContext,

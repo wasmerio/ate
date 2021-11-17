@@ -10,9 +10,9 @@ use std::sync::Mutex;
 use tokio::sync::mpsc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use wasmer_wasi::vfs::Result as FsResult;
-use wasmer_wasi::vfs::*;
-use wasmer_wasi::vfs::{FileDescriptor, VirtualFile};
+use wasmer_vfs::Result as FsResult;
+use wasmer_vfs::*;
+use wasmer_vfs::{FileDescriptor, VirtualFile};
 use wasmer_wasi::{types as wasi_types, WasiFile, WasiFsError};
 
 use super::TokeraSocketFactory;
