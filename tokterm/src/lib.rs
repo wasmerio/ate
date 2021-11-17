@@ -17,6 +17,7 @@ mod fs;
 mod glue;
 mod interval;
 mod job;
+mod pipe;
 mod poll;
 mod pool;
 mod reactor;
@@ -25,7 +26,6 @@ mod stdio;
 mod stdout;
 mod tty;
 mod wasi;
-mod pipe;
 
 pub use glue::main;
 pub use glue::start;

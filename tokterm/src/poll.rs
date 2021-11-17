@@ -9,8 +9,8 @@ use tracing::{debug, error, info, trace, warn};
 
 use super::err::*;
 use super::fd::*;
-use super::reactor::*;
 use super::pipe::*;
+use super::reactor::*;
 
 #[derive(Debug)]
 pub struct PollResult {

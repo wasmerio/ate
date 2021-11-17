@@ -20,8 +20,8 @@ use web_sys::{ErrorEvent, MessageEvent, WebSocket};
 use crate::common::*;
 use crate::err;
 use crate::fd::*;
-use crate::reactor::*;
 use crate::pipe::*;
+use crate::reactor::*;
 
 #[derive(Debug, Clone)]
 pub struct TokeraSocketFactory {
@@ -40,7 +40,8 @@ impl TokeraSocketFactory {
         let (tx_factory, mut rx_factory) = mpsc::channel::<mpsc::Sender<Fd>>(10);
         wasm_bindgen_futures::spawn_local(async move {
             while let Some(tx_request) = rx_factory.recv().await {
-                let (mut fd, tx, mut rx) = bidirectional(MAX_MPSC, MAX_MPSC, ReceiverMode::Message(false));
+                let (mut fd, tx, mut rx) =
+                    bidirectional(MAX_MPSC, MAX_MPSC, ReceiverMode::Message(false));
                 fd.set_blocking(false);
 
                 // Give the open channel back to the caller
@@ -243,7 +244,10 @@ async fn open_web_socket(
         Closure::wrap(Box::new(move |e: MessageEvent| {
             if let Ok(abuf) = e.data().dyn_into::<js_sys::ArrayBuffer>() {
                 let data = js_sys::Uint8Array::new(&abuf).to_vec();
-                debug!("websocket recv {} bytes (via js_sys::ArrayBuffer)", data.len());
+                debug!(
+                    "websocket recv {} bytes (via js_sys::ArrayBuffer)",
+                    data.len()
+                );
                 if let Err(err) = tx.blocking_send(data) {
                     debug!("websocket bytes silently dropped - {}", err);
                 }
@@ -304,7 +308,7 @@ async fn open_web_request(
 
     let ret = get_response_data(resp).await?;
     debug!("received {} bytes", ret.len());
-    
+
     let _ = tx.send(ret).await;
     let _ = rx.recv().await;
 

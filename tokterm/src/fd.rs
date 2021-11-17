@@ -20,10 +20,10 @@ use wasmer_wasi::{types as wasi_types, WasiFile, WasiFsError};
 
 use super::common::*;
 use super::err::*;
+use super::pipe::*;
 use super::poll::*;
 use super::reactor::*;
 use super::state::*;
-use super::pipe::*;
 
 #[derive(Debug, Clone)]
 pub struct Fd {
@@ -33,7 +33,10 @@ pub struct Fd {
 }
 
 impl Fd {
-    pub fn new(tx: Option<mpsc::Sender<Vec<u8>>>, rx: Option<Arc<Mutex<ReactorPipeReceiver>>>) -> Fd {
+    pub fn new(
+        tx: Option<mpsc::Sender<Vec<u8>>>,
+        rx: Option<Arc<Mutex<ReactorPipeReceiver>>>,
+    ) -> Fd {
         Fd {
             blocking: Arc::new(AtomicBool::new(true)),
             sender: tx,

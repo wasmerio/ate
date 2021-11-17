@@ -15,11 +15,8 @@ pub struct Process {
     pub(crate) pool: ThreadPool,
 }
 
-impl std::fmt::Debug
-for Process
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result
-    {
+impl std::fmt::Debug for Process {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "process (pid={})", self.pid)
     }
 }
@@ -62,6 +59,6 @@ impl Process {
         let tx = self.exit_tx.clone();
         self.pool.spawn_blocking(move || {
             tx.send(Some(exit_code));
-        });        
+        });
     }
 }

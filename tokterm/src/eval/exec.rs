@@ -34,13 +34,13 @@ use crate::err;
 use crate::err::*;
 use crate::fs::*;
 use crate::job::*;
+use crate::pipe::*;
 use crate::poll::*;
 use crate::pool::*;
 use crate::reactor::*;
 use crate::state::*;
 use crate::stdio::*;
 use crate::wasi::*;
-use crate::pipe::*;
 
 pub enum ExecResponse {
     Immediate(i32),
@@ -123,7 +123,7 @@ pub async fn exec(
                 // Open a new file description
                 let (tx, mut rx) = {
                     let (fd, tx, rx) = bidirectional_with_defaults();
-                    
+
                     // We now connect the newly opened file descriptor with the read file
                     match redirect.fd {
                         -1 => {

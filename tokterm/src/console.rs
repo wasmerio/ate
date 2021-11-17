@@ -24,13 +24,13 @@ use super::eval::*;
 use super::fd::*;
 use super::fs::*;
 use super::job::*;
+use super::pipe::*;
 use super::pool::ThreadPool as Pool;
 use super::reactor::*;
 use super::state::*;
 use super::stdio::*;
 use super::stdout::*;
 use super::tty::*;
-use super::pipe::*;
 
 pub struct Console {
     terminal: Terminal,
