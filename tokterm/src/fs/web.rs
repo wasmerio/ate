@@ -214,8 +214,10 @@ async fn open_web_socket(
         Closure::wrap(Box::new(move |_e: web_sys::ProgressEvent| {
             let array = js_sys::Uint8Array::new(&fr_c.result().unwrap());
             let len = array.byte_length() as usize;
-            debug!("websocket recv {} bytes", len);
-            tx.blocking_send(array.to_vec());
+            debug!("websocket recv {} bytes (web_sys::Blob)", len);
+            if let Err(err) = tx.blocking_send(array.to_vec()) {
+                debug!("websocket bytes silently dropped - {}", err);
+            }
             crate::wasi::inc_idle_ver();
         }) as Box<dyn FnMut(web_sys::ProgressEvent)>)
     };
@@ -241,8 +243,10 @@ async fn open_web_socket(
         Closure::wrap(Box::new(move |e: MessageEvent| {
             if let Ok(abuf) = e.data().dyn_into::<js_sys::ArrayBuffer>() {
                 let data = js_sys::Uint8Array::new(&abuf).to_vec();
-                debug!("websocket recv {} bytes", data.len());
-                tx.blocking_send(data);
+                debug!("websocket recv {} bytes (via js_sys::ArrayBuffer)", data.len());
+                if let Err(err) = tx.blocking_send(data) {
+                    debug!("websocket bytes silently dropped - {}", err);
+                }
                 crate::wasi::inc_idle_ver();
             } else if let Ok(blob) = e.data().dyn_into::<web_sys::Blob>() {
                 fr.read_as_array_buffer(&blob).expect("blob not readable");

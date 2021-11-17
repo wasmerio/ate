@@ -38,14 +38,14 @@ pub fn bidirectional(
     buffer_size_rx: usize,
     mode: ReceiverMode,
 ) -> (Fd, mpsc::Sender<Vec<u8>>, mpsc::Receiver<Vec<u8>>) {
-    let (tx_send, rx_send) = mpsc::channel(buffer_size_tx);
-    let (tx_recv, rx_recv) = mpsc::channel(buffer_size_rx);
-    let fd = Fd::new(Some(tx_recv), Some(Arc::new(Mutex::new(ReactorPipeReceiver {
-        rx: rx_send,
+    let (tx_read, rx_read) = mpsc::channel(buffer_size_tx);
+    let (tx_write, rx_write) = mpsc::channel(buffer_size_rx);
+    let fd = Fd::new(Some(tx_write), Some(Arc::new(Mutex::new(ReactorPipeReceiver {
+        rx: rx_read,
         buffer: BytesMut::new(),
         mode,
     }))));
-    (fd, tx_send, rx_recv)
+    (fd, tx_read, rx_write)
 }
 
 pub fn bidirectional_with_defaults() -> (Fd, mpsc::Sender<Vec<u8>>, mpsc::Receiver<Vec<u8>>) {

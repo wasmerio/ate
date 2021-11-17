@@ -146,9 +146,6 @@ impl Write for Fd {
 impl Read for Fd {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         if let Some(receiver) = self.receiver.as_mut() {
-            if Arc::strong_count(receiver) == 1 {
-                return Ok(0usize);
-            }
             let mut receiver = receiver.lock().unwrap();
             if receiver.buffer.has_remaining() == false {
                 if receiver.mode == ReceiverMode::Message(true) {
