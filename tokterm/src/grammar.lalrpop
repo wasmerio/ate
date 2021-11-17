@@ -60,13 +60,8 @@ and_or: AndOr<'input> = {
 }
 
 pipeline: Pipeline<'input> = {
-    pipe_sequence,
-    Bang <pipe_sequence> => <>.negate()
-}
-
-pipe_sequence: Pipeline<'input> = {
     command => Pipeline::new(<>),
-    <p:pipe_sequence> "|" linebreak <c:command> => p.push(c)
+    <p:pipeline> "|" linebreak <c:command> => p.push(c)
 }
 
 cmd_name = { cmd_word }
@@ -79,6 +74,16 @@ cmd_word = {
 
 cmd_suffix: Vec<Arg<'input>> = {
     WORD+ => <>.into_iter()
+        .map(|w| {
+            if w.len() >= 2 && w.starts_with("\"") && w.ends_with("\"") {
+                &w[1..w.len()-1]
+            } else { w }
+        })
+        .map(|w| {
+            if w.len() >= 2 && w.starts_with("'") && w.ends_with("'") {
+                &w[1..w.len()-1]
+            } else { w }
+        })
         .map(|w| { Arg::Arg(w) })
         .collect(),
 }
@@ -162,40 +167,13 @@ sequential_sep: () = {
 match {
     "&&" => AND_IF,
     "||" => OR_IF,
-    ";;",
-    "<<",
-    ">>",
-    "<&",
-    ">&",
-    "<>",
-    "<<-",
-    ">|",
-    "<",
-    ">",
-
-    "if" => If,
-    "then" => Then,
-    "else" => Else,
-    "elif" => Elif,
-    "fi" => Fi,
-    "do" => Do,
-    "done" => Done,
-
-    "case" => Case,
-    "esac" => Esac,
-    "while" => While,
-    "until" => Until,
-    "for" => For,
-
+    ";",
     "|",
     "&",
-    ";",
 
     "{" => Lbrace,
     "}" => Rbrace,
-    "!" => Bang,
-    "in" => In,
-
+    
     r"([0-9]+)?[\s]?((?:[<]{1,1}[><&]{0,1})|(?:[>]{1,1}[><|&]{0,1}))[\s]?([^\s]+)" => REDIRECT,
     r"[a-zA-Z_][a-zA-Z0-9_]*=\S+" => ASSIGNMENT_WORD,
 } else {
@@ -203,5 +181,5 @@ match {
     r"\x22([^\x22]|\\\x22)+\x22" => DQUOTE_WORD,
     r"'([^']|\\')+'" => SQUOTE_WORD,
     r"`([^`]|\\`)+`" => BACKTICK_WORD,
-    r"[^\s'\x22`][^\s|&;{}!><]*" => BARE_WORD,
+    r"[^\s'\x22`][^\s|&;><]*" => BARE_WORD,
 }
