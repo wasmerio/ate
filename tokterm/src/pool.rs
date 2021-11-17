@@ -288,7 +288,7 @@ impl PoolState {
                 queue.push_back(msg);
                 drop(queue);
                 let _ = self.tx.send(());
-                return;        
+                return;
             }
             std::thread::yield_now();
         }

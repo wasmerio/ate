@@ -208,7 +208,7 @@ pub async fn exec(
             Err(err) => {
                 tty.blocking_write_clear_line();
                 let _ = tty.blocking_write(format!("compile-error: {}\n", err).as_bytes());
-                process.terminate(ERR_ENOEXEC);;
+                process.terminate(ERR_ENOEXEC);
                 return;
             }
         };
@@ -282,7 +282,7 @@ pub async fn exec(
             err::ERR_ENOEXEC
         };
         debug!("exited with code {}", ret);
-        process.terminate(ret);;
+        process.terminate(ret);
     });
 
     Ok(ExecResponse::Process(process2))
