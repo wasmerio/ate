@@ -206,12 +206,4 @@ impl VirtualFile for Fd {
     fn unlink(&mut self) -> Result<(), WasiFsError> {
         Ok(())
     }
-
-    fn bytes_available(&self) -> Result<usize, WasiFsError> {
-        Ok(0)
-    }
-
-    fn get_fd(&self) -> Option<FileDescriptor> {
-        None
-    }
 }

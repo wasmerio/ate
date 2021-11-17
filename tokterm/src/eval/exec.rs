@@ -240,8 +240,11 @@ pub async fn exec(
         let terminate_wasi_env = wasi_env.clone();
         wasm_bindgen_futures::spawn_local(async move {
             loop {
-                if let Some(code) = *exit_rx.borrow() { terminate_wasi_env.terminate(code as u32); }
-                if exit_rx.changed().await.is_err() { break; }
+                if let Some(code) = *exit_rx.borrow() {
+                    terminate_wasi_env.terminate(code as u32);
+                    break;
+                }
+                let _ = exit_rx.changed().await;
             }
         });
 
