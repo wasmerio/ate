@@ -198,6 +198,7 @@ pub async fn exec(
     let cmd = cmd.clone();
     let args = args.clone();
     let path = ctx.path.clone();
+    let process2 = process.clone();
     ctx.pool.spawn_blocking(move || {
         // Compile the module (which)
         let _ = tty.blocking_write("Compiling...".as_bytes());
@@ -207,7 +208,7 @@ pub async fn exec(
             Err(err) => {
                 tty.blocking_write_clear_line();
                 let _ = tty.blocking_write(format!("compile-error: {}\n", err).as_bytes());
-                exit_tx.send(Some(ERR_ENOEXEC));
+                process.terminate(ERR_ENOEXEC);;
                 return;
             }
         };
@@ -237,16 +238,7 @@ pub async fn exec(
 
         // Hook up the terminate event so that if its triggered the environment properly
         // kills itself (on the next syscall)
-        let terminate_wasi_env = wasi_env.clone();
-        wasm_bindgen_futures::spawn_local(async move {
-            loop {
-                if let Some(code) = *exit_rx.borrow() {
-                    terminate_wasi_env.terminate(code as u32);
-                    break;
-                }
-                let _ = exit_rx.changed().await;
-            }
-        });
+        process.set_env(wasi_env.clone());
 
         // Generate an `ImportObject`.
         let import_object = wasi_env.import_object(&module).unwrap();
@@ -290,10 +282,10 @@ pub async fn exec(
             err::ERR_ENOEXEC
         };
         debug!("exited with code {}", ret);
-        exit_tx.send(Some(ret));
+        process.terminate(ret);;
     });
 
-    Ok(ExecResponse::Process(process))
+    Ok(ExecResponse::Process(process2))
 }
 
 pub async fn waitpid(reactor: &Arc<RwLock<Reactor>>, pid: Pid) -> i32 {
