@@ -11,13 +11,12 @@ use std::sync::Mutex;
 use tokio::sync::mpsc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use wasmer_wasi::vfs::Result as FsResult;
-use wasmer_wasi::vfs::*;
-use wasmer_wasi::vfs::{FileDescriptor, VirtualFile};
+use wasmer_vfs::Result as FsResult;
+use wasmer_vfs::*;
 use wasmer_wasi::{types as wasi_types, WasiFile, WasiFsError};
 
 use crate::fd::*;
 use crate::stdio::*;
 use crate::tty::*;
 
-pub use wasmer_wasi::vfs::mem_fs::FileSystem as TmpFileSystem;
+pub use wasmer_vfs::mem_fs::FileSystem as TmpFileSystem;

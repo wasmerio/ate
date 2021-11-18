@@ -1,7 +1,7 @@
 use std::future::Future;
 use std::path::Path;
 use std::pin::Pin;
-use wasmer_wasi::vfs::FileSystem;
+use wasmer_vfs::FileSystem;
 
 use crate::eval::EvalContext;
 use crate::eval::ExecResponse;

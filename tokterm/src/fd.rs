@@ -15,7 +15,7 @@ use tokio::io::{self, AsyncRead, AsyncWrite, ReadBuf};
 use tokio::sync::mpsc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use wasmer_wasi::vfs::{FileDescriptor, VirtualFile};
+use wasmer_vfs::{FileDescriptor, VirtualFile};
 use wasmer_wasi::{types as wasi_types, WasiFile, WasiFsError};
 
 use super::common::*;
@@ -205,13 +205,5 @@ impl VirtualFile for Fd {
 
     fn unlink(&mut self) -> Result<(), WasiFsError> {
         Ok(())
-    }
-
-    fn bytes_available(&self) -> Result<usize, WasiFsError> {
-        Ok(0)
-    }
-
-    fn get_fd(&self) -> Option<FileDescriptor> {
-        None
     }
 }

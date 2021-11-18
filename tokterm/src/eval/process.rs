@@ -3,6 +3,7 @@ use std::sync::Mutex;
 use tokio::sync::watch;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
+use wasmer_wasi::WasiEnv;
 
 use crate::common::*;
 use crate::err::*;
@@ -13,6 +14,7 @@ pub struct Process {
     pub(crate) exit_rx: watch::Receiver<Option<i32>>,
     pub(crate) exit_tx: Arc<watch::Sender<Option<i32>>>,
     pub(crate) pool: ThreadPool,
+    pub(crate) env: Arc<Mutex<Option<WasiEnv>>>,
 }
 
 impl std::fmt::Debug for Process {
@@ -28,6 +30,7 @@ impl Clone for Process {
             exit_rx: self.exit_rx.clone(),
             exit_tx: self.exit_tx.clone(),
             pool: self.pool.clone(),
+            env: self.env.clone(),
         }
     }
 }
@@ -55,9 +58,21 @@ impl Process {
         }
     }
 
-    pub fn terminate(&mut self, exit_code: i32) {
+    pub fn set_env(&self, new_env: WasiEnv) {
+        if let Ok(mut env) = self.env.lock() {
+            env.replace(new_env);
+        }
+    }
+
+    pub fn terminate(&self, exit_code: i32) {
+        let env = self.env.clone();
         let tx = self.exit_tx.clone();
         self.pool.spawn_blocking(move || {
+            if let Ok(mut env) = env.lock() {
+                if let Some(e) = env.take() {
+                    e.terminate(exit_code as u32);
+                }
+            }
             tx.send(Some(exit_code));
         });
     }

@@ -17,10 +17,10 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 use wasmer::{Instance, Module, Store};
-use wasmer_wasi::vfs::FileSystem;
-use wasmer_wasi::vfs::FsError;
+use wasmer_vfs::FileSystem;
+use wasmer_vfs::FsError;
 use wasmer_wasi::Stdin;
-use wasmer_wasi::{Stdout, WasiError, WasiProxy, WasiState};
+use wasmer_wasi::{Stdout, WasiError, WasiState};
 use web_sys::{console, HtmlElement, HtmlInputElement, Worker};
 use web_sys::{Request, RequestInit, RequestMode, Response};
 
@@ -40,7 +40,6 @@ use crate::pool::*;
 use crate::reactor::*;
 use crate::state::*;
 use crate::stdio::*;
-use crate::wasi::*;
 
 pub enum ExecResponse {
     Immediate(i32),
@@ -179,7 +178,7 @@ pub async fn exec(
     }
 
     // Generate a PID for this process
-    let (pid, exit_rx, exit_tx, process) = {
+    let (pid, mut exit_rx, exit_tx, process) = {
         let mut guard = ctx.reactor.write().await;
         let (pid, exit_rx) = guard.generate_pid(ctx.pool.clone())?;
         let process = match guard.get_process(pid) {
@@ -199,6 +198,7 @@ pub async fn exec(
     let cmd = cmd.clone();
     let args = args.clone();
     let path = ctx.path.clone();
+    let process2 = process.clone();
     ctx.pool.spawn_blocking(move || {
         // Compile the module (which)
         let _ = tty.blocking_write("Compiling...".as_bytes());
@@ -208,7 +208,7 @@ pub async fn exec(
             Err(err) => {
                 tty.blocking_write_clear_line();
                 let _ = tty.blocking_write(format!("compile-error: {}\n", err).as_bytes());
-                exit_tx.send(Some(ERR_ENOEXEC));
+                process.terminate(ERR_ENOEXEC);
                 return;
             }
         };
@@ -221,16 +221,13 @@ pub async fn exec(
         // Build the list of arguments
         let args = args.iter().skip(1).map(|a| a.as_str()).collect::<Vec<_>>();
 
-        // Create the WasiProxy
-        let wasi_proxy = WasiTerm::new(&reactor, exit_rx);
-
         // Create the `WasiEnv`.
         let mut wasi_env = WasiState::new(cmd.as_str())
             .args(&args)
             .stdin(Box::new(stdio.stdin.clone()))
             .stdout(Box::new(stdio.stdout.clone()))
             .stderr(Box::new(stdio.stderr.clone()))
-            .syscall_proxy(Box::new(wasi_proxy))
+            //.syscall_proxy(Box::new(wasi_proxy))
             .preopen_dir(Path::new("/"))
             .unwrap()
             .map_dir(".", Path::new(path.as_str()))
@@ -238,6 +235,10 @@ pub async fn exec(
             .set_fs(fs)
             .finalize()
             .unwrap();
+
+        // Hook up the terminate event so that if its triggered the environment properly
+        // kills itself (on the next syscall)
+        process.set_env(wasi_env.clone());
 
         // Generate an `ImportObject`.
         let import_object = wasi_env.import_object(&module).unwrap();
@@ -281,10 +282,10 @@ pub async fn exec(
             err::ERR_ENOEXEC
         };
         debug!("exited with code {}", ret);
-        exit_tx.send(Some(ret));
+        process.terminate(ret);
     });
 
-    Ok(ExecResponse::Process(process))
+    Ok(ExecResponse::Process(process2))
 }
 
 pub async fn waitpid(reactor: &Arc<RwLock<Reactor>>, pid: Pid) -> i32 {

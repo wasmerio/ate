@@ -9,7 +9,7 @@ use tokio::sync::RwLock;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bindgen::JsCast;
-use wasmer_wasi::vfs::FileSystem;
+use wasmer_vfs::FileSystem;
 use web_sys::HtmlCanvasElement;
 use xterm_js_rs::Terminal;
 

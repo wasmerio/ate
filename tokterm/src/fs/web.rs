@@ -13,7 +13,7 @@ use tokio::sync::RwLock;
 use tracing::{debug, error, info, trace, warn};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use wasmer_wasi::vfs::{FileDescriptor, VirtualFile};
+use wasmer_vfs::{FileDescriptor, VirtualFile};
 use wasmer_wasi::{types as wasi_types, WasiFile, WasiFsError};
 use web_sys::{ErrorEvent, MessageEvent, WebSocket};
 
@@ -145,7 +145,6 @@ async fn open_web_socket(
         Closure::wrap(Box::new(move |_e: web_sys::ProgressEvent| {
             debug!("websocket open");
             tx_msg.send(SocketMessage::Opened);
-            crate::wasi::inc_idle_ver();
         }) as Box<dyn FnMut(web_sys::ProgressEvent)>)
     };
     ws.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
@@ -157,7 +156,6 @@ async fn open_web_socket(
         Closure::wrap(Box::new(move |_e: web_sys::ProgressEvent| {
             debug!("websocket closed");
             tx_msg.send(SocketMessage::Closed);
-            crate::wasi::inc_idle_ver();
         }) as Box<dyn FnMut(web_sys::ProgressEvent)>)
     };
     ws.set_onclose(Some(onclose_callback.as_ref().unchecked_ref()));
@@ -219,7 +217,6 @@ async fn open_web_socket(
             if let Err(err) = tx.blocking_send(array.to_vec()) {
                 debug!("websocket bytes silently dropped - {}", err);
             }
-            crate::wasi::inc_idle_ver();
         }) as Box<dyn FnMut(web_sys::ProgressEvent)>)
     };
     fr.set_onloadend(Some(onloadend_cb.as_ref().unchecked_ref()));
@@ -251,7 +248,6 @@ async fn open_web_socket(
                 if let Err(err) = tx.blocking_send(data) {
                     debug!("websocket bytes silently dropped - {}", err);
                 }
-                crate::wasi::inc_idle_ver();
             } else if let Ok(blob) = e.data().dyn_into::<web_sys::Blob>() {
                 fr.read_as_array_buffer(&blob).expect("blob not readable");
             } else if let Ok(txt) = e.data().dyn_into::<js_sys::JsString>() {

@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::path::*;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use wasmer_wasi::vfs::*;
+use wasmer_vfs::*;
 
 pub trait FileSystemExt<T>
 where

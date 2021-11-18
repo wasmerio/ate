@@ -1,5 +1,5 @@
 use std::path::Path;
-use wasmer_wasi::vfs::FileSystem;
+use wasmer_vfs::FileSystem;
 
 use super::*;
 

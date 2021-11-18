@@ -3,7 +3,7 @@ use std::path::Path;
 use std::pin::Pin;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use wasmer_wasi::vfs::FileSystem;
+use wasmer_vfs::FileSystem;
 
 use crate::err;
 use crate::eval::eval;

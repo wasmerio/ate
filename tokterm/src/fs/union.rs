@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use wasmer_wasi::vfs::*;
+use wasmer_vfs::*;
 
 #[derive(Debug, Clone)]
 struct MountPoint {

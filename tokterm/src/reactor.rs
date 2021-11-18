@@ -57,6 +57,7 @@ impl Reactor {
                         exit_rx: exit_rx.clone(),
                         exit_tx: Arc::new(exit_tx),
                         pool,
+                        env: Arc::new(Mutex::new(None)),
                     },
                 );
                 return Ok((pid, exit_rx));
@@ -66,8 +67,8 @@ impl Reactor {
     }
 
     pub fn close_process(&mut self, pid: Pid, exit_code: i32) -> i32 {
-        if let Some(mut process) = self.pid.remove(&pid) {
-            debug!("process closed (pid={})", pid);
+        if let Some(process) = self.pid.remove(&pid) {
+            info!("process closed (pid={})", pid);
             process.terminate(exit_code);
         }
         ERR_OK

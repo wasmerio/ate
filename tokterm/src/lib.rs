@@ -25,7 +25,6 @@ mod state;
 mod stdio;
 mod stdout;
 mod tty;
-mod wasi;
 
 pub use glue::main;
 pub use glue::start;
