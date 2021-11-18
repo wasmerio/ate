@@ -3,6 +3,7 @@
 use std::sync::Arc;
 use std::sync::Mutex;
 use tokio::sync::mpsc;
+use tokio::sync::Mutex as AsyncMutex;
 use tokio::sync::RwLock;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
@@ -20,7 +21,7 @@ pub struct PollResult {
 }
 
 pub fn poll_fd(
-    rx: Option<&mut Arc<Mutex<ReactorPipeReceiver>>>,
+    rx: Option<&mut Arc<AsyncMutex<ReactorPipeReceiver>>>,
     tx: Option<&mut mpsc::Sender<Vec<u8>>>,
 ) -> PollResult {
     let mut has_fd = false;
@@ -36,7 +37,7 @@ pub fn poll_fd(
     };
     let can_read = if let Some(fd) = rx {
         has_fd = true;
-        let mut fd = fd.lock().unwrap();
+        let mut fd = fd.blocking_lock();
         if let Ok(data) = fd.rx.try_recv() {
             fd.buffer.extend_from_slice(&data[..]);
             true

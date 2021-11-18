@@ -1,16 +1,15 @@
 use tokio::sync::oneshot;
 
 use crate::bin::*;
-use crate::state::*;
-use crate::tty::*;
-use crate::pool::*;
-use crate::pipe::*;
 use crate::eval::*;
-use crate::stdout::*;
 use crate::fd::*;
+use crate::pipe::*;
+use crate::pool::*;
+use crate::state::*;
+use crate::stdout::*;
+use crate::tty::*;
 
-pub struct SpawnContext
-{
+pub struct SpawnContext {
     cmd: String,
     env: Environment,
     job: Job,
@@ -21,8 +20,7 @@ pub struct SpawnContext
     root: UnionFileSystem,
 }
 
-impl SpawnContext
-{
+impl SpawnContext {
     pub fn new(
         cmd: String,
         env: Environment,
@@ -47,18 +45,16 @@ impl SpawnContext
 }
 
 #[derive(Clone)]
-pub struct ExecFactory
-{
-    bins: BinFactory,
-    tty: Tty,
-    pool: ThreadPool,
-    reactor: Arc<RwLock<Reactor>>,
-    stdout: Stdout,
-    stderr: Fd,
+pub struct ExecFactory {
+    pub(crate) bins: BinFactory,
+    pub(crate) tty: Tty,
+    pub(crate) pool: ThreadPool,
+    pub(crate) reactor: Arc<RwLock<Reactor>>,
+    pub(crate) stdout: Stdout,
+    pub(crate) stderr: Fd,
 }
 
-impl ExecFactory
-{
+impl ExecFactory {
     pub fn new(
         bins: BinFactory,
         tty: Tty,
@@ -77,14 +73,13 @@ impl ExecFactory
         }
     }
 
-    pub async fn spawn(&self, ctx: SpawnContext) -> oneshot::Receiver<EvalPlan>
-    {
+    pub async fn spawn(&self, ctx: SpawnContext) -> oneshot::Receiver<EvalPlan> {
         // Build the standard IO
         let stdio = Stdio {
             stdin: ctx.stdin,
             stdout: ctx.stdout,
             stderr: ctx.stderr,
-            tty: self.tty.clone()
+            tty: self.tty.clone(),
         };
 
         // Create the evaluation context

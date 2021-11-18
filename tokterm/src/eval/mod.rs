@@ -6,18 +6,18 @@ pub(crate) mod complete_command;
 pub(crate) mod eval_arg;
 pub(crate) mod exec;
 pub(crate) mod exec_pipeline;
+pub(crate) mod factory;
 pub(crate) mod load_bin;
 pub(crate) mod process;
-pub(crate) mod factory;
 
 pub use andor_list::*;
 pub use complete_command::*;
 pub use eval_arg::*;
 pub use exec::*;
 pub use exec_pipeline::*;
+pub use factory::*;
 pub use load_bin::*;
 pub use process::*;
-pub use factory::*;
 
 use std::sync::Arc;
 use std::sync::Mutex;

@@ -8,10 +8,12 @@ use tracing::{debug, error, info, trace, warn};
 
 use crate::common::*;
 
+use super::environment::*;
+use super::fd::*;
+use super::fs::*;
+use super::pipe::*;
 use super::reactor::*;
 use super::stdio::*;
-use super::pipe::*;
-use super::fd::*;
 
 #[derive(Debug)]
 pub struct Job {
@@ -20,6 +22,9 @@ pub struct Job {
     pub stdin_tx: mpsc::Sender<Vec<u8>>,
     pub job_list_tx: mpsc::Sender<Pid>,
     pub job_list_rx: Arc<Mutex<mpsc::Receiver<Pid>>>,
+    pub working_dir: String,
+    pub env: Arc<Environment>,
+    pub root: UnionFileSystem,
 }
 
 impl Clone for Job {
@@ -30,12 +35,15 @@ impl Clone for Job {
             stdin_tx: self.stdin_tx.clone(),
             job_list_tx: self.job_list_tx.clone(),
             job_list_rx: self.job_list_rx.clone(),
+            working_dir: self.working_dir.clone(),
+            env: self.env.clone(),
+            root: self.root.clone(),
         }
     }
 }
 
 impl Job {
-    pub fn new(id: u32) -> Job {
+    pub fn new(id: u32, working_dir: String, env: Environment, root: UnionFileSystem) -> Job {
         let (stdin, stdin_tx) = pipe_in(ReceiverMode::Stream);
         let (job_list_tx, job_list_rx) = mpsc::channel(MAX_MPSC);
         Job {
@@ -44,6 +52,9 @@ impl Job {
             stdin_tx,
             job_list_tx,
             job_list_rx: Arc::new(Mutex::new(job_list_rx)),
+            working_dir,
+            env: Arc::new(env),
+            root,
         }
     }
 

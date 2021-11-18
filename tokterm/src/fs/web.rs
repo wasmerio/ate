@@ -17,19 +17,19 @@ use wasmer_vfs::{FileDescriptor, VirtualFile};
 use wasmer_wasi::{types as wasi_types, WasiFile, WasiFsError};
 use web_sys::{ErrorEvent, MessageEvent, WebSocket};
 
+use crate::bin::*;
 use crate::common::*;
+use crate::console::*;
 use crate::err;
+use crate::eval::*;
 use crate::fd::*;
 use crate::pipe::*;
+use crate::pipe::*;
+use crate::pool::*;
 use crate::reactor::*;
-use crate::bin::*;
-use crate::console::*;
 use crate::state::*;
 use crate::stdio::*;
 use crate::tty::*;
-use crate::pipe::*;
-use crate::pool::*;
-use crate::eval::*;
 
 #[derive(Debug, Clone)]
 pub struct TokeraSocket {
@@ -43,11 +43,7 @@ enum SocketMessage {
 }
 
 impl TokeraSocket {
-    pub fn new(
-        reactor: &Arc<RwLock<Reactor>>,
-        exec_factory: ExecFactory,
-    ) -> TokeraSocket
-    {
+    pub fn new(reactor: &Arc<RwLock<Reactor>>, exec_factory: ExecFactory) -> TokeraSocket {
         let reactor = Arc::clone(reactor);
         let (tx_factory, mut rx_factory) = mpsc::channel::<mpsc::Sender<Fd>>(10);
         wasm_bindgen_futures::spawn_local(async move {
@@ -104,6 +100,7 @@ impl TokeraSocket {
                                 args,
                                 current_dir,
                                 exec_factory.clone(),
+                                reactor,
                                 rx,
                                 tx,
                             )
@@ -341,14 +338,16 @@ async fn open_web_request(
 }
 
 async fn open_exec_request(
-    fd: Fd,
+    mut fd: Fd,
     path: String,
     args: Vec<String>,
     current_dir: Option<String>,
     factory: ExecFactory,
+    reactor: Arc<RwLock<Reactor>>,
     mut rx: mpsc::Receiver<Vec<u8>>,
     tx: mpsc::Sender<Vec<u8>>,
 ) -> Result<(), i32> {
+    use wasi_net::backend::MessageProcess;
     debug!("executing process {}", path);
 
     // Switch back to blocking mode
@@ -358,10 +357,101 @@ async fn open_exec_request(
     let mut cmd = path.clone();
     for arg in args {
         cmd.push_str(" ");
-        cmd.push_str(&arg);
-    }    
+        if arg.contains(" ") && cmd.starts_with("\"") == false && cmd.starts_with("'") == false {
+            cmd.push_str("\"");
+            cmd.push_str(&arg);
+            cmd.push_str("\"");
+        } else {
+            cmd.push_str(&arg);
+        }
+    }
 
-    //let rx = eval(ctx).await;
+    // Get the current job (if there is none then fail)
+    let job = {
+        let reactor = reactor.read().await;
+        reactor.get_current_job().ok_or(err::ERR_ECHILD)?
+    };
 
+    // Create all the stdio
+    let (stdin, stdin_tx) = pipe_in(ReceiverMode::Stream);
+    let (stdout, mut stdout_rx) = pipe_out();
+    let (stderr, mut stderr_rx) = pipe_out();
+
+    // Build a context
+    let ctx = SpawnContext::new(
+        cmd,
+        job.env.deref().clone(),
+        job.clone(),
+        stdin,
+        stdout,
+        stderr,
+        current_dir.unwrap_or(job.working_dir.clone()),
+        job.root.clone(),
+    );
+
+    // Start the process
+    let mut rx = factory.spawn(ctx).await;
+
+    // Declare a function that will send the message over the socket
+    async fn send(fd: &mut Fd, msg: MessageProcess) {
+        if let Ok(mut submit) = msg.serialize() {
+            submit += "\n";
+            fd.write_vec(submit.into_bytes()).await;
+        }
+    }
+
+    // Now process all the STDIO concurrently
+    loop {
+        tokio::select! {
+            data = stdout_rx.recv() => {
+                if let Some(data) = data {
+                    send(&mut fd, MessageProcess::Stdout(data)).await;
+                } else {
+                    break;
+                }
+            }
+            data = stderr_rx.recv() => {
+                if let Some(data) = data {
+                    send(&mut fd, MessageProcess::Stderr(data)).await;
+                } else {
+                    break;
+                }
+            }
+            data = fd.read_async() => {
+                if let Ok(data) = data {
+                    stdin_tx.send(data).await;
+                } else {
+                    break;
+                }
+            }
+        }
+    }
+
+    // If we exit the concurrent loop we need to sequentially send
+    // the data as well
+    while let Ok(data) = fd.read_async().await {
+        stdin_tx.send(data).await;
+    }
+    while let Some(data) = stdout_rx.recv().await {
+        send(&mut fd, MessageProcess::Stdout(data)).await;
+    }
+    while let Some(data) = stderr_rx.recv().await {
+        send(&mut fd, MessageProcess::Stderr(data)).await;
+    }
+
+    // Wait for the process to exit then send that
+    send(
+        &mut fd,
+        match rx.await {
+            Ok(EvalPlan::Executed { code, .. }) => MessageProcess::Exited(code),
+            Ok(EvalPlan::InternalError) => MessageProcess::Exited(err::ERR_ENOEXEC),
+            Ok(EvalPlan::Invalid) => MessageProcess::Exited(err::ERR_EINVAL),
+            Ok(EvalPlan::MoreInput) => MessageProcess::Exited(err::ERR_EINVAL),
+            Err(err) => MessageProcess::Exited(err::ERR_EPIPE),
+        },
+    )
+    .await;
+
+    // We are done (this will close all the pipes)
     Ok(())
 }

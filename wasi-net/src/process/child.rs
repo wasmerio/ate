@@ -1,14 +1,14 @@
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::sync::mpsc;
 use std::fs::File;
 use std::io::{self, Read, Write};
+use std::sync::mpsc;
+use std::sync::Arc;
+use std::sync::Mutex;
 
+use super::*;
 use crate::backend::utils::*;
 use crate::backend::Command as BackendCommand;
-use crate::backend::Response as BackendResponse;
 use crate::backend::MessageProcess;
-use super::*;
+use crate::backend::Response as BackendResponse;
 
 /// Representation of a running or exited child process.
 ///
@@ -84,11 +84,9 @@ pub struct Child {
     pub stderr: Option<ChildStderr>,
 }
 
-impl Child
-{
+impl Child {
     // Starts the child process
-    pub(super) fn new(cmd: &Command) -> Result<Child>
-    {
+    pub(super) fn new(cmd: &Command) -> Result<Child> {
         let submit = BackendCommand::SpawnProcessVersion1 {
             path: cmd.path.clone(),
             current_dir: cmd.current_dir.clone(),
@@ -103,9 +101,7 @@ impl Child
 
         let res = read_response(&mut file)?;
         let pid = match res {
-            BackendResponse::SpawnedProcessVersion1 { pid } => {
-                pid
-            }
+            BackendResponse::SpawnedProcessVersion1 { pid } => pid,
             _ => {
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::Other,
@@ -114,8 +110,7 @@ impl Child
             }
         };
 
-        let (worker, stdin, stdout, stderr, rx_exit)
-            = Worker::new(file);
+        let (worker, stdin, stdout, stderr, rx_exit) = Worker::new(file);
 
         Ok(Child {
             pid,
@@ -155,11 +150,16 @@ impl Child
     /// [`InvalidInput`]: io::ErrorKind::InvalidInput
     /// [`Other`]: io::ErrorKind::Other
     pub fn kill(&mut self) -> io::Result<()> {
-        self.worker.lock().unwrap().send(MessageProcess::Kill)
-            .or_else(|_| Err(std::io::Error::new(
-                std::io::ErrorKind::BrokenPipe,
-                "failed to notify the process to kill itself",
-            )))?;
+        self.worker
+            .lock()
+            .unwrap()
+            .send(MessageProcess::Kill)
+            .or_else(|_| {
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::BrokenPipe,
+                    "failed to notify the process to kill itself",
+                ))
+            })?;
         Ok(())
     }
 
@@ -209,7 +209,15 @@ impl Child
     /// ```
     pub fn wait(&mut self) -> io::Result<ExitStatus> {
         loop {
-            let has_exited = self.worker.lock().unwrap().work() == false;
+            match self.worker.lock().unwrap().work() {
+                Ok(_) => {}
+                Err(err) if err.kind() == ErrorKind::WouldBlock => {
+                    std::thread::sleep(std::time::Duration::from_millis(1));
+                }
+                Err(err) => {
+                    return Err(err);
+                }
+            };
             match self.rx_exit.try_recv() {
                 Ok(exitcode) => {
                     return Ok(exitcode);
@@ -220,13 +228,7 @@ impl Child
                         "the process worker already exited",
                     ));
                 }
-                _ => { }
-            }
-            if has_exited {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::BrokenPipe,
-                    "the process worker already exited",
-                ));
+                _ => {}
             }
         }
     }
@@ -267,18 +269,12 @@ impl Child
     /// ```
     pub fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
         match self.rx_exit.try_recv() {
-            Ok(exitcode) => {
-                Ok(Some(exitcode))
-            }
-            Err(mpsc::TryRecvError::Disconnected) => {
-                Err(std::io::Error::new(
-                    std::io::ErrorKind::BrokenPipe,
-                    "the process worker exited",
-                ))
-            }
-            Err(mpsc::TryRecvError::Empty) => {
-                Ok(None)
-            }
+            Ok(exitcode) => Ok(Some(exitcode)),
+            Err(mpsc::TryRecvError::Disconnected) => Err(std::io::Error::new(
+                std::io::ErrorKind::BrokenPipe,
+                "the process worker exited",
+            )),
+            Err(mpsc::TryRecvError::Empty) => Ok(None),
         }
     }
 
@@ -334,6 +330,10 @@ impl Child
             }
         }
 
-        Ok(Output { status, stdout, stderr })
+        Ok(Output {
+            status,
+            stdout,
+            stderr,
+        })
     }
 }

@@ -1,23 +1,6 @@
-#[cfg(feature = "ws")]
-pub use super::ws::{
-    SocketBuilder,
-    WebSocket
-};
-#[cfg(feature = "reqwest")]
-pub use super::reqwest::{
-    http,
-    header,
-    Body,
-    Client,
-    ClientBuilder,
-    Mime,
-    Form,
-    RequestBuilder
-};
 #[cfg(feature = "process")]
-pub use super::process::{
-    Child,
-    Command,
-    Output,
-    ExitStatus,
-};
+pub use super::process::{Child, Command, ExitStatus, Output};
+#[cfg(feature = "reqwest")]
+pub use super::reqwest::{header, http, Body, Client, ClientBuilder, Form, Mime, RequestBuilder};
+#[cfg(feature = "ws")]
+pub use super::ws::{SocketBuilder, WebSocket};

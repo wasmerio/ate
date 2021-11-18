@@ -18,7 +18,7 @@ pub enum Command {
         path: String,
         args: Vec<String>,
         current_dir: Option<String>,
-    }
+    },
 }
 
 impl Command {

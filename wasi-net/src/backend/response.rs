@@ -18,7 +18,7 @@ pub enum Response {
     },
     SpawnedProcessVersion1 {
         pid: u32,
-    }
+    },
 }
 
 impl Response {

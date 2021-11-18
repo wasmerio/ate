@@ -42,7 +42,7 @@ pub fn bidirectional(
     let (tx_write, rx_write) = mpsc::channel(buffer_size_rx);
     let fd = Fd::new(
         Some(tx_write),
-        Some(Arc::new(Mutex::new(ReactorPipeReceiver {
+        Some(Arc::new(AsyncMutex::new(ReactorPipeReceiver {
             rx: rx_read,
             buffer: BytesMut::new(),
             mode,
@@ -68,7 +68,7 @@ pub fn pipe_in(mode: ReceiverMode) -> (Fd, mpsc::Sender<Vec<u8>>) {
         buffer: BytesMut::new(),
         mode,
     };
-    let fd = Fd::new(None, Some(Arc::new(Mutex::new(rx))));
+    let fd = Fd::new(None, Some(Arc::new(AsyncMutex::new(rx))));
     (fd, tx)
 }
 

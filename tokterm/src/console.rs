@@ -200,7 +200,7 @@ impl Console {
         // Generate the job and make it the active version
         let job = {
             let mut reactor = reactor.write().await;
-            let job = match reactor.generate_job() {
+            let job = match reactor.generate_job(path.clone(), env.clone(), self.mounts.clone()) {
                 Ok((_, job)) => job,
                 Err(_) => {
                     drop(reactor);
@@ -218,7 +218,8 @@ impl Console {
         let mut tty = self.tty.clone();
         tty.reset_line().await;
         tty.reset_paragraph().await;
-        tty.enter_mode(TtyMode::StdIn(job.clone()), &self.reactor).await;
+        tty.enter_mode(TtyMode::StdIn(job.clone()), &self.reactor)
+            .await;
 
         // Spawn the process and attach it to the job
         let process = {
@@ -230,7 +231,7 @@ impl Console {
                 self.stdout.fd.clone(),
                 self.stderr.clone(),
                 path,
-                self.mounts.clone()
+                self.mounts.clone(),
             );
             self.exec.spawn(ctx).await
         };
@@ -238,8 +239,7 @@ impl Console {
         // Spawn a background thread that will process the result
         // of the process that we just started
         let state = self.state.clone();
-        wasm_bindgen_futures::spawn_local(async move
-        {
+        wasm_bindgen_futures::spawn_local(async move {
             // Wait for the process to finish
             let rx = process.await;
 

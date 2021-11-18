@@ -1,4 +1,4 @@
-use std::io;
+use std::{ffi::OsStr, io};
 
 use super::*;
 
@@ -60,8 +60,7 @@ pub struct Command {
     pub(super) current_dir: Option<String>,
 }
 
-impl Command
-{
+impl Command {
     /// Constructs a new `Command` for launching the program at
     /// path `program`, with the following default configuration:
     ///
@@ -164,9 +163,13 @@ impl Command
     ///         .spawn()
     ///         .expect("ls command failed to start");
     /// ```
-    pub fn args(&mut self, args: &[&str]) -> &mut Command {
+    pub fn args<I, S>(&mut self, args: I) -> &mut Command
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
         for arg in args {
-            self.args.push(arg.to_string());
+            self.args.push(arg.as_ref().to_string_lossy().into_owned());
         }
         self
     }

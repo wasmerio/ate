@@ -3,8 +3,8 @@ use std::io;
 use std::io::ErrorKind;
 use std::io::Read;
 
-use serde::Deserialize;
 use serde::de;
+use serde::Deserialize;
 
 pub fn read_line(file: &mut std::fs::File) -> String {
     let mut line = String::new();
@@ -65,7 +65,8 @@ pub fn read_to_end(file: &mut std::fs::File, data: &mut Vec<u8>) -> Result<(), s
 }
 
 pub fn read_response<T>(file: &mut std::fs::File) -> io::Result<T>
-where T: de::DeserializeOwned
+where
+    T: de::DeserializeOwned,
 {
     let res = read_line(file);
     let res = base64::decode(res.trim()).map_err(|err| {

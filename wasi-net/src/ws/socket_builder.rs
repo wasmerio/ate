@@ -1,9 +1,9 @@
 #![allow(dead_code)]
 use std::io::Write;
 
+use super::*;
 use crate::backend::utils::*;
 use crate::backend::*;
-use super::*;
 
 pub struct SocketBuilder {
     pub(crate) url: url::Url,
@@ -36,7 +36,7 @@ impl SocketBuilder {
                     std::io::ErrorKind::Other,
                     "server returned a web response instead of a web socket",
                 ));
-            },
+            }
             _ => {
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::Other,

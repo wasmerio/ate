@@ -13,6 +13,7 @@ use std::{
 };
 use tokio::io::{self, AsyncRead, AsyncWrite, ReadBuf};
 use tokio::sync::mpsc;
+use tokio::sync::Mutex as AsyncMutex;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasmer_vfs::{FileDescriptor, VirtualFile};
@@ -29,13 +30,13 @@ use super::state::*;
 pub struct Fd {
     pub(crate) blocking: Arc<AtomicBool>,
     pub(crate) sender: Option<mpsc::Sender<Vec<u8>>>,
-    pub(crate) receiver: Option<Arc<Mutex<ReactorPipeReceiver>>>,
+    pub(crate) receiver: Option<Arc<AsyncMutex<ReactorPipeReceiver>>>,
 }
 
 impl Fd {
     pub fn new(
         tx: Option<mpsc::Sender<Vec<u8>>>,
-        rx: Option<Arc<Mutex<ReactorPipeReceiver>>>,
+        rx: Option<Arc<AsyncMutex<ReactorPipeReceiver>>>,
     ) -> Fd {
         Fd {
             blocking: Arc::new(AtomicBool::new(true)),
@@ -83,6 +84,18 @@ impl Fd {
         }
     }
 
+    pub async fn write_vec(&mut self, buf: Vec<u8>) -> io::Result<usize> {
+        if let Some(sender) = self.sender.as_mut() {
+            let buf_len = buf.len();
+            if let Err(_err) = sender.send(buf).await {
+                return Err(std::io::ErrorKind::BrokenPipe.into());
+            }
+            Ok(buf_len)
+        } else {
+            return Err(std::io::ErrorKind::BrokenPipe.into());
+        }
+    }
+
     pub(crate) async fn write_clear_line(&mut self) {
         let _ = self.write("\r\x1b[0K\r".as_bytes()).await;
     }
@@ -106,6 +119,24 @@ impl Fd {
 
     pub fn poll(&mut self) -> PollResult {
         poll_fd(self.receiver.as_mut(), self.sender.as_mut())
+    }
+
+    pub async fn read_async(&mut self) -> io::Result<Vec<u8>> {
+        if let Some(receiver) = self.receiver.as_mut() {
+            let mut receiver = receiver.lock().await;
+            if receiver.buffer.has_remaining() {
+                let mut buffer = BytesMut::new();
+                std::mem::swap(&mut receiver.buffer, &mut buffer);
+                return Ok(buffer.to_vec());
+            }
+            if receiver.mode == ReceiverMode::Message(true) {
+                receiver.mode = ReceiverMode::Message(false);
+                return Ok(Vec::new());
+            }
+            Ok(receiver.rx.recv().await.unwrap_or(Vec::new()))
+        } else {
+            Err(std::io::ErrorKind::BrokenPipe.into())
+        }
     }
 }
 
@@ -149,7 +180,7 @@ impl Write for Fd {
 impl Read for Fd {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         if let Some(receiver) = self.receiver.as_mut() {
-            let mut receiver = receiver.lock().unwrap();
+            let mut receiver = receiver.blocking_lock();
             if receiver.buffer.has_remaining() == false {
                 if receiver.mode == ReceiverMode::Message(true) {
                     receiver.mode = ReceiverMode::Message(false);

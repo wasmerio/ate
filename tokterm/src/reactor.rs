@@ -15,6 +15,7 @@ use super::environment::*;
 use super::err::*;
 use super::eval::*;
 use super::fd::*;
+use super::fs::*;
 use super::job::*;
 use super::poll::*;
 use super::pool::ThreadPool as Pool;
@@ -77,14 +78,17 @@ impl Reactor {
     }
 
     pub fn generate_job(
-        &mut self
+        &mut self,
+        working_dir: String,
+        env: Environment,
+        root: UnionFileSystem,
     ) -> Result<(u32, Job), i32> {
         let mut job_seed = 1;
         for _ in 0..10000 {
             let id = job_seed;
             job_seed += 1;
             if self.job.contains_key(&id) == false {
-                let job = Job::new(id);
+                let job = Job::new(id, working_dir, env, root);
                 self.job.insert(id, job.clone());
                 return Ok((id, job));
             }
@@ -120,9 +124,7 @@ impl Reactor {
     pub fn get_current_job(&self) -> Option<Job> {
         self.current_job
             .iter()
-            .filter_map(|job| {
-                self.get_job(*job)
-            })
+            .filter_map(|job| self.get_job(*job))
             .next()
     }
 }
