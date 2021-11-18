@@ -20,11 +20,7 @@ pub(super) fn pwd(
         });
     }
 
-    let dir = {
-        let console = ctx.console.lock().unwrap();
-        console.path.clone()
-    };
-
+    let dir = ctx.path.clone();    
     Box::pin(async move {
         let _ = stdio.stdout.write(format!("{}\r\n", dir).as_bytes()).await;
         Ok(ExecResponse::Immediate(0))

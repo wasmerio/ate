@@ -8,6 +8,8 @@ use futures_core::Stream;
 use http_body::Body as HttpBody;
 use pin_project_lite::pin_project;
 
+use super::*;
+
 /// An asynchronous request body.
 pub struct Body {
     inner: Inner,
@@ -180,7 +182,7 @@ impl fmt::Debug for Body {
 
 impl HttpBody for ImplStream {
     type Data = Bytes;
-    type Error = crate::Error;
+    type Error = Error;
 
     fn poll_data(
         mut self: Pin<&mut Self>,
@@ -191,7 +193,7 @@ impl HttpBody for ImplStream {
                 .map(|opt_chunk| {
                     opt_chunk
                         .map(Into::into)
-                        .map_err(|e| crate::Error::new(crate::ErrorKind::Other, e))
+                        .map_err(|e| Error::new(ErrorKind::Other, e))
                 }),
             Inner::Reusable(ref mut bytes) => {
                 if bytes.is_empty() {
@@ -232,7 +234,7 @@ impl HttpBody for ImplStream {
 }
 
 impl Stream for ImplStream {
-    type Item = Result<Bytes, crate::Error>;
+    type Item = Result<Bytes, Error>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
         self.poll_data(cx)

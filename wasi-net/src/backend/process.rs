@@ -1,22 +1,20 @@
 use base64;
 use bincode;
 use serde::{Deserialize, Serialize};
-use std::io;
+use std::{io, process::ExitStatus};
+
+use super::*;
 
 #[derive(Serialize, Deserialize, Debug)]
-pub enum WebCommand {
-    WebSocketVersion1 {
-        url: String,
-    },
-    WebRequestVersion1 {
-        url: String,
-        method: String,
-        headers: Vec<(String, String)>,
-        body: Option<Vec<u8>>,
-    },
+pub enum MessageProcess {
+    Kill,
+    Exited(i32),
+    Stdin(Vec<u8>),
+    Stdout(Vec<u8>),
+    Stderr(Vec<u8>),
 }
 
-impl WebCommand {
+impl MessageProcess {
     pub fn serialize(&self) -> io::Result<String> {
         let ret = bincode::serialize(self).map_err(|err| {
             io::Error::new(
@@ -27,7 +25,7 @@ impl WebCommand {
         Ok(base64::encode(&ret[..]))
     }
 
-    pub fn deserialize(input: &str) -> io::Result<WebCommand> {
+    pub fn deserialize(input: &str) -> io::Result<Self> {
         let input = base64::decode(input.trim()).map_err(|err| {
             io::Error::new(
                 io::ErrorKind::Other,

@@ -1,28 +1,11 @@
-pub mod body;
-pub mod client;
-pub mod client_builder;
-pub mod error;
-pub mod into_url;
-pub mod mime;
-pub mod multipart;
-pub mod request_builder;
-pub mod response;
-pub mod socket_builder;
-mod utils;
-pub mod web_command;
-pub mod web_response;
-pub mod web_socket;
-
-pub use ::http;
-pub use ::http::header;
-pub use body::*;
-pub use client::*;
-pub use client_builder::*;
-pub use error::*;
-pub use into_url::*;
-pub use mime::*;
-pub use multipart::*;
-pub use request_builder::*;
-pub use response::*;
-pub use socket_builder::*;
-pub use web_socket::WebSocket;
+pub mod prelude;
+#[cfg(feature = "backend")]
+pub mod backend;
+#[cfg(not(feature = "backend"))]
+mod backend;
+#[cfg(feature = "process")]
+pub mod process;
+#[cfg(feature = "reqwest")]
+pub mod reqwest;
+#[cfg(feature = "ws")]
+pub mod ws;

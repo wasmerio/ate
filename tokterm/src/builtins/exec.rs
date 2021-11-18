@@ -58,30 +58,21 @@ pub(super) fn exec(
     ctx.input = script;
 
     // Now run the evaluation again but using this new scripts
-    let state = ctx.console.clone();
     Box::pin(async move {
         let mut stdout = ctx.stdio.stdout.clone();
         let mut stderr = ctx.stdio.stderr.clone();
         match eval(ctx).await.await {
             Ok(EvalPlan::Executed {
                 code,
-                ctx,
+                ctx: _,
                 show_result,
             }) => {
                 debug!("exec executed (code={})", code);
-                let should_line_feed = {
-                    let mut state = state.lock().unwrap();
-                    state.last_return = code;
-                    state.env = ctx.env;
-                    state.unfinished_line
-                };
                 if code != 0 && show_result {
                     let mut chars = String::new();
                     chars += err::exit_code_to_message(code);
                     chars += "\r\n";
                     let _ = stdout.write(chars.as_bytes()).await;
-                } else if should_line_feed {
-                    let _ = stdout.write("\r\n".as_bytes()).await;
                 }
                 Ok(ExecResponse::Immediate(code))
             }

@@ -165,7 +165,7 @@ impl Tty {
         inner.reset_history_cursor();
     }
 
-    pub async fn clear_paragraph(&self) {
+    pub async fn reset_paragraph(&self) {
         let mut inner = self.inner_async.lock().await;
         inner.paragraph.clear();
     }

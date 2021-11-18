@@ -1,24 +1,27 @@
+use base64;
 use bincode;
 use serde::{Deserialize, Serialize};
 use std::io;
 
 #[derive(Serialize, Deserialize, Debug)]
-pub enum WebResponse {
-    Error {
-        msg: String,
+pub enum Command {
+    WebSocketVersion1 {
+        url: String,
     },
-    WebSocketVersion1 {},
     WebRequestVersion1 {
-        ok: bool,
-        redirected: bool,
-        status: u16,
-        status_text: String,
+        url: String,
+        method: String,
         headers: Vec<(String, String)>,
-        has_data: bool,
+        body: Option<Vec<u8>>,
     },
+    SpawnProcessVersion1 {
+        path: String,
+        args: Vec<String>,
+        current_dir: Option<String>,
+    }
 }
 
-impl WebResponse {
+impl Command {
     pub fn serialize(&self) -> io::Result<String> {
         let ret = bincode::serialize(self).map_err(|err| {
             io::Error::new(
@@ -29,7 +32,7 @@ impl WebResponse {
         Ok(base64::encode(&ret[..]))
     }
 
-    pub fn deserialize(input: &str) -> io::Result<WebResponse> {
+    pub fn deserialize(input: &str) -> io::Result<Self> {
         let input = base64::decode(input.trim()).map_err(|err| {
             io::Error::new(
                 io::ErrorKind::Other,

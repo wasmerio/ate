@@ -1,10 +1,8 @@
 #![allow(dead_code)]
 use std::io::Write;
 
-use crate::web_command::WebCommand;
-use crate::web_response::WebResponse;
-
-use super::utils::*;
+use crate::backend::utils::*;
+use crate::backend::*;
 use super::*;
 
 pub struct SocketBuilder {
@@ -19,7 +17,7 @@ impl SocketBuilder {
     pub fn open(self) -> Result<WebSocket, std::io::Error> {
         let url = self.url.to_string();
 
-        let submit = WebCommand::WebSocketVersion1 { url };
+        let submit = Command::WebSocketVersion1 { url };
         let mut submit = submit.serialize()?;
         submit += "\n";
 
@@ -29,14 +27,20 @@ impl SocketBuilder {
 
         let res = read_response(&mut file)?;
         match res {
-            WebResponse::Error { msg } => {
+            Response::Error { msg } => {
                 return Err(std::io::Error::new(std::io::ErrorKind::Other, msg.as_str()));
             }
-            WebResponse::WebSocketVersion1 { .. } => {}
-            WebResponse::WebRequestVersion1 { .. } => {
+            Response::WebSocketVersion1 { .. } => {}
+            Response::WebRequestVersion1 { .. } => {
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::Other,
                     "server returned a web response instead of a web socket",
+                ));
+            },
+            _ => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "the socket does not support this response type",
                 ));
             }
         };

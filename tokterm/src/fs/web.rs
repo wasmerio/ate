@@ -22,9 +22,17 @@ use crate::err;
 use crate::fd::*;
 use crate::pipe::*;
 use crate::reactor::*;
+use crate::bin::*;
+use crate::console::*;
+use crate::state::*;
+use crate::stdio::*;
+use crate::tty::*;
+use crate::pipe::*;
+use crate::pool::*;
+use crate::eval::*;
 
 #[derive(Debug, Clone)]
-pub struct TokeraSocketFactory {
+pub struct TokeraSocket {
     tx: mpsc::Sender<mpsc::Sender<Fd>>,
 }
 
@@ -34,8 +42,12 @@ enum SocketMessage {
     Closed,
 }
 
-impl TokeraSocketFactory {
-    pub fn new(reactor: &Arc<RwLock<Reactor>>) -> TokeraSocketFactory {
+impl TokeraSocket {
+    pub fn new(
+        reactor: &Arc<RwLock<Reactor>>,
+        exec_factory: ExecFactory,
+    ) -> TokeraSocket
+    {
         let reactor = Arc::clone(reactor);
         let (tx_factory, mut rx_factory) = mpsc::channel::<mpsc::Sender<Fd>>(10);
         wasm_bindgen_futures::spawn_local(async move {
@@ -49,8 +61,9 @@ impl TokeraSocketFactory {
 
                 // Now we wait for the connection type and spawn based of it
                 let reactor = Arc::clone(&reactor);
+                let exec_factory = exec_factory.clone();
                 wasm_bindgen_futures::spawn_local(async move {
-                    use wasi_net::web_command::WebCommand;
+                    use wasi_net::backend::*;
 
                     let req = if let Some(a) = read_line(&mut rx).await {
                         a
@@ -58,11 +71,11 @@ impl TokeraSocketFactory {
                         debug!("failed to read command string from /dev/web");
                         return;
                     };
-                    match WebCommand::deserialize(req.as_str()) {
-                        Ok(WebCommand::WebSocketVersion1 { url }) => {
+                    match Command::deserialize(req.as_str()) {
+                        Ok(Command::WebSocketVersion1 { url }) => {
                             open_web_socket(fd, url.as_str(), reactor, rx, tx).await;
                         }
-                        Ok(WebCommand::WebRequestVersion1 {
+                        Ok(Command::WebRequestVersion1 {
                             url,
                             method,
                             headers,
@@ -80,6 +93,22 @@ impl TokeraSocketFactory {
                             )
                             .await;
                         }
+                        Ok(Command::SpawnProcessVersion1 {
+                            path,
+                            args,
+                            current_dir,
+                        }) => {
+                            open_exec_request(
+                                fd,
+                                path,
+                                args,
+                                current_dir,
+                                exec_factory.clone(),
+                                rx,
+                                tx,
+                            )
+                            .await;
+                        }
                         Err(err) => {
                             debug!("failed to deserialize the command");
                             return;
@@ -89,7 +118,7 @@ impl TokeraSocketFactory {
             }
         });
 
-        TokeraSocketFactory { tx: tx_factory }
+        TokeraSocket { tx: tx_factory }
     }
 
     pub fn create(&self) -> Fd {
@@ -224,7 +253,7 @@ async fn open_web_socket(
 
     // Before we attach the message process let the caller know its all
     // running along nicely
-    let ret = wasi_net::web_response::WebResponse::WebSocketVersion1 {};
+    let ret = wasi_net::backend::Response::WebSocketVersion1 {};
     let mut ret = match ret.serialize() {
         Ok(a) => a,
         Err(err) => {
@@ -284,7 +313,7 @@ async fn open_web_request(
     // we can't implement this as the method resp.headers().keys() is missing!
     // how else are we going to parse the headers
 
-    let ret = wasi_net::web_response::WebResponse::WebRequestVersion1 {
+    let ret = wasi_net::backend::Response::WebRequestVersion1 {
         ok: resp.ok(),
         redirected: resp.redirected(),
         status: resp.status(),
@@ -307,6 +336,32 @@ async fn open_web_request(
 
     let _ = tx.send(ret).await;
     let _ = rx.recv().await;
+
+    Ok(())
+}
+
+async fn open_exec_request(
+    fd: Fd,
+    path: String,
+    args: Vec<String>,
+    current_dir: Option<String>,
+    factory: ExecFactory,
+    mut rx: mpsc::Receiver<Vec<u8>>,
+    tx: mpsc::Sender<Vec<u8>>,
+) -> Result<(), i32> {
+    debug!("executing process {}", path);
+
+    // Switch back to blocking mode
+    fd.set_blocking(true);
+
+    // Build the comand string
+    let mut cmd = path.clone();
+    for arg in args {
+        cmd.push_str(" ");
+        cmd.push_str(&arg);
+    }    
+
+    //let rx = eval(ctx).await;
 
     Ok(())
 }

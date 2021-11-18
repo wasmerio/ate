@@ -91,7 +91,7 @@ pub async fn exec(
     let fs = {
         let root = ctx.root.clone();
         let stdio = stdio.clone();
-        let tok = ctx.tok.clone();
+        let tok = TokeraSocket::new(&ctx.reactor, ctx.exec_factory.clone());
 
         let mut union = UnionFileSystem::new();
         union.mount("root", Path::new("/"), Box::new(root));

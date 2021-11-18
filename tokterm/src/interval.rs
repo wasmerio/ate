@@ -7,6 +7,7 @@ extern "C" {
 }
 
 #[wasm_bindgen]
+#[derive(Debug)]
 pub struct LeakyInterval {
     token: f64,
 }

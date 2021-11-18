@@ -10,11 +10,13 @@ use crate::common::*;
 
 use super::reactor::*;
 use super::stdio::*;
+use super::pipe::*;
+use super::fd::*;
 
 #[derive(Debug)]
 pub struct Job {
     pub id: u32,
-    pub stdio: Stdio,
+    pub stdin: Fd,
     pub stdin_tx: mpsc::Sender<Vec<u8>>,
     pub job_list_tx: mpsc::Sender<Pid>,
     pub job_list_rx: Arc<Mutex<mpsc::Receiver<Pid>>>,
@@ -24,7 +26,7 @@ impl Clone for Job {
     fn clone(&self) -> Job {
         Job {
             id: self.id,
-            stdio: self.stdio.clone(),
+            stdin: self.stdin.clone(),
             stdin_tx: self.stdin_tx.clone(),
             job_list_tx: self.job_list_tx.clone(),
             job_list_rx: self.job_list_rx.clone(),
@@ -33,11 +35,12 @@ impl Clone for Job {
 }
 
 impl Job {
-    pub fn new(id: u32, stdio: Stdio, stdin_tx: mpsc::Sender<Vec<u8>>) -> Job {
+    pub fn new(id: u32) -> Job {
+        let (stdin, stdin_tx) = pipe_in(ReceiverMode::Stream);
         let (job_list_tx, job_list_rx) = mpsc::channel(MAX_MPSC);
         Job {
             id,
-            stdio,
+            stdin,
             stdin_tx,
             job_list_tx,
             job_list_rx: Arc::new(Mutex::new(job_list_rx)),

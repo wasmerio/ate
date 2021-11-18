@@ -15,7 +15,7 @@ use wasmer_vfs::*;
 use wasmer_vfs::{FileDescriptor, VirtualFile};
 use wasmer_wasi::{types as wasi_types, WasiFile, WasiFsError};
 
-use super::TokeraSocketFactory;
+use super::TokeraSocket;
 use crate::fd::*;
 use crate::stdio::*;
 use crate::tty::*;
@@ -26,11 +26,11 @@ pub struct ProcFileSystem {
     type_dir: FileType,
     type_char: FileType,
     stdio: Stdio,
-    tok: TokeraSocketFactory,
+    tok: TokeraSocket,
 }
 
 impl ProcFileSystem {
-    pub fn new(stdio: Stdio, tok: TokeraSocketFactory) -> ProcFileSystem {
+    pub fn new(stdio: Stdio, tok: TokeraSocket) -> ProcFileSystem {
         let mut ret = ProcFileSystem {
             type_file: FileType::default(),
             type_dir: FileType::default(),
@@ -101,6 +101,10 @@ impl FileSystem for ProcFileSystem {
                     path: PathBuf::from("web"),
                     metadata: Ok(Self::default_metadata(&self.type_file)),
                 });
+                entries.push(DirEntry {
+                    path: PathBuf::from("exec"),
+                    metadata: Ok(Self::default_metadata(&self.type_file)),
+                });
             }
             _ => {
                 return Err(FsError::EntityNotFound);
@@ -131,6 +135,7 @@ impl FileSystem for ProcFileSystem {
             "/stderr" | "stderr" => Ok(Self::default_metadata(&self.type_file)),
             "/tty" | "tty" => Ok(Self::default_metadata(&self.type_file)),
             "/web" | "web" => Ok(Self::default_metadata(&self.type_file)),
+            "/exec" | "exec" => Ok(Self::default_metadata(&self.type_file)),
             _ => Err(FsError::EntityNotFound),
         }
     }
@@ -154,7 +159,7 @@ impl FileSystem for ProcFileSystem {
 #[derive(Debug)]
 pub struct CoreFileOpener {
     stdio: Stdio,
-    tok: TokeraSocketFactory,
+    tok: TokeraSocket,
 }
 
 impl FileOpener for CoreFileOpener {
@@ -169,6 +174,7 @@ impl FileOpener for CoreFileOpener {
             "/null" | "null" => Ok(Box::new(NullFile::default())),
             "/tty" | "tty" => Ok(Box::new(TtyFile::new(&self.stdio))),
             "/web" | "web" => Ok(Box::new(self.tok.create())),
+            "/exec" | "exec" => Ok(Box::new(self.tok.create())),
             _ => Err(FsError::EntityNotFound),
         }
     }

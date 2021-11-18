@@ -8,6 +8,7 @@ pub(crate) mod exec;
 pub(crate) mod exec_pipeline;
 pub(crate) mod load_bin;
 pub(crate) mod process;
+pub(crate) mod factory;
 
 pub use andor_list::*;
 pub use complete_command::*;
@@ -16,6 +17,7 @@ pub use exec::*;
 pub use exec_pipeline::*;
 pub use load_bin::*;
 pub use process::*;
+pub use factory::*;
 
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -57,16 +59,15 @@ pub enum EvalPlan {
 pub struct EvalContext {
     pub env: Environment,
     pub bins: BinFactory,
-    pub job_list: mpsc::Sender<Pid>,
     pub last_return: i32,
     pub reactor: Arc<RwLock<Reactor>>,
     pub pool: ThreadPool,
     pub path: String,
     pub input: String,
-    pub console: Arc<Mutex<ConsoleState>>,
     pub stdio: Stdio,
     pub root: UnionFileSystem,
-    pub tok: TokeraSocketFactory,
+    pub exec_factory: ExecFactory,
+    pub job: Job,
 }
 
 pub(crate) async fn eval(mut ctx: EvalContext) -> oneshot::Receiver<EvalPlan> {

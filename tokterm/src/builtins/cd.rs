@@ -108,11 +108,9 @@ fn home(ctx: &EvalContext) -> String {
 }
 
 fn current(ctx: &EvalContext) -> String {
-    let console = ctx.console.lock().unwrap();
-    console.path.clone()
+    ctx.path.clone()
 }
 
-fn set_current(ctx: &EvalContext, path: &str) {
-    let mut console = ctx.console.lock().unwrap();
-    console.path = path.to_string();
+fn set_current(ctx: &mut EvalContext, path: &str) {
+    ctx.path = path.to_string();
 }

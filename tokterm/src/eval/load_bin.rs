@@ -39,8 +39,7 @@ pub async fn load_bin(
     if cmd.starts_with("/") {
         file_checks.push(cmd.clone());
     } else if cmd.starts_with("./") && cmd.len() > 2 {
-        let state = ctx.console.lock().unwrap();
-        file_checks.push(format!("{}{}", state.path, &cmd[2..]));
+        file_checks.push(format!("{}{}", ctx.path, &cmd[2..]));
     }
     for file_check in file_checks {
         if let Ok(mut file) = ctx.root.new_open_options().read(true).open(file_check) {

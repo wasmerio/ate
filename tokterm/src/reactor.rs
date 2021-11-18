@@ -25,6 +25,7 @@ pub struct Reactor {
     pub(crate) pid_seed: Pid,
     pub(crate) pid: HashMap<Pid, Process>,
     pub(crate) job: HashMap<u32, Job>,
+    pub(crate) current_job: Option<u32>,
 }
 
 impl Reactor {
@@ -33,6 +34,7 @@ impl Reactor {
             pid_seed: 1,
             pid: HashMap::default(),
             job: HashMap::default(),
+            current_job: None,
         }
     }
 
@@ -75,16 +77,14 @@ impl Reactor {
     }
 
     pub fn generate_job(
-        &mut self,
-        stdio: Stdio,
-        stdin_tx: mpsc::Sender<Vec<u8>>,
+        &mut self
     ) -> Result<(u32, Job), i32> {
         let mut job_seed = 1;
         for _ in 0..10000 {
             let id = job_seed;
             job_seed += 1;
             if self.job.contains_key(&id) == false {
-                let job = Job::new(id, stdio, stdin_tx);
+                let job = Job::new(id);
                 self.job.insert(id, job.clone());
                 return Ok((id, job));
             }
@@ -94,11 +94,35 @@ impl Reactor {
 
     pub fn close_job(&mut self, job: Job, exit_code: i32) {
         let job_id = job.id;
+        if self.current_job == Some(job_id) {
+            self.current_job.take();
+        }
         if let Some(job) = self.job.remove(&job_id) {
             job.terminate(self, exit_code);
             info!("job closed: id={}", job.id);
         } else {
             debug!("job already closed: id={}", job_id);
         }
+    }
+
+    pub fn get_job(&self, job_id: u32) -> Option<Job> {
+        self.job.get(&job_id).map(|a| a.clone())
+    }
+
+    pub fn set_current_job(&mut self, job_id: u32) -> bool {
+        if self.job.contains_key(&job_id) == false {
+            return false;
+        }
+        self.current_job.replace(job_id);
+        true
+    }
+
+    pub fn get_current_job(&self) -> Option<Job> {
+        self.current_job
+            .iter()
+            .filter_map(|job| {
+                self.get_job(*job)
+            })
+            .next()
     }
 }

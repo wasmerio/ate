@@ -5,6 +5,8 @@ use http::StatusCode;
 use serde::de::DeserializeOwned;
 use std::io::Read;
 
+use super::*;
+
 pub struct Response {
     pub(crate) pos: usize,
     pub(crate) data: Option<Vec<u8>>,
@@ -16,11 +18,11 @@ pub struct Response {
 }
 
 impl Response {
-    pub fn json<T: DeserializeOwned>(&self) -> Result<T, crate::Error> {
+    pub fn json<T: DeserializeOwned>(&self) -> Result<T, Error> {
         match self.data.as_ref() {
             Some(data) => serde_json::from_slice(&data[..]).map_err(|e| {
-                crate::Error::new(
-                    crate::ErrorKind::Other,
+                Error::new(
+                    ErrorKind::Other,
                     format!(
                         "failed to deserialize ({} bytes) into json - {}",
                         data.len(),
@@ -30,8 +32,8 @@ impl Response {
                 )
             }),
             None => {
-                return Err(crate::Error::new(
-                    crate::ErrorKind::Other,
+                return Err(Error::new(
+                    ErrorKind::Other,
                     format!("failed to deserialize into json - no data was returned by the server")
                         .as_str(),
                 ));

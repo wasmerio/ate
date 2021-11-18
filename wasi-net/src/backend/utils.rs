@@ -1,8 +1,10 @@
+#![allow(dead_code)]
 use std::io;
 use std::io::ErrorKind;
 use std::io::Read;
 
-use super::web_response::WebResponse;
+use serde::Deserialize;
+use serde::de;
 
 pub fn read_line(file: &mut std::fs::File) -> String {
     let mut line = String::new();
@@ -62,7 +64,9 @@ pub fn read_to_end(file: &mut std::fs::File, data: &mut Vec<u8>) -> Result<(), s
     return Ok(());
 }
 
-pub fn read_response(file: &mut std::fs::File) -> io::Result<WebResponse> {
+pub fn read_response<T>(file: &mut std::fs::File) -> io::Result<T>
+where T: de::DeserializeOwned
+{
     let res = read_line(file);
     let res = base64::decode(res.trim()).map_err(|err| {
         std::io::Error::new(
@@ -70,7 +74,7 @@ pub fn read_response(file: &mut std::fs::File) -> io::Result<WebResponse> {
             format!("failed to base64 decode the response - {}", err).as_str(),
         )
     })?;
-    let res: WebResponse = bincode::deserialize(&res[..]).map_err(|err| {
+    let res: T = bincode::deserialize(&res[..]).map_err(|err| {
         std::io::Error::new(
             std::io::ErrorKind::Other,
             format!("failed to deserialize the response - {}", err).as_str(),

@@ -4,11 +4,10 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::io::Write;
 
-use crate::web_command::WebCommand;
-use crate::web_response::WebResponse;
-
-use super::utils::*;
 use super::*;
+use crate::backend::utils::*;
+use crate::backend::Command as BackendCommand;
+use crate::backend::Response as BackendResponse;
 
 pub struct RequestBuilder {
     pub(crate) method: http::Method,
@@ -49,7 +48,7 @@ impl RequestBuilder {
     pub fn send(self) -> Result<Response, std::io::Error> {
         let url = self.url.to_string();
 
-        let submit = WebCommand::WebRequestVersion1 {
+        let submit = BackendCommand::WebRequestVersion1 {
             url,
             method: self.method.to_string(),
             headers: self
@@ -73,16 +72,16 @@ impl RequestBuilder {
 
         let res = read_response(&mut file)?;
         let (ok, redirected, status, status_text, headers, has_data) = match res {
-            WebResponse::Error { msg } => {
+            BackendResponse::Error { msg } => {
                 return Err(std::io::Error::new(std::io::ErrorKind::Other, msg.as_str()));
             }
-            WebResponse::WebSocketVersion1 { .. } => {
+            BackendResponse::WebSocketVersion1 { .. } => {
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::Other,
                     "server returned a web socket instead of a web request",
                 ));
             }
-            WebResponse::WebRequestVersion1 {
+            BackendResponse::WebRequestVersion1 {
                 ok,
                 redirected,
                 status,
@@ -90,6 +89,12 @@ impl RequestBuilder {
                 headers,
                 has_data,
             } => (ok, redirected, status, status_text, headers, has_data),
+            _ => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "the socket does not support this response type",
+                ));
+            }
         };
 
         let status = StatusCode::from_u16(status).map_err(|err| {

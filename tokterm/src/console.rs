@@ -40,13 +40,13 @@ pub struct Console {
     is_mobile: bool,
     state: Arc<Mutex<ConsoleState>>,
     bins: BinFactory,
-    tok: TokeraSocketFactory,
     tty: Tty,
     pool: Pool,
     reactor: Arc<RwLock<Reactor>>,
     mounts: UnionFileSystem,
     stdout: Stdout,
     stderr: Fd,
+    exec: ExecFactory,
 }
 
 impl Console {
@@ -87,6 +87,15 @@ impl Console {
         let tty = Tty::new(stdout.clone(), is_mobile);
 
         let mounts = super::fs::create_root_fs();
+        let bins = BinFactory::new();
+        let exec_factory = ExecFactory::new(
+            bins.clone(),
+            tty.clone(),
+            pool.clone(),
+            reactor.clone(),
+            stdout.clone(),
+            stderr.clone(),
+        );
 
         Console {
             terminal,
@@ -94,8 +103,7 @@ impl Console {
             location,
             is_mobile,
             user_agent,
-            bins: BinFactory::new(),
-            tok: TokeraSocketFactory::new(&reactor),
+            bins,
             state,
             stdout,
             stderr,
@@ -103,6 +111,7 @@ impl Console {
             reactor,
             pool,
             mounts,
+            exec: exec_factory,
         }
     }
 
@@ -168,7 +177,7 @@ impl Console {
         if let TtyMode::StdIn(job) = mode {
             cmd += "\n";
             self.tty.reset_line().await;
-            self.tty.clear_paragraph().await;
+            self.tty.reset_paragraph().await;
             let _ = job.stdin_tx.send(cmd.into_bytes()).await;
             return;
         }
@@ -180,27 +189,18 @@ impl Console {
         }
 
         let reactor = self.reactor.clone();
-        let pool = self.pool.clone();
-        let (env, last_return, path) = {
+        let (env, path) = {
             let mut state = self.state.lock().unwrap();
             state.unfinished_line = false;
             let env = state.env.clone();
-            let last_return = state.last_return;
             let path = state.path.clone();
-            (env, last_return, path)
+            (env, path)
         };
 
-        let (job, stdio) = {
-            let (stdin, stdin_tx) = pipe_in(ReceiverMode::Stream);
-            let stdio = Stdio {
-                stdin: stdin.clone(),
-                stdout: self.stdout.fd.clone(),
-                stderr: self.stderr.clone(),
-                tty: self.tty.clone(),
-            };
-
+        // Generate the job and make it the active version
+        let job = {
             let mut reactor = reactor.write().await;
-            let job = match reactor.generate_job(stdio.clone(), stdin_tx) {
+            let job = match reactor.generate_job() {
                 Ok((_, job)) => job,
                 Err(_) => {
                     drop(reactor);
@@ -210,39 +210,43 @@ impl Console {
                     return;
                 }
             };
-            (job, stdio)
+            reactor.set_current_job(job.id);
+            job
         };
 
-        let ctx = EvalContext {
-            env,
-            bins: self.bins.clone(),
-            job_list: job.job_list_tx.clone(),
-            last_return,
-            reactor: reactor.clone(),
-            pool,
-            path,
-            input: cmd.clone(),
-            console: self.state.clone(),
-            stdio,
-            root: self.mounts.clone(),
-            tok: self.tok.clone(),
-        };
-
-        let rx = eval(ctx).await;
-
+        // Switch the console to this particular job
         let mut tty = self.tty.clone();
         tty.reset_line().await;
-        tty.clear_paragraph().await;
-        tty.enter_mode(TtyMode::StdIn(job), &self.reactor).await;
+        tty.reset_paragraph().await;
+        tty.enter_mode(TtyMode::StdIn(job.clone()), &self.reactor).await;
 
+        // Spawn the process and attach it to the job
+        let process = {
+            let ctx = SpawnContext::new(
+                cmd.clone(),
+                env,
+                job.clone(),
+                job.stdin.clone(),
+                self.stdout.fd.clone(),
+                self.stderr.clone(),
+                path,
+                self.mounts.clone()
+            );
+            self.exec.spawn(ctx).await
+        };
+
+        // Spawn a background thread that will process the result
+        // of the process that we just started
         let state = self.state.clone();
-        wasm_bindgen_futures::spawn_local(async move {
-            let rx = rx.await;
+        wasm_bindgen_futures::spawn_local(async move
+        {
+            // Wait for the process to finish
+            let rx = process.await;
 
+            // Switch back to console mode
             tty.reset_line().await;
-            tty.clear_paragraph().await;
+            tty.reset_paragraph().await;
             tty.enter_mode(TtyMode::Console, &reactor).await;
-
             let record_history = if let Some(history) = tty.get_selected_history().await {
                 history != cmd
             } else {
@@ -250,6 +254,7 @@ impl Console {
             };
             tty.reset_history_cursor().await;
 
+            // Process the result
             let mut multiline_input = false;
             match rx {
                 Ok(EvalPlan::Executed {
@@ -261,6 +266,7 @@ impl Console {
                     let should_line_feed = {
                         let mut state = state.lock().unwrap();
                         state.last_return = code;
+                        state.path = ctx.path;
                         state.env = ctx.env;
                         state.unfinished_line
                     };
@@ -295,6 +301,8 @@ impl Console {
                         .await;
                 }
             };
+
+            // Now draw the prompt ready for the next
             tty.reset_line().await;
             Console::update_prompt(multiline_input, &state, &tty).await;
             tty.draw_prompt().await;
@@ -349,7 +357,7 @@ impl Console {
         match mode {
             TtyMode::Null => {}
             TtyMode::Console => {
-                self.tty.clear_paragraph().await;
+                self.tty.reset_paragraph().await;
                 self.tty.reset_line().await;
                 Console::update_prompt(false, &self.state, &self.tty).await;
                 self.tty.draw_prompt().await;

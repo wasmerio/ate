@@ -87,8 +87,8 @@ pub(super) async fn exec_pipeline<'a>(
     }
 
     for child in child_list.iter() {
-        debug!("process (pid={}) added to job", child.pid);
-        ctx.job_list.send(child.pid).await;
+        debug!("process (pid={}) added to job (id={})", child.pid, ctx.job.id);
+        ctx.job.job_list_tx.send(child.pid).await;
     }
 
     if exec_sync {
