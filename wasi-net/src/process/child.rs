@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 
 use super::*;
-use crate::backend::utils::*;
+use crate::backend::{StdioMode, utils::*};
 use crate::backend::Command as BackendCommand;
 use crate::backend::MessageProcess;
 use crate::backend::Response as BackendResponse;
@@ -49,6 +49,9 @@ pub struct Child {
     cmd: Command,
     worker: Arc<Mutex<Worker>>,
     rx_exit: mpsc::Receiver<ExitStatus>,
+    stdin_mode: StdioMode,
+    stdout_mode: StdioMode,
+    stderr_mode: StdioMode,
 
     /// The handle for writing to the child's standard input (stdin), if it has
     /// been captured. To avoid partially moving
@@ -86,16 +89,19 @@ pub struct Child {
 
 impl Child {
     // Starts the child process
-    pub(super) fn new(cmd: &Command) -> Result<Child> {
+    pub(super) fn new(cmd: &Command, stdin_mode: StdioMode, stdout_mode: StdioMode, stderr_mode: StdioMode) -> Result<Child> {
         let submit = BackendCommand::SpawnProcessVersion1 {
             path: cmd.path.clone(),
             current_dir: cmd.current_dir.clone(),
             args: cmd.args.clone(),
+            stdin_mode,
+            stdout_mode,
+            stderr_mode
         };
         let mut submit = submit.serialize()?;
         submit += "\n";
 
-        let mut file = File::open("/dev/process")?;
+        let mut file = File::open("/dev/exec")?;
 
         let _ = file.write_all(submit.as_bytes());
 
@@ -110,15 +116,19 @@ impl Child {
             }
         };
 
-        let (worker, stdin, stdout, stderr, rx_exit) = Worker::new(file);
+        let (worker, stdin, stdout, stderr, rx_exit)
+            = Worker::new(file);
 
         Ok(Child {
             pid,
             worker,
             cmd: cmd.clone(),
-            stdin: Some(stdin),
-            stdout: Some(stdout),
-            stderr: Some(stderr),
+            stdin_mode,
+            stdout_mode,
+            stderr_mode,
+            stdin: if stdin_mode == StdioMode::Piped { Some(stdin) } else { None },
+            stdout: if stdout_mode == StdioMode::Piped { Some(stdout) } else { None },
+            stderr: if stderr_mode == StdioMode::Piped { Some(stderr) } else { None },
             rx_exit,
         })
     }

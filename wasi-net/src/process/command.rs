@@ -58,6 +58,9 @@ pub struct Command {
     pub(super) path: String,
     pub(super) args: Vec<String>,
     pub(super) current_dir: Option<String>,
+    pub(super) stdin: Option<Stdio>,
+    pub(super) stdout: Option<Stdio>,
+    pub(super) stderr: Option<Stdio>,
 }
 
 impl Command {
@@ -91,6 +94,9 @@ impl Command {
             path: path.to_string(),
             args: Vec::new(),
             current_dir: None,
+            stdin: None,
+            stdout: None,
+            stderr: None
         }
     }
 
@@ -203,6 +209,81 @@ impl Command {
         self
     }
 
+    /// Configuration for the child process's standard input (stdin) handle.
+    ///
+    /// Defaults to [`inherit`] when used with `spawn` or `status`, and
+    /// defaults to [`piped`] when used with `output`.
+    ///
+    /// [`inherit`]: Stdio::inherit
+    /// [`piped`]: Stdio::piped
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```no_run
+    /// use wasi_net::{Command, Stdio};
+    ///
+    /// Command::new("ls")
+    ///         .stdin(Stdio::null())
+    ///         .spawn()
+    ///         .expect("ls command failed to start");
+    /// ```
+    pub fn stdin(&mut self, cfg: Stdio) -> &mut Command {
+        self.stdin = Some(cfg);
+        self
+    }
+
+    /// Configuration for the child process's standard output (stdout) handle.
+    ///
+    /// Defaults to [`inherit`] when used with `spawn` or `status`, and
+    /// defaults to [`piped`] when used with `output`.
+    ///
+    /// [`inherit`]: Stdio::inherit
+    /// [`piped`]: Stdio::piped
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```no_run
+    /// use std::process::{Command, Stdio};
+    ///
+    /// Command::new("ls")
+    ///         .stdout(Stdio::null())
+    ///         .spawn()
+    ///         .expect("ls command failed to start");
+    /// ```
+    pub fn stdout(&mut self, cfg: Stdio) -> &mut Command {
+        self.stdout = Some(cfg);
+        self
+    }
+
+    /// Configuration for the child process's standard error (stderr) handle.
+    ///
+    /// Defaults to [`inherit`] when used with `spawn` or `status`, and
+    /// defaults to [`piped`] when used with `output`.
+    ///
+    /// [`inherit`]: Stdio::inherit
+    /// [`piped`]: Stdio::piped
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```no_run
+    /// use std::process::{Command, Stdio};
+    ///
+    /// Command::new("ls")
+    ///         .stderr(Stdio::null())
+    ///         .spawn()
+    ///         .expect("ls command failed to start");
+    /// ```
+    pub fn stderr(&mut self, cfg: Stdio) -> &mut Command {
+        self.stderr = Some(cfg);
+        self
+    }
+
     /// Executes the command as a child process, returning a handle to it.
     ///
     /// By default, stdin, stdout and stderr are inherited from the parent.
@@ -219,7 +300,10 @@ impl Command {
     ///         .expect("ls command failed to start");
     /// ```
     pub fn spawn(&self) -> io::Result<Child> {
-        Child::new(self)
+        let stdin = self.stdin.as_ref().map(|a| a.clone()).unwrap_or(Stdio::inherit());
+        let stdout = self.stdout.as_ref().map(|a| a.clone()).unwrap_or(Stdio::inherit());
+        let stderr = self.stderr.as_ref().map(|a| a.clone()).unwrap_or(Stdio::inherit());
+        Child::new(self, stdin.mode, stdout.mode, stderr.mode)
     }
 
     /// Executes the command as a child process, waiting for it to finish and
@@ -247,6 +331,15 @@ impl Command {
     /// assert!(output.status.success());
     /// ```
     pub fn output(&mut self) -> io::Result<Output> {
+        if self.stdin.is_none() {
+            self.stdin = Some(Stdio::null());
+        }
+        if self.stdout.is_none() {
+            self.stdout = Some(Stdio::piped());
+        }
+        if self.stderr.is_none() {
+            self.stderr = Some(Stdio::piped());
+        }
         Ok(self.spawn()?.wait_with_output()?)
     }
 

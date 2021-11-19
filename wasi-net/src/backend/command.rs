@@ -3,6 +3,8 @@ use bincode;
 use serde::{Deserialize, Serialize};
 use std::io;
 
+use super::StdioMode;
+
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Command {
     WebSocketVersion1 {
@@ -18,6 +20,9 @@ pub enum Command {
         path: String,
         args: Vec<String>,
         current_dir: Option<String>,
+        stdin_mode: StdioMode,
+        stdout_mode: StdioMode,
+        stderr_mode: StdioMode,
     },
 }
 

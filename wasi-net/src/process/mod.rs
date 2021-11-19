@@ -6,6 +6,7 @@ mod command;
 mod exit_status;
 mod output;
 mod worker;
+mod stdio;
 
 use worker::Worker;
 
@@ -16,6 +17,7 @@ pub use child_stdout::ChildStdout;
 pub use command::Command;
 pub use exit_status::ExitStatus;
 pub use output::Output;
+pub use stdio::*;
 
 pub use std::io::Error;
 pub use std::io::ErrorKind;
