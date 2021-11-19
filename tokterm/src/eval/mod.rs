@@ -63,6 +63,7 @@ pub struct EvalContext {
     pub reactor: Arc<RwLock<Reactor>>,
     pub pool: ThreadPool,
     pub path: String,
+    pub pre_open: Vec<String>,
     pub input: String,
     pub stdio: Stdio,
     pub root: UnionFileSystem,

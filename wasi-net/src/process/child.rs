@@ -52,6 +52,7 @@ pub struct Child {
     stdin_mode: StdioMode,
     stdout_mode: StdioMode,
     stderr_mode: StdioMode,
+    pre_open: Vec<String>,
 
     /// The handle for writing to the child's standard input (stdin), if it has
     /// been captured. To avoid partially moving
@@ -89,14 +90,15 @@ pub struct Child {
 
 impl Child {
     // Starts the child process
-    pub(super) fn new(cmd: &Command, stdin_mode: StdioMode, stdout_mode: StdioMode, stderr_mode: StdioMode) -> Result<Child> {
+    pub(super) fn new(cmd: &Command, stdin_mode: StdioMode, stdout_mode: StdioMode, stderr_mode: StdioMode, pre_open: Vec<String>,) -> Result<Child> {
         let submit = BackendCommand::SpawnProcessVersion1 {
             path: cmd.path.clone(),
             current_dir: cmd.current_dir.clone(),
             args: cmd.args.clone(),
             stdin_mode,
             stdout_mode,
-            stderr_mode
+            stderr_mode,
+            pre_open: pre_open.clone()
         };
         let mut submit = submit.serialize()?;
         submit += "\n";
@@ -130,6 +132,7 @@ impl Child {
             stdout: if stdout_mode == StdioMode::Piped { Some(stdout) } else { None },
             stderr: if stderr_mode == StdioMode::Piped { Some(stderr) } else { None },
             rx_exit,
+            pre_open,
         })
     }
 

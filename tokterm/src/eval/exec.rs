@@ -91,7 +91,13 @@ pub async fn exec(
     let fs = {
         let root = ctx.root.clone();
         let stdio = stdio.clone();
-        let tok = TokeraSocket::new(&ctx.reactor, ctx.exec_factory.clone());
+        let tok = TokeraSocket::new(
+            &ctx.reactor,
+            ctx.exec_factory.clone(),
+            stdio.stdin.clone(),
+            stdio.stdout.clone(),
+            stdio.stderr.clone(),
+        );
 
         let mut union = UnionFileSystem::new();
         union.mount("root", Path::new("/"), Box::new(root));
@@ -199,6 +205,7 @@ pub async fn exec(
     let args = args.clone();
     let path = ctx.path.clone();
     let process2 = process.clone();
+    let preopen = ctx.pre_open.clone();
     ctx.pool.spawn_blocking(move || {
         // Compile the module (which)
         let _ = tty.blocking_write("Compiling...".as_bytes());
@@ -222,19 +229,45 @@ pub async fn exec(
         let args = args.iter().skip(1).map(|a| a.as_str()).collect::<Vec<_>>();
 
         // Create the `WasiEnv`.
-        let mut wasi_env = WasiState::new(cmd.as_str())
+        let mut wasi_env = WasiState::new(cmd.as_str());
+        let mut wasi_env = wasi_env
             .args(&args)
             .stdin(Box::new(stdio.stdin.clone()))
             .stdout(Box::new(stdio.stdout.clone()))
-            .stderr(Box::new(stdio.stderr.clone()))
-            //.syscall_proxy(Box::new(wasi_proxy))
-            .preopen_dir(Path::new("/"))
-            .unwrap()
-            .map_dir(".", Path::new(path.as_str()))
-            .unwrap()
+            .stderr(Box::new(stdio.stderr.clone()));
+
+        // Add the extra pre-opens
+        if preopen.len() > 0 {
+            for pre_open in preopen {
+                if wasi_env.preopen_dir(Path::new(pre_open.as_str())).is_ok() == false {
+                    tty.blocking_write_clear_line();
+                    let _ = tty.blocking_write(format!("pre-open error (path={})\n", pre_open).as_bytes());
+                    process.terminate(ERR_ENOEXEC);
+                    return;
+                }
+            }
+
+        // Or we default and open the current directory
+        } else {
+            wasi_env
+                .preopen_dir(Path::new("/"))
+                .unwrap()
+                .map_dir(".", Path::new(path.as_str()));
+        }
+
+        // Finish off the WasiEnv
+        let mut wasi_env = match wasi_env
             .set_fs(fs)
             .finalize()
-            .unwrap();
+        {
+            Ok(a) => a,
+            Err(err) => {
+                tty.blocking_write_clear_line();
+                let _ = tty.blocking_write(format!("exec error: {}\n", err.to_string()).as_bytes());
+                process.terminate(ERR_ENOEXEC);
+                return;
+            }
+        };
 
         // Hook up the terminate event so that if its triggered the environment properly
         // kills itself (on the next syscall)
@@ -268,9 +301,6 @@ pub async fn exec(
                         err::ERR_ENOEXEC
                     }
                     Err(err) => {
-                        let _ = stdio
-                            .stderr
-                            .blocking_write(&format!("exec error: {}\n", err).as_bytes()[..]);
                         err::ERR_PANIC
                     }
                 },

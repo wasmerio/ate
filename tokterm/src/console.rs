@@ -155,7 +155,7 @@ impl Console {
 
         self.tty.draw_welcome().await;
         if run_command.is_some() {
-            self.on_data("exec /bin/init".to_string()).await;
+            self.on_data("source /bin/init".to_string()).await;
             self.on_enter().await;
         } else {
             self.tty.draw_prompt().await;
@@ -231,6 +231,7 @@ impl Console {
                 self.stdout.fd.clone(),
                 self.stderr.clone(),
                 path,
+                Vec::new(),
                 self.mounts.clone(),
             );
             self.exec.spawn(ctx).await

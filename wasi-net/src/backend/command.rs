@@ -23,6 +23,7 @@ pub enum Command {
         stdin_mode: StdioMode,
         stdout_mode: StdioMode,
         stderr_mode: StdioMode,
+        pre_open: Vec<String>,
     },
 }
 

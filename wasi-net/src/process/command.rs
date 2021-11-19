@@ -61,6 +61,7 @@ pub struct Command {
     pub(super) stdin: Option<Stdio>,
     pub(super) stdout: Option<Stdio>,
     pub(super) stderr: Option<Stdio>,
+    pub(super) pre_open: Vec<String>,
 }
 
 impl Command {
@@ -96,7 +97,8 @@ impl Command {
             current_dir: None,
             stdin: None,
             stdout: None,
-            stderr: None
+            stderr: None,
+            pre_open: Vec::new(),
         }
     }
 
@@ -284,6 +286,12 @@ impl Command {
         self
     }
 
+    /// Pre-opens a directory before launching the process
+    pub fn pre_open(&mut self, path: String) -> &mut Command {
+        self.pre_open.push(path);
+        self
+    }
+
     /// Executes the command as a child process, returning a handle to it.
     ///
     /// By default, stdin, stdout and stderr are inherited from the parent.
@@ -303,7 +311,8 @@ impl Command {
         let stdin = self.stdin.as_ref().map(|a| a.clone()).unwrap_or(Stdio::inherit());
         let stdout = self.stdout.as_ref().map(|a| a.clone()).unwrap_or(Stdio::inherit());
         let stderr = self.stderr.as_ref().map(|a| a.clone()).unwrap_or(Stdio::inherit());
-        Child::new(self, stdin.mode, stdout.mode, stderr.mode)
+        let preopen = self.pre_open.clone();
+        Child::new(self, stdin.mode, stdout.mode, stderr.mode, preopen)
     }
 
     /// Executes the command as a child process, waiting for it to finish and

@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 #![allow(unused)]
 use bytes::*;
+use wasi_net::backend::StdioMode;
 use std::io;
 use std::io::prelude::*;
 use std::io::SeekFrom;
@@ -43,7 +44,13 @@ enum SocketMessage {
 }
 
 impl TokeraSocket {
-    pub fn new(reactor: &Arc<RwLock<Reactor>>, exec_factory: ExecFactory) -> TokeraSocket {
+    pub fn new(
+        reactor: &Arc<RwLock<Reactor>>,
+        exec_factory: ExecFactory,
+        inherit_stdin: Fd,
+        inherit_stdout: Fd,
+        inherit_stderr: Fd,
+    ) -> TokeraSocket {
         let reactor = Arc::clone(reactor);
         let (tx_factory, mut rx_factory) = mpsc::channel::<mpsc::Sender<Fd>>(10);
         wasm_bindgen_futures::spawn_local(async move {
@@ -58,6 +65,9 @@ impl TokeraSocket {
                 // Now we wait for the connection type and spawn based of it
                 let reactor = Arc::clone(&reactor);
                 let exec_factory = exec_factory.clone();
+                let inherit_stdin = inherit_stdin.clone();
+                let inherit_stdout = inherit_stdout.clone();
+                let inherit_stderr = inherit_stderr.clone();
                 wasm_bindgen_futures::spawn_local(async move {
                     use wasi_net::backend::*;
 
@@ -93,13 +103,24 @@ impl TokeraSocket {
                             path,
                             args,
                             current_dir,
+                            stdin_mode,
+                            stdout_mode,
+                            stderr_mode,
+                            pre_open
                         }) => {
                             open_exec_request(
                                 fd,
                                 path,
                                 args,
                                 current_dir,
+                                pre_open,
                                 exec_factory.clone(),
+                                stdin_mode,
+                                stdout_mode,
+                                stderr_mode,
+                                &inherit_stdin,
+                                &inherit_stdout,
+                                &inherit_stderr,
                                 reactor,
                                 rx,
                                 tx,
@@ -342,7 +363,14 @@ async fn open_exec_request(
     path: String,
     args: Vec<String>,
     current_dir: Option<String>,
+    pre_open: Vec<String>,
     factory: ExecFactory,
+    stdin_mode: StdioMode,
+    stdout_mode: StdioMode,
+    stderr_mode: StdioMode,
+    inherit_stdin: &Fd,
+    inherit_stdout: &Fd,
+    inherit_stderr: &Fd,
     reactor: Arc<RwLock<Reactor>>,
     mut rx: mpsc::Receiver<Vec<u8>>,
     tx: mpsc::Sender<Vec<u8>>,
@@ -374,8 +402,25 @@ async fn open_exec_request(
 
     // Create all the stdio
     let (stdin, stdin_tx) = pipe_in(ReceiverMode::Stream);
-    let (stdout, mut stdout_rx) = pipe_out();
-    let (stderr, mut stderr_rx) = pipe_out();
+    let (stdout, stdout_rx) = pipe_out();
+    let (stderr, stderr_rx) = pipe_out();
+
+    // Perform hooks back to the main stdio
+    let (stdin, mut stdin_tx) = match stdin_mode {
+        StdioMode::Null => (stdin, None),
+        StdioMode::Inherit => (inherit_stdin.clone(), None),
+        StdioMode::Piped => (stdin, Some(stdin_tx))
+    };
+    let (stdout, mut stdout_rx) = match stdout_mode {
+        StdioMode::Null => (stdout, None),
+        StdioMode::Inherit => (inherit_stdout.clone(), None),
+        StdioMode::Piped => (stdout, Some(stdout_rx))
+    };
+    let (stderr, mut stderr_rx) = match stderr_mode {
+        StdioMode::Null => (stderr, None),
+        StdioMode::Inherit => (inherit_stderr.clone(), None),
+        StdioMode::Piped => (stderr, Some(stderr_rx))
+    };
 
     // Build a context
     let ctx = SpawnContext::new(
@@ -386,6 +431,7 @@ async fn open_exec_request(
         stdout,
         stderr,
         current_dir.unwrap_or(job.working_dir.clone()),
+        pre_open,
         job.root.clone(),
     );
 
@@ -401,27 +447,52 @@ async fn open_exec_request(
     }
 
     // Now process all the STDIO concurrently
-    loop {
-        tokio::select! {
-            data = stdout_rx.recv() => {
-                if let Some(data) = data {
-                    send(&mut fd, MessageProcess::Stdout(data)).await;
-                } else {
-                    break;
+    if let Some(mut stdin_tx) = stdin_tx.as_mut() {
+       if let Some(mut stdout_rx) = stdout_rx.as_mut() {
+            if let Some(mut stderr_rx) = stderr_rx.as_mut() {
+                loop {
+                    tokio::select! {
+                        data = stdout_rx.recv() => {
+                            if let Some(data) = data {
+                                send(&mut fd, MessageProcess::Stdout(data)).await;
+                            } else {
+                                break;
+                            }
+                        }
+                        data = stderr_rx.recv() => {
+                            if let Some(data) = data {
+                                send(&mut fd, MessageProcess::Stderr(data)).await;
+                            } else {
+                                break;
+                            }
+                        }
+                        data = fd.read_async() => {
+                            if let Ok(data) = data {
+                                stdin_tx.send(data).await;
+                            } else {
+                                break;
+                            }
+                        }
+                    }
                 }
-            }
-            data = stderr_rx.recv() => {
-                if let Some(data) = data {
-                    send(&mut fd, MessageProcess::Stderr(data)).await;
-                } else {
-                    break;
-                }
-            }
-            data = fd.read_async() => {
-                if let Ok(data) = data {
-                    stdin_tx.send(data).await;
-                } else {
-                    break;
+            } else {
+                loop {
+                    tokio::select! {
+                        data = stdout_rx.recv() => {
+                            if let Some(data) = data {
+                                send(&mut fd, MessageProcess::Stdout(data)).await;
+                            } else {
+                                break;
+                            }
+                        }
+                        data = fd.read_async() => {
+                            if let Ok(data) = data {
+                                stdin_tx.send(data).await;
+                            } else {
+                                break;
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -429,14 +500,20 @@ async fn open_exec_request(
 
     // If we exit the concurrent loop we need to sequentially send
     // the data as well
-    while let Ok(data) = fd.read_async().await {
-        stdin_tx.send(data).await;
+    if let Some(mut stdin_tx) = stdin_tx.as_mut() {
+        while let Ok(data) = fd.read_async().await {
+            stdin_tx.send(data).await;
+        }
     }
-    while let Some(data) = stdout_rx.recv().await {
-        send(&mut fd, MessageProcess::Stdout(data)).await;
+    if let Some(mut stdout_rx) = stdout_rx.as_mut() {
+        while let Some(data) = stdout_rx.recv().await {
+            send(&mut fd, MessageProcess::Stdout(data)).await;
+        }
     }
-    while let Some(data) = stderr_rx.recv().await {
-        send(&mut fd, MessageProcess::Stderr(data)).await;
+    if let Some(mut stderr_rx) = stderr_rx.as_mut() {
+        while let Some(data) = stderr_rx.recv().await {
+            send(&mut fd, MessageProcess::Stderr(data)).await;
+        }
     }
 
     // Wait for the process to exit then send that

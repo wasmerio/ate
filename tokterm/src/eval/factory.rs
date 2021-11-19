@@ -17,6 +17,7 @@ pub struct SpawnContext {
     stdout: Fd,
     stderr: Fd,
     working_dir: String,
+    pre_open: Vec<String>,
     root: UnionFileSystem,
 }
 
@@ -29,6 +30,7 @@ impl SpawnContext {
         stdout: Fd,
         stderr: Fd,
         working_dir: String,
+        pre_open: Vec<String>,
         root: UnionFileSystem,
     ) -> SpawnContext {
         SpawnContext {
@@ -39,6 +41,7 @@ impl SpawnContext {
             stdout,
             stderr,
             working_dir,
+            pre_open,
             root,
         }
     }
@@ -90,6 +93,7 @@ impl ExecFactory {
             reactor: self.reactor.clone(),
             pool: self.pool.clone(),
             path: ctx.working_dir,
+            pre_open: ctx.pre_open.clone(),
             input: ctx.cmd,
             stdio,
             root: ctx.root.clone(),

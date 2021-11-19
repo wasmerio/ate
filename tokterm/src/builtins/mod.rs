@@ -1,6 +1,6 @@
 mod about;
 mod cd;
-mod exec;
+mod source;
 mod export;
 mod help;
 mod pwd;
@@ -10,7 +10,7 @@ mod unset;
 
 use about::*;
 use cd::*;
-use exec::*;
+use source::*;
 use export::*;
 use help::*;
 use pwd::*;
@@ -46,7 +46,7 @@ impl Builtins {
         b.insert("unset", unset);
         b.insert("help", help);
         b.insert("about", about);
-        b.insert("exec", exec);
+        b.insert("source", source);
         b.insert("pwd", pwd);
         b.insert("reset", reset);
         b
