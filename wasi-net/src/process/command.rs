@@ -308,9 +308,21 @@ impl Command {
     ///         .expect("ls command failed to start");
     /// ```
     pub fn spawn(&self) -> io::Result<Child> {
-        let stdin = self.stdin.as_ref().map(|a| a.clone()).unwrap_or(Stdio::inherit());
-        let stdout = self.stdout.as_ref().map(|a| a.clone()).unwrap_or(Stdio::inherit());
-        let stderr = self.stderr.as_ref().map(|a| a.clone()).unwrap_or(Stdio::inherit());
+        let stdin = self
+            .stdin
+            .as_ref()
+            .map(|a| a.clone())
+            .unwrap_or(Stdio::inherit());
+        let stdout = self
+            .stdout
+            .as_ref()
+            .map(|a| a.clone())
+            .unwrap_or(Stdio::inherit());
+        let stderr = self
+            .stderr
+            .as_ref()
+            .map(|a| a.clone())
+            .unwrap_or(Stdio::inherit());
         let preopen = self.pre_open.clone();
         Child::new(self, stdin.mode, stdout.mode, stderr.mode, preopen)
     }

@@ -5,8 +5,8 @@ mod child_stdout;
 mod command;
 mod exit_status;
 mod output;
-mod worker;
 mod stdio;
+mod worker;
 
 use worker::Worker;
 

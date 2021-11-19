@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 #![allow(unused)]
 use bytes::*;
-use wasi_net::backend::StdioMode;
 use std::io;
 use std::io::prelude::*;
 use std::io::SeekFrom;
@@ -12,6 +11,7 @@ use tokio::sync::mpsc;
 use tokio::sync::RwLock;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
+use wasi_net::backend::StdioMode;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use wasmer_vfs::{FileDescriptor, VirtualFile};
@@ -106,7 +106,7 @@ impl TokeraSocket {
                             stdin_mode,
                             stdout_mode,
                             stderr_mode,
-                            pre_open
+                            pre_open,
                         }) => {
                             open_exec_request(
                                 fd,
@@ -409,17 +409,17 @@ async fn open_exec_request(
     let (stdin, mut stdin_tx) = match stdin_mode {
         StdioMode::Null => (stdin, None),
         StdioMode::Inherit => (inherit_stdin.clone(), None),
-        StdioMode::Piped => (stdin, Some(stdin_tx))
+        StdioMode::Piped => (stdin, Some(stdin_tx)),
     };
     let (stdout, mut stdout_rx) = match stdout_mode {
         StdioMode::Null => (stdout, None),
         StdioMode::Inherit => (inherit_stdout.clone(), None),
-        StdioMode::Piped => (stdout, Some(stdout_rx))
+        StdioMode::Piped => (stdout, Some(stdout_rx)),
     };
     let (stderr, mut stderr_rx) = match stderr_mode {
         StdioMode::Null => (stderr, None),
         StdioMode::Inherit => (inherit_stderr.clone(), None),
-        StdioMode::Piped => (stderr, Some(stderr_rx))
+        StdioMode::Piped => (stderr, Some(stderr_rx)),
     };
 
     // Build a context
@@ -448,7 +448,7 @@ async fn open_exec_request(
 
     // Now process all the STDIO concurrently
     if let Some(mut stdin_tx) = stdin_tx.as_mut() {
-       if let Some(mut stdout_rx) = stdout_rx.as_mut() {
+        if let Some(mut stdout_rx) = stdout_rx.as_mut() {
             if let Some(mut stderr_rx) = stderr_rx.as_mut() {
                 loop {
                     tokio::select! {

@@ -1,21 +1,21 @@
 mod about;
 mod cd;
-mod source;
 mod export;
 mod help;
 mod pwd;
 mod readonly;
 mod reset;
+mod source;
 mod unset;
 
 use about::*;
 use cd::*;
-use source::*;
 use export::*;
 use help::*;
 use pwd::*;
 use readonly::*;
 use reset::*;
+use source::*;
 use unset::*;
 
 use std::collections::HashMap;

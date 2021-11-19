@@ -241,7 +241,8 @@ pub async fn exec(
             for pre_open in preopen {
                 if wasi_env.preopen_dir(Path::new(pre_open.as_str())).is_ok() == false {
                     tty.blocking_write_clear_line();
-                    let _ = tty.blocking_write(format!("pre-open error (path={})\n", pre_open).as_bytes());
+                    let _ = tty
+                        .blocking_write(format!("pre-open error (path={})\n", pre_open).as_bytes());
                     process.terminate(ERR_ENOEXEC);
                     return;
                 }
@@ -256,10 +257,7 @@ pub async fn exec(
         }
 
         // Finish off the WasiEnv
-        let mut wasi_env = match wasi_env
-            .set_fs(fs)
-            .finalize()
-        {
+        let mut wasi_env = match wasi_env.set_fs(fs).finalize() {
             Ok(a) => a,
             Err(err) => {
                 tty.blocking_write_clear_line();
@@ -300,9 +298,7 @@ pub async fn exec(
                         );
                         err::ERR_ENOEXEC
                     }
-                    Err(err) => {
-                        err::ERR_PANIC
-                    }
+                    Err(err) => err::ERR_PANIC,
                 },
             }
         } else {

@@ -59,7 +59,9 @@ impl Stdio {
     /// The size of a pipe buffer varies on different targets.
     ///
     pub fn piped() -> Stdio {
-        Stdio { mode: StdioMode::Piped }
+        Stdio {
+            mode: StdioMode::Piped,
+        }
     }
 
     /// The child inherits from the corresponding parent descriptor.
@@ -97,7 +99,9 @@ impl Stdio {
     /// io::stdout().write_all(&output.stdout).unwrap();
     /// ```
     pub fn inherit() -> Stdio {
-        Stdio { mode: StdioMode::Inherit }
+        Stdio {
+            mode: StdioMode::Inherit,
+        }
     }
 
     /// This stream will be ignored. This is the equivalent of attaching the
@@ -135,6 +139,8 @@ impl Stdio {
     /// // Ignores any piped-in input
     /// ```
     pub fn null() -> Stdio {
-        Stdio { mode: StdioMode::Null }
+        Stdio {
+            mode: StdioMode::Null,
+        }
     }
 }
