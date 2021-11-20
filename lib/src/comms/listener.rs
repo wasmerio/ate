@@ -40,6 +40,7 @@ use crate::engine::TaskEngine;
 
 #[derive(Debug)]
 struct ListenerNode {
+    #[allow(dead_code)]
     path: String,
 }
 

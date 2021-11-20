@@ -15,7 +15,7 @@ default = [ "client", "server" ]
 client_web = [ "ate/client_web", "parking_lot/wasm-bindgen" ]
 client = [ "enable_full", "ate/client" ]
 server = [ "enable_full", "ctrlc-async", "ate/server", "ate/enable_mt" ]
-enable_full = [ "enable_tcp", "tokio/rt", "tokio/io-util", "tokio/time", "tokio/fs" ]
+enable_full = [ "enable_tcp" ]
 enable_tcp = [ "enable_ntp", "enable_dns" ]
 enable_dns = []
 enable_ntp = []
@@ -24,7 +24,6 @@ enable_ntp = []
 ate = { version = "^1", path = "../lib", default_features = false }
 ate-auth = { version = "^1", path = "../auth", default_features = false }
 error-chain = { version = "^0.12", default_features = false }
-tokio = { version = "^1", features = [ "rt", "io-util", "macros", "sync", "time", "fs" ], default_features = false }
 serde = { version = "^1", features = ["derive"] }
 serde_json = "^1"
 tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
@@ -57,3 +56,14 @@ strum_macros = "^0.21"
 rust_decimal = "^1"
 rust_decimal_macros = "^1"
 num-traits = { version = "^0.2" }
+wild = "^2"
+
+[target.'cfg(not(target_os = "wasi"))'.dependencies]
+tokio = { version = "^1", features = [ "rt", "io-util", "macros", "sync", "time", "fs" ], default_features = false }
+
+[target.'cfg(target_os = "wasi")'.dependencies]
+tokio = { version = "^1", features = [ "macros", "sync" ], default_features = false }
+backtrace = "^0.3"
+wasi = { version = "^0.10" }
+wasm-timer = { version = "^0.2" }
+wasi-net = { version = "^0.4", path = "../wasi-net" }
