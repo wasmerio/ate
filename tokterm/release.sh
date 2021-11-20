@@ -2,14 +2,14 @@
 
 echo "Mounting Tokera"
 umount -l /mnt/tok 2>/dev/null || true
-killall atefs 2>/dev/null || true
-atefs mount /mnt/tok tokera.sh/www --non-empty &
+killall tok 2>/dev/null || true
+tok mount /mnt/tok tokera.sh/www --non-empty &
 PID_MNT=$1
 
 function finish {
   echo "Unmounting Tokera"
   umount -l /mnt/tok 2>/dev/null || true
-  killall atefs 2>/dev/null || true
+  killall tok 2>/dev/null || true
 }
 trap finish EXIT
 
