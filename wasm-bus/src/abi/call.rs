@@ -20,7 +20,7 @@ where T: de::DeserializeOwned
 {
     handle: CallHandle,
     #[derivative(Debug="ignore")]
-    callbacks: Arc<Mutex<Vec<Pin<Box<dyn Future<Output=()>>>>>>,
+    callbacks: Arc<Mutex<Vec<Pin<Box<dyn Future<Output=()> + Send + 'static>>>>>,
     _marker: PhantomData<T>,
 }
 
@@ -49,13 +49,13 @@ pub enum CallbackLifetime {
 
 pub trait IntoCallbackReturn
 {
-    fn into_lifetime(self) -> Pin<Box<dyn Future<Output=CallbackLifetime>>>;
+    fn into_lifetime(self) -> Pin<Box<dyn Future<Output=CallbackLifetime> + Send + 'static>>;
 }
 
 impl IntoCallbackReturn
 for CallbackLifetime
 {
-    fn into_lifetime(self) -> Pin<Box<dyn Future<Output=CallbackLifetime>>> {
+    fn into_lifetime(self) -> Pin<Box<dyn Future<Output=CallbackLifetime> + Send + 'static>> {
         Box::pin(async move {
             self
         })
@@ -64,9 +64,9 @@ for CallbackLifetime
 
 impl<T> IntoCallbackReturn
 for T
-where T: Future<Output=CallbackLifetime> + 'static
+where T: Future<Output=CallbackLifetime> + Send + 'static
 {
-    fn into_lifetime(self) -> Pin<Box<dyn Future<Output=CallbackLifetime>>> {
+    fn into_lifetime(self) -> Pin<Box<dyn Future<Output=CallbackLifetime> + Send + 'static>> {
         Box::pin(self)
     }
 }
@@ -79,7 +79,7 @@ where T: de::DeserializeOwned
 {
     handle: CallHandle,
     #[derivative(Debug="ignore")]
-    callbacks: Vec<Pin<Box<dyn Future<Output=()>>>>,
+    callbacks: Vec<Pin<Box<dyn Future<Output=()> + Send + 'static>>>,
     _marker: PhantomData<T>,
 }
 
@@ -103,9 +103,9 @@ where T: de::DeserializeOwned
     /// (this function handles both synchonrous and asynchronout
     ///  callbacks - just return a Callbacklifetime using either)
     pub fn with_callback<C, F, Fut>(mut self, mut callback: F) -> Self
-    where C: Serialize + de::DeserializeOwned,
+    where C: Serialize + de::DeserializeOwned + Send,
           F: FnMut(C) -> Fut,
-          F: 'static,
+          F: Send + 'static,
           Fut: IntoCallbackReturn,
     {
         let handle = self.handle;

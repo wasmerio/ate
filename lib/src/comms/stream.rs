@@ -14,6 +14,9 @@ use tokio::net::tcp::OwnedWriteHalf;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
+use wasm_bus::ws::WebSocket as WasmWebSocket;
+use wasm_bus::ws::RecvHalf as WasmRecvHalf;
+use wasm_bus::ws::SendHalf as WasmSendHalf;
 
 use crate::comms::PacketData;
 use crate::crypto::EncryptKey;
@@ -118,7 +121,7 @@ pub enum Stream {
         StreamProtocol,
     ),
     ViaFile(std::fs::File, StreamProtocol),
-    WapmWebSocket()
+    WapmWebSocket(WasmWebSocket)
 }
 
 impl StreamProtocol {
@@ -162,6 +165,7 @@ pub enum StreamRx {
     ),
     ViaQueue(mpsc::Receiver<Vec<u8>>, StreamProtocol),
     ViaFile(Arc<std::sync::Mutex<std::fs::File>>, StreamProtocol),
+    WapmWebSocket(WasmRecvHalf)
 }
 
 #[derive(Debug)]
@@ -178,6 +182,7 @@ pub enum StreamTx {
     ),
     ViaQueue(mpsc::Sender<Vec<u8>>, StreamProtocol),
     ViaFile(Arc<std::sync::Mutex<std::fs::File>>, StreamProtocol),
+    WapmWebSocket(WasmSendHalf)
 }
 
 impl Stream {
@@ -211,6 +216,10 @@ impl Stream {
                 let tx = Arc::clone(&rx);
                 (StreamRx::ViaFile(rx, p), StreamTx::ViaFile(tx, p))
             }
+            Stream::WapmWebSocket(a) => {
+                let (tx, rx) = a.split();
+                (StreamRx::WapmWebSocket(rx), StreamTx::WapmWebSocket(tx))
+            }
         }
     }
 
@@ -239,6 +248,7 @@ impl Stream {
             Stream::ViaStream(a, p) => Stream::ViaStream(a, p),
             Stream::ViaQueue(a, b, p) => Stream::ViaQueue(a, b, p),
             Stream::ViaFile(a, p) => Stream::ViaFile(a, p),
+            Stream::WapmWebSocket(a) => Stream::WapmWebSocket(a)
         };
 
         Ok(ret)
@@ -279,6 +289,7 @@ impl Stream {
             Stream::ViaStream(a, p) => Stream::ViaStream(a, p),
             Stream::ViaQueue(a, b, p) => Stream::ViaQueue(a, b, p),
             Stream::ViaFile(a, p) => Stream::ViaFile(a, p),
+            Stream::WapmWebSocket(a) => Stream::WapmWebSocket(a)
         };
         Ok(ret)
     }
@@ -295,6 +306,7 @@ impl Stream {
             Stream::ViaStream(_, p) => p.clone(),
             Stream::ViaQueue(_, _, p) => p.clone(),
             Stream::ViaFile(_, p) => p.clone(),
+            Stream::WapmWebSocket(_) => StreamProtocol::WebSocket
         }
     }
 }
@@ -344,6 +356,9 @@ impl StreamTx {
             StreamTx::ViaFile(_, _) => {
                 total_sent += self.write_32bit(buf, delay_flush).await?;
             }
+            StreamTx::WapmWebSocket(_) => {
+                total_sent += self.write_32bit(buf, delay_flush).await?;
+            }
         }
         #[allow(unreachable_code)]
         Ok(total_sent)
@@ -391,6 +406,9 @@ impl StreamTx {
                 total_sent += self.write_32bit(buf, delay_flush).await?;
             }
             StreamTx::ViaFile(_, _) => {
+                total_sent += self.write_32bit(buf, delay_flush).await?;
+            }
+            StreamTx::WapmWebSocket(_) => {
                 total_sent += self.write_32bit(buf, delay_flush).await?;
             }
         }
@@ -514,6 +532,9 @@ impl StreamTx {
                 let mut a = a.lock().unwrap();
                 a.write_all(buf)?;
             }
+            StreamTx::WapmWebSocket(a) => {
+                a.send(buf.to_vec()).await?;
+            }
         }
         #[allow(unreachable_code)]
         Ok(total_sent)
@@ -596,6 +617,7 @@ impl StreamRx {
             StreamRx::ViaStream(_, _) => self.read_32bit().await?,
             StreamRx::ViaQueue(_, _) => self.read_32bit().await?,
             StreamRx::ViaFile(_, _) => self.read_32bit().await?,
+            StreamRx::WapmWebSocket(_) => self.read_32bit().await?,
         };
         #[allow(unreachable_code)]
         Ok(ret)
@@ -624,6 +646,7 @@ impl StreamRx {
             StreamRx::ViaStream(_, _) => self.read_32bit().await?,
             StreamRx::ViaQueue(_, _) => self.read_32bit().await?,
             StreamRx::ViaFile(_, _) => self.read_32bit().await?,
+            StreamRx::WapmWebSocket(_) => self.read_32bit().await?,
         };
         #[allow(unreachable_code)]
         Ok(ret)
@@ -770,6 +793,15 @@ impl StreamRx {
                     break;
                 }
                 ret
+            },
+            StreamRx::WapmWebSocket(a) => match a.recv().await {
+                Some(a) => a,
+                None => {
+                    return Err(tokio::io::Error::new(
+                        tokio::io::ErrorKind::BrokenPipe,
+                        format!("Failed to receive data from web assembly socket"),
+                    ));
+                }
             }
         };
         #[allow(unreachable_code)]
@@ -788,6 +820,7 @@ impl StreamRx {
             StreamRx::ViaStream(_, p) => p.clone(),
             StreamRx::ViaQueue(_, p) => p.clone(),
             StreamRx::ViaFile(_, p) => p.clone(),
+            StreamRx::WapmWebSocket(_) => StreamProtocol::WebSocket
         }
     }
 }

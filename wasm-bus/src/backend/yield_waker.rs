@@ -13,10 +13,7 @@ pub(crate) struct YieldWaker {
 impl YieldWaker
 {
     pub fn yield_now(&self) {
-        unsafe {
-            let wake_up = &self.asleep;
-            yield_and_wait(wake_up as *const AtomicBool, 50);
-        }
+        yield_and_wait(50);
     }
 }
 

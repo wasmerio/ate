@@ -34,9 +34,11 @@ tokio = { version = "^1", features = [ "rt", "time", "sync", "macros" ], default
 derivative = { version = "^2" }
 base64 = { version = "^0.13" }
 sha2 = { version = "^0.9" }
-wasi-net = { version = "^0.4", path = "../wasi-net", features = [ "backend" ] }
+wasm-bus = { version = "^0.1", path = "../wasm-bus", features = [ "backend" ] }
+wasi-net = { version = "^0.4", features = [ "backend" ] }
 url = { version = "^2" }
 regex = { version = "^1.5" }
+fastrand = "^1.5"
 
 [dependencies.parking_lot]
 version = "^0.11"

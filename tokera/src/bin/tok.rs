@@ -120,17 +120,10 @@ fn init_wasi() {
     add_global_certificate(&AteHash::from_hex_string("9c960f3ba2ece59881be0b45f39ef989").unwrap());
     set_comm_factory(Box::new(move |_| {
         tracing::trace!("opening /dev/web");
-        match wasi_net::ws::SocketBuilder::new(url::Url::from_str("wss://tokera.com").unwrap())
-            .open()
-        {
-            Ok(a) => {
-                Some(ate::comms::Stream::ViaFile(a.to_std_file(), StreamProtocol::WebSocket))
-            },
-            Err(err) => {
-                warn!("failed to open /dev/web: {}", err);
-                return None;
-            }
-        }
+        let ws = wasm_bus::ws::SocketBuilder::new(url::Url::from_str("wss://tokera.com")
+            .unwrap())
+            .open();
+        Some(ate::comms::Stream::WapmWebSocket(ws))
     }));
 }
 

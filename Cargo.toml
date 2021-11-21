@@ -6,7 +6,7 @@ members = [
     "atedb",
     "auth",
     "files",
-    "wasi-net",
+    "wasm-bus",
     "tokterm",
 ]
 

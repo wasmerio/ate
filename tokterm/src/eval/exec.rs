@@ -16,7 +16,7 @@ use tracing::{debug, error, info, trace, warn};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
-use wasmer::{Instance, Module, Store};
+use wasmer::{ChainableNamedResolver, Instance, Module, Store};
 use wasmer_vfs::FileSystem;
 use wasmer_vfs::FsError;
 use wasmer_wasi::Stdin;
@@ -28,6 +28,7 @@ use super::*;
 
 use crate::bin::*;
 use crate::builtins::*;
+use crate::bus::WasmBusEnv;
 use crate::common::*;
 use crate::environment::*;
 use crate::err;
@@ -272,10 +273,12 @@ pub async fn exec(
         process.set_env(wasi_env.clone());
 
         // Generate an `ImportObject`.
-        let import_object = wasi_env.import_object(&module).unwrap();
+        let wasm_bus_import = WasmBusEnv::default().import_object(&module);
+        let wasi_import = wasi_env.import_object(&module).unwrap();
+        let import = wasi_import.chain_front(wasm_bus_import);
 
         // Let's instantiate the module with the imports.
-        let instance = Instance::new(&module, &import_object).unwrap();
+        let instance = Instance::new(&module, &import).unwrap();
 
         // Let's call the `_start` function, which is our `main` function in Rust.
         let start = instance

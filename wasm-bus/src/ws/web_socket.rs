@@ -17,7 +17,7 @@ pub struct WebSocket {
 
 impl WebSocket
 {
-    pub async fn split(self) -> (SendHalf, RecvHalf)
+    pub fn split(self) -> (SendHalf, RecvHalf)
     {
         (
             SendHalf { task: self.task },

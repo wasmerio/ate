@@ -4,12 +4,12 @@ use std::fmt;
 #[repr(C)]
 #[derive(Debug)]
 pub enum CallError {
-    SerializationFailed,
-    DeserializationFailed,
-    InvalidWapm,
-    FetchFailed,
-    CompileError,
-    IncorrectAbi,
+    SerializationFailed = 1,
+    DeserializationFailed = 2,
+    InvalidWapm = 3,
+    FetchFailed = 4,
+    CompileError = 5,
+    IncorrectAbi = 6,
 }
 
 impl CallError

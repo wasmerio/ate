@@ -54,7 +54,7 @@ impl BusEngine
     pub fn generate(&self) -> CallHandle {
         loop {
             let handle = CallHandle {
-                id: fastrand::u32(..),
+                id: crate::abi::syscall::rand(),
             };
             if let Ok(mut state) = self.state.try_lock() {
                 if state.handles.contains(&handle) == false {

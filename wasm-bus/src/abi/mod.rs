@@ -1,5 +1,3 @@
-mod buffer;
-mod string;
 mod data;
 mod call;
 mod handle;
@@ -11,14 +9,14 @@ pub(crate) mod syscall;
 use serde::*;
 use std::any::type_name;
 
-pub(self) use buffer::*;
-pub(self) use string::*;
 pub use error::*;
 pub use data::*;
-pub(crate) use handle::*;
+pub use handle::*;
 pub use call::*;
 pub use recv::*;
 pub use reply::*;
+
+use crate::reqwest::IntoUrlSealed;
 
 pub fn call<RES, REQ>(wapm: &str, request: REQ) -> CallBuilder<RES>
 where REQ: Serialize, 
@@ -29,10 +27,7 @@ where REQ: Serialize,
     
     match bincode::serialize(&request) {
         Ok(req) => {
-            let req: Buffer = req.into();
-            unsafe {
-                syscall::call(handle, wapm.into(), topic.into(), req);
-            }
+            syscall::call(handle, wapm.as_str(), topic, &req[..]);
         }
         Err(_err) => {
             crate::engine::finish(handle, Data::Error(CallError::SerializationFailed));
@@ -50,10 +45,7 @@ where REQ: Serialize,
     
     match bincode::serialize(&request) {
         Ok(req) => {
-            let req: Buffer = req.into();
-            unsafe {
-                syscall::call_recursive(parent, handle, req);
-            }
+            syscall::call_recursive(parent, handle, &req[..]);
         }
         Err(_err) => {
             crate::engine::finish(handle, Data::Error(CallError::SerializationFailed));
@@ -69,9 +61,7 @@ where REQ: de::DeserializeOwned,
 {
     let topic = type_name::<REQ>();
     let handle = crate::engine::begin();
-    unsafe {
-        syscall::recv(handle, topic.into())
-    };
+    syscall::recv(handle, topic.as_str());
 
     Recv::new(handle)
 }
@@ -82,10 +72,8 @@ where REQ: de::DeserializeOwned,
 {
     let topic = type_name::<REQ>();
     let handle = crate::engine::begin();
-    unsafe {
-        syscall::recv_recursive(parent, handle, topic.into())
-    };
-
+    syscall::recv_recursive(parent, handle, topic);
+    
     Recv::new(handle)
 }
 
@@ -94,22 +82,15 @@ where RES: Serialize
 {
     match bincode::serialize(&response) {
         Ok(res) => {
-            let res: Buffer = res.into();
-            unsafe {
-                syscall::reply(handle, res);
-            }
+            syscall::reply(handle, &res[..]);
         }
         Err(_err) => {
-            unsafe {
-                syscall::error(handle, CallError::SerializationFailed)
-            }
+            syscall::error(handle, CallError::SerializationFailed as i32)
         }
     }
 }
 
 pub(self) fn drop(handle: CallHandle)
 {
-    unsafe {
-        syscall::drop(handle);
-    }
+    syscall::drop(handle);
 }
