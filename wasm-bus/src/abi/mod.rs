@@ -41,11 +41,12 @@ pub(self) fn call_recursive<RES, REQ>(parent: CallHandle, request: REQ) -> CallB
 where REQ: Serialize, 
       RES: de::DeserializeOwned
 {
+    let topic = type_name::<REQ>();
     let handle = crate::engine::begin();
     
     match bincode::serialize(&request) {
         Ok(req) => {
-            syscall::call_recursive(parent, handle, &req[..]);
+            syscall::call_recursive(parent, handle, topic, &req[..]);
         }
         Err(_err) => {
             crate::engine::finish(handle, Data::Error(CallError::SerializationFailed));

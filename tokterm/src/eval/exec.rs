@@ -272,6 +272,14 @@ pub async fn exec(
         // kills itself (on the next syscall)
         process.set_env(wasi_env.clone());
 
+        // List all the exports
+        for ns in module.exports() {
+            trace!("module::export - {}", ns.name());
+        }
+        for ns in module.imports() {
+            trace!("module::import - {}::{}", ns.module(), ns.name());
+        }
+
         // Generate an `ImportObject`.
         let wasm_bus_import = WasmBusEnv::default().import_object(&module);
         let wasi_import = wasi_env.import_object(&module).unwrap();

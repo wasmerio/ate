@@ -14,7 +14,7 @@ mod raw {
 
         // Client calls
         pub(crate) fn call(handle: u32, wapm: i32, wapm_len: i32, topic: i32, topic_len: i32, request: i32, request_len: i32);
-        pub(crate) fn call_recursive(parent: u32, handle: u32, request: i32, request_len: i32);
+        pub(crate) fn call_recursive(parent: u32, handle: u32, topic: i32, topic_len: i32, request: i32, request_len: i32);
         pub(crate) fn recv_recursive(parent: u32, handle: u32, topic: i32, topic_len: i32);
         pub(crate) fn yield_and_wait(timeout_ms: u32);
     }
@@ -64,11 +64,13 @@ pub fn call(handle: CallHandle, wapm: &str, topic: &str, request: &[u8]) {
         raw::call(handle.id, wapm as i32, wapm_len as i32, topic as i32, topic_len as i32, request as i32, request_len as i32);
     }
 }
-pub fn call_recursive(parent: CallHandle, handle: CallHandle, request: &[u8]) {
+pub fn call_recursive(parent: CallHandle, handle: CallHandle, topic: &str, request: &[u8]) {
     unsafe {
+        let topic_len = topic.len();
+        let topic = topic.as_ptr();
         let request_len = request.len();
         let request = request.as_ptr();
-        raw::call_recursive(parent.id, handle.id, request as i32, request_len as i32);
+        raw::call_recursive(parent.id, handle.id, topic as i32, topic_len as i32, request as i32, request_len as i32);
     }
 }
 pub fn recv_recursive(parent: CallHandle, handle: CallHandle, topic: &str) {
