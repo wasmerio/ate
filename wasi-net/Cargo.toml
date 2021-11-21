@@ -1,9 +1,9 @@
 [package]
-name = "wasi-net"
-version = "0.4.0"
+name = "wasm-bus"
+version = "0.1.0"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
-description = "Interface used to make web requests on WASI operating systems"
+description = "Invocation bus for web assembly modules"
 license = "MIT OR Apache-2.0"
 keywords = [ "wasi" ]
 repository = "https://github.com/john-sharratt/ate"
@@ -12,7 +12,7 @@ readme = "README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = [ "ws", "reqwest", "process", "macros" ]
+default = [ "ws", "reqwest", "process", "macros", "tokio" ]
 backend = []
 ws = []
 reqwest = [ "http", "mime_guess", "http-body", "formdata" ]
@@ -39,4 +39,4 @@ bincode = "1"
 once_cell = "^1"
 fastrand = "^1.5"
 derivative = { version = "^2" }
-tokio = { version = "^1", features = [ "sync" ], default_features = false }
+tokio = { version = "^1", features = [ "sync" ], default_features = false, optional = true }

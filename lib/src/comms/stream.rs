@@ -118,6 +118,7 @@ pub enum Stream {
         StreamProtocol,
     ),
     ViaFile(std::fs::File, StreamProtocol),
+    WapmWebSocket()
 }
 
 impl StreamProtocol {

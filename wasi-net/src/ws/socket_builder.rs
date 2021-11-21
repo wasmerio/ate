@@ -1,6 +1,9 @@
 #![allow(dead_code)]
 use std::io::Write;
+#[cfg(feature = "tokio")]
 use tokio::sync::mpsc;
+#[cfg(not(feature = "tokio"))]
+use std::sync::mpsc;
 
 use super::*;
 use crate::abi::*;
@@ -15,6 +18,7 @@ impl SocketBuilder {
         SocketBuilder { url }
     }
 
+    #[cfg(feature = "tokio")]
     pub fn open(self) -> WebSocket {
         let url = self.url.to_string();
 
@@ -26,6 +30,24 @@ impl SocketBuilder {
                     let _ = tx_recv.send(data.data).await;
                     CallbackLifetime::KeepGoing
                 }
+            })
+            .invoke();
+        
+        WebSocket {
+            task,
+            rx: rx_recv
+        }
+    }
+
+    #[cfg(not(feature = "tokio"))]
+    pub fn open(self) -> WebSocket {
+        let url = self.url.to_string();
+
+        let (tx_recv, rx_recv) = mpsc::channel();
+        let task = call(WAPM_NAME, Connect { url })
+            .with_callback(move |data: Received| {
+                let _ = tx_recv.send(data.data);
+                CallbackLifetime::KeepGoing
             })
             .invoke();
         
