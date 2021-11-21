@@ -7,3 +7,5 @@ pub(crate) use web_socket::*;
 
 pub use socket_builder::SocketBuilder;
 pub use web_socket::WebSocket;
+
+pub(crate) const WAPM_NAME: &'static str = "os";

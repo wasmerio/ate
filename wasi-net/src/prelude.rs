@@ -4,3 +4,6 @@ pub use super::process::{Child, Command, ExitStatus, Output};
 pub use super::reqwest::{header, http, Body, Client, ClientBuilder, Form, Mime, RequestBuilder};
 #[cfg(feature = "ws")]
 pub use super::ws::{SocketBuilder, WebSocket};
+
+pub use crate::abi::call;
+pub use crate::abi::Call;

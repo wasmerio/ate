@@ -5,9 +5,9 @@ use std::collections::HashMap;
 use std::io::Write;
 
 use super::*;
-use crate::backend::utils::*;
-use crate::backend::Command as BackendCommand;
-use crate::backend::Response as BackendResponse;
+use crate::abi::call;
+use crate::backend::reqwest::Request as BackendRequest;
+use crate::backend::reqwest::Response as BackendResponse;
 
 pub struct RequestBuilder {
     pub(crate) method: http::Method,
@@ -48,7 +48,7 @@ impl RequestBuilder {
     pub fn send(self) -> Result<Response, std::io::Error> {
         let url = self.url.to_string();
 
-        let submit = BackendCommand::WebRequestVersion1 {
+        let submit = BackendRequest {
             url,
             method: self.method.to_string(),
             headers: self
@@ -63,63 +63,25 @@ impl RequestBuilder {
                 .map(|a| a.to_vec())
                 .next(),
         };
-        let mut submit = submit.serialize()?;
-        submit += "\n";
 
-        let mut file = std::fs::File::open("/dev/web")?;
-
-        let _ = file.write_all(submit.as_bytes());
-
-        let res = read_response(&mut file)?;
-        let (ok, redirected, status, status_text, headers, has_data) = match res {
-            BackendResponse::Error { msg } => {
-                return Err(std::io::Error::new(std::io::ErrorKind::Other, msg.as_str()));
-            }
-            BackendResponse::WebSocketVersion1 { .. } => {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    "server returned a web socket instead of a web request",
-                ));
-            }
-            BackendResponse::WebRequestVersion1 {
-                ok,
-                redirected,
-                status,
-                status_text,
-                headers,
-                has_data,
-            } => (ok, redirected, status, status_text, headers, has_data),
-            _ => {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    "the socket does not support this response type",
-                ));
-            }
-        };
-
-        let status = StatusCode::from_u16(status).map_err(|err| {
+        let res: BackendResponse = call(WAPM_NAME, submit).invoke().wait()
+            .map_err(|err| err.into_io_error())?;
+        
+        let status = StatusCode::from_u16(res.status).map_err(|err| {
             std::io::Error::new(
                 std::io::ErrorKind::Other,
                 format!("invalid status code returned by the server - {}", err).as_str(),
             )
         })?;
 
-        let data = if has_data {
-            let mut data = Vec::new();
-            read_to_end(&mut file, &mut data)?;
-            Some(data)
-        } else {
-            None
-        };
-
         Ok(Response {
-            ok,
-            redirected,
+            ok: res.ok,
+            redirected: res.redirected,
             status,
-            status_text,
-            headers,
+            status_text: res.status_text,
+            headers: res.headers,
             pos: 0usize,
-            data,
+            data: res.data,
         })
     }
 }

@@ -1,3 +1,5 @@
+use serde::*;
+
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub struct ExitStatusError {
     code: Option<i32>,
@@ -13,7 +15,7 @@ impl ExitStatusError {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy)]
 pub struct ExitStatus {
     pub(super) code: Option<i32>,
 }

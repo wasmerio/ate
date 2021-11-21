@@ -1,41 +1,56 @@
 use std::io;
 use std::io::Read;
 use std::io::Write;
+use tokio::sync::mpsc;
 
+use crate::abi::*;
+use crate::backend::ws::*;
+
+#[derive(Debug)]
 pub struct WebSocket {
-    pub(super) file: std::fs::File,
+    pub(super) task: Call<()>,
+    pub(super) rx: mpsc::Receiver<Vec<u8>>
 }
 
-impl WebSocket {
-    pub fn to_std_file(self) -> std::fs::File {
-        self.file
-    }
-}
-
-impl Read for WebSocket {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.file.read(buf)
-    }
-
-    fn read_vectored(&mut self, bufs: &mut [io::IoSliceMut<'_>]) -> io::Result<usize> {
-        self.file.read_vectored(bufs)
+impl WebSocket
+{
+    pub async fn split(self) -> (SendHalf, RecvHalf)
+    {
+        (
+            SendHalf { task: self.task },
+            RecvHalf { rx: self.rx },
+        )
     }
 }
 
-impl Write for WebSocket {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.file.write(buf)
+#[derive(Debug, Clone)]
+pub struct SendHalf {
+    task: Call<()>
+}
+
+impl SendHalf {
+    pub async fn send(&self, data: Vec<u8>) -> io::Result<()> {
+        self.task.call(Send { data }).invoke().await
+            .map_err(|err| err.into_io_error())
     }
 
-    fn write_vectored(&mut self, bufs: &[io::IoSlice<'_>]) -> io::Result<usize> {
-        self.file.write_vectored(bufs)
+    pub fn blocking_send(&self, data: Vec<u8>) -> io::Result<()> {
+        self.task.call(Send { data }).invoke().wait()
+            .map_err(|err| err.into_io_error())
+    }
+}
+
+#[derive(Debug)]
+pub struct RecvHalf {
+    rx: mpsc::Receiver<Vec<u8>>
+}
+
+impl RecvHalf {
+    pub async fn recv(&mut self) -> Option<Vec<u8>> {
+        self.rx.recv().await
     }
 
-    fn flush(&mut self) -> io::Result<()> {
-        self.file.flush()
-    }
-
-    fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
-        self.file.write_all(buf)
+    pub fn blocking_recv(&mut self) -> Option<Vec<u8>> {
+        self.rx.blocking_recv()
     }
 }

@@ -1,8 +1,6 @@
 use bytes::*;
 use std::io::Read;
 use std::sync::mpsc;
-use std::sync::Arc;
-use std::sync::Mutex;
 
 use super::*;
 
@@ -10,7 +8,19 @@ use super::*;
 pub struct ChildStdout {
     pub(super) rx: mpsc::Receiver<Vec<u8>>,
     pub(super) buffer: BytesMut,
-    pub(super) worker: Arc<Mutex<Worker>>,
+}
+
+impl ChildStdout {
+    pub fn new() -> (ChildStdout, mpsc::Sender<Vec<u8>>){
+        let (tx_stdout, rx_stdout) = mpsc::channel();
+        (
+            ChildStdout {
+                rx: rx_stdout,
+                buffer: BytesMut::new(),
+            },
+            tx_stdout
+        )
+    }
 }
 
 impl Read for ChildStdout {
@@ -22,20 +32,12 @@ impl Read for ChildStdout {
                 self.buffer.advance(max);
                 return Ok(max);
             } else {
-                match self.rx.try_recv() {
+                match self.rx.recv() {
                     Ok(data) => {
                         self.buffer.extend_from_slice(&data[..]);
                     }
-                    Err(mpsc::TryRecvError::Disconnected) => {
+                    Err(mpsc::RecvError) => {
                         return Ok(0usize);
-                    }
-                    Err(mpsc::TryRecvError::Empty) => {
-                        let mut worker = self.worker.lock().unwrap();
-                        if let Ok(data) = self.rx.try_recv() {
-                            self.buffer.extend_from_slice(&data[..]);
-                            continue;
-                        }
-                        worker.work()?;
                     }
                 }
             }

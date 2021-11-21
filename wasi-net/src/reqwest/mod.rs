@@ -24,8 +24,8 @@ pub use ::http::header;
 pub use body::Body;
 pub use client::Client;
 pub use client_builder::ClientBuilder;
-pub use error::Error;
-pub use error::ErrorKind;
 pub use mime::Mime;
 pub use multipart::Form;
 pub use request_builder::RequestBuilder;
+
+pub(crate) const WAPM_NAME: &'static str = "os";

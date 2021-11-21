@@ -1,14 +1,12 @@
-use std::fs::File;
-use std::io::{self, Read, Write};
-use std::sync::mpsc;
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::io::{self, Read};
+use std::future::Future;
+use std::task::Context;
+use std::task::Poll;
+use std::pin::Pin;
 
 use super::*;
-use crate::backend::Command as BackendCommand;
-use crate::backend::MessageProcess;
-use crate::backend::Response as BackendResponse;
-use crate::backend::{utils::*, StdioMode};
+use crate::abi::{call, Call, CallbackLifetime};
+use crate::backend::process::*;
 
 /// Representation of a running or exited child process.
 ///
@@ -45,14 +43,7 @@ use crate::backend::{utils::*, StdioMode};
 /// [`wait`]: Child::wait
 #[derive(Debug)]
 pub struct Child {
-    pid: u32,
-    cmd: Command,
-    worker: Arc<Mutex<Worker>>,
-    rx_exit: mpsc::Receiver<ExitStatus>,
-    stdin_mode: StdioMode,
-    stdout_mode: StdioMode,
-    stderr_mode: StdioMode,
-    pre_open: Vec<String>,
+    task: Call<ExitStatus>,
 
     /// The handle for writing to the child's standard input (stdin), if it has
     /// been captured. To avoid partially moving
@@ -97,7 +88,7 @@ impl Child {
         stderr_mode: StdioMode,
         pre_open: Vec<String>,
     ) -> Result<Child> {
-        let submit = BackendCommand::SpawnProcessVersion1 {
+        let mut task = call(WAPM_NAME, Spawn {
             path: cmd.path.clone(),
             current_dir: cmd.current_dir.clone(),
             args: cmd.args.clone(),
@@ -105,51 +96,44 @@ impl Child {
             stdout_mode,
             stderr_mode,
             pre_open: pre_open.clone(),
-        };
-        let mut submit = submit.serialize()?;
-        submit += "\n";
+        });
 
-        let mut file = File::open("/dev/exec")?;
-
-        let _ = file.write_all(submit.as_bytes());
-
-        let res = read_response(&mut file)?;
-        let pid = match res {
-            BackendResponse::SpawnedProcessVersion1 { pid } => pid,
-            _ => {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    "the socket does not support this response type",
-                ));
-            }
+        let stdout = if stdout_mode == StdioMode::Piped {
+            let (stdout, tx) = ChildStdout::new();
+            task = task.with_callback(move |data: DataStdout| {
+                let _ = tx.send(data.0);
+                CallbackLifetime::KeepGoing
+            });
+            Some(stdout)
+        } else {
+            None
         };
 
-        let (worker, stdin, stdout, stderr, rx_exit) = Worker::new(file);
+        let stderr = if stderr_mode == StdioMode::Piped {
+            let (stderr, tx) = ChildStderr::new();
+            task = task.with_callback(move |data: DataStderr| {
+                let _ = tx.send(data.0);
+                CallbackLifetime::KeepGoing
+            });
+            Some(stderr)
+        } else {
+            None
+        };
+
+        let task = task.invoke();
+
+        let stdin = if stdin_mode == StdioMode::Piped {
+            let stdin = ChildStdin::new(task.clone());
+            Some(stdin)
+        } else {
+            None
+        };
 
         Ok(Child {
-            pid,
-            worker,
-            cmd: cmd.clone(),
-            stdin_mode,
-            stdout_mode,
-            stderr_mode,
-            stdin: if stdin_mode == StdioMode::Piped {
-                Some(stdin)
-            } else {
-                None
-            },
-            stdout: if stdout_mode == StdioMode::Piped {
-                Some(stdout)
-            } else {
-                None
-            },
-            stderr: if stderr_mode == StdioMode::Piped {
-                Some(stderr)
-            } else {
-                None
-            },
-            rx_exit,
-            pre_open,
+            task,
+            stdin,
+            stdout,
+            stderr,
         })
     }
 
@@ -180,17 +164,8 @@ impl Child {
     /// [`InvalidInput`]: io::ErrorKind::InvalidInput
     /// [`Other`]: io::ErrorKind::Other
     pub fn kill(&mut self) -> io::Result<()> {
-        self.worker
-            .lock()
-            .unwrap()
-            .send(MessageProcess::Kill)
-            .or_else(|_| {
-                Err(std::io::Error::new(
-                    std::io::ErrorKind::BrokenPipe,
-                    "failed to notify the process to kill itself",
-                ))
-            })?;
-        Ok(())
+        Ok(self.task.call(OutOfBand::Kill).invoke().wait()
+            .map_err(|err| err.into_io_error())?)
     }
 
     /// Returns the OS-assigned process identifier associated with this child.
@@ -210,7 +185,7 @@ impl Child {
     /// }
     /// ```
     pub fn id(&self) -> u32 {
-        self.pid
+        self.task.id() as u32
     }
 
     /// Waits for the child to exit completely, returning the status that it
@@ -237,30 +212,9 @@ impl Child {
     ///     println!("ls command didn't start");
     /// }
     /// ```
-    pub fn wait(&mut self) -> io::Result<ExitStatus> {
-        loop {
-            match self.worker.lock().unwrap().work() {
-                Ok(_) => {}
-                Err(err) if err.kind() == ErrorKind::WouldBlock => {
-                    std::thread::sleep(std::time::Duration::from_millis(1));
-                }
-                Err(err) => {
-                    return Err(err);
-                }
-            };
-            match self.rx_exit.try_recv() {
-                Ok(exitcode) => {
-                    return Ok(exitcode);
-                }
-                Err(mpsc::TryRecvError::Disconnected) => {
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::BrokenPipe,
-                        "the process worker already exited",
-                    ));
-                }
-                _ => {}
-            }
-        }
+    pub fn wait(self) -> io::Result<ExitStatus> {
+        self.task.wait()
+            .map_err(|err| err.into_io_error())
     }
 
     /// Attempts to collect the exit status of the child if it has already
@@ -298,14 +252,8 @@ impl Child {
     /// }
     /// ```
     pub fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
-        match self.rx_exit.try_recv() {
-            Ok(exitcode) => Ok(Some(exitcode)),
-            Err(mpsc::TryRecvError::Disconnected) => Err(std::io::Error::new(
-                std::io::ErrorKind::BrokenPipe,
-                "the process worker exited",
-            )),
-            Err(mpsc::TryRecvError::Empty) => Ok(None),
-        }
+        self.task.try_wait()
+            .map_err(|err| err.into_io_error())
     }
 
     /// Simultaneously waits for the child to exit and collect all remaining
@@ -343,10 +291,11 @@ impl Child {
     pub fn wait_with_output(mut self) -> io::Result<Output> {
         drop(self.stdin.take());
 
+        let taken = (self.stdout.take(), self.stderr.take());
         let status = self.wait()?;
 
         let (mut stdout, mut stderr) = (Vec::new(), Vec::new());
-        match (self.stdout.take(), self.stderr.take()) {
+        match taken {
             (None, None) => {}
             (Some(mut out), None) => {
                 out.read_to_end(&mut stdout).unwrap();
@@ -365,5 +314,21 @@ impl Child {
             stdout,
             stderr,
         })
+    }
+}
+
+/// Its also possible to .await the process
+impl Future
+for Child
+{
+    type Output = io::Result<ExitStatus>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let task = Pin::new(&mut self.task);
+        match task.poll(cx) {
+            Poll::Ready(Ok(a)) => Poll::Ready(Ok(a)),
+            Poll::Ready(Err(err)) => Poll::Ready(Err(err.into_io_error())),
+            Poll::Pending => Poll::Pending
+        }
     }
 }

@@ -6,9 +6,6 @@ mod command;
 mod exit_status;
 mod output;
 mod stdio;
-mod worker;
-
-use worker::Worker;
 
 pub use child::Child;
 pub use child_stderr::ChildStderr;
@@ -22,3 +19,5 @@ pub use stdio::*;
 pub use std::io::Error;
 pub use std::io::ErrorKind;
 pub use std::io::Result;
+
+pub(crate) const WAPM_NAME: &'static str = "os";

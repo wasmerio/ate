@@ -1,42 +1,33 @@
-use base64;
-use bincode;
-use serde::{Deserialize, Serialize};
-use std::{io, process::ExitStatus};
+use serde::*;
 
-use super::*;
-
-#[derive(Serialize, Deserialize, Debug)]
-pub enum MessageProcess {
-    Kill,
-    Exited(i32),
-    Stdin(Vec<u8>),
-    Stdout(Vec<u8>),
-    Stderr(Vec<u8>),
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Spawn {
+    pub path: String,
+    pub args: Vec<String>,
+    pub current_dir: Option<String>,
+    pub stdin_mode: StdioMode,
+    pub stdout_mode: StdioMode,
+    pub stderr_mode: StdioMode,
+    pub pre_open: Vec<String>,
 }
 
-impl MessageProcess {
-    pub fn serialize(&self) -> io::Result<String> {
-        let ret = bincode::serialize(self).map_err(|err| {
-            io::Error::new(
-                io::ErrorKind::Other,
-                format!("failed to serialize into bincode bytes - {}", err),
-            )
-        })?;
-        Ok(base64::encode(&ret[..]))
-    }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum OutOfBand {
+    DataStdin(Vec<u8>),
+    CloseStdin,
+    Kill,
+    Work,
+}
 
-    pub fn deserialize(input: &str) -> io::Result<Self> {
-        let input = base64::decode(input.trim()).map_err(|err| {
-            io::Error::new(
-                io::ErrorKind::Other,
-                format!("failed to decode base64 string - {}", err),
-            )
-        })?;
-        Ok(bincode::deserialize(&input[..]).map_err(|err| {
-            io::Error::new(
-                io::ErrorKind::Other,
-                format!("failed to deserialize from bincode bytes - {}", err),
-            )
-        })?)
-    }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DataStdout(pub Vec<u8>);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DataStderr(pub Vec<u8>);
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum StdioMode {
+    Piped,
+    Inherit,
+    Null,
 }

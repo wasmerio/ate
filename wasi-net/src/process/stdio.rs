@@ -1,4 +1,4 @@
-use crate::backend::StdioMode;
+use crate::backend::process::*;
 
 /// Describes what to do with a standard I/O stream for a child process when
 /// passed to the [`stdin`], [`stdout`], and [`stderr`] methods of [`Command`].

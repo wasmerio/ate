@@ -1,23 +1,30 @@
 use std::io::Write;
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::io;
 
 use super::*;
-use crate::backend::MessageProcess;
+use crate::abi::*;
+use crate::backend::process::*;
 
 #[derive(Debug)]
 pub struct ChildStdin {
-    pub(super) worker: Arc<Mutex<Worker>>,
+    pub(super) task: Call<ExitStatus>,
+}
+
+impl ChildStdin {
+    pub fn new(task: Call<ExitStatus>) -> ChildStdin {
+        ChildStdin {
+            task,
+        }
+    }
 }
 
 impl Write for ChildStdin {
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
-        let msg = MessageProcess::Stdin(buf.to_vec());
-        self.worker.lock().unwrap().send(msg)?;
-        return Ok(buf.len());
+        Ok(self.task.call(OutOfBand::DataStdin(buf.to_vec())).invoke().wait()
+            .map_err(|err| err.into_io_error())?)
     }
 
-    fn flush(&mut self) -> Result<()> {
+    fn flush(&mut self) -> io::Result<()> {
         Ok(())
     }
 }

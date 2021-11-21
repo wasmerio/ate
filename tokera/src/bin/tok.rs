@@ -119,8 +119,8 @@ fn init_wasi() {
     // Add the main Tokera certificate and connect via a emulated file
     add_global_certificate(&AteHash::from_hex_string("9c960f3ba2ece59881be0b45f39ef989").unwrap());
     set_comm_factory(Box::new(move |_| {
-        trace!("opening /dev/web");
-        match wasi_net::SocketBuilder::new(url::Url::from_str("wss://tokera.com").unwrap())
+        tracing::trace!("opening /dev/web");
+        match wasi_net::ws::SocketBuilder::new(url::Url::from_str("wss://tokera.com").unwrap())
             .open()
         {
             Ok(a) => {
