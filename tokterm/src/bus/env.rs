@@ -1,8 +1,8 @@
-use wasmer::WasmerEnv;
+use wasmer::ImportObject;
 use wasmer::LazyInit;
 use wasmer::Memory;
 use wasmer::Module;
-use wasmer::ImportObject;
+use wasmer::WasmerEnv;
 //use wasmer::NativeFunc;
 
 use super::namespace::generate_import_object_wasm_bus;
@@ -22,14 +22,10 @@ pub struct WasmBusEnv {
     */
 }
 
-impl WasmBusEnv
-{
+impl WasmBusEnv {
     /// Get an `ImportObject`
     pub fn import_object(&mut self, module: &Module) -> ImportObject {
-        generate_import_object_wasm_bus(
-            module.store(),
-            self.clone(),
-        )
+        generate_import_object_wasm_bus(module.store(), self.clone())
     }
 
     /// Get a reference to the memory

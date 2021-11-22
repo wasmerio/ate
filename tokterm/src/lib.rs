@@ -6,6 +6,7 @@ lalrpop_mod!(#[allow(clippy::all)] pub grammar);
 mod ast;
 mod bin;
 mod builtins;
+mod bus;
 mod cconst;
 mod common;
 mod console;
@@ -25,7 +26,6 @@ mod state;
 mod stdio;
 mod stdout;
 mod tty;
-mod bus;
 
 pub use glue::main;
 pub use glue::start;

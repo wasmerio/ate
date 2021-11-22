@@ -1,9 +1,9 @@
-use wasmer::{Function, Store};
 use wasmer::imports;
 use wasmer::ImportObject;
+use wasmer::{Function, Store};
 
-use super::syscalls::*;
 use super::env::WasmBusEnv;
+use super::syscalls::*;
 
 /// Combines a state generating function with the import list for the WASM bus
 pub(super) fn generate_import_object_wasm_bus(store: &Store, env: WasmBusEnv) -> ImportObject {
