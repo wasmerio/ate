@@ -18,36 +18,13 @@ impl SocketBuilder {
         SocketBuilder { url }
     }
 
-    #[cfg(feature = "tokio")]
-    pub fn open(self) -> WebSocket {
-        let url = self.url.to_string();
-
-        let (tx_recv, rx_recv) = mpsc::channel(crate::MAX_MPSC);
-        let task = call(WAPM_NAME, Connect { url })
-            .with_callback(move |data: Received| {
-                let tx_recv = tx_recv.clone();
-                async move {
-                    let _ = tx_recv.send(data.data).await;
-                    CallbackLifetime::KeepGoing
-                }
-            })
-            .invoke();
-        
-        WebSocket {
-            task,
-            rx: rx_recv
-        }
-    }
-
-    #[cfg(not(feature = "tokio"))]
     pub fn open(self) -> WebSocket {
         let url = self.url.to_string();
 
         let (tx_recv, rx_recv) = mpsc::channel();
-        let task = call(WAPM_NAME, Connect { url })
+        let task = call(WAPM_NAME.into(), Connect { url })
             .with_callback(move |data: Received| {
                 let _ = tx_recv.send(data.data);
-                CallbackLifetime::KeepGoing
             })
             .invoke();
         

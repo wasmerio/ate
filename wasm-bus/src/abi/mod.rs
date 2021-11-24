@@ -8,6 +8,7 @@ pub(crate) mod syscall;
 
 use serde::*;
 use std::any::type_name;
+use std::borrow::Cow;
 
 pub use error::*;
 pub use data::*;
@@ -18,64 +19,57 @@ pub use reply::*;
 
 use crate::reqwest::IntoUrlSealed;
 
-pub fn call<RES, REQ>(wapm: &str, request: REQ) -> CallBuilder<RES>
-where REQ: Serialize, 
-      RES: de::DeserializeOwned
+pub fn call<T>(wapm: Cow<'static, str>, request: T) -> CallBuilder
+where T: Serialize, 
 {
-    let topic = type_name::<REQ>();
-    let handle = crate::engine::begin();
+    let topic = type_name::<T>();
+    let call = crate::engine::BusEngine::call(wapm, topic.into());
     
-    match bincode::serialize(&request) {
-        Ok(req) => {
-            syscall::call(handle, wapm.as_str(), topic, &req[..]);
-        }
+    let req = match bincode::serialize(&request) {
+        Ok(req) => Data::Success(req),
         Err(_err) => {
-            crate::engine::finish(handle, Data::Error(CallError::SerializationFailed));
+            Data::Error(CallError::SerializationFailed)
         }
-    }
+    };
 
-    CallBuilder::new(handle)
+    CallBuilder::new(call, req)
 }
 
-pub(self) fn call_recursive<RES, REQ>(parent: CallHandle, request: REQ) -> CallBuilder<RES>
-where REQ: Serialize, 
-      RES: de::DeserializeOwned
+pub fn call_recursive<T>(handle: CallHandle, wapm: Cow<'static, str>, request: T) -> CallBuilder
+where T: Serialize, 
 {
-    let topic = type_name::<REQ>();
-    let handle = crate::engine::begin();
+    let topic = type_name::<T>();
+    let call = crate::engine::BusEngine::call_recursive(handle, wapm, topic.into());
     
-    match bincode::serialize(&request) {
-        Ok(req) => {
-            syscall::call_recursive(parent, handle, topic, &req[..]);
-        }
+    let req = match bincode::serialize(&request) {
+        Ok(req) => Data::Success(req),
         Err(_err) => {
-            crate::engine::finish(handle, Data::Error(CallError::SerializationFailed));
+            Data::Error(CallError::SerializationFailed)
         }
-    }
+    };
 
-    CallBuilder::new(handle)
+    CallBuilder::new(call, req)
 }
 
 pub fn recv<RES, REQ>() -> Recv<RES, REQ>
-where REQ: de::DeserializeOwned,
-      RES: Serialize
+where REQ: de::DeserializeOwned + 'static,
+      RES: Serialize + 'static
 {
     let topic = type_name::<REQ>();
-    let handle = crate::engine::begin();
+    let recv = crate::engine::BusEngine::recv();
+    let handle = recv.handle;
+
     syscall::recv(handle, topic.as_str());
 
-    Recv::new(handle)
+    recv
 }
 
-pub fn recv_recursive<RES, REQ>(parent: CallHandle) -> Recv<RES, REQ>
-where REQ: de::DeserializeOwned,
-      RES: Serialize
+pub fn recv_recursive<RES, REQ>(handle: CallHandle)
+where REQ: de::DeserializeOwned + 'static,
+      RES: Serialize + 'static
 {
     let topic = type_name::<REQ>();
-    let handle = crate::engine::begin();
-    syscall::recv_recursive(parent, handle, topic);
-    
-    Recv::new(handle)
+    syscall::recv(handle, topic.as_str());
 }
 
 pub(self) fn reply<RES>(handle: CallHandle, response: RES)

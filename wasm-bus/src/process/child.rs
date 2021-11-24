@@ -5,7 +5,7 @@ use std::task::Poll;
 use std::pin::Pin;
 
 use super::*;
-use crate::abi::{call, Call, CallbackLifetime};
+use crate::abi::{call, Call, CallJoin};
 use crate::backend::process::*;
 
 /// Representation of a running or exited child process.
@@ -43,7 +43,7 @@ use crate::backend::process::*;
 /// [`wait`]: Child::wait
 #[derive(Debug)]
 pub struct Child {
-    task: Call<ExitStatus>,
+    task: Call,
 
     /// The handle for writing to the child's standard input (stdin), if it has
     /// been captured. To avoid partially moving
@@ -88,7 +88,7 @@ impl Child {
         stderr_mode: StdioMode,
         pre_open: Vec<String>,
     ) -> Result<Child> {
-        let mut task = call(WAPM_NAME, Spawn {
+        let mut task = call(WAPM_NAME.into(), Spawn {
             path: cmd.path.clone(),
             current_dir: cmd.current_dir.clone(),
             args: cmd.args.clone(),
@@ -102,7 +102,6 @@ impl Child {
             let (stdout, tx) = ChildStdout::new();
             task = task.with_callback(move |data: DataStdout| {
                 let _ = tx.send(data.0);
-                CallbackLifetime::KeepGoing
             });
             Some(stdout)
         } else {
@@ -113,7 +112,6 @@ impl Child {
             let (stderr, tx) = ChildStderr::new();
             task = task.with_callback(move |data: DataStderr| {
                 let _ = tx.send(data.0);
-                CallbackLifetime::KeepGoing
             });
             Some(stderr)
         } else {
@@ -164,7 +162,10 @@ impl Child {
     /// [`InvalidInput`]: io::ErrorKind::InvalidInput
     /// [`Other`]: io::ErrorKind::Other
     pub fn kill(&mut self) -> io::Result<()> {
-        Ok(self.task.call(OutOfBand::Kill).invoke().wait()
+        Ok(self.task.call(OutOfBand::Kill)
+            .invoke()
+            .join()
+            .wait()
             .map_err(|err| err.into_io_error())?)
     }
 
@@ -213,46 +214,9 @@ impl Child {
     /// }
     /// ```
     pub fn wait(self) -> io::Result<ExitStatus> {
-        self.task.wait()
-            .map_err(|err| err.into_io_error())
-    }
-
-    /// Attempts to collect the exit status of the child if it has already
-    /// exited.
-    ///
-    /// This function will not block the calling thread and will only
-    /// check to see if the child process has exited or not. If the child has
-    /// exited then on Unix the process ID is reaped. This function is
-    /// guaranteed to repeatedly return a successful exit status so long as the
-    /// child has already exited.
-    ///
-    /// If the child has exited, then `Ok(Some(status))` is returned. If the
-    /// exit status is not available at this time then `Ok(None)` is returned.
-    /// If an error occurs, then that error is returned.
-    ///
-    /// Note that unlike `wait`, this function will not attempt to drop stdin.
-    ///
-    /// # Examples
-    ///
-    /// Basic usage:
-    ///
-    /// ```no_run
-    /// use wasi_net::Command;
-    ///
-    /// let mut child = Command::new("ls").spawn().unwrap();
-    ///
-    /// match child.try_wait() {
-    ///     Ok(Some(status)) => println!("exited with: {}", status),
-    ///     Ok(None) => {
-    ///         println!("status not ready yet, let's really wait");
-    ///         let res = child.wait();
-    ///         println!("result: {:?}", res);
-    ///     }
-    ///     Err(e) => println!("error attempting to wait: {}", e),
-    /// }
-    /// ```
-    pub fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
-        self.task.try_wait()
+        self.task
+            .join()
+            .wait()
             .map_err(|err| err.into_io_error())
     }
 
@@ -315,17 +279,72 @@ impl Child {
             stderr,
         })
     }
+
+    pub fn join(self) -> ChildJoin
+    {
+        ChildJoin {
+            result: self.task.join()
+        }
+    }
+}
+
+pub struct ChildJoin
+{
+    result: CallJoin<ExitStatus>
+}
+
+impl ChildJoin
+{
+    /// Attempts to collect the exit status of the child if it has already
+    /// exited.
+    ///
+    /// This function will not block the calling thread and will only
+    /// check to see if the child process has exited or not. If the child has
+    /// exited then on Unix the process ID is reaped. This function is
+    /// guaranteed to repeatedly return a successful exit status so long as the
+    /// child has already exited.
+    ///
+    /// If the child has exited, then `Ok(Some(status))` is returned. If the
+    /// exit status is not available at this time then `Ok(None)` is returned.
+    /// If an error occurs, then that error is returned.
+    ///
+    /// Note that unlike `wait`, this function will not attempt to drop stdin.
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```no_run
+    /// use wasi_net::Command;
+    ///
+    /// let mut child = Command::new("ls").spawn().unwrap();
+    ///
+    /// match child.try_wait() {
+    ///     Ok(Some(status)) => println!("exited with: {}", status),
+    ///     Ok(None) => {
+    ///         println!("status not ready yet, let's really wait");
+    ///         let res = child.wait();
+    ///         println!("result: {:?}", res);
+    ///     }
+    ///     Err(e) => println!("error attempting to wait: {}", e),
+    /// }
+    /// ```
+    pub fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
+        self.result
+            .try_wait()
+            .map_err(|err| err.into_io_error())
+    }
 }
 
 /// Its also possible to .await the process
 impl Future
-for Child
+for ChildJoin
 {
     type Output = io::Result<ExitStatus>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let task = Pin::new(&mut self.task);
-        match task.poll(cx) {
+        let result = Pin::new(&mut self.result);
+        match result.poll(cx) {
             Poll::Ready(Ok(a)) => Poll::Ready(Ok(a)),
             Poll::Ready(Err(err)) => Poll::Ready(Err(err.into_io_error())),
             Poll::Pending => Poll::Pending

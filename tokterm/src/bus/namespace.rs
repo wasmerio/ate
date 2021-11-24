@@ -2,11 +2,11 @@ use wasmer::imports;
 use wasmer::ImportObject;
 use wasmer::{Function, Store};
 
-use super::env::WasmBusEnv;
+use super::thread::WasmBusThread;
 use super::syscalls::*;
 
 /// Combines a state generating function with the import list for the WASM bus
-pub(super) fn generate_import_object_wasm_bus(store: &Store, env: WasmBusEnv) -> ImportObject {
+pub(super) fn generate_import_object_wasm_bus(store: &Store, env: WasmBusThread) -> ImportObject {
     imports! {
         "wasm-bus" => {
             "drop" => Function::new_native_with_env(store, env.clone(), wasm_bus_drop),
@@ -18,6 +18,7 @@ pub(super) fn generate_import_object_wasm_bus(store: &Store, env: WasmBusEnv) ->
             "call_recursive" => Function::new_native_with_env(store, env.clone(), wasm_bus_call_recursive),
             "recv_recursive" => Function::new_native_with_env(store, env.clone(), wasm_bus_recv_recursive),
             "yield_and_wait" => Function::new_native_with_env(store, env.clone(), wasm_bus_yield_and_wait),
+            "thread_id" => Function::new_native_with_env(store, env.clone(), wasm_bus_thread_id),
         }
     }
 }

@@ -1,5 +1,7 @@
-use std::ops::*;
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, trace, warn};
 use std::marker::PhantomData;
+use std::ops::*;
 use serde::*;
 use std::future::Future;
 use std::pin::Pin;
@@ -7,177 +9,208 @@ use std::task::Context;
 use std::task::Poll;
 use derivative::*;
 use std::sync::Arc;
+use std::sync::RwLock;
+use std::borrow::Cow;
+use std::collections::HashMap;
 use std::sync::Mutex;
 
 use super::*;
-use crate::engine;
+
+pub trait CallOps
+where Self: Send + Sync
+{
+    fn data(&self, topic: String, data: Vec<u8>);
+
+    fn error(&self, error: CallError);
+}
+
+pub struct CallState
+{
+    pub(crate) result: Option<Result<Vec<u8>, CallError>>,
+    pub(crate) callbacks: HashMap<String, Mutex<Box<dyn FnMut(Vec<u8>) + Send + 'static>>>,
+}
 
 #[derive(Derivative, Clone)]
 #[derivative(Debug)]
 #[must_use = "you must 'wait' or 'await' to actually send this call to other modules"]
-pub struct Call<T>
-where T: de::DeserializeOwned
+pub struct Call
 {
-    handle: CallHandle,
+    pub(crate) wapm: Cow<'static, str>,
+    pub(crate) topic: Cow<'static, str>,
+    pub(crate) handle: CallHandle,
     #[derivative(Debug="ignore")]
-    callbacks: Arc<Mutex<Vec<Pin<Box<dyn Future<Output=()> + Send + 'static>>>>>,
-    _marker: PhantomData<T>,
+    pub(crate) state: Arc<RwLock<CallState>>,
 }
 
-impl<T> Drop
-for Call<T>
-where T: de::DeserializeOwned
+impl CallOps
+for Call
 {
-    fn drop(&mut self) {
-        super::drop(self.handle);
+    fn data(&self, topic: String, data: Vec<u8>) {
+        if topic == self.topic {
+            let mut state = self.state.write().unwrap();
+            state.result = Some(Ok(data));
+        } else {
+            let state = self.state.read().unwrap();
+            if let Some(callback) = state.callbacks.get(&topic) {
+                let mut callback = callback.lock().unwrap();
+                callback(data);
+            }
+        }
+    }
+
+    fn error(&self, error: CallError) {
+        let mut state = self.state.write().unwrap();
+        state.result = Some(Err(error));
+        state.callbacks.clear();
     }
 }
 
-impl<T> Call<T>
-where T: de::DeserializeOwned
+impl Drop
+for Call
+{
+    fn drop(&mut self) {
+        super::drop(self.handle);
+        crate::engine::BusEngine::remove(&self.handle);
+    }
+}
+
+impl Call
 {
     pub fn id(&self) -> u32 {
         self.handle.id
     }
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum CallbackLifetime {
-    KeepGoing,
-    Drop
-}
-
-pub trait IntoCallbackReturn
-{
-    fn into_lifetime(self) -> Pin<Box<dyn Future<Output=CallbackLifetime> + Send + 'static>>;
-}
-
-impl IntoCallbackReturn
-for CallbackLifetime
-{
-    fn into_lifetime(self) -> Pin<Box<dyn Future<Output=CallbackLifetime> + Send + 'static>> {
-        Box::pin(async move {
-            self
-        })
-    }
-}
-
-impl<T> IntoCallbackReturn
-for T
-where T: Future<Output=CallbackLifetime> + Send + 'static
-{
-    fn into_lifetime(self) -> Pin<Box<dyn Future<Output=CallbackLifetime> + Send + 'static>> {
-        Box::pin(self)
-    }
-}
-
 #[derive(Derivative)]
 #[derivative(Debug)]
 #[must_use = "you must 'invoke' the builder for it to actually call anything"]
-pub struct CallBuilder<T>
-where T: de::DeserializeOwned
+pub struct CallBuilder
 {
-    handle: CallHandle,
-    #[derivative(Debug="ignore")]
-    callbacks: Vec<Pin<Box<dyn Future<Output=()> + Send + 'static>>>,
-    _marker: PhantomData<T>,
+    call: Call,
+    request: Data,
 }
 
-impl<T> CallBuilder<T>
-where T: de::DeserializeOwned
+impl CallBuilder
 {
-    pub fn new(handle: CallHandle) -> CallBuilder<T> {
+    pub fn new(call: Call, request: Data) -> CallBuilder {
         CallBuilder {
-            handle,
-            callbacks: Vec::new(),
-            _marker: PhantomData
+            call,
+            request,
         }
     }
 }
 
-impl<T> CallBuilder<T>
-where T: de::DeserializeOwned
+impl CallBuilder
 {
     /// Upon receiving a particular message from the service that is
     /// invoked this callback will take some action
     /// (this function handles both synchonrous and asynchronout
     ///  callbacks - just return a Callbacklifetime using either)
-    pub fn with_callback<C, F, Fut>(mut self, mut callback: F) -> Self
-    where C: Serialize + de::DeserializeOwned + Send,
-          F: FnMut(C) -> Fut,
+    pub fn with_callback<C, F>(self, mut callback: F) -> Self
+    where C: Serialize + de::DeserializeOwned + Send + 'static,
+          F: FnMut(C),
           F: Send + 'static,
-          Fut: IntoCallbackReturn,
     {
-        let handle = self.handle;
-        let callbacks = &mut self.callbacks;
-        callbacks.push(Box::pin(
-            async move {
-                loop {
-                    let recv = super::recv_recursive::<(), C>(handle);
-                    if let Ok(reply) = recv.await {
-                        let lifetime = callback(reply.take()).into_lifetime();
-                        if CallbackLifetime::Drop == lifetime.await {
-                            break;
-                        }
-                    } else {
-                        break;
-                    }
+        let handle = self.call.handle;
+        super::recv_recursive::<(), C>(handle);
+        let topic = std::any::type_name::<C>();
+
+        let callback =
+            move |req: Vec<u8>| {
+                let req = bincode::deserialize::<C>(req.as_ref())
+                    .map_err(|_err| CallError::DeserializationFailed);
+                if let Ok(req) = req {
+                    callback(req);
                 }
-            }
-        ));
+            };
+
+        {
+            let mut state = self.call.state.write().unwrap();
+            state.callbacks.insert(topic.into(), Mutex::new(Box::new(callback)));
+        }
         self
     }
 
     /// Invokes the call with the specified callbacks
-    pub fn invoke(self) -> Call<T>
+    pub fn invoke(self) -> Call
     {
-        Call {
-            handle: self.handle,
-            callbacks: Arc::new(Mutex::new(self.callbacks)),
-            _marker: PhantomData
+        match self.request {
+            Data::Success(req) => {
+                crate::abi::syscall::call(self.call.handle, &self.call.wapm, &self.call.topic, &req[..]);
+            }
+            Data::Error(err) => {
+                crate::engine::BusEngine::error(self.call.handle, err);
+            }
         }
+        
+        self.call
     }
 }
 
-impl<T> Call<T>
-where T: de::DeserializeOwned
+impl Call
 {
     /// Creates another call relative to this call
     /// This can be useful for creating contextual objects using thread calls
     /// and then passing data or commands back and forth to it
-    pub fn call<RES, REQ>(&self, req: REQ) -> CallBuilder<RES>
-    where REQ: Serialize,
-          RES: de::DeserializeOwned
+    pub fn call<T>(&self, req: T) -> CallBuilder
+    where T: Serialize,
     {
-        super::call_recursive(self.handle, req)
+        super::call_recursive(self.handle, self.wapm.clone(), req)
     }
 
-    /// Creates a recv operation on the client side
-    /// This can be useful for creating contextual objects using thread calls
-    /// and then passing data or commands back and forth to it
-    pub fn recv<RES, REQ>(&self) -> Recv<RES, REQ>
-    where REQ: de::DeserializeOwned,
-        RES: Serialize
+    /// Returns the result of the call
+    pub fn join<T>(self) -> CallJoin<T>
+    where T: de::DeserializeOwned
     {
-        super::recv_recursive(self.handle)
+        CallJoin::new(self)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CallJoin<T>
+where T: de::DeserializeOwned
+{
+    call: Call,
+    _marker1: PhantomData<T>
+}
+
+impl<T> CallJoin<T>
+where T: de::DeserializeOwned
+{
+    fn new(call: Call) -> CallJoin<T> {
+        CallJoin {
+            call,
+            _marker1: PhantomData
+        }
     }
 
     /// Waits for the call to complete and returns the response from
     /// the server
-    pub fn wait(self) -> Result<T, CallError> {
+    pub fn wait(self) -> Result<T, CallError>
+    {
         crate::backend::block_on::block_on(self)
     }
 
     /// Tries to get the result of the call to the server but will not
     /// block the execution
-    pub fn try_wait(&mut self) -> Result<Option<T>, CallError> {
-        match engine::poll(&self.handle, None) {
-            Some(Data::Success(res)) => {
-                bincode::deserialize::<T>(res.as_ref())
-                    .map(|a| Some(a))
-                    .map_err(|_err| CallError::SerializationFailed)
+    pub fn try_wait(&mut self) -> Result<Option<T>, CallError>
+    where T: de::DeserializeOwned
+    {
+        let response = {            
+            let mut state = self.call.state.write().unwrap();
+            state.result.take()
+        };
+
+        match response {
+            Some(Ok(res)) => {
+                let res = bincode::deserialize::<T>(res.as_ref())
+                    .map_err(|_err| CallError::DeserializationFailed);
+                match res {
+                    Ok(data) => Ok(Some(data)),
+                    Err(err) => Err(err)
+                }
             },
-            Some(Data::Error(err)) => {
+            Some(Err(err)) => {
                 Err(err)
             }
             None => Ok(None)
@@ -186,41 +219,34 @@ where T: de::DeserializeOwned
 }
 
 impl<T> Future
-for Call<T>
+for CallJoin<T>
 where T: de::DeserializeOwned
 {
     type Output = Result<T, CallError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output>
     {
-        {
-            let mut callbacks = self.callbacks.lock().unwrap();
-            for index in (0..callbacks.len()).rev() {
-                let callback = Pin::new(&mut callbacks[index]);
-                match callback.poll(cx) {
-                    Poll::Ready(_) => {
-                        callbacks.remove(index);
-                    }
-                    Poll::Pending => {
-                        return Poll::Pending;
-                    }
-                }
-            }
-        }
+        let response = {            
+            let mut state = self.call.state.write().unwrap();
+            state.result.take()
+        };
 
-        let res = match engine::poll(&self.handle, Some(cx)) {
-            Some(Data::Success(a)) => a,
-            Some(Data::Error(err)) => {
-                self.callbacks.lock().unwrap().clear();
-                return Poll::Ready(Err(err));
+        match response {
+            Some(Ok(response)) => {
+                let res = bincode::deserialize::<T>(response.as_ref())
+                    .map_err(|_err| CallError::DeserializationFailed);
+                match res {
+                    Ok(data) => Poll::Ready(Ok(data)),
+                    Err(err) => Poll::Ready(Err(err))
+                }
+            },
+            Some(Err(err)) => {
+                Poll::Ready(Err(err))
             }
             None => {
-                return Poll::Pending;
+                crate::engine::BusEngine::subscribe(&self.call.handle, cx);
+                Poll::Pending
             }
-        };
-        let res = bincode::deserialize::<T>(res.as_ref())
-            .map_err(|_err| CallError::DeserializationFailed)?;
-        self.callbacks.lock().unwrap().clear();
-        Poll::Ready(Ok(res))
+        }        
     }
 }

@@ -28,7 +28,7 @@ use super::*;
 
 use crate::bin::*;
 use crate::builtins::*;
-use crate::bus::WasmBusEnv;
+use crate::bus::*;
 use crate::common::*;
 use crate::environment::*;
 use crate::err;
@@ -202,6 +202,7 @@ pub async fn exec(
     // Spawn the process on a background thread
     let mut tty = ctx.stdio.stderr.clone();
     let reactor = ctx.reactor.clone();
+    let bus_pool = WasmBusThreadPool::new();
     let cmd = cmd.clone();
     let args = args.clone();
     let path = ctx.path.clone();
@@ -257,6 +258,18 @@ pub async fn exec(
                 .map_dir(".", Path::new(path.as_str()));
         }
 
+        // Add the tick callback that will invoke the WASM bus background
+        // operations on the current thread
+        {
+            let bus_pool = Arc::clone(&bus_pool);
+            wasi_env
+                .on_tick(move |thread| {
+                    let thread = bus_pool.get_or_create(thread);
+                    crate::bus::syscalls::wasm_bus_tick(&thread);
+                });
+        }
+        
+
         // Finish off the WasiEnv
         let mut wasi_env = match wasi_env.set_fs(fs).finalize() {
             Ok(a) => a,
@@ -280,11 +293,15 @@ pub async fn exec(
             trace!("module::import - {}::{}", ns.module(), ns.name());
         }
 
-        // Generate an `ImportObject`.
-        let wasm_bus_import = WasmBusEnv::default().import_object(&module);
-        let wasi_import = wasi_env.import_object(&module).unwrap();
-        let import = wasi_import.chain_front(wasm_bus_import);
+        // Create the WASI thread
+        let mut wasi_thread = wasi_env.new_thread();
 
+        // Generate an `ImportObject`.
+        let wasi_import = wasi_thread.import_object(&module).unwrap();
+        let mut wasm_bus_import = bus_pool.get_or_create(&wasi_thread);
+        let wasm_bus_import = wasm_bus_import.import_object(&module);
+        let import = wasi_import.chain_front(wasm_bus_import);
+        
         // Let's instantiate the module with the imports.
         let instance = Instance::new(&module, &import).unwrap();
 
@@ -293,8 +310,6 @@ pub async fn exec(
             .exports
             .get_native_function::<(), ()>("_start")
             .ok();
-
-        // Set the panic handler
 
         // If there is a start function
         debug!("called main() on {}", cmd);

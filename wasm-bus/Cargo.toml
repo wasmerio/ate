@@ -12,7 +12,7 @@ readme = "README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = [ "ws", "reqwest", "process", "macros", "tokio" ]
+default = [ "ws", "reqwest", "process", "macros" ]
 backend = []
 ws = []
 reqwest = [ "http", "mime_guess", "http-body", "formdata" ]
@@ -37,4 +37,4 @@ base64 = "0.13"
 bincode = "1"
 once_cell = "^1"
 derivative = { version = "^2" }
-tokio = { version = "^1", features = [ "sync" ], default_features = false, optional = true }
+tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }

@@ -47,14 +47,18 @@ impl SpawnContext {
     }
 }
 
+pub struct ExecFactoryState {
+    pub bins: BinFactory,
+    pub tty: Tty,
+    pub pool: ThreadPool,
+    pub reactor: Arc<RwLock<Reactor>>,
+    pub stdout: Stdout,
+    pub stderr: Fd,
+}
+
 #[derive(Clone)]
 pub struct ExecFactory {
-    pub(crate) bins: BinFactory,
-    pub(crate) tty: Tty,
-    pub(crate) pool: ThreadPool,
-    pub(crate) reactor: Arc<RwLock<Reactor>>,
-    pub(crate) stdout: Stdout,
-    pub(crate) stderr: Fd,
+    pub(crate) state: Arc<ExecFactoryState>,
 }
 
 impl ExecFactory {
@@ -67,12 +71,14 @@ impl ExecFactory {
         stderr: Fd,
     ) -> ExecFactory {
         ExecFactory {
-            bins,
-            tty,
-            pool,
-            reactor,
-            stdout,
-            stderr,
+            state: Arc::new(ExecFactoryState {
+                bins,
+                tty,
+                pool,
+                reactor,
+                stdout,
+                stderr,
+            })
         }
     }
 
@@ -82,16 +88,16 @@ impl ExecFactory {
             stdin: ctx.stdin,
             stdout: ctx.stdout,
             stderr: ctx.stderr,
-            tty: self.tty.clone(),
+            tty: self.state.tty.clone(),
         };
 
         // Create the evaluation context
         let ctx = crate::eval::EvalContext {
             env: ctx.env,
-            bins: self.bins.clone(),
+            bins: self.state.bins.clone(),
             last_return: 0i32,
-            reactor: self.reactor.clone(),
-            pool: self.pool.clone(),
+            reactor: self.state.reactor.clone(),
+            pool: self.state.pool.clone(),
             path: ctx.working_dir,
             pre_open: ctx.pre_open.clone(),
             input: ctx.cmd,

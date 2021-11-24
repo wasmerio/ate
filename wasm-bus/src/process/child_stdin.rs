@@ -7,11 +7,11 @@ use crate::backend::process::*;
 
 #[derive(Debug)]
 pub struct ChildStdin {
-    pub(super) task: Call<ExitStatus>,
+    pub(super) task: Call,
 }
 
 impl ChildStdin {
-    pub fn new(task: Call<ExitStatus>) -> ChildStdin {
+    pub fn new(task: Call) -> ChildStdin {
         ChildStdin {
             task,
         }
@@ -20,7 +20,10 @@ impl ChildStdin {
 
 impl Write for ChildStdin {
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
-        Ok(self.task.call(OutOfBand::DataStdin(buf.to_vec())).invoke().wait()
+        Ok(self.task.call(OutOfBand::DataStdin(buf.to_vec()))
+            .invoke()
+            .join()
+            .wait()
             .map_err(|err| err.into_io_error())?)
     }
 

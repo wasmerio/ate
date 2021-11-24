@@ -1,5 +1,10 @@
-mod env;
+mod thread;
 mod namespace;
-mod syscalls;
+pub(crate) mod syscalls;
+mod factory;
+mod invokable;
 
-pub use env::WasmBusEnv;
+use namespace::*;
+pub(crate) use thread::*;
+pub(crate) use factory::*;
+pub(crate) use invokable::*;
