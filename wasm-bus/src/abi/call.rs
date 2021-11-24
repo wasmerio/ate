@@ -107,7 +107,7 @@ impl CallBuilder
     /// (this function handles both synchonrous and asynchronout
     ///  callbacks - just return a Callbacklifetime using either)
     pub fn with_callback<C, F>(self, mut callback: F) -> Self
-    where C: Serialize + de::DeserializeOwned + Send + 'static,
+    where C: Serialize + de::DeserializeOwned + Send + Sync + 'static,
           F: FnMut(C),
           F: Send + 'static,
     {

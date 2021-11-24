@@ -52,8 +52,8 @@ where T: Serialize,
 }
 
 pub fn recv<RES, REQ>() -> Recv<RES, REQ>
-where REQ: de::DeserializeOwned + 'static,
-      RES: Serialize + 'static
+where REQ: de::DeserializeOwned + Send + Sync + 'static,
+      RES: Serialize + Send + Sync + 'static
 {
     let topic = type_name::<REQ>();
     let recv = crate::engine::BusEngine::recv();
@@ -65,8 +65,8 @@ where REQ: de::DeserializeOwned + 'static,
 }
 
 pub fn recv_recursive<RES, REQ>(handle: CallHandle)
-where REQ: de::DeserializeOwned + 'static,
-      RES: Serialize + 'static
+where REQ: de::DeserializeOwned + Send + Sync + 'static,
+      RES: Serialize + Send + Sync + 'static
 {
     let topic = type_name::<REQ>();
     syscall::recv(handle, topic.as_str());
@@ -88,4 +88,9 @@ where RES: Serialize
 pub(self) fn drop(handle: CallHandle)
 {
     syscall::drop(handle);
+}
+
+pub fn thread_id() -> u32
+{
+    syscall::thread_id()
 }

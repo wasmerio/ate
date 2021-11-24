@@ -53,7 +53,7 @@ mod raw {
         pub(crate) fn call(handle: u32, wapm: i32, wapm_len: i32, topic: i32, topic_len: i32, request: i32, request_len: i32) -> u32;
         pub(crate) fn recv(handle: u32, topic: i32, topic_len: i32);
 
-        //pub(crate) fn thread_id() -> u32;
+        pub(crate) fn thread_id() -> u32;
     }
 }
 
@@ -112,10 +112,8 @@ pub fn yield_and_wait(timeout_ms: u32) {
     }
 }
 
-/*
 pub fn thread_id() -> u32 {
     unsafe {
         raw::thread_id()
     }
 }
-*/
