@@ -43,6 +43,8 @@ url = { version = "^2" }
 regex = { version = "^1.5" }
 fastrand = "^1.5"
 bincode = "1"
+async-trait = "^0.1"
+dummy-waker = "^1"
 
 [dependencies.parking_lot]
 version = "^0.11"

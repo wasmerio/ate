@@ -28,4 +28,4 @@ pub use mime::Mime;
 pub use multipart::Form;
 pub use request_builder::RequestBuilder;
 
-pub(crate) const WAPM_NAME: &'static str = "os";
+pub const WAPM_NAME: &'static str = "os";

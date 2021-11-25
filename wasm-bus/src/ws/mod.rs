@@ -10,4 +10,4 @@ pub use web_socket::WebSocket;
 pub use web_socket::RecvHalf;
 pub use web_socket::SendHalf;
 
-pub(crate) const WAPM_NAME: &'static str = "os";
+pub const WAPM_NAME: &'static str = "os";

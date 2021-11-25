@@ -3,11 +3,14 @@ use std::ops::Deref;
 use std::sync::Arc;
 use serde::*;
 use wasm_bus::abi::CallError;
+use async_trait::async_trait;
+use std::future::Future;
 
+#[async_trait]
 pub trait Invokable
 where Self: Send + Sync,
 {
-    fn send(&self, request: Vec<u8>, response: Box<dyn Fn(Result<Vec<u8>, CallError>)>);
+    async fn process(&self, request: Vec<u8>) -> Result<Vec<u8>, CallError>;
 }
 
 pub struct ErrornousInvokable
@@ -24,35 +27,40 @@ impl ErrornousInvokable
     }
 }
 
+#[async_trait]
 impl Invokable
 for ErrornousInvokable
 {
-    fn send(&self, _request: Vec<u8>, response: Box<dyn Fn(Result<Vec<u8>, CallError>)>) {
+    async fn process(&self, _request: Vec<u8>) -> Result<Vec<u8>, CallError> {
         let err = self.err;
-        response(Err(err));
+        Err(err)
     }
 }
 
-pub struct CallbackInvokable<REQ, RES, F>
+pub struct CallbackInvokable<REQ, RES, F, Fut>
 where REQ: de::DeserializeOwned + Send + Sync,
       RES: Serialize + Send + Sync,
       REQ: 'static,
       RES: 'static,
-      F: Fn(REQ) -> RES,
-      F: Send + Sync + 'static
+      F: Fn(REQ) -> Fut,
+      F: Send + Sync + 'static,
+      Fut: Future<Output=RES>,
+      Fut: Send + Sync + 'static
 {
     callback: Arc<F>,
     _marker1: PhantomData<REQ>,
     _marker2: PhantomData<RES>,
 }
 
-impl<REQ, RES, F> CallbackInvokable<REQ, RES, F>
+impl<REQ, RES, F, Fut> CallbackInvokable<REQ, RES, F, Fut>
 where REQ: de::DeserializeOwned + Send + Sync,
       RES: Serialize + Send + Sync,
       REQ: 'static,
       RES: 'static,
-      F: Fn(REQ) -> RES,
-      F: Send + Sync + 'static
+      F: Fn(REQ) -> Fut,
+      F: Send + Sync + 'static,
+      Fut: Future<Output=RES>,
+      Fut: Send + Sync + 'static,
 {
     #[allow(dead_code)]
     pub fn new(callback: F) -> Arc<dyn Invokable>
@@ -65,35 +73,36 @@ where REQ: de::DeserializeOwned + Send + Sync,
     }
 }
 
-impl<REQ, RES, F> Invokable
-for CallbackInvokable<REQ, RES, F>
+#[async_trait]
+impl<REQ, RES, F, Fut> Invokable
+for CallbackInvokable<REQ, RES, F, Fut>
 where REQ: de::DeserializeOwned + Send + Sync,
       RES: Serialize + Send + Sync,
       REQ: 'static,
       RES: 'static,
-      F: Fn(REQ) -> RES,
-      F: Send + Sync + 'static
+      F: Fn(REQ) -> Fut,
+      F: Send + Sync + 'static,
+      Fut: Future<Output=RES>,
+      Fut: Send + Sync + 'static
 {
-    fn send(&self, request: Vec<u8>, response: Box<dyn Fn(Result<Vec<u8>, CallError>) + 'static>) {
+    async fn process(&self, request: Vec<u8>) -> Result<Vec<u8>, CallError> {
         let req: REQ = match bincode::deserialize(request.as_ref()) {
             Ok(a) => a,
             Err(_err) => {
-                response(Err(CallError::DeserializationFailed));
-                return;
+                return Err(CallError::DeserializationFailed);
             }
         };
 
         let callback = self.callback.deref();
-        let result = callback(req);
+        let result = callback(req).await;
 
         let result = match bincode::serialize(&result) {
             Ok(a) => a,
             Err(_err) => {
-                response(Err(CallError::DeserializationFailed));
-                return;
+                return Err(CallError::DeserializationFailed);
             }
         };
 
-        response(Ok(result));
+        Ok(result)
     }
 }

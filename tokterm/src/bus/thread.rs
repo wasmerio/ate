@@ -10,6 +10,10 @@ use wasmer::NativeFunc;
 use wasmer::WasmPtr;
 use wasmer::Array;
 use wasmer_wasi::WasiThread;
+use std::future::Future;
+use std::pin::Pin;
+use std::cell::RefCell;
+use std::cell::RefMut;
 
 use super::*;
 
@@ -44,11 +48,17 @@ impl WasmBusThreadPool
             return thread.clone();
         }
 
+        let inner = WasmBusThreadInner {
+            invocations: HashMap::default(),
+        };
+
         let ret = WasmBusThread {
             thread_id: thread.thread_id(),
             pool: Arc::clone(self),
             factory: BusFactory::new(),
-            invocations: Arc::new(RwLock::new(HashMap::default())),
+            inner: Arc::new(WasmBusThreadProtected {
+                inside: RefCell::new(inner)
+            }),
             memory: thread.memory_clone(),
             wasm_bus_free: LazyInit::new(),
             wasm_bus_malloc: LazyInit::new(),
@@ -61,13 +71,33 @@ impl WasmBusThreadPool
     }
 }
 
+pub(super) struct WasmBusThreadInner
+{
+    pub(super) invocations: HashMap<u32, Pin<Box<dyn Future<Output=()> + Send + 'static>>>,
+}
+
+/// Caution! this class is used to access the protected area of the wasm bus thread
+/// and makes no guantantees around accessing the insides concurrently. It is the
+/// responsibility of the caller to ensure they do not call it concurrency.
+pub(super) struct WasmBusThreadProtected
+{
+    inside: RefCell<WasmBusThreadInner>
+}
+impl WasmBusThreadProtected {
+    pub(super) unsafe fn unwrap<'a>(&'a self) -> RefMut<'a, WasmBusThreadInner> {
+        self.inside.borrow_mut()
+    }
+}
+unsafe impl Sync for WasmBusThreadProtected { }
+
 /// The environment provided to the WASI imports.
 #[derive(Clone, WasmerEnv)]
-pub struct WasmBusThread {
+pub struct WasmBusThread
+{
     pub(super) thread_id: u32,
     pool: Arc<WasmBusThreadPool>,
     pub(super) factory: BusFactory,
-    pub(super) invocations: Arc<RwLock<HashMap<u32, Arc<dyn Invokable>>>>,
+    pub(super) inner: Arc<WasmBusThreadProtected>,
     #[wasmer(export)]
     memory: LazyInit<Memory>,
     

@@ -265,7 +265,9 @@ pub async fn exec(
             wasi_env
                 .on_tick(move |thread| {
                     let thread = bus_pool.get_or_create(thread);
-                    crate::bus::syscalls::wasm_bus_tick(&thread);
+                    unsafe {
+                        crate::bus::syscalls::raw::wasm_bus_tick(&thread);
+                    }
                 });
         }
         

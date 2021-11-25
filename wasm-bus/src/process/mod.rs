@@ -20,4 +20,4 @@ pub use std::io::Error;
 pub use std::io::ErrorKind;
 pub use std::io::Result;
 
-pub(crate) const WAPM_NAME: &'static str = "os";
+pub const WAPM_NAME: &'static str = "os";

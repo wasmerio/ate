@@ -16,8 +16,12 @@ impl BusFactory
         }
     }
 
-    pub fn start(&self, _parent: Option<u32>, _wapm: &str, _topic: &str) -> Arc<dyn Invokable>
+    pub fn start(&self, parent: Option<u32>, wapm: &str, topic: &str) -> Arc<dyn Invokable>
     {
+        if let Some(invoker) = super::builtin::builtin(parent, wapm, topic) {
+            return invoker;
+        }
+
         ErrornousInvokable::new(CallError::InvalidWapm)
     }
 }

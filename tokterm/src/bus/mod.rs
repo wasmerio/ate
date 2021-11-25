@@ -3,6 +3,7 @@ mod namespace;
 pub(crate) mod syscalls;
 mod factory;
 mod invokable;
+mod builtin;
 
 use namespace::*;
 pub(crate) use thread::*;
