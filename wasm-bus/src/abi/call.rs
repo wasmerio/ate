@@ -38,6 +38,7 @@ pub struct Call
     pub(crate) wapm: Cow<'static, str>,
     pub(crate) topic: Cow<'static, str>,
     pub(crate) handle: CallHandle,
+    pub(crate) parent: Option<CallHandle>,
     #[derivative(Debug="ignore")]
     pub(crate) state: Arc<RwLock<CallState>>,
 }
@@ -136,7 +137,7 @@ impl CallBuilder
     {
         match self.request {
             Data::Success(req) => {
-                crate::abi::syscall::call(self.call.handle, &self.call.wapm, &self.call.topic, &req[..]);
+                crate::abi::syscall::call(self.call.parent, self.call.handle, &self.call.wapm, &self.call.topic, &req[..]);
             }
             Data::Error(err) => {
                 crate::engine::BusEngine::error(self.call.handle, err);

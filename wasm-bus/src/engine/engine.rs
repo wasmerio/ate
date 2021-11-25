@@ -105,13 +105,14 @@ impl BusEngine
         wakers.remove(handle);
     }
 
-    pub fn call(wapm: Cow<'static, str>, topic: Cow<'static, str>) -> Call
+    pub fn call(parent: Option<CallHandle>, wapm: Cow<'static, str>, topic: Cow<'static, str>) -> Call
     {
         let mut handle = CallHandle {
             id: crate::abi::syscall::rand(),
         };
         let mut call = Call {
-            handle: handle,
+            handle,
+            parent,
             wapm,
             topic,
             state: Arc::new(RwLock::new(CallState {
@@ -134,19 +135,6 @@ impl BusEngine
                 }
             }
             std::thread::yield_now();
-        }
-    }
-
-    pub fn call_recursive(handle: CallHandle, wapm: Cow<'static, str>, topic: Cow<'static, str>) -> Call
-    {
-        Call {
-            handle: handle,
-            wapm,
-            topic,
-            state: Arc::new(RwLock::new(CallState {
-                result: None,
-                callbacks: HashMap::default()
-            })),
         }
     }
 

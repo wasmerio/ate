@@ -63,6 +63,7 @@ pub fn wasm_bus_reply(
 
 pub fn wasm_bus_call(
     thread: &WasmBusThread,
+    parent: u32,
     handle: u32,
     wapm: WasmPtr<u8, Array>,
     wapm_len: u32,
@@ -72,6 +73,7 @@ pub fn wasm_bus_call(
     request_len: u32,
 ) -> u32
 {
+    let parent = if parent != u32::MAX { Some(parent) } else { None };
     let wapm = unsafe { wapm.get_utf8_str(thread.memory(), wapm_len).unwrap() };
     let topic = unsafe { topic.get_utf8_str(thread.memory(), topic_len).unwrap() };
     info!(
@@ -86,7 +88,7 @@ pub fn wasm_bus_call(
 
     // Start the sub-process and invoke the call
     let invoke = {
-        let invoke = thread.factory.start(wapm.as_ref(), topic.as_ref());
+        let invoke = thread.factory.start(parent, wapm.as_ref(), topic.as_ref());
         let mut invocations = thread.invocations.write().unwrap();
         invocations.insert(handle, Arc::clone(&invoke));
         invoke
@@ -137,31 +139,6 @@ pub fn wasm_bus_call(
         }
     }));
 
-    CallError::Success.into()
-}
-
-pub fn wasm_bus_call_recursive(
-    thread: &WasmBusThread,
-    parent: u32,
-    handle: u32,
-    topic: WasmPtr<u8, Array>,
-    topic_len: u32,
-    request: WasmPtr<u8, Array>,
-    request_len: u32,
-) -> u32
-{
-    let topic = unsafe { topic.get_utf8_str(thread.memory(), topic_len).unwrap() };
-    info!(
-        "wasm-bus::call_recursive (parent={}, handle={}, topic={}, request={} bytes)",
-        parent, handle, topic, request_len
-    );
-
-    let _request = thread.memory()
-            .uint8view()
-            .subarray(request.offset(), request_len)
-            .to_vec();
-
-    //CallError::Unknown.into()
     CallError::Success.into()
 }
 

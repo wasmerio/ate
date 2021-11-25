@@ -1,3 +1,5 @@
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, trace, warn};
 use std::io;
 use std::io::Read;
 use std::io::Write;

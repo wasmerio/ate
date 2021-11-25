@@ -16,7 +16,7 @@ impl BusFactory
         }
     }
 
-    pub fn start(&self, _wapm: &str, _topic: &str) -> Arc<dyn Invokable>
+    pub fn start(&self, _parent: Option<u32>, _wapm: &str, _topic: &str) -> Arc<dyn Invokable>
     {
         ErrornousInvokable::new(CallError::InvalidWapm)
     }

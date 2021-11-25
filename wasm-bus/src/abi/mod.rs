@@ -23,7 +23,7 @@ pub fn call<T>(wapm: Cow<'static, str>, request: T) -> CallBuilder
 where T: Serialize, 
 {
     let topic = type_name::<T>();
-    let call = crate::engine::BusEngine::call(wapm, topic.into());
+    let call = crate::engine::BusEngine::call(None, wapm, topic.into());
     
     let req = match bincode::serialize(&request) {
         Ok(req) => Data::Success(req),
@@ -39,7 +39,7 @@ pub fn call_recursive<T>(handle: CallHandle, wapm: Cow<'static, str>, request: T
 where T: Serialize, 
 {
     let topic = type_name::<T>();
-    let call = crate::engine::BusEngine::call_recursive(handle, wapm, topic.into());
+    let call = crate::engine::BusEngine::call(Some(handle), wapm, topic.into());
     
     let req = match bincode::serialize(&request) {
         Ok(req) => Data::Success(req),

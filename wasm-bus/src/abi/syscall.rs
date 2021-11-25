@@ -50,7 +50,7 @@ mod raw {
         pub(crate) fn error(handle: u32, error: i32);
         pub(crate) fn reply(handle: u32, response: i32, response_len: i32);
 
-        pub(crate) fn call(handle: u32, wapm: i32, wapm_len: i32, topic: i32, topic_len: i32, request: i32, request_len: i32) -> u32;
+        pub(crate) fn call(parent: u32, handle: u32, wapm: i32, wapm_len: i32, topic: i32, topic_len: i32, request: i32, request_len: i32) -> u32;
         pub(crate) fn recv(handle: u32, topic: i32, topic_len: i32);
 
         pub(crate) fn thread_id() -> u32;
@@ -82,15 +82,16 @@ pub fn reply(handle: CallHandle, response: &[u8]) {
     }
 }
 
-pub fn call(handle: CallHandle, wapm: &str, topic: &str, request: &[u8]) {
+pub fn call(parent: Option<CallHandle>, handle: CallHandle, wapm: &str, topic: &str, request: &[u8]) {
     let ret = unsafe {
+        let parent = parent.map(|a| a.id).unwrap_or_else(|| u32::MAX);
         let wapm_len = wapm.len();
         let wapm = wapm.as_ptr();
         let topic_len = topic.len();
         let topic = topic.as_ptr();
         let request_len = request.len();
         let request = request.as_ptr();
-        raw::call(handle.id, wapm as i32, wapm_len as i32, topic as i32, topic_len as i32, request as i32, request_len as i32)
+        raw::call(parent, handle.id, wapm as i32, wapm_len as i32, topic as i32, topic_len as i32, request as i32, request_len as i32)
     };
 
     if CallError::Success as u32 != ret {

@@ -15,7 +15,6 @@ pub(super) fn generate_import_object_wasm_bus(store: &Store, env: WasmBusThread)
             "error" => Function::new_native_with_env(store, env.clone(), wasm_bus_error),
             "reply" => Function::new_native_with_env(store, env.clone(), wasm_bus_reply),
             "call" => Function::new_native_with_env(store, env.clone(), wasm_bus_call),
-            "call_recursive" => Function::new_native_with_env(store, env.clone(), wasm_bus_call_recursive),
             "recv_recursive" => Function::new_native_with_env(store, env.clone(), wasm_bus_recv_recursive),
             "yield_and_wait" => Function::new_native_with_env(store, env.clone(), wasm_bus_yield_and_wait),
             "thread_id" => Function::new_native_with_env(store, env.clone(), wasm_bus_thread_id),
