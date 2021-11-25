@@ -14,7 +14,9 @@ use crate::backend::ws::*;
 #[derive(Debug)]
 pub struct WebSocket {
     pub(super) task: Call,
-    pub(super) rx: mpsc::Receiver<Vec<u8>>
+    pub(super) rx: mpsc::Receiver<Vec<u8>>,
+    #[allow(dead_code)]
+    pub(super) recv: Recv,
 }
 
 impl WebSocket
@@ -50,9 +52,20 @@ pub struct RecvHalf {
     rx: mpsc::Receiver<Vec<u8>>
 }
 
+#[cfg(feature = "tokio")]
 impl RecvHalf {
     pub async fn recv(&mut self) -> Option<Vec<u8>> {
-        //self.rx.recv().await
+        self.rx.recv().await
+    }
+
+    pub fn blocking_recv(&mut self) -> Option<Vec<u8>> {
+        self.rx.blocking_recv()
+    }
+}
+
+#[cfg(not(feature = "tokio"))]
+impl RecvHalf {
+    pub async fn recv(&mut self) -> Option<Vec<u8>> {
         self.rx.recv().ok()
     }
 

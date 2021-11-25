@@ -9,9 +9,7 @@ use std::task::Context;
 use std::task::Poll;
 use derivative::*;
 use std::sync::Arc;
-use std::sync::RwLock;
 use std::borrow::Cow;
-use std::collections::HashMap;
 use std::sync::Mutex;
 
 use super::*;
@@ -19,7 +17,7 @@ use super::*;
 pub trait CallOps
 where Self: Send + Sync
 {
-    fn data(&self, topic: String, data: Vec<u8>);
+    fn data(&self, data: Vec<u8>);
 
     fn error(&self, error: CallError);
 }
@@ -27,7 +25,6 @@ where Self: Send + Sync
 pub struct CallState
 {
     pub(crate) result: Option<Result<Vec<u8>, CallError>>,
-    pub(crate) callbacks: HashMap<String, Mutex<Box<dyn FnMut(Vec<u8>) + Send + 'static>>>,
 }
 
 #[derive(Derivative, Clone)]
@@ -40,29 +37,20 @@ pub struct Call
     pub(crate) handle: CallHandle,
     pub(crate) parent: Option<CallHandle>,
     #[derivative(Debug="ignore")]
-    pub(crate) state: Arc<RwLock<CallState>>,
+    pub(crate) state: Arc<Mutex<CallState>>,
 }
 
 impl CallOps
 for Call
 {
-    fn data(&self, topic: String, data: Vec<u8>) {
-        if topic == self.topic {
-            let mut state = self.state.write().unwrap();
-            state.result = Some(Ok(data));
-        } else {
-            let state = self.state.read().unwrap();
-            if let Some(callback) = state.callbacks.get(&topic) {
-                let mut callback = callback.lock().unwrap();
-                callback(data);
-            }
-        }
+    fn data(&self, data: Vec<u8>) {
+        let mut state = self.state.lock().unwrap();
+        state.result = Some(Ok(data));
     }
 
     fn error(&self, error: CallError) {
-        let mut state = self.state.write().unwrap();
+        let mut state = self.state.lock().unwrap();
         state.result = Some(Err(error));
-        state.callbacks.clear();
     }
 }
 
@@ -103,35 +91,6 @@ impl CallBuilder
 
 impl CallBuilder
 {
-    /// Upon receiving a particular message from the service that is
-    /// invoked this callback will take some action
-    /// (this function handles both synchonrous and asynchronout
-    ///  callbacks - just return a Callbacklifetime using either)
-    pub fn with_callback<C, F>(self, mut callback: F) -> Self
-    where C: Serialize + de::DeserializeOwned + Send + Sync + 'static,
-          F: FnMut(C),
-          F: Send + 'static,
-    {
-        let handle = self.call.handle;
-        super::recv_recursive::<(), C>(handle);
-        let topic = std::any::type_name::<C>();
-
-        let callback =
-            move |req: Vec<u8>| {
-                let req = bincode::deserialize::<C>(req.as_ref())
-                    .map_err(|_err| CallError::DeserializationFailed);
-                if let Ok(req) = req {
-                    callback(req);
-                }
-            };
-
-        {
-            let mut state = self.call.state.write().unwrap();
-            state.callbacks.insert(topic.into(), Mutex::new(Box::new(callback)));
-        }
-        self
-    }
-
     /// Invokes the call with the specified callbacks
     pub fn invoke(self) -> Call
     {
@@ -156,7 +115,23 @@ impl Call
     pub fn call<T>(&self, req: T) -> CallBuilder
     where T: Serialize,
     {
-        super::call_recursive(self.handle, self.wapm.clone(), req)
+        super::call_internal(Some(self.handle), self.wapm.clone(), req)
+    }
+
+    /// Upon receiving a particular message from the service that is
+    /// invoked this callback will take some action
+    /// (this function handles both synchonrous and asynchronout
+    ///  callbacks - just return a Callbacklifetime using either)
+    pub fn recv<C, F>(&self, mut callback: F) -> Recv
+    where C: Serialize + de::DeserializeOwned + Send + Sync + 'static,
+          F: FnMut(C),
+          F: Send + 'static,
+    {
+        let callback = move |req| {
+            callback(req);
+            Ok(())
+        };
+        super::recv_internal(Some(self.handle), callback)
     }
 
     /// Returns the result of the call
@@ -198,7 +173,7 @@ where T: de::DeserializeOwned
     where T: de::DeserializeOwned
     {
         let response = {            
-            let mut state = self.call.state.write().unwrap();
+            let mut state = self.call.state.lock().unwrap();
             state.result.take()
         };
 
@@ -228,7 +203,7 @@ where T: de::DeserializeOwned
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output>
     {
         let response = {            
-            let mut state = self.call.state.write().unwrap();
+            let mut state = self.call.state.lock().unwrap();
             state.result.take()
         };
 

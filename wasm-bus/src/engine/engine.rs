@@ -4,7 +4,6 @@ use std::{collections::HashMap, sync::Mutex};
 use std::task::{Context, Waker};
 use serde::*;
 use std::sync::{Arc, MutexGuard};
-use std::marker::PhantomData;
 use std::borrow::Cow;
 use std::sync::RwLock;
 use std::sync::RwLockReadGuard;
@@ -20,6 +19,7 @@ static GLOBAL_ENGINE: Lazy<BusEngine> =
 pub struct BusEngineState
 {
     pub calls: HashMap<CallHandle, Arc<dyn CallOps>>,
+    pub recv: HashMap<CallHandle, Arc<dyn RecvOps>>,
 }
 
 #[derive(Default)]
@@ -48,14 +48,23 @@ impl BusEngine
     }
 
     // This function will block
-    pub fn put(handle: CallHandle, topic: String, response: Vec<u8>)
+    pub fn put(handle: CallHandle, response: Vec<u8>) -> Option<Result<Vec<u8>, CallError>>
     {
-        {
+        let ret = {
             let state = BusEngine::read();
             if let Some(call) = state.calls.get(&handle) {
                 let call = Arc::clone(call);
                 drop(state);
-                call.data(topic, response);
+                call.data(response);
+                None
+            } else if let Some(recv) = state.recv.get(&handle) {
+                let recv = Arc::clone(recv);
+                drop(state);
+
+                let ret = recv.process(response);
+                Some(ret)
+            } else {
+                Some(Err(CallError::InvalidHandle))
             }
         };
 
@@ -66,6 +75,8 @@ impl BusEngine
                 waker.wake();
             }
         }
+
+        ret
     }
 
     pub fn error(handle: CallHandle, err: CallError)
@@ -96,9 +107,13 @@ impl BusEngine
 
     pub fn remove(handle: &CallHandle) {
         if let Some(mut state) = BusEngine::try_write() {
-            let delayed_remove = state.calls.remove(handle);
-            drop(state);
-            drop(delayed_remove);
+            if let Some(delayed_remove) = state.calls.remove(handle) {
+                drop(state);
+                drop(delayed_remove);
+            } else if let Some(delayed_remove) = state.recv.remove(handle) {
+                drop(state);
+                drop(delayed_remove);
+            }
         }
 
         let mut wakers = Self::wakers();
@@ -115,9 +130,8 @@ impl BusEngine
             parent,
             wapm,
             topic,
-            state: Arc::new(RwLock::new(CallState {
+            state: Arc::new(Mutex::new(CallState {
                 result: None,
-                callbacks: HashMap::default()
             })),
         };
 
@@ -138,22 +152,30 @@ impl BusEngine
         }
     }
 
-    pub fn recv<RES, REQ>() -> Recv<RES, REQ>
+    pub fn recv<RES, REQ, F>(mut callback: F) -> Recv
     where REQ: de::DeserializeOwned + Send + Sync + 'static,
-          RES: Serialize + Send + Sync + 'static
+          RES: Serialize + Send + Sync + 'static,
+          F: FnMut(REQ) -> Result<RES, CallError>,
+          F: Send + 'static,
     {
-        let topic = std::any::type_name::<REQ>();
+        let callback = move |req: Vec<u8>| {
+            let req = bincode::deserialize::<REQ>(req.as_ref())
+                .map_err(|_err| CallError::DeserializationFailed)?;
+            
+            let res = callback(req)?;
+
+            let res = bincode::serialize::<RES>(&res)
+                .map_err(|_err| CallError::SerializationFailed)?;
+
+            Ok(res)
+        };
+
         let handle = CallHandle {
             id: crate::abi::syscall::rand(),
         };
         let mut recv = Recv {
             handle: handle,
-            topic: topic.into(),
-            state: Arc::new(Mutex::new(RecvState {
-                response: None,
-            })),
-            _marker1: PhantomData,
-            _marker2: PhantomData
+            callback: Arc::new(Mutex::new(Box::new(callback))),
         };
 
         loop {
@@ -163,9 +185,9 @@ impl BusEngine
             recv.handle = handle;
 
             {
-                let state = BusEngine::write();
-                if state.calls.contains_key(&handle) == false {
-                    //state.calls.insert(handle, Box::new(recv.clone()));
+                let mut state = BusEngine::write();
+                if state.recv.contains_key(&handle) == false {
+                    state.recv.insert(handle, Arc::new(recv.clone()));
                     return recv;
                 }
             }

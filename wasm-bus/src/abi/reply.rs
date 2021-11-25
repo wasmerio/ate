@@ -19,14 +19,6 @@ impl<RES, REQ> Reply<RES, REQ>
 where REQ: de::DeserializeOwned,
       RES: Serialize
 {
-    pub(crate) fn new(handle: CallHandle, request: REQ) -> Reply<RES, REQ> {
-        Reply {
-            handle,
-            request,
-            _marker2: PhantomData
-        }
-    }
-
     pub fn id(&self) -> u32 {
         self.handle.id
     }

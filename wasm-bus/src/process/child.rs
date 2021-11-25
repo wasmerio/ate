@@ -5,7 +5,7 @@ use std::task::Poll;
 use std::pin::Pin;
 
 use super::*;
-use crate::abi::{call, Call, CallJoin};
+use crate::abi::{Call, CallJoin, Recv, call};
 use crate::backend::process::*;
 
 /// Representation of a running or exited child process.
@@ -66,6 +66,8 @@ pub struct Child {
     /// to avoid partially moving the `child` and thus blocking yourself from calling
     /// functions on `child` while using `stdout`.
     pub stdout: Option<ChildStdout>,
+    #[allow(dead_code)]
+    stdout_recv: Option<Recv>,
 
     /// The handle for reading from the child's standard error (stderr), if it
     /// has been captured. You might find it helpful to do
@@ -77,6 +79,8 @@ pub struct Child {
     /// to avoid partially moving the `child` and thus blocking yourself from calling
     /// functions on `child` while using `stderr`.
     pub stderr: Option<ChildStderr>,
+    #[allow(dead_code)]
+    stderr_recv: Option<Recv>,
 }
 
 impl Child {
@@ -88,37 +92,36 @@ impl Child {
         stderr_mode: StdioMode,
         pre_open: Vec<String>,
     ) -> Result<Child> {
-        let mut task = call(WAPM_NAME.into(), Spawn {
-            path: cmd.path.clone(),
-            current_dir: cmd.current_dir.clone(),
-            args: cmd.args.clone(),
-            stdin_mode,
-            stdout_mode,
-            stderr_mode,
-            pre_open: pre_open.clone(),
-        });
+        let task = call(WAPM_NAME.into(), Spawn {
+                path: cmd.path.clone(),
+                current_dir: cmd.current_dir.clone(),
+                args: cmd.args.clone(),
+                stdin_mode,
+                stdout_mode,
+                stderr_mode,
+                pre_open: pre_open.clone(),
+            })
+            .invoke();
 
-        let stdout = if stdout_mode == StdioMode::Piped {
+        let (stdout, stdout_recv) = if stdout_mode == StdioMode::Piped {
             let (stdout, tx) = ChildStdout::new();
-            task = task.with_callback(move |data: DataStdout| {
+            let recv = task.recv(move |data: DataStdout| {
                 let _ = tx.send(data.0);
             });
-            Some(stdout)
+            (Some(stdout), Some(recv))
         } else {
-            None
+            (None, None)
         };
 
-        let stderr = if stderr_mode == StdioMode::Piped {
+        let (stderr, stderr_recv) = if stderr_mode == StdioMode::Piped {
             let (stderr, tx) = ChildStderr::new();
-            task = task.with_callback(move |data: DataStderr| {
+            let recv = task.recv(move |data: DataStderr| {
                 let _ = tx.send(data.0);
             });
-            Some(stderr)
+            (Some(stderr), Some(recv))
         } else {
-            None
+            (None, None)
         };
-
-        let task = task.invoke();
 
         let stdin = if stdin_mode == StdioMode::Piped {
             let stdin = ChildStdin::new(task.clone());
@@ -131,7 +134,9 @@ impl Child {
             task,
             stdin,
             stdout,
+            stdout_recv,
             stderr,
+            stderr_recv,
         })
     }
 

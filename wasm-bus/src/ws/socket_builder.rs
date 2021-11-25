@@ -6,7 +6,7 @@ use tokio::sync::mpsc;
 use std::sync::mpsc;
 
 use super::*;
-use crate::abi::*;
+use crate::{MAX_MPSC, abi::*};
 use crate::backend::ws::*;
 
 pub struct SocketBuilder {
@@ -21,16 +21,21 @@ impl SocketBuilder {
     pub fn open(self) -> WebSocket {
         let url = self.url.to_string();
 
+        #[cfg(feature = "tokio")]
+        let (tx_recv, rx_recv) = mpsc::channel(MAX_MPSC);
+        #[cfg(not(feature = "tokio"))]
         let (tx_recv, rx_recv) = mpsc::channel();
+
         let task = call(WAPM_NAME.into(), Connect { url })
-            .with_callback(move |data: Received| {
-                let _ = tx_recv.send(data.data);
-            })
             .invoke();
+        let recv = task.recv(move |data: Received| {
+            let _ = tx_recv.send(data.data);
+        });
         
         WebSocket {
             task,
-            rx: rx_recv
+            rx: rx_recv,
+            recv
         }
     }
 }

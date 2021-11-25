@@ -12,6 +12,7 @@ pub enum CallError {
     CompileError = 5,
     IncorrectAbi = 6,
     Aborted = 7,
+    InvalidHandle = 8,
     Unknown = u32::MAX,
 }
 
@@ -28,6 +29,7 @@ for CallError
             5 => CallError::CompileError,
             6 => CallError::IncorrectAbi,
             7 => CallError::Aborted,
+            8 => CallError::InvalidHandle,
             _ => CallError::Unknown
         }
     }
@@ -46,6 +48,7 @@ for CallError
             CallError::CompileError => 5,
             CallError::IncorrectAbi => 6,
             CallError::Aborted => 7,
+            CallError::InvalidHandle => 8,
             CallError::Unknown => u32::MAX
         }
     }
@@ -79,6 +82,7 @@ for CallError
             CallError::CompileError => write!(f, "failed to compile the WAPM module."),
             CallError::IncorrectAbi => write!(f, "the ABI is invalid for cross module calls."),
             CallError::Aborted => write!(f, "the request has been aborted."),
+            CallError::InvalidHandle => write!(f, "the handle is not valid."),
             CallError::Unknown => write!(f, "unknown error."),
         }
     }

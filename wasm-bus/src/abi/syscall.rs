@@ -6,7 +6,7 @@ mod raw {
     use super::*;
 
     #[no_mangle]
-    pub(super) extern "C" fn wasm_bus_free(buf_ptr: u32, buf_len: u32) {
+    pub extern "C" fn wasm_bus_free(buf_ptr: u32, buf_len: u32) {
         trace!("wasm_bus_free (buf={} bytes)", buf_len);
         unsafe {
             let data = Vec::from_raw_parts(buf_ptr as *mut u8, buf_len as usize, buf_len as usize);
@@ -15,7 +15,7 @@ mod raw {
     }
 
     #[no_mangle]
-    pub(super) extern "C" fn wasm_bus_malloc(len: u32) -> u32 {
+    pub extern "C" fn wasm_bus_malloc(len: u32) -> u32 {
         trace!("wasm_bus_malloc (len={})", len);
         let mut buf = Vec::with_capacity(len as usize);
         let ptr: *mut u8 = buf.as_mut_ptr();
@@ -25,18 +25,28 @@ mod raw {
 
     // Invoked when the call has finished
     #[no_mangle]
-    pub(super) extern "C" fn wasm_bus_data(handle: u32, topic: i32, topic_len: i32, response: u32, response_len: u32) {
-        trace!("wasm_bus_data (handle={}, response={} bytes)", handle, response_len);
+    pub extern "C" fn wasm_bus_data(handle: u32, data: u32, data_len: u32) {
+        trace!("wasm_bus_data (handle={}, response={} bytes)", handle, data_len);
         unsafe {
-            let topic = String::from_raw_parts(topic as *mut u8, topic_len as usize, topic_len as usize);
-            let response = Vec::from_raw_parts(response as *mut u8, response_len as usize, response_len as usize);
-            crate::engine::BusEngine::put(handle.into(), topic, response);
+            let response = Vec::from_raw_parts(data as *mut u8, data_len as usize, data_len as usize);
+            
+            match crate::engine::BusEngine::put(handle.into(), response) {
+                Some(Ok(response)) => {
+                    let _response_len = response.len();
+                    let _response = response.as_ptr();
+                    //reply(handle, response as i32, response_len as i32);
+                },
+                Some(Err(err)) => {
+                    //fault(handle, err as i32);
+                },
+                None => {},
+            };
         }
     }
 
     // Invoked when the call has failed
     #[no_mangle]
-    pub(super) extern "C" fn wasm_bus_error(handle: u32, error: u32) {
+    pub extern "C" fn wasm_bus_error(handle: u32, error: u32) {
         trace!("wasm_bus_err (handle={}, error={})", handle, error);
         crate::engine::BusEngine::error(handle.into(), error.into());
     }
@@ -47,11 +57,11 @@ mod raw {
         pub(crate) fn rand() -> u32;
         pub(crate) fn yield_and_wait(timeout_ms: u32);
         
-        pub(crate) fn error(handle: u32, error: i32);
+        pub(crate) fn fault(handle: u32, error: i32);
         pub(crate) fn reply(handle: u32, response: i32, response_len: i32);
 
         pub(crate) fn call(parent: u32, handle: u32, wapm: i32, wapm_len: i32, topic: i32, topic_len: i32, request: i32, request_len: i32) -> u32;
-        pub(crate) fn recv(handle: u32, topic: i32, topic_len: i32);
+        pub(crate) fn recv(parent: u32, handle: u32, topic: i32, topic_len: i32);
 
         pub(crate) fn thread_id() -> u32;
     }
@@ -70,7 +80,7 @@ pub fn rand() -> u32 {
 
 pub fn error(handle: CallHandle, error: i32) {
     unsafe {
-        raw::error(handle.id, error);
+        raw::fault(handle.id, error);
     }
 }
 
@@ -99,11 +109,12 @@ pub fn call(parent: Option<CallHandle>, handle: CallHandle, wapm: &str, topic: &
     }
 }
 
-pub fn recv(handle: CallHandle, topic: &str) {
+pub fn recv(parent: Option<CallHandle>, handle: CallHandle, topic: &str) {
     unsafe {
+        let parent = parent.map(|a| a.id).unwrap_or_else(|| u32::MAX);
         let topic_len = topic.len();
         let topic = topic.as_ptr();
-        raw::recv(handle.id, topic as i32, topic_len as i32)
+        raw::recv(parent, handle.id, topic as i32, topic_len as i32)
     }
 }
 

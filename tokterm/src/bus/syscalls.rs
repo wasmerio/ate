@@ -27,22 +27,17 @@ pub(crate) mod raw {
             super::wasm_bus_tick(thread)
         }
     }    
-    pub fn wasm_bus_recv(thread: &WasmBusThread, handle: u32, topic: WasmPtr<u8, Array>, topic_len: u32) {
+    pub fn wasm_bus_recv(thread: &WasmBusThread, parent: u32, handle: u32, topic: WasmPtr<u8, Array>, topic_len: u32) {
         unsafe {
-            super::wasm_bus_recv(thread, handle, topic, topic_len)
+            super::wasm_bus_recv(thread, parent, handle, topic, topic_len)
+        }
+    }
+    pub fn wasm_bus_fault(thread: &WasmBusThread, handle: u32, error: i32) {
+        unsafe {
+            super::wasm_bus_fault(thread, handle, error)
         }
     }    
-    pub fn wasm_bus_recv_recursive(thread: &WasmBusThread, parent: u32, handle: u32, topic: WasmPtr<u8, Array>, topic_len: u32) {
-        unsafe {
-            super::wasm_bus_recv_recursive(thread, parent, handle, topic, topic_len)
-        }
-    }    
-    pub fn wasm_bus_error(thread: &WasmBusThread, handle: u32, error: i32) {
-        unsafe {
-            super::wasm_bus_error(thread, handle, error)
-        }
-    }    
-    pub fn wasm_bus_reply(thread: &WasmBusThread, handle: u32, response: WasmPtr<u8, Array>, response_len: u32,) {
+    pub fn wasm_bus_reply(thread: &WasmBusThread, handle: u32, response: WasmPtr<u8, Array>, response_len: u32) {
         unsafe {
             super::wasm_bus_reply(thread, handle, response, response_len)
         }
@@ -103,26 +98,12 @@ unsafe fn wasm_bus_tick(thread: &WasmBusThread)
     }
 }
 
-unsafe fn wasm_bus_recv(thread: &WasmBusThread, handle: u32, topic: WasmPtr<u8, Array>, topic_len: u32) {
+unsafe fn wasm_bus_recv(thread: &WasmBusThread, parent: u32, handle: u32, topic: WasmPtr<u8, Array>, topic_len: u32) {
     let topic = topic.get_utf8_str(thread.memory(), topic_len).unwrap();
-    info!("wasm-bus::recv (handle={}, topic={})", handle, topic);
+    info!("wasm-bus::recv (parent={}, handle={}, topic={})", parent, handle, topic);
 }
 
-unsafe fn wasm_bus_recv_recursive(
-    thread: &WasmBusThread,
-    parent: u32,
-    handle: u32,
-    topic: WasmPtr<u8, Array>,
-    topic_len: u32,
-) {
-    let topic = topic.get_utf8_str(thread.memory(), topic_len).unwrap();
-    info!(
-        "wasm-bus::recv_recursive (parent={}, handle={}, topic={})",
-        parent, handle, topic
-    );
-}
-
-unsafe fn wasm_bus_error(_thread: &WasmBusThread, handle: u32, error: i32) {
+unsafe fn wasm_bus_fault(_thread: &WasmBusThread, handle: u32, error: i32) {
     info!("wasm-bus::error (handle={}, error={})", handle, error);
 }
 
@@ -186,21 +167,12 @@ unsafe fn wasm_bus_call(
 
     // Invoke the send operation
     let invoke = {
-        let topic_copy = topic.to_string();
         let thread = thread.clone();
         async move {
             let response = invoke.process(request).await;
             match response {
                 Ok(data) => {
                     info!("wasm-bus::call-reply (handle={}, response={} bytes)", handle, data.len());
-        
-                    let topic_len = topic_copy.len() as u32;
-                    let topic = malloc_callback.call(topic_len).unwrap();
-        
-                    thread.memory()
-                        .uint8view()
-                        .subarray(topic.offset(), topic_len)
-                        .copy_from(&topic_copy.as_bytes()[..]);
         
                     let buf_len = data.len() as u32;
                     let buf = malloc_callback.call(buf_len).unwrap();
@@ -210,7 +182,7 @@ unsafe fn wasm_bus_call(
                         .subarray(buf.offset(), buf_len)
                         .copy_from(&data[..]);
         
-                    data_callback.call(handle, topic, topic_len, buf, buf_len).unwrap();
+                    data_callback.call(handle, buf, buf_len).unwrap();
                 },
                 Err(err) => {
                     info!("wasm-bus::call-reply (handle={}, error={})", handle, err);
@@ -222,7 +194,8 @@ unsafe fn wasm_bus_call(
 
     // We try to invoke the callback synchronously but if it
     // does not complete in time then we add it to the idle
-    // processing list
+    // processing list which will pick it up again the next time
+    // the WASM process yields CPU execution.
     let waker = dummy_waker::dummy_waker();
     let mut cx = Context::from_waker(&waker);
     let mut invoke = Box::pin(invoke);
