@@ -1,4 +1,4 @@
-use super::{CallError};
+use super::CallError;
 
 #[repr(C)]
 #[derive(Debug)]

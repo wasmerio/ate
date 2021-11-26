@@ -14,6 +14,7 @@ use tracing::{debug, error, info, trace, warn};
 use wasi_net::backend::StdioMode;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
+use wasm_bus::backend::ws::SocketMessage;
 use wasmer_vfs::{FileDescriptor, VirtualFile};
 use wasmer_wasi::{types as wasi_types, WasiFile, WasiFsError};
 use web_sys::{ErrorEvent, MessageEvent, WebSocket};
@@ -35,12 +36,6 @@ use crate::tty::*;
 #[derive(Debug, Clone)]
 pub struct TokeraSocket {
     tx: mpsc::Sender<mpsc::Sender<Fd>>,
-}
-
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
-enum SocketMessage {
-    Opened,
-    Closed,
 }
 
 impl TokeraSocket {

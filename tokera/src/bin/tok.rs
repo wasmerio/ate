@@ -1,15 +1,15 @@
 #![allow(unused_imports)]
-use tracing::{info, warn, debug, error};
-use ate::{prelude::*};
+use ate::prelude::*;
 use clap::Parser;
-use tokera::prelude::*;
-use tokera::error::*;
-use tokera::opt::*;
-use tokera::cmd::*;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use tokio::sync::mpsc;
 use std::sync::Arc;
+use tokera::cmd::*;
+use tokera::error::*;
+use tokera::opt::*;
+use tokera::prelude::*;
+use tokio::sync::mpsc;
+use tracing::{debug, error, info, warn};
 
 #[allow(dead_code)]
 #[derive(Parser)]
@@ -106,7 +106,8 @@ fn name(binary_path: &Path) -> &str {
 fn init_wasi() {
     std::panic::set_hook(Box::new(|panic_info| {
         if let Some(location) = panic_info.location() {
-            println!("panic occurred in file '{}' at line {}",
+            println!(
+                "panic occurred in file '{}' at line {}",
                 location.file(),
                 location.line(),
             );
@@ -120,16 +121,14 @@ fn init_wasi() {
     add_global_certificate(&AteHash::from_hex_string("9c960f3ba2ece59881be0b45f39ef989").unwrap());
     set_comm_factory(Box::new(move |_| {
         tracing::trace!("opening wasm_bus::web_socket");
-        let ws = wasm_bus::ws::SocketBuilder::new(url::Url::from_str("wss://tokera.com")
-            .unwrap())
+        let ws = wasm_bus::ws::SocketBuilder::new(url::Url::from_str("wss://tokera.com").unwrap())
             .open();
         Some(ate::comms::Stream::WapmWebSocket(ws))
     }));
 }
 
 #[tokio::main(flavor = "current_thread")]
-async fn main() -> Result<(), Box<dyn std::error::Error>>
-{
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize the logging and panic hook
     #[cfg(target_os = "wasi")]
     init_wasi();
@@ -152,23 +151,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>>
             _ => None,
         };
         match cmd {
-            Some(cmd) => {
-                Opts {
-                    verbose: 0,
-                    #[cfg(not(target_os = "wasi"))]
-                    token_path: "~/tok/token".to_string(),
-                    #[cfg(target_os = "wasi")]
-                    token_path: "/.private/token".to_string(),
-                    auth_url: "ws://tokera.com/auth".to_string(),
-                    ntp_pool: None,
-                    ntp_port: None,
-                    dns_sec: false,
-                    dns_server: "8.8.8.8".to_string(),
-                    debug: false,
-                    subcmd: cmd
-                }
+            Some(cmd) => Opts {
+                verbose: 0,
+                #[cfg(not(target_os = "wasi"))]
+                token_path: "~/tok/token".to_string(),
+                #[cfg(target_os = "wasi")]
+                token_path: "/.private/token".to_string(),
+                auth_url: "ws://tokera.com/auth".to_string(),
+                ntp_pool: None,
+                ntp_port: None,
+                dns_sec: false,
+                dns_server: "8.8.8.8".to_string(),
+                debug: false,
+                subcmd: cmd,
             },
-            None => Opts::parse()
+            None => Opts::parse(),
         }
     };
 
@@ -191,7 +188,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>>
     }
 
     // If the domain is localhost then load certificates from dev.tokera.com
-    #[cfg(feature="enable_dns")]
+    #[cfg(feature = "enable_dns")]
     if let Some(domain) = auth.domain() {
         if domain == "localhost" {
             let test_registry = Registry::new(&conf).await;
@@ -203,9 +200,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>>
 
     // Do we need a token
     let needs_token = match &opts.subcmd {
-        SubCommand::Login( .. ) => false,
-        SubCommand::Token( .. ) => false,
-        _ => true
+        SubCommand::Login(..) => false,
+        SubCommand::Token(..) => false,
+        _ => true,
     };
 
     // Make sure the token exists
@@ -221,29 +218,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>>
     match opts.subcmd {
         SubCommand::User(opts_user) => {
             main_opts_user(opts_user, None, Some(opts.token_path), auth).await?;
-        },
+        }
         SubCommand::Domain(opts_group) => {
             main_opts_group(opts_group, None, Some(opts.token_path), auth, "Domain name").await?;
-        },
+        }
         #[cfg(not(feature_os = "wasi"))]
         SubCommand::Token(opts_token) => {
             main_opts_token(opts_token, None, Some(opts.token_path), auth, "Domain name").await?;
         }
         SubCommand::Wallet(opts_wallet) => {
             main_opts_wallet(opts_wallet.source, opts.token_path, auth).await?
-        },
+        }
         SubCommand::Contract(opts_contract) => {
             main_opts_contract(opts_contract.purpose, opts.token_path, auth).await?;
-        },
+        }
         SubCommand::Service(opts_service) => {
             main_opts_service(opts_service.purpose, opts.token_path, auth).await?;
-        },
-        SubCommand::Login(opts_login) => {
-            main_opts_login(opts_login, opts.token_path, auth).await?
-        },
-        SubCommand::Logout(opts_logout) => {
-            main_opts_logout(opts_logout, opts.token_path).await?
         }
+        SubCommand::Login(opts_login) => main_opts_login(opts_login, opts.token_path, auth).await?,
+        SubCommand::Logout(opts_logout) => main_opts_logout(opts_logout, opts.token_path).await?,
     }
 
     // We are done

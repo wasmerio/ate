@@ -64,9 +64,12 @@ impl RequestBuilder {
                 .next(),
         };
 
-        let res: BackendResponse = call(WAPM_NAME.into(), submit).invoke().join().wait()
+        let res: BackendResponse = call(WAPM_NAME.into(), submit)
+            .invoke()
+            .join()
+            .wait()
             .map_err(|err| err.into_io_error())?;
-        
+
         let status = StatusCode::from_u16(res.status).map_err(|err| {
             std::io::Error::new(
                 std::io::ErrorKind::Other,

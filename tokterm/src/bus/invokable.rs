@@ -1,40 +1,35 @@
-#[allow(unused_imports, dead_code)]
-use tracing::{debug, error, info, trace, warn};
+use async_trait::async_trait;
+use serde::*;
+use std::future::Future;
 use std::marker::PhantomData;
 use std::ops::Deref;
 use std::sync::Arc;
-use serde::*;
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
-use async_trait::async_trait;
-use std::future::Future;
 
 #[async_trait]
 pub trait Invokable
-where Self: Send + Sync,
+where
+    Self: Send + Sync,
 {
     async fn process(&self, request: Vec<u8>) -> Result<Vec<u8>, CallError>;
 
     fn sub_call(&self, topic: &str) -> Arc<dyn Invokable>;
 }
 
-pub struct ErrornousInvokable
-{
+pub struct ErrornousInvokable {
     err: CallError,
 }
 
-impl ErrornousInvokable
-{
+impl ErrornousInvokable {
     pub fn new(err: CallError) -> Arc<dyn Invokable> {
-        Arc::new(ErrornousInvokable {
-            err,
-        })
+        Arc::new(ErrornousInvokable { err })
     }
 }
 
 #[async_trait]
-impl Invokable
-for ErrornousInvokable
-{
+impl Invokable for ErrornousInvokable {
     async fn process(&self, _request: Vec<u8>) -> Result<Vec<u8>, CallError> {
         let err = self.err;
         Err(err)
@@ -46,14 +41,14 @@ for ErrornousInvokable
 }
 
 pub struct CallbackInvokable<RES, REQ, F, Fut>
-where REQ: de::DeserializeOwned + Send + Sync,
-      RES: Serialize + Send + Sync,
-      REQ: 'static,
-      RES: 'static,
-      F: Fn(REQ) -> Fut,
-      F: Send + Sync + 'static,
-      Fut: Future<Output=RES>,
-      Fut: Send + Sync + 'static
+where
+    Self: Send + Sync,
+    F: Fn(REQ) -> Fut,
+    F: Send + Sync + 'static,
+    Fut: Future<Output = RES>,
+    Fut: Send + Sync + 'static,
+    REQ: de::DeserializeOwned + Send + Sync + 'static,
+    RES: Serialize + Send + Sync + 'static,
 {
     callback: Arc<F>,
     _marker1: PhantomData<REQ>,
@@ -61,37 +56,35 @@ where REQ: de::DeserializeOwned + Send + Sync,
 }
 
 impl<RES, REQ, F, Fut> CallbackInvokable<RES, REQ, F, Fut>
-where REQ: de::DeserializeOwned + Send + Sync,
-      RES: Serialize + Send + Sync,
-      REQ: 'static,
-      RES: 'static,
-      F: Fn(REQ) -> Fut,
-      F: Send + Sync + 'static,
-      Fut: Future<Output=RES>,
-      Fut: Send + Sync + 'static,
+where
+    Self: Send + Sync,
+    F: Fn(REQ) -> Fut,
+    F: Send + Sync + 'static,
+    Fut: Future<Output = RES>,
+    Fut: Send + Sync + 'static,
+    REQ: de::DeserializeOwned + Send + Sync + 'static,
+    RES: Serialize + Send + Sync + 'static,
 {
-    #[allow(dead_code)]
-    pub fn new(callback: F) -> Arc<dyn Invokable>
-    {
-        Arc::new(CallbackInvokable {
-            callback: Arc::new(callback),
+    pub fn new(callback: F) -> CallbackInvokable<RES, REQ, F, Fut> {
+        let callback = Arc::new(callback);
+        CallbackInvokable {
+            callback,
             _marker1: PhantomData,
-            _marker2: PhantomData
-        })
+            _marker2: PhantomData,
+        }
     }
 }
 
 #[async_trait]
-impl<RES, REQ, F, Fut> Invokable
-for CallbackInvokable<RES, REQ, F, Fut>
-where REQ: de::DeserializeOwned + Send + Sync,
-      RES: Serialize + Send + Sync,
-      REQ: 'static,
-      RES: 'static,
-      F: Fn(REQ) -> Fut,
-      F: Send + Sync + 'static,
-      Fut: Future<Output=RES>,
-      Fut: Send + Sync + 'static
+impl<RES, REQ, F, Fut> Invokable for CallbackInvokable<RES, REQ, F, Fut>
+where
+    Self: Send + Sync,
+    F: Fn(REQ) -> Fut,
+    F: Send + Sync + 'static,
+    Fut: Future<Output = RES>,
+    Fut: Send + Sync + 'static,
+    REQ: de::DeserializeOwned + Send + Sync + 'static,
+    RES: Serialize + Send + Sync + 'static,
 {
     async fn process(&self, request: Vec<u8>) -> Result<Vec<u8>, CallError> {
         let req: REQ = match bincode::deserialize(request.as_ref()) {

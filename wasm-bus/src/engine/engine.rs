@@ -1,36 +1,32 @@
-#[allow(unused_imports, dead_code)]
-use tracing::{debug, error, info, trace, warn};
-use std::{collections::HashMap, sync::Mutex};
-use std::task::{Context, Waker};
+use once_cell::sync::Lazy;
 use serde::*;
-use std::sync::{Arc, MutexGuard};
 use std::borrow::Cow;
 use std::sync::RwLock;
 use std::sync::RwLockReadGuard;
 use std::sync::RwLockWriteGuard;
-use once_cell::sync::Lazy;
+use std::sync::{Arc, MutexGuard};
+use std::task::{Context, Waker};
+use std::{collections::HashMap, sync::Mutex};
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, trace, warn};
 
 use crate::abi::*;
 
-static GLOBAL_ENGINE: Lazy<BusEngine> =
-    Lazy::new(|| BusEngine::default());
+static GLOBAL_ENGINE: Lazy<BusEngine> = Lazy::new(|| BusEngine::default());
 
 #[derive(Default)]
-pub struct BusEngineState
-{
+pub struct BusEngineState {
     pub calls: HashMap<CallHandle, Arc<dyn CallOps>>,
     pub recv: HashMap<CallHandle, Arc<dyn RecvOps>>,
 }
 
 #[derive(Default)]
-pub struct BusEngine
-{
+pub struct BusEngine {
     state: RwLock<BusEngineState>,
-    wakers: Mutex<HashMap<CallHandle, Waker>>
+    wakers: Mutex<HashMap<CallHandle, Waker>>,
 }
 
-impl BusEngine
-{
+impl BusEngine {
     fn read<'a>() -> RwLockReadGuard<'a, BusEngineState> {
         GLOBAL_ENGINE.state.read().unwrap()
     }
@@ -48,8 +44,7 @@ impl BusEngine
     }
 
     // This function will block
-    pub fn put(handle: CallHandle, response: Vec<u8>) -> Option<Result<Vec<u8>, CallError>>
-    {
+    pub fn put(handle: CallHandle, response: Vec<u8>) -> Option<Result<Vec<u8>, CallError>> {
         let ret = {
             let state = BusEngine::read();
             if let Some(call) = state.calls.get(&handle) {
@@ -79,8 +74,7 @@ impl BusEngine
         ret
     }
 
-    pub fn error(handle: CallHandle, err: CallError)
-    {
+    pub fn error(handle: CallHandle, err: CallError) {
         {
             let mut state = BusEngine::write();
             if let Some(call) = state.calls.remove(&handle) {
@@ -98,8 +92,7 @@ impl BusEngine
         }
     }
 
-    pub fn subscribe(handle: &CallHandle, cx: &mut Context<'_>)
-    {
+    pub fn subscribe(handle: &CallHandle, cx: &mut Context<'_>) {
         let waker = cx.waker().clone();
         let mut wakers = Self::wakers();
         wakers.insert(handle.clone(), waker);
@@ -120,8 +113,11 @@ impl BusEngine
         wakers.remove(handle);
     }
 
-    pub fn call(parent: Option<CallHandle>, wapm: Cow<'static, str>, topic: Cow<'static, str>) -> Call
-    {
+    pub fn call(
+        parent: Option<CallHandle>,
+        wapm: Cow<'static, str>,
+        topic: Cow<'static, str>,
+    ) -> Call {
         let mut handle = CallHandle {
             id: crate::abi::syscall::rand(),
         };
@@ -130,9 +126,7 @@ impl BusEngine
             parent,
             wapm,
             topic,
-            state: Arc::new(Mutex::new(CallState {
-                result: None,
-            })),
+            state: Arc::new(Mutex::new(CallState { result: None })),
         };
 
         loop {
@@ -153,19 +147,20 @@ impl BusEngine
     }
 
     pub fn recv<RES, REQ, F>(mut callback: F) -> Recv
-    where REQ: de::DeserializeOwned + Send + Sync + 'static,
-          RES: Serialize + Send + Sync + 'static,
-          F: FnMut(REQ) -> Result<RES, CallError>,
-          F: Send + 'static,
+    where
+        REQ: de::DeserializeOwned + Send + Sync + 'static,
+        RES: Serialize + Send + Sync + 'static,
+        F: FnMut(REQ) -> Result<RES, CallError>,
+        F: Send + 'static,
     {
         let callback = move |req: Vec<u8>| {
             let req = bincode::deserialize::<REQ>(req.as_ref())
                 .map_err(|_err| CallError::DeserializationFailed)?;
-            
+
             let res = callback(req)?;
 
-            let res = bincode::serialize::<RES>(&res)
-                .map_err(|_err| CallError::SerializationFailed)?;
+            let res =
+                bincode::serialize::<RES>(&res).map_err(|_err| CallError::SerializationFailed)?;
 
             Ok(res)
         };

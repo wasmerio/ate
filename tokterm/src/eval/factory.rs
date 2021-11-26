@@ -78,7 +78,7 @@ impl ExecFactory {
                 reactor,
                 stdout,
                 stderr,
-            })
+            }),
         }
     }
 

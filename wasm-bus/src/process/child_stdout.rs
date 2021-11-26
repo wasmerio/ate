@@ -11,14 +11,14 @@ pub struct ChildStdout {
 }
 
 impl ChildStdout {
-    pub fn new() -> (ChildStdout, mpsc::Sender<Vec<u8>>){
+    pub fn new() -> (ChildStdout, mpsc::Sender<Vec<u8>>) {
         let (tx_stdout, rx_stdout) = mpsc::channel();
         (
             ChildStdout {
                 rx: rx_stdout,
                 buffer: BytesMut::new(),
             },
-            tx_stdout
+            tx_stdout,
         )
     }
 }

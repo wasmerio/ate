@@ -1,5 +1,5 @@
-use std::io::Write;
 use std::io;
+use std::io::Write;
 
 use super::*;
 use crate::abi::*;
@@ -12,15 +12,15 @@ pub struct ChildStdin {
 
 impl ChildStdin {
     pub fn new(task: Call) -> ChildStdin {
-        ChildStdin {
-            task,
-        }
+        ChildStdin { task }
     }
 }
 
 impl Write for ChildStdin {
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
-        Ok(self.task.call(OutOfBand::DataStdin(buf.to_vec()))
+        Ok(self
+            .task
+            .call(OutOfBand::DataStdin(buf.to_vec()))
             .invoke()
             .join()
             .wait()

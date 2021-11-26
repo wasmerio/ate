@@ -1,5 +1,5 @@
-use std::io;
 use std::fmt;
+use std::io;
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy)]
@@ -17,9 +17,7 @@ pub enum CallError {
     Unknown = u32::MAX,
 }
 
-impl From<u32>
-for CallError
-{
+impl From<u32> for CallError {
     fn from(val: u32) -> CallError {
         match val {
             0 => CallError::Success,
@@ -32,14 +30,12 @@ for CallError
             7 => CallError::Aborted,
             8 => CallError::InvalidHandle,
             9 => CallError::InvalidTopic,
-            _ => CallError::Unknown
+            _ => CallError::Unknown,
         }
     }
 }
 
-impl Into<u32>
-for CallError
-{
+impl Into<u32> for CallError {
     fn into(self) -> u32 {
         match self {
             CallError::Success => 0,
@@ -52,34 +48,44 @@ for CallError
             CallError::Aborted => 7,
             CallError::InvalidHandle => 8,
             CallError::InvalidTopic => 9,
-            CallError::Unknown => u32::MAX
+            CallError::Unknown => u32::MAX,
         }
     }
 }
 
-impl CallError
-{
+impl CallError {
     pub fn into_io_error(self) -> io::Error {
         self.into()
     }
 }
 
-impl Into<io::Error>
-for CallError
-{
+impl Into<io::Error> for CallError {
     fn into(self) -> io::Error {
-        io::Error::new(io::ErrorKind::Other, format!("wapm bus error - {}", self.to_string()).as_str())
+        match self {
+            CallError::InvalidHandle => io::Error::new(
+                io::ErrorKind::ConnectionAborted,
+                format!("connection aborted - {}", self.to_string()).as_str(),
+            ),
+            err => io::Error::new(
+                io::ErrorKind::Other,
+                format!("wapm bus error - {}", err.to_string()).as_str(),
+            ),
+        }
     }
-} 
+}
 
-impl fmt::Display
-for CallError
-{
+impl fmt::Display for CallError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            CallError::Success => write!(f,"operation successful"),
-            CallError::SerializationFailed => write!(f, "there was an error while serializing the request or response."),
-            CallError::DeserializationFailed => write!(f, "there was an error while deserializing the request or response."),
+            CallError::Success => write!(f, "operation successful"),
+            CallError::SerializationFailed => write!(
+                f,
+                "there was an error while serializing the request or response."
+            ),
+            CallError::DeserializationFailed => write!(
+                f,
+                "there was an error while deserializing the request or response."
+            ),
             CallError::InvalidWapm => write!(f, "the specified WAPM module does not exist."),
             CallError::FetchFailed => write!(f, "failed to fetch the WAPM module."),
             CallError::CompileError => write!(f, "failed to compile the WAPM module."),

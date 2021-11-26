@@ -262,15 +262,13 @@ pub async fn exec(
         // operations on the current thread
         {
             let bus_pool = Arc::clone(&bus_pool);
-            wasi_env
-                .on_tick(move |thread| {
-                    let thread = bus_pool.get_or_create(thread);
-                    unsafe {
-                        crate::bus::syscalls::raw::wasm_bus_tick(&thread);
-                    }
-                });
+            wasi_env.on_tick(move |thread| {
+                let thread = bus_pool.get_or_create(thread);
+                unsafe {
+                    crate::bus::syscalls::raw::wasm_bus_tick(&thread);
+                }
+            });
         }
-        
 
         // Finish off the WasiEnv
         let mut wasi_env = match wasi_env.set_fs(fs).finalize() {
@@ -303,7 +301,7 @@ pub async fn exec(
         let mut wasm_bus_import = bus_pool.get_or_create(&wasi_thread);
         let wasm_bus_import = wasm_bus_import.import_object(&module);
         let import = wasi_import.chain_front(wasm_bus_import);
-        
+
         // Let's instantiate the module with the imports.
         let instance = Instance::new(&module, &import).unwrap();
 

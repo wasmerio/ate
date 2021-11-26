@@ -1,11 +1,11 @@
-use std::io::{self, Read};
 use std::future::Future;
+use std::io::{self, Read};
+use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
-use std::pin::Pin;
 
 use super::*;
-use crate::abi::{Call, CallJoin, Recv, call};
+use crate::abi::{call, Call, CallJoin, Recv};
 use crate::backend::process::*;
 
 /// Representation of a running or exited child process.
@@ -92,7 +92,9 @@ impl Child {
         stderr_mode: StdioMode,
         pre_open: Vec<String>,
     ) -> Result<Child> {
-        let task = call(WAPM_NAME.into(), Spawn {
+        let task = call(
+            WAPM_NAME.into(),
+            Spawn {
                 path: cmd.path.clone(),
                 current_dir: cmd.current_dir.clone(),
                 args: cmd.args.clone(),
@@ -100,8 +102,9 @@ impl Child {
                 stdout_mode,
                 stderr_mode,
                 pre_open: pre_open.clone(),
-            })
-            .invoke();
+            },
+        )
+        .invoke();
 
         let (stdout, stdout_recv) = if stdout_mode == StdioMode::Piped {
             let (stdout, tx) = ChildStdout::new();
@@ -167,7 +170,9 @@ impl Child {
     /// [`InvalidInput`]: io::ErrorKind::InvalidInput
     /// [`Other`]: io::ErrorKind::Other
     pub fn kill(&mut self) -> io::Result<()> {
-        Ok(self.task.call(OutOfBand::Kill)
+        Ok(self
+            .task
+            .call(OutOfBand::Kill)
             .invoke()
             .join()
             .wait()
@@ -219,10 +224,7 @@ impl Child {
     /// }
     /// ```
     pub fn wait(self) -> io::Result<ExitStatus> {
-        self.task
-            .join()
-            .wait()
-            .map_err(|err| err.into_io_error())
+        self.task.join().wait().map_err(|err| err.into_io_error())
     }
 
     /// Simultaneously waits for the child to exit and collect all remaining
@@ -285,21 +287,18 @@ impl Child {
         })
     }
 
-    pub fn join(self) -> ChildJoin
-    {
+    pub fn join(self) -> ChildJoin {
         ChildJoin {
-            result: self.task.join()
+            result: self.task.join(),
         }
     }
 }
 
-pub struct ChildJoin
-{
-    result: CallJoin<ExitStatus>
+pub struct ChildJoin {
+    result: CallJoin<ExitStatus>,
 }
 
-impl ChildJoin
-{
+impl ChildJoin {
     /// Attempts to collect the exit status of the child if it has already
     /// exited.
     ///
@@ -335,16 +334,12 @@ impl ChildJoin
     /// }
     /// ```
     pub fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
-        self.result
-            .try_wait()
-            .map_err(|err| err.into_io_error())
+        self.result.try_wait().map_err(|err| err.into_io_error())
     }
 }
 
 /// Its also possible to .await the process
-impl Future
-for ChildJoin
-{
+impl Future for ChildJoin {
     type Output = io::Result<ExitStatus>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -352,7 +347,7 @@ for ChildJoin
         match result.poll(cx) {
             Poll::Ready(Ok(a)) => Poll::Ready(Ok(a)),
             Poll::Ready(Err(err)) => Poll::Ready(Err(err.into_io_error())),
-            Poll::Pending => Poll::Pending
+            Poll::Pending => Poll::Pending,
         }
     }
 }

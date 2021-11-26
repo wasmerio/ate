@@ -1,11 +1,13 @@
-mod thread;
-mod namespace;
-pub(crate) mod syscalls;
+mod builtin;
 mod factory;
 mod invokable;
-mod builtin;
+mod namespace;
+pub(crate) mod syscalls;
+mod thread;
+mod ws;
 
-use namespace::*;
-pub(crate) use thread::*;
 pub(crate) use factory::*;
 pub(crate) use invokable::*;
+use namespace::*;
+pub(crate) use thread::*;
+pub(crate) use ws::*;

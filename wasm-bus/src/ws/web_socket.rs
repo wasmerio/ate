@@ -1,12 +1,12 @@
-#[allow(unused_imports, dead_code)]
-use tracing::{debug, error, info, trace, warn};
 use std::io;
 use std::io::Read;
 use std::io::Write;
-#[cfg(feature = "tokio")]
-use tokio::sync::mpsc;
 #[cfg(not(feature = "tokio"))]
 use std::sync::mpsc;
+#[cfg(feature = "tokio")]
+use tokio::sync::mpsc;
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, trace, warn};
 
 use crate::abi::*;
 use crate::backend::ws::*;
@@ -19,37 +19,40 @@ pub struct WebSocket {
     pub(super) recv: Recv,
 }
 
-impl WebSocket
-{
-    pub fn split(self) -> (SendHalf, RecvHalf)
-    {
-        (
-            SendHalf { task: self.task },
-            RecvHalf { rx: self.rx },
-        )
+impl WebSocket {
+    pub fn split(self) -> (SendHalf, RecvHalf) {
+        (SendHalf { task: self.task }, RecvHalf { rx: self.rx })
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct SendHalf {
-    task: Call
+    task: Call,
 }
 
 impl SendHalf {
     pub async fn send(&self, data: Vec<u8>) -> io::Result<()> {
-        self.task.call(Send { data }).invoke().join().await
+        self.task
+            .call(Send { data })
+            .invoke()
+            .join()
+            .await
             .map_err(|err| err.into_io_error())
     }
 
     pub fn blocking_send(&self, data: Vec<u8>) -> io::Result<()> {
-        self.task.call(Send { data }).invoke().join().wait()
+        self.task
+            .call(Send { data })
+            .invoke()
+            .join()
+            .wait()
             .map_err(|err| err.into_io_error())
     }
 }
 
 #[derive(Debug)]
 pub struct RecvHalf {
-    rx: mpsc::Receiver<Vec<u8>>
+    rx: mpsc::Receiver<Vec<u8>>,
 }
 
 #[cfg(feature = "tokio")]

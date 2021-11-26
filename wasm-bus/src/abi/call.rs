@@ -1,48 +1,45 @@
-#[allow(unused_imports, dead_code)]
-use tracing::{debug, error, info, trace, warn};
+use derivative::*;
+use serde::*;
+use std::borrow::Cow;
+use std::future::Future;
 use std::marker::PhantomData;
 use std::ops::*;
-use serde::*;
-use std::future::Future;
 use std::pin::Pin;
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::task::Context;
 use std::task::Poll;
-use derivative::*;
-use std::sync::Arc;
-use std::borrow::Cow;
-use std::sync::Mutex;
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, trace, warn};
 
 use super::*;
 
 pub trait CallOps
-where Self: Send + Sync
+where
+    Self: Send + Sync,
 {
     fn data(&self, data: Vec<u8>);
 
     fn error(&self, error: CallError);
 }
 
-pub struct CallState
-{
+pub struct CallState {
     pub(crate) result: Option<Result<Vec<u8>, CallError>>,
 }
 
 #[derive(Derivative, Clone)]
 #[derivative(Debug)]
 #[must_use = "you must 'wait' or 'await' to actually send this call to other modules"]
-pub struct Call
-{
+pub struct Call {
     pub(crate) wapm: Cow<'static, str>,
     pub(crate) topic: Cow<'static, str>,
     pub(crate) handle: CallHandle,
     pub(crate) parent: Option<CallHandle>,
-    #[derivative(Debug="ignore")]
+    #[derivative(Debug = "ignore")]
     pub(crate) state: Arc<Mutex<CallState>>,
 }
 
-impl CallOps
-for Call
-{
+impl CallOps for Call {
     fn data(&self, data: Vec<u8>) {
         let mut state = self.state.lock().unwrap();
         state.result = Some(Ok(data));
@@ -54,17 +51,14 @@ for Call
     }
 }
 
-impl Drop
-for Call
-{
+impl Drop for Call {
     fn drop(&mut self) {
         super::drop(self.handle);
         crate::engine::BusEngine::remove(&self.handle);
     }
 }
 
-impl Call
-{
+impl Call {
     pub fn id(&self) -> u32 {
         self.handle.id
     }
@@ -73,47 +67,46 @@ impl Call
 #[derive(Derivative)]
 #[derivative(Debug)]
 #[must_use = "you must 'invoke' the builder for it to actually call anything"]
-pub struct CallBuilder
-{
+pub struct CallBuilder {
     call: Call,
     request: Data,
 }
 
-impl CallBuilder
-{
+impl CallBuilder {
     pub fn new(call: Call, request: Data) -> CallBuilder {
-        CallBuilder {
-            call,
-            request,
-        }
+        CallBuilder { call, request }
     }
 }
 
-impl CallBuilder
-{
+impl CallBuilder {
     /// Invokes the call with the specified callbacks
-    pub fn invoke(self) -> Call
-    {
+    pub fn invoke(self) -> Call {
         match self.request {
             Data::Success(req) => {
-                crate::abi::syscall::call(self.call.parent, self.call.handle, &self.call.wapm, &self.call.topic, &req[..]);
+                crate::abi::syscall::call(
+                    self.call.parent,
+                    self.call.handle,
+                    &self.call.wapm,
+                    &self.call.topic,
+                    &req[..],
+                );
             }
             Data::Error(err) => {
                 crate::engine::BusEngine::error(self.call.handle, err);
             }
         }
-        
+
         self.call
     }
 }
 
-impl Call
-{
+impl Call {
     /// Creates another call relative to this call
     /// This can be useful for creating contextual objects using thread calls
     /// and then passing data or commands back and forth to it
     pub fn call<T>(&self, req: T) -> CallBuilder
-    where T: Serialize,
+    where
+        T: Serialize,
     {
         super::call_internal(Some(self.handle), self.wapm.clone(), req)
     }
@@ -123,9 +116,10 @@ impl Call
     /// (this function handles both synchonrous and asynchronout
     ///  callbacks - just return a Callbacklifetime using either)
     pub fn recv<C, F>(&self, mut callback: F) -> Recv
-    where C: Serialize + de::DeserializeOwned + Send + Sync + 'static,
-          F: FnMut(C),
-          F: Send + 'static,
+    where
+        C: Serialize + de::DeserializeOwned + Send + Sync + 'static,
+        F: FnMut(C),
+        F: Send + 'static,
     {
         let callback = move |req| {
             callback(req);
@@ -136,7 +130,8 @@ impl Call
 
     /// Returns the result of the call
     pub fn join<T>(self) -> CallJoin<T>
-    where T: de::DeserializeOwned
+    where
+        T: de::DeserializeOwned,
     {
         CallJoin::new(self)
     }
@@ -144,35 +139,37 @@ impl Call
 
 #[derive(Debug, Clone)]
 pub struct CallJoin<T>
-where T: de::DeserializeOwned
+where
+    T: de::DeserializeOwned,
 {
     call: Call,
-    _marker1: PhantomData<T>
+    _marker1: PhantomData<T>,
 }
 
 impl<T> CallJoin<T>
-where T: de::DeserializeOwned
+where
+    T: de::DeserializeOwned,
 {
     fn new(call: Call) -> CallJoin<T> {
         CallJoin {
             call,
-            _marker1: PhantomData
+            _marker1: PhantomData,
         }
     }
 
     /// Waits for the call to complete and returns the response from
     /// the server
-    pub fn wait(self) -> Result<T, CallError>
-    {
+    pub fn wait(self) -> Result<T, CallError> {
         crate::backend::block_on::block_on(self)
     }
 
     /// Tries to get the result of the call to the server but will not
     /// block the execution
     pub fn try_wait(&mut self) -> Result<Option<T>, CallError>
-    where T: de::DeserializeOwned
+    where
+        T: de::DeserializeOwned,
     {
-        let response = {            
+        let response = {
             let mut state = self.call.state.lock().unwrap();
             state.result.take()
         };
@@ -183,26 +180,23 @@ where T: de::DeserializeOwned
                     .map_err(|_err| CallError::DeserializationFailed);
                 match res {
                     Ok(data) => Ok(Some(data)),
-                    Err(err) => Err(err)
+                    Err(err) => Err(err),
                 }
-            },
-            Some(Err(err)) => {
-                Err(err)
             }
-            None => Ok(None)
+            Some(Err(err)) => Err(err),
+            None => Ok(None),
         }
     }
 }
 
-impl<T> Future
-for CallJoin<T>
-where T: de::DeserializeOwned
+impl<T> Future for CallJoin<T>
+where
+    T: de::DeserializeOwned,
 {
     type Output = Result<T, CallError>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output>
-    {
-        let response = {            
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let response = {
             let mut state = self.call.state.lock().unwrap();
             state.result.take()
         };
@@ -213,16 +207,14 @@ where T: de::DeserializeOwned
                     .map_err(|_err| CallError::DeserializationFailed);
                 match res {
                     Ok(data) => Poll::Ready(Ok(data)),
-                    Err(err) => Poll::Ready(Err(err))
+                    Err(err) => Poll::Ready(Err(err)),
                 }
-            },
-            Some(Err(err)) => {
-                Poll::Ready(Err(err))
             }
+            Some(Err(err)) => Poll::Ready(Err(err)),
             None => {
                 crate::engine::BusEngine::subscribe(&self.call.handle, cx);
                 Poll::Pending
             }
-        }        
+        }
     }
 }

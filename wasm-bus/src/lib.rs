@@ -1,9 +1,9 @@
 pub mod abi;
-pub mod engine;
 #[cfg(feature = "backend")]
 pub mod backend;
 #[cfg(not(feature = "backend"))]
 mod backend;
+pub mod engine;
 pub mod prelude;
 #[cfg(feature = "process")]
 pub mod process;
