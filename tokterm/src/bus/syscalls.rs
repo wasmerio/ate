@@ -1,6 +1,7 @@
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
+use wasm_bus::abi::CallHandle;
 use wasmer::Array;
 use wasmer::WasmPtr;
 use std::time::Instant;
@@ -9,6 +10,7 @@ use std::task::Context;
 use std::future::Future;
 
 use super::thread::WasmBusThread;
+use super::ErrornousInvokable;
 
 pub(crate) mod raw {    
     use super::*;
@@ -136,7 +138,7 @@ unsafe fn wasm_bus_call(
     request_len: u32,
 ) -> u32
 {
-    let parent = if parent != u32::MAX { Some(parent) } else { None };
+    let parent = if parent != u32::MAX { Some(CallHandle::from(parent)) } else { None };
     let wapm = wapm.get_utf8_str(thread.memory(), wapm_len).unwrap();
     let topic = topic.get_utf8_str(thread.memory(), topic_len).unwrap();
     info!(
@@ -147,9 +149,6 @@ unsafe fn wasm_bus_call(
     let request = thread.memory()
             .uint8view_with_byte_offset_and_length(request.offset(), request_len)
             .to_vec();
-
-    // Start the sub-process and invoke the call
-    let invoke = thread.factory.start(parent, wapm.as_ref(), topic.as_ref());
 
     // Grab references to the ABI that will be used
     let error_callback = thread.wasm_bus_error_ref();
@@ -163,11 +162,26 @@ unsafe fn wasm_bus_call(
     let malloc_callback = malloc_callback.unwrap().clone();
     let data_callback = data_callback.unwrap().clone();
 
+    // If its got a parent then we already have an active stream here so we need
+    // to feed these results into that stream
+    let invoke = if let Some(parent) = parent {
+        if let Some(parent_invoke) = thread.factory.get(parent) {
+            parent_invoke.sub_call(topic.as_ref())
+        } else {
+            ErrornousInvokable::new(CallError::InvalidHandle)
+        }
+    } else {
+        thread.factory.start(CallHandle::from(handle), wapm.as_ref(), topic.as_ref())
+    };
+
     // Invoke the send operation
     let invoke = {
         let thread = thread.clone();
         async move {
             let response = invoke.process(request).await;
+
+            thread.factory.close(CallHandle::from(handle));
+
             match response {
                 Ok(data) => {
                     info!("wasm-bus::call-reply (handle={}, response={} bytes)", handle, data.len());

@@ -13,6 +13,8 @@ pub trait Invokable
 where Self: Send + Sync,
 {
     async fn process(&self, request: Vec<u8>) -> Result<Vec<u8>, CallError>;
+
+    fn sub_call(&self, topic: &str) -> Arc<dyn Invokable>;
 }
 
 pub struct ErrornousInvokable
@@ -36,6 +38,10 @@ for ErrornousInvokable
     async fn process(&self, _request: Vec<u8>) -> Result<Vec<u8>, CallError> {
         let err = self.err;
         Err(err)
+    }
+
+    fn sub_call(&self, _topic: &str) -> Arc<dyn Invokable> {
+        ErrornousInvokable::new(CallError::InvalidTopic)
     }
 }
 
@@ -108,5 +114,9 @@ where REQ: de::DeserializeOwned + Send + Sync,
         };
 
         Ok(result)
+    }
+
+    fn sub_call(&self, _topic: &str) -> Arc<dyn Invokable> {
+        ErrornousInvokable::new(CallError::InvalidTopic)
     }
 }

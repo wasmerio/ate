@@ -13,6 +13,7 @@ pub enum CallError {
     IncorrectAbi = 6,
     Aborted = 7,
     InvalidHandle = 8,
+    InvalidTopic = 9,
     Unknown = u32::MAX,
 }
 
@@ -30,6 +31,7 @@ for CallError
             6 => CallError::IncorrectAbi,
             7 => CallError::Aborted,
             8 => CallError::InvalidHandle,
+            9 => CallError::InvalidTopic,
             _ => CallError::Unknown
         }
     }
@@ -49,6 +51,7 @@ for CallError
             CallError::IncorrectAbi => 6,
             CallError::Aborted => 7,
             CallError::InvalidHandle => 8,
+            CallError::InvalidTopic => 9,
             CallError::Unknown => u32::MAX
         }
     }
@@ -83,6 +86,7 @@ for CallError
             CallError::IncorrectAbi => write!(f, "the ABI is invalid for cross module calls."),
             CallError::Aborted => write!(f, "the request has been aborted."),
             CallError::InvalidHandle => write!(f, "the handle is not valid."),
+            CallError::InvalidTopic => write!(f, "the topic name is invalid."),
             CallError::Unknown => write!(f, "unknown error."),
         }
     }
