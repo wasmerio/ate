@@ -1,3 +1,5 @@
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, trace, warn};
 use std::marker::PhantomData;
 use std::ops::Deref;
 use std::sync::Arc;
@@ -37,7 +39,7 @@ for ErrornousInvokable
     }
 }
 
-pub struct CallbackInvokable<REQ, RES, F, Fut>
+pub struct CallbackInvokable<RES, REQ, F, Fut>
 where REQ: de::DeserializeOwned + Send + Sync,
       RES: Serialize + Send + Sync,
       REQ: 'static,
@@ -52,7 +54,7 @@ where REQ: de::DeserializeOwned + Send + Sync,
     _marker2: PhantomData<RES>,
 }
 
-impl<REQ, RES, F, Fut> CallbackInvokable<REQ, RES, F, Fut>
+impl<RES, REQ, F, Fut> CallbackInvokable<RES, REQ, F, Fut>
 where REQ: de::DeserializeOwned + Send + Sync,
       RES: Serialize + Send + Sync,
       REQ: 'static,
@@ -74,8 +76,8 @@ where REQ: de::DeserializeOwned + Send + Sync,
 }
 
 #[async_trait]
-impl<REQ, RES, F, Fut> Invokable
-for CallbackInvokable<REQ, RES, F, Fut>
+impl<RES, REQ, F, Fut> Invokable
+for CallbackInvokable<RES, REQ, F, Fut>
 where REQ: de::DeserializeOwned + Send + Sync,
       RES: Serialize + Send + Sync,
       REQ: 'static,
@@ -88,7 +90,8 @@ where REQ: de::DeserializeOwned + Send + Sync,
     async fn process(&self, request: Vec<u8>) -> Result<Vec<u8>, CallError> {
         let req: REQ = match bincode::deserialize(request.as_ref()) {
             Ok(a) => a,
-            Err(_err) => {
+            Err(err) => {
+                warn!("failed to deserialize bus call - {}", err);
                 return Err(CallError::DeserializationFailed);
             }
         };
@@ -98,8 +101,9 @@ where REQ: de::DeserializeOwned + Send + Sync,
 
         let result = match bincode::serialize(&result) {
             Ok(a) => a,
-            Err(_err) => {
-                return Err(CallError::DeserializationFailed);
+            Err(err) => {
+                warn!("failed to serialize bus call response - {}", err);
+                return Err(CallError::SerializationFailed);
             }
         };
 

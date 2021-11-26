@@ -120,8 +120,7 @@ unsafe fn wasm_bus_reply(
 
     // Grab the data we are sending back
     let _response = thread.memory()
-            .uint8view()
-            .subarray(response.offset(), response_len)
+            .uint8view_with_byte_offset_and_length(response.offset(), response_len)
             .to_vec();
 }
 
@@ -146,8 +145,7 @@ unsafe fn wasm_bus_call(
     );
     
     let request = thread.memory()
-            .uint8view()
-            .subarray(request.offset(), request_len)
+            .uint8view_with_byte_offset_and_length(request.offset(), request_len)
             .to_vec();
 
     // Start the sub-process and invoke the call
@@ -178,8 +176,7 @@ unsafe fn wasm_bus_call(
                     let buf = malloc_callback.call(buf_len).unwrap();
         
                     thread.memory()
-                        .uint8view()
-                        .subarray(buf.offset(), buf_len)
+                        .uint8view_with_byte_offset_and_length(buf.offset(), buf_len)
                         .copy_from(&data[..]);
         
                     data_callback.call(handle, buf, buf_len).unwrap();

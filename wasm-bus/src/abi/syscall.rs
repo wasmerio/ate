@@ -36,7 +36,7 @@ mod raw {
                     let _response = response.as_ptr();
                     //reply(handle, response as i32, response_len as i32);
                 },
-                Some(Err(err)) => {
+                Some(Err(_err)) => {
                     //fault(handle, err as i32);
                 },
                 None => {},
