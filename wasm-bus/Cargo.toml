@@ -37,5 +37,5 @@ base64 = "0.13"
 bincode = "1"
 once_cell = "^1"
 derivative = { version = "^2" }
-tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
+tracing = { version = "^0.1", features = [ "log" ] }
 tokio = { version = "^1", features = [ "sync" ], default_features = false, optional = true }

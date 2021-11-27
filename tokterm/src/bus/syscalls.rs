@@ -10,7 +10,7 @@ use wasmer::Array;
 use wasmer::WasmPtr;
 
 use super::thread::WasmBusThread;
-use super::ErrornousInvokable;
+use super::*;
 
 pub(crate) mod raw {
     use super::*;
@@ -77,8 +77,7 @@ pub(crate) mod raw {
 }
 
 unsafe fn wasm_bus_drop(thread: &WasmBusThread, handle: u32) {
-    info!("wasm-bus::drop (handle={})", handle);
-    thread.factory.close(CallHandle::from(handle));
+    thread.inner.unwrap().factory.close(CallHandle::from(handle));
 }
 
 unsafe fn wasm_bus_rand(_thread: &WasmBusThread) -> u32 {
@@ -122,14 +121,14 @@ unsafe fn wasm_bus_recv(
     topic_len: u32,
 ) {
     let topic = topic.get_utf8_str(thread.memory(), topic_len).unwrap();
-    info!(
+    debug!(
         "wasm-bus::recv (parent={}, handle={}, topic={})",
         parent, handle, topic
     );
 }
 
 unsafe fn wasm_bus_fault(_thread: &WasmBusThread, handle: u32, error: i32) {
-    info!("wasm-bus::error (handle={}, error={})", handle, error);
+    debug!("wasm-bus::error (handle={}, error={})", handle, error);
 }
 
 unsafe fn wasm_bus_reply(
@@ -138,7 +137,7 @@ unsafe fn wasm_bus_reply(
     response: WasmPtr<u8, Array>,
     response_len: u32,
 ) {
-    info!(
+    debug!(
         "wasm-bus::reply (handle={}, response={} bytes)",
         handle, response_len
     );
@@ -170,12 +169,12 @@ unsafe fn wasm_bus_call(
     let topic = topic.get_utf8_str(thread.memory(), topic_len).unwrap();
     if let Some(parent) = parent {
         let parent: u32 = parent.into();
-        info!(
+        debug!(
             "wasm-bus::call (parent={}, handle={}, wapm={}, topic={}, request={} bytes)",
             parent, handle, wapm, topic, request_len
         );
     } else {
-        info!(
+        debug!(
             "wasm-bus::call (handle={}, wapm={}, topic={}, request={} bytes)",
             handle, wapm, topic, request_len
         );
@@ -191,7 +190,7 @@ unsafe fn wasm_bus_call(
     let malloc_callback = thread.wasm_bus_malloc_ref();
     let data_callback = thread.wasm_bus_data_ref();
     if error_callback.is_none() || malloc_callback.is_none() || data_callback.is_none() {
-        info!("wasm-bus::call-reply (incorrect abi)");
+        debug!("wasm-bus::call-reply (incorrect abi)");
         return CallError::IncorrectAbi.into();
     }
     let error_callback = error_callback.unwrap().clone();
@@ -200,29 +199,27 @@ unsafe fn wasm_bus_call(
 
     // If its got a parent then we already have an active stream here so we need
     // to feed these results into that stream
-    let invoke = if let Some(parent) = parent {
-        if let Some(parent_invoke) = thread.factory.get(parent) {
-            parent_invoke.sub_call(topic.as_ref())
+    let mut invoke = if let Some(parent) = parent {
+        if let Some(session) = thread.inner.unwrap().factory.get(parent) {
+            session.call(topic.as_ref(), &request)
         } else {
             ErrornousInvokable::new(CallError::InvalidHandle)
         }
     } else {
-        thread
-            .factory
-            .start(CallHandle::from(handle), wapm.as_ref(), topic.as_ref())
+        thread.inner.unwrap().factory.start(handle.into(), &wapm, &topic, &request)
     };
 
     // Invoke the send operation
     let invoke = {
         let thread = thread.clone();
         async move {
-            let response = invoke.process(request).await;
+            let response = invoke.process().await;
 
-            thread.factory.close(CallHandle::from(handle));
+            thread.inner.unwrap().factory.close(CallHandle::from(handle));
 
             match response {
                 Ok(data) => {
-                    info!(
+                    debug!(
                         "wasm-bus::call-reply (handle={}, response={} bytes)",
                         handle,
                         data.len()
@@ -239,7 +236,7 @@ unsafe fn wasm_bus_call(
                     data_callback.call(handle, buf, buf_len).unwrap();
                 }
                 Err(err) => {
-                    info!("wasm-bus::call-reply (handle={}, error={})", handle, err);
+                    debug!("wasm-bus::call-reply (handle={}, error={})", handle, err);
                     error_callback.call(handle, err.into()).unwrap();
                 }
             }
@@ -263,7 +260,7 @@ unsafe fn wasm_bus_call(
 }
 
 unsafe fn wasm_bus_yield_and_wait(thread: &WasmBusThread, timeout_ms: u32) {
-    info!("wasm-bus::yield_and_wait (timeout={} ms)", timeout_ms);
+    trace!("wasm-bus::yield_and_wait (timeout={} ms)", timeout_ms);
 
     let start = Instant::now();
     loop {
@@ -277,6 +274,6 @@ unsafe fn wasm_bus_yield_and_wait(thread: &WasmBusThread, timeout_ms: u32) {
 }
 
 unsafe fn wasm_bus_thread_id(thread: &WasmBusThread) -> u32 {
-    info!("wasm-bus::thread_id (id={})", thread.thread_id);
+    trace!("wasm-bus::thread_id (id={})", thread.thread_id);
     thread.thread_id
 }

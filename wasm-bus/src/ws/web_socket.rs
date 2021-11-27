@@ -21,7 +21,7 @@ pub struct WebSocket {
 
 impl WebSocket {
     pub fn split(self) -> (SendHalf, RecvHalf) {
-        (SendHalf { task: self.task }, RecvHalf { rx: self.rx })
+        (SendHalf { task: self.task }, RecvHalf { rx: self.rx, recv: self.recv })
     }
 }
 
@@ -53,6 +53,8 @@ impl SendHalf {
 #[derive(Debug)]
 pub struct RecvHalf {
     rx: mpsc::Receiver<Vec<u8>>,
+    #[allow(dead_code)]
+    recv: Recv,
 }
 
 #[cfg(feature = "tokio")]

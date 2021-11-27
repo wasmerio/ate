@@ -46,12 +46,12 @@ impl WasmBusThreadPool {
 
         let inner = WasmBusThreadInner {
             invocations: HashMap::default(),
+            factory: BusFactory::new(),
         };
 
         let ret = WasmBusThread {
             thread_id: thread.thread_id(),
             pool: Arc::clone(self),
-            factory: BusFactory::new(),
             inner: Arc::new(WasmBusThreadProtected {
                 inside: RefCell::new(inner),
             }),
@@ -67,8 +67,10 @@ impl WasmBusThreadPool {
     }
 }
 
-pub(super) struct WasmBusThreadInner {
+pub(super) struct WasmBusThreadInner
+{
     pub(super) invocations: HashMap<u32, Pin<Box<dyn Future<Output = ()> + Send + 'static>>>,
+    pub(super) factory: BusFactory,
 }
 
 /// Caution! this class is used to access the protected area of the wasm bus thread
@@ -82,6 +84,7 @@ impl WasmBusThreadProtected {
         self.inside.borrow_mut()
     }
 }
+unsafe impl Send for WasmBusThreadProtected {}
 unsafe impl Sync for WasmBusThreadProtected {}
 
 /// The environment provided to the WASI imports.
@@ -89,7 +92,6 @@ unsafe impl Sync for WasmBusThreadProtected {}
 pub struct WasmBusThread {
     pub(super) thread_id: u32,
     pool: Arc<WasmBusThreadPool>,
-    pub(super) factory: BusFactory,
     pub(super) inner: Arc<WasmBusThreadProtected>,
     #[wasmer(export)]
     memory: LazyInit<Memory>,
