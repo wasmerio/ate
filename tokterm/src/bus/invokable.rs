@@ -2,6 +2,9 @@ use async_trait::async_trait;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
+use serde::*;
+
+use super::*;
 
 #[async_trait]
 pub trait Invokable
@@ -31,5 +34,32 @@ impl ErrornousInvokable {
 impl Invokable for ErrornousInvokable {
     async fn process(&mut self) -> Result<Vec<u8>, CallError> {
         Err(self.err)
+    }
+}
+
+pub struct ResultInvokable<T>
+where Self: Send + 'static,
+      T: Serialize + Send
+{
+    value: T
+}
+
+impl<T> ResultInvokable<T>
+where Self: Send + 'static,
+      T: Serialize + Send
+{
+    pub fn new(value: T) -> Box<dyn Invokable> {
+        Box::new(ResultInvokable { value })
+    }
+}
+
+#[async_trait]
+impl<T> Invokable
+for ResultInvokable<T>
+where Self: Send + 'static,
+      T: Serialize + Send
+{
+    async fn process(&mut self) -> Result<Vec<u8>, CallError> {
+        Ok(encrypt_response(&self.value)?)
     }
 }

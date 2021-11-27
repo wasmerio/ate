@@ -31,22 +31,35 @@ pub struct SendHalf {
 }
 
 impl SendHalf {
-    pub async fn send(&self, data: Vec<u8>) -> io::Result<()> {
+    pub async fn send(&self, data: Vec<u8>) -> io::Result<usize> {
         self.task
             .call(Send { data })
             .invoke()
             .join()
             .await
             .map_err(|err| err.into_io_error())
+            .map(|ret| {
+                match ret {
+                    SendResult::Success(a) => Ok(a),
+                    SendResult::Failed(err) => Err(io::Error::new(io::ErrorKind::Other, err))
+                }
+            })
     }
 
-    pub fn blocking_send(&self, data: Vec<u8>) -> io::Result<()> {
+    pub fn blocking_send(&self, data: Vec<u8>) -> io::Result<usize> {
         self.task
             .call(Send { data })
             .invoke()
             .join()
             .wait()
             .map_err(|err| err.into_io_error())
+            .map_err(|e| e.into())
+            .map(|ret| {
+                match ret {
+                    SendResult::Success(a) => Ok(a),
+                    SendResult::Failed(err) => Err(io::Error::new(io::ErrorKind::Other, err))
+                }
+            })
     }
 }
 

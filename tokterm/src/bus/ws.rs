@@ -153,7 +153,7 @@ for WebSocketInvoker
         let ws = self.ws.take();
         if let Some(ws) = ws {
             let ret = ws.run().await;
-            Ok(encrypt_response(ret)?)
+            Ok(encrypt_response(&ret)?)
         } else {
             Err(CallError::Unknown)
         }
@@ -181,12 +181,15 @@ for WebSocketSession
             let data_len = data.len();
             let array = js_sys::Uint8Array::new_with_length(data_len as u32);
             array.copy_from(&data[..]);
-            if let Err(err) = self.ws_send.send_with_array_buffer(&array.buffer()) {
+            let result = if let Err(err) = self.ws_send.send_with_array_buffer(&array.buffer()) {
+                let err = format!("{:?}", err);
                 error!("error sending message: {:?}", err);
+                SendResult::Failed(err)
             } else {
-                error!("websocket sent {} bytes", data_len);
-            }
-            ErrornousInvokable::new(CallError::Success)
+                debug!("websocket sent {} bytes", data_len);
+                SendResult::Success(data_len)
+            };
+            ResultInvokable::new(result)
         } else {
             ErrornousInvokable::new(CallError::InvalidTopic)
         }

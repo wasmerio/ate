@@ -16,10 +16,10 @@ where T: de::DeserializeOwned
     Ok(req)
 }
 
-pub fn encrypt_response<T>(response: T) -> Result<Vec<u8>, CallError>
+pub fn encrypt_response<T>(response: &T) -> Result<Vec<u8>, CallError>
 where T: Serialize
 {
-    let res = match bincode::serialize(&response) {
+    let res = match bincode::serialize(response) {
         Ok(a) => a,
         Err(err) => {
             warn!("failed to serialize bus call response - {}", err);
