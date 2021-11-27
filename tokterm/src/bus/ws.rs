@@ -1,22 +1,20 @@
+use crate::common::MAX_MPSC;
 use async_trait::async_trait;
+use std::any::type_name;
+use std::collections::HashMap;
 use tokio::select;
-use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
+use wasm_bus::abi::CallError;
 use wasm_bus::backend::ws::*;
 use web_sys::{MessageEvent, WebSocket as WebSocketSys};
-use std::any::type_name;
-use wasm_bus::abi::CallError;
-use crate::common::MAX_MPSC;
-use std::collections::HashMap;
 
 use super::*;
 
-struct WebSocketCreate
-{
+struct WebSocketCreate {
     connect: Connect,
     result: mpsc::Sender<(WebSocketInvoker, WebSocketSession)>,
     on_state_change: WasmBusFeeder,
@@ -24,37 +22,62 @@ struct WebSocketCreate
 }
 
 #[derive(Debug, Clone)]
-pub struct WebSocketFactory
-{
+pub struct WebSocketFactory {
     maker: mpsc::Sender<WebSocketCreate>,
 }
 
 impl WebSocketFactory {
     pub fn new() -> WebSocketFactory {
-        let (tx_factory, mut rx_factory) = mpsc::channel::<WebSocketCreate>(10);
+        let (tx_factory, mut rx_factory) = mpsc::channel::<WebSocketCreate>(MAX_MPSC);
         wasm_bindgen_futures::spawn_local(async move {
-            while let Some(create) = rx_factory.recv().await
-            {
+            while let Some(create) = rx_factory.recv().await {
                 // Construct the channels
                 let (tx_recv, rx_recv) = mpsc::channel(MAX_MPSC);
-                let (tx_send, mut rx_send) = mpsc::channel::<Send>(MAX_MPSC);
-                let (tx_state, _) = broadcast::channel::<SocketState>(100);
-                
+                let (tx_send, rx_send) = mpsc::channel::<Send>(MAX_MPSC);
+                let (tx_state, rx_state) = mpsc::channel::<SocketState>(MAX_MPSC);
+
                 // Open the web socket
                 let ws_sys = match WebSocketSys::new(create.connect.url.as_str()) {
                     Ok(a) => a,
                     Err(err) => {
-                        debug!("failed to create web socket ({}): {:?}", create.connect.url, err);
-                        let _ = tx_state.send(SocketState::Failed);
+                        debug!(
+                            "failed to create web socket ({}): {:?}",
+                            create.connect.url, err
+                        );
+                        let _ = tx_state.blocking_send(SocketState::Failed);
                         return;
                     }
                 };
-                
+
                 let onopen_callback = {
+                    let url = create.connect.url.clone();
+                    let ws_sys = ws_sys.clone();
                     let tx_state = tx_state.clone();
+                    let mut rx_send = Some(rx_send);
                     Closure::wrap(Box::new(move |_e: web_sys::ProgressEvent| {
-                        let _ = tx_state.send(SocketState::Opened);
-                    }) as Box<dyn FnMut(web_sys::ProgressEvent)>)
+                        let _ = tx_state.blocking_send(SocketState::Opened);
+                        if let Some(mut rx_send) = rx_send.take() {
+                            let url = url.clone();
+                            let ws_sys = ws_sys.clone();
+                            wasm_bindgen_futures::spawn_local(async move {
+                                while let Some(request) = rx_send.recv().await {
+                                    let data = request.data;
+                                    let data_len = data.len();
+                                    let array =
+                                        js_sys::Uint8Array::new_with_length(data_len as u32);
+                                    array.copy_from(&data[..]);
+                                    if let Err(err) = ws_sys.send_with_array_buffer(&array.buffer())
+                                    {
+                                        debug!("error sending message: {:?}", err);
+                                    } else {
+                                        trace!("websocket sent {} bytes", data_len);
+                                    }
+                                }
+                                debug!("web socket closed by client ({})", url);
+                            });
+                        }
+                    })
+                        as Box<dyn FnMut(web_sys::ProgressEvent)>)
                 };
                 ws_sys.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
                 onopen_callback.forget();
@@ -62,8 +85,9 @@ impl WebSocketFactory {
                 let onclose_callback = {
                     let tx_state = tx_state.clone();
                     Closure::wrap(Box::new(move |_e: web_sys::ProgressEvent| {
-                        let _ = tx_state.send(SocketState::Closed);
-                    }) as Box<dyn FnMut(web_sys::ProgressEvent)>)
+                        let _ = tx_state.blocking_send(SocketState::Closed);
+                    })
+                        as Box<dyn FnMut(web_sys::ProgressEvent)>)
                 };
                 ws_sys.set_onclose(Some(onclose_callback.as_ref().unchecked_ref()));
                 onclose_callback.forget();
@@ -75,11 +99,12 @@ impl WebSocketFactory {
                     Closure::wrap(Box::new(move |_e: web_sys::ProgressEvent| {
                         let array = js_sys::Uint8Array::new(&fr_c.result().unwrap());
                         let len = array.byte_length() as usize;
-                        info!("websocket recv {} bytes (web_sys::Blob)", len);
+                        trace!("websocket recv {} bytes (web_sys::Blob)", len);
                         if let Err(err) = tx.blocking_send(array.to_vec()) {
-                            info!("websocket bytes silently dropped - {}", err);
+                            debug!("websocket bytes silently dropped - {}", err);
                         }
-                    }) as Box<dyn FnMut(web_sys::ProgressEvent)>)
+                    })
+                        as Box<dyn FnMut(web_sys::ProgressEvent)>)
                 };
                 fr.set_onloadend(Some(onloadend_cb.as_ref().unchecked_ref()));
                 onloadend_cb.forget();
@@ -90,12 +115,12 @@ impl WebSocketFactory {
                     Closure::wrap(Box::new(move |e: MessageEvent| {
                         if let Ok(abuf) = e.data().dyn_into::<js_sys::ArrayBuffer>() {
                             let data = js_sys::Uint8Array::new(&abuf).to_vec();
-                            info!(
+                            debug!(
                                 "websocket recv {} bytes (via js_sys::ArrayBuffer)",
                                 data.len()
                             );
                             if let Err(err) = tx.blocking_send(data) {
-                                info!("websocket bytes silently dropped - {}", err);
+                                trace!("websocket bytes silently dropped - {}", err);
                             }
                         } else if let Ok(blob) = e.data().dyn_into::<web_sys::Blob>() {
                             fr.read_as_array_buffer(&blob).expect("blob not readable");
@@ -110,77 +135,28 @@ impl WebSocketFactory {
                 ws_sys.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
                 onmessage_callback.forget();
 
-                // Enter a loop that will run the sending
-                {
-                    let url = create.connect.url.clone();
-                    let tx_state = tx_state.clone();
-                    let mut rx_state = tx_state.subscribe();
-                    wasm_bindgen_futures::spawn_local(async move {
-                        match rx_state.recv().await {
-                            Ok(SocketState::Opened) => {
-                                info!("websocket successfully opened ({})", url);
-                            }
-                            Ok(SocketState::Closed) => {
-                                info!("websocket closed before it opened ({})", url);
-                                return;
-                            }
-                            _ => {
-                                info!("websocket failed before it opened ({})", url);
-                                return;
-                            }
-                        }
-                        loop {
-                            tokio::select! {
-                                msg = rx_state.recv() => {                                    
-                                    if Ok(SocketState::Opened) != msg {
-                                        info!("web socket closed via state change ({})", url);
-                                        break;
-                                    }
-                                }
-                                request = rx_send.recv() => {
-                                    if let Some(request) = request {
-                                        let data = request.data;
-                                        let data_len = data.len();
-                                        let array = js_sys::Uint8Array::new_with_length(data_len as u32);
-                                        array.copy_from(&data[..]);
-                                        if let Err(err) = ws_sys.send_with_array_buffer(&array.buffer()) {
-                                            info!("error sending message: {:?}", err);
-                                        } else {
-                                            info!("websocket sent {} bytes", data_len);
-                                        }
-                                    } else {
-                                        info!("web socket closed by client ({})", url);
-                                        let _ = tx_state.send(SocketState::Closed);
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    });
-                }
-
+                // Return the invokers
                 let invoker = WebSocketInvoker {
                     ws: Some(WebSocket {
-                        rx_state: tx_state.subscribe(),
+                        rx_state,
                         rx_recv,
                         on_state_change: create.on_state_change,
                         on_received: create.on_received,
-                    })
+                    }),
                 };
-                let session = WebSocketSession {
-                    tx_send,
-                };
+                let session = WebSocketSession { tx_send };
                 let _ = create.result.send((invoker, session)).await;
             }
         });
 
-        WebSocketFactory {
-            maker: tx_factory
-        }
+        WebSocketFactory { maker: tx_factory }
     }
 
-    pub fn create(&self, request: Connect, mut client_callbacks: HashMap<String, WasmBusFeeder>) -> Result<(WebSocketInvoker, WebSocketSession), CallError>
-    {
+    pub fn create(
+        &self,
+        request: Connect,
+        mut client_callbacks: HashMap<String, WasmBusFeeder>,
+    ) -> Result<(WebSocketInvoker, WebSocketSession), CallError> {
         let on_state_change = client_callbacks.remove(&type_name::<SocketState>().to_string());
         let on_received = client_callbacks.remove(&type_name::<Received>().to_string());
         if on_state_change.is_none() || on_received.is_none() {
@@ -198,16 +174,13 @@ impl WebSocketFactory {
         };
 
         let _ = self.maker.blocking_send(create);
-        
-        rx_result.blocking_recv()
-            .ok_or_else(|| {
-                CallError::Aborted
-            })
+
+        rx_result.blocking_recv().ok_or_else(|| CallError::Aborted)
     }
 }
 
 pub struct WebSocket {
-    rx_state: broadcast::Receiver<SocketState>,
+    rx_state: mpsc::Receiver<SocketState>,
     rx_recv: mpsc::Receiver<Vec<u8>>,
     on_state_change: WasmBusFeeder,
     on_received: WasmBusFeeder,
@@ -218,19 +191,19 @@ impl WebSocket {
         loop {
             select! {
                 state = self.rx_state.recv() => {
-                    if let Ok(state) = &state {
+                    if let Some(state) = &state {
                         self.on_state_change.feed(state.clone());
                     }
                     match state {
-                        Ok(SocketState::Opened) => {
-                            info!("confirmed websocket successfully opened");
+                        Some(SocketState::Opened) => {
+                            debug!("confirmed websocket successfully opened");
                         }
-                        Ok(SocketState::Closed) => {
-                            info!("confirmed websocket closed before it opened");
+                        Some(SocketState::Closed) => {
+                            debug!("confirmed websocket closed before it opened");
                             return;
                         }
                         _ => {
-                            info!("confirmed websocket failed before it opened");
+                            debug!("confirmed websocket failed before it opened");
                             return;
                         }
                     }
@@ -240,7 +213,6 @@ impl WebSocket {
                         let received = Received {
                             data
                         };
-                        info!("confirmed feed of received bytes ({} bytes)", received.data.len());
                         self.on_received.feed(received);
                     } else {
                         break;
@@ -251,17 +223,13 @@ impl WebSocket {
     }
 }
 
-pub struct WebSocketInvoker
-{
+pub struct WebSocketInvoker {
     ws: Option<WebSocket>,
 }
 
 #[async_trait]
-impl Invokable
-for WebSocketInvoker
-{
-    async fn process(&mut self) -> Result<Vec<u8>, CallError>
-    {
+impl Invokable for WebSocketInvoker {
+    async fn process(&mut self) -> Result<Vec<u8>, CallError> {
         let ws = self.ws.take();
         if let Some(ws) = ws {
             let ret = ws.run().await;
@@ -272,16 +240,12 @@ for WebSocketInvoker
     }
 }
 
-pub struct WebSocketSession
-{
-    tx_send: mpsc::Sender<Send>
+pub struct WebSocketSession {
+    tx_send: mpsc::Sender<Send>,
 }
 
-impl Session
-for WebSocketSession
-{
-    fn call(&mut self, topic: &str, request: &Vec<u8>) -> Box<dyn Invokable + 'static>
-    {
+impl Session for WebSocketSession {
+    fn call(&mut self, topic: &str, request: &Vec<u8>) -> Box<dyn Invokable + 'static> {
         if topic == type_name::<Send>() {
             let request: Send = match decode_request(request.as_ref()) {
                 Ok(a) => a,

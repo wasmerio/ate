@@ -70,8 +70,7 @@ impl WasmBusThreadPool {
     }
 }
 
-pub(super) struct WasmBusThreadInner
-{
+pub(super) struct WasmBusThreadInner {
     pub(super) invocations: HashMap<u32, Pin<Box<dyn Future<Output = ()> + Send + 'static>>>,
     pub(super) callbacks: HashMap<u32, HashMap<String, u32>>,
     pub(super) factory: BusFactory,

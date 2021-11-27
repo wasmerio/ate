@@ -1,7 +1,7 @@
 use std::time::Duration;
 
-use crate::backend::time::Sleep;
 use crate::abi::call;
+use crate::backend::time::Sleep;
 
 use super::*;
 

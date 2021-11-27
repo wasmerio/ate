@@ -22,9 +22,8 @@ export function startWorker(module, memory, state, opts, helper) {
     });
 }
 
-export function yieldToReactor() {
-    return new Promise((res, rej) => {
-    });
+export function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 // Second: Entry script for the actual web worker.

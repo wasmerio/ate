@@ -19,22 +19,32 @@ use tokio::sync::broadcast;
 use tokio::sync::oneshot;
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
-pub struct TaskEngine {
-}
+pub struct TaskEngine {}
 
 impl TaskEngine {
     pub async fn run_until<F>(future: F) -> F::Output
-    where F: Future,
+    where
+        F: Future,
     {
         future.await
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn spawn<T>(task: T) -> tokio::task::JoinHandle<T::Output>
     where
         T: Future + Send + 'static,
         T::Output: Send + 'static,
     {
         tokio::spawn(task)
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub fn spawn<T>(task: T)
+    where
+        T: Future + Send + 'static,
+        T::Output: Send + 'static,
+    {
+        wasm_bus::task::spawn(task)
     }
 
     pub async fn spawn_blocking<F, R>(f: F) -> R
@@ -53,11 +63,11 @@ pub async fn sleep(duration: Duration) {
 }
 
 #[cfg(target_arch = "wasm32")]
-pub fn timeout<T>(duration: Duration, future: T) -> tokio::time::Timeout<T>
+pub async fn timeout<T>(duration: Duration, future: T) -> Result<T::Output, wasm_bus::time::Elapsed>
 where
     T: Future,
 {
-    wasm_bus::time::timeout(duration, future)
+    wasm_bus::time::timeout(duration, future).await
 }
 
 #[cfg(not(target_arch = "wasm32"))]

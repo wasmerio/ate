@@ -9,10 +9,14 @@ pub mod prelude;
 pub mod process;
 #[cfg(feature = "reqwest")]
 pub mod reqwest;
-#[cfg(feature = "ws")]
-pub mod ws;
+#[cfg(feature = "rt")]
+pub mod rt;
+#[cfg(feature = "rt")]
+pub mod task;
 #[cfg(feature = "time")]
 pub mod time;
+#[cfg(feature = "ws")]
+pub mod ws;
 
 #[cfg(feature = "tokio")]
 pub(crate) const MAX_MPSC: usize = std::usize::MAX >> 3;

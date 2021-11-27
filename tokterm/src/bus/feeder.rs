@@ -1,17 +1,16 @@
 use serde::*;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use wasmer::WasmPtr;
-use wasmer::NativeFunc;
+use wasm_bus::abi::CallError;
 use wasmer::Array;
 use wasmer::Memory;
-use wasm_bus::abi::CallError;
+use wasmer::NativeFunc;
+use wasmer::WasmPtr;
 
 use super::*;
 
 #[derive(Clone)]
-pub struct WasmBusFeeder
-{
+pub struct WasmBusFeeder {
     memory: Memory,
     native_data: NativeFunc<(u32, WasmPtr<u8, Array>, u32), ()>,
     native_malloc: NativeFunc<u32, WasmPtr<u8, Array>>,
@@ -19,10 +18,8 @@ pub struct WasmBusFeeder
     handle: u32,
 }
 
-impl WasmBusFeeder
-{
+impl WasmBusFeeder {
     pub fn new(thread: &WasmBusThread, handle: u32) -> Result<WasmBusFeeder, CallError> {
-
         let memory = thread.memory().clone();
         let native_data = thread.wasm_bus_data_ref();
         let native_malloc = thread.wasm_bus_malloc_ref();
@@ -43,13 +40,14 @@ impl WasmBusFeeder
     }
 
     pub fn feed<T>(&self, data: T)
-    where T: Serialize
+    where
+        T: Serialize,
     {
-        self.feed_bytes_or_error(super::encode_response(&data));        
+        self.feed_bytes_or_error(super::encode_response(&data));
     }
 
     pub fn feed_bytes(&self, data: Vec<u8>) {
-        info!(
+        trace!(
             "wasm-bus::call-reply (handle={}, response={} bytes)",
             self.handle,
             data.len()
@@ -68,12 +66,16 @@ impl WasmBusFeeder
     pub fn feed_bytes_or_error(&self, data: Result<Vec<u8>, CallError>) {
         match data {
             Ok(a) => self.feed_bytes(a),
-            Err(err) => self.error(err)
+            Err(err) => self.error(err),
         };
     }
 
     pub fn error(&self, err: CallError) {
-        info!("wasm-bus::call-reply (handle={}, error={})", self.handle, err);
+        trace!(
+            "wasm-bus::call-reply (handle={}, error={})",
+            self.handle,
+            err
+        );
         self.native_error.call(self.handle, err.into()).unwrap();
     }
 }

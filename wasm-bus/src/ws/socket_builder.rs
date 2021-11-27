@@ -2,10 +2,10 @@
 use std::io::Write;
 #[cfg(not(feature = "tokio"))]
 use std::sync::mpsc;
-#[cfg(feature = "tokio")]
-use tokio::sync::mpsc;
 #[cfg(not(feature = "tokio"))]
 use std::sync::watch;
+#[cfg(feature = "tokio")]
+use tokio::sync::mpsc;
 #[cfg(feature = "tokio")]
 use tokio::sync::watch;
 #[allow(unused_imports, dead_code)]
@@ -42,7 +42,7 @@ impl SocketBuilder {
             let _ = tx_state.send(data);
         });
         task.callback(move |data: Received| {
-            let _ = tx_recv.send(data);
+            let _ = tx_recv.blocking_send(data);
         });
 
         WebSocket {

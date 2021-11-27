@@ -255,7 +255,7 @@ async fn open_web_socket(
         Closure::wrap(Box::new(move |_e: web_sys::ProgressEvent| {
             let array = js_sys::Uint8Array::new(&fr_c.result().unwrap());
             let len = array.byte_length() as usize;
-            debug!("websocket recv {} bytes (web_sys::Blob)", len);
+            trace!("websocket recv {} bytes (web_sys::Blob)", len);
             if let Err(err) = tx.blocking_send(array.to_vec()) {
                 debug!("websocket bytes silently dropped - {}", err);
             }

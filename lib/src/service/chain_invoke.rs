@@ -143,8 +143,6 @@ impl Chain {
         };
 
         // The caller will wait on the response from the sniff that is looking for a reply object
-        let mut timeout = tokio::time::interval(timeout);
-        timeout.tick().await;
         select! {
             key = join_res => {
                 let key = match key {
@@ -168,7 +166,7 @@ impl Chain {
                 }
                 Ok(Err(ret))
             },
-            _ = timeout.tick() => {
+            _ = crate::engine::sleep(timeout) => {
                 Err(InvokeErrorKind::Timeout.into())
             }
         }

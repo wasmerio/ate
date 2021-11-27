@@ -1,7 +1,7 @@
 use std::collections::HashMap;
-use wasm_bus::abi::CallHandle;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
+use wasm_bus::abi::CallHandle;
 
 use super::*;
 
@@ -18,15 +18,21 @@ impl BusFactory {
         }
     }
 
-    pub fn start(&mut self, handle: CallHandle, wapm: &str, topic: &str, request: &Vec<u8>, client_callbacks: HashMap<String, WasmBusFeeder>) -> Box<dyn Invokable> {
-        match self.standard.create(wapm, topic, request, client_callbacks){
-            Ok((invoker, session)) => {
+    pub fn start(
+        &mut self,
+        handle: CallHandle,
+        wapm: &str,
+        topic: &str,
+        request: &Vec<u8>,
+        client_callbacks: HashMap<String, WasmBusFeeder>,
+    ) -> Box<dyn Invokable> {
+        match self.standard.create(wapm, topic, request, client_callbacks) {
+            Ok((invoker, Some(session))) => {
                 self.sessions.insert(handle, session);
                 invoker
-            },
-            Err(err) => {
-                ErrornousInvokable::new(err)
             }
+            Ok((invoker, None)) => invoker,
+            Err(err) => ErrornousInvokable::new(err),
         }
     }
 

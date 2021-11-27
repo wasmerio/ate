@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::future::Future;
 use std::task::Context;
 use std::task::Poll;
@@ -8,7 +9,6 @@ use wasm_bus::abi::CallError;
 use wasm_bus::abi::CallHandle;
 use wasmer::Array;
 use wasmer::WasmPtr;
-use std::collections::HashMap;
 
 use super::thread::WasmBusThread;
 use super::*;
@@ -130,21 +130,21 @@ unsafe fn wasm_bus_recv(
         None
     };
     let topic = topic.get_utf8_str(thread.memory(), topic_len).unwrap();
-    info!(
+    debug!(
         "wasm-bus::recv (parent={:?}, handle={}, topic={})",
         parent, handle, topic
     );
 
     let mut inner = thread.inner.unwrap();
     if let Some(parent) = parent {
-        let entry =  inner.callbacks.entry(parent.id).or_default();
+        let entry = inner.callbacks.entry(parent.id).or_default();
         entry.insert(topic.into_owned(), handle);
         return;
     }
 }
 
 unsafe fn wasm_bus_fault(_thread: &WasmBusThread, handle: u32, error: i32) {
-    info!("wasm-bus::error (handle={}, error={})", handle, error);
+    debug!("wasm-bus::error (handle={}, error={})", handle, error);
 }
 
 unsafe fn wasm_bus_reply(
@@ -153,7 +153,7 @@ unsafe fn wasm_bus_reply(
     response: WasmPtr<u8, Array>,
     response_len: u32,
 ) {
-    info!(
+    debug!(
         "wasm-bus::reply (handle={}, response={} bytes)",
         handle, response_len
     );
@@ -185,12 +185,12 @@ unsafe fn wasm_bus_call(
     let topic = topic.get_utf8_str(thread.memory(), topic_len).unwrap();
     if let Some(parent) = parent {
         let parent: u32 = parent.into();
-        info!(
+        debug!(
             "wasm-bus::call (parent={}, handle={}, wapm={}, topic={}, request={} bytes)",
             parent, handle, wapm, topic, request_len
         );
     } else {
-        info!(
+        debug!(
             "wasm-bus::call (handle={}, wapm={}, topic={}, request={} bytes)",
             handle, wapm, topic, request_len
         );
@@ -210,11 +210,16 @@ unsafe fn wasm_bus_call(
     };
 
     // Grab all the client callbacks that have been registered
-    let client_callbacks: HashMap<String, WasmBusFeeder>  = thread.inner.unwrap().callbacks.remove(&handle)
-        .map(|a|
+    let client_callbacks: HashMap<String, WasmBusFeeder> = thread
+        .inner
+        .unwrap()
+        .callbacks
+        .remove(&handle)
+        .map(|a| {
             a.into_iter()
                 .map(|(topic, handle)| (topic, WasmBusFeeder::new(thread, handle).unwrap()))
-                .collect())
+                .collect()
+        })
         .unwrap_or_default();
 
     // If its got a parent then we already have an active stream here so we need
@@ -226,7 +231,13 @@ unsafe fn wasm_bus_call(
             ErrornousInvokable::new(CallError::InvalidHandle)
         }
     } else {
-        thread.inner.unwrap().factory.start(handle.into(), &wapm, &topic, &request, client_callbacks)
+        thread.inner.unwrap().factory.start(
+            handle.into(),
+            &wapm,
+            &topic,
+            &request,
+            client_callbacks,
+        )
     };
 
     // Invoke the send operation
@@ -234,7 +245,11 @@ unsafe fn wasm_bus_call(
         let thread = thread.clone();
         async move {
             let response = invoke.process().await;
-            thread.inner.unwrap().factory.close(CallHandle::from(handle));
+            thread
+                .inner
+                .unwrap()
+                .factory
+                .close(CallHandle::from(handle));
             data_feeder.feed_bytes_or_error(response);
         }
     };
@@ -256,7 +271,7 @@ unsafe fn wasm_bus_call(
 }
 
 unsafe fn wasm_bus_yield_and_wait(thread: &WasmBusThread, timeout_ms: u32) {
-    info!("wasm-bus::yield_and_wait (timeout={} ms)", timeout_ms);
+    trace!("wasm-bus::yield_and_wait (timeout={} ms)", timeout_ms);
 
     let start = Instant::now();
     loop {
@@ -270,6 +285,6 @@ unsafe fn wasm_bus_yield_and_wait(thread: &WasmBusThread, timeout_ms: u32) {
 }
 
 unsafe fn wasm_bus_thread_id(thread: &WasmBusThread) -> u32 {
-    info!("wasm-bus::thread_id (id={})", thread.thread_id);
+    trace!("wasm-bus::thread_id (id={})", thread.thread_id);
     thread.thread_id
 }

@@ -127,8 +127,18 @@ fn init_wasi() {
     }));
 }
 
+#[cfg(target_arch = "wasm32")]
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    wasm_bus::task::block_on(main_async())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    main_async().await
+}
+
+async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize the logging and panic hook
     #[cfg(target_os = "wasi")]
     init_wasi();

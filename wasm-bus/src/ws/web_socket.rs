@@ -3,10 +3,10 @@ use std::io::Read;
 use std::io::Write;
 #[cfg(not(feature = "tokio"))]
 use std::sync::mpsc;
-#[cfg(feature = "tokio")]
-use tokio::sync::mpsc;
 #[cfg(not(feature = "tokio"))]
 use std::sync::watch;
+#[cfg(feature = "tokio")]
+use tokio::sync::mpsc;
 #[cfg(feature = "tokio")]
 use tokio::sync::watch;
 #[allow(unused_imports, dead_code)]
@@ -25,8 +25,11 @@ pub struct WebSocket {
 impl WebSocket {
     pub fn split(self) -> (SendHalf, RecvHalf) {
         (
-            SendHalf { task: self.task, state: self.state },
-            RecvHalf { rx: self.rx }
+            SendHalf {
+                task: self.task,
+                state: self.state,
+            },
+            RecvHalf { rx: self.rx },
         )
     }
 }
@@ -42,7 +45,7 @@ impl SendHalf {
         let mut state = self.state.clone();
         while *state.borrow() == SocketState::Opening {
             if let Err(_) = state.changed().await {
-                return SocketState::Closed
+                return SocketState::Closed;
             }
         }
         let ret = (*state.borrow()).clone();
@@ -51,7 +54,10 @@ impl SendHalf {
 
     pub async fn send(&self, data: Vec<u8>) -> io::Result<usize> {
         if self.wait_till_opened().await != SocketState::Opened {
-            return Err(io::Error::new(io::ErrorKind::ConnectionReset, "connection is not open"));
+            return Err(io::Error::new(
+                io::ErrorKind::ConnectionReset,
+                "connection is not open",
+            ));
         }
         self.task
             .call(Send { data })
@@ -59,17 +65,18 @@ impl SendHalf {
             .join()
             .await
             .map_err(|err| err.into_io_error())
-            .map(|ret| {
-                match ret {
-                    SendResult::Success(a) => Ok(a),
-                    SendResult::Failed(err) => Err(io::Error::new(io::ErrorKind::Other, err))
-                }
+            .map(|ret| match ret {
+                SendResult::Success(a) => Ok(a),
+                SendResult::Failed(err) => Err(io::Error::new(io::ErrorKind::Other, err)),
             })?
     }
 
     pub fn blocking_send(&self, data: Vec<u8>) -> io::Result<usize> {
         if *self.state.borrow() != SocketState::Opened {
-            return Err(io::Error::new(io::ErrorKind::ConnectionReset, "connection is not open"));
+            return Err(io::Error::new(
+                io::ErrorKind::ConnectionReset,
+                "connection is not open",
+            ));
         }
         self.task
             .call(Send { data })
@@ -77,11 +84,9 @@ impl SendHalf {
             .join()
             .wait()
             .map_err(|err| err.into_io_error())
-            .map(|ret| {
-                match ret {
-                    SendResult::Success(a) => Ok(a),
-                    SendResult::Failed(err) => Err(io::Error::new(io::ErrorKind::Other, err))
-                }
+            .map(|ret| match ret {
+                SendResult::Success(a) => Ok(a),
+                SendResult::Failed(err) => Err(io::Error::new(io::ErrorKind::Other, err)),
             })?
     }
 }

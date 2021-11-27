@@ -1,20 +1,20 @@
 use async_trait::async_trait;
+use serde::*;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
-use serde::*;
 
 use super::*;
 
 #[async_trait]
 pub trait Invokable
-where Self: Send
+where
+    Self: Send,
 {
     async fn process(&mut self) -> Result<Vec<u8>, CallError>;
 }
 
-pub trait Session
-{
+pub trait Session {
     fn call(&mut self, _topic: &str, _request: &Vec<u8>) -> Box<dyn Invokable + 'static> {
         ErrornousInvokable::new(CallError::InvalidTopic)
     }
@@ -38,15 +38,17 @@ impl Invokable for ErrornousInvokable {
 }
 
 pub struct ResultInvokable<T>
-where Self: Send + 'static,
-      T: Serialize + Send
+where
+    Self: Send + 'static,
+    T: Serialize + Send,
 {
-    value: T
+    value: T,
 }
 
 impl<T> ResultInvokable<T>
-where Self: Send + 'static,
-      T: Serialize + Send
+where
+    Self: Send + 'static,
+    T: Serialize + Send,
 {
     pub fn new(value: T) -> Box<dyn Invokable> {
         Box::new(ResultInvokable { value })
@@ -54,10 +56,10 @@ where Self: Send + 'static,
 }
 
 #[async_trait]
-impl<T> Invokable
-for ResultInvokable<T>
-where Self: Send + 'static,
-      T: Serialize + Send
+impl<T> Invokable for ResultInvokable<T>
+where
+    Self: Send + 'static,
+    T: Serialize + Send,
 {
     async fn process(&mut self) -> Result<Vec<u8>, CallError> {
         Ok(encode_response(&self.value)?)

@@ -96,7 +96,9 @@ impl fmt::Display for CallError {
             CallError::Aborted => write!(f, "the request has been aborted."),
             CallError::InvalidHandle => write!(f, "the handle is not valid."),
             CallError::InvalidTopic => write!(f, "the topic name is invalid."),
-            CallError::MissingCallbacks => write!(f, "some mandatory callbacks were not registered."),
+            CallError::MissingCallbacks => {
+                write!(f, "some mandatory callbacks were not registered.")
+            }
             CallError::Unknown => write!(f, "unknown error."),
         }
     }

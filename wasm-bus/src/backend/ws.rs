@@ -6,7 +6,7 @@ pub enum SocketState {
     Opening,
     Opened,
     Closed,
-    Failed
+    Failed,
 }
 
 #[allow(dead_code)]

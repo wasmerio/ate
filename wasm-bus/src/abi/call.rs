@@ -82,8 +82,7 @@ impl CallBuilder {
     }
 }
 
-impl CallBuilder
-{
+impl CallBuilder {
     /// Upon receiving a particular message from the service that is
     /// invoked this callback will take some action
     pub fn callback<C, F>(&mut self, callback: F) -> &mut Self
@@ -118,9 +117,7 @@ impl CallBuilder
     }
 }
 
-impl Drop
-for CallBuilder
-{
+impl Drop for CallBuilder {
     fn drop(&mut self) {
         if let Some(call) = self.call.take() {
             super::drop(call.handle);

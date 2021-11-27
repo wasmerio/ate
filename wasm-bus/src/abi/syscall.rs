@@ -47,6 +47,9 @@ mod raw {
                 None => {}
             };
         }
+
+        #[cfg(feature = "rt")]
+        crate::task::wake();
     }
 
     // Invoked when the call has failed
@@ -54,6 +57,9 @@ mod raw {
     pub extern "C" fn wasm_bus_error(handle: u32, error: u32) {
         trace!("wasm_bus_err (handle={}, error={})", handle, error);
         crate::engine::BusEngine::error(handle.into(), error.into());
+
+        #[cfg(feature = "rt")]
+        crate::task::wake();
     }
 
     #[link(wasm_import_module = "wasm-bus")]

@@ -1,18 +1,20 @@
-mod standard;
 mod factory;
+mod feeder;
 mod invokable;
 mod namespace;
+mod standard;
 pub(crate) mod syscalls;
 mod thread;
-mod ws;
+mod time;
 mod util;
-mod feeder;
+mod ws;
 
 pub(crate) use factory::*;
+pub(crate) use feeder::*;
 pub(crate) use invokable::*;
 use namespace::*;
-pub(crate) use thread::*;
-pub(crate) use ws::*;
-use util::*;
 use standard::*;
-pub(crate) use feeder::*;
+pub(crate) use thread::*;
+pub(crate) use time::*;
+use util::*;
+pub(crate) use ws::*;
