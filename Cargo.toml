@@ -11,11 +11,11 @@ members = [
 ]
 
 [profile.dev]
-opt-level = 1
-debug = 1
+opt-level = 0
+debug = 2
 debug-assertions = false
 overflow-checks = false
-lto = "thin"
+lto = false
 panic = 'unwind'
 incremental = true
 codegen-units = 256
@@ -23,7 +23,7 @@ rpath = false
 
 [profile.release]
 opt-level = 3
-debug = false
+debug = 1
 debug-assertions = false
 overflow-checks = false
 lto = 'fat'
