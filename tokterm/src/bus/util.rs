@@ -3,7 +3,7 @@ use serde::*;
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
 
-pub fn decrypt_request<T>(request: &[u8]) -> Result<T, CallError>
+pub fn decode_request<T>(request: &[u8]) -> Result<T, CallError>
 where T: de::DeserializeOwned
 {
     let req: T = match bincode::deserialize(request) {
@@ -16,7 +16,7 @@ where T: de::DeserializeOwned
     Ok(req)
 }
 
-pub fn encrypt_response<T>(response: &T) -> Result<Vec<u8>, CallError>
+pub fn encode_response<T>(response: &T) -> Result<Vec<u8>, CallError>
 where T: Serialize
 {
     let res = match bincode::serialize(response) {

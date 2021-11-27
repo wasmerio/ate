@@ -37,6 +37,7 @@ pub struct Call {
     pub(crate) parent: Option<CallHandle>,
     #[derivative(Debug = "ignore")]
     pub(crate) state: Arc<Mutex<CallState>>,
+    pub(crate) callbacks: Arc<Mutex<Vec<Recv>>>,
 }
 
 impl CallOps for Call {
@@ -68,35 +69,63 @@ impl Call {
 #[derivative(Debug)]
 #[must_use = "you must 'invoke' the builder for it to actually call anything"]
 pub struct CallBuilder {
-    call: Call,
+    call: Option<Call>,
     request: Data,
 }
 
 impl CallBuilder {
     pub fn new(call: Call, request: Data) -> CallBuilder {
-        CallBuilder { call, request }
+        CallBuilder {
+            call: Some(call),
+            request,
+        }
     }
 }
 
-impl CallBuilder {
+impl CallBuilder
+{
+    /// Upon receiving a particular message from the service that is
+    /// invoked this callback will take some action
+    pub fn callback<C, F>(&mut self, callback: F) -> &mut Self
+    where
+        C: Serialize + de::DeserializeOwned + Send + Sync + 'static,
+        F: FnMut(C),
+        F: Send + 'static,
+    {
+        self.call.as_mut().unwrap().callback(callback);
+        self
+    }
+
     /// Invokes the call with the specified callbacks
-    pub fn invoke(self) -> Call {
-        match self.request {
+    pub fn invoke(mut self) -> Call {
+        let call = self.call.take().unwrap();
+        match &self.request {
             Data::Success(req) => {
                 crate::abi::syscall::call(
-                    self.call.parent,
-                    self.call.handle,
-                    &self.call.wapm,
-                    &self.call.topic,
+                    call.parent,
+                    call.handle,
+                    &call.wapm,
+                    &call.topic,
                     &req[..],
                 );
             }
             Data::Error(err) => {
-                crate::engine::BusEngine::error(self.call.handle, err);
+                crate::engine::BusEngine::error(call.handle, err.clone());
             }
         }
 
-        self.call
+        call
+    }
+}
+
+impl Drop
+for CallBuilder
+{
+    fn drop(&mut self) {
+        if let Some(call) = self.call.take() {
+            super::drop(call.handle);
+            crate::engine::BusEngine::remove(&call.handle);
+        }
     }
 }
 
@@ -113,9 +142,8 @@ impl Call {
 
     /// Upon receiving a particular message from the service that is
     /// invoked this callback will take some action
-    /// (this function handles both synchonrous and asynchronout
-    ///  callbacks - just return a Callbacklifetime using either)
-    pub fn recv<C, F>(&self, mut callback: F) -> Recv
+    /// Note: This must be called before the invoke or things will go wrong
+    fn callback<C, F>(&mut self, mut callback: F) -> &mut Self
     where
         C: Serialize + de::DeserializeOwned + Send + Sync + 'static,
         F: FnMut(C),
@@ -125,7 +153,9 @@ impl Call {
             callback(req);
             Ok(())
         };
-        super::recv_internal(Some(self.handle), callback)
+        let recv = super::recv_internal(Some(self.handle), callback);
+        self.callbacks.lock().unwrap().push(recv);
+        self
     }
 
     /// Returns the result of the call

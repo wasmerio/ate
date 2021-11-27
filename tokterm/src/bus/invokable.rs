@@ -60,6 +60,6 @@ where Self: Send + 'static,
       T: Serialize + Send
 {
     async fn process(&mut self) -> Result<Vec<u8>, CallError> {
-        Ok(encrypt_response(&self.value)?)
+        Ok(encode_response(&self.value)?)
     }
 }

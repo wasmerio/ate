@@ -49,9 +49,3 @@ impl From<tokio::time::error::Elapsed> for InvokeError {
         InvokeErrorKind::Timeout.into()
     }
 }
-
-impl From<crate::engine::Elapsed> for InvokeError {
-    fn from(_elapsed: crate::engine::Elapsed) -> InvokeError {
-        InvokeErrorKind::Timeout.into()
-    }
-}

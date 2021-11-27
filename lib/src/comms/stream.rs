@@ -786,7 +786,7 @@ impl StreamRx {
                     .await?;
 
                     if ret.len() <= 0 {
-                        crate::engine::TaskEngine::tick(true).await;
+                        tokio::task::yield_now().await;
                         continue;
                     }
 

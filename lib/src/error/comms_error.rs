@@ -120,16 +120,6 @@ impl From<tokio::time::error::Elapsed> for CommsError {
     }
 }
 
-impl From<crate::engine::Elapsed> for CommsError {
-    fn from(_err: crate::engine::Elapsed) -> CommsError {
-        CommsErrorKind::IO(std::io::Error::new(
-            std::io::ErrorKind::TimedOut,
-            format!("Timeout while waiting for communication channel").to_string(),
-        ))
-        .into()
-    }
-}
-
 impl<T> From<mpsc::error::SendError<T>> for CommsError {
     fn from(err: mpsc::error::SendError<T>) -> CommsError {
         CommsErrorKind::SendError(err.to_string()).into()

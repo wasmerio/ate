@@ -14,6 +14,7 @@ pub enum CallError {
     Aborted = 7,
     InvalidHandle = 8,
     InvalidTopic = 9,
+    MissingCallbacks = 10,
     Unknown = u32::MAX,
 }
 
@@ -30,6 +31,7 @@ impl From<u32> for CallError {
             7 => CallError::Aborted,
             8 => CallError::InvalidHandle,
             9 => CallError::InvalidTopic,
+            10 => CallError::MissingCallbacks,
             _ => CallError::Unknown,
         }
     }
@@ -48,6 +50,7 @@ impl Into<u32> for CallError {
             CallError::Aborted => 7,
             CallError::InvalidHandle => 8,
             CallError::InvalidTopic => 9,
+            CallError::MissingCallbacks => 10,
             CallError::Unknown => u32::MAX,
         }
     }
@@ -93,6 +96,7 @@ impl fmt::Display for CallError {
             CallError::Aborted => write!(f, "the request has been aborted."),
             CallError::InvalidHandle => write!(f, "the handle is not valid."),
             CallError::InvalidTopic => write!(f, "the topic name is invalid."),
+            CallError::MissingCallbacks => write!(f, "some mandatory callbacks were not registered."),
             CallError::Unknown => write!(f, "unknown error."),
         }
     }

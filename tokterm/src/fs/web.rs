@@ -14,7 +14,7 @@ use tracing::{debug, error, info, trace, warn};
 use wasi_net::backend::StdioMode;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use wasm_bus::backend::ws::SocketMessage;
+use wasm_bus::backend::ws::SocketState;
 use wasmer_vfs::{FileDescriptor, VirtualFile};
 use wasmer_wasi::{types as wasi_types, WasiFile, WasiFsError};
 use web_sys::{ErrorEvent, MessageEvent, WebSocket};
@@ -180,13 +180,13 @@ async fn open_web_socket(
     };
     debug!("websocket successfully created");
 
-    let (tx_msg, mut rx_msg) = broadcast::channel::<SocketMessage>(100);
+    let (tx_msg, mut rx_msg) = broadcast::channel::<SocketState>(100);
 
     let onopen_callback = {
         let tx_msg = tx_msg.clone();
         Closure::wrap(Box::new(move |_e: web_sys::ProgressEvent| {
             debug!("websocket open");
-            tx_msg.send(SocketMessage::Opened);
+            tx_msg.send(SocketState::Opened);
         }) as Box<dyn FnMut(web_sys::ProgressEvent)>)
     };
     ws.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
@@ -197,7 +197,7 @@ async fn open_web_socket(
         let tx_msg = tx_msg.clone();
         Closure::wrap(Box::new(move |_e: web_sys::ProgressEvent| {
             debug!("websocket closed");
-            tx_msg.send(SocketMessage::Closed);
+            tx_msg.send(SocketState::Closed);
         }) as Box<dyn FnMut(web_sys::ProgressEvent)>)
     };
     ws.set_onclose(Some(onclose_callback.as_ref().unchecked_ref()));
@@ -209,10 +209,10 @@ async fn open_web_socket(
         let ws = ws.clone();
         wasm_bindgen_futures::spawn_local(async move {
             match rx_msg.recv().await {
-                Ok(SocketMessage::Opened) => {
+                Ok(SocketState::Opened) => {
                     debug!("websocket successfully opened");
                 }
-                Ok(SocketMessage::Closed) => {
+                Ok(SocketState::Closed) => {
                     debug!("websocket closed before it opened");
                     return;
                 }
@@ -238,7 +238,7 @@ async fn open_web_socket(
                         }
                     }
                     msg = rx_msg.recv() => {
-                        if Ok(SocketMessage::Closed) == msg {
+                        if Ok(SocketState::Closed) == msg {
                             break;
                         }
                     }

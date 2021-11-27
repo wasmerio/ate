@@ -4,6 +4,12 @@ use std::io::Write;
 use std::sync::mpsc;
 #[cfg(feature = "tokio")]
 use tokio::sync::mpsc;
+#[cfg(not(feature = "tokio"))]
+use std::sync::watch;
+#[cfg(feature = "tokio")]
+use tokio::sync::watch;
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, trace, warn};
 
 use super::*;
 use crate::backend::ws::*;
@@ -26,15 +32,23 @@ impl SocketBuilder {
         #[cfg(not(feature = "tokio"))]
         let (tx_recv, rx_recv) = mpsc::channel();
 
-        let task = call(WAPM_NAME.into(), Connect { url }).invoke();
-        let recv = task.recv(move |data: Received| {
-            let _ = tx_recv.send(data.data);
+        #[cfg(feature = "tokio")]
+        let (tx_state, rx_state) = watch::channel(SocketState::Opening);
+        #[cfg(not(feature = "tokio"))]
+        let (tx_state, rx_state) = watch::channel();
+
+        let mut task = call(WAPM_NAME.into(), Connect { url });
+        task.callback(move |data: SocketState| {
+            let _ = tx_state.send(data);
+        });
+        task.callback(move |data: Received| {
+            let _ = tx_recv.send(data);
         });
 
         WebSocket {
-            task,
+            task: task.invoke(),
             rx: rx_recv,
-            recv,
+            state: rx_state,
         }
     }
 }

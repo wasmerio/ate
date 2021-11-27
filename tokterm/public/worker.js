@@ -22,6 +22,11 @@ export function startWorker(module, memory, state, opts, helper) {
     });
 }
 
+export function yieldToReactor() {
+    return new Promise((res, rej) => {
+    });
+}
+
 // Second: Entry script for the actual web worker.
 if ('WorkerGlobalScope' in self &&
     self instanceof WorkerGlobalScope) {

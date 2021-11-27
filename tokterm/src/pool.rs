@@ -121,6 +121,9 @@ extern "C" {
         opts: WorkerOptions,
         builder: LoaderHelper,
     ) -> Promise;
+
+    #[wasm_bindgen(js_name = "yieldToReactor")]
+    pub fn yield_to_reactor() -> Promise;
 }
 
 impl ThreadPool {

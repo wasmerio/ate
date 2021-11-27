@@ -1,21 +1,25 @@
 use std::collections::HashMap;
 use wasm_bus::abi::CallHandle;
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, trace, warn};
 
 use super::*;
 
 pub struct BusFactory {
+    standard: StandardBus,
     sessions: HashMap<CallHandle, Box<dyn Session>>,
 }
 
 impl BusFactory {
-    pub fn new() -> BusFactory {
+    pub fn new(standard: StandardBus) -> BusFactory {
         BusFactory {
+            standard,
             sessions: HashMap::default(),
         }
     }
 
-    pub fn start(&mut self, handle: CallHandle, wapm: &str, topic: &str, request: &Vec<u8>) -> Box<dyn Invokable> {
-        match super::builtin::builtin(wapm, topic, request){
+    pub fn start(&mut self, handle: CallHandle, wapm: &str, topic: &str, request: &Vec<u8>, client_callbacks: HashMap<String, WasmBusFeeder>) -> Box<dyn Invokable> {
+        match self.standard.create(wapm, topic, request, client_callbacks){
             Ok((invoker, session)) => {
                 self.sessions.insert(handle, session);
                 invoker

@@ -127,6 +127,7 @@ impl BusEngine {
             wapm,
             topic,
             state: Arc::new(Mutex::new(CallState { result: None })),
+            callbacks: Arc::new(Mutex::new(Vec::new()))
         };
 
         loop {

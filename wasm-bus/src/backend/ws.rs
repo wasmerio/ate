@@ -1,10 +1,12 @@
 use serde::*;
 
 #[allow(dead_code)]
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum SocketMessage {
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum SocketState {
+    Opening,
     Opened,
     Closed,
+    Failed
 }
 
 #[allow(dead_code)]
