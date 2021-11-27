@@ -47,10 +47,25 @@ impl TaskEngine {
     }
 }
 
+#[cfg(target_arch = "wasm32")]
+pub async fn sleep(duration: Duration) {
+    wasm_bus::time::sleep(duration).await;
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn timeout<T>(duration: Duration, future: T) -> tokio::time::Timeout<T>
+where
+    T: Future,
+{
+    wasm_bus::time::timeout(duration, future)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 pub async fn sleep(duration: Duration) {
     tokio::time::sleep(duration).await;
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 pub fn timeout<T>(duration: Duration, future: T) -> tokio::time::Timeout<T>
 where
     T: Future,

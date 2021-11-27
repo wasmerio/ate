@@ -49,3 +49,9 @@ impl From<tokio::time::error::Elapsed> for InvokeError {
         InvokeErrorKind::Timeout.into()
     }
 }
+
+impl From<wasm_bus::time::Elapsed> for InvokeError {
+    fn from(_elapsed: wasm_bus::time::Elapsed) -> InvokeError {
+        InvokeErrorKind::Timeout.into()
+    }
+}
