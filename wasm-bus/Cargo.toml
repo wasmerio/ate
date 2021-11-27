@@ -1,11 +1,11 @@
 [package]
 name = "wasm-bus"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 description = "Invocation bus for web assembly modules"
 license = "MIT OR Apache-2.0"
-keywords = [ "wasi" ]
+keywords = [ "wasi", "wasm", "bus" ]
 repository = "https://github.com/john-sharratt/ate"
 readme = "README.md"
 

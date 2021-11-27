@@ -1,28 +1,40 @@
-# WASI Network Interface
+# WASM General Purpose Bus
 
-This library allows applications compiled to WASI to have access to
-HTTP and HTTPS queries that support the interface.
+The WASM Genernal Purpose Bus implements a standard syscall interface
+for WebAssembly libraries and executables to use to invoke and receive
+calls between WASM modules and/or operating system functions.
 
-Consuming this library is simple, simply link to it and use the
-builder to construct an API request.
+Currently the WASM Bus is supported by the following runtimes:
 
-On the server side the following must be implemented
+- Tokera Terminal (https://tokera.sh/)
 
-1. Create a virtual file under /dev/web
-2. Listen for writes to the file that terminate with a \n
-3. The first line received is the URL to connect to
-4. The second line is the HTTP method to use (e.g. GET,PUT,etc)
-5. The third line is an encoded set of headers (base64 encoded JSON representation of a Vec<(String, String)>
-6. The last line is the data to set (zero bytes means no data)
-7. Then make the HTTP request and allow the file handle to read the data
+Functionality supported by this BUS includes
 
-# Missing features
+- Web Socket connections
+- HTTP and HTTPS calls
+- Spawning sub-processes
+- Thread sleeping and timeouts
+- Asynchronous Runtime Engine
 
-While it is possible to add request headers, it is not yet possible read response
-headers as the ability to iterate them using web-sys is not yet implemented upstream
+# TODO
+
+- Spawning threads
+- Multi-threaded Runtime Engine
+- Universal Logging
+- Server side invocation of WASM modules
+- Client side invocation of WASM modules
+
+# Backend Implementations
+
+In order to implment this BUS on your runtime one needs to chain to
+the ABI exposed in this library and implement the functions.
+
+For a reference implementation see below:
+
+https://github.com/tokera-com/ate/tree/master/tokterm/src/bus
 
 # Testing
 
 You can test your WASI program by uploading it to wapm.io and then heading over to the Tokera Shell
 
-https://sh.tokera.com
+https://tokera.sh
