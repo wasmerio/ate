@@ -22,8 +22,8 @@ for N in $(seq 0 30); do
 done
 
 echo "Compiling"
-rm -r -f tokterm/dist/*
-cd tokterm
+rm -r -f tokweb/dist/*
+cd tokweb
 npm install
 npm run build
 cd ..
@@ -31,8 +31,8 @@ cd ..
 echo "Building package"
 mkdir -p target/release/www
 rm -f -r target/release/www/* 2>/dev/null || true
-cp -f tokterm/dist/* target/release/www
-cp -r -f tokterm/public/* target/release/www
+cp -f tokweb/dist/* target/release/www
+cp -r -f tokweb/public/* target/release/www
 
 echo "Synchronizing the files"
 rsync target/release/www/ /mnt/tok --verbose --exclude '.conf' --checksum --recursive --whole-file --links --delete --human-readable
