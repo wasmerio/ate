@@ -8,6 +8,7 @@ members = [
     "files",
     "wasm-bus",
     "tokterm",
+    "tokweb",
 ]
 
 [profile.release]

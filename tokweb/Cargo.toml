@@ -1,10 +1,10 @@
 [package]
-name = "tokterm"
+name = "tokweb"
 version = "0.1.0"
 authors = ["John Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 publish = false
-description = "Tokera Terminal built on WASMER and ATE"
+description = "Tokera Web Terminal built on WASMER and ATE"
 license = "MIT OR Apache-2.0"
 keywords = [ "wasm", "browser", "terminal" ]
 repository = "https://github.com/john-sharratt/ate"
