@@ -9,6 +9,7 @@ members = [
     "wasm-bus",
     "tokterm",
     "tokweb",
+    "grammar"
 ]
 
 [profile.release]

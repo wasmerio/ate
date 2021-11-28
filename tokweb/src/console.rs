@@ -9,12 +9,12 @@ use tokio::sync::RwLock;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bindgen::JsCast;
-use wasmer_vfs::FileSystem;
 use web_sys::HtmlCanvasElement;
 use xterm_js_rs::Terminal;
 
 use crate::tty::TtyMode;
 
+use crate::wasmer_vfs::FileSystem;
 use super::bin::*;
 use super::builtins::*;
 use super::common::*;
@@ -25,7 +25,7 @@ use super::fd::*;
 use super::fs::*;
 use super::job::*;
 use super::pipe::*;
-use super::pool::ThreadPool as Pool;
+use super::pool::WebThreadPool as Pool;
 use super::reactor::*;
 use super::state::*;
 use super::stdio::*;

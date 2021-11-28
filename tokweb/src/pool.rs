@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 #![allow(dead_code)]
+use tokterm::api::SystemAbi;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
@@ -29,10 +30,10 @@ pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 pub type BoxTask<'a, T> = Box<dyn FnOnce() -> T + Send + 'a>;
 
 trait AssertSendSync: Send + Sync {}
-impl AssertSendSync for ThreadPool {}
+impl AssertSendSync for WebThreadPool {}
 
 #[wasm_bindgen]
-pub struct ThreadPool {
+pub struct WebThreadPool {
     pool_reactors: Arc<PoolState>,
     pool_blocking: Arc<PoolState>,
     manager: Arc<LeakyInterval>,
@@ -68,7 +69,7 @@ pub struct ThreadState {
     idx: usize,
 }
 
-impl Clone for ThreadPool {
+impl Clone for WebThreadPool {
     fn clone(&self) -> Self {
         self.pool_reactors.ref_cnt.fetch_add(1, Ordering::Relaxed);
         self.pool_blocking.ref_cnt.fetch_add(1, Ordering::Relaxed);
@@ -80,7 +81,7 @@ impl Clone for ThreadPool {
     }
 }
 
-impl Drop for ThreadPool {
+impl Drop for WebThreadPool {
     fn drop(&mut self) {
         if self.pool_reactors.ref_cnt.fetch_sub(1, Ordering::Relaxed) == 1 {
             for _ in 0..self.pool_reactors.size.load(Ordering::Relaxed) {
@@ -123,8 +124,8 @@ extern "C" {
     ) -> Promise;
 }
 
-impl ThreadPool {
-    pub fn new(size: usize, terminal: Terminal) -> Result<ThreadPool, JsValue> {
+impl WebThreadPool {
+    pub fn new(size: usize, terminal: Terminal) -> Result<WebThreadPool, JsValue> {
         info!("pool::create(size={})", size);
 
         let (tx1, _) = broadcast::channel(64);
@@ -169,7 +170,7 @@ impl ThreadPool {
             })
         };
 
-        let pool = ThreadPool {
+        let pool = WebThreadPool {
             pool_reactors,
             pool_blocking,
             manager: Arc::new(manager),
@@ -181,7 +182,7 @@ impl ThreadPool {
         Ok(pool)
     }
 
-    pub fn new_with_max_threads(terminal: Terminal) -> Result<ThreadPool, JsValue> {
+    pub fn new_with_max_threads(terminal: Terminal) -> Result<WebThreadPool, JsValue> {
         #[wasm_bindgen]
         extern "C" {
             #[wasm_bindgen(js_namespace = navigator, js_name = hardwareConcurrency)]

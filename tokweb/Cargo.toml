@@ -11,12 +11,7 @@ repository = "https://github.com/john-sharratt/ate"
 readme = "../README.md"
 
 [dependencies]
-#wasmer = { version = "^2", git = "https://github.com/john-sharratt/wasmer.git", default-features = false, features = [ "js-default", "wat"] }
-#wasmer-wasi = { version = "^2", git = "https://github.com/john-sharratt/wasmer.git", default-features = false, features = ["js"] }
-#wasmer-vfs = { version = "^2", git = "https://github.com/john-sharratt/wasmer.git", default-features = false, features = ["mem-fs"] }
-wasmer = { version = "^2", path = "../../wasmer/lib/api", default-features = false, features = [ "js-default", "wat"] }
-wasmer-wasi = { version = "^2", path = "../../wasmer/lib/wasi", default-features = false, features = ["js"] }
-wasmer-vfs = { version = "^2", path = "../../wasmer/lib/vfs", default-features = false, features = ["mem-fs"] }
+tokterm = { version = "^0.1", path = "../tokterm", default_features = false, features = [ "js" ] }
 wasm-bindgen = { version = "^0.2", features = [ "nightly", "serde-serialize" ] }
 wasm-bindgen-futures = "^0.4"
 console_error_panic_hook = "^0.1"
@@ -27,7 +22,6 @@ tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
 tracing-futures = { version = "^0.2" }
 tracing-subscriber = { version = "^0.2" }
 tracing-wasm = { version = "^0.2" }
-lalrpop-util = "^0.19"
 bytes = "^1"
 once_cell = "^1"
 serde = { version = "^1", features = ["derive"] }
@@ -95,9 +89,6 @@ features = [
   "WorkerOptions",
   "WorkerType",  
 ]
-
-[build-dependencies]
-lalrpop = { version = "^0.19", features = ["lexer"] }
 
 [dev-dependencies]
 wasm-bindgen-test = "^0.3"
