@@ -16,7 +16,6 @@ use crate::wasmer_vfs::*;
 use crate::wasmer_vfs::{FileDescriptor, VirtualFile};
 use crate::wasmer_wasi::{types as wasi_types, WasiFile, WasiFsError};
 
-use super::TokeraSocket;
 use crate::fd::*;
 use crate::stdio::*;
 use crate::tty::*;
@@ -27,17 +26,15 @@ pub struct ProcFileSystem {
     type_dir: FileType,
     type_char: FileType,
     stdio: Stdio,
-    tok: TokeraSocket,
 }
 
 impl ProcFileSystem {
-    pub fn new(stdio: Stdio, tok: TokeraSocket) -> ProcFileSystem {
+    pub fn new(stdio: Stdio) -> ProcFileSystem {
         let mut ret = ProcFileSystem {
             type_file: FileType::default(),
             type_dir: FileType::default(),
             type_char: FileType::default(),
             stdio,
-            tok,
         };
         ret.type_file.file = true;
         ret.type_dir.dir = true;
@@ -99,10 +96,6 @@ impl FileSystem for ProcFileSystem {
                     metadata: Ok(Self::default_metadata(&self.type_file)),
                 });
                 entries.push(DirEntry {
-                    path: PathBuf::from("web"),
-                    metadata: Ok(Self::default_metadata(&self.type_file)),
-                });
-                entries.push(DirEntry {
                     path: PathBuf::from("exec"),
                     metadata: Ok(Self::default_metadata(&self.type_file)),
                 });
@@ -135,7 +128,6 @@ impl FileSystem for ProcFileSystem {
             "/stdout" | "stdout" => Ok(Self::default_metadata(&self.type_file)),
             "/stderr" | "stderr" => Ok(Self::default_metadata(&self.type_file)),
             "/tty" | "tty" => Ok(Self::default_metadata(&self.type_file)),
-            "/web" | "web" => Ok(Self::default_metadata(&self.type_file)),
             "/exec" | "exec" => Ok(Self::default_metadata(&self.type_file)),
             _ => Err(FsError::EntityNotFound),
         }
@@ -151,7 +143,6 @@ impl FileSystem for ProcFileSystem {
     fn new_open_options(&self) -> OpenOptions {
         let opener = Box::new(CoreFileOpener {
             stdio: self.stdio.clone(),
-            tok: self.tok.clone(),
         });
         OpenOptions::new(opener)
     }
@@ -160,7 +151,6 @@ impl FileSystem for ProcFileSystem {
 #[derive(Debug)]
 pub struct CoreFileOpener {
     stdio: Stdio,
-    tok: TokeraSocket,
 }
 
 impl FileOpener for CoreFileOpener {
@@ -174,7 +164,6 @@ impl FileOpener for CoreFileOpener {
             "/stderr" | "stderr" => Ok(Box::new(self.stdio.stderr.clone())),
             "/null" | "null" => Ok(Box::new(NullFile::default())),
             "/tty" | "tty" => Ok(Box::new(TtyFile::new(&self.stdio))),
-            "/web" | "web" => Ok(Box::new(self.tok.create())),
             "/exec" | "exec" => Ok(Box::new(self.tok.create())),
             _ => Err(FsError::EntityNotFound),
         }

@@ -32,7 +32,7 @@ impl WebSocketFactory {
     pub fn new() -> WebSocketFactory {
         let system = System::default();
         let (tx_factory, mut rx_factory) = mpsc::channel::<WebSocketCreate>(MAX_MPSC);
-        system.thread.spawn_local(async move {
+        system.spawn_local(async move {
             while let Some(create) = rx_factory.recv().await {
                 // Construct the channels
                 let (tx_recv, rx_recv) = mpsc::channel(MAX_MPSC);
@@ -62,7 +62,7 @@ impl WebSocketFactory {
                         if let Some(mut rx_send) = rx_send.take() {
                             let url = url.clone();
                             let ws_sys = ws_sys.clone();
-                            wasm_bindgen_futures::spawn_local(async move {
+                            system.spawn_local(async move {
                                 while let Some(request) = rx_send.recv().await {
                                     let data = request.data;
                                     let data_len = data.len();

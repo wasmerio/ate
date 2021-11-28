@@ -10,6 +10,7 @@ use tokio::sync::RwLock;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
+use crate::api::System;
 use super::common::*;
 use super::err;
 use super::fs::TmpFileSystem;
@@ -119,7 +120,7 @@ async fn fetch_file(cmd: &str) -> Result<Vec<u8>, i32> {
     let cmd = cmd.to_string();
     let headers = vec![("Accept".to_string(), "application/wasm".to_string())];
     let (tx, rx) = oneshot::channel();
-    wasm_bindgen_futures::spawn_local(async move {
+    System::default().spawn_local(async move {
         tx.send(fetch_data(cmd.as_str(), "GET", headers, None).await);
     });
     rx.await.map_err(|_| err::ERR_EIO)?

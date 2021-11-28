@@ -86,20 +86,13 @@ pub async fn exec(
     let fs = {
         let root = ctx.root.clone();
         let stdio = stdio.clone();
-        let tok = TokeraSocket::new(
-            &ctx.reactor,
-            ctx.exec_factory.clone(),
-            stdio.stdin.clone(),
-            stdio.stdout.clone(),
-            stdio.stderr.clone(),
-        );
 
         let mut union = UnionFileSystem::new();
         union.mount("root", Path::new("/"), Box::new(root));
         union.mount(
             "proc",
             Path::new("/dev"),
-            Box::new(ProcFileSystem::new(stdio, tok)),
+            Box::new(ProcFileSystem::new(stdio)),
         );
         union.mount("tmp", Path::new("/tmp"), Box::new(TmpFileSystem::default()));
         union.mount("private", Path::new("/.private"), Box::new(fs_private));
@@ -147,9 +140,10 @@ pub async fn exec(
                 };
 
                 // Now hook up the sender and receiver
+                let system = ctx.system;
                 let is_read = redirect.op.read();
                 let is_write = redirect.op.write();
-                ctx.pool.spawn_blocking(move || {
+                system.spawn_blocking(move || {
                     if is_read {
                         let mut buf = [0u8; 4096];
                         while let Ok(read) = file.read(&mut buf) {
@@ -157,7 +151,7 @@ pub async fn exec(
                         }
                     }
                     if is_write {
-                        wasm_bindgen_futures::spawn_local(async move {
+                        system.spawn_local(async move {
                             while let Some(data) = rx.recv().await {
                                 let _ = file.write_all(&data[..]);
                             }

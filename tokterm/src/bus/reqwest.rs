@@ -6,6 +6,7 @@ use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
 use wasm_bus::backend::reqwest::*;
 
+use crate::api::System;
 use super::*;
 use crate::common::*;
 
@@ -21,10 +22,11 @@ pub struct WebRequestFactory {
 
 impl WebRequestFactory {
     pub fn new() -> WebRequestFactory {
+        let system = System::default();
         let (tx_factory, mut rx_factory) = mpsc::channel::<WebRequestCreate>(MAX_MPSC);
-        wasm_bindgen_futures::spawn_local(async move {
+        system.spawn_local(async move {
             while let Some(create) = rx_factory.recv().await {
-                wasm_bindgen_futures::spawn_local(async move {
+                system.spawn_local(async move {
                     let url = create.request.url;
                     let method = create.request.method;
                     let headers = create.request.headers;

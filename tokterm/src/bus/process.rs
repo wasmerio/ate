@@ -11,6 +11,7 @@ use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
 use wasm_bus::backend::process::*;
 
+use crate::api::System;
 use super::*;
 use crate::err;
 use crate::eval::*;
@@ -43,15 +44,16 @@ impl ProcessExecFactory {
         inherit_stdout: WeakFd,
         inherit_stderr: WeakFd,
     ) -> ProcessExecFactory {
+        let system = System::default();
         let (tx_factory, mut rx_factory) = mpsc::channel::<ProcessExecCreate>(MAX_MPSC);
-        wasm_bindgen_futures::spawn_local(async move {
+        system.spawn_local(async move {
             while let Some(create) = rx_factory.recv().await {
                 let reactor = reactor.clone();
                 let inherit_stdin = inherit_stdin.upgrade();
                 let inherit_stdout = inherit_stdout.upgrade();
                 let inherit_stderr = inherit_stderr.upgrade();
                 let exec_factory = exec_factory.clone();
-                wasm_bindgen_futures::spawn_local(async move {
+                system.spawn_local(async move {
                     let path = create.request.path;
                     let args = create.request.args;
                     let current_dir = create.request.current_dir;

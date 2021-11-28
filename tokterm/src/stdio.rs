@@ -6,7 +6,6 @@ use tokio::io::{self};
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace};
 
-use crate::fs::TokeraSocket;
 use crate::fs::UnionFileSystem;
 
 use super::common::*;

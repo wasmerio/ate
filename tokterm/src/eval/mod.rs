@@ -72,11 +72,12 @@ pub struct EvalContext {
 }
 
 pub(crate) async fn eval(mut ctx: EvalContext) -> mpsc::Receiver<EvalPlan> {
+    let system = ctx.system;
     let builtins = Builtins::new();
     let parser = grammar::programParser::new();
 
     let (tx, rx) = mpsc::channel(1);
-    wasm_bindgen_futures::spawn_local(async move {
+    system.spawn_local(async move {
         let input = ctx.input.clone();
         match parser.parse(input.as_str()) {
             Ok(program) => {
