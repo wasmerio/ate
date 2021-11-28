@@ -94,13 +94,13 @@ pub(crate) async fn eval(mut ctx: EvalContext) -> mpsc::Receiver<EvalPlan> {
                 .await;
             }
             Err(e) => match e {
-                lalrpop_util::ParseError::UnrecognizedToken {
+                grammar::ParseError::UnrecognizedToken {
                     token: _,
                     expected: _,
                 } => {
                     tx.send(EvalPlan::MoreInput).await;
                 }
-                lalrpop_util::ParseError::UnrecognizedEOF {
+                grammar::ParseError::UnrecognizedEOF {
                     location: _,
                     expected: _,
                 } => {

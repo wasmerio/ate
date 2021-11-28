@@ -5,10 +5,6 @@ use std::cell::Cell;
 
 use super::err;
 
-pub type Pid = u32;
-
-pub(crate) const MAX_MPSC: usize = std::usize::MAX >> 3;
-
 #[wasm_bindgen]
 #[derive(Default)]
 pub struct AnimationFrameCallbackWrapper {

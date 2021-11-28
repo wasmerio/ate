@@ -1,13 +1,9 @@
-#[macro_use]
-extern crate lalrpop_util;
-
-lalrpop_mod!(#[allow(clippy::all)] pub grammar);
-
-
+mod common;
 mod console;
 mod glue;
 mod pool;
 mod system;
+mod interval;
 
 use tokterm::reactor;
 use tokterm::state;
@@ -28,7 +24,6 @@ use tokterm::bin;
 use tokterm::builtins;
 use tokterm::bus;
 use tokterm::cconst;
-use tokterm::common;
 
 pub use glue::main;
 pub use glue::start;
