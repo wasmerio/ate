@@ -71,11 +71,11 @@ pub struct EvalContext {
     pub job: Job,
 }
 
-pub(crate) async fn eval(mut ctx: EvalContext) -> oneshot::Receiver<EvalPlan> {
+pub(crate) async fn eval(mut ctx: EvalContext) -> mpsc::Receiver<EvalPlan> {
     let builtins = Builtins::new();
     let parser = grammar::programParser::new();
 
-    let (tx, rx) = oneshot::channel();
+    let (tx, rx) = mpsc::channel(1);
     wasm_bindgen_futures::spawn_local(async move {
         let input = ctx.input.clone();
         match parser.parse(input.as_str()) {
@@ -90,23 +90,23 @@ pub(crate) async fn eval(mut ctx: EvalContext) -> oneshot::Receiver<EvalPlan> {
                     code: ret,
                     ctx,
                     show_result,
-                });
+                }).await;
             }
             Err(e) => match e {
                 lalrpop_util::ParseError::UnrecognizedToken {
                     token: _,
                     expected: _,
                 } => {
-                    tx.send(EvalPlan::MoreInput);
+                    tx.send(EvalPlan::MoreInput).await;
                 }
                 lalrpop_util::ParseError::UnrecognizedEOF {
                     location: _,
                     expected: _,
                 } => {
-                    tx.send(EvalPlan::MoreInput);
+                    tx.send(EvalPlan::MoreInput).await;
                 }
                 _ => {
-                    tx.send(EvalPlan::Invalid);
+                    tx.send(EvalPlan::Invalid).await;
                 }
             },
         }

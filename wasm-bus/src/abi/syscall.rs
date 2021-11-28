@@ -66,8 +66,7 @@ mod raw {
     extern "C" {
         pub(crate) fn drop(handle: u32);
         pub(crate) fn rand() -> u32;
-        pub(crate) fn yield_and_wait(timeout_ms: u32);
-
+        
         pub(crate) fn fault(handle: u32, error: i32);
         pub(crate) fn reply(handle: u32, response: i32, response_len: i32);
 
@@ -146,12 +145,6 @@ pub fn recv(parent: Option<CallHandle>, handle: CallHandle, topic: &str) {
         let topic_len = topic.len();
         let topic = topic.as_ptr();
         raw::recv(parent, handle.id, topic as i32, topic_len as i32)
-    }
-}
-
-pub fn yield_and_wait(timeout_ms: u32) {
-    unsafe {
-        raw::yield_and_wait(timeout_ms);
     }
 }
 

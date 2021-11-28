@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::task::Context;
 use std::task::Poll;
-use std::time::Instant;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
@@ -68,9 +67,6 @@ pub(crate) mod raw {
                 request_len,
             )
         }
-    }
-    pub fn wasm_bus_yield_and_wait(thread: &WasmBusThread, timeout_ms: u32) {
-        unsafe { super::wasm_bus_yield_and_wait(thread, timeout_ms) }
     }
     pub fn wasm_bus_thread_id(thread: &WasmBusThread) -> u32 {
         unsafe { super::wasm_bus_thread_id(thread) }
@@ -268,20 +264,6 @@ unsafe fn wasm_bus_call(
 
     // Success
     CallError::Success.into()
-}
-
-unsafe fn wasm_bus_yield_and_wait(thread: &WasmBusThread, timeout_ms: u32) {
-    trace!("wasm-bus::yield_and_wait (timeout={} ms)", timeout_ms);
-
-    let start = Instant::now();
-    loop {
-        raw::wasm_bus_tick(thread);
-        let elapsed = (Instant::now() - start).as_millis() as u32;
-        if elapsed.ge(&timeout_ms) {
-            break;
-        }
-        std::thread::yield_now();
-    }
 }
 
 unsafe fn wasm_bus_thread_id(thread: &WasmBusThread) -> u32 {

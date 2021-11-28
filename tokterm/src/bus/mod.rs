@@ -8,6 +8,8 @@ mod thread;
 mod time;
 mod util;
 mod ws;
+mod reqwest;
+mod process;
 
 pub(crate) use factory::*;
 pub(crate) use feeder::*;
@@ -18,3 +20,5 @@ pub(crate) use thread::*;
 pub(crate) use time::*;
 use util::*;
 pub(crate) use ws::*;
+pub(crate) use reqwest::*;
+pub(crate) use process::*;

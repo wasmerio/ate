@@ -186,8 +186,9 @@ where
 
     /// Waits for the call to complete and returns the response from
     /// the server
+    #[cfg(feature = "rt")]
     pub fn wait(self) -> Result<T, CallError> {
-        crate::backend::block_on::block_on(self)
+        crate::task::block_on(self)
     }
 
     /// Tries to get the result of the call to the server but will not

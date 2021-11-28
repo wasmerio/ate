@@ -514,12 +514,12 @@ async fn open_exec_request(
     // Wait for the process to exit then send that
     send(
         &mut fd,
-        match rx.await {
-            Ok(EvalPlan::Executed { code, .. }) => MessageProcess::Exited(code),
-            Ok(EvalPlan::InternalError) => MessageProcess::Exited(err::ERR_ENOEXEC),
-            Ok(EvalPlan::Invalid) => MessageProcess::Exited(err::ERR_EINVAL),
-            Ok(EvalPlan::MoreInput) => MessageProcess::Exited(err::ERR_EINVAL),
-            Err(err) => MessageProcess::Exited(err::ERR_EPIPE),
+        match rx.recv().await {
+            Some(EvalPlan::Executed { code, .. }) => MessageProcess::Exited(code),
+            Some(EvalPlan::InternalError) => MessageProcess::Exited(err::ERR_ENOEXEC),
+            Some(EvalPlan::Invalid) => MessageProcess::Exited(err::ERR_EINVAL),
+            Some(EvalPlan::MoreInput) => MessageProcess::Exited(err::ERR_EINVAL),
+            None => MessageProcess::Exited(err::ERR_EPIPE),
         },
     )
     .await;

@@ -222,7 +222,7 @@ impl Console {
             .await;
 
         // Spawn the process and attach it to the job
-        let process = {
+        let mut process = {
             let ctx = SpawnContext::new(
                 cmd.clone(),
                 env,
@@ -242,7 +242,7 @@ impl Console {
         let state = self.state.clone();
         wasm_bindgen_futures::spawn_local(async move {
             // Wait for the process to finish
-            let rx = process.await;
+            let rx = process.recv().await;
 
             // Switch back to console mode
             tty.reset_line().await;
@@ -258,7 +258,7 @@ impl Console {
             // Process the result
             let mut multiline_input = false;
             match rx {
-                Ok(EvalPlan::Executed {
+                Some(EvalPlan::Executed {
                     code,
                     ctx,
                     show_result,
@@ -283,25 +283,25 @@ impl Console {
                         tty.draw("\r\n").await;
                     }
                 }
-                Ok(EvalPlan::InternalError) => {
+                Some(EvalPlan::InternalError) => {
                     debug!("eval internal error");
                     tty.draw("term: internal error\r\n").await;
                 }
-                Ok(EvalPlan::MoreInput) => {
+                Some(EvalPlan::MoreInput) => {
                     debug!("eval more input");
                     multiline_input = true;
                     tty.add(cmd.as_str()).await;
                 }
-                Ok(EvalPlan::Invalid) => {
+                Some(EvalPlan::Invalid) => {
                     debug!("eval invalid");
                     tty.draw("term: invalid command\r\n").await;
                 }
-                Err(err) => {
-                    debug!("eval recv error (err={})", err);
-                    tty.draw(format!("term: command failed - {} \r\n", err).as_str())
+                None => {
+                    debug!("eval recv erro");
+                    tty.draw(format!("term: command failed\r\n").as_str())
                         .await;
                 }
-            };
+            }
 
             // Now draw the prompt ready for the next
             tty.reset_line().await;

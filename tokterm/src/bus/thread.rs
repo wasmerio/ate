@@ -23,10 +23,10 @@ pub struct WasmBusThreadPool {
 }
 
 impl WasmBusThreadPool {
-    pub fn new() -> Arc<WasmBusThreadPool> {
+    pub fn new(process_factory: ProcessExecFactory) -> Arc<WasmBusThreadPool> {
         Arc::new(WasmBusThreadPool {
             threads: RwLock::new(HashMap::default()),
-            standard: StandardBus::new(),
+            standard: StandardBus::new(process_factory),
         })
     }
 

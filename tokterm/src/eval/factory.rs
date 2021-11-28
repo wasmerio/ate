@@ -82,7 +82,7 @@ impl ExecFactory {
         }
     }
 
-    pub async fn spawn(&self, ctx: SpawnContext) -> oneshot::Receiver<EvalPlan> {
+    pub async fn spawn(&self, ctx: SpawnContext) -> mpsc::Receiver<EvalPlan> {
         // Build the standard IO
         let stdio = Stdio {
             stdin: ctx.stdin,

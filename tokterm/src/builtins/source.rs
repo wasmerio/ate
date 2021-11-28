@@ -61,8 +61,8 @@ pub(super) fn source(
     Box::pin(async move {
         let mut stdout = ctx.stdio.stdout.clone();
         let mut stderr = ctx.stdio.stderr.clone();
-        match eval(ctx).await.await {
-            Ok(EvalPlan::Executed {
+        match eval(ctx).await.recv().await {
+            Some(EvalPlan::Executed {
                 code,
                 ctx: _,
                 show_result,
@@ -76,27 +76,27 @@ pub(super) fn source(
                 }
                 Ok(ExecResponse::Immediate(code))
             }
-            Ok(EvalPlan::InternalError) => {
+            Some(EvalPlan::InternalError) => {
                 debug!("eval internal error");
                 let _ = stderr.write("exec: internal error\r\n".as_bytes()).await;
                 Ok(ExecResponse::Immediate(err::ERR_EINTR))
             }
-            Ok(EvalPlan::MoreInput) => {
+            Some(EvalPlan::MoreInput) => {
                 debug!("eval more input");
                 let _ = stderr
                     .write("exec: incomplete command\r\n".as_bytes())
                     .await;
                 Ok(ExecResponse::Immediate(err::ERR_EINVAL))
             }
-            Ok(EvalPlan::Invalid) => {
+            Some(EvalPlan::Invalid) => {
                 debug!("eval invalid");
                 let _ = stderr.write("exec: invalid command\r\n".as_bytes()).await;
                 Ok(ExecResponse::Immediate(err::ERR_EINVAL))
             }
-            Err(err) => {
-                debug!("eval recv error (err={})", err);
+            None => {
+                debug!("eval recv error");
                 let _ = stderr
-                    .write(format!("exec: command failed - {} \r\n", err).as_bytes())
+                    .write(format!("exec: command failed\r\n").as_bytes())
                     .await;
                 Ok(ExecResponse::Immediate(err::ERR_EINTR))
             }

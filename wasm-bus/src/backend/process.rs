@@ -31,3 +31,8 @@ pub enum StdioMode {
     Inherit,
     Null,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProcessExited {
+    pub exit_code: i32,
+}

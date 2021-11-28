@@ -199,10 +199,22 @@ pub async fn exec(
     };
     debug!("process created (pid={})", pid);
 
+    // Create the process factory that used by this process to create sub-processes
+    let sub_process_factory = ProcessExecFactory::new(
+        ctx.reactor.clone(),
+        ctx.exec_factory.clone(),
+        stdio.stdin.clone(),
+        stdio.stdout.clone(),
+        stdio.stderr.clone()
+    );
+
+    // The BUS pool is what gives this WASM process its syscall and operation system
+    // functions and services
+    let bus_pool = WasmBusThreadPool::new(sub_process_factory);
+
     // Spawn the process on a background thread
     let mut tty = ctx.stdio.stderr.clone();
     let reactor = ctx.reactor.clone();
-    let bus_pool = WasmBusThreadPool::new();
     let cmd = cmd.clone();
     let args = args.clone();
     let path = ctx.path.clone();
