@@ -68,12 +68,3 @@ backtrace = "^0.3"
 wasi = { version = "^0.10" }
 wasm-timer = { version = "^0.2" }
 wasm-bus = { version = "^0.1", path = "../wasm-bus" }
-
-#[lib]
-#crate-type = ["cdylib"]
-
-[package.metadata]
-wasm-opt = ['--strip-debug --enable-reference-types']
-#wasm-opt = false
-wasm-name-section = false
-wasm-producers-section = false

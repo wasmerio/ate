@@ -218,8 +218,9 @@ impl Child {
     ///     println!("ls command didn't start");
     /// }
     /// ```
-    pub fn wait(self) -> io::Result<ExitStatus> {
-        self.task.join().wait().map_err(|err| err.into_io_error())
+    #[allow(unused_mut)]    // this is so that the API's are compatible with std:process
+    pub fn wait(&mut self) -> io::Result<ExitStatus> {
+        self.task.clone().join().wait().map_err(|err| err.into_io_error())
     }
 
     /// Simultaneously waits for the child to exit and collect all remaining
@@ -254,7 +255,7 @@ impl Child {
     /// assert!(output.status.success());
     /// ```
     ///
-    pub fn wait_with_output(mut self) -> io::Result<Output> {
+    pub fn wait_with_output(&mut self) -> io::Result<Output> {
         drop(self.stdin.take());
 
         let taken = (self.stdout.take(), self.stderr.take());
