@@ -69,11 +69,12 @@ impl RequestBuilder {
             .join()
             .wait()
             .map_err(|err| err.into_io_error())?;
-        let res = res
-            .map_err(|err| std::io::Error::new(
+        let res = res.map_err(|err| {
+            std::io::Error::new(
                 std::io::ErrorKind::Other,
                 format!("syscall error - code={}", err).as_str(),
-            ))?;
+            )
+        })?;
 
         let status = StatusCode::from_u16(res.status).map_err(|err| {
             std::io::Error::new(

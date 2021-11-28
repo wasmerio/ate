@@ -21,7 +21,7 @@ impl StandardBus {
             ws_factory: WebSocketFactory::new(),
             time_factory: TimeFactory::new(),
             reqwest_factory: WebRequestFactory::new(),
-            process_factory
+            process_factory,
         }
     }
 

@@ -205,7 +205,7 @@ pub async fn exec(
         ctx.exec_factory.clone(),
         stdio.stdin.downgrade(),
         stdio.stdout.downgrade(),
-        stdio.stderr.downgrade()
+        stdio.stderr.downgrade(),
     );
 
     // The BUS pool is what gives this WASM process its syscall and operation system

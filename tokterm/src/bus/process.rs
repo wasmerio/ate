@@ -1,33 +1,33 @@
 use crate::common::MAX_MPSC;
 use async_trait::async_trait;
+use std::any::type_name;
+use std::collections::HashMap;
+use std::ops::Deref;
+use std::sync::Arc;
 use tokio::sync::mpsc;
-use wasm_bus::abi::CallError;
-use wasm_bus::backend::process::*;
+use tokio::sync::RwLock;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use std::sync::Arc;
-use tokio::sync::RwLock;
-use std::collections::HashMap;
-use std::any::type_name;
-use std::ops::Deref;
+use wasm_bus::abi::CallError;
+use wasm_bus::backend::process::*;
 
-use crate::reactor::*;
+use super::*;
 use crate::err;
-use crate::pipe::*;
 use crate::eval::*;
 use crate::fd::*;
-use super::*;
+use crate::pipe::*;
+use crate::reactor::*;
 
 struct ProcessCreated {
     invoker: ProcessExecInvokable,
-    session: ProcessExecSession
+    session: ProcessExecSession,
 }
 
 struct ProcessExecCreate {
     request: Spawn,
     result: mpsc::Sender<Result<ProcessCreated, i32>>,
     on_stdout: Option<WasmBusFeeder>,
-    on_stderr: Option<WasmBusFeeder>
+    on_stderr: Option<WasmBusFeeder>,
 }
 
 #[derive(Debug, Clone)]
@@ -51,8 +51,7 @@ impl ProcessExecFactory {
                 let inherit_stdout = inherit_stdout.upgrade();
                 let inherit_stderr = inherit_stderr.upgrade();
                 let exec_factory = exec_factory.clone();
-                wasm_bindgen_futures::spawn_local(async move
-                {
+                wasm_bindgen_futures::spawn_local(async move {
                     let path = create.request.path;
                     let args = create.request.args;
                     let current_dir = create.request.current_dir;
@@ -69,7 +68,10 @@ impl ProcessExecFactory {
                         let mut cmd = path.clone();
                         for arg in args {
                             cmd.push_str(" ");
-                            if arg.contains(" ") && cmd.starts_with("\"") == false && cmd.starts_with("'") == false {
+                            if arg.contains(" ")
+                                && cmd.starts_with("\"") == false
+                                && cmd.starts_with("'") == false
+                            {
                                 cmd.push_str("\"");
                                 cmd.push_str(&arg);
                                 cmd.push_str("\"");
@@ -92,19 +94,25 @@ impl ProcessExecFactory {
                         // Perform hooks back to the main stdio
                         let (stdin, stdin_tx) = match stdin_mode {
                             StdioMode::Null => (stdin, None),
-                            StdioMode::Inherit if inherit_stdin.is_some() => (inherit_stdin.unwrap(), None),
+                            StdioMode::Inherit if inherit_stdin.is_some() => {
+                                (inherit_stdin.unwrap(), None)
+                            }
                             StdioMode::Inherit => (stdin, None),
                             StdioMode::Piped => (stdin, Some(stdin_tx)),
                         };
                         let (stdout, stdout_rx) = match stdout_mode {
                             StdioMode::Null => (stdout, None),
-                            StdioMode::Inherit if inherit_stdout.is_some() => (inherit_stdout.unwrap(), None),
+                            StdioMode::Inherit if inherit_stdout.is_some() => {
+                                (inherit_stdout.unwrap(), None)
+                            }
                             StdioMode::Inherit => (stdout, None),
                             StdioMode::Piped => (stdout, Some(stdout_rx)),
                         };
                         let (stderr, stderr_rx) = match stderr_mode {
                             StdioMode::Null => (stderr, None),
-                            StdioMode::Inherit if inherit_stderr.is_some() => (inherit_stderr.unwrap(), None),
+                            StdioMode::Inherit if inherit_stderr.is_some() => {
+                                (inherit_stderr.unwrap(), None)
+                            }
                             StdioMode::Inherit => (stderr, None),
                             StdioMode::Piped => (stderr, Some(stderr_rx)),
                         };
@@ -134,9 +142,7 @@ impl ProcessExecFactory {
                                 on_stdout,
                                 on_stderr,
                             },
-                            session: ProcessExecSession {
-                                stdin: stdin_tx,
-                            }
+                            session: ProcessExecSession { stdin: stdin_tx },
                         };
 
                         // We are done (this will close all the pipes)
@@ -151,24 +157,26 @@ impl ProcessExecFactory {
 
     pub fn create(
         &self,
-        request: Spawn,    
-        mut client_callbacks: HashMap<String, WasmBusFeeder>
-    ) -> Result<(Box<dyn Invokable>, Option<Box<dyn Session>>), CallError>
-    {
+        request: Spawn,
+        mut client_callbacks: HashMap<String, WasmBusFeeder>,
+    ) -> Result<(Box<dyn Invokable>, Option<Box<dyn Session>>), CallError> {
         let on_stdout = client_callbacks.remove(&type_name::<DataStdout>().to_string());
         let on_stderr = client_callbacks.remove(&type_name::<DataStderr>().to_string());
-        
+
         let (tx_result, mut rx_result) = mpsc::channel(1);
         let request = ProcessExecCreate {
             request,
             result: tx_result,
             on_stdout,
-            on_stderr
+            on_stderr,
         };
 
         let _ = self.maker.blocking_send(request);
 
-        let ret = match rx_result.blocking_recv().ok_or_else(|| CallError::Aborted)? {
+        let ret = match rx_result
+            .blocking_recv()
+            .ok_or_else(|| CallError::Aborted)?
+        {
             Ok(created) => created,
             Err(err) => {
                 warn!("failed to created process - internal error - code={}", err);
@@ -185,15 +193,12 @@ pub struct ProcessExecInvokable {
     stderr: Option<mpsc::Receiver<Vec<u8>>>,
     eval_rx: Option<mpsc::Receiver<EvalPlan>>,
     on_stdout: Option<WasmBusFeeder>,
-    on_stderr: Option<WasmBusFeeder>
+    on_stderr: Option<WasmBusFeeder>,
 }
 
 #[async_trait]
-impl Invokable
-for ProcessExecInvokable
-{
-    async fn process(&mut self) -> Result<Vec<u8>, CallError>
-    {
+impl Invokable for ProcessExecInvokable {
+    async fn process(&mut self) -> Result<Vec<u8>, CallError> {
         // Get the eval_rx (this will mean it is destroyed when this
         // function returns)
         let mut eval_rx = match self.eval_rx.take() {
@@ -206,7 +211,7 @@ for ProcessExecInvokable
         // Now process all the STDIO concurrently
         loop {
             if let Some(stdout_rx) = self.stdout.as_mut() {
-                if let Some(stderr_rx) = self.stderr.as_mut() {                
+                if let Some(stderr_rx) = self.stderr.as_mut() {
                     tokio::select! {
                         data = stdout_rx.recv() => {
                             if let (Some(data), Some(on_data)) = (data, self.on_stdout.as_mut()) {
@@ -241,7 +246,7 @@ for ProcessExecInvokable
                     }
                 }
             } else {
-                if let Some(stderr_rx) = self.stderr.as_mut() {                
+                if let Some(stderr_rx) = self.stderr.as_mut() {
                     tokio::select! {
                         data = stderr_rx.recv() => {
                             if let (Some(data), Some(on_data)) = (data, self.on_stderr.as_mut()) {
@@ -269,12 +274,19 @@ for ProcessExecInvokable
 fn encode_eval_response(res: Option<EvalPlan>) -> Result<Vec<u8>, CallError> {
     Ok(encode_response(&match res {
         Some(EvalPlan::Executed { code, .. }) => ProcessExited { exit_code: code },
-        Some(EvalPlan::InternalError) => ProcessExited { exit_code: err::ERR_ENOEXEC },
-        Some(EvalPlan::Invalid) => ProcessExited { exit_code: err::ERR_EINVAL },
-        Some(EvalPlan::MoreInput) => ProcessExited { exit_code: err::ERR_EINVAL },
-        None => ProcessExited { exit_code: err::ERR_EPIPE },
+        Some(EvalPlan::InternalError) => ProcessExited {
+            exit_code: err::ERR_ENOEXEC,
+        },
+        Some(EvalPlan::Invalid) => ProcessExited {
+            exit_code: err::ERR_EINVAL,
+        },
+        Some(EvalPlan::MoreInput) => ProcessExited {
+            exit_code: err::ERR_EINVAL,
+        },
+        None => ProcessExited {
+            exit_code: err::ERR_EPIPE,
+        },
     })?)
-
 }
 
 pub struct ProcessExecSession {
@@ -296,12 +308,11 @@ impl Session for ProcessExecSession {
                         let tx_send = stdin.clone();
                         let _ = tx_send.blocking_send(data);
                     }
-                },
+                }
                 OutOfBand::CloseStdin => {
                     self.stdin.take();
-                },
-                _ => {
                 }
+                _ => {}
             }
             ResultInvokable::new(())
         } else {

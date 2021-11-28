@@ -66,7 +66,7 @@ mod raw {
     extern "C" {
         pub(crate) fn drop(handle: u32);
         pub(crate) fn rand() -> u32;
-        
+
         pub(crate) fn fault(handle: u32, error: i32);
         pub(crate) fn reply(handle: u32, response: i32, response_len: i32);
 

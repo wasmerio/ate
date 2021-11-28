@@ -59,7 +59,7 @@ impl Process {
     pub fn terminate(&self, exit_code: i32) {
         let tx = self.exit_tx.clone();
         self.pool.spawn_blocking(move || {
-            tx.send(Some(exit_code));           
+            tx.send(Some(exit_code));
         });
     }
 }

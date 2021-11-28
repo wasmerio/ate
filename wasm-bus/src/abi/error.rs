@@ -102,7 +102,9 @@ impl fmt::Display for CallError {
             CallError::MissingCallbacks => {
                 write!(f, "some mandatory callbacks were not registered.")
             }
-            CallError::Unsupported => write!(f, "this operation is not supported on this platform."),
+            CallError::Unsupported => {
+                write!(f, "this operation is not supported on this platform.")
+            }
             CallError::Unknown => write!(f, "unknown error."),
         }
     }

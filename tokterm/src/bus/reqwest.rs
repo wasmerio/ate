@@ -1,13 +1,13 @@
 use crate::common::MAX_MPSC;
 use async_trait::async_trait;
 use tokio::sync::mpsc;
-use wasm_bus::abi::CallError;
-use wasm_bus::backend::reqwest::*;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
+use wasm_bus::abi::CallError;
+use wasm_bus::backend::reqwest::*;
 
-use crate::common::*;
 use super::*;
+use crate::common::*;
 
 struct WebRequestCreate {
     request: Request,
@@ -24,8 +24,7 @@ impl WebRequestFactory {
         let (tx_factory, mut rx_factory) = mpsc::channel::<WebRequestCreate>(MAX_MPSC);
         wasm_bindgen_futures::spawn_local(async move {
             while let Some(create) = rx_factory.recv().await {
-                wasm_bindgen_futures::spawn_local(async move
-                {
+                wasm_bindgen_futures::spawn_local(async move {
                     let url = create.request.url;
                     let method = create.request.method;
                     let headers = create.request.headers;
@@ -39,7 +38,7 @@ impl WebRequestFactory {
                         let headers = Vec::new();
                         // we can't implement this as the method resp.headers().keys() is missing!
                         // how else are we going to parse the headers
-                        
+
                         // Grab all the data from the response
                         let ok = resp.ok();
                         let redirected = resp.redirected();
@@ -47,7 +46,7 @@ impl WebRequestFactory {
                         let status_text = resp.status_text();
                         let data = get_response_data(resp).await?;
                         debug!("received {} bytes", data.len());
-                        
+
                         let resp = Response {
                             ok,
                             redirected,

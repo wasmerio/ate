@@ -218,9 +218,13 @@ impl Child {
     ///     println!("ls command didn't start");
     /// }
     /// ```
-    #[allow(unused_mut)]    // this is so that the API's are compatible with std:process
+    #[allow(unused_mut)] // this is so that the API's are compatible with std:process
     pub fn wait(&mut self) -> io::Result<ExitStatus> {
-        self.task.clone().join().wait().map_err(|err| err.into_io_error())
+        self.task
+            .clone()
+            .join()
+            .wait()
+            .map_err(|err| err.into_io_error())
     }
 
     /// Simultaneously waits for the child to exit and collect all remaining

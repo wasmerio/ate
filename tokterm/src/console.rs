@@ -299,8 +299,7 @@ impl Console {
                 }
                 None => {
                     debug!("eval recv erro");
-                    tty.draw(format!("term: command failed\r\n").as_str())
-                        .await;
+                    tty.draw(format!("term: command failed\r\n").as_str()).await;
                 }
             }
 

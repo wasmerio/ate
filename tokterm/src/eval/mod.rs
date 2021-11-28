@@ -90,7 +90,8 @@ pub(crate) async fn eval(mut ctx: EvalContext) -> mpsc::Receiver<EvalPlan> {
                     code: ret,
                     ctx,
                     show_result,
-                }).await;
+                })
+                .await;
             }
             Err(e) => match e {
                 lalrpop_util::ParseError::UnrecognizedToken {

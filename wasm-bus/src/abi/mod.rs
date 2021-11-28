@@ -83,32 +83,32 @@ where
 
 #[cfg(target_arch = "wasm32")]
 pub(self) fn reply<RES>(handle: CallHandle, response: RES)
-where RES: Serialize,
+where
+    RES: Serialize,
 {
     match bincode::serialize(&response) {
         Ok(res) => {
             syscall::reply(handle, &res[..]);
-        },
-        Err(_err) => {
-            syscall::error(handle, CallError::SerializationFailed as i32)
-        },
+        }
+        Err(_err) => syscall::error(handle, CallError::SerializationFailed as i32),
     };
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 pub(self) fn reply<RES>(_handle: CallHandle, _response: RES)
-where RES: Serialize,
+where
+    RES: Serialize,
 {
     panic!("reply not supported on this platform");
 }
 
 #[cfg(target_arch = "wasm32")]
-pub(self) fn drop(handle: CallHandle) {    
+pub(self) fn drop(handle: CallHandle) {
     syscall::drop(handle);
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub(self) fn drop(_handle: CallHandle) {    
+pub(self) fn drop(_handle: CallHandle) {
     panic!("drop handle not supported on this platform");
 }
 

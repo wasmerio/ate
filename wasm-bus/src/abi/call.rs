@@ -107,7 +107,7 @@ impl CallBuilder {
                     &call.wapm,
                     &call.topic,
                     &req[..],
-                );                
+                );
             }
             Data::Error(err) => {
                 crate::engine::BusEngine::error(call.handle, err.clone());

@@ -5,6 +5,7 @@ use core::sync::atomic::AtomicBool;
 use core::sync::atomic::Ordering;
 use std::io::prelude::*;
 use std::io::SeekFrom;
+use std::ops::Deref;
 use std::sync::Mutex;
 use std::sync::Weak;
 use std::{
@@ -19,7 +20,6 @@ use tokio::sync::Mutex as AsyncMutex;
 use tracing::{debug, error, info, trace, warn};
 use wasmer_vfs::{FileDescriptor, VirtualFile};
 use wasmer_wasi::{types as wasi_types, WasiFile, WasiFsError};
-use std::ops::Deref;
 
 use super::common::*;
 use super::err::*;
@@ -120,7 +120,10 @@ impl Fd {
     }
 
     pub fn poll(&mut self) -> PollResult {
-        poll_fd(self.receiver.as_mut(), self.sender.as_ref().map(|a| a.deref()))
+        poll_fd(
+            self.receiver.as_mut(),
+            self.sender.as_ref().map(|a| a.deref()),
+        )
     }
 
     pub async fn read_async(&mut self) -> io::Result<Vec<u8>> {
@@ -256,14 +259,10 @@ impl WeakFd {
                 return None;
             }
         };
-        
-        let sender = self.sender.iter().filter_map(|a| {
-            a.upgrade()
-        }).next();
 
-        let receiver = self.receiver.iter().filter_map(|a| {
-            a.upgrade()
-        }).next();
+        let sender = self.sender.iter().filter_map(|a| a.upgrade()).next();
+
+        let receiver = self.receiver.iter().filter_map(|a| a.upgrade()).next();
 
         Some(Fd {
             blocking,
@@ -276,12 +275,8 @@ impl WeakFd {
 impl Fd {
     pub fn downgrade(&self) -> WeakFd {
         let blocking = Arc::downgrade(&self.blocking);
-        let sender = self.sender.iter().map(|a| {
-            Arc::downgrade(&a)
-        }).next();
-        let receiver = self.receiver.iter().map(|a| {
-            Arc::downgrade(&a)
-        }).next();
+        let sender = self.sender.iter().map(|a| Arc::downgrade(&a)).next();
+        let receiver = self.receiver.iter().map(|a| Arc::downgrade(&a)).next();
 
         WeakFd {
             blocking,
