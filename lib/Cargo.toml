@@ -85,6 +85,8 @@ hyper-tungstenite = { version = "^0.4", optional = true }
 trust-dns-proto = { version = "^0.20", optional = true }
 trust-dns-client = { version = "^0.20", features = ["dnssec"], optional = true }
 backtrace = { version = "^0.3" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bus = { version = "^0.1", path = "../wasm-bus" }
 
 [dev-dependencies]

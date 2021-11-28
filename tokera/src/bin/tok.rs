@@ -127,7 +127,7 @@ fn init_wasi() {
         tracing::trace!("opening wasm_bus::web_socket");
         let ws = wasm_bus::ws::SocketBuilder::new(url::Url::from_str("wss://tokera.com").unwrap())
             .open();
-        Some(ate::comms::Stream::WapmWebSocket(ws))
+        Some(ate::comms::Stream::WasmWebSocket(ws))
     }));
 }
 
