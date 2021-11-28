@@ -274,7 +274,10 @@ pub async fn exec(
         // operations on the current thread
         {
             let bus_pool = Arc::clone(&bus_pool);
-            wasi_env.on_tick(move |thread| {
+            wasi_env.on_yield(move |thread| {
+                if let Some(exit) = *exit_rx.borrow() {
+                    thread.terminate(exit as u32);
+                }
                 let thread = bus_pool.get_or_create(thread);
                 unsafe {
                     crate::bus::syscalls::raw::wasm_bus_tick(&thread);
@@ -292,10 +295,6 @@ pub async fn exec(
                 return;
             }
         };
-
-        // Hook up the terminate event so that if its triggered the environment properly
-        // kills itself (on the next syscall)
-        process.set_env(wasi_env.clone());
 
         // List all the exports
         for ns in module.exports() {

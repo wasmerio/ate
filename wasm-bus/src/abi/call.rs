@@ -96,6 +96,7 @@ impl CallBuilder {
     }
 
     /// Invokes the call with the specified callbacks
+    #[cfg(target_arch = "wasm32")]
     pub fn invoke(mut self) -> Call {
         let call = self.call.take().unwrap();
         match &self.request {
@@ -106,7 +107,7 @@ impl CallBuilder {
                     &call.wapm,
                     &call.topic,
                     &req[..],
-                );
+                );                
             }
             Data::Error(err) => {
                 crate::engine::BusEngine::error(call.handle, err.clone());
@@ -114,6 +115,11 @@ impl CallBuilder {
         }
 
         call
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn invoke(self) -> Call {
+        panic!("invoke not supported on this platform");
     }
 }
 

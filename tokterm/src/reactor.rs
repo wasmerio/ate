@@ -60,7 +60,6 @@ impl Reactor {
                         exit_rx: exit_rx.clone(),
                         exit_tx: Arc::new(exit_tx),
                         pool,
-                        env: Arc::new(Mutex::new(None)),
                     },
                 );
                 return Ok((pid, exit_rx));

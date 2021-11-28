@@ -120,6 +120,7 @@ impl From<tokio::time::error::Elapsed> for CommsError {
     }
 }
 
+#[cfg(target_arch = "wasm32")]
 impl From<wasm_bus::time::Elapsed> for CommsError {
     fn from(_err: wasm_bus::time::Elapsed) -> CommsError {
         CommsErrorKind::IO(std::io::Error::new(

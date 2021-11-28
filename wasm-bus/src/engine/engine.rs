@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use once_cell::sync::Lazy;
 use serde::*;
 use std::borrow::Cow;
@@ -113,6 +114,7 @@ impl BusEngine {
         wakers.remove(handle);
     }
 
+    #[cfg(target_arch = "wasm32")]
     pub fn call(
         parent: Option<CallHandle>,
         wapm: Cow<'static, str>,
@@ -147,6 +149,16 @@ impl BusEngine {
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn call(
+        _parent: Option<CallHandle>,
+        _wapm: Cow<'static, str>,
+        _topic: Cow<'static, str>,
+    ) -> Call {
+        panic!("call not supported on this platform");
+    }
+
+    #[cfg(target_arch = "wasm32")]
     pub fn recv<RES, REQ, F>(mut callback: F) -> Recv
     where
         REQ: de::DeserializeOwned + Send + Sync + 'static,
@@ -189,5 +201,16 @@ impl BusEngine {
             }
             std::thread::yield_now();
         }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn recv<RES, REQ, F>(_callback: F) -> Recv
+    where
+        REQ: de::DeserializeOwned + Send + Sync + 'static,
+        RES: Serialize + Send + Sync + 'static,
+        F: FnMut(REQ) -> Result<RES, CallError>,
+        F: Send + 'static,
+    {
+        panic!("recv not supported on this platform");
     }
 }

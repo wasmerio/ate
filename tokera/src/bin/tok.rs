@@ -60,6 +60,10 @@ enum SubCommand {
     /// DNS access to an owned internet domain that can be validated.
     #[clap()]
     Domain(OptsDomain),
+    /// Databases are chains of data that make up a particular shard. These databases can be
+    /// use for application data persistance, file systems and web sites.
+    #[clap()]
+    Db(OptsDatabase),
     /// Tokens are stored authentication and authorization secrets used by other processes.
     /// Using this command you may generate a custom token however the usual method for
     /// authentication is to use the login command instead.
@@ -153,6 +157,7 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
         let cmd = match binary_as_util {
             "user" => Some(SubCommand::User(OptsUser::parse())),
             "domain" => Some(SubCommand::Domain(OptsDomain::parse())),
+            "db" => Some(SubCommand::Db(OptsDatabase::parse())),
             "service" => Some(SubCommand::Service(OptsService::parse())),
             "contract" => Some(SubCommand::Contract(OptsContract::parse())),
             "wallet" => Some(SubCommand::Wallet(OptsWallet::parse())),
@@ -231,6 +236,9 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
         }
         SubCommand::Domain(opts_group) => {
             main_opts_group(opts_group, None, Some(opts.token_path), auth, "Domain name").await?;
+        }
+        SubCommand::Db(opts_db) => {
+            main_opts_db(opts_db, None, Some(opts.token_path), auth, "Domain name").await?;
         }
         #[cfg(not(feature_os = "wasi"))]
         SubCommand::Token(opts_token) => {

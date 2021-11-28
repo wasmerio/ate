@@ -15,6 +15,7 @@ pub enum CallError {
     InvalidHandle = 8,
     InvalidTopic = 9,
     MissingCallbacks = 10,
+    Unsupported = 11,
     Unknown = u32::MAX,
 }
 
@@ -32,6 +33,7 @@ impl From<u32> for CallError {
             8 => CallError::InvalidHandle,
             9 => CallError::InvalidTopic,
             10 => CallError::MissingCallbacks,
+            11 => CallError::Unsupported,
             _ => CallError::Unknown,
         }
     }
@@ -51,6 +53,7 @@ impl Into<u32> for CallError {
             CallError::InvalidHandle => 8,
             CallError::InvalidTopic => 9,
             CallError::MissingCallbacks => 10,
+            CallError::Unsupported => 11,
             CallError::Unknown => u32::MAX,
         }
     }
@@ -99,6 +102,7 @@ impl fmt::Display for CallError {
             CallError::MissingCallbacks => {
                 write!(f, "some mandatory callbacks were not registered.")
             }
+            CallError::Unsupported => write!(f, "this operation is not supported on this platform."),
             CallError::Unknown => write!(f, "unknown error."),
         }
     }

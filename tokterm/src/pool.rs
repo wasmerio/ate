@@ -283,6 +283,7 @@ impl PoolState {
     }
 
     fn send(&self, msg: Message) {
+        let mut queue = self.queue.lock().unwrap();
         for _ in 0..100 {
             if let Ok(mut queue) = self.queue.try_lock() {
                 queue.push_back(msg);
@@ -290,10 +291,7 @@ impl PoolState {
                 let _ = self.tx.send(());
                 return;
             }
-            std::thread::yield_now();
         }
-
-        let mut queue = self.queue.lock().unwrap();
         queue.push_back(msg);
         drop(queue);
         let _ = self.tx.send(());

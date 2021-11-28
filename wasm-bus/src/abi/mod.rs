@@ -4,6 +4,7 @@ mod error;
 mod handle;
 mod recv;
 mod reply;
+#[cfg(target_arch = "wasm32")]
 pub(crate) mod syscall;
 
 use serde::*;
@@ -53,6 +54,7 @@ where
     recv_internal::<RES, REQ, F>(None, callback)
 }
 
+#[cfg(target_arch = "wasm32")]
 pub(crate) fn recv_internal<RES, REQ, F>(parent: Option<CallHandle>, callback: F) -> Recv
 where
     REQ: de::DeserializeOwned + Send + Sync + 'static,
@@ -65,26 +67,57 @@ where
     let handle = recv.handle;
 
     syscall::recv(parent, handle, topic);
-
-    recv
+    return recv;
 }
 
-pub(self) fn reply<RES>(handle: CallHandle, response: RES)
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn recv_internal<RES, REQ, F>(_parent: Option<CallHandle>, _callback: F) -> Recv
 where
-    RES: Serialize,
+    REQ: de::DeserializeOwned + Send + Sync + 'static,
+    RES: Serialize + Send + Sync + 'static,
+    F: FnMut(REQ) -> Result<RES, CallError>,
+    F: Send + 'static,
+{
+    panic!("recv not supported on this platform");
+}
+
+#[cfg(target_arch = "wasm32")]
+pub(self) fn reply<RES>(handle: CallHandle, response: RES)
+where RES: Serialize,
 {
     match bincode::serialize(&response) {
         Ok(res) => {
             syscall::reply(handle, &res[..]);
-        }
-        Err(_err) => syscall::error(handle, CallError::SerializationFailed as i32),
-    }
+        },
+        Err(_err) => {
+            syscall::error(handle, CallError::SerializationFailed as i32)
+        },
+    };
 }
 
-pub(self) fn drop(handle: CallHandle) {
+#[cfg(not(target_arch = "wasm32"))]
+pub(self) fn reply<RES>(_handle: CallHandle, _response: RES)
+where RES: Serialize,
+{
+    panic!("reply not supported on this platform");
+}
+
+#[cfg(target_arch = "wasm32")]
+pub(self) fn drop(handle: CallHandle) {    
     syscall::drop(handle);
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+pub(self) fn drop(_handle: CallHandle) {    
+    panic!("drop handle not supported on this platform");
+}
+
+#[cfg(target_arch = "wasm32")]
 pub fn thread_id() -> u32 {
     syscall::thread_id()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn thread_id() -> u32 {
+    panic!("thread_id not supported on this platform");
 }
