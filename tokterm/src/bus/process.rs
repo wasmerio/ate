@@ -39,17 +39,17 @@ impl ProcessExecFactory {
     pub fn new(
         reactor: Arc<RwLock<Reactor>>,
         exec_factory: ExecFactory,
-        inherit_stdin: Fd,
-        inherit_stdout: Fd,
-        inherit_stderr: Fd,
+        inherit_stdin: WeakFd,
+        inherit_stdout: WeakFd,
+        inherit_stderr: WeakFd,
     ) -> ProcessExecFactory {
         let (tx_factory, mut rx_factory) = mpsc::channel::<ProcessExecCreate>(MAX_MPSC);
         wasm_bindgen_futures::spawn_local(async move {
             while let Some(create) = rx_factory.recv().await {
                 let reactor = reactor.clone();
-                let inherit_stdin = inherit_stdin.clone();
-                let inherit_stdout = inherit_stdout.clone();
-                let inherit_stderr = inherit_stderr.clone();
+                let inherit_stdin = inherit_stdin.upgrade();
+                let inherit_stdout = inherit_stdout.upgrade();
+                let inherit_stderr = inherit_stderr.upgrade();
                 let exec_factory = exec_factory.clone();
                 wasm_bindgen_futures::spawn_local(async move
                 {
@@ -92,17 +92,20 @@ impl ProcessExecFactory {
                         // Perform hooks back to the main stdio
                         let (stdin, stdin_tx) = match stdin_mode {
                             StdioMode::Null => (stdin, None),
-                            StdioMode::Inherit => (inherit_stdin.clone(), None),
+                            StdioMode::Inherit if inherit_stdin.is_some() => (inherit_stdin.unwrap(), None),
+                            StdioMode::Inherit => (stdin, None),
                             StdioMode::Piped => (stdin, Some(stdin_tx)),
                         };
                         let (stdout, stdout_rx) = match stdout_mode {
                             StdioMode::Null => (stdout, None),
-                            StdioMode::Inherit => (inherit_stdout.clone(), None),
+                            StdioMode::Inherit if inherit_stdout.is_some() => (inherit_stdout.unwrap(), None),
+                            StdioMode::Inherit => (stdout, None),
                             StdioMode::Piped => (stdout, Some(stdout_rx)),
                         };
                         let (stderr, stderr_rx) = match stderr_mode {
                             StdioMode::Null => (stderr, None),
-                            StdioMode::Inherit => (inherit_stderr.clone(), None),
+                            StdioMode::Inherit if inherit_stderr.is_some() => (inherit_stderr.unwrap(), None),
+                            StdioMode::Inherit => (stderr, None),
                             StdioMode::Piped => (stderr, Some(stderr_rx)),
                         };
 
@@ -127,7 +130,7 @@ impl ProcessExecFactory {
                             invoker: ProcessExecInvokable {
                                 stdout: stdout_rx,
                                 stderr: stderr_rx,
-                                eval_rx,
+                                eval_rx: Some(eval_rx),
                                 on_stdout,
                                 on_stderr,
                             },
@@ -180,7 +183,7 @@ impl ProcessExecFactory {
 pub struct ProcessExecInvokable {
     stdout: Option<mpsc::Receiver<Vec<u8>>>,
     stderr: Option<mpsc::Receiver<Vec<u8>>>,
-    eval_rx: mpsc::Receiver<EvalPlan>,
+    eval_rx: Option<mpsc::Receiver<EvalPlan>>,
     on_stdout: Option<WasmBusFeeder>,
     on_stderr: Option<WasmBusFeeder>
 }
@@ -191,6 +194,15 @@ for ProcessExecInvokable
 {
     async fn process(&mut self) -> Result<Vec<u8>, CallError>
     {
+        // Get the eval_rx (this will mean it is destroyed when this
+        // function returns)
+        let mut eval_rx = match self.eval_rx.take() {
+            Some(a) => a,
+            None => {
+                return encode_eval_response(Some(EvalPlan::InternalError));
+            }
+        };
+
         // Now process all the STDIO concurrently
         loop {
             if let Some(stdout_rx) = self.stdout.as_mut() {
@@ -199,14 +211,18 @@ for ProcessExecInvokable
                         data = stdout_rx.recv() => {
                             if let (Some(data), Some(on_data)) = (data, self.on_stdout.as_mut()) {
                                 on_data.feed(DataStdout(data));
+                            } else {
+                                self.stdout.take();
                             }
                         }
                         data = stderr_rx.recv() => {
                             if let (Some(data), Some(on_data)) = (data, self.on_stderr.as_mut()) {
                                 on_data.feed(DataStderr(data));
+                            } else {
+                                self.stderr.take();
                             }
                         }
-                        res = self.eval_rx.recv() => {
+                        res = eval_rx.recv() => {
                             return encode_eval_response(res);
                         }
                     }
@@ -215,9 +231,11 @@ for ProcessExecInvokable
                         data = stdout_rx.recv() => {
                             if let (Some(data), Some(on_data)) = (data, self.on_stdout.as_mut()) {
                                 on_data.feed(DataStdout(data));
+                            } else {
+                                self.stdout.take();
                             }
                         }
-                        res = self.eval_rx.recv() => {
+                        res = eval_rx.recv() => {
                             return encode_eval_response(res);
                         }
                     }
@@ -228,15 +246,17 @@ for ProcessExecInvokable
                         data = stderr_rx.recv() => {
                             if let (Some(data), Some(on_data)) = (data, self.on_stderr.as_mut()) {
                                 on_data.feed(DataStderr(data));
+                            } else {
+                                self.stderr.take();
                             }
                         }
-                        res = self.eval_rx.recv() => {
+                        res = eval_rx.recv() => {
                             return encode_eval_response(res);
                         }
                     }
                 } else {
                     tokio::select! {
-                        res = self.eval_rx.recv() => {
+                        res = eval_rx.recv() => {
                             return encode_eval_response(res);
                         }
                     }

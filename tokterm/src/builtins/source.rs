@@ -61,7 +61,12 @@ pub(super) fn source(
     Box::pin(async move {
         let mut stdout = ctx.stdio.stdout.clone();
         let mut stderr = ctx.stdio.stderr.clone();
-        match eval(ctx).await.recv().await {
+
+        let mut process = eval(ctx).await;
+        let result = process.recv().await;
+        drop(process);
+
+        match result {
             Some(EvalPlan::Executed {
                 code,
                 ctx: _,

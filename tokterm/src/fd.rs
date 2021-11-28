@@ -6,6 +6,7 @@ use core::sync::atomic::Ordering;
 use std::io::prelude::*;
 use std::io::SeekFrom;
 use std::sync::Mutex;
+use std::sync::Weak;
 use std::{
     pin::Pin,
     sync::Arc,
@@ -18,6 +19,7 @@ use tokio::sync::Mutex as AsyncMutex;
 use tracing::{debug, error, info, trace, warn};
 use wasmer_vfs::{FileDescriptor, VirtualFile};
 use wasmer_wasi::{types as wasi_types, WasiFile, WasiFsError};
+use std::ops::Deref;
 
 use super::common::*;
 use super::err::*;
@@ -29,7 +31,7 @@ use super::state::*;
 #[derive(Debug, Clone)]
 pub struct Fd {
     pub(crate) blocking: Arc<AtomicBool>,
-    pub(crate) sender: Option<mpsc::Sender<Vec<u8>>>,
+    pub(crate) sender: Option<Arc<mpsc::Sender<Vec<u8>>>>,
     pub(crate) receiver: Option<Arc<AsyncMutex<ReactorPipeReceiver>>>,
 }
 
@@ -40,7 +42,7 @@ impl Fd {
     ) -> Fd {
         Fd {
             blocking: Arc::new(AtomicBool::new(true)),
-            sender: tx,
+            sender: tx.map(|a| Arc::new(a)),
             receiver: rx,
         }
     }
@@ -118,7 +120,7 @@ impl Fd {
     }
 
     pub fn poll(&mut self) -> PollResult {
-        poll_fd(self.receiver.as_mut(), self.sender.as_mut())
+        poll_fd(self.receiver.as_mut(), self.sender.as_ref().map(|a| a.deref()))
     }
 
     pub async fn read_async(&mut self) -> io::Result<Vec<u8>> {
@@ -236,5 +238,55 @@ impl VirtualFile for Fd {
 
     fn unlink(&mut self) -> Result<(), WasiFsError> {
         Ok(())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct WeakFd {
+    pub(crate) blocking: Weak<AtomicBool>,
+    pub(crate) sender: Option<Weak<mpsc::Sender<Vec<u8>>>>,
+    pub(crate) receiver: Option<Weak<AsyncMutex<ReactorPipeReceiver>>>,
+}
+
+impl WeakFd {
+    pub fn upgrade(&self) -> Option<Fd> {
+        let blocking = match self.blocking.upgrade() {
+            Some(a) => a,
+            None => {
+                return None;
+            }
+        };
+        
+        let sender = self.sender.iter().filter_map(|a| {
+            a.upgrade()
+        }).next();
+
+        let receiver = self.receiver.iter().filter_map(|a| {
+            a.upgrade()
+        }).next();
+
+        Some(Fd {
+            blocking,
+            sender,
+            receiver,
+        })
+    }
+}
+
+impl Fd {
+    pub fn downgrade(&self) -> WeakFd {
+        let blocking = Arc::downgrade(&self.blocking);
+        let sender = self.sender.iter().map(|a| {
+            Arc::downgrade(&a)
+        }).next();
+        let receiver = self.receiver.iter().map(|a| {
+            Arc::downgrade(&a)
+        }).next();
+
+        WeakFd {
+            blocking,
+            sender,
+            receiver,
+        }
     }
 }

@@ -203,9 +203,9 @@ pub async fn exec(
     let sub_process_factory = ProcessExecFactory::new(
         ctx.reactor.clone(),
         ctx.exec_factory.clone(),
-        stdio.stdin.clone(),
-        stdio.stdout.clone(),
-        stdio.stderr.clone()
+        stdio.stdin.downgrade(),
+        stdio.stdout.downgrade(),
+        stdio.stderr.downgrade()
     );
 
     // The BUS pool is what gives this WASM process its syscall and operation system

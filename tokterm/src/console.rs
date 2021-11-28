@@ -243,6 +243,7 @@ impl Console {
         wasm_bindgen_futures::spawn_local(async move {
             // Wait for the process to finish
             let rx = process.recv().await;
+            drop(process);
 
             // Switch back to console mode
             tty.reset_line().await;

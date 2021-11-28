@@ -22,7 +22,7 @@ pub struct PollResult {
 
 pub fn poll_fd(
     rx: Option<&mut Arc<AsyncMutex<ReactorPipeReceiver>>>,
-    tx: Option<&mut mpsc::Sender<Vec<u8>>>,
+    tx: Option<&mpsc::Sender<Vec<u8>>>,
 ) -> PollResult {
     let mut has_fd = false;
     let can_write = if let Some(fd) = tx {
