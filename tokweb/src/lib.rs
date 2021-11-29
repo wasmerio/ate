@@ -18,7 +18,7 @@ use tokterm::err;
 use tokterm::eval;
 use tokterm::fd;
 use tokterm::fs;
-use tokterm::bin;
+use tokterm::bin_factory;
 use tokterm::builtins;
 
 pub use glue::main;

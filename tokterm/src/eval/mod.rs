@@ -32,7 +32,7 @@ use crate::ast;
 use crate::environment::Environment;
 
 use super::ast::*;
-use super::bin::*;
+use super::bin_factory::*;
 use super::builtins::*;
 use super::common::*;
 use super::err;

@@ -134,7 +134,7 @@ unsafe fn wasm_bus_recv(
     let mut inner = thread.inner.unwrap();
     if let Some(parent) = parent {
         let entry = inner.callbacks.entry(parent.id).or_default();
-        entry.insert(topic.into_owned(), handle);
+        entry.insert(topic.to_string(), handle);
         return;
     }
 }

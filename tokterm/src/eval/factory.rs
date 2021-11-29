@@ -1,7 +1,7 @@
 use tokio::sync::oneshot;
 
 use crate::api::*;
-use crate::bin::*;
+use crate::bin_factory::*;
 use crate::eval::*;
 use crate::fd::*;
 use crate::pipe::*;

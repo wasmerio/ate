@@ -17,7 +17,7 @@ use tracing::{debug, error, info, trace, warn};
 use super::*;
 
 use crate::api::*;
-use crate::bin::*;
+use crate::bin_factory::*;
 use crate::builtins::*;
 use crate::bus::*;
 use crate::common::*;

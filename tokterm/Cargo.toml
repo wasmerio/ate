@@ -11,10 +11,9 @@ repository = "https://github.com/john-sharratt/ate"
 readme = "../README.md"
 
 [features]
-#default = [ "sys" ]
-default = [ "js" ]
+default = [ "sys" ]
 js = [ "wasmer/js-default", "wasmer-wasi/js-default" ]
-sys = [ "wasmer/sys-default", "wasmer-wasi/sys-default" ]
+sys = [ "wasmer/sys-default", "wasmer-wasi/sys-default", "tokio/rt-multi-thread" ]
 
 [dependencies]
 grammar = { version = "^0.1", package = "tok-grammar" }
@@ -48,3 +47,5 @@ bincode = "1"
 async-trait = "^0.1"
 dummy-waker = "^1"
 parking_lot = "^0.11"
+clap = "^3.0.0-beta.5"
+wild = "^2"

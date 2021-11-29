@@ -16,7 +16,7 @@ use tokterm::api::*;
 use crate::tty::TtyMode;
 
 use crate::wasmer_vfs::FileSystem;
-use super::bin::*;
+use super::bin_factory::*;
 use super::builtins::*;
 use super::common::*;
 use super::environment::*;

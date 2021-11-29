@@ -4,7 +4,7 @@ pub mod bus;
 pub mod eval;
 pub mod fs;
 
-pub mod bin;
+pub mod bin_factory;
 pub mod cconst;
 pub mod common;
 pub mod environment;
@@ -19,6 +19,7 @@ pub mod stdio;
 pub mod stdout;
 pub mod tty;
 pub mod wasi;
+pub mod utils;
 
 // Re-exports
 pub use grammar;
