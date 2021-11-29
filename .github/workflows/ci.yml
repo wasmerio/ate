@@ -46,7 +46,7 @@ jobs:
         submodules: true
     - name: Build
       run: |
-        cd tokterm
+        cd tokweb
         npm install
         npm run build
 
