@@ -1,27 +1,27 @@
 mod common;
 mod console;
 mod glue;
+mod interval;
 mod pool;
 mod system;
-mod interval;
 mod ws;
 
-use tokterm::reactor;
-use tokterm::state;
-use tokterm::stdio;
-use tokterm::stdout;
-use tokterm::tty;
-use tokterm::job;
-use tokterm::pipe;
-use tokterm::environment;
-use tokterm::err;
-use tokterm::eval;
-use tokterm::fd;
-use tokterm::fs;
-use tokterm::bin_factory;
-use tokterm::builtins;
+use term_lib::bin_factory;
+use term_lib::builtins;
+use term_lib::environment;
+use term_lib::err;
+use term_lib::eval;
+use term_lib::fd;
+use term_lib::fs;
+use term_lib::job;
+use term_lib::pipe;
+use term_lib::reactor;
+use term_lib::state;
+use term_lib::stdio;
+use term_lib::stdout;
+use term_lib::tty;
 
 pub use glue::main;
 pub use glue::start;
 
-pub(crate) use tokterm::wasmer_vfs;
+pub(crate) use term_lib::wasmer_vfs;

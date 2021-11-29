@@ -1,4 +1,6 @@
 use chrono::prelude::*;
+use term_lib::api::*;
+use term_lib::common::MAX_MPSC;
 use tokio::sync::mpsc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
@@ -6,24 +8,20 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlCanvasElement;
 use web_sys::KeyboardEvent;
-
 #[allow(unused_imports)]
 use xterm_js_rs::addons::fit::FitAddon;
 #[allow(unused_imports)]
 use xterm_js_rs::addons::web_links::WebLinksAddon;
 #[allow(unused_imports)]
 use xterm_js_rs::addons::webgl::WebglAddon;
-
+use xterm_js_rs::Theme;
 use xterm_js_rs::{LogLevel, OnKeyEvent, Terminal, TerminalOptions};
 
 use crate::system::WebSystem;
 
-use tokterm::common::MAX_MPSC;
-use tokterm::api::*;
 use super::common::*;
 use super::console::Console;
 use super::pool::*;
-use xterm_js_rs::Theme;
 
 #[macro_export]
 #[doc(hidden)]
@@ -75,7 +73,7 @@ pub fn start() -> Result<(), JsValue> {
 
     let pool = WebThreadPool::new_with_max_threads(terminal.clone().dyn_into().unwrap()).unwrap();
     let system = WebSystem::new(pool.clone());
-    tokterm::api::set_system_abi(system);
+    term_lib::api::set_system_abi(system);
     let system = System::default();
 
     let window = web_sys::window().unwrap();

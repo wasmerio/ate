@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::Mutex;
+use term_lib::api::*;
 use tokio::sync::mpsc;
 use tokio::sync::RwLock;
 #[allow(unused_imports, dead_code)]
@@ -11,11 +12,9 @@ use tracing::{debug, error, info, trace, warn};
 use wasm_bindgen::JsCast;
 use web_sys::HtmlCanvasElement;
 use xterm_js_rs::Terminal;
-use tokterm::api::*;
 
 use crate::tty::TtyMode;
 
-use crate::wasmer_vfs::FileSystem;
 use super::bin_factory::*;
 use super::builtins::*;
 use super::common::*;
@@ -32,6 +31,7 @@ use super::state::*;
 use super::stdio::*;
 use super::stdout::*;
 use super::tty::*;
+use crate::wasmer_vfs::FileSystem;
 
 pub struct Console {
     terminal: Terminal,

@@ -1,53 +1,43 @@
 use js_sys::Promise;
-use wasm_bindgen::prelude::*;
-use wasm_bindgen_futures::*;
 use std::future::Future;
-use tokterm::api::abi::SystemAbi;
-use tokterm::err;
-use tokio::sync::oneshot;
 use std::pin::Pin;
 use std::sync::Arc;
+use term_lib::api::abi::SystemAbi;
+use term_lib::err;
+use tokio::sync::oneshot;
+use wasm_bindgen::prelude::*;
+use wasm_bindgen_futures::*;
 
 use super::pool::WebThreadPool;
 use super::ws::WebSocket;
-use tokterm::api::*;
+use term_lib::api::*;
 
-pub struct WebSystem
-{
+pub struct WebSystem {
     pool: WebThreadPool,
 }
 
-impl WebSystem
-{
+impl WebSystem {
     pub fn new(pool: WebThreadPool) -> WebSystem {
-        WebSystem {
-            pool,
-        }
+        WebSystem { pool }
     }
 }
 
-impl SystemAbi
-for WebSystem
-{
-    fn spawn_shared(&self, future: Pin<Box<dyn Future<Output = ()> + Send + 'static>>)
-    {
+impl SystemAbi for WebSystem {
+    fn spawn_shared(&self, future: Pin<Box<dyn Future<Output = ()> + Send + 'static>>) {
         self.pool.spawn_shared(future);
     }
-    
-    fn spawn_dedicated(&self, task: Pin<Box<dyn Future<Output = ()> + Send + 'static>>)
-    {
+
+    fn spawn_dedicated(&self, task: Pin<Box<dyn Future<Output = ()> + Send + 'static>>) {
         self.pool.spawn_dedicated(task);
     }
 
-    fn spawn_local_shared(&self, task: Pin<Box<dyn Future<Output = ()> + 'static>>)
-    {
+    fn spawn_local_shared(&self, task: Pin<Box<dyn Future<Output = ()> + 'static>>) {
         wasm_bindgen_futures::spawn_local(async move {
             task.await;
         });
     }
 
-    fn sleep(&self, ms: i32) -> Pin<Box<dyn Future<Output=()>>>
-    {
+    fn sleep(&self, ms: i32) -> Pin<Box<dyn Future<Output = ()>>> {
         let promise = sleep(ms);
         let js_fut = JsFuture::from(promise);
         Box::pin(async move {
@@ -55,16 +45,14 @@ for WebSystem
         })
     }
 
-    fn fetch_file(&self, path: &str) -> Pin<Box<dyn Future<Output=Result<Vec<u8>, i32>>>> {
+    fn fetch_file(&self, path: &str) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, i32>>>> {
         let url = path.to_string();
         let headers = vec![("Accept".to_string(), "application/wasm".to_string())];
         let (tx, rx) = oneshot::channel();
         self.spawn_local_shared(Box::pin(async move {
             let _ = tx.send(crate::common::fetch_data(url.as_str(), "GET", headers, None).await);
         }));
-        Box::pin(async move {
-            rx.await.map_err(|_| err::ERR_EIO)?
-        })
+        Box::pin(async move { rx.await.map_err(|_| err::ERR_EIO)? })
     }
 
     fn reqwest(
@@ -84,7 +72,7 @@ for WebSystem
                 redirected: resp.redirected(),
                 status: resp.status(),
                 status_text: resp.status_text(),
-                data: crate::common::get_response_data(resp).await?
+                data: crate::common::get_response_data(resp).await?,
             };
             Ok(resp)
         })

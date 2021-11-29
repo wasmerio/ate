@@ -7,6 +7,7 @@ members = [
     "auth",
     "files",
     "wasm-bus",
+    "term-lib",
     "tokterm",
     "tokweb",
     "grammar"

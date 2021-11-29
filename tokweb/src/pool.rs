@@ -192,13 +192,11 @@ impl WebThreadPool {
         Self::new(pool_size, terminal)
     }
 
-    pub fn spawn_shared(&self, task: Pin<Box<dyn Future<Output = ()> + Send + 'static>>)
-    {
+    pub fn spawn_shared(&self, task: Pin<Box<dyn Future<Output = ()> + Send + 'static>>) {
         self.pool_reactors.send(Message::RunShared(task));
     }
 
-    pub fn spawn_dedicated(&self, task: Pin<Box<dyn Future<Output = ()> + Send + 'static>>)
-    {
+    pub fn spawn_dedicated(&self, task: Pin<Box<dyn Future<Output = ()> + Send + 'static>>) {
         self.pool_blocking.send(Message::RunDedicated(task));
     }
 }
@@ -317,10 +315,8 @@ impl ThreadState {
                             pool.idle.fetch_sub(1, Ordering::Relaxed);
                             task.await;
                             pool.idle.fetch_add(1, Ordering::Relaxed);
-                        },
-                        Message::RunShared(future) => {
-                            wasm_bindgen_futures::spawn_local(future)
-                        },
+                        }
+                        Message::RunShared(future) => wasm_bindgen_futures::spawn_local(future),
                         Message::Close => {
                             debug!("pool - thread closed");
                             break;

@@ -31,6 +31,8 @@ impl LeakyInterval {
 impl Drop for LeakyInterval {
     fn drop(&mut self) {
         #[allow(unused_unsafe)]
-        unsafe { cancelInterval(self.token); }
+        unsafe {
+            cancelInterval(self.token);
+        }
     }
 }

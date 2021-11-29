@@ -1,11 +1,11 @@
+use js_sys::Function;
+use std::cell::Cell;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use js_sys::Function;
 use wasm_bindgen::prelude::*;
-use wasm_bindgen_futures::*;
 use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::*;
 use web_sys::*;
-use std::cell::Cell;
 
 use super::err;
 
