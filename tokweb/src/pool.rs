@@ -1,6 +1,4 @@
 #![allow(unused_imports)]
-#![allow(dead_code)]
-use tokterm::api::SystemAbi;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
@@ -61,11 +59,13 @@ pub struct PoolState {
     id_seed: AtomicUsize,
     min_size: usize,
     max_size: usize,
+    #[allow(dead_code)]
     type_: PoolType,
 }
 
 pub struct ThreadState {
     pool: Arc<PoolState>,
+    #[allow(dead_code)]
     idx: usize,
 }
 
@@ -193,18 +193,14 @@ impl WebThreadPool {
         Self::new(pool_size, terminal)
     }
 
-    pub fn spawn<Fut>(&self, future: Fut)
-    where
-        Fut: Future<Output = ()> + Send + 'static,
+    pub fn spawn(&self, future: Pin<Box<dyn Future<Output = ()> + Send + 'static>>)
     {
-        self.pool_reactors.send(Message::RunAsync(Box::pin(future)));
+        self.pool_reactors.send(Message::RunAsync(future));
     }
 
-    pub fn spawn_blocking<F>(&self, task: F)
-    where
-        F: FnOnce() + Send + 'static,
+    pub fn spawn_blocking(&self, task: Box<dyn FnOnce() + Send + 'static>)
     {
-        self.pool_blocking.send(Message::Run(Box::new(task)));
+        self.pool_blocking.send(Message::Run(task));
     }
 }
 
@@ -262,6 +258,7 @@ impl PoolState {
         });
     }
 
+    #[allow(dead_code)]
     pub fn shrink(self: &Arc<PoolState>) {
         self.send(Message::Close);
     }

@@ -1,3 +1,5 @@
+use wasm_bindgen::prelude::*;
+
 #[wasm_bindgen]
 extern "C" {
     fn setInterval(closure: &Closure<dyn FnMut()>, millis: u32) -> f64;
@@ -18,6 +20,7 @@ impl LeakyInterval {
         let closure = Closure::new(f);
         let millis = duration.as_millis() as u32;
 
+        #[allow(unused_unsafe)]
         let token = unsafe { setInterval(&closure, millis) };
         closure.forget();
 
@@ -27,6 +30,7 @@ impl LeakyInterval {
 
 impl Drop for LeakyInterval {
     fn drop(&mut self) {
+        #[allow(unused_unsafe)]
         unsafe { cancelInterval(self.token); }
     }
 }

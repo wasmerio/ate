@@ -91,7 +91,6 @@ impl Console {
         let exec_factory = ExecFactory::new(
             bins.clone(),
             tty.clone(),
-            pool.clone(),
             reactor.clone(),
             stdout.clone(),
             stderr.clone(),

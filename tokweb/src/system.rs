@@ -1,57 +1,97 @@
 use js_sys::Promise;
-use js_sys::Function;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::*;
-use wasm_bindgen::JsCast;
 use std::future::Future;
 use tokterm::api::abi::SystemAbi;
-use web_sys::Window;
-use web_sys::{console, HtmlElement, HtmlInputElement, Worker};
-use web_sys::{Request, RequestInit, RequestMode, Response};
-use web_sys::{ErrorEvent, MessageEvent, WebSocket};
-
 use tokterm::err;
+use tokio::sync::oneshot;
+use std::pin::Pin;
+use std::sync::Arc;
+
+use super::pool::WebThreadPool;
+use super::ws::WebSocket;
+use tokterm::api::*;
 
 pub struct WebSystem
 {
+    pool: WebThreadPool,
 }
 
-#[async_trait]
+impl WebSystem
+{
+    pub fn new(pool: WebThreadPool) -> WebSystem {
+        WebSystem {
+            pool,
+        }
+    }
+}
+
 impl SystemAbi
 for WebSystem
 {
-    fn spawn<Fut>(&self, future: Fut)
-    where Fut: Future<Output = ()> + Send + 'static
+    fn spawn(&self, future: Pin<Box<dyn Future<Output = ()> + Send + 'static>>)
     {
-        panic!("not yet implemented");
+        self.pool.spawn(future);
+    }
+    
+    fn spawn_blocking(&self, task: Box<dyn FnOnce() + Send + 'static>)
+    {
+        self.pool.spawn_blocking(task);
     }
 
-    fn spawn_blocking<F>(&self, task: F)
-    where F: FnOnce() + Send + 'static
+    fn spawn_local(&self, task: Pin<Box<dyn Future<Output = ()> + 'static>>)
     {
-        panic!("not yet implemented");
+        wasm_bindgen_futures::spawn_local(async move {
+            task.await;
+        });
     }
 
-    fn spawn_local<F>(&self, task: F)
-    where F: Future<Output = ()> + 'static
+    fn sleep(&self, ms: i32) -> Pin<Box<dyn Future<Output=()>>>
     {
-        wasm_bindgen_futures::spawn_local(task)
-    }
-
-    async fn sleep(&self, ms: i32) {
         let promise = sleep(ms);
         let js_fut = JsFuture::from(promise);
-        js_fut.await;
+        Box::pin(async move {
+            let _ = js_fut.await;
+        })
     }
 
-    async fn fetch_file(&self, path: &str) -> Result<Vec<u8>, i32> {
+    fn fetch_file(&self, path: &str) -> Pin<Box<dyn Future<Output=Result<Vec<u8>, i32>>>> {
         let url = path.to_string();
         let headers = vec![("Accept".to_string(), "application/wasm".to_string())];
         let (tx, rx) = oneshot::channel();
         self.spawn_local(Box::pin(async move {
-            tx.send(system.fetch_file(url.as_str(), "GET", headers, None).await);
+            let _ = tx.send(crate::common::fetch_data(url.as_str(), "GET", headers, None).await);
         }));
-        rx.await.map_err(|_| err::ERR_EIO)?
+        Box::pin(async move {
+            rx.await.map_err(|_| err::ERR_EIO)?
+        })
+    }
+
+    fn reqwest(
+        &self,
+        url: &str,
+        method: &str,
+        headers: Vec<(String, String)>,
+        data: Option<Vec<u8>>,
+    ) -> Pin<Box<dyn Future<Output = Result<ReqwestResponse, i32>>>> {
+        let url = url.to_string();
+        let method = method.to_string();
+        Box::pin(async move {
+            let resp = crate::common::fetch(url.as_str(), method.as_str(), headers, data).await?;
+
+            let resp = ReqwestResponse {
+                ok: resp.ok(),
+                redirected: resp.redirected(),
+                status: resp.status(),
+                status_text: resp.status_text(),
+                data: crate::common::get_response_data(resp).await?
+            };
+            Ok(resp)
+        })
+    }
+
+    fn web_socket(&self, url: &str) -> Result<Arc<dyn WebSocketAbi>, String> {
+        WebSocket::new(url)
     }
 }
 

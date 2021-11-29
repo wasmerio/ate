@@ -1,7 +1,10 @@
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-
-use tokterm::api::*;
+use js_sys::Function;
+use wasm_bindgen::prelude::*;
+use wasm_bindgen_futures::*;
+use wasm_bindgen::JsCast;
+use web_sys::*;
 use std::cell::Cell;
 
 use super::err;
@@ -164,14 +167,6 @@ pub async fn fetch(
             _ => err::ERR_EIO,
         });
     }
-
-    let resp = ReqwestResponse {
-        ok: resp.ok(),
-        redirected: resp.redirected(),
-        status: resp.status(),
-        status_text: resp.status_text(),
-        data: get_response_data(resp).await?
-    };
 
     Ok(resp)
 }

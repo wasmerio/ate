@@ -17,6 +17,10 @@ use xterm_js_rs::addons::webgl::WebglAddon;
 
 use xterm_js_rs::{LogLevel, OnKeyEvent, Terminal, TerminalOptions};
 
+use crate::system::WebSystem;
+
+use tokterm::common::MAX_MPSC;
+use tokterm::api::System;
 use super::common::*;
 use super::console::Console;
 use super::pool::*;
@@ -70,8 +74,12 @@ pub fn start() -> Result<(), JsValue> {
             .with_theme(&Theme::new()),
     );
 
-    let window = web_sys::window().unwrap();
+    let pool = WebThreadPool::new_with_max_threads(terminal.clone().dyn_into().unwrap()).unwrap();
+    let system = WebSystem::new(pool.clone());
+    tokterm::api::set_system_abi(system);
+    let _system = System::default();
 
+    let window = web_sys::window().unwrap();
     let location = window.location().href().unwrap();
 
     let user_agent = USER_AGENT.clone();
@@ -95,8 +103,6 @@ pub fn start() -> Result<(), JsValue> {
         .dyn_into::<HtmlCanvasElement>()
         .map_err(|_| ())
         .unwrap();
-
-    let pool = WebThreadPool::new_with_max_threads(terminal.clone().dyn_into().unwrap()).unwrap();
 
     let mut console = Console::new(
         terminal.clone().dyn_into().unwrap(),
