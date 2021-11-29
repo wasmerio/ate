@@ -76,7 +76,7 @@ pub fn pipe(mode: ReceiverMode) -> (Fd, Fd) {
     let system = System::default();
     let (fd_rx, tx2) = pipe_in(mode);
     let (fd_tx, mut rx2) = pipe_out();
-    system.spawn_local_shared_task(async move {
+    system.fork_local(async move {
         while let Some(data) = rx2.recv().await {
             let _ = tx2.send(data).await;
         }

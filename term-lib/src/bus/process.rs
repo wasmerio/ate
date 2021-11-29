@@ -1,5 +1,5 @@
-use crate::common::MAX_MPSC;
 use async_trait::async_trait;
+use derivative::*;
 use std::any::type_name;
 use std::collections::HashMap;
 use std::ops::Deref;
@@ -31,9 +31,17 @@ struct ProcessExecCreate {
     on_stderr: Option<WasmBusFeeder>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Derivative, Clone)]
+#[derivative(Debug)]
 pub struct ProcessExecFactory {
-    maker: mpsc::Sender<ProcessExecCreate>,
+    system: System,
+    #[derivative(Debug = "ignore")]
+    reactor: Arc<RwLock<Reactor>>,
+    #[derivative(Debug = "ignore")]
+    exec_factory: ExecFactory,
+    inherit_stdin: WeakFd,
+    inherit_stdout: WeakFd,
+    inherit_stderr: WeakFd,
 }
 
 impl ProcessExecFactory {
@@ -45,116 +53,14 @@ impl ProcessExecFactory {
         inherit_stderr: WeakFd,
     ) -> ProcessExecFactory {
         let system = System::default();
-        let (tx_factory, mut rx_factory) = mpsc::channel::<ProcessExecCreate>(MAX_MPSC);
-        system.spawn_local_shared_task(async move {
-            while let Some(create) = rx_factory.recv().await {
-                let reactor = reactor.clone();
-                let inherit_stdin = inherit_stdin.upgrade();
-                let inherit_stdout = inherit_stdout.upgrade();
-                let inherit_stderr = inherit_stderr.upgrade();
-                let exec_factory = exec_factory.clone();
-                system.spawn_local_shared_task(async move {
-                    let path = create.request.path;
-                    let args = create.request.args;
-                    let current_dir = create.request.current_dir;
-                    let stdin_mode = create.request.stdin_mode;
-                    let stdout_mode = create.request.stdout_mode;
-                    let stderr_mode = create.request.stderr_mode;
-                    let pre_open = create.request.pre_open;
-                    let reactor = reactor.clone();
-                    let on_stdout = create.on_stdout;
-                    let on_stderr = create.on_stderr;
-
-                    let resp = move || async move {
-                        // Build the comand string
-                        let mut cmd = path.clone();
-                        for arg in args {
-                            cmd.push_str(" ");
-                            if arg.contains(" ")
-                                && cmd.starts_with("\"") == false
-                                && cmd.starts_with("'") == false
-                            {
-                                cmd.push_str("\"");
-                                cmd.push_str(&arg);
-                                cmd.push_str("\"");
-                            } else {
-                                cmd.push_str(&arg);
-                            }
-                        }
-
-                        // Get the current job (if there is none then fail)
-                        let job = {
-                            let reactor = reactor.read().await;
-                            reactor.get_current_job().ok_or(err::ERR_ECHILD)?
-                        };
-
-                        // Create all the stdio
-                        let (stdin, stdin_tx) = pipe_in(ReceiverMode::Stream);
-                        let (stdout, stdout_rx) = pipe_out();
-                        let (stderr, stderr_rx) = pipe_out();
-
-                        // Perform hooks back to the main stdio
-                        let (stdin, stdin_tx) = match stdin_mode {
-                            StdioMode::Null => (stdin, None),
-                            StdioMode::Inherit if inherit_stdin.is_some() => {
-                                (inherit_stdin.unwrap(), None)
-                            }
-                            StdioMode::Inherit => (stdin, None),
-                            StdioMode::Piped => (stdin, Some(stdin_tx)),
-                        };
-                        let (stdout, stdout_rx) = match stdout_mode {
-                            StdioMode::Null => (stdout, None),
-                            StdioMode::Inherit if inherit_stdout.is_some() => {
-                                (inherit_stdout.unwrap(), None)
-                            }
-                            StdioMode::Inherit => (stdout, None),
-                            StdioMode::Piped => (stdout, Some(stdout_rx)),
-                        };
-                        let (stderr, stderr_rx) = match stderr_mode {
-                            StdioMode::Null => (stderr, None),
-                            StdioMode::Inherit if inherit_stderr.is_some() => {
-                                (inherit_stderr.unwrap(), None)
-                            }
-                            StdioMode::Inherit => (stderr, None),
-                            StdioMode::Piped => (stderr, Some(stderr_rx)),
-                        };
-
-                        // Build a context
-                        let ctx = SpawnContext::new(
-                            cmd,
-                            job.env.deref().clone(),
-                            job.clone(),
-                            stdin,
-                            stdout,
-                            stderr,
-                            current_dir.unwrap_or(job.working_dir.clone()),
-                            pre_open,
-                            job.root.clone(),
-                        );
-
-                        // Start the process
-                        let eval_rx = exec_factory.spawn(ctx).await;
-
-                        // Build the invokable process and return it to the caller
-                        let ret = ProcessCreated {
-                            invoker: ProcessExecInvokable {
-                                stdout: stdout_rx,
-                                stderr: stderr_rx,
-                                eval_rx: Some(eval_rx),
-                                on_stdout,
-                                on_stderr,
-                            },
-                            session: ProcessExecSession { stdin: stdin_tx },
-                        };
-
-                        // We are done (this will close all the pipes)
-                        Ok(ret)
-                    };
-                    let _ = create.result.send(resp().await).await;
-                });
-            }
-        });
-        ProcessExecFactory { maker: tx_factory }
+        ProcessExecFactory {
+            system,
+            reactor,
+            exec_factory,
+            inherit_stdin,
+            inherit_stdout,
+            inherit_stderr,
+        }
     }
 
     pub fn create(
@@ -162,18 +68,122 @@ impl ProcessExecFactory {
         request: Spawn,
         mut client_callbacks: HashMap<String, WasmBusFeeder>,
     ) -> Result<(Box<dyn Invokable>, Option<Box<dyn Session>>), CallError> {
+        // Grab the callbacks and build the requiest
         let on_stdout = client_callbacks.remove(&type_name::<DataStdout>().to_string());
         let on_stderr = client_callbacks.remove(&type_name::<DataStderr>().to_string());
 
         let (tx_result, mut rx_result) = mpsc::channel(1);
-        let request = ProcessExecCreate {
+        let create = ProcessExecCreate {
             request,
             result: tx_result,
             on_stdout,
             on_stderr,
         };
 
-        let _ = self.maker.blocking_send(request);
+        // Push all the cloned variables into a background thread so
+        // that it does not hurt anything
+        let reactor = self.reactor.clone();
+        let inherit_stdin = self.inherit_stdin.upgrade();
+        let inherit_stdout = self.inherit_stdout.upgrade();
+        let inherit_stderr = self.inherit_stderr.upgrade();
+        let exec_factory = self.exec_factory.clone();
+        self.system.spawn_shared(move || async move {
+            let path = create.request.path;
+            let args = create.request.args;
+            let current_dir = create.request.current_dir;
+            let stdin_mode = create.request.stdin_mode;
+            let stdout_mode = create.request.stdout_mode;
+            let stderr_mode = create.request.stderr_mode;
+            let pre_open = create.request.pre_open;
+            let reactor = reactor.clone();
+            let on_stdout = create.on_stdout;
+            let on_stderr = create.on_stderr;
+
+            let resp = move || async move {
+                // Build the comand string
+                let mut cmd = path.clone();
+                for arg in args {
+                    cmd.push_str(" ");
+                    if arg.contains(" ")
+                        && cmd.starts_with("\"") == false
+                        && cmd.starts_with("'") == false
+                    {
+                        cmd.push_str("\"");
+                        cmd.push_str(&arg);
+                        cmd.push_str("\"");
+                    } else {
+                        cmd.push_str(&arg);
+                    }
+                }
+
+                // Get the current job (if there is none then fail)
+                let job = {
+                    let reactor = reactor.read().await;
+                    reactor.get_current_job().ok_or(err::ERR_ECHILD)?
+                };
+
+                // Create all the stdio
+                let (stdin, stdin_tx) = pipe_in(ReceiverMode::Stream);
+                let (stdout, stdout_rx) = pipe_out();
+                let (stderr, stderr_rx) = pipe_out();
+
+                // Perform hooks back to the main stdio
+                let (stdin, stdin_tx) = match stdin_mode {
+                    StdioMode::Null => (stdin, None),
+                    StdioMode::Inherit if inherit_stdin.is_some() => (inherit_stdin.unwrap(), None),
+                    StdioMode::Inherit => (stdin, None),
+                    StdioMode::Piped => (stdin, Some(stdin_tx)),
+                };
+                let (stdout, stdout_rx) = match stdout_mode {
+                    StdioMode::Null => (stdout, None),
+                    StdioMode::Inherit if inherit_stdout.is_some() => {
+                        (inherit_stdout.unwrap(), None)
+                    }
+                    StdioMode::Inherit => (stdout, None),
+                    StdioMode::Piped => (stdout, Some(stdout_rx)),
+                };
+                let (stderr, stderr_rx) = match stderr_mode {
+                    StdioMode::Null => (stderr, None),
+                    StdioMode::Inherit if inherit_stderr.is_some() => {
+                        (inherit_stderr.unwrap(), None)
+                    }
+                    StdioMode::Inherit => (stderr, None),
+                    StdioMode::Piped => (stderr, Some(stderr_rx)),
+                };
+
+                // Build a context
+                let ctx = SpawnContext::new(
+                    cmd,
+                    job.env.deref().clone(),
+                    job.clone(),
+                    stdin,
+                    stdout,
+                    stderr,
+                    current_dir.unwrap_or(job.working_dir.clone()),
+                    pre_open,
+                    job.root.clone(),
+                );
+
+                // Start the process
+                let eval_rx = exec_factory.spawn(ctx).await;
+
+                // Build the invokable process and return it to the caller
+                let ret = ProcessCreated {
+                    invoker: ProcessExecInvokable {
+                        stdout: stdout_rx,
+                        stderr: stderr_rx,
+                        eval_rx: Some(eval_rx),
+                        on_stdout,
+                        on_stderr,
+                    },
+                    session: ProcessExecSession { stdin: stdin_tx },
+                };
+
+                // We are done (this will close all the pipes)
+                Ok(ret)
+            };
+            let _ = create.result.send(resp().await).await;
+        });
 
         let ret = match rx_result
             .blocking_recv()

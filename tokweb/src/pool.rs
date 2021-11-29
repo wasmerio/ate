@@ -24,7 +24,9 @@ use super::fd::*;
 use super::interval::*;
 use super::tty::Tty;
 
-pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+pub type BoxRunDedicated<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+pub type BoxRunShared<'a, T> =
+    Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = T> + 'static>> + Send + 'a>;
 
 trait AssertSendSync: Send + Sync {}
 impl AssertSendSync for WebThreadPool {}
@@ -37,8 +39,8 @@ pub struct WebThreadPool {
 }
 
 enum Message {
-    RunShared(BoxFuture<'static, ()>),
-    RunDedicated(BoxFuture<'static, ()>),
+    RunShared(BoxRunShared<'static, ()>),
+    RunDedicated(BoxRunDedicated<'static, ()>),
     Close,
 }
 
@@ -192,7 +194,7 @@ impl WebThreadPool {
         Self::new(pool_size, terminal)
     }
 
-    pub fn spawn_shared(&self, task: Pin<Box<dyn Future<Output = ()> + Send + 'static>>) {
+    pub fn spawn_shared(&self, task: BoxRunShared<'static, ()>) {
         self.pool_reactors.send(Message::RunShared(task));
     }
 
@@ -316,7 +318,12 @@ impl ThreadState {
                             task.await;
                             pool.idle.fetch_add(1, Ordering::Relaxed);
                         }
-                        Message::RunShared(future) => wasm_bindgen_futures::spawn_local(future),
+                        Message::RunShared(task) => {
+                            let future = task();
+                            wasm_bindgen_futures::spawn_local(async move {
+                                future.await;
+                            });
+                        }
                         Message::Close => {
                             debug!("pool - thread closed");
                             break;

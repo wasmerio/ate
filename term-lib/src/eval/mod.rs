@@ -77,7 +77,7 @@ pub(crate) async fn eval(mut ctx: EvalContext) -> mpsc::Receiver<EvalPlan> {
     let parser = grammar::programParser::new();
 
     let (tx, rx) = mpsc::channel(1);
-    system.spawn_local_shared_task(async move {
+    system.fork_local(async move {
         let input = ctx.input.clone();
         match parser.parse(input.as_str()) {
             Ok(program) => {

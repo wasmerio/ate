@@ -26,9 +26,12 @@ export function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+export function isWorker() {
+    return 'WorkerGlobalScope' in self && self instanceof WorkerGlobalScope;
+}
+
 // Second: Entry script for the actual web worker.
-if ('WorkerGlobalScope' in self &&
-    self instanceof WorkerGlobalScope) {
+if (isWorker()) {
 
     //console.log("pool::worker(entry) started");
     Error.stackTraceLimit = 50;

@@ -172,7 +172,7 @@ pub fn start() -> Result<(), JsValue> {
             );
 
             let tty = tty.clone();
-            system.spawn_local_shared_task(async move {
+            system.fork_local(async move {
                 let cols = terminal.get_cols();
                 let rows = terminal.get_rows();
                 tty.set_bounds(cols, rows).await;
@@ -188,7 +188,7 @@ pub fn start() -> Result<(), JsValue> {
 
     terminal.focus();
 
-    system.spawn_local_shared_task(async move {
+    system.fork_local(async move {
         console.init().await;
 
         let mut last = None;

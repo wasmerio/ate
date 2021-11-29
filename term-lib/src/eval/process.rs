@@ -58,8 +58,8 @@ impl Process {
 
     pub fn terminate(&self, exit_code: i32) {
         let tx = self.exit_tx.clone();
-        self.system.spawn_dedicated_task(async move {
-            tx.send(Some(exit_code));
+        self.system.fork_dedicated(async move {
+            let _ = tx.send(Some(exit_code));
         });
     }
 }

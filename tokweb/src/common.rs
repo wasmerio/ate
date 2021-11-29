@@ -152,8 +152,17 @@ pub async fn fetch(
                 .map_err(|_| err::ERR_EIO)?;
         }
 
-        let window = web_sys::window().unwrap();
-        JsFuture::from(window.fetch_with_request(&request))
+        if is_worker() {
+            let global = js_sys::global();
+            JsFuture::from(
+                global
+                    .dyn_into::<WorkerGlobalScope>()
+                    .unwrap()
+                    .fetch_with_request(&request),
+            )
+        } else {
+            JsFuture::from(web_sys::window().unwrap().fetch_with_request(&request))
+        }
     };
 
     let resp_value = request.await.map_err(|_| err::ERR_EIO)?;
@@ -206,4 +215,10 @@ pub fn is_mobile(user_agent: &str) -> bool {
         || user_agent.contains("Open Mini")
         || user_agent.contains("IEMobile")
         || user_agent.contains("WPDesktop")
+}
+
+#[wasm_bindgen(module = "/public/worker.js")]
+extern "C" {
+    #[wasm_bindgen(js_name = "isWorker")]
+    fn is_worker() -> bool;
 }

@@ -144,7 +144,7 @@ pub async fn exec(
                 let system = ctx.system;
                 let is_read = redirect.op.read();
                 let is_write = redirect.op.write();
-                system.spawn_shared_task(async move {
+                system.fork_shared(async move {
                     if is_read {
                         let mut buf = [0u8; 4096];
                         while let Ok(read) = file.read(&mut buf) {
@@ -207,7 +207,7 @@ pub async fn exec(
     let path = ctx.path.clone();
     let process2 = process.clone();
     let preopen = ctx.pre_open.clone();
-    ctx.system.spawn_dedicated_task(async move {
+    ctx.system.fork_dedicated(async move {
         // Compile the module (which)
         let _ = tty.write("Compiling...".as_bytes()).await;
         let store = Store::default();

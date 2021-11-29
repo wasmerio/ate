@@ -23,15 +23,18 @@ impl WebSystem {
 }
 
 impl SystemAbi for WebSystem {
-    fn spawn_shared(&self, future: Pin<Box<dyn Future<Output = ()> + Send + 'static>>) {
-        self.pool.spawn_shared(future);
+    fn task_shared(
+        &self,
+        task: Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
+    ) {
+        self.pool.spawn_shared(task);
     }
 
-    fn spawn_dedicated(&self, task: Pin<Box<dyn Future<Output = ()> + Send + 'static>>) {
+    fn task_dedicated(&self, task: Pin<Box<dyn Future<Output = ()> + Send + 'static>>) {
         self.pool.spawn_dedicated(task);
     }
 
-    fn spawn_local_shared(&self, task: Pin<Box<dyn Future<Output = ()> + 'static>>) {
+    fn task_local(&self, task: Pin<Box<dyn Future<Output = ()> + 'static>>) {
         wasm_bindgen_futures::spawn_local(async move {
             task.await;
         });
@@ -49,7 +52,7 @@ impl SystemAbi for WebSystem {
         let url = path.to_string();
         let headers = vec![("Accept".to_string(), "application/wasm".to_string())];
         let (tx, rx) = oneshot::channel();
-        self.spawn_local_shared(Box::pin(async move {
+        self.task_local(Box::pin(async move {
             let _ = tx.send(crate::common::fetch_data(url.as_str(), "GET", headers, None).await);
         }));
         Box::pin(async move { rx.await.map_err(|_| err::ERR_EIO)? })

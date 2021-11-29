@@ -5,6 +5,7 @@ use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
 
 use super::*;
+use crate::api::AsyncResult;
 
 #[async_trait]
 pub trait Invokable
@@ -63,5 +64,17 @@ where
 {
     async fn process(&mut self) -> Result<Vec<u8>, CallError> {
         Ok(encode_response(&self.value)?)
+    }
+}
+
+#[async_trait]
+impl<T> Invokable for AsyncResult<T>
+where
+    Self: Send + 'static,
+    T: Serialize + Send,
+{
+    async fn process(&mut self) -> Result<Vec<u8>, CallError> {
+        let result = self.rx.recv().await.ok_or_else(|| CallError::Aborted)?;
+        Ok(encode_response(&result)?)
     }
 }

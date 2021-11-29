@@ -72,7 +72,7 @@ impl Console {
         {
             let state = state.clone();
             let terminal: Terminal = terminal.clone().dyn_into().unwrap();
-            system.spawn_local_shared_task(async move {
+            system.fork_local(async move {
                 while let Some(data) = tty_rx.recv().await {
                     let text = String::from_utf8_lossy(&data[..])[..].replace("\n", "\r\n");
                     terminal.write(text.as_str());
@@ -242,7 +242,7 @@ impl Console {
         // of the process that we just started
         let system = System::default();
         let state = self.state.clone();
-        system.spawn_local_shared_task(async move {
+        system.fork_local(async move {
             // Wait for the process to finish
             let rx = process.recv().await;
             drop(process);
