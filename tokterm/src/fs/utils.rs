@@ -1,5 +1,5 @@
-use std::path::Path;
 use crate::wasmer_vfs::FileSystem;
+use std::path::Path;
 
 use super::*;
 

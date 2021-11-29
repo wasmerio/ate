@@ -1,10 +1,3 @@
-use std::cell::RefCell;
-use std::cell::RefMut;
-use std::collections::HashMap;
-use std::future::Future;
-use std::pin::Pin;
-use std::sync::Arc;
-use std::sync::RwLock;
 use crate::wasmer::Array;
 use crate::wasmer::ImportObject;
 use crate::wasmer::LazyInit;
@@ -14,6 +7,13 @@ use crate::wasmer::NativeFunc;
 use crate::wasmer::WasmPtr;
 use crate::wasmer::WasmerEnv;
 use crate::wasmer_wasi::WasiThread;
+use std::cell::RefCell;
+use std::cell::RefMut;
+use std::collections::HashMap;
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::sync::RwLock;
 
 use super::*;
 

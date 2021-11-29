@@ -1,12 +1,13 @@
-use std::sync::Mutex;
-use once_cell::sync::Lazy;
-use std::sync::Arc;
-use std::ops::Deref;
 use derivative::*;
+use once_cell::sync::Lazy;
+use std::ops::Deref;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 use super::*;
 
-static SYSTEM_CONTROL: Lazy<Mutex<Option<Arc<dyn SystemAbi + Send + Sync + 'static>>>> = Lazy::new(|| Mutex::new(None));
+static SYSTEM_CONTROL: Lazy<Mutex<Option<Arc<dyn SystemAbi + Send + Sync + 'static>>>> =
+    Lazy::new(|| Mutex::new(None));
 
 static SYSTEM_LOAD: Lazy<&'static (dyn SystemAbi + Send + Sync + 'static)> = Lazy::new(|| {
     let system = SYSTEM_CONTROL
@@ -33,15 +34,12 @@ pub fn set_system_abi(system: impl SystemAbi + Send + Sync + 'static) {
 
 #[derive(Derivative, Clone, Copy)]
 #[derivative(Debug)]
-pub struct System
-{
+pub struct System {
     #[derivative(Debug = "ignore")]
-    pub inner: &'static dyn SystemAbi
+    pub inner: &'static dyn SystemAbi,
 }
 
-impl Deref
-for System
-{
+impl Deref for System {
     type Target = dyn SystemAbi;
 
     fn deref(&self) -> &Self::Target {
@@ -49,17 +47,13 @@ for System
     }
 }
 
-impl Default
-for System
-{
+impl Default for System {
     fn default() -> System {
         let inner = SYSTEM_LOAD.deref();
         let inner = *inner;
-        System {
-            inner
-        }
+        System { inner }
     }
 }
 
-unsafe impl Send for System { }
-unsafe impl Sync for System { }
+unsafe impl Send for System {}
+unsafe impl Sync for System {}

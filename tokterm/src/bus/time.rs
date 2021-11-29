@@ -22,15 +22,18 @@ impl TimeFactory {
     pub fn new() -> TimeFactory {
         let system = System::default();
         let (tx_factory, mut rx_factory) = mpsc::channel::<TimeDelay>(MAX_MPSC);
-        system.spawn_local_task(async move {
+        system.spawn_local_shared_task(async move {
             while let Some(create) = rx_factory.recv().await {
-                system.spawn_local_task(async move {
+                system.spawn_local_shared_task(async move {
                     let _ = system.sleep(create.duration_ms as i32).await;
                     let _ = create.result.send(()).await;
                 });
             }
         });
-        TimeFactory { system, maker: tx_factory }
+        TimeFactory {
+            system,
+            maker: tx_factory,
+        }
     }
 
     pub fn create(&self, request: Sleep) -> SleepInvokable {

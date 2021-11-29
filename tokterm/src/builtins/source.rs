@@ -4,13 +4,13 @@ use std::pin::Pin;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
-use crate::wasmer_vfs::FileSystem;
 use crate::err;
 use crate::eval::eval;
 use crate::eval::EvalContext;
 use crate::eval::EvalPlan;
 use crate::eval::ExecResponse;
 use crate::stdio::*;
+use crate::wasmer_vfs::FileSystem;
 
 pub(super) fn source(
     args: &[String],

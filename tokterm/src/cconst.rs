@@ -1,6 +1,6 @@
 use super::tty::Tty;
 
-pub struct ConsoleConst { }
+pub struct ConsoleConst {}
 
 impl ConsoleConst {
     pub const TERM_KEY_ENTER: u32 = 13;

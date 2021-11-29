@@ -1,8 +1,7 @@
-pub struct ReqwestResponse
-{
+pub struct ReqwestResponse {
     pub ok: bool,
     pub redirected: bool,
     pub status: u16,
     pub status_text: String,
-    pub data: Vec<u8>
+    pub data: Vec<u8>,
 }

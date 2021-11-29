@@ -3,11 +3,11 @@ use serde::*;
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
 
+use super::*;
 use crate::wasmer::Array;
 use crate::wasmer::Memory;
 use crate::wasmer::NativeFunc;
 use crate::wasmer::WasmPtr;
-use super::*;
 
 #[derive(Clone)]
 pub struct WasmBusFeeder {

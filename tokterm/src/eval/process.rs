@@ -5,9 +5,9 @@ use tokio::sync::watch;
 use tracing::{debug, error, info, trace, warn};
 
 use crate::api::*;
-use crate::wasmer_wasi::WasiEnv;
 use crate::common::*;
 use crate::err::*;
+use crate::wasmer_wasi::WasiEnv;
 
 pub struct Process {
     pub(crate) system: System,
@@ -58,7 +58,7 @@ impl Process {
 
     pub fn terminate(&self, exit_code: i32) {
         let tx = self.exit_tx.clone();
-        self.system.spawn_blocking_task(move || {
+        self.system.spawn_dedicated_task(async move {
             tx.send(Some(exit_code));
         });
     }

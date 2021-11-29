@@ -2,10 +2,10 @@ use std::future::Future;
 use std::path::Path;
 use std::pin::Pin;
 
-use crate::wasmer_vfs::FileSystem;
 use crate::eval::EvalContext;
 use crate::eval::ExecResponse;
 use crate::stdio::*;
+use crate::wasmer_vfs::FileSystem;
 
 pub(super) fn cd(
     args: &[String],

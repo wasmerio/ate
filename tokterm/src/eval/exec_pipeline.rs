@@ -3,9 +3,9 @@ use std::ops::Deref;
 use super::*;
 use crate::ast;
 use crate::pipe::*;
-use tokio::select;
 use crate::wasmer_vfs::FileSystem;
 use crate::wasmer_vfs::FsError;
+use tokio::select;
 
 pub(super) async fn exec_pipeline<'a>(
     ctx: &mut EvalContext,

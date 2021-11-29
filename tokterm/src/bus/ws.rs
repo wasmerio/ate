@@ -9,8 +9,8 @@ use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
 use wasm_bus::backend::ws::*;
 
-use crate::api::*;
 use super::*;
+use crate::api::*;
 
 struct WebSocketCreate {
     connect: Connect,
@@ -29,7 +29,7 @@ impl WebSocketFactory {
     pub fn new() -> WebSocketFactory {
         let system = System::default();
         let (tx_factory, mut rx_factory) = mpsc::channel::<WebSocketCreate>(MAX_MPSC);
-        system.spawn_local_task(async move {
+        system.spawn_local_shared_task(async move {
             while let Some(create) = rx_factory.recv().await {
                 // Construct the channels
                 let (tx_recv, rx_recv) = mpsc::channel(MAX_MPSC);
@@ -59,7 +59,7 @@ impl WebSocketFactory {
                         if let Some(mut rx_send) = rx_send.take() {
                             let url = url.clone();
                             let ws_sys = ws_sys_inner.clone();
-                            system.spawn_local_task(async move {
+                            system.spawn_local_shared_task(async move {
                                 while let Some(request) = rx_send.recv().await {
                                     let data = request.data;
                                     let data_len = data.len();
@@ -85,10 +85,7 @@ impl WebSocketFactory {
                 {
                     let tx = tx_recv.clone();
                     ws_sys.set_onmessage(Box::new(move |data| {
-                        debug!(
-                            "websocket recv {} bytes",
-                            data.len()
-                        );
+                        debug!("websocket recv {} bytes", data.len());
                         if let Err(err) = tx.blocking_send(data) {
                             trace!("websocket bytes silently dropped - {}", err);
                         }
@@ -111,7 +108,7 @@ impl WebSocketFactory {
 
         WebSocketFactory {
             system,
-            maker: tx_factory
+            maker: tx_factory,
         }
     }
 

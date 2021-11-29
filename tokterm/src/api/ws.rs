@@ -2,8 +2,7 @@ use async_trait::async_trait;
 
 // This ABI implements a general purpose web socket
 #[async_trait]
-pub trait WebSocketAbi
-{
+pub trait WebSocketAbi {
     fn set_onopen(&self, callback: Box<dyn FnMut()>);
 
     fn set_onclose(&self, callback: Box<dyn Fn()>);

@@ -17,11 +17,6 @@ use tracing::{debug, error, info, trace, warn};
 use super::*;
 
 use crate::api::*;
-use crate::wasmer::{ChainableNamedResolver, Instance, Module, Store};
-use crate::wasmer_vfs::FileSystem;
-use crate::wasmer_vfs::FsError;
-use crate::wasmer_wasi::Stdin;
-use crate::wasmer_wasi::{Stdout, WasiError, WasiState};
 use crate::bin::*;
 use crate::builtins::*;
 use crate::bus::*;
@@ -36,6 +31,11 @@ use crate::poll::*;
 use crate::reactor::*;
 use crate::state::*;
 use crate::stdio::*;
+use crate::wasmer::{ChainableNamedResolver, Instance, Module, Store};
+use crate::wasmer_vfs::FileSystem;
+use crate::wasmer_vfs::FsError;
+use crate::wasmer_wasi::Stdin;
+use crate::wasmer_wasi::{Stdout, WasiError, WasiState};
 
 pub enum ExecResponse {
     Immediate(i32),
@@ -140,23 +140,21 @@ pub async fn exec(
                     (tx, rx)
                 };
 
-                // Now hook up the sender and receiver
+                // Now hook up the sender and receiver on a shared task
                 let system = ctx.system;
                 let is_read = redirect.op.read();
                 let is_write = redirect.op.write();
-                system.spawn_blocking_task(move || {
+                system.spawn_shared_task(async move {
                     if is_read {
                         let mut buf = [0u8; 4096];
                         while let Ok(read) = file.read(&mut buf) {
-                            let _ = tx.blocking_send((&buf[0..read]).to_vec());
+                            let _ = tx.send((&buf[0..read]).to_vec()).await;
                         }
                     }
                     if is_write {
-                        system.spawn_local_task(async move {
-                            while let Some(data) = rx.recv().await {
-                                let _ = file.write_all(&data[..]);
-                            }
-                        });
+                        while let Some(data) = rx.recv().await {
+                            let _ = file.write_all(&data[..]);
+                        }
                     }
                 });
             }
@@ -209,9 +207,9 @@ pub async fn exec(
     let path = ctx.path.clone();
     let process2 = process.clone();
     let preopen = ctx.pre_open.clone();
-    ctx.system.spawn_blocking_task(move || {
+    ctx.system.spawn_dedicated_task(async move {
         // Compile the module (which)
-        let _ = tty.blocking_write("Compiling...".as_bytes());
+        let _ = tty.write("Compiling...".as_bytes()).await;
         let store = Store::default();
         let module = match Module::new(&store, &data[..]) {
             Ok(a) => a,
@@ -278,6 +276,7 @@ pub async fn exec(
         let mut wasi_env = match wasi_env.set_fs(fs).finalize() {
             Ok(a) => a,
             Err(err) => {
+                drop(module);
                 tty.blocking_write_clear_line();
                 let _ = tty.blocking_write(format!("exec error: {}\n", err.to_string()).as_bytes());
                 process.terminate(ERR_ENOEXEC);

@@ -6,8 +6,8 @@ use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
 use wasm_bus::backend::reqwest::*;
 
-use crate::api::*;
 use super::*;
+use crate::api::*;
 
 struct WebRequestCreate {
     request: Request,
@@ -23,9 +23,9 @@ impl WebRequestFactory {
     pub fn new() -> WebRequestFactory {
         let system = System::default();
         let (tx_factory, mut rx_factory) = mpsc::channel::<WebRequestCreate>(MAX_MPSC);
-        system.spawn_local_task(async move {
+        system.spawn_local_shared_task(async move {
             while let Some(create) = rx_factory.recv().await {
-                system.spawn_local_task(async move {
+                system.spawn_local_shared_task(async move {
                     let url = create.request.url;
                     let method = create.request.method;
                     let headers = create.request.headers;
@@ -40,7 +40,7 @@ impl WebRequestFactory {
                         let headers = Vec::new();
                         // we can't implement this as the method resp.headers().keys() is missing!
                         // how else are we going to parse the headers
-                        
+
                         debug!("received {} bytes", resp.data.len());
                         let resp = Response {
                             ok: resp.ok,

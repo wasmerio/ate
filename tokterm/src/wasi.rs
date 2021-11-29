@@ -19,9 +19,7 @@ use crate::wasmer_wasi::{
 */
 
 use crate::wasmer_vfs::{FsError, VirtualFile};
-use crate::wasmer_wasi::{
-    types::*, WasiEnv
-};
+use crate::wasmer_wasi::{types::*, WasiEnv};
 
 use super::fd::*;
 

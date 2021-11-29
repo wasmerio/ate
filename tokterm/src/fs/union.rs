@@ -1,11 +1,11 @@
 #![allow(dead_code)]
 #![allow(unused)]
+use crate::wasmer_vfs::*;
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use crate::wasmer_vfs::*;
 
 #[derive(Debug, Clone)]
 struct MountPoint {

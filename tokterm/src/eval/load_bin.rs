@@ -7,11 +7,11 @@ use std::path::PathBuf;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
-use crate::wasmer_vfs::FileSystem;
 use super::EvalContext;
 use crate::err::*;
 use crate::fs::*;
 use crate::stdio::*;
+use crate::wasmer_vfs::FileSystem;
 
 pub async fn load_bin(
     ctx: &mut EvalContext,

@@ -19,14 +19,14 @@ use tokio::sync::Mutex as AsyncMutex;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
-use crate::wasmer_vfs::{FileDescriptor, VirtualFile};
-use crate::wasmer_wasi::{types as wasi_types, WasiFile, WasiFsError};
 use super::common::*;
 use super::err::*;
 use super::pipe::*;
 use super::poll::*;
 use super::reactor::*;
 use super::state::*;
+use crate::wasmer_vfs::{FileDescriptor, VirtualFile};
+use crate::wasmer_wasi::{types as wasi_types, WasiFile, WasiFsError};
 
 #[derive(Debug, Clone)]
 pub struct Fd {

@@ -4,7 +4,6 @@ use tokio::sync::mpsc;
 use tracing::{debug, error, info, trace, warn};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use wasm_bindgen_futures::spawn_local;
 use web_sys::HtmlCanvasElement;
 use web_sys::KeyboardEvent;
 
@@ -20,7 +19,7 @@ use xterm_js_rs::{LogLevel, OnKeyEvent, Terminal, TerminalOptions};
 use crate::system::WebSystem;
 
 use tokterm::common::MAX_MPSC;
-use tokterm::api::System;
+use tokterm::api::*;
 use super::common::*;
 use super::console::Console;
 use super::pool::*;
@@ -77,7 +76,7 @@ pub fn start() -> Result<(), JsValue> {
     let pool = WebThreadPool::new_with_max_threads(terminal.clone().dyn_into().unwrap()).unwrap();
     let system = WebSystem::new(pool.clone());
     tokterm::api::set_system_abi(system);
-    let _system = System::default();
+    let system = System::default();
 
     let window = web_sys::window().unwrap();
     let location = window.location().href().unwrap();
@@ -175,7 +174,7 @@ pub fn start() -> Result<(), JsValue> {
             );
 
             let tty = tty.clone();
-            wasm_bindgen_futures::spawn_local(async move {
+            system.spawn_local_shared_task(async move {
                 let cols = terminal.get_cols();
                 let rows = terminal.get_rows();
                 tty.set_bounds(cols, rows).await;
@@ -191,7 +190,7 @@ pub fn start() -> Result<(), JsValue> {
 
     terminal.focus();
 
-    spawn_local(async move {
+    system.spawn_local_shared_task(async move {
         console.init().await;
 
         let mut last = None;

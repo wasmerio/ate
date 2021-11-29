@@ -25,7 +25,6 @@ use super::interval::*;
 use super::tty::Tty;
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
-pub type BoxTask<'a, T> = Box<dyn FnOnce() -> T + Send + 'a>;
 
 trait AssertSendSync: Send + Sync {}
 impl AssertSendSync for WebThreadPool {}
@@ -38,8 +37,8 @@ pub struct WebThreadPool {
 }
 
 enum Message {
-    RunAsync(BoxFuture<'static, ()>),
-    Run(BoxTask<'static, ()>),
+    RunShared(BoxFuture<'static, ()>),
+    RunDedicated(BoxFuture<'static, ()>),
     Close,
 }
 
@@ -193,14 +192,14 @@ impl WebThreadPool {
         Self::new(pool_size, terminal)
     }
 
-    pub fn spawn(&self, future: Pin<Box<dyn Future<Output = ()> + Send + 'static>>)
+    pub fn spawn_shared(&self, task: Pin<Box<dyn Future<Output = ()> + Send + 'static>>)
     {
-        self.pool_reactors.send(Message::RunAsync(future));
+        self.pool_reactors.send(Message::RunShared(task));
     }
 
-    pub fn spawn_blocking(&self, task: Box<dyn FnOnce() + Send + 'static>)
+    pub fn spawn_dedicated(&self, task: Pin<Box<dyn Future<Output = ()> + Send + 'static>>)
     {
-        self.pool_blocking.send(Message::Run(task));
+        self.pool_blocking.send(Message::RunDedicated(task));
     }
 }
 
@@ -314,12 +313,14 @@ impl ThreadState {
                 };
                 if let Some(msg) = msg {
                     match msg {
-                        Message::Run(task) => {
+                        Message::RunDedicated(task) => {
                             pool.idle.fetch_sub(1, Ordering::Relaxed);
-                            task();
+                            task.await;
                             pool.idle.fetch_add(1, Ordering::Relaxed);
-                        }
-                        Message::RunAsync(future) => wasm_bindgen_futures::spawn_local(future),
+                        },
+                        Message::RunShared(future) => {
+                            wasm_bindgen_futures::spawn_local(future)
+                        },
                         Message::Close => {
                             debug!("pool - thread closed");
                             break;

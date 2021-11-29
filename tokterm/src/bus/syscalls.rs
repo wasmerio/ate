@@ -1,3 +1,5 @@
+use crate::wasmer::Array;
+use crate::wasmer::WasmPtr;
 use std::collections::HashMap;
 use std::future::Future;
 use std::task::Context;
@@ -6,8 +8,6 @@ use std::task::Poll;
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
 use wasm_bus::abi::CallHandle;
-use crate::wasmer::Array;
-use crate::wasmer::WasmPtr;
 
 use super::thread::WasmBusThread;
 use super::*;
