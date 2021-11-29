@@ -10,6 +10,7 @@ use tokio::sync::Mutex as AsyncMutex;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
+use super::api::*;
 use super::common::*;
 use super::environment::*;
 use super::err::*;
@@ -22,6 +23,7 @@ use super::stdio::*;
 
 #[derive(Debug)]
 pub struct Reactor {
+    pub(crate) system: System,
     pub(crate) pid_seed: Pid,
     pub(crate) pid: HashMap<Pid, Process>,
     pub(crate) job: HashMap<u32, Job>,
@@ -31,6 +33,7 @@ pub struct Reactor {
 impl Reactor {
     pub fn new() -> Reactor {
         Reactor {
+            system: System::default(),
             pid_seed: 1,
             pid: HashMap::default(),
             job: HashMap::default(),
@@ -55,6 +58,7 @@ impl Reactor {
                 self.pid.insert(
                     pid,
                     Process {
+                        system: self.system,
                         pid,
                         exit_rx: exit_rx.clone(),
                         exit_tx: Arc::new(exit_tx),

@@ -10,6 +10,8 @@ use web_sys::{console, HtmlElement, HtmlInputElement, Worker};
 use web_sys::{Request, RequestInit, RequestMode, Response};
 use web_sys::{ErrorEvent, MessageEvent, WebSocket};
 
+use tokterm::err;
+
 pub struct WebSystem
 {
 }
@@ -36,10 +38,20 @@ for WebSystem
         wasm_bindgen_futures::spawn_local(task)
     }
 
-    async fn sleep(ms: i32) {
+    async fn sleep(&self, ms: i32) {
         let promise = sleep(ms);
         let js_fut = JsFuture::from(promise);
         js_fut.await;
+    }
+
+    async fn fetch_file(&self, path: &str) -> Result<Vec<u8>, i32> {
+        let url = path.to_string();
+        let headers = vec![("Accept".to_string(), "application/wasm".to_string())];
+        let (tx, rx) = oneshot::channel();
+        self.spawn_local(Box::pin(async move {
+            tx.send(system.fetch_file(url.as_str(), "GET", headers, None).await);
+        }));
+        rx.await.map_err(|_| err::ERR_EIO)?
     }
 }
 

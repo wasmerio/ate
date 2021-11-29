@@ -6,13 +6,10 @@ use tokio::select;
 use tokio::sync::mpsc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use wasm_bindgen::prelude::*;
-use wasm_bindgen::JsCast;
 use wasm_bus::abi::CallError;
 use wasm_bus::backend::ws::*;
-use web_sys::{MessageEvent, WebSocket as WebSocketSys};
 
-use crate::api::System;
+use crate::api::*;
 use super::*;
 
 struct WebSocketCreate {
@@ -32,7 +29,7 @@ impl WebSocketFactory {
     pub fn new() -> WebSocketFactory {
         let system = System::default();
         let (tx_factory, mut rx_factory) = mpsc::channel::<WebSocketCreate>(MAX_MPSC);
-        system.spawn_local(async move {
+        system.spawn_local_task(async move {
             while let Some(create) = rx_factory.recv().await {
                 // Construct the channels
                 let (tx_recv, rx_recv) = mpsc::channel(MAX_MPSC);
@@ -40,11 +37,11 @@ impl WebSocketFactory {
                 let (tx_state, rx_state) = mpsc::channel::<SocketState>(MAX_MPSC);
 
                 // Open the web socket
-                let ws_sys = match WebSocketSys::new(create.connect.url.as_str()) {
+                let ws_sys = match system.web_socket(create.connect.url.as_str()) {
                     Ok(a) => a,
                     Err(err) => {
                         debug!(
-                            "failed to create web socket ({}): {:?}",
+                            "failed to create web socket ({}): {}",
                             create.connect.url, err
                         );
                         let _ = tx_state.blocking_send(SocketState::Failed);
@@ -52,26 +49,22 @@ impl WebSocketFactory {
                     }
                 };
 
-                let onopen_callback = {
+                {
                     let url = create.connect.url.clone();
-                    let ws_sys = ws_sys.clone();
+                    let ws_sys_inner = ws_sys.clone();
                     let tx_state = tx_state.clone();
                     let mut rx_send = Some(rx_send);
-                    Closure::wrap(Box::new(move |_e: web_sys::ProgressEvent| {
+                    ws_sys.set_onopen(Box::new(move || {
                         let _ = tx_state.blocking_send(SocketState::Opened);
                         if let Some(mut rx_send) = rx_send.take() {
                             let url = url.clone();
-                            let ws_sys = ws_sys.clone();
-                            system.spawn_local(async move {
+                            let ws_sys = ws_sys_inner.clone();
+                            system.spawn_local_task(async move {
                                 while let Some(request) = rx_send.recv().await {
                                     let data = request.data;
                                     let data_len = data.len();
-                                    let array =
-                                        js_sys::Uint8Array::new_with_length(data_len as u32);
-                                    array.copy_from(&data[..]);
-                                    if let Err(err) = ws_sys.send_with_array_buffer(&array.buffer())
-                                    {
-                                        debug!("error sending message: {:?}", err);
+                                    if let Err(err) = ws_sys.send(data) {
+                                        debug!("error sending message: {}", err);
                                     } else {
                                         trace!("websocket sent {} bytes", data_len);
                                     }
@@ -79,64 +72,28 @@ impl WebSocketFactory {
                                 debug!("web socket closed by client ({})", url);
                             });
                         }
-                    })
-                        as Box<dyn FnMut(web_sys::ProgressEvent)>)
-                };
-                ws_sys.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
-                onopen_callback.forget();
+                    }));
+                }
 
-                let onclose_callback = {
+                {
                     let tx_state = tx_state.clone();
-                    Closure::wrap(Box::new(move |_e: web_sys::ProgressEvent| {
+                    ws_sys.set_onclose(Box::new(move || {
                         let _ = tx_state.blocking_send(SocketState::Closed);
-                    })
-                        as Box<dyn FnMut(web_sys::ProgressEvent)>)
-                };
-                ws_sys.set_onclose(Some(onclose_callback.as_ref().unchecked_ref()));
-                onclose_callback.forget();
+                    }));
+                }
 
-                let fr = web_sys::FileReader::new().unwrap();
-                let fr_c = fr.clone();
-                let onloadend_cb = {
+                {
                     let tx = tx_recv.clone();
-                    Closure::wrap(Box::new(move |_e: web_sys::ProgressEvent| {
-                        let array = js_sys::Uint8Array::new(&fr_c.result().unwrap());
-                        let len = array.byte_length() as usize;
-                        trace!("websocket recv {} bytes (web_sys::Blob)", len);
-                        if let Err(err) = tx.blocking_send(array.to_vec()) {
-                            debug!("websocket bytes silently dropped - {}", err);
+                    ws_sys.set_onmessage(Box::new(move |data| {
+                        debug!(
+                            "websocket recv {} bytes",
+                            data.len()
+                        );
+                        if let Err(err) = tx.blocking_send(data) {
+                            trace!("websocket bytes silently dropped - {}", err);
                         }
-                    })
-                        as Box<dyn FnMut(web_sys::ProgressEvent)>)
-                };
-                fr.set_onloadend(Some(onloadend_cb.as_ref().unchecked_ref()));
-                onloadend_cb.forget();
-
-                // Attach the message process
-                let onmessage_callback = {
-                    let tx = tx_recv.clone();
-                    Closure::wrap(Box::new(move |e: MessageEvent| {
-                        if let Ok(abuf) = e.data().dyn_into::<js_sys::ArrayBuffer>() {
-                            let data = js_sys::Uint8Array::new(&abuf).to_vec();
-                            debug!(
-                                "websocket recv {} bytes (via js_sys::ArrayBuffer)",
-                                data.len()
-                            );
-                            if let Err(err) = tx.blocking_send(data) {
-                                trace!("websocket bytes silently dropped - {}", err);
-                            }
-                        } else if let Ok(blob) = e.data().dyn_into::<web_sys::Blob>() {
-                            fr.read_as_array_buffer(&blob).expect("blob not readable");
-                        } else if let Ok(txt) = e.data().dyn_into::<js_sys::JsString>() {
-                            debug!("message event, received Text: {:?}", txt);
-                        } else {
-                            debug!("websocket received unknown message type");
-                        }
-                    }) as Box<dyn FnMut(MessageEvent)>)
-                };
-                ws_sys.set_binary_type(web_sys::BinaryType::Arraybuffer);
-                ws_sys.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
-                onmessage_callback.forget();
+                    }));
+                }
 
                 // Return the invokers
                 let invoker = WebSocketInvoker {

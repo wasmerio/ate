@@ -1,6 +1,8 @@
 use super::tty::Tty;
 
-impl Console {
+pub struct ConsoleConst { }
+
+impl ConsoleConst {
     pub const TERM_KEY_ENTER: u32 = 13;
     pub const TERM_KEY_BACKSPACE: u32 = 8;
     pub const TERM_KEY_INSERT: u32 = 45;

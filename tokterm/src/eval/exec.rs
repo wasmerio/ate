@@ -16,6 +16,7 @@ use tracing::{debug, error, info, trace, warn};
 
 use super::*;
 
+use crate::api::*;
 use crate::wasmer::{ChainableNamedResolver, Instance, Module, Store};
 use crate::wasmer_vfs::FileSystem;
 use crate::wasmer_vfs::FsError;
@@ -143,7 +144,7 @@ pub async fn exec(
                 let system = ctx.system;
                 let is_read = redirect.op.read();
                 let is_write = redirect.op.write();
-                system.spawn_blocking(move || {
+                system.spawn_blocking_task(move || {
                     if is_read {
                         let mut buf = [0u8; 4096];
                         while let Ok(read) = file.read(&mut buf) {
@@ -151,7 +152,7 @@ pub async fn exec(
                         }
                     }
                     if is_write {
-                        system.spawn_local(async move {
+                        system.spawn_local_task(async move {
                             while let Some(data) = rx.recv().await {
                                 let _ = file.write_all(&data[..]);
                             }
@@ -208,7 +209,7 @@ pub async fn exec(
     let path = ctx.path.clone();
     let process2 = process.clone();
     let preopen = ctx.pre_open.clone();
-    ctx.pool.spawn_blocking(move || {
+    ctx.system.spawn_blocking_task(move || {
         // Compile the module (which)
         let _ = tty.blocking_write("Compiling...".as_bytes());
         let store = Store::default();

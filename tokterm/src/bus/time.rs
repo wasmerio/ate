@@ -5,7 +5,7 @@ use wasm_bus::abi::CallError;
 use wasm_bus::backend::time::Sleep;
 
 use super::*;
-use crate::api::System;
+use crate::api::*;
 
 struct TimeDelay {
     duration_ms: u128,
@@ -22,9 +22,9 @@ impl TimeFactory {
     pub fn new() -> TimeFactory {
         let system = System::default();
         let (tx_factory, mut rx_factory) = mpsc::channel::<TimeDelay>(MAX_MPSC);
-        system.spawn_local(async move {
+        system.spawn_local_task(async move {
             while let Some(create) = rx_factory.recv().await {
-                system.spawn_local(async move {
+                system.spawn_local_task(async move {
                     let _ = system.sleep(create.duration_ms as i32).await;
                     let _ = create.result.send(()).await;
                 });

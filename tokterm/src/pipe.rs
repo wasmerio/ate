@@ -18,7 +18,7 @@ use super::fd::*;
 use super::job::*;
 use super::poll::*;
 use super::stdio::*;
-use crate::api::System;
+use crate::api::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ReceiverMode {
@@ -73,9 +73,10 @@ pub fn pipe_in(mode: ReceiverMode) -> (Fd, mpsc::Sender<Vec<u8>>) {
 }
 
 pub fn pipe(mode: ReceiverMode) -> (Fd, Fd) {
+    let system = System::default();
     let (fd_rx, tx2) = pipe_in(mode);
     let (fd_tx, mut rx2) = pipe_out();
-    System::default().thread.spawn_local(async move {
+    system.spawn_local_task(async move {
         while let Some(data) = rx2.recv().await {
             let _ = tx2.send(data).await;
         }

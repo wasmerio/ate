@@ -27,7 +27,7 @@ use tokio::sync::RwLock;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
-use crate::api::System;
+use crate::api::*;
 use crate::ast;
 use crate::environment::Environment;
 
@@ -77,7 +77,7 @@ pub(crate) async fn eval(mut ctx: EvalContext) -> mpsc::Receiver<EvalPlan> {
     let parser = grammar::programParser::new();
 
     let (tx, rx) = mpsc::channel(1);
-    system.spawn_local(async move {
+    system.spawn_local_task(async move {
         let input = ctx.input.clone();
         match parser.parse(input.as_str()) {
             Ok(program) => {

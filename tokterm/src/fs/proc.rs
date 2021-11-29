@@ -95,10 +95,6 @@ impl FileSystem for ProcFileSystem {
                     path: PathBuf::from("tty"),
                     metadata: Ok(Self::default_metadata(&self.type_file)),
                 });
-                entries.push(DirEntry {
-                    path: PathBuf::from("exec"),
-                    metadata: Ok(Self::default_metadata(&self.type_file)),
-                });
             }
             _ => {
                 return Err(FsError::EntityNotFound);
@@ -128,7 +124,6 @@ impl FileSystem for ProcFileSystem {
             "/stdout" | "stdout" => Ok(Self::default_metadata(&self.type_file)),
             "/stderr" | "stderr" => Ok(Self::default_metadata(&self.type_file)),
             "/tty" | "tty" => Ok(Self::default_metadata(&self.type_file)),
-            "/exec" | "exec" => Ok(Self::default_metadata(&self.type_file)),
             _ => Err(FsError::EntityNotFound),
         }
     }
@@ -164,7 +159,6 @@ impl FileOpener for CoreFileOpener {
             "/stderr" | "stderr" => Ok(Box::new(self.stdio.stderr.clone())),
             "/null" | "null" => Ok(Box::new(NullFile::default())),
             "/tty" | "tty" => Ok(Box::new(TtyFile::new(&self.stdio))),
-            "/exec" | "exec" => Ok(Box::new(self.tok.create())),
             _ => Err(FsError::EntityNotFound),
         }
     }

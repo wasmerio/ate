@@ -4,13 +4,13 @@ mod glue;
 mod pool;
 mod system;
 mod interval;
+mod ws;
 
 use tokterm::reactor;
 use tokterm::state;
 use tokterm::stdio;
 use tokterm::stdout;
 use tokterm::tty;
-use tokterm::interval;
 use tokterm::job;
 use tokterm::pipe;
 use tokterm::poll;

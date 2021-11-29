@@ -4,11 +4,13 @@ use tokio::sync::watch;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
+use crate::api::*;
 use crate::wasmer_wasi::WasiEnv;
 use crate::common::*;
 use crate::err::*;
 
 pub struct Process {
+    pub(crate) system: System,
     pub(crate) pid: Pid,
     pub(crate) exit_rx: watch::Receiver<Option<i32>>,
     pub(crate) exit_tx: Arc<watch::Sender<Option<i32>>>,
@@ -23,6 +25,7 @@ impl std::fmt::Debug for Process {
 impl Clone for Process {
     fn clone(&self) -> Process {
         Process {
+            system: System::default(),
             pid: self.pid,
             exit_rx: self.exit_rx.clone(),
             exit_tx: self.exit_tx.clone(),
@@ -55,7 +58,7 @@ impl Process {
 
     pub fn terminate(&self, exit_code: i32) {
         let tx = self.exit_tx.clone();
-        self.pool.spawn_blocking(move || {
+        self.system.spawn_blocking_task(move || {
             tx.send(Some(exit_code));
         });
     }
