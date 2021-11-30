@@ -14,6 +14,7 @@ use super::common::*;
 use super::err;
 use super::fs::TmpFileSystem;
 use crate::api::*;
+use crate::fd::*;
 
 #[derive(Debug, Clone)]
 pub struct BinFactory {
@@ -31,7 +32,7 @@ impl BinFactory {
         }
     }
 
-    pub async fn get(&self, cmd: &str) -> Option<Bytes> {
+    pub async fn get(&self, cmd: &str, mut stdout: Fd) -> Option<Bytes> {
         let mut already = HashSet::<String>::default();
         let mut cmd = cmd.to_string();
 
@@ -53,6 +54,10 @@ impl BinFactory {
             }
         }
 
+        // Tell the console we are fetching
+        stdout.write_clear_line().await;
+        let _ = stdout.write("Fetching...".as_bytes()).await;
+        
         // Slow path
         let mut alias = self.alias.write().await;
         let mut cache = self.cache.write().await;
@@ -61,6 +66,7 @@ impl BinFactory {
         loop {
             // Infinite loop check
             if already.contains(&cmd) {
+                stdout.write_clear_line().await;
                 return None;
             }
             already.insert(cmd.clone());
@@ -71,6 +77,7 @@ impl BinFactory {
                 continue;
             }
             if let Some(data) = cache.get(&cmd) {
+                stdout.write_clear_line().await;
                 return data.clone();
             }
 
@@ -78,6 +85,7 @@ impl BinFactory {
             if let Ok(data) = fetch_file(format!("/bin/{}.wasm", cmd).as_str()).await {
                 let data = Bytes::from(data);
                 cache.insert(cmd, Some(data.clone()));
+                stdout.write_clear_line().await;
                 return Some(data);
             }
 
@@ -96,6 +104,7 @@ impl BinFactory {
             // NAK
             alias.insert(cmd.clone(), None);
             cache.insert(cmd, None);
+            stdout.write_clear_line().await;
             return None;
         }
     }

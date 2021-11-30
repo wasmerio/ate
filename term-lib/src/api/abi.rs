@@ -23,7 +23,10 @@ where
     /// Starts an asynchronous task will will run on a dedicated thread
     /// pulled from the worker pool. It is ok for this task to block execution
     /// and any async futures within its scope
-    fn task_dedicated(&self, task: Pin<Box<dyn Future<Output = ()> + Send + 'static>>);
+    fn task_dedicated(
+        &self,
+        task: Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
+    );
 
     /// Starts an asynchronous task on the current thread. This is useful for
     /// launching background work with variables that are not Send.
@@ -66,25 +69,31 @@ pub trait SystemAbiExt {
     /// and any async futures within its scope
     /// The return value of the spawned thread can be read either synchronously
     /// or asynchronously
-    fn spawn_dedicated<F>(&self, task: F) -> AsyncResult<F::Output>
+    fn spawn_dedicated<F, Fut>(&self, task: F) -> AsyncResult<Fut::Output>
     where
-        F: Future + Send + 'static,
-        F::Output: Send;
+        F: FnOnce() -> Fut,
+        F: Send + 'static,
+        Fut: Future + 'static,
+        Fut::Output: Send;
 
     // Starts an asynchronous task that will run on a shared worker pool
     /// This task must not block the execution or it could cause a deadlock
     /// This is the fire-and-forget variet of spawning background work
-    fn fork_shared<F>(&self, task: F)
+    fn fork_shared<F, Fut>(&self, task: F)
     where
-        F: Future + Send + 'static;
+        F: FnOnce() -> Fut,
+        F: Send + 'static,
+        Fut: Future + 'static;
 
     /// Starts an asynchronous task will will run on a dedicated thread
     /// pulled from the worker pool. It is ok for this task to block execution
     /// and any async futures within its scope
     /// This is the fire-and-forget variet of spawning background work
-    fn fork_dedicated<F>(&self, task: F)
+    fn fork_dedicated<F, Fut>(&self, task: F)
     where
-        F: Future + Send + 'static;
+        F: FnOnce() -> Fut,
+        F: Send + 'static,
+        Fut: Future + 'static;
 
     /// Starts an asynchronous task on the current thread. This is useful for
     /// launching background work with variables that are not Send.
@@ -114,36 +123,49 @@ impl SystemAbiExt for dyn SystemAbi {
         AsyncResult::new(rx_result)
     }
 
-    fn spawn_dedicated<F>(&self, task: F) -> AsyncResult<F::Output>
+    fn spawn_dedicated<F, Fut>(&self, task: F) -> AsyncResult<Fut::Output>
     where
-        F: Future + Send + 'static,
-        F::Output: Send,
+        F: FnOnce() -> Fut,
+        F: Send + 'static,
+        Fut: Future + 'static,
+        Fut::Output: Send
     {
         let (tx_result, rx_result) = mpsc::channel(1);
-        self.task_dedicated(Box::pin(async move {
-            let ret = task.await;
-            let _ = tx_result.send(ret).await;
+        self.task_dedicated(Box::new(move || {
+            let task = task();
+            Box::pin(async move {
+                let ret = task.await;
+                let _ = tx_result.send(ret).await;
+            })
         }));
         AsyncResult::new(rx_result)
     }
 
-    fn fork_shared<F>(&self, task: F)
+    fn fork_shared<F, Fut>(&self, task: F)
     where
-        F: Future + Send + 'static,
+        F: FnOnce() -> Fut + 'static,
+        F: Send + 'static,
+        Fut: Future + 'static
     {
         self.task_shared(Box::new(move || {
+            let task = task();
             Box::pin(async move {
                 let _ = task.await;
             })
         }));
     }
 
-    fn fork_dedicated<F>(&self, task: F)
+    fn fork_dedicated<F, Fut>(&self, task: F)
     where
-        F: Future + Send + 'static,
+        F: FnOnce() -> Fut,
+        F: Send + 'static,
+        Fut: Future + 'static
     {
-        self.task_dedicated(Box::pin(async move {
-            let _ = task.await;
+        self.task_dedicated(Box::new(move || {
+            let task = task();
+            Box::pin(async move {
+                let _ = task.await;
+            })
         }));
     }
 

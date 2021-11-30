@@ -30,7 +30,10 @@ impl SystemAbi for WebSystem {
         self.pool.spawn_shared(task);
     }
 
-    fn task_dedicated(&self, task: Pin<Box<dyn Future<Output = ()> + Send + 'static>>) {
+    fn task_dedicated(
+        &self,
+        task: Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
+    ) {
         self.pool.spawn_dedicated(task);
     }
 

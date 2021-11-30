@@ -19,7 +19,6 @@ pub async fn load_bin(
     stdio: &mut Stdio,
 ) -> Option<(Bytes, TmpFileSystem)> {
     // Check if there is an alias
-    let _ = stdio.stderr.write("Searching...".as_bytes()).await;
     let mut cmd = cmd.clone();
     if let Ok(mut file) = ctx
         .root
@@ -43,9 +42,6 @@ pub async fn load_bin(
     }
     for file_check in file_checks {
         if let Ok(mut file) = ctx.root.new_open_options().read(true).open(file_check) {
-            stdio.stderr.write_clear_line().await;
-            let _ = stdio.stderr.write("Loading...".as_bytes()).await;
-
             let mut d = Vec::new();
             if let Ok(_) = file.read_to_end(&mut d) {
                 data = Some(Bytes::from(d));
@@ -56,15 +52,11 @@ pub async fn load_bin(
 
     // Fetch the data asynchronously (from the web site)
     if data.is_none() {
-        stdio.stderr.write_clear_line().await;
-        let _ = stdio.stderr.write("Fetching...".as_bytes()).await;
-
-        data = ctx.bins.get(cmd.as_str()).await;
+        data = ctx.bins.get(cmd.as_str(), stdio.stderr.clone()).await;
     }
 
     // Grab the private file system for this binary (if the binary changes the private
     // file system will also change)
-    stdio.stderr.write_clear_line().await;
     match data {
         Some(data) => {
             let fs_private = ctx.bins.fs(&data).await;

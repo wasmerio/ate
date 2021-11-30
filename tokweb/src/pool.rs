@@ -24,8 +24,7 @@ use super::fd::*;
 use super::interval::*;
 use super::tty::Tty;
 
-pub type BoxRunDedicated<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
-pub type BoxRunShared<'a, T> =
+pub type BoxRun<'a, T> =
     Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = T> + 'static>> + Send + 'a>;
 
 trait AssertSendSync: Send + Sync {}
@@ -39,8 +38,8 @@ pub struct WebThreadPool {
 }
 
 enum Message {
-    RunShared(BoxRunShared<'static, ()>),
-    RunDedicated(BoxRunDedicated<'static, ()>),
+    RunShared(BoxRun<'static, ()>),
+    RunDedicated(BoxRun<'static, ()>),
     Close,
 }
 
@@ -194,11 +193,11 @@ impl WebThreadPool {
         Self::new(pool_size, terminal)
     }
 
-    pub fn spawn_shared(&self, task: BoxRunShared<'static, ()>) {
+    pub fn spawn_shared(&self, task: BoxRun<'static, ()>) {
         self.pool_reactors.send(Message::RunShared(task));
     }
 
-    pub fn spawn_dedicated(&self, task: Pin<Box<dyn Future<Output = ()> + Send + 'static>>) {
+    pub fn spawn_dedicated(&self, task: BoxRun<'static, ()>) {
         self.pool_blocking.send(Message::RunDedicated(task));
     }
 }
@@ -314,9 +313,7 @@ impl ThreadState {
                 if let Some(msg) = msg {
                     match msg {
                         Message::RunDedicated(task) => {
-                            pool.idle.fetch_sub(1, Ordering::Relaxed);
-                            task.await;
-                            pool.idle.fetch_add(1, Ordering::Relaxed);
+                            task().await;
                         }
                         Message::RunShared(task) => {
                             let future = task();
