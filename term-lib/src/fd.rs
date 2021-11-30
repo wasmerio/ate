@@ -7,9 +7,9 @@ use std::io::prelude::*;
 use std::io::SeekFrom;
 use std::ops::Deref;
 use std::sync::atomic::AtomicI32;
+use std::sync::atomic::AtomicU32;
 use std::sync::Mutex;
 use std::sync::Weak;
-use std::sync::atomic::AtomicU32;
 use std::{
     pin::Pin,
     sync::Arc,
@@ -166,15 +166,16 @@ impl Seek for Fd {
     }
 }
 impl Write for Fd {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize>
-    {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         if let Some(sender) = self.sender.as_mut() {
             let buf_len = buf.len();
             let mut buf = Some(buf.to_vec());
             loop {
                 // Try and send the data
                 match sender.try_send(buf.take().unwrap()) {
-                    Ok(_) => { return Ok(buf_len); }
+                    Ok(_) => {
+                        return Ok(buf_len);
+                    }
                     Err(TrySendError::Full(returned_buf)) => {
                         buf = Some(returned_buf);
                     }
@@ -191,7 +192,9 @@ impl Write for Fd {
                 // Check for a forced exit
                 let forced_exit = self.forced_exit.load(Ordering::Acquire);
                 if forced_exit != 0 {
-                    wasmer::RuntimeError::raise(Box::new(wasmer_wasi::WasiError::Exit(forced_exit)));
+                    wasmer::RuntimeError::raise(Box::new(wasmer_wasi::WasiError::Exit(
+                        forced_exit,
+                    )));
                 }
 
                 // Maybe we are closed - if not then yield and try again
@@ -215,8 +218,7 @@ impl Read for Fd {
         if let Some(receiver) = self.receiver.as_mut() {
             loop {
                 // Make an attempt to read the data
-                if let Ok(mut receiver) = receiver.try_lock()
-                {
+                if let Ok(mut receiver) = receiver.try_lock() {
                     // If we have any data then lets go!
                     if receiver.buffer.has_remaining() {
                         let max = receiver.buffer.remaining().min(buf.len());
@@ -248,7 +250,9 @@ impl Read for Fd {
                 // Check for a forced exit
                 let forced_exit = self.forced_exit.load(Ordering::Acquire);
                 if forced_exit != 0 {
-                    wasmer::RuntimeError::raise(Box::new(wasmer_wasi::WasiError::Exit(forced_exit)));
+                    wasmer::RuntimeError::raise(Box::new(wasmer_wasi::WasiError::Exit(
+                        forced_exit,
+                    )));
                 }
 
                 // Maybe we are closed - if not then yield and try again
@@ -299,17 +303,23 @@ impl WeakFd {
     pub fn upgrade(&self) -> Option<Fd> {
         let forced_exit = match self.forced_exit.upgrade() {
             Some(a) => a,
-            None => { return None; }
+            None => {
+                return None;
+            }
         };
 
         let closed = match self.closed.upgrade() {
             Some(a) => a,
-            None => { return None; }
+            None => {
+                return None;
+            }
         };
 
         let blocking = match self.blocking.upgrade() {
             Some(a) => a,
-            None => { return None; }
+            None => {
+                return None;
+            }
         };
 
         let sender = self.sender.iter().filter_map(|a| a.upgrade()).next();
