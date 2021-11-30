@@ -230,7 +230,7 @@ pub async fn exec(
                 tty.write_clear_line().await;
                 info!(
                     "compiled {}",
-                    compiled_module.name().unwrap_or_else(|| "unknown module")
+                    compiled_module.name().unwrap_or_else(|| cmd)
                 );
 
                 thread_local.modules.insert(data_hash.clone(), compiled_module);

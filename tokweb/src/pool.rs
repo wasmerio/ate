@@ -71,6 +71,7 @@ enum PoolType {
 
 struct IdleThread
 {
+    idx: usize,
     work: mpsc::Sender<Message>
 }
 
@@ -300,8 +301,26 @@ impl ThreadState {
                     work = work_rx.try_recv().ok();
                 }
 
+                // If there iss already an idle thread thats older then
+                // keep that one (otherwise ditch it) - this creates negative
+                // pressure on the pool size.
+                // The reason we keep older threads is to maximize cache hits such
+                // as module compile caches.
+                if let Ok(mut lock) = state.pool.idle_rx.try_lock() {
+                    if let Ok(other) = lock.try_recv() {
+                        if other.idx < thread_index {
+                            drop(lock);
+                            if let Ok(_) = state.pool.idle_tx.send(other).await {
+                                info!("worked closed (index={}, type={:?})", thread_index, pool.type_);
+                                break;
+                            }
+                        }
+                    }
+                }
+
                 // Now register ourselves as idle
                 let idle = IdleThread {
+                    idx: thread_index,
                     work: work_tx.clone()
                 };
                 if let Err(_) = state.pool.idle_tx.send(idle).await {
