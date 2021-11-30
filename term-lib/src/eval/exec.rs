@@ -77,7 +77,7 @@ pub async fn exec(
     // Grab the private file system for this binary (if the binary changes the private
     // file system will also change)
     let (data_hash, data, fs_private) = match load_bin(ctx, cmd, &mut stdio).await {
-        Some(a) => a,
+        Some(a) => (a.hash, a.data, a.fs),
         None => {
             return on_early_exit(None, ExecResponse::Immediate(err::ERR_ENOENT)).await;
         }
@@ -217,8 +217,8 @@ pub async fn exec(
             {
                 // Cache miss - compile the module
                 let _ = tty.write("Compiling...".as_bytes()).await;
-                let store = &mut thread_local.store;
-                let compiled_module = match Module::new(store, &data[..]) {
+                let store = Store::default();
+                let compiled_module = match Module::new(&store, &data[..]) {
                     Ok(a) => a,
                     Err(err) => {
                         tty.write_clear_line().await;
