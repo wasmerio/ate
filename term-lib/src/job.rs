@@ -59,6 +59,7 @@ impl Job {
     }
 
     pub fn terminate(&self, reactor: &mut Reactor, exit_code: i32) {
+        self.stdin.close();
         let mut rx = self.job_list_rx.lock().unwrap();
         while let Ok(pid) = rx.try_recv() {
             Reactor::close_process(reactor, pid, exit_code);

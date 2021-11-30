@@ -8,6 +8,8 @@ use std::io::SeekFrom;
 use std::ops::Deref;
 use std::sync::Mutex;
 use std::sync::Weak;
+use std::sync::atomic::AtomicI32;
+use tokio::sync::mpsc::error::TryRecvError;
 use std::{
     pin::Pin,
     sync::Arc,
@@ -30,6 +32,7 @@ use crate::wasmer_wasi::{types as wasi_types, WasiFile, WasiFsError};
 
 #[derive(Debug, Clone)]
 pub struct Fd {
+    pub(crate) closed: Arc<AtomicBool>,
     pub(crate) blocking: Arc<AtomicBool>,
     pub(crate) sender: Option<Arc<mpsc::Sender<Vec<u8>>>>,
     pub(crate) receiver: Option<Arc<AsyncMutex<ReactorPipeReceiver>>>,
@@ -41,6 +44,7 @@ impl Fd {
         rx: Option<Arc<AsyncMutex<ReactorPipeReceiver>>>,
     ) -> Fd {
         Fd {
+            closed: Arc::new(AtomicBool::new(false)),
             blocking: Arc::new(AtomicBool::new(true)),
             sender: tx.map(|a| Arc::new(a)),
             receiver: rx,
@@ -49,6 +53,7 @@ impl Fd {
 
     pub fn combine(fd1: &Fd, fd2: &Fd) -> Fd {
         let mut ret = Fd {
+            closed: fd1.closed.clone(),
             blocking: Arc::new(AtomicBool::new(fd1.blocking.load(Ordering::Relaxed))),
             sender: None,
             receiver: None,
@@ -73,7 +78,23 @@ impl Fd {
         self.blocking.store(blocking, Ordering::Relaxed);
     }
 
+    pub fn close(&self) {
+        self.closed.store(true, Ordering::Release);
+    }
+
+    pub fn is_closed(&self) -> bool {
+        self.closed.load(Ordering::Acquire)
+    }
+
+    fn check_closed(&self) -> io::Result<()> {
+        if self.is_closed() {
+            return Err(std::io::ErrorKind::BrokenPipe.into());
+        }
+        Ok(())
+    }
+
     pub async fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.check_closed()?;
         if let Some(sender) = self.sender.as_mut() {
             let buf_len = buf.len();
             let buf = buf.to_vec();
@@ -87,6 +108,7 @@ impl Fd {
     }
 
     pub async fn write_vec(&mut self, buf: Vec<u8>) -> io::Result<usize> {
+        self.check_closed()?;
         if let Some(sender) = self.sender.as_mut() {
             let buf_len = buf.len();
             if let Err(_err) = sender.send(buf).await {
@@ -107,6 +129,7 @@ impl Fd {
     }
 
     pub fn blocking_write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.check_closed()?;
         if let Some(sender) = self.sender.as_mut() {
             let buf_len = buf.len();
             let buf = buf.to_vec();
@@ -127,6 +150,7 @@ impl Fd {
     }
 
     pub async fn read_async(&mut self) -> io::Result<Vec<u8>> {
+        self.check_closed()?;
         if let Some(receiver) = self.receiver.as_mut() {
             let mut receiver = receiver.lock().await;
             if receiver.buffer.has_remaining() {
@@ -152,6 +176,7 @@ impl Seek for Fd {
 }
 impl Write for Fd {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.check_closed()?;
         if let Some(sender) = self.sender.as_mut() {
             let buf_len = buf.len();
             let buf = buf.to_vec();
@@ -184,6 +209,7 @@ impl Write for Fd {
 
 impl Read for Fd {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.check_closed()?;
         if let Some(receiver) = self.receiver.as_mut() {
             let mut receiver = receiver.blocking_lock();
             if receiver.buffer.has_remaining() == false {
@@ -191,8 +217,27 @@ impl Read for Fd {
                     receiver.mode = ReceiverMode::Message(false);
                     return Ok(0usize);
                 }
-                let ret = if self.blocking.load(Ordering::Relaxed) {
-                    receiver.rx.blocking_recv()
+                let ret = if self.blocking.load(Ordering::Relaxed)
+                {
+                    // We enter a blocking loop that can exit itself
+                    let mut ret = None;
+                    while ret.is_none() {
+                        ret = match receiver.rx.try_recv() {
+                            Ok(a) => Some(a),
+                            Err(TryRecvError::Disconnected) => {
+                                return Err(std::io::ErrorKind::BrokenPipe.into());
+                            }
+                            Err(TryRecvError::Empty) => {
+                                if self.closed.load(Ordering::Acquire) {
+                                    return Err(std::io::ErrorKind::BrokenPipe.into());
+                                } else {
+                                    std::thread::park_timeout(std::time::Duration::from_millis(5));
+                                    None
+                                }
+                            }
+                        };
+                    }
+                    ret
                 } else {
                     match receiver.rx.try_recv() {
                         Ok(ret) => Some(ret),
@@ -246,6 +291,7 @@ impl VirtualFile for Fd {
 
 #[derive(Debug, Clone)]
 pub struct WeakFd {
+    pub(crate) forced_exit: Weak<AtomicBool>,
     pub(crate) blocking: Weak<AtomicBool>,
     pub(crate) sender: Option<Weak<mpsc::Sender<Vec<u8>>>>,
     pub(crate) receiver: Option<Weak<AsyncMutex<ReactorPipeReceiver>>>,
@@ -253,6 +299,13 @@ pub struct WeakFd {
 
 impl WeakFd {
     pub fn upgrade(&self) -> Option<Fd> {
+        let forced_exit = match self.forced_exit.upgrade() {
+            Some(a) => a,
+            None => {
+                return None;
+            }
+        };
+
         let blocking = match self.blocking.upgrade() {
             Some(a) => a,
             None => {
@@ -265,6 +318,7 @@ impl WeakFd {
         let receiver = self.receiver.iter().filter_map(|a| a.upgrade()).next();
 
         Some(Fd {
+            closed: forced_exit,
             blocking,
             sender,
             receiver,
@@ -274,11 +328,13 @@ impl WeakFd {
 
 impl Fd {
     pub fn downgrade(&self) -> WeakFd {
+        let forced_exit = Arc::downgrade(&self.closed);
         let blocking = Arc::downgrade(&self.blocking);
         let sender = self.sender.iter().map(|a| Arc::downgrade(&a)).next();
         let receiver = self.receiver.iter().map(|a| Arc::downgrade(&a)).next();
 
         WeakFd {
+            forced_exit,
             blocking,
             sender,
             receiver,
