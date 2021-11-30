@@ -367,7 +367,7 @@ impl FileAccessor {
     pub async fn tick(&self) -> Result<()> {
         let secs = self.elapsed.elapsed().as_secs();
         if secs > self.last_elapsed.read() {
-            let _ = self.commit_lock.lock().unwrap();
+            let _ = self.commit_lock.lock().await;
             if secs > self.last_elapsed.read() {
                 *self.last_elapsed.lock_write() = secs;
                 self.commit_internal().await?;
@@ -377,7 +377,7 @@ impl FileAccessor {
     }
 
     pub async fn commit(&self) -> Result<()> {
-        let _ = self.commit_lock.lock().unwrap();
+        let _ = self.commit_lock.lock().await;
         self.commit_internal().await?;
         Ok(())
     }
