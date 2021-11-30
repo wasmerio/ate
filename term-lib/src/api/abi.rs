@@ -25,9 +25,9 @@ where
     /// Starts an asynchronous task will will run on a dedicated thread
     /// pulled from the worker pool that has a stateful thread local variable
     /// It is ok for this task to block execution and any async futures within its scope
-    fn task_stateful<T>(
+    fn task_stateful(
         &self,
-        task: Box<dyn FnOnce(Rc<RefCell<T>>) -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
+        task: Box<dyn FnOnce(Rc<RefCell<ThreadLocal>>) -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
     );
 
     /// Starts an asynchronous task will will run on a dedicated thread
@@ -79,9 +79,9 @@ pub trait SystemAbiExt {
     /// It is ok for this task to block execution and any async futures within its scope
     /// The return value of the spawned thread can be read either synchronously
     /// or asynchronously
-    fn spawn_stateful<F, Fut, T>(&self, task: F) -> AsyncResult<Fut::Output>
+    fn spawn_stateful<F, Fut>(&self, task: F) -> AsyncResult<Fut::Output>
     where
-        F: FnOnce(Rc<RefCell<T>>) -> Fut,
+        F: FnOnce(Rc<RefCell<ThreadLocal>>) -> Fut,
         F: Send + 'static,
         Fut: Future + 'static,
         Fut::Output: Send;
@@ -98,7 +98,7 @@ pub trait SystemAbiExt {
         Fut: Future + 'static,
         Fut::Output: Send;
 
-    // Starts an asynchronous task that will run on a shared worker pool
+    /// Starts an asynchronous task that will run on a shared worker pool
     /// This task must not block the execution or it could cause a deadlock
     /// This is the fire-and-forget variet of spawning background work
     fn fork_shared<F, Fut>(&self, task: F)
@@ -108,12 +108,22 @@ pub trait SystemAbiExt {
         Fut: Future + 'static;
 
     /// Starts an asynchronous task will will run on a dedicated thread
+    /// pulled from the worker pool that has a stateful thread local variable
+    /// It is ok for this task to block execution and any async futures within its scope
+    /// This is the fire-and-forget variet of spawning background work
+    fn fork_stateful<F, Fut>(&self, task: F)
+    where
+        F: FnOnce(Rc<RefCell<ThreadLocal>>) -> Fut,
+        F: Send + 'static,
+        Fut: Future + 'static;
+
+    /// Starts an asynchronous task will will run on a dedicated thread
     /// pulled from the worker pool. It is ok for this task to block execution
     /// and any async futures within its scope
     /// This is the fire-and-forget variet of spawning background work
     fn fork_dedicated<F, Fut>(&self, task: F)
     where
-        F: FnOnce(Rc<RefCell<ThreadLocal>>) -> Fut,
+        F: FnOnce() -> Fut,
         F: Send + 'static,
         Fut: Future + 'static;
 
@@ -145,7 +155,7 @@ impl SystemAbiExt for dyn SystemAbi {
         AsyncResult::new(rx_result)
     }
 
-    fn spawn_stateful<F, Fut, T>(&self, task: F) -> AsyncResult<Fut::Output>
+    fn spawn_stateful<F, Fut>(&self, task: F) -> AsyncResult<Fut::Output>
     where
         F: FnOnce(Rc<RefCell<ThreadLocal>>) -> Fut,
         F: Send + 'static,
@@ -153,7 +163,7 @@ impl SystemAbiExt for dyn SystemAbi {
         Fut::Output: Send
     {
         let (tx_result, rx_result) = mpsc::channel(1);
-        self.task_stateful::<T>(Box::new(move |thread_local| {
+        self.task_stateful(Box::new(move |thread_local| {
             let task = task(thread_local);
             Box::pin(async move {
                 let ret = task.await;
@@ -195,13 +205,13 @@ impl SystemAbiExt for dyn SystemAbi {
         }));
     }
 
-    fn fork_stateful<F, Fut, T>(&self, task: F)
+    fn fork_stateful<F, Fut>(&self, task: F)
     where
         F: FnOnce(Rc<RefCell<ThreadLocal>>) -> Fut,
         F: Send + 'static,
         Fut: Future + 'static
     {
-        self.task_stateful::<T>(Box::new(move |thread_local| {
+        self.task_stateful(Box::new(move |thread_local| {
             let task = task(thread_local);
             Box::pin(async move {
                 let _ = task.await;

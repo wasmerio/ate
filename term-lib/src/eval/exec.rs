@@ -198,7 +198,7 @@ pub async fn exec(
     let preopen = ctx.pre_open.clone();
     let process_result = {
         let forced_exit = Arc::clone(&forced_exit);
-        ctx.system.spawn_dedicated(move |mut thread_local|
+        ctx.system.spawn_stateful(move |mut thread_local|
         async move {
             let mut thread_local = thread_local.borrow_mut();
 

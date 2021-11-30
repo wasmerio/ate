@@ -45,6 +45,7 @@ impl AssertSendSync for WebThreadPool {}
 #[derive(Debug, Clone)]
 pub struct WebThreadPool {
     pool_reactors: Arc<PoolState>,
+    pool_stateful: Arc<PoolState>,
     pool_blocking: Arc<PoolState>,
 }
 
@@ -65,8 +66,9 @@ for Message {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum PoolType {
-    Reactor,
-    Thread,
+    Shared,
+    Stateful,
+    Dedicated,
 }
 
 struct IdleThread
@@ -138,6 +140,7 @@ impl WebThreadPool {
 
         let (tx1, rx1) = mpsc::channel(MAX_MPSC);
         let (tx2, rx2) = mpsc::channel(MAX_MPSC);
+        let (tx3, rx3) = mpsc::channel(MAX_MPSC);
 
         let pool_reactors = Arc::new(PoolState {
             idle_rx: Mutex::new(rx1),
@@ -145,20 +148,30 @@ impl WebThreadPool {
             size: AtomicUsize::new(0),
             min_size: 1,
             max_size: size,
-            type_: PoolType::Reactor,
+            type_: PoolType::Shared,
         });
 
-        let pool_blocking = Arc::new(PoolState {
+        let pool_stateful = Arc::new(PoolState {
             idle_rx: Mutex::new(rx2),
             idle_tx: tx2,
             size: AtomicUsize::new(0),
             min_size: 1,
             max_size: 1000usize,
-            type_: PoolType::Thread,
+            type_: PoolType::Stateful,
+        });
+
+        let pool_blocking = Arc::new(PoolState {
+            idle_rx: Mutex::new(rx3),
+            idle_tx: tx3,
+            size: AtomicUsize::new(0),
+            min_size: 1,
+            max_size: 1000usize,
+            type_: PoolType::Dedicated,
         });
 
         let pool = WebThreadPool {
             pool_reactors,
+            pool_stateful,
             pool_blocking,
         };
 
@@ -180,8 +193,12 @@ impl WebThreadPool {
         self.pool_reactors.spawn(Message::Run(task));
     }
 
-    pub fn spawn_dedicated(&self, task: BoxRunWithThreadLocal<'static, ()>) {
-        self.pool_blocking.spawn(Message::RunWithThreadLocal(task));
+    pub fn spawn_stateful(&self, task: BoxRunWithThreadLocal<'static, ()>) {
+        self.pool_stateful.spawn(Message::RunWithThreadLocal(task));
+    }
+
+    pub fn spawn_dedicated(&self, task: BoxRun<'static, ()>) {
+        self.pool_blocking.spawn(Message::Run(task));
     }
 }
 
