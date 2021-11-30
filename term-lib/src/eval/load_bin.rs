@@ -24,7 +24,7 @@ pub async fn load_bin(
     // Resolve any alias
     let mut already = HashSet::<String>::default();
     let mut name = name.clone();
-    info!("scanning for {}", format!("/bin/{}.alias", name));
+    debug!("scanning for {}", format!("/bin/{}.alias", name));
     while let Ok(mut file) = ctx
         .root
         .new_open_options()
@@ -36,7 +36,7 @@ pub async fn load_bin(
 
         let mut d = Vec::new();
         if let Ok(_) = file.read_to_end(&mut d) {
-            let next = String::from_utf8_lossy(&d[..]).to_string();
+            let next = String::from_utf8_lossy(&d[..]).trim().to_string();
             info!("binary alias '{}' found for {}", next, name);
             name = next;
         } else {
@@ -65,8 +65,6 @@ pub async fn load_bin(
     while let Some(next) = ctx.bins.alias(name.as_str(), stdio.stderr.clone()).await {
         if already.contains(&name) { break; }
         already.insert(name.clone());
-
-        info!("binary alias '{}' found for {}", next, name);
         name = next;
     }
 

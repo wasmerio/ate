@@ -117,7 +117,8 @@ impl BinFactory {
 
         // Try and find it via a fetch
         if let Ok(data) = fetch_file(format!("/bin/{}.alias", name).as_str()).await {
-            let alias = String::from_utf8_lossy(&data[..]).to_string();
+            let alias = String::from_utf8_lossy(&data[..]).trim().to_string();
+            info!("binary alias '{}' found for {}", alias, name);
             cache.insert(name, Some(alias.clone()));
             stdout.write_clear_line().await;
             return Some(alias);
