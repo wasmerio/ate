@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 #![allow(unused)]
 use bytes::Bytes;
-use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -109,18 +108,13 @@ impl BinFactory {
         }
     }
 
-    pub async fn fs(&self, binary: &Bytes) -> TmpFileSystem {
-        let mut hasher = Sha256::default();
-        hasher.update(binary.as_ref());
-        let hash = hasher.finalize();
-        let hash = base64::encode(&hash[..]);
-
+    pub async fn fs(&self, hash: &String) -> TmpFileSystem {
         let mut pfs = self.pfs.write().await;
-        if let Some(fs) = pfs.get(&hash) {
+        if let Some(fs) = pfs.get(hash) {
             return fs.clone();
         }
         let fs = TmpFileSystem::default();
-        pfs.insert(hash, fs.clone());
+        pfs.insert(hash.clone(), fs.clone());
         fs
     }
 }

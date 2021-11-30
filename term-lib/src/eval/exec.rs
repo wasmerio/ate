@@ -76,7 +76,7 @@ pub async fn exec(
 
     // Grab the private file system for this binary (if the binary changes the private
     // file system will also change)
-    let (data, fs_private) = match load_bin(ctx, cmd, &mut stdio).await {
+    let (data_hash, data, fs_private) = match load_bin(ctx, cmd, &mut stdio).await {
         Some(a) => a,
         None => {
             return on_early_exit(None, ExecResponse::Immediate(err::ERR_ENOENT)).await;
@@ -212,8 +212,7 @@ pub async fn exec(
             let mut thread_local = thread_local.borrow_mut();
 
             // Load or compile the module (they are cached in therad local storage)
-            let key = cmd.to_string();
-            let module = thread_local.modules.get(&key);
+            let mut module = thread_local.modules.get_mut(&data_hash);
             if module.is_none()
             {
                 // Cache miss - compile the module
@@ -234,8 +233,8 @@ pub async fn exec(
                     compiled_module.name().unwrap_or_else(|| "unknown module")
                 );
 
-                thread_local.insert(key, compiled_module);
-                module = thread_local.modules.get(&key);
+                thread_local.modules.insert(data_hash.clone(), compiled_module);
+                module = thread_local.modules.get_mut(&data_hash);
             }
             let module = module.unwrap();
             

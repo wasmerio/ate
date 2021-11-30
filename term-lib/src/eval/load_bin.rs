@@ -6,6 +6,7 @@ use std::path::Path;
 use std::path::PathBuf;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
+use sha2::{Digest, Sha256};
 
 use super::EvalContext;
 use crate::err::*;
@@ -17,7 +18,7 @@ pub async fn load_bin(
     ctx: &mut EvalContext,
     cmd: &String,
     stdio: &mut Stdio,
-) -> Option<(Bytes, TmpFileSystem)> {
+) -> Option<(String, Bytes, TmpFileSystem)> {
     // Check if there is an alias
     let mut cmd = cmd.clone();
     if let Ok(mut file) = ctx
@@ -44,7 +45,8 @@ pub async fn load_bin(
         if let Ok(mut file) = ctx.root.new_open_options().read(true).open(file_check) {
             let mut d = Vec::new();
             if let Ok(_) = file.read_to_end(&mut d) {
-                data = Some(Bytes::from(d));
+                let d = Bytes::from(d);
+                data = Some((hash_of_binary(&d), d));
                 break;
             }
         }
@@ -52,16 +54,27 @@ pub async fn load_bin(
 
     // Fetch the data asynchronously (from the web site)
     if data.is_none() {
-        data = ctx.bins.get(cmd.as_str(), stdio.stderr.clone()).await;
+        let d = ctx.bins.get(cmd.as_str(), stdio.stderr.clone()).await;
+        if let Some(d) = d {
+            data = Some((hash_of_binary(&d), d));
+        }
     }
 
     // Grab the private file system for this binary (if the binary changes the private
     // file system will also change)
     match data {
-        Some(data) => {
-            let fs_private = ctx.bins.fs(&data).await;
-            Some((data, fs_private))
+        Some((hash, data)) => {
+            let fs_private = ctx.bins.fs(&hash).await;
+            Some((hash, data, fs_private))
         }
         None => None,
     }
+}
+
+fn hash_of_binary(data: &Bytes) -> String
+{
+    let mut hasher = Sha256::default();
+    hasher.update(data.as_ref());
+    let hash = hasher.finalize();
+    base64::encode(&hash[..])
 }
