@@ -87,7 +87,7 @@ impl ProcessExecFactory {
         let inherit_stdout = self.inherit_stdout.upgrade();
         let inherit_stderr = self.inherit_stderr.upgrade();
         let exec_factory = self.exec_factory.clone();
-        self.system.spawn_shared(move || async move {
+        self.system.spawn_dedicated(move || async move {
             let path = create.request.path;
             let args = create.request.args;
             let current_dir = create.request.current_dir;

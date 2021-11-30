@@ -1,3 +1,5 @@
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, trace, warn};
 use js_sys::Promise;
 use std::future::Future;
 use std::pin::Pin;

@@ -1,3 +1,5 @@
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, trace, warn};
 use wasm_bus::backend::time::Sleep;
 
 use crate::api::*;
