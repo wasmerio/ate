@@ -4,6 +4,9 @@ use bytes::{Buf, BytesMut};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::atomic::AtomicI32;
+use std::sync::atomic::Ordering;
+use std::num::NonZeroI32;
 use tokio::sync::mpsc;
 use tokio::sync::watch;
 use tokio::sync::Mutex as AsyncMutex;
@@ -49,8 +52,7 @@ impl Reactor {
         }
     }
 
-    pub fn generate_pid(&mut self) -> Result<(Pid, watch::Receiver<Option<i32>>), i32> {
-        let (exit_tx, exit_rx) = watch::channel::<Option<i32>>(None);
+    pub fn generate_pid(&mut self, forced_exit: Arc<AtomicI32>) -> Result<Pid, i32> {
         for _ in 0..10000 {
             let pid = self.pid_seed;
             self.pid_seed += 1;
@@ -60,11 +62,10 @@ impl Reactor {
                     Process {
                         system: self.system,
                         pid,
-                        exit_rx: exit_rx.clone(),
-                        exit_tx: Arc::new(exit_tx),
+                        forced_exit
                     },
                 );
-                return Ok((pid, exit_rx));
+                return Ok(pid);
             }
         }
         Err(ERR_EMFILE)
@@ -73,6 +74,7 @@ impl Reactor {
     pub fn close_process(&mut self, pid: Pid, exit_code: i32) -> i32 {
         if let Some(process) = self.pid.remove(&pid) {
             info!("process closed (pid={})", pid);
+            let exit_code = NonZeroI32::new(exit_code).unwrap_or_else(|| NonZeroI32::new(ERR_ECONNABORTED).unwrap());
             process.terminate(exit_code);
         }
         ERR_OK

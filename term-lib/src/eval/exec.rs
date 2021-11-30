@@ -7,6 +7,8 @@ use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::atomic::AtomicI32;
+use std::sync::atomic::Ordering;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tokio::sync::watch;
@@ -39,7 +41,7 @@ use crate::wasmer_wasi::{Stdout, WasiError, WasiState};
 
 pub enum ExecResponse {
     Immediate(i32),
-    Process(Process),
+    Process(Process, AsyncResult<i32>),
 }
 
 pub async fn exec(
@@ -171,21 +173,6 @@ pub async fn exec(
         }
     }
 
-    // Generate a PID for this process
-    let (pid, mut exit_rx, exit_tx, process) = {
-        let mut guard = ctx.reactor.write().await;
-        let (pid, exit_rx) = guard.generate_pid()?;
-        let process = match guard.get_process(pid) {
-            Some(a) => a,
-            None => {
-                return Err(ERR_ESRCH);
-            }
-        };
-        let exit_tx = process.exit_tx.clone();
-        (pid, exit_rx, exit_tx, process)
-    };
-    debug!("process created (pid={})", pid);
-
     // Create the process factory that used by this process to create sub-processes
     let sub_process_factory = ProcessExecFactory::new(
         ctx.reactor.clone(),
@@ -199,15 +186,19 @@ pub async fn exec(
     // functions and services
     let bus_pool = WasmBusThreadPool::new(sub_process_factory);
 
+    // We listen for any forced exits using this channel
+    let forced_exit = Arc::new(AtomicI32::new(0));
+
     // Spawn the process on a background thread
     let mut tty = ctx.stdio.stderr.clone();
     let reactor = ctx.reactor.clone();
     let cmd = cmd.clone();
     let args = args.clone();
     let path = ctx.path.clone();
-    let process2 = process.clone();
     let preopen = ctx.pre_open.clone();
-    ctx.system.fork_dedicated(move |mut thread_local|
+    let process_result = {
+        let forced_exit = Arc::clone(&forced_exit);
+        ctx.system.spawn_dedicated(move |mut thread_local|
         async move {
             let mut thread_local = thread_local.borrow_mut();
 
@@ -223,14 +214,13 @@ pub async fn exec(
                     Err(err) => {
                         tty.write_clear_line().await;
                         let _ = tty.write(format!("compile-error: {}\n", err).as_bytes()).await;
-                        process.terminate(ERR_ENOEXEC);
-                        return;
+                        return ERR_ENOEXEC;
                     }
                 };
                 tty.write_clear_line().await;
                 info!(
                     "compiled {}",
-                    compiled_module.name().unwrap_or_else(|| cmd)
+                    compiled_module.name().unwrap_or_else(|| cmd.as_str())
                 );
 
                 thread_local.modules.insert(data_hash.clone(), compiled_module);
@@ -256,8 +246,7 @@ pub async fn exec(
                         tty.write_clear_line().await;
                         let _ = tty
                             .write(format!("pre-open error (path={})\n", pre_open).as_bytes()).await;
-                        process.terminate(ERR_ENOEXEC);
-                        return;
+                        return ERR_ENOEXEC;
                     }
                 }
 
@@ -274,8 +263,9 @@ pub async fn exec(
             {
                 let bus_pool = Arc::clone(&bus_pool);
                 wasi_env.on_yield(move |thread| {
-                    if let Some(exit) = *exit_rx.borrow() {
-                        thread.terminate(exit as u32);
+                    let forced_exit = forced_exit.load(Ordering::Acquire);
+                    if forced_exit != 0 {
+                        thread.terminate(forced_exit as u32);
                     }
                     let thread = bus_pool.get_or_create(thread);
                     unsafe {
@@ -291,8 +281,7 @@ pub async fn exec(
                     drop(module);
                     tty.write_clear_line().await;
                     let _ = tty.write(format!("exec error: {}\n", err.to_string()).as_bytes()).await;
-                    process.terminate(ERR_ENOEXEC);
-                    return;
+                    return ERR_ENOEXEC;
                 }
             };
 
@@ -344,22 +333,24 @@ pub async fn exec(
                     .write(&format!("exec-failed: missing _start function\n").as_bytes()[..]).await;
                 err::ERR_ENOEXEC
             };
-            debug!("exited with code {}", ret);
-            process.terminate(ret);
-        }
-    );
-
-    Ok(ExecResponse::Process(process2))
-}
-
-pub async fn waitpid(reactor: &Arc<RwLock<Reactor>>, pid: Pid) -> i32 {
-    let process = {
-        let reactor = reactor.read().await;
-        reactor.get_process(pid)
+            info!("exited (name={}) with code {}", cmd, ret);
+            ret
+        })
     };
-    if let Some(mut process) = process {
-        process.wait_for_exit().await
-    } else {
-        ERR_ESRCH
-    }
+
+    // Generate a PID for this process
+    let (pid, process) = {
+        let mut guard = ctx.reactor.write().await;
+        let pid = guard.generate_pid(forced_exit)?;
+        let process = match guard.get_process(pid) {
+            Some(a) => a,
+            None => {
+                return Err(ERR_ESRCH);
+            }
+        };
+        (pid, process)
+    };
+    debug!("process created (pid={})", pid);
+
+    Ok(ExecResponse::Process(process, process_result))
 }

@@ -14,7 +14,7 @@ pub(super) async fn exec_pipeline<'a>(
     show_result: &mut bool,
     pipeline: &'a ast::Pipeline<'a>,
 ) -> i32 {
-    let mut child_list: Vec<Process> = Vec::new();
+    let mut child_list = Vec::new();
     let mut final_return: Option<i32> = None;
     {
         let mut next_stdin = ctx.stdio.stdin.clone();
@@ -73,8 +73,8 @@ pub(super) async fn exec_pipeline<'a>(
                     .await
                     {
                         Ok(ExecResponse::Immediate(ret)) => final_return = Some(ret),
-                        Ok(ExecResponse::Process(process)) => {
-                            child_list.push(process);
+                        Ok(ExecResponse::Process(process, process_result)) => {
+                            child_list.push((process, process_result));
                         }
                         Err(err) => {
                             *show_result = true;
@@ -86,7 +86,7 @@ pub(super) async fn exec_pipeline<'a>(
         }
     }
 
-    for child in child_list.iter() {
+    for (child, child_result) in child_list.iter() {
         debug!(
             "process (pid={}) added to job (id={})",
             child.pid, ctx.job.id
@@ -95,8 +95,8 @@ pub(super) async fn exec_pipeline<'a>(
     }
 
     if exec_sync {
-        for child in child_list.iter_mut().rev() {
-            let result = child.wait_for_exit().await;
+        for (child, child_result) in child_list.into_iter().rev() {
+            let result = child_result.join().await.unwrap_or_else(|| err::ERR_ECONNABORTED);
             debug!(
                 "process (pid={}) finished (exit_code={})",
                 child.pid, result

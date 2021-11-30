@@ -1,6 +1,7 @@
 use std::sync::Arc;
-use std::sync::Mutex;
-use tokio::sync::watch;
+use std::sync::atomic::AtomicI32;
+use std::sync::atomic::Ordering;
+use std::num::NonZeroI32;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
@@ -12,8 +13,7 @@ use crate::wasmer_wasi::WasiEnv;
 pub struct Process {
     pub(crate) system: System,
     pub(crate) pid: Pid,
-    pub(crate) exit_rx: watch::Receiver<Option<i32>>,
-    pub(crate) exit_tx: Arc<watch::Sender<Option<i32>>>,
+    pub(crate) forced_exit: Arc<AtomicI32>,
 }
 
 impl std::fmt::Debug for Process {
@@ -27,39 +27,13 @@ impl Clone for Process {
         Process {
             system: System::default(),
             pid: self.pid,
-            exit_rx: self.exit_rx.clone(),
-            exit_tx: self.exit_tx.clone(),
+            forced_exit: self.forced_exit.clone(),
         }
     }
 }
 
 impl Process {
-    pub async fn wait_for_exit(&mut self) -> i32 {
-        let mut ret = self.exit_rx.borrow().clone();
-        while ret.is_none() {
-            let state = self.exit_rx.changed().await;
-            ret = self.exit_rx.borrow().clone();
-            if let Err(err) = state {
-                debug!("process {} has terminated", self.pid);
-                break;
-            }
-        }
-        match ret {
-            Some(a) => {
-                debug!("process {} exited with code {}", self.pid, a);
-                a
-            }
-            None => {
-                debug!("process {} silently exited", self.pid);
-                ERR_PANIC
-            }
-        }
-    }
-
-    pub fn terminate(&self, exit_code: i32) {
-        let tx = self.exit_tx.clone();
-        self.system.fork_shared(move || async move {
-            let _ = tx.send(Some(exit_code));
-        });
+    pub fn terminate(&self, exit_code: NonZeroI32) {
+        self.forced_exit.store(exit_code.get(), Ordering::Release);
     }
 }
