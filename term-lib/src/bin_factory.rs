@@ -2,6 +2,7 @@
 #![allow(unused)]
 use bytes::Bytes;
 use derivative::*;
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -9,7 +10,6 @@ use tokio::sync::oneshot;
 use tokio::sync::RwLock;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use sha2::{Digest, Sha256};
 
 use super::common::*;
 use super::err;
@@ -19,22 +19,20 @@ use crate::fd::*;
 
 #[derive(Derivative, Clone)]
 #[derivative(Debug)]
-pub struct BinaryPackage
-{
+pub struct BinaryPackage {
     #[derivative(Debug = "ignore")]
     pub data: Bytes,
     pub hash: String,
     pub fs: TmpFileSystem,
 }
 
-impl BinaryPackage
-{
+impl BinaryPackage {
     pub fn new(data: Bytes) -> BinaryPackage {
         let hash = hash_of_binary(&data);
         BinaryPackage {
             data,
             hash,
-            fs: TmpFileSystem::default()
+            fs: TmpFileSystem::default(),
         }
     }
 }
@@ -67,7 +65,7 @@ impl BinFactory {
         // Tell the console we are fetching
         stdout.write_clear_line().await;
         let _ = stdout.write("Fetching...".as_bytes()).await;
-        
+
         // Slow path
         let mut cache = self.cache.write().await;
 
@@ -105,7 +103,7 @@ impl BinFactory {
         // Tell the console we are fetching
         stdout.write_clear_line().await;
         let _ = stdout.write("Probing...".as_bytes()).await;
-        
+
         // Slow path
         let mut cache = self.alias.write().await;
 
@@ -136,8 +134,7 @@ async fn fetch_file(path: &str) -> Result<Vec<u8>, i32> {
     system.fetch_file(path).await
 }
 
-fn hash_of_binary(data: &Bytes) -> String
-{
+fn hash_of_binary(data: &Bytes) -> String {
     let mut hasher = Sha256::default();
     hasher.update(data.as_ref());
     let hash = hasher.finalize();

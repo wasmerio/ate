@@ -96,7 +96,10 @@ pub(super) async fn exec_pipeline<'a>(
 
     if exec_sync {
         for (child, child_result) in child_list.into_iter().rev() {
-            let result = child_result.join().await.unwrap_or_else(|| err::ERR_ECONNABORTED);
+            let result = child_result
+                .join()
+                .await
+                .unwrap_or_else(|| err::ERR_ECONNABORTED);
             debug!(
                 "process (pid={}) finished (exit_code={})",
                 child.pid, result

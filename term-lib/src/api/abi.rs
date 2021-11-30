@@ -1,10 +1,10 @@
 use async_trait::async_trait;
+use std::cell::RefCell;
 use std::future::Future;
 use std::pin::Pin;
+use std::rc::Rc;
 use std::sync::Arc;
 use tokio::sync::mpsc;
-use std::rc::Rc;
-use std::cell::RefCell;
 
 use super::*;
 
@@ -27,7 +27,11 @@ where
     /// It is ok for this task to block execution and any async futures within its scope
     fn task_stateful(
         &self,
-        task: Box<dyn FnOnce(Rc<RefCell<ThreadLocal>>) -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
+        task: Box<
+            dyn FnOnce(Rc<RefCell<ThreadLocal>>) -> Pin<Box<dyn Future<Output = ()> + 'static>>
+                + Send
+                + 'static,
+        >,
     );
 
     /// Starts an asynchronous task will will run on a dedicated thread
@@ -160,7 +164,7 @@ impl SystemAbiExt for dyn SystemAbi {
         F: FnOnce(Rc<RefCell<ThreadLocal>>) -> Fut,
         F: Send + 'static,
         Fut: Future + 'static,
-        Fut::Output: Send
+        Fut::Output: Send,
     {
         let (tx_result, rx_result) = mpsc::channel(1);
         self.task_stateful(Box::new(move |thread_local| {
@@ -178,7 +182,7 @@ impl SystemAbiExt for dyn SystemAbi {
         F: FnOnce() -> Fut,
         F: Send + 'static,
         Fut: Future + 'static,
-        Fut::Output: Send
+        Fut::Output: Send,
     {
         let (tx_result, rx_result) = mpsc::channel(1);
         self.task_dedicated(Box::new(move || {
@@ -195,7 +199,7 @@ impl SystemAbiExt for dyn SystemAbi {
     where
         F: FnOnce() -> Fut + 'static,
         F: Send + 'static,
-        Fut: Future + 'static
+        Fut: Future + 'static,
     {
         self.task_shared(Box::new(move || {
             let task = task();
@@ -209,7 +213,7 @@ impl SystemAbiExt for dyn SystemAbi {
     where
         F: FnOnce(Rc<RefCell<ThreadLocal>>) -> Fut,
         F: Send + 'static,
-        Fut: Future + 'static
+        Fut: Future + 'static,
     {
         self.task_stateful(Box::new(move |thread_local| {
             let task = task(thread_local);
@@ -223,7 +227,7 @@ impl SystemAbiExt for dyn SystemAbi {
     where
         F: FnOnce() -> Fut,
         F: Send + 'static,
-        Fut: Future + 'static
+        Fut: Future + 'static,
     {
         self.task_dedicated(Box::new(move || {
             let task = task();

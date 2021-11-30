@@ -6,11 +6,9 @@ use core::sync::atomic::Ordering;
 use std::io::prelude::*;
 use std::io::SeekFrom;
 use std::ops::Deref;
+use std::sync::atomic::AtomicI32;
 use std::sync::Mutex;
 use std::sync::Weak;
-use std::sync::atomic::AtomicI32;
-use tokio::sync::mpsc::error::TryRecvError;
-use tokio::sync::mpsc::error::TrySendError;
 use std::{
     pin::Pin,
     sync::Arc,
@@ -18,6 +16,8 @@ use std::{
 };
 use tokio::io::{self, AsyncRead, AsyncWrite, ReadBuf};
 use tokio::sync::mpsc;
+use tokio::sync::mpsc::error::TryRecvError;
+use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::Mutex as AsyncMutex;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
@@ -163,14 +163,15 @@ impl Write for Fd {
         if let Some(sender) = self.sender.as_mut() {
             let buf_len = buf.len();
             let buf = buf.to_vec();
-            
-            if self.blocking.load(Ordering::Relaxed)
-            {
+
+            if self.blocking.load(Ordering::Relaxed) {
                 // We enter a blocking loop that can exit itself
                 let mut buf = Some(buf);
                 loop {
                     match sender.try_send(buf.take().unwrap()) {
-                        Ok(_) => { break; },
+                        Ok(_) => {
+                            break;
+                        }
                         Err(TrySendError::Full(returned_buf)) => {
                             buf.replace(returned_buf);
                             if self.closed.load(Ordering::Acquire) {
@@ -178,7 +179,7 @@ impl Write for Fd {
                             } else {
                                 std::thread::park_timeout(std::time::Duration::from_millis(5));
                             }
-                        },
+                        }
                         Err(TrySendError::Closed(_)) => {
                             return Ok(0);
                         }
@@ -186,7 +187,7 @@ impl Write for Fd {
                 }
             } else {
                 match sender.try_send(buf) {
-                    Ok(_) => { },
+                    Ok(_) => {}
                     Err(mpsc::error::TrySendError::Full(_)) => {
                         return Err(std::io::ErrorKind::WouldBlock.into());
                     }
@@ -209,13 +210,10 @@ impl Write for Fd {
 impl Read for Fd {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.check_closed()?;
-        if let Some(receiver) = self.receiver.as_mut()
-        {
-            loop
-            {
+        if let Some(receiver) = self.receiver.as_mut() {
+            loop {
                 // Make an attempt to read the data
-                if let Ok(mut receiver) = receiver.try_lock()
-                {
+                if let Ok(mut receiver) = receiver.try_lock() {
                     // If we have any data then lets go!
                     if receiver.buffer.has_remaining() {
                         let max = receiver.buffer.remaining().min(buf.len());
@@ -231,11 +229,11 @@ impl Read for Fd {
                             if receiver.mode == ReceiverMode::Message(false) {
                                 receiver.mode = ReceiverMode::Message(true);
                             }
-                        },
-                        Err(mpsc::error::TryRecvError::Empty) => { }
+                        }
+                        Err(mpsc::error::TryRecvError::Empty) => {}
                         Err(mpsc::error::TryRecvError::Disconnected) => {
                             return Ok(0usize);
-                        },
+                        }
                     }
                 }
 

@@ -5,10 +5,10 @@ use serde::{Deserialize, Serialize};
 use std::io::Read;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use std::sync::Mutex;
 use std::sync::atomic::AtomicI32;
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
+use std::sync::Mutex;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tokio::sync::watch;
@@ -198,144 +198,155 @@ pub async fn exec(
     let preopen = ctx.pre_open.clone();
     let process_result = {
         let forced_exit = Arc::clone(&forced_exit);
-        ctx.system.spawn_stateful(move |mut thread_local|
-        async move {
-            let mut thread_local = thread_local.borrow_mut();
+        ctx.system
+            .spawn_stateful(move |mut thread_local| async move {
+                let mut thread_local = thread_local.borrow_mut();
 
-            // Load or compile the module (they are cached in therad local storage)
-            let mut module = thread_local.modules.get_mut(&data_hash);
-            if module.is_none()
-            {
-                // Cache miss - compile the module
-                let _ = tty.write("Compiling...".as_bytes()).await;
-                let store = Store::default();
-                let compiled_module = match Module::new(&store, &data[..]) {
+                // Load or compile the module (they are cached in therad local storage)
+                let mut module = thread_local.modules.get_mut(&data_hash);
+                if module.is_none() {
+                    // Cache miss - compile the module
+                    let _ = tty.write("Compiling...".as_bytes()).await;
+                    let store = Store::default();
+                    let compiled_module = match Module::new(&store, &data[..]) {
+                        Ok(a) => a,
+                        Err(err) => {
+                            tty.write_clear_line().await;
+                            let _ = tty
+                                .write(format!("compile-error: {}\n", err).as_bytes())
+                                .await;
+                            return ERR_ENOEXEC;
+                        }
+                    };
+                    tty.write_clear_line().await;
+                    info!(
+                        "compiled {}",
+                        compiled_module.name().unwrap_or_else(|| cmd.as_str())
+                    );
+
+                    thread_local
+                        .modules
+                        .insert(data_hash.clone(), compiled_module);
+                    module = thread_local.modules.get_mut(&data_hash);
+                }
+                let module = module.unwrap();
+
+                // Build the list of arguments
+                let args = args.iter().skip(1).map(|a| a.as_str()).collect::<Vec<_>>();
+
+                // Create the `WasiEnv`.
+                let mut wasi_env = WasiState::new(cmd.as_str());
+                let mut wasi_env = wasi_env
+                    .args(&args)
+                    .stdin(Box::new(stdio.stdin.clone()))
+                    .stdout(Box::new(stdio.stdout.clone()))
+                    .stderr(Box::new(stdio.stderr.clone()));
+
+                // Add the extra pre-opens
+                if preopen.len() > 0 {
+                    for pre_open in preopen {
+                        if wasi_env.preopen_dir(Path::new(pre_open.as_str())).is_ok() == false {
+                            tty.write_clear_line().await;
+                            let _ = tty
+                                .write(format!("pre-open error (path={})\n", pre_open).as_bytes())
+                                .await;
+                            return ERR_ENOEXEC;
+                        }
+                    }
+
+                // Or we default and open the current directory
+                } else {
+                    wasi_env
+                        .preopen_dir(Path::new("/"))
+                        .unwrap()
+                        .map_dir(".", Path::new(path.as_str()));
+                }
+
+                // Add the tick callback that will invoke the WASM bus background
+                // operations on the current thread
+                {
+                    let bus_pool = Arc::clone(&bus_pool);
+                    wasi_env.on_yield(move |thread| {
+                        let forced_exit = forced_exit.load(Ordering::Acquire);
+                        if forced_exit != 0 {
+                            thread.terminate(forced_exit as u32);
+                        }
+                        let thread = bus_pool.get_or_create(thread);
+                        unsafe {
+                            crate::bus::syscalls::raw::wasm_bus_tick(&thread);
+                        }
+                    });
+                }
+
+                // Finish off the WasiEnv
+                let mut wasi_env = match wasi_env.set_fs(fs).finalize() {
                     Ok(a) => a,
                     Err(err) => {
+                        drop(module);
                         tty.write_clear_line().await;
-                        let _ = tty.write(format!("compile-error: {}\n", err).as_bytes()).await;
+                        let _ = tty
+                            .write(format!("exec error: {}\n", err.to_string()).as_bytes())
+                            .await;
                         return ERR_ENOEXEC;
                     }
                 };
-                tty.write_clear_line().await;
-                info!(
-                    "compiled {}",
-                    compiled_module.name().unwrap_or_else(|| cmd.as_str())
-                );
 
-                thread_local.modules.insert(data_hash.clone(), compiled_module);
-                module = thread_local.modules.get_mut(&data_hash);
-            }
-            let module = module.unwrap();
-            
-            // Build the list of arguments
-            let args = args.iter().skip(1).map(|a| a.as_str()).collect::<Vec<_>>();
-
-            // Create the `WasiEnv`.
-            let mut wasi_env = WasiState::new(cmd.as_str());
-            let mut wasi_env = wasi_env
-                .args(&args)
-                .stdin(Box::new(stdio.stdin.clone()))
-                .stdout(Box::new(stdio.stdout.clone()))
-                .stderr(Box::new(stdio.stderr.clone()));
-
-            // Add the extra pre-opens
-            if preopen.len() > 0 {
-                for pre_open in preopen {
-                    if wasi_env.preopen_dir(Path::new(pre_open.as_str())).is_ok() == false {
-                        tty.write_clear_line().await;
-                        let _ = tty
-                            .write(format!("pre-open error (path={})\n", pre_open).as_bytes()).await;
-                        return ERR_ENOEXEC;
-                    }
+                // List all the exports
+                for ns in module.exports() {
+                    trace!("module::export - {}", ns.name());
+                }
+                for ns in module.imports() {
+                    trace!("module::import - {}::{}", ns.module(), ns.name());
                 }
 
-            // Or we default and open the current directory
-            } else {
-                wasi_env
-                    .preopen_dir(Path::new("/"))
-                    .unwrap()
-                    .map_dir(".", Path::new(path.as_str()));
-            }
+                // Create the WASI thread
+                let mut wasi_thread = wasi_env.new_thread();
 
-            // Add the tick callback that will invoke the WASM bus background
-            // operations on the current thread
-            {
-                let bus_pool = Arc::clone(&bus_pool);
-                wasi_env.on_yield(move |thread| {
-                    let forced_exit = forced_exit.load(Ordering::Acquire);
-                    if forced_exit != 0 {
-                        thread.terminate(forced_exit as u32);
+                // Generate an `ImportObject`.
+                let wasi_import = wasi_thread.import_object(&module).unwrap();
+                let mut wasm_bus_import = bus_pool.get_or_create(&wasi_thread);
+                let wasm_bus_import = wasm_bus_import.import_object(&module);
+                let import = wasi_import.chain_front(wasm_bus_import);
+
+                // Let's instantiate the module with the imports.
+                let instance = Instance::new(&module, &import).unwrap();
+
+                // Let's call the `_start` function, which is our `main` function in Rust.
+                let start = instance
+                    .exports
+                    .get_native_function::<(), ()>("_start")
+                    .ok();
+
+                // If there is a start function
+                debug!("called main() on {}", cmd);
+                let ret = if let Some(start) = start {
+                    match start.call() {
+                        Ok(a) => err::ERR_OK,
+                        Err(e) => match e.downcast::<WasiError>() {
+                            Ok(WasiError::Exit(code)) => code as i32,
+                            Ok(WasiError::UnknownWasiVersion) => {
+                                let _ = stdio
+                                    .stderr
+                                    .write(
+                                        &format!("exec-failed: unknown wasi version\n").as_bytes()
+                                            [..],
+                                    )
+                                    .await;
+                                err::ERR_ENOEXEC
+                            }
+                            Err(err) => err::ERR_PANIC,
+                        },
                     }
-                    let thread = bus_pool.get_or_create(thread);
-                    unsafe {
-                        crate::bus::syscalls::raw::wasm_bus_tick(&thread);
-                    }
-                });
-            }
-
-            // Finish off the WasiEnv
-            let mut wasi_env = match wasi_env.set_fs(fs).finalize() {
-                Ok(a) => a,
-                Err(err) => {
-                    drop(module);
-                    tty.write_clear_line().await;
-                    let _ = tty.write(format!("exec error: {}\n", err.to_string()).as_bytes()).await;
-                    return ERR_ENOEXEC;
-                }
-            };
-
-            // List all the exports
-            for ns in module.exports() {
-                trace!("module::export - {}", ns.name());
-            }
-            for ns in module.imports() {
-                trace!("module::import - {}::{}", ns.module(), ns.name());
-            }
-
-            // Create the WASI thread
-            let mut wasi_thread = wasi_env.new_thread();
-
-            // Generate an `ImportObject`.
-            let wasi_import = wasi_thread.import_object(&module).unwrap();
-            let mut wasm_bus_import = bus_pool.get_or_create(&wasi_thread);
-            let wasm_bus_import = wasm_bus_import.import_object(&module);
-            let import = wasi_import.chain_front(wasm_bus_import);
-
-            // Let's instantiate the module with the imports.
-            let instance = Instance::new(&module, &import).unwrap();
-
-            // Let's call the `_start` function, which is our `main` function in Rust.
-            let start = instance
-                .exports
-                .get_native_function::<(), ()>("_start")
-                .ok();
-
-            // If there is a start function
-            debug!("called main() on {}", cmd);
-            let ret = if let Some(start) = start {
-                match start.call() {
-                    Ok(a) => err::ERR_OK,
-                    Err(e) => match e.downcast::<WasiError>() {
-                        Ok(WasiError::Exit(code)) => code as i32,
-                        Ok(WasiError::UnknownWasiVersion) => {
-                            let _ = stdio.stderr.write(
-                                &format!("exec-failed: unknown wasi version\n").as_bytes()[..],
-                            ).await;
-                            err::ERR_ENOEXEC
-                        }
-                        Err(err) => err::ERR_PANIC,
-                    },
-                }
-            } else {
-                let _ = stdio
-                    .stderr
-                    .write(&format!("exec-failed: missing _start function\n").as_bytes()[..]).await;
-                err::ERR_ENOEXEC
-            };
-            info!("exited (name={}) with code {}", cmd, ret);
-            ret
-        })
+                } else {
+                    let _ = stdio
+                        .stderr
+                        .write(&format!("exec-failed: missing _start function\n").as_bytes()[..])
+                        .await;
+                    err::ERR_ENOEXEC
+                };
+                info!("exited (name={}) with code {}", cmd, ret);
+                ret
+            })
     };
 
     // Generate a PID for this process

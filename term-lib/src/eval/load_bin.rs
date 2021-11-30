@@ -1,26 +1,25 @@
 #![allow(dead_code)]
 #![allow(unused)]
 use bytes::Bytes;
+use std::collections::HashSet;
 use std::io::Read;
 use std::path::Path;
 use std::path::PathBuf;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use std::collections::HashSet;
 
+use super::BinaryPackage;
 use super::EvalContext;
 use crate::err::*;
 use crate::fs::*;
 use crate::stdio::*;
 use crate::wasmer_vfs::FileSystem;
-use super::BinaryPackage;
 
 pub async fn load_bin(
     ctx: &mut EvalContext,
     name: &String,
     stdio: &mut Stdio,
-) -> Option<BinaryPackage>
-{
+) -> Option<BinaryPackage> {
     // Resolve any alias
     let mut already = HashSet::<String>::default();
     let mut name = name.clone();
@@ -31,7 +30,9 @@ pub async fn load_bin(
         .read(true)
         .open(format!("/bin/{}.alias", name))
     {
-        if already.contains(&name) { break; }
+        if already.contains(&name) {
+            break;
+        }
         already.insert(name.clone());
 
         let mut d = Vec::new();
@@ -63,12 +64,13 @@ pub async fn load_bin(
 
     // Resolve some more alias possibilities using fetch commands
     while let Some(next) = ctx.bins.alias(name.as_str(), stdio.stderr.clone()).await {
-        if already.contains(&name) { break; }
+        if already.contains(&name) {
+            break;
+        }
         already.insert(name.clone());
         name = next;
     }
 
     // Fetch the data asynchronously (from the web site)
-    ctx.bins.get(name.as_str(), stdio.stderr.clone())
-        .await
+    ctx.bins.get(name.as_str(), stdio.stderr.clone()).await
 }

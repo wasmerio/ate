@@ -1,16 +1,16 @@
-#[allow(unused_imports, dead_code)]
-use tracing::{debug, error, info, trace, warn};
 use js_sys::Promise;
+use std::cell::RefCell;
 use std::future::Future;
 use std::pin::Pin;
+use std::rc::Rc;
 use std::sync::Arc;
 use term_lib::api::abi::SystemAbi;
 use term_lib::err;
 use tokio::sync::oneshot;
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, trace, warn};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::*;
-use std::rc::Rc;
-use std::cell::RefCell;
 
 use super::pool::WebThreadPool;
 use super::ws::WebSocket;
@@ -36,7 +36,11 @@ impl SystemAbi for WebSystem {
 
     fn task_stateful(
         &self,
-        task: Box<dyn FnOnce(Rc<RefCell<ThreadLocal>>) -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
+        task: Box<
+            dyn FnOnce(Rc<RefCell<ThreadLocal>>) -> Pin<Box<dyn Future<Output = ()> + 'static>>
+                + Send
+                + 'static,
+        >,
     ) {
         self.pool.spawn_stateful(task);
     }

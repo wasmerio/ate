@@ -2,11 +2,11 @@
 #![allow(dead_code)]
 use bytes::{Buf, BytesMut};
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::num::NonZeroI32;
 use std::sync::atomic::AtomicI32;
 use std::sync::atomic::Ordering;
-use std::num::NonZeroI32;
+use std::sync::Arc;
+use std::sync::Mutex;
 use tokio::sync::mpsc;
 use tokio::sync::watch;
 use tokio::sync::Mutex as AsyncMutex;
@@ -62,7 +62,7 @@ impl Reactor {
                     Process {
                         system: self.system,
                         pid,
-                        forced_exit
+                        forced_exit,
                     },
                 );
                 return Ok(pid);
@@ -74,7 +74,8 @@ impl Reactor {
     pub fn close_process(&mut self, pid: Pid, exit_code: i32) -> i32 {
         if let Some(process) = self.pid.remove(&pid) {
             info!("process closed (pid={})", pid);
-            let exit_code = NonZeroI32::new(exit_code).unwrap_or_else(|| NonZeroI32::new(ERR_ECONNABORTED).unwrap());
+            let exit_code = NonZeroI32::new(exit_code)
+                .unwrap_or_else(|| NonZeroI32::new(ERR_ECONNABORTED).unwrap());
             process.terminate(exit_code);
         }
         ERR_OK
