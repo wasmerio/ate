@@ -4,6 +4,7 @@ use tracing::{debug, error, info, trace, warn};
 
 use std::borrow::Borrow;
 use std::collections::VecDeque;
+use std::fmt::Debug;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Mutex;
@@ -15,14 +16,16 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::ops::Deref;
 use std::ops::DerefMut;
+use derivative::*;
 
 use js_sys::{JsString, Promise};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize, AtomicBool, Ordering};
 use std::sync::Arc;
 use wasm_bindgen::{prelude::*, JsCast};
 use web_sys::{DedicatedWorkerGlobalScope, WorkerOptions, WorkerType};
 use xterm_js_rs::Terminal;
 use term_lib::api::ThreadLocal;
+use term_lib::common::MAX_MPSC;
 
 use super::common::*;
 use super::fd::*;
@@ -46,25 +49,46 @@ pub struct WebThreadPool {
 }
 
 enum Message {
-    RunShared(BoxRun<'static, ()>),
-    RunDedicated(BoxRunWithThreadLocal<'static, ()>),
-    Close,
+    Run(BoxRun<'static, ()>),
+    RunWithThreadLocal(BoxRunWithThreadLocal<'static, ()>),
 }
 
-#[derive(Debug)]
+impl Debug
+for Message {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Message::Run(_) => write!(f, "run-shared"),
+            Message::RunWithThreadLocal(_) => write!(f, "run-dedicated"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum PoolType {
     Reactor,
     Thread,
 }
 
+struct IdleThread
+{
+    work: mpsc::Sender<Message>
+}
+
+impl IdleThread
+{
+    fn consume(self, msg: Message) {
+        let _ = self.work.blocking_send(msg);
+    }
+}
+
+#[derive(Derivative)]
+#[derivative(Debug)]
 pub struct PoolState {
-    tx: broadcast::Sender<()>,
     ref_cnt: AtomicUsize,
-    queue: Mutex<VecDeque<Message>>,
+    #[derivative(Debug = "ignore")]
+    idle_rx: Mutex<mpsc::Receiver<IdleThread>>,
+    idle_tx: mpsc::Sender<IdleThread>,
     size: AtomicUsize,
-    idle: AtomicUsize,
-    starting: AtomicUsize,
-    id_seed: AtomicUsize,
     min_size: usize,
     max_size: usize,
     #[allow(dead_code)]
@@ -75,31 +99,19 @@ pub struct ThreadState {
     pool: Arc<PoolState>,
     #[allow(dead_code)]
     idx: usize,
+    tx: mpsc::Sender<Message>,
+    rx: Mutex<Option<mpsc::Receiver<Message>>>,
+    init: Mutex<Option<Message>>,
 }
 
 impl Clone for WebThreadPool {
     fn clone(&self) -> Self {
-        self.pool_reactors.ref_cnt.fetch_add(1, Ordering::Relaxed);
-        self.pool_blocking.ref_cnt.fetch_add(1, Ordering::Relaxed);
+        self.pool_reactors.ref_cnt.fetch_add(1, Ordering::Release);
+        self.pool_blocking.ref_cnt.fetch_add(1, Ordering::Release);
         Self {
             pool_reactors: self.pool_reactors.clone(),
             pool_blocking: self.pool_blocking.clone(),
             manager: self.manager.clone(),
-        }
-    }
-}
-
-impl Drop for WebThreadPool {
-    fn drop(&mut self) {
-        if self.pool_reactors.ref_cnt.fetch_sub(1, Ordering::Relaxed) == 1 {
-            for _ in 0..self.pool_reactors.size.load(Ordering::Relaxed) {
-                self.pool_reactors.send(Message::Close);
-            }
-        }
-        if self.pool_blocking.ref_cnt.fetch_sub(1, Ordering::Relaxed) == 1 {
-            for _ in 0..self.pool_blocking.size.load(Ordering::Relaxed) {
-                self.pool_blocking.send(Message::Close);
-            }
         }
     }
 }
@@ -133,33 +145,27 @@ extern "C" {
 }
 
 impl WebThreadPool {
-    pub fn new(size: usize, terminal: Terminal) -> Result<WebThreadPool, JsValue> {
+    pub fn new(size: usize) -> Result<WebThreadPool, JsValue> {
         info!("pool::create(size={})", size);
 
-        let (tx1, _) = broadcast::channel(64);
-        let (tx2, _) = broadcast::channel(64);
+        let (tx1, rx1) = mpsc::channel(MAX_MPSC);
+        let (tx2, rx2) = mpsc::channel(MAX_MPSC);
 
         let pool_reactors = Arc::new(PoolState {
-            tx: tx1,
             ref_cnt: AtomicUsize::new(1),
+            idle_rx: Mutex::new(rx1),
+            idle_tx: tx1,
             size: AtomicUsize::new(0),
-            id_seed: AtomicUsize::new(0),
-            queue: Mutex::new(VecDeque::new()),
-            idle: AtomicUsize::new(0),
-            starting: AtomicUsize::new(0),
             min_size: 1,
             max_size: size,
             type_: PoolType::Reactor,
         });
 
         let pool_blocking = Arc::new(PoolState {
-            tx: tx2,
             ref_cnt: AtomicUsize::new(1),
+            idle_rx: Mutex::new(rx2),
+            idle_tx: tx2,
             size: AtomicUsize::new(0),
-            id_seed: AtomicUsize::new(0),
-            queue: Mutex::new(VecDeque::new()),
-            idle: AtomicUsize::new(0),
-            starting: AtomicUsize::new(0),
             min_size: 1,
             max_size: 1000usize,
             type_: PoolType::Thread,
@@ -184,13 +190,10 @@ impl WebThreadPool {
             manager: Arc::new(manager),
         };
 
-        pool.pool_reactors.expand_now(Some(terminal));
-        pool.pool_blocking.expand_now(None);
-
         Ok(pool)
     }
 
-    pub fn new_with_max_threads(terminal: Terminal) -> Result<WebThreadPool, JsValue> {
+    pub fn new_with_max_threads() -> Result<WebThreadPool, JsValue> {
         #[wasm_bindgen]
         extern "C" {
             #[wasm_bindgen(js_namespace = navigator, js_name = hardwareConcurrency)]
@@ -198,27 +201,43 @@ impl WebThreadPool {
         }
         let pool_size = std::cmp::max(*HARDWARE_CONCURRENCY, 1);
         debug!("pool::max_threads={}", pool_size);
-        Self::new(pool_size, terminal)
+        Self::new(pool_size)
     }
 
     pub fn spawn_shared(&self, task: BoxRun<'static, ()>) {
-        self.pool_reactors.send(Message::RunShared(task));
+        self.pool_reactors.spawn(Message::Run(task));
     }
 
     pub fn spawn_dedicated(&self, task: BoxRunWithThreadLocal<'static, ()>) {
-        self.pool_blocking.send(Message::RunDedicated(task));
+        self.pool_blocking.spawn(Message::RunWithThreadLocal(task));
     }
 }
 
 impl PoolState {
-    pub fn expand_now(self: &Arc<PoolState>, should_warn_on_error: Option<Terminal>) {
-        let pool = self.clone();
+    fn spawn(self: &Arc<Self>, msg: Message) {
+        let thread  = {
+            let mut idle_rx = self.idle_rx.lock().unwrap();
+            idle_rx.try_recv().ok()
+        };
 
-        let idx = pool.id_seed.fetch_add(1, Ordering::Relaxed);
-        pool.starting.fetch_add(1, Ordering::Relaxed);
+        if let Some(thread) = thread {
+            thread.consume(msg);
+            return;
+        }
 
-        let state = Arc::new(ThreadState { pool: pool, idx });
-        Self::start_worker_now(idx, state, should_warn_on_error);
+        let (tx, rx) = mpsc::channel(MAX_MPSC);
+        let idx = self.size.fetch_add(1usize, Ordering::Release);
+        let state = Arc::new(
+            ThreadState
+            {
+                pool: Arc::clone(self),
+                idx,
+                tx,
+                rx: Mutex::new(Some(rx)),
+                init: Mutex::new(Some(msg)),
+            }
+        );
+        Self::start_worker_now(idx, state, None);
     }
 
     pub fn start_worker_now(
@@ -228,7 +247,7 @@ impl PoolState {
     ) {
         let mut opts = WorkerOptions::new();
         opts.type_(WorkerType::Module);
-        opts.name(&*format!("Worker-{}", idx));
+        opts.name(&*format!("Worker-{:?}-{}", state.pool.type_, idx));
 
         let ptr = Arc::into_raw(state);
 
@@ -260,90 +279,78 @@ impl PoolState {
 
                 return;
             }
-            info!("worker thread spawned - index={}", idx);
         });
     }
 
-    #[allow(dead_code)]
-    pub fn shrink(self: &Arc<PoolState>) {
-        self.send(Message::Close);
-    }
-
     pub fn manage(self: &Arc<PoolState>) {
-        let size = self.size.load(Ordering::Relaxed);
-        let idle = self.idle.load(Ordering::Relaxed);
-        let starting = self.starting.load(Ordering::Relaxed);
-        let backlog = self.queue.lock().unwrap().len();
-
-        if backlog >= starting + idle {
-            if size < self.max_size {
-                self.expand_now(None);
-            }
-        } else if backlog <= 0 && idle <= 0 {
-            if size > self.min_size {
-                self.expand_now(None);
-            }
-        }
-    }
-
-    fn send(&self, msg: Message) {
-        let mut queue = self.queue.lock().unwrap();
-        for _ in 0..100 {
-            if let Ok(mut queue) = self.queue.try_lock() {
-                queue.push_back(msg);
-                drop(queue);
-                let _ = self.tx.send(());
-                return;
-            }
-        }
-        queue.push_back(msg);
-        drop(queue);
-        let _ = self.tx.send(());
     }
 }
 
 impl ThreadState {
     fn work(state: Arc<ThreadState>) {
+        let thread_index = state.idx;
+        info!("worker started (index={}, type={:?})", thread_index, state.pool.type_);
+
+        // Load the work queue receiver where other people will
+        // send us the work that needs to be done
+        let mut work_rx = {
+            let mut lock = state.rx.lock().unwrap();
+            lock.take().unwrap()
+        };
+
+        // Load the initial work
+        let mut work = {
+            let mut lock = state.init.lock().unwrap();
+            lock.take()
+        };
+        
+        // The work is done in an asynchronous engine (that supports Javascript)
         let thread_local = Rc::new(RefCell::new(ThreadLocal::default()));
-        let mut rx = state.pool.tx.subscribe();
+        let work_tx = state.tx.clone();
         let pool = Arc::clone(&state.pool);
         let driver = async move {
             let global = js_sys::global().unchecked_into::<DedicatedWorkerGlobalScope>();
 
-            pool.size.fetch_add(1, Ordering::Relaxed);
-            pool.idle.fetch_add(1, Ordering::Relaxed);
-            pool.starting.fetch_sub(1, Ordering::Relaxed);
-
             loop {
-                let msg = {
-                    let mut queue = pool.queue.lock().unwrap();
-                    queue.pop_front()
-                };
-                if let Some(msg) = msg {
-                    match msg {
-                        Message::RunDedicated(task) => {
+                // Process work until we need to go idle
+                while let Some(task) = work
+                {
+                    match task {
+                        Message::RunWithThreadLocal(task) => {
                             let thread_local = thread_local.clone();
                             task(thread_local).await;
                         }
-                        Message::RunShared(task) => {
+                        Message::Run(task) => {
                             let future = task();
                             wasm_bindgen_futures::spawn_local(async move {
                                 future.await;
                             });
                         }
-                        Message::Close => {
-                            debug!("pool - thread closed");
-                            break;
-                        }
                     }
+
+                    // Grab the next work
+                    work = work_rx.try_recv().ok();
                 }
 
-                let _ = rx.recv().await;
-            }
-            info!("{}: Shutting down", global.name());
+                // Now register ourselves as idle
+                let idle = IdleThread {
+                    work: work_tx.clone()
+                };
+                if let Err(_) = state.pool.idle_tx.send(idle).await {
+                    info!("pool is closed (thread_index={}, type={:?})", thread_index, pool.type_);
+                    break;
+                }
 
-            pool.idle.fetch_sub(1, Ordering::Relaxed);
-            pool.size.fetch_sub(1, Ordering::Relaxed);
+                // Do a blocking recv (if this fails the thread is closed)
+                work = match work_rx.recv().await {
+                    Some(a) => Some(a),
+                    None => {
+                        info!("worked closed (index={}, type={:?})", thread_index, pool.type_);
+                        break;
+                    }
+                };
+            }
+
             global.close();
         };
         wasm_bindgen_futures::spawn_local(driver);
@@ -352,7 +359,6 @@ impl ThreadState {
 
 #[wasm_bindgen(skip_typescript)]
 pub fn worker_entry_point(state_ptr: u32) {
-    info!("worker started");
     let state = unsafe { Arc::<ThreadState>::from_raw(state_ptr as *const ThreadState) };
 
     let name = js_sys::global()

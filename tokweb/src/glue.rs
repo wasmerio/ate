@@ -71,7 +71,7 @@ pub fn start() -> Result<(), JsValue> {
             .with_theme(&Theme::new()),
     );
 
-    let pool = WebThreadPool::new_with_max_threads(terminal.clone().dyn_into().unwrap()).unwrap();
+    let pool = WebThreadPool::new_with_max_threads().unwrap();
     let system = WebSystem::new(pool.clone());
     term_lib::api::set_system_abi(system);
     let system = System::default();
