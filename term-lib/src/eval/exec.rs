@@ -207,7 +207,7 @@ pub async fn exec(
     let path = ctx.path.clone();
     let process2 = process.clone();
     let preopen = ctx.pre_open.clone();
-    ctx.system.fork_dedicated(move ||
+    ctx.system.fork_dedicated(move |_|
         async move {
             // Compile the module
             let _ = tty.write("Compiling...".as_bytes()).await;

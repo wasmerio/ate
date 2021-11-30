@@ -25,7 +25,7 @@ where
     /// and any async futures within its scope
     fn task_dedicated(
         &self,
-        task: Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
+        task: Box<dyn FnOnce(&mut ThreadLocal) -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
     );
 
     /// Starts an asynchronous task on the current thread. This is useful for
@@ -71,7 +71,7 @@ pub trait SystemAbiExt {
     /// or asynchronously
     fn spawn_dedicated<F, Fut>(&self, task: F) -> AsyncResult<Fut::Output>
     where
-        F: FnOnce() -> Fut,
+        F: FnOnce(&mut ThreadLocal) -> Fut,
         F: Send + 'static,
         Fut: Future + 'static,
         Fut::Output: Send;
@@ -91,7 +91,7 @@ pub trait SystemAbiExt {
     /// This is the fire-and-forget variet of spawning background work
     fn fork_dedicated<F, Fut>(&self, task: F)
     where
-        F: FnOnce() -> Fut,
+        F: FnOnce(&mut ThreadLocal) -> Fut,
         F: Send + 'static,
         Fut: Future + 'static;
 
@@ -125,14 +125,14 @@ impl SystemAbiExt for dyn SystemAbi {
 
     fn spawn_dedicated<F, Fut>(&self, task: F) -> AsyncResult<Fut::Output>
     where
-        F: FnOnce() -> Fut,
+        F: FnOnce(&mut ThreadLocal) -> Fut,
         F: Send + 'static,
         Fut: Future + 'static,
         Fut::Output: Send
     {
         let (tx_result, rx_result) = mpsc::channel(1);
-        self.task_dedicated(Box::new(move || {
-            let task = task();
+        self.task_dedicated(Box::new(move |thread_local| {
+            let task = task(thread_local);
             Box::pin(async move {
                 let ret = task.await;
                 let _ = tx_result.send(ret).await;
@@ -157,12 +157,12 @@ impl SystemAbiExt for dyn SystemAbi {
 
     fn fork_dedicated<F, Fut>(&self, task: F)
     where
-        F: FnOnce() -> Fut,
+        F: FnOnce(&mut ThreadLocal) -> Fut,
         F: Send + 'static,
         Fut: Future + 'static
     {
-        self.task_dedicated(Box::new(move || {
-            let task = task();
+        self.task_dedicated(Box::new(move |thread_local| {
+            let task = task(thread_local);
             Box::pin(async move {
                 let _ = task.await;
             })
