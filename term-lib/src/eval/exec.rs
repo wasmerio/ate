@@ -211,24 +211,34 @@ pub async fn exec(
         async move {
             let mut thread_local = thread_local.borrow_mut();
 
-            // Compile the module
-            let _ = tty.write("Compiling...".as_bytes()).await;
-            let store = &mut thread_local.store;
-            let module = match Module::new(store, &data[..]) {
-                Ok(a) => a,
-                Err(err) => {
-                    tty.write_clear_line().await;
-                    let _ = tty.write(format!("compile-error: {}\n", err).as_bytes()).await;
-                    process.terminate(ERR_ENOEXEC);
-                    return;
-                }
-            };
-            tty.write_clear_line().await;
-            info!(
-                "compiled {}",
-                module.name().unwrap_or_else(|| "unknown module")
-            );
+            // Load or compile the module (they are cached in therad local storage)
+            let key = cmd.to_string();
+            let module = thread_local.modules.get(&key);
+            if module.is_none()
+            {
+                // Cache miss - compile the module
+                let _ = tty.write("Compiling...".as_bytes()).await;
+                let store = &mut thread_local.store;
+                let compiled_module = match Module::new(store, &data[..]) {
+                    Ok(a) => a,
+                    Err(err) => {
+                        tty.write_clear_line().await;
+                        let _ = tty.write(format!("compile-error: {}\n", err).as_bytes()).await;
+                        process.terminate(ERR_ENOEXEC);
+                        return;
+                    }
+                };
+                tty.write_clear_line().await;
+                info!(
+                    "compiled {}",
+                    compiled_module.name().unwrap_or_else(|| "unknown module")
+                );
 
+                thread_local.insert(key, compiled_module);
+                module = thread_local.modules.get(&key);
+            }
+            let module = module.unwrap();
+            
             // Build the list of arguments
             let args = args.iter().skip(1).map(|a| a.as_str()).collect::<Vec<_>>();
 
