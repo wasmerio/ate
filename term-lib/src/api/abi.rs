@@ -23,11 +23,19 @@ where
     );
 
     /// Starts an asynchronous task will will run on a dedicated thread
+    /// pulled from the worker pool that has a stateful thread local variable
+    /// It is ok for this task to block execution and any async futures within its scope
+    fn task_stateful<T>(
+        &self,
+        task: Box<dyn FnOnce(Rc<RefCell<T>>) -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
+    );
+
+    /// Starts an asynchronous task will will run on a dedicated thread
     /// pulled from the worker pool. It is ok for this task to block execution
     /// and any async futures within its scope
     fn task_dedicated(
         &self,
-        task: Box<dyn FnOnce(Rc<RefCell<ThreadLocal>>) -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
+        task: Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
     );
 
     /// Starts an asynchronous task on the current thread. This is useful for
@@ -67,13 +75,25 @@ pub trait SystemAbiExt {
         Fut::Output: Send;
 
     /// Starts an asynchronous task will will run on a dedicated thread
+    /// pulled from the worker pool that has a stateful thread local variable
+    /// It is ok for this task to block execution and any async futures within its scope
+    /// The return value of the spawned thread can be read either synchronously
+    /// or asynchronously
+    fn spawn_stateful<F, Fut, T>(&self, task: F) -> AsyncResult<Fut::Output>
+    where
+        F: FnOnce(Rc<RefCell<T>>) -> Fut,
+        F: Send + 'static,
+        Fut: Future + 'static,
+        Fut::Output: Send;
+
+    /// Starts an asynchronous task will will run on a dedicated thread
     /// pulled from the worker pool. It is ok for this task to block execution
     /// and any async futures within its scope
     /// The return value of the spawned thread can be read either synchronously
     /// or asynchronously
     fn spawn_dedicated<F, Fut>(&self, task: F) -> AsyncResult<Fut::Output>
     where
-        F: FnOnce(Rc<RefCell<ThreadLocal>>) -> Fut,
+        F: FnOnce() -> Fut,
         F: Send + 'static,
         Fut: Future + 'static,
         Fut::Output: Send;
@@ -125,7 +145,7 @@ impl SystemAbiExt for dyn SystemAbi {
         AsyncResult::new(rx_result)
     }
 
-    fn spawn_dedicated<F, Fut>(&self, task: F) -> AsyncResult<Fut::Output>
+    fn spawn_stateful<F, Fut, T>(&self, task: F) -> AsyncResult<Fut::Output>
     where
         F: FnOnce(Rc<RefCell<ThreadLocal>>) -> Fut,
         F: Send + 'static,
@@ -133,8 +153,26 @@ impl SystemAbiExt for dyn SystemAbi {
         Fut::Output: Send
     {
         let (tx_result, rx_result) = mpsc::channel(1);
-        self.task_dedicated(Box::new(move |thread_local| {
+        self.task_stateful::<T>(Box::new(move |thread_local| {
             let task = task(thread_local);
+            Box::pin(async move {
+                let ret = task.await;
+                let _ = tx_result.send(ret).await;
+            })
+        }));
+        AsyncResult::new(rx_result)
+    }
+
+    fn spawn_dedicated<F, Fut>(&self, task: F) -> AsyncResult<Fut::Output>
+    where
+        F: FnOnce() -> Fut,
+        F: Send + 'static,
+        Fut: Future + 'static,
+        Fut::Output: Send
+    {
+        let (tx_result, rx_result) = mpsc::channel(1);
+        self.task_dedicated(Box::new(move || {
+            let task = task();
             Box::pin(async move {
                 let ret = task.await;
                 let _ = tx_result.send(ret).await;
@@ -157,14 +195,28 @@ impl SystemAbiExt for dyn SystemAbi {
         }));
     }
 
-    fn fork_dedicated<F, Fut>(&self, task: F)
+    fn fork_stateful<F, Fut, T>(&self, task: F)
     where
         F: FnOnce(Rc<RefCell<ThreadLocal>>) -> Fut,
         F: Send + 'static,
         Fut: Future + 'static
     {
-        self.task_dedicated(Box::new(move |thread_local| {
+        self.task_stateful::<T>(Box::new(move |thread_local| {
             let task = task(thread_local);
+            Box::pin(async move {
+                let _ = task.await;
+            })
+        }));
+    }
+
+    fn fork_dedicated<F, Fut>(&self, task: F)
+    where
+        F: FnOnce() -> Fut,
+        F: Send + 'static,
+        Fut: Future + 'static
+    {
+        self.task_dedicated(Box::new(move || {
+            let task = task();
             Box::pin(async move {
                 let _ = task.await;
             })
