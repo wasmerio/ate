@@ -10,6 +10,7 @@ use std::sync::Mutex;
 use std::sync::Weak;
 use std::sync::atomic::AtomicI32;
 use tokio::sync::mpsc::error::TryRecvError;
+use tokio::sync::mpsc::error::TrySendError;
 use std::{
     pin::Pin,
     sync::Arc,
@@ -124,24 +125,6 @@ impl Fd {
         let _ = self.write("\r\x1b[0K\r".as_bytes()).await;
     }
 
-    pub(crate) fn blocking_write_clear_line(&mut self) {
-        let _ = self.blocking_write("\r\x1b[0K\r".as_bytes());
-    }
-
-    pub fn blocking_write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.check_closed()?;
-        if let Some(sender) = self.sender.as_mut() {
-            let buf_len = buf.len();
-            let buf = buf.to_vec();
-            if let Err(_err) = sender.blocking_send(buf) {
-                return Err(std::io::ErrorKind::BrokenPipe.into());
-            }
-            Ok(buf_len)
-        } else {
-            return Err(std::io::ErrorKind::BrokenPipe.into());
-        }
-    }
-
     pub fn poll(&mut self) -> PollResult {
         poll_fd(
             self.receiver.as_mut(),
@@ -180,11 +163,30 @@ impl Write for Fd {
         if let Some(sender) = self.sender.as_mut() {
             let buf_len = buf.len();
             let buf = buf.to_vec();
-            let ret = if self.blocking.load(Ordering::Relaxed) {
-                sender.blocking_send(buf)
+            
+            if self.blocking.load(Ordering::Relaxed)
+            {
+                // We enter a blocking loop that can exit itself
+                let mut buf = Some(buf);
+                loop {
+                    match sender.try_send(buf.take().unwrap()) {
+                        Ok(_) => { break; },
+                        Err(TrySendError::Full(returned_buf)) => {
+                            buf.replace(returned_buf);
+                            if self.closed.load(Ordering::Acquire) {
+                                return Ok(0);
+                            } else {
+                                std::thread::park_timeout(std::time::Duration::from_millis(5));
+                            }
+                        },
+                        Err(TrySendError::Closed(_)) => {
+                            return Ok(0);
+                        }
+                    };
+                }
             } else {
                 match sender.try_send(buf) {
-                    Ok(ret) => Ok(ret),
+                    Ok(_) => { },
                     Err(mpsc::error::TrySendError::Full(_)) => {
                         return Err(std::io::ErrorKind::WouldBlock.into());
                     }
@@ -193,15 +195,12 @@ impl Write for Fd {
                     }
                 }
             };
-            if let Err(_err) = ret {
-                //return Err(std::io::ErrorKind::BrokenPipe.into());
-                return Ok(0);
-            }
             Ok(buf_len)
         } else {
             return Err(std::io::ErrorKind::BrokenPipe.into());
         }
     }
+
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
     }
@@ -210,57 +209,48 @@ impl Write for Fd {
 impl Read for Fd {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.check_closed()?;
-        if let Some(receiver) = self.receiver.as_mut() {
-            let mut receiver = receiver.blocking_lock();
-            if receiver.buffer.has_remaining() == false {
-                if receiver.mode == ReceiverMode::Message(true) {
-                    receiver.mode = ReceiverMode::Message(false);
-                    return Ok(0usize);
-                }
-                let ret = if self.blocking.load(Ordering::Relaxed)
+        if let Some(receiver) = self.receiver.as_mut()
+        {
+            loop
+            {
+                // Make an attempt to read the data
+                if let Ok(mut receiver) = receiver.try_lock()
                 {
-                    // We enter a blocking loop that can exit itself
-                    let mut ret = None;
-                    while ret.is_none() {
-                        ret = match receiver.rx.try_recv() {
-                            Ok(a) => Some(a),
-                            Err(TryRecvError::Disconnected) => {
-                                return Err(std::io::ErrorKind::BrokenPipe.into());
-                            }
-                            Err(TryRecvError::Empty) => {
-                                if self.closed.load(Ordering::Acquire) {
-                                    return Err(std::io::ErrorKind::BrokenPipe.into());
-                                } else {
-                                    std::thread::park_timeout(std::time::Duration::from_millis(5));
-                                    None
-                                }
-                            }
-                        };
+                    // If we have any data then lets go!
+                    if receiver.buffer.has_remaining() {
+                        let max = receiver.buffer.remaining().min(buf.len());
+                        buf[0..max].copy_from_slice(&receiver.buffer[..max]);
+                        receiver.buffer.advance(max);
+                        return Ok(max);
                     }
-                    ret
-                } else {
+
+                    // Otherwise lets get some more data
                     match receiver.rx.try_recv() {
-                        Ok(ret) => Some(ret),
-                        Err(mpsc::error::TryRecvError::Empty) => {
-                            return Err(std::io::ErrorKind::WouldBlock.into());
-                        }
-                        Err(mpsc::error::TryRecvError::Disconnected) => None,
-                    }
-                };
-                if let Some(data) = ret {
-                    receiver.buffer.extend_from_slice(&data[..]);
-                    if receiver.mode == ReceiverMode::Message(false) {
-                        receiver.mode = ReceiverMode::Message(true);
+                        Ok(data) => {
+                            receiver.buffer.extend_from_slice(&data[..]);
+                            if receiver.mode == ReceiverMode::Message(false) {
+                                receiver.mode = ReceiverMode::Message(true);
+                            }
+                        },
+                        Err(mpsc::error::TryRecvError::Empty) => { }
+                        Err(mpsc::error::TryRecvError::Disconnected) => {
+                            return Ok(0usize);
+                        },
                     }
                 }
+
+                // If we are none blocking then we are done
+                if self.blocking.load(Ordering::Relaxed) == false {
+                    return Err(std::io::ErrorKind::WouldBlock.into());
+                }
+
+                // Maybe we are closed? If not we should loop with yielding in between
+                if self.closed.load(Ordering::Acquire) {
+                    return Ok(0);
+                } else {
+                    std::thread::park_timeout(std::time::Duration::from_millis(5));
+                }
             }
-            if receiver.buffer.has_remaining() {
-                let max = receiver.buffer.remaining().min(buf.len());
-                buf[0..max].copy_from_slice(&receiver.buffer[..max]);
-                receiver.buffer.advance(max);
-                return Ok(max);
-            }
-            Ok(0usize)
         } else {
             return Err(std::io::ErrorKind::BrokenPipe.into());
         }

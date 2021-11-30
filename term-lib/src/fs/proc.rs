@@ -191,9 +191,11 @@ impl Seek for TtyFile {
         self.fd.seek(pos)
     }
 }
+
 impl Write for TtyFile {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.fd.blocking_write(buf)
+        self.fd.write_all(buf)?;
+        Ok(buf.len())
     }
     fn flush(&mut self) -> io::Result<()> {
         self.fd.flush()
