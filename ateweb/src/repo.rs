@@ -4,7 +4,7 @@ use ate_auth::error::GatherError;
 use ate_auth::service::AuthService;
 use ate_files::prelude::*;
 use bytes::Bytes;
-use parking_lot::RwLock;
+use std::sync::RwLock;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
@@ -48,7 +48,7 @@ impl Repository {
     pub async fn get_session(&self, sni: &String) -> Result<AteSessionGroup, GatherError> {
         // Check the check
         {
-            let guard = self.sessions.read();
+            let guard = self.sessions.read().unwrap();
             if let Some(ret) = guard.get(sni) {
                 return Ok(ret.clone());
             }
@@ -71,7 +71,7 @@ impl Repository {
         .await?;
 
         // Enter a write lock and check again
-        let mut guard = self.sessions.write();
+        let mut guard = self.sessions.write().unwrap();
         if let Some(ret) = guard.get(sni) {
             return Ok(ret.clone());
         }

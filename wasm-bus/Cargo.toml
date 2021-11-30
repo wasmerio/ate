@@ -12,7 +12,7 @@ readme = "README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = [ "ws", "reqwest", "process", "macros", "time", "rt", "tokio" ]
+default = [ "ws", "reqwest", "process", "macros", "time", "rt", "tokio", "fuse" ]
 backend = []
 ws = []
 reqwest = [ "http", "mime_guess", "http-body", "formdata" ]
@@ -20,6 +20,7 @@ process = []
 macros = []
 time = []
 rt = [ "cooked-waker" ]
+fuse = []
 
 [dependencies]
 bytes = "1"

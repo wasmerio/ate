@@ -38,7 +38,6 @@ serde = { version = "^1", features = ["derive"] }
 serde_json = "^1"
 rmp = "^0.8"
 rmp-serde = "^0.15"
-derive-new = "^0.5"
 bytes = "^1"
 futures = "^0.3"
 futures-util = "^0.3"
@@ -62,13 +61,12 @@ tracing-futures = { version = "^0.2" }
 tracing-subscriber = { version = "^0.2" }
 cached = "^0.23"
 bincode = "^1"
-async-executor = "^1"
+async-executor = { version = "^1", optional = true }
 url = { version = "^2", features = ["serde"] }
 btreemultimap = { version = "^0.1" }
 base64 = "^0.13"
 num_enum = "^0.5"
 pin-project-lite = "^0.2"
-crossbeam = "^0.8"
 cooked-waker = "^5"
 pqcrypto-falcon-wasi = { version = "^0.2", features = [ "avx2" ], default_features = false }
 pqcrypto-ntru-wasi = { version = "^0.5", features = [ "avx2" ], default_features = false }

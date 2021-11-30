@@ -2,7 +2,6 @@
 use ate_files::accessor::FileAccessor;
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
-use parking_lot::Mutex;
 use std::ffi::{OsStr, OsString};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};

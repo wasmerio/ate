@@ -30,6 +30,10 @@ use {
     hyper_tungstenite::tungstenite::Error as HyperError,
     hyper_tungstenite::tungstenite::Message as HyperMessage,
     hyper_tungstenite::WebSocketStream as HyperWebSocket,
+};
+
+#[cfg(feature = "enable_full")]
+use {
     tokio::io::{AsyncReadExt, AsyncWriteExt},
     tokio_tungstenite::{tungstenite::Message, WebSocketStream},
 };
@@ -463,9 +467,8 @@ impl StreamTx {
                     match a.feed(Message::binary(buf)).await {
                         Ok(a) => a,
                         Err(err) => {
-                            let kind = StreamTx::conv_error_kind(&err);
                             return Err(tokio::io::Error::new(
-                                kind,
+                                tokio::io::ErrorKind::Other,
                                 format!("Failed to feed data into websocket - {}", err.to_string()),
                             ));
                         }
@@ -474,9 +477,8 @@ impl StreamTx {
                     match a.send(Message::binary(buf)).await {
                         Ok(a) => a,
                         Err(err) => {
-                            let kind = StreamTx::conv_error_kind(&err);
                             return Err(tokio::io::Error::new(
-                                kind,
+                                tokio::io::ErrorKind::Other,
                                 format!("Failed to feed data into websocket - {}", err.to_string()),
                             ));
                         }

@@ -13,8 +13,8 @@ use ate::prelude::*;
 use bytes::Bytes;
 use futures::future::try_join_all;
 use fxhash::FxHashMap;
-use parking_lot::Mutex as StdMutex;
-use parking_lot::RwLock as StdRwLock;
+use std::sync::Mutex as StdMutex;
+use std::sync::RwLock as StdRwLock;
 use rcgen::{CertificateParams, DistinguishedName, PKCS_ECDSA_P256_SHA256};
 use rustls::sign::any_supported_type;
 use rustls::sign::CertifiedKey;
@@ -92,7 +92,7 @@ impl AcmeResolver {
     pub async fn touch_alpn(&self, sni: String) -> Result<(), Box<dyn std::error::Error>> {
         // Fast path
         {
-            let guard = self.auths.read();
+            let guard = self.auths.read().unwrap();
             if guard.contains_key(&sni) {
                 return Ok(());
             }
@@ -111,7 +111,7 @@ impl AcmeResolver {
         if let Some(cert) = cert {
             if let Some(key) = key {
                 if let Some(cert_key) = self.process_cert(sni.as_str(), cert, key).await? {
-                    let mut guard = self.auths.write();
+                    let mut guard = self.auths.write().unwrap();
                     guard.insert(sni.to_string(), cert_key, Duration::from_secs(300));
                     return Ok(());
                 }
@@ -123,7 +123,7 @@ impl AcmeResolver {
         }
 
         // No certificate :-(
-        let mut guard = self.auths.write();
+        let mut guard = self.auths.write().unwrap();
         guard.remove(&sni);
         Ok(())
     }
@@ -135,7 +135,7 @@ impl AcmeResolver {
     ) -> Result<(), Box<dyn std::error::Error>> {
         // Fast path
         {
-            let guard = self.certs.read();
+            let guard = self.certs.read().unwrap();
             if let Some(cert) = guard.get(&sni) {
                 let d = self.duration_until_renewal_attempt(cert, renewal);
                 if d.as_secs() > 0 {
@@ -146,7 +146,7 @@ impl AcmeResolver {
         }
 
         let lock = {
-            let mut guard = self.locks.lock();
+            let mut guard = self.locks.lock().unwrap();
             match guard.entry(sni.clone()) {
                 Entry::Occupied(a) => Arc::clone(a.get()),
                 Entry::Vacant(a) => {
@@ -160,7 +160,7 @@ impl AcmeResolver {
 
         // Slow path
         let loaded = {
-            let guard = self.certs.read();
+            let guard = self.certs.read().unwrap();
             if let Some(cert) = guard.get(&sni) {
                 let d = self.duration_until_renewal_attempt(cert, renewal);
                 if d.as_secs() > 0 {
@@ -186,7 +186,7 @@ impl AcmeResolver {
             if let Some(cert) = cert {
                 if let Some(key) = key {
                     if let Some(cert_key) = self.process_cert(sni.as_str(), cert, key).await? {
-                        let mut guard = self.certs.write();
+                        let mut guard = self.certs.write().unwrap();
                         guard.insert(sni.to_string(), cert_key.clone(), Duration::from_secs(3600));
 
                         let d = self.duration_until_renewal_attempt(&cert_key, renewal);
@@ -247,7 +247,7 @@ impl AcmeResolver {
                     .set_file(sni.as_str(), WEB_CONF_FILES_WEB_KEY, pk_pem.as_bytes())
                     .await?;
 
-                let mut guard = self.certs.write();
+                let mut guard = self.certs.write().unwrap();
                 guard.insert(sni.to_string(), cert_key, Duration::from_secs(3600));
             }
             Err(err) => {
@@ -393,11 +393,12 @@ impl AcmeResolver {
                     .set_file(sni, WEB_CONF_FILES_ALPN_KEY, pk_pem.as_bytes())
                     .await?;
 
-                self.auths.write().remove(&domain);
+                self.auths.write().unwrap().remove(&domain);
 
                 /*
                 self.auths
                     .write()
+                    .unwrap()
                     .insert(domain.clone(), _auth_key, Duration::from_secs(300));
                 */
 
@@ -429,7 +430,7 @@ impl ResolvesServerCert for AcmeResolver {
             let sni: String = AsRef::<str>::as_ref(&sni).to_string();
 
             if client_hello.alpn() == Some(&[ACME_TLS_ALPN_NAME]) {
-                let guard = self.auths.read();
+                let guard = self.auths.read().unwrap();
                 if let Some(cert) = guard.get(&sni) {
                     trace!("tls_challenge: auth_hit={:?}", sni);
                     return Some(cert.clone());
@@ -439,7 +440,7 @@ impl ResolvesServerCert for AcmeResolver {
                 }
             }
 
-            let guard = self.certs.read();
+            let guard = self.certs.read().unwrap();
 
             return if let Some(cert) = guard.get(&sni) {
                 trace!("tls_hello: cert_hit={:?}", sni);

@@ -3,7 +3,6 @@
 use core::sync::atomic::AtomicBool;
 use core::sync::atomic::Ordering;
 use derivative::*;
-use parking_lot::Mutex as SyncMutex;
 use std::io::Write;
 use std::sync::Arc;
 use std::sync::Mutex;

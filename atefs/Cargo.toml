@@ -14,15 +14,15 @@ links = "fuse"
 
 [features]
 default = [ "client", "server", "enable_tokera" ]
-client_web = [ "ate/client_web", "ate-auth/client_web", "parking_lot/wasm-bindgen" ]
-client = [ "ate/client", "ate-auth/client" ]
-server = [ "ate/server", "ate-auth/server", "ate/enable_mt" ]
+client_web = [ "ate/client_web", "ate-auth/client_web", "ate-files/web" ]
+client = [ "ate/client", "ate-auth/client", "ate-files/sys" ]
+server = [ "ate/server", "ate-auth/server", "ate-files/sys", "ate/enable_mt" ]
 enable_tokera = [ "tokera" ]
 
 [dependencies]
 ate = { version = "^1", path = "../lib", default_features = false }
 ate-auth = { version = "^1", path = "../auth", default_features = false }
-ate-files = { version = "^1", path = "../files" }
+ate-files = { version = "^1", path = "../files", default_features = false }
 tokera = { version = "^1", path = "../tokera", optional = true }
 error-chain = { version = "^0.12", default_features = false }
 tokio = { version = "^1", features = ["full", "signal", "process"] }
@@ -30,7 +30,6 @@ serde = { version = "^1", features = ["derive"] }
 tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
 tracing-futures = { version = "^0.2" }
 tracing-subscriber = { version = "^0.2" }
-parking_lot = "^0.11"
 futures = "^0.3"
 futures-util = "^0.3"
 async-trait = "^0.1"
@@ -38,7 +37,6 @@ bytes = "^1"
 fxhash = "^0.2"
 fastrand = "^1.4"
 ctrlc-async = { version = "^3" }
-directories = { version = "^3" }
 libc = { version = "^0.2" }
 fuse3 = { version = "0.2.0-beta.4", features = ["tokio-runtime", "unprivileged"] }
 enum_dispatch = { version = "^0.3" }
@@ -46,8 +44,6 @@ clap = "^3.0.0-beta.5"
 shellexpand = "^2"
 cached = "^0.23"
 seqlock = "^0.1"
-xarc = "^0.2"
-lockfree = "^0.5"
 array-init = "^1"
 rpassword-wasi = "^5"
 url = "^2"

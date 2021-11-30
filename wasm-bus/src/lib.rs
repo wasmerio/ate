@@ -17,6 +17,8 @@ pub mod task;
 pub mod time;
 #[cfg(feature = "ws")]
 pub mod ws;
+#[cfg(feature = "fuse")]
+pub mod fuse;
 
 #[cfg(feature = "tokio")]
 pub(crate) const MAX_MPSC: usize = std::usize::MAX >> 3;

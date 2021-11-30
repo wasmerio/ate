@@ -3,7 +3,7 @@ use error_chain::bail;
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use bytes::Bytes;
-use parking_lot::Mutex;
+use std::sync::Mutex;
 use std::sync::Arc;
 
 use crate::fixed::FixedFile;
@@ -367,7 +367,7 @@ impl FileAccessor {
     pub async fn tick(&self) -> Result<()> {
         let secs = self.elapsed.elapsed().as_secs();
         if secs > self.last_elapsed.read() {
-            let _ = self.commit_lock.lock();
+            let _ = self.commit_lock.lock().unwrap();
             if secs > self.last_elapsed.read() {
                 *self.last_elapsed.lock_write() = secs;
                 self.commit_internal().await?;
@@ -377,7 +377,7 @@ impl FileAccessor {
     }
 
     pub async fn commit(&self) -> Result<()> {
-        let _ = self.commit_lock.lock();
+        let _ = self.commit_lock.lock().unwrap();
         self.commit_internal().await?;
         Ok(())
     }
@@ -385,7 +385,7 @@ impl FileAccessor {
     pub async fn commit_internal(&self) -> Result<()> {
         trace!("commit");
         let open_handles = {
-            let lock = self.open_handles.lock();
+            let lock = self.open_handles.lock().unwrap();
             lock.values()
                 .filter(|a| a.dirty.read())
                 .map(|v| {
@@ -587,7 +587,7 @@ impl FileAccessor {
         trace!("getattr inode={}", inode);
 
         if let Some(fh) = fh {
-            let lock = self.open_handles.lock();
+            let lock = self.open_handles.lock().unwrap();
             if let Some(open) = lock.get(&fh) {
                 return Ok(open.attr.clone());
             }
@@ -674,7 +674,7 @@ impl FileAccessor {
 
         let fh = open.fh;
         let handle = Arc::new(open);
-        self.open_handles.lock().insert(fh, Arc::clone(&handle));
+        self.open_handles.lock().unwrap().insert(fh, Arc::clone(&handle));
         Ok(handle)
     }
 
@@ -688,7 +688,7 @@ impl FileAccessor {
         self.tick().await?;
         debug!("atefs::releasedir inode={}", inode);
 
-        let open = self.open_handles.lock().remove(&fh);
+        let open = self.open_handles.lock().unwrap().remove(&fh);
         if let Some(open) = open {
             open.spec.commit().await?
         }
@@ -808,7 +808,7 @@ impl FileAccessor {
         debug!("atefs::flush inode={}", inode);
 
         let open = {
-            let lock = self.open_handles.lock();
+            let lock = self.open_handles.lock().unwrap();
             match lock.get(&fh) {
                 Some(open) => Some(Arc::clone(&open)),
                 _ => None,
@@ -966,7 +966,7 @@ impl FileAccessor {
 
         let fh = open.fh;
         let handle = Arc::new(open);
-        self.open_handles.lock().insert(fh, Arc::clone(&handle));
+        self.open_handles.lock().unwrap().insert(fh, Arc::clone(&handle));
 
         Ok(handle)
     }
@@ -1093,7 +1093,7 @@ impl FileAccessor {
 
         let fh = open.fh;
         let handle = Arc::new(open);
-        self.open_handles.lock().insert(fh, Arc::clone(&handle));
+        self.open_handles.lock().unwrap().insert(fh, Arc::clone(&handle));
         Ok(handle)
     }
 
@@ -1109,7 +1109,7 @@ impl FileAccessor {
         self.tick().await?;
         debug!("atefs::release inode={}", inode);
 
-        let open = self.open_handles.lock().remove(&fh);
+        let open = self.open_handles.lock().unwrap().remove(&fh);
         if let Some(open) = open {
             open.spec.commit().await?
         }
@@ -1136,7 +1136,7 @@ impl FileAccessor {
         );
 
         let open = {
-            let lock = self.open_handles.lock();
+            let lock = self.open_handles.lock().unwrap();
             match lock.get(&fh) {
                 Some(a) => Arc::clone(a),
                 None => {
@@ -1165,7 +1165,7 @@ impl FileAccessor {
         );
 
         let open = {
-            let lock = self.open_handles.lock();
+            let lock = self.open_handles.lock().unwrap();
             match lock.get(&fh) {
                 Some(a) => Arc::clone(a),
                 None => {
@@ -1210,7 +1210,7 @@ impl FileAccessor {
 
         if fh > 0 {
             let open = {
-                let lock = self.open_handles.lock();
+                let lock = self.open_handles.lock().unwrap();
                 match lock.get(&fh) {
                     Some(a) => Some(Arc::clone(a)),
                     None => None,
@@ -1252,7 +1252,7 @@ impl FileAccessor {
         } else if whence == SEEK_END as u32 {
             let mut size = None;
             if fh > 0 {
-                let lock = self.open_handles.lock();
+                let lock = self.open_handles.lock().unwrap();
                 if let Some(open) = lock.get(&fh) {
                     size = Some(open.spec.size());
                 }

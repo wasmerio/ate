@@ -12,7 +12,7 @@ readme = "README.md"
 
 [features]
 default = [ "client", "server" ]
-client_web = [ "ate/client_web", "parking_lot/wasm-bindgen" ]
+client_web = [ "ate/client_web" ]
 client = [ "enable_full", "ate/client" ]
 server = [ "enable_full", "ctrlc-async", "ate/server", "ate/enable_mt" ]
 enable_full = [ "enable_tcp" ]
@@ -29,7 +29,6 @@ serde_json = "^1"
 tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
 tracing-futures = { version = "^0.2" }
 tracing-subscriber = { version = "^0.2" }
-parking_lot = "^0.11"
 futures = "^0.3"
 futures-util = "^0.3"
 async-trait = "^0.1"
@@ -37,7 +36,6 @@ bytes = "^1"
 fxhash = "^0.2"
 fastrand = "^1"
 chrono = { version = "^0.4", features = ["serde"] }
-isocountry = "^0.3"
 url = "^2"
 rpassword-wasi = "^5"
 regex = "^1"
@@ -54,7 +52,6 @@ atty = "^0.2"
 strum = "^0.21"
 strum_macros = "^0.21"
 rust_decimal = "^1"
-rust_decimal_macros = "^1"
 num-traits = { version = "^0.2" }
 wild = "^2"
 
