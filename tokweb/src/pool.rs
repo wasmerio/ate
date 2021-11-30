@@ -11,6 +11,10 @@ use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tokio::sync::Semaphore;
+use std::rc::Rc;
+use std::cell::RefCell;
+use std::ops::Deref;
+use std::ops::DerefMut;
 
 use js_sys::{JsString, Promise};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -18,6 +22,7 @@ use std::sync::Arc;
 use wasm_bindgen::{prelude::*, JsCast};
 use web_sys::{DedicatedWorkerGlobalScope, WorkerOptions, WorkerType};
 use xterm_js_rs::Terminal;
+use term_lib::api::ThreadLocal;
 
 use super::common::*;
 use super::fd::*;
@@ -26,6 +31,9 @@ use super::tty::Tty;
 
 pub type BoxRun<'a, T> =
     Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = T> + 'static>> + Send + 'a>;
+
+pub type BoxRunWithThreadLocal<'a, T> =
+    Box<dyn FnOnce(Rc<RefCell<ThreadLocal>>) -> Pin<Box<dyn Future<Output = T> + 'static>> + Send + 'a>;
 
 trait AssertSendSync: Send + Sync {}
 impl AssertSendSync for WebThreadPool {}
@@ -39,7 +47,7 @@ pub struct WebThreadPool {
 
 enum Message {
     RunShared(BoxRun<'static, ()>),
-    RunDedicated(BoxRun<'static, ()>),
+    RunDedicated(BoxRunWithThreadLocal<'static, ()>),
     Close,
 }
 
@@ -197,7 +205,7 @@ impl WebThreadPool {
         self.pool_reactors.send(Message::RunShared(task));
     }
 
-    pub fn spawn_dedicated(&self, task: BoxRun<'static, ()>) {
+    pub fn spawn_dedicated(&self, task: BoxRunWithThreadLocal<'static, ()>) {
         self.pool_blocking.send(Message::RunDedicated(task));
     }
 }
@@ -296,6 +304,7 @@ impl PoolState {
 
 impl ThreadState {
     fn work(state: Arc<ThreadState>) {
+        let thread_local = Rc::new(RefCell::new(ThreadLocal::default()));
         let mut rx = state.pool.tx.subscribe();
         let pool = Arc::clone(&state.pool);
         let driver = async move {
@@ -313,7 +322,8 @@ impl ThreadState {
                 if let Some(msg) = msg {
                     match msg {
                         Message::RunDedicated(task) => {
-                            task().await;
+                            let thread_local = thread_local.clone();
+                            task(thread_local).await;
                         }
                         Message::RunShared(task) => {
                             let future = task();

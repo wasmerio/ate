@@ -3,6 +3,8 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 use tokio::sync::mpsc;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 use super::*;
 
@@ -25,7 +27,7 @@ where
     /// and any async futures within its scope
     fn task_dedicated(
         &self,
-        task: Box<dyn FnOnce(&mut ThreadLocal) -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
+        task: Box<dyn FnOnce(Rc<RefCell<ThreadLocal>>) -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
     );
 
     /// Starts an asynchronous task on the current thread. This is useful for
@@ -71,7 +73,7 @@ pub trait SystemAbiExt {
     /// or asynchronously
     fn spawn_dedicated<F, Fut>(&self, task: F) -> AsyncResult<Fut::Output>
     where
-        F: FnOnce(&mut ThreadLocal) -> Fut,
+        F: FnOnce(Rc<RefCell<ThreadLocal>>) -> Fut,
         F: Send + 'static,
         Fut: Future + 'static,
         Fut::Output: Send;
@@ -91,7 +93,7 @@ pub trait SystemAbiExt {
     /// This is the fire-and-forget variet of spawning background work
     fn fork_dedicated<F, Fut>(&self, task: F)
     where
-        F: FnOnce(&mut ThreadLocal) -> Fut,
+        F: FnOnce(Rc<RefCell<ThreadLocal>>) -> Fut,
         F: Send + 'static,
         Fut: Future + 'static;
 
@@ -125,7 +127,7 @@ impl SystemAbiExt for dyn SystemAbi {
 
     fn spawn_dedicated<F, Fut>(&self, task: F) -> AsyncResult<Fut::Output>
     where
-        F: FnOnce(&mut ThreadLocal) -> Fut,
+        F: FnOnce(Rc<RefCell<ThreadLocal>>) -> Fut,
         F: Send + 'static,
         Fut: Future + 'static,
         Fut::Output: Send
@@ -157,7 +159,7 @@ impl SystemAbiExt for dyn SystemAbi {
 
     fn fork_dedicated<F, Fut>(&self, task: F)
     where
-        F: FnOnce(&mut ThreadLocal) -> Fut,
+        F: FnOnce(Rc<RefCell<ThreadLocal>>) -> Fut,
         F: Send + 'static,
         Fut: Future + 'static
     {

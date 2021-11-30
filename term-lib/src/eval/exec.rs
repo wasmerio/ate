@@ -207,12 +207,14 @@ pub async fn exec(
     let path = ctx.path.clone();
     let process2 = process.clone();
     let preopen = ctx.pre_open.clone();
-    ctx.system.fork_dedicated(move |_|
+    ctx.system.fork_dedicated(move |mut thread_local|
         async move {
+            let mut thread_local = thread_local.borrow_mut();
+
             // Compile the module
             let _ = tty.write("Compiling...".as_bytes()).await;
-            let store = Store::default();
-            let module = match Module::new(&store, &data[..]) {
+            let store = &mut thread_local.store;
+            let module = match Module::new(store, &data[..]) {
                 Ok(a) => a,
                 Err(err) => {
                     tty.write_clear_line().await;

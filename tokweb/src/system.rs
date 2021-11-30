@@ -7,6 +7,8 @@ use term_lib::err;
 use tokio::sync::oneshot;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::*;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 use super::pool::WebThreadPool;
 use super::ws::WebSocket;
@@ -32,7 +34,7 @@ impl SystemAbi for WebSystem {
 
     fn task_dedicated(
         &self,
-        task: Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
+        task: Box<dyn FnOnce(Rc<RefCell<ThreadLocal>>) -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
     ) {
         self.pool.spawn_dedicated(task);
     }
