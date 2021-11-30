@@ -397,7 +397,7 @@ impl ThreadState {
                             drop(lock);
                             if let Ok(_) = state.pool.idle_tx.send(other).await {
                                 info!(
-                                    "worked closed (index={}, type={:?})",
+                                    "worker closed (index={}, type={:?})",
                                     thread_index, pool.type_
                                 );
                                 break;
@@ -424,7 +424,7 @@ impl ThreadState {
                     Some(a) => Some(a),
                     None => {
                         info!(
-                            "worked closed (index={}, type={:?})",
+                            "worker closed (index={}, type={:?})",
                             thread_index, pool.type_
                         );
                         break;
