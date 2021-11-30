@@ -42,10 +42,10 @@ trait AssertSendSync: Send + Sync {}
 impl AssertSendSync for WebThreadPool {}
 
 #[wasm_bindgen]
+#[derive(Debug, Clone)]
 pub struct WebThreadPool {
     pool_reactors: Arc<PoolState>,
     pool_blocking: Arc<PoolState>,
-    manager: Arc<LeakyInterval>,
 }
 
 enum Message {
@@ -84,7 +84,6 @@ impl IdleThread
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct PoolState {
-    ref_cnt: AtomicUsize,
     #[derivative(Debug = "ignore")]
     idle_rx: Mutex<mpsc::Receiver<IdleThread>>,
     idle_tx: mpsc::Sender<IdleThread>,
@@ -102,18 +101,6 @@ pub struct ThreadState {
     tx: mpsc::Sender<Message>,
     rx: Mutex<Option<mpsc::Receiver<Message>>>,
     init: Mutex<Option<Message>>,
-}
-
-impl Clone for WebThreadPool {
-    fn clone(&self) -> Self {
-        self.pool_reactors.ref_cnt.fetch_add(1, Ordering::Release);
-        self.pool_blocking.ref_cnt.fetch_add(1, Ordering::Release);
-        Self {
-            pool_reactors: self.pool_reactors.clone(),
-            pool_blocking: self.pool_blocking.clone(),
-            manager: self.manager.clone(),
-        }
-    }
 }
 
 #[wasm_bindgen]
@@ -152,7 +139,6 @@ impl WebThreadPool {
         let (tx2, rx2) = mpsc::channel(MAX_MPSC);
 
         let pool_reactors = Arc::new(PoolState {
-            ref_cnt: AtomicUsize::new(1),
             idle_rx: Mutex::new(rx1),
             idle_tx: tx1,
             size: AtomicUsize::new(0),
@@ -162,7 +148,6 @@ impl WebThreadPool {
         });
 
         let pool_blocking = Arc::new(PoolState {
-            ref_cnt: AtomicUsize::new(1),
             idle_rx: Mutex::new(rx2),
             idle_tx: tx2,
             size: AtomicUsize::new(0),
@@ -171,23 +156,9 @@ impl WebThreadPool {
             type_: PoolType::Thread,
         });
 
-        let manager = {
-            let pool_blocking = Arc::downgrade(&pool_blocking);
-            let pool_reactors = Arc::downgrade(&pool_reactors);
-            LeakyInterval::new(std::time::Duration::from_millis(50), move || {
-                if let Some(pool) = pool_blocking.upgrade() {
-                    pool.manage();
-                }
-                if let Some(pool) = pool_reactors.upgrade() {
-                    pool.manage();
-                }
-            })
-        };
-
         let pool = WebThreadPool {
             pool_reactors,
             pool_blocking,
-            manager: Arc::new(manager),
         };
 
         Ok(pool)
@@ -280,9 +251,6 @@ impl PoolState {
                 return;
             }
         });
-    }
-
-    pub fn manage(self: &Arc<PoolState>) {
     }
 }
 
