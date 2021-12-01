@@ -4,8 +4,8 @@ use ate_auth::error::GatherError;
 use ate_auth::service::AuthService;
 use ate_files::prelude::*;
 use bytes::Bytes;
-use std::sync::RwLock;
 use std::sync::Arc;
+use std::sync::RwLock;
 use std::time::Duration;
 use tokio::sync::Mutex;
 #[allow(unused_imports, dead_code)]

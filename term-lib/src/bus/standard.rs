@@ -50,7 +50,9 @@ impl StandardBus {
             ("os", topic) if topic == type_name::<backend::process::Spawn>() => {
                 let request = decode_request(request.as_ref())?;
 
-                let (invoker, session) = self.process_factory.create(request, client_callbacks.clone())?;
+                let (invoker, session) = self
+                    .process_factory
+                    .create(request, client_callbacks.clone())?;
                 Ok((invoker, session))
             }
             _ => Err(CallError::InvalidTopic),

@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use wasm_bus::abi::CallHandle;
 use wasm_bus::abi::CallError;
+use wasm_bus::abi::CallHandle;
 
 use super::*;
 
@@ -28,17 +28,21 @@ impl BusFactory {
         topic: &str,
         request: &Vec<u8>,
         client_callbacks: HashMap<String, WasmBusFeeder>,
-    ) -> Box<dyn Invokable>
-    {
+    ) -> Box<dyn Invokable> {
         // The standard bus allows for things like web sockets, http requests, etc...
-        match self.standard.create(wapm, topic, request, &client_callbacks) {
+        match self
+            .standard
+            .create(wapm, topic, request, &client_callbacks)
+        {
             Ok((invoker, Some(session))) => {
                 self.sessions.insert(handle, session);
                 return invoker;
             }
-            Ok((invoker, None)) => { return invoker; },
-            Err(CallError::InvalidTopic) => { /* fall through */ },
-            Err(err) => { return ErrornousInvokable::new(err) },
+            Ok((invoker, None)) => {
+                return invoker;
+            }
+            Err(CallError::InvalidTopic) => { /* fall through */ }
+            Err(err) => return ErrornousInvokable::new(err),
         }
 
         // Now we need to check if there is a sub process we can invoke
@@ -48,14 +52,16 @@ impl BusFactory {
                     self.sessions.insert(handle, session);
                     return invoker;
                 }
-                Ok((invoker, None)) => { return invoker; },
-                Err(CallError::InvalidTopic) => { /* fall through */ },
-                Err(err) => { return ErrornousInvokable::new(err) },
+                Ok((invoker, None)) => {
+                    return invoker;
+                }
+                Err(CallError::InvalidTopic) => { /* fall through */ }
+                Err(err) => return ErrornousInvokable::new(err),
             }
         }
 
         // Ok time to give up
-        return ErrornousInvokable::new(CallError::InvalidTopic)
+        return ErrornousInvokable::new(CallError::InvalidTopic);
     }
 
     pub fn get(&mut self, handle: CallHandle) -> Option<&mut Box<dyn Session>> {

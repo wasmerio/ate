@@ -3,8 +3,8 @@ use error_chain::bail;
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use bytes::Bytes;
-use std::sync::Mutex;
 use std::sync::Arc;
+use std::sync::Mutex;
 
 use crate::fixed::FixedFile;
 use ::ate::chain::*;
@@ -674,7 +674,10 @@ impl FileAccessor {
 
         let fh = open.fh;
         let handle = Arc::new(open);
-        self.open_handles.lock().unwrap().insert(fh, Arc::clone(&handle));
+        self.open_handles
+            .lock()
+            .unwrap()
+            .insert(fh, Arc::clone(&handle));
         Ok(handle)
     }
 
@@ -966,7 +969,10 @@ impl FileAccessor {
 
         let fh = open.fh;
         let handle = Arc::new(open);
-        self.open_handles.lock().unwrap().insert(fh, Arc::clone(&handle));
+        self.open_handles
+            .lock()
+            .unwrap()
+            .insert(fh, Arc::clone(&handle));
 
         Ok(handle)
     }
@@ -1093,7 +1099,10 @@ impl FileAccessor {
 
         let fh = open.fh;
         let handle = Arc::new(open);
-        self.open_handles.lock().unwrap().insert(fh, Arc::clone(&handle));
+        self.open_handles
+            .lock()
+            .unwrap()
+            .insert(fh, Arc::clone(&handle));
         Ok(handle)
     }
 

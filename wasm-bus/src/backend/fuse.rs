@@ -95,8 +95,7 @@ pub struct Mount {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Unmount {
-}
+pub struct Unmount {}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReadDir {
@@ -140,8 +139,7 @@ pub struct NewOpen {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Unlink {
-}
+pub struct Unlink {}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SetLength {
@@ -157,7 +155,7 @@ pub enum Seek {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Write {
-    pub data: Vec<u8>
+    pub data: Vec<u8>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -166,8 +164,7 @@ pub struct Read {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Flush {
-}
+pub struct Flush {}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileType {
@@ -202,10 +199,10 @@ pub struct Metadata {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DirEntry {
     pub path: String,
-    pub metadata: Option<Metadata>
+    pub metadata: Option<Metadata>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Dir {
-    pub data: Vec<DirEntry>
+    pub data: Vec<DirEntry>,
 }
