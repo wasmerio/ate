@@ -28,13 +28,13 @@ impl StandardBus {
         wapm: &str,
         topic: &str,
         request: &Vec<u8>,
-        client_callbacks: HashMap<String, WasmBusFeeder>,
+        client_callbacks: &HashMap<String, WasmBusFeeder>,
     ) -> Result<(Box<dyn Invokable>, Option<Box<dyn Session>>), CallError> {
         match (wapm, topic) {
             ("os", topic) if topic == type_name::<backend::ws::Connect>() => {
                 let request = decode_request(request.as_ref())?;
 
-                let (invoker, session) = ws::web_socket(request, client_callbacks)?;
+                let (invoker, session) = ws::web_socket(request, client_callbacks.clone())?;
                 Ok((Box::new(invoker), Some(Box::new(session))))
             }
             ("os", topic) if topic == type_name::<backend::time::Sleep>() => {
@@ -50,7 +50,7 @@ impl StandardBus {
             ("os", topic) if topic == type_name::<backend::process::Spawn>() => {
                 let request = decode_request(request.as_ref())?;
 
-                let (invoker, session) = self.process_factory.create(request, client_callbacks)?;
+                let (invoker, session) = self.process_factory.create(request, client_callbacks.clone())?;
                 Ok((invoker, session))
             }
             _ => Err(CallError::InvalidTopic),

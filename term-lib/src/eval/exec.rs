@@ -269,7 +269,9 @@ pub async fn exec(
                     wasi_env.on_yield(move |thread| {
                         let forced_exit = forced_exit.load(Ordering::Acquire);
                         if forced_exit != 0 {
-                            thread.terminate(forced_exit as u32);
+                            wasmer::RuntimeError::raise(Box::new(wasmer_wasi::WasiError::Exit(
+                                forced_exit as u32,
+                            )));
                         }
                         let thread = bus_pool.get_or_create(thread);
                         unsafe {
