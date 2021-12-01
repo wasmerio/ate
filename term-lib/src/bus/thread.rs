@@ -108,7 +108,8 @@ pub struct WasmBusThread {
     #[wasmer(export(name = "wasm_bus_malloc"))]
     wasm_bus_malloc: LazyInit<NativeFunc<u32, WasmPtr<u8, Array>>>,
     #[wasmer(export(name = "wasm_bus_start"))]
-    wasm_bus_start: LazyInit<NativeFunc<(u32, WasmPtr<u8, Array>, u32, WasmPtr<u8, Array>, u32), u32>>,
+    wasm_bus_start:
+        LazyInit<NativeFunc<(u32, WasmPtr<u8, Array>, u32, WasmPtr<u8, Array>, u32), ()>>,
     #[wasmer(export(name = "wasm_bus_finish"))]
     wasm_bus_finish: LazyInit<NativeFunc<(u32, WasmPtr<u8, Array>, u32), ()>>,
     #[wasmer(export(name = "wasm_bus_error"))]

@@ -49,21 +49,15 @@ impl BusFactory {
 
         // Now we need to check if there is a sub process we can invoke
         match self.sub_processes.get_or_create(wapm) {
-            Ok(sub_process) => {
-                match sub_process.create(topic, request, client_callbacks) {
-                    Ok((invoker, Some(session))) => {
-                        self.sessions.insert(handle, session);
-                        invoker
-                    }
-                    Ok((invoker, None)) => {
-                        invoker
-                    }
-                    Err(err) => ErrornousInvokable::new(err),
+            Ok(sub_process) => match sub_process.create(topic, request, client_callbacks) {
+                Ok((invoker, Some(session))) => {
+                    self.sessions.insert(handle, session);
+                    invoker
                 }
-            }
-            Err(err) => {
-                ErrornousInvokable::new(err)
-            }
+                Ok((invoker, None)) => invoker,
+                Err(err) => ErrornousInvokable::new(err),
+            },
+            Err(err) => ErrornousInvokable::new(err),
         }
     }
 

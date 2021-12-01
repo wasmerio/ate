@@ -31,9 +31,16 @@ mod raw {
     // Invoked by the operating system when during a poll when a
     // request is to be processed by this program
     #[no_mangle]
-    pub extern "C" fn wasm_bus_start(handle: u32, topic_ptr: u32, topic_len: u32, request_ptr: u32, request_len: u32) {
+    pub extern "C" fn wasm_bus_start(
+        handle: u32,
+        topic_ptr: u32,
+        topic_len: u32,
+        request_ptr: u32,
+        request_len: u32,
+    ) {
         let topic = unsafe {
-            let topic = Vec::from_raw_parts(topic_ptr as *mut u8, topic_len as usize, topic_len as usize);
+            let topic =
+                Vec::from_raw_parts(topic_ptr as *mut u8, topic_len as usize, topic_len as usize);
             String::from_utf8_lossy(&topic[..]).to_string()
         };
         trace!(
@@ -43,12 +50,15 @@ mod raw {
             request_len
         );
         unsafe {
-            let _request =
-                Vec::from_raw_parts(request_ptr as *mut u8, request_len as usize, request_len as usize);
+            let _request = Vec::from_raw_parts(
+                request_ptr as *mut u8,
+                request_len as usize,
+                request_len as usize,
+            );
         }
 
         #[cfg(feature = "rt")]
-        crate::task::wake();        
+        crate::task::wake();
     }
 
     // Invoked by the operating system when a call has finished
@@ -89,7 +99,7 @@ mod raw {
 
         // Indicates that a fault has occured while processing a call
         pub(crate) fn fault(handle: u32, error: i32);
-        
+
         // Returns the response of a listen invokation to a program
         // from the operating system
         pub(crate) fn reply(handle: u32, response: i32, response_len: i32);

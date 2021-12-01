@@ -36,7 +36,7 @@ impl SubProcessFactory {
         let empty_client_callbacks = HashMap::default();
         let spawn = Spawn {
             path: wapm.clone(),
-            args: vec![ "bus".to_string() ],
+            args: vec!["bus".to_string()],
             current_dir: None,
             stdin_mode: StdioMode::Null,
             stdout_mode: StdioMode::Null,
@@ -46,11 +46,7 @@ impl SubProcessFactory {
         let created = self.process_factory.create(spawn, empty_client_callbacks)?;
 
         // Add it to the list of sub processes and return it
-        let process = SubProcess::new(
-            wapm.as_str(),
-            created.invoker,
-            created.session
-        );
+        let process = SubProcess::new(wapm.as_str(), created.invoker, created.session);
         processes.insert(wapm, process.clone());
         Ok(process)
     }
@@ -69,7 +65,11 @@ pub struct SubProcess {
 }
 
 impl SubProcess {
-    pub fn new(wapm: &str, process_invoker: ProcessExecInvokable, process_session: ProcessExecSession) -> SubProcess {
+    pub fn new(
+        wapm: &str,
+        process_invoker: ProcessExecInvokable,
+        process_session: ProcessExecSession,
+    ) -> SubProcess {
         SubProcess {
             system: System::default(),
             process_invoker: Arc::new(process_invoker),

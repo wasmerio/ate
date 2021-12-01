@@ -23,11 +23,7 @@ pub(crate) mod raw {
     pub fn wasm_bus_tick(thread: &WasmBusThread) {
         unsafe { super::wasm_bus_tick(thread) }
     }
-    pub fn wasm_bus_listen(
-        thread: &WasmBusThread,
-        topic_ptr: WasmPtr<u8, Array>,
-        topic_len: u32,
-    ) {
+    pub fn wasm_bus_listen(thread: &WasmBusThread, topic_ptr: WasmPtr<u8, Array>, topic_len: u32) {
         unsafe { super::wasm_bus_listen(thread, topic_ptr, topic_len) }
     }
     pub fn wasm_bus_callback(
@@ -160,11 +156,7 @@ unsafe fn wasm_bus_poll(_thread: &WasmBusThread) {
 
 // Tells the operating system that this program is ready to respond
 // to calls on a particular topic name.
-unsafe fn wasm_bus_listen(
-    thread: &WasmBusThread,
-    topic_ptr: WasmPtr<u8, Array>,
-    topic_len: u32,
-) {
+unsafe fn wasm_bus_listen(thread: &WasmBusThread, topic_ptr: WasmPtr<u8, Array>, topic_len: u32) {
     let topic = topic_ptr.get_utf8_str(thread.memory(), topic_len).unwrap();
     debug!("wasm-bus::listen (topic={})", topic);
 
