@@ -11,12 +11,14 @@ use crate::api::System;
 use super::*;
 
 pub struct SubProcessFactory {
+    process_factory: ProcessExecFactory,
     processes: Mutex<HashMap<String, SubProcess>>,
 }
 
 impl SubProcessFactory {
-    pub fn new() -> SubProcessFactory {
+    pub fn new(process_factory: ProcessExecFactory) -> SubProcessFactory {
         SubProcessFactory {
+            process_factory,
             processes: Mutex::new(HashMap::default()),
         }
     }

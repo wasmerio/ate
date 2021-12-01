@@ -19,14 +19,14 @@ use super::*;
 
 pub struct WasmBusThreadPool {
     threads: RwLock<HashMap<u32, WasmBusThread>>,
-    standard: StandardBus,
+    process_factory: ProcessExecFactory,
 }
 
 impl WasmBusThreadPool {
     pub fn new(process_factory: ProcessExecFactory) -> Arc<WasmBusThreadPool> {
         Arc::new(WasmBusThreadPool {
             threads: RwLock::new(HashMap::default()),
-            standard: StandardBus::new(process_factory),
+            process_factory,
         })
     }
 
@@ -48,7 +48,7 @@ impl WasmBusThreadPool {
 
         let inner = WasmBusThreadInner {
             invocations: HashMap::default(),
-            factory: BusFactory::new(self.standard.clone()),
+            factory: BusFactory::new(self.process_factory.clone()),
             callbacks: HashMap::default(),
         };
 

@@ -13,10 +13,10 @@ pub struct BusFactory {
 }
 
 impl BusFactory {
-    pub fn new(standard: StandardBus) -> BusFactory {
+    pub fn new(process_factory: ProcessExecFactory) -> BusFactory {
         BusFactory {
-            standard,
-            sub_processes: SubProcessFactory::new(),
+            standard: StandardBus::new(process_factory.clone()),
+            sub_processes: SubProcessFactory::new(process_factory),
             sessions: HashMap::default(),
         }
     }
