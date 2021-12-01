@@ -278,7 +278,7 @@ impl fuse::Filesystem for AteFS {
             });
         }
 
-        let lock = self.accessor.open_handles.lock();
+        let lock = self.accessor.open_handles.lock().unwrap();
         if let Some(open) = lock.get(&fh) {
             let entries = open
                 .children
@@ -337,7 +337,7 @@ impl fuse::Filesystem for AteFS {
             });
         }
 
-        let lock = self.accessor.open_handles.lock();
+        let lock = self.accessor.open_handles.lock().unwrap();
         if let Some(open) = lock.get(&fh) {
             let entries = open
                 .children

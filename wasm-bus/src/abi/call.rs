@@ -145,7 +145,9 @@ impl Call {
 
     /// Upon receiving a particular message from the service that is
     /// invoked this callback will take some action
+    /// 
     /// Note: This must be called before the invoke or things will go wrong
+    /// hence there is a builder that invokes this in the right order
     fn callback<C, F>(&mut self, mut callback: F) -> &mut Self
     where
         C: Serialize + de::DeserializeOwned + Send + Sync + 'static,
@@ -156,7 +158,7 @@ impl Call {
             callback(req);
             Ok(())
         };
-        let recv = super::recv_internal(Some(self.handle), callback);
+        let recv = super::callback_internal(self.handle, callback);
         self.callbacks.lock().unwrap().push(recv);
         self
     }

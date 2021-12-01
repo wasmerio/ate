@@ -12,7 +12,8 @@ readme = "README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = [ "ws", "reqwest", "process", "macros", "time", "rt", "tokio", "fuse" ]
+default = [ "syscalls", "ws", "reqwest", "process", "macros", "time", "rt", "tokio", "fuse" ]
+syscalls = []
 backend = []
 ws = []
 reqwest = [ "http", "mime_guess", "http-body", "formdata" ]

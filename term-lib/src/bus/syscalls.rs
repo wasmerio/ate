@@ -23,35 +23,45 @@ pub(crate) mod raw {
     pub fn wasm_bus_tick(thread: &WasmBusThread) {
         unsafe { super::wasm_bus_tick(thread) }
     }
-    pub fn wasm_bus_recv(
+    pub fn wasm_bus_listen(
+        thread: &WasmBusThread,
+        topic_ptr: WasmPtr<u8, Array>,
+        topic_len: u32,
+    ) {
+        unsafe { super::wasm_bus_listen(thread, topic_ptr, topic_len) }
+    }
+    pub fn wasm_bus_callback(
         thread: &WasmBusThread,
         parent: u32,
         handle: u32,
-        topic: WasmPtr<u8, Array>,
+        topic_ptr: WasmPtr<u8, Array>,
         topic_len: u32,
     ) {
-        unsafe { super::wasm_bus_recv(thread, parent, handle, topic, topic_len) }
+        unsafe { super::wasm_bus_callback(thread, parent, handle, topic_ptr, topic_len) }
     }
     pub fn wasm_bus_fault(thread: &WasmBusThread, handle: u32, error: i32) {
         unsafe { super::wasm_bus_fault(thread, handle, error) }
     }
+    pub fn wasm_bus_poll(thread: &WasmBusThread) {
+        unsafe { super::wasm_bus_poll(thread) }
+    }
     pub fn wasm_bus_reply(
         thread: &WasmBusThread,
         handle: u32,
-        response: WasmPtr<u8, Array>,
+        response_ptr: WasmPtr<u8, Array>,
         response_len: u32,
     ) {
-        unsafe { super::wasm_bus_reply(thread, handle, response, response_len) }
+        unsafe { super::wasm_bus_reply(thread, handle, response_ptr, response_len) }
     }
     pub fn wasm_bus_call(
         thread: &WasmBusThread,
         parent: u32,
         handle: u32,
-        wapm: WasmPtr<u8, Array>,
+        wapm_ptr: WasmPtr<u8, Array>,
         wapm_len: u32,
-        topic: WasmPtr<u8, Array>,
+        topic_ptr: WasmPtr<u8, Array>,
         topic_len: u32,
-        request: WasmPtr<u8, Array>,
+        request_ptr: WasmPtr<u8, Array>,
         request_len: u32,
     ) -> u32 {
         unsafe {
@@ -59,11 +69,11 @@ pub(crate) mod raw {
                 thread,
                 parent,
                 handle,
-                wapm,
+                wapm_ptr,
                 wapm_len,
-                topic,
+                topic_ptr,
                 topic_len,
-                request,
+                request_ptr,
                 request_len,
             )
         }
@@ -73,6 +83,7 @@ pub(crate) mod raw {
     }
 }
 
+// Drops a handle used by calls or callbacks
 unsafe fn wasm_bus_drop(thread: &WasmBusThread, handle: u32) {
     let mut inner = thread.inner.unwrap();
     inner.invocations.remove(&handle);
@@ -113,11 +124,13 @@ unsafe fn wasm_bus_tick(thread: &WasmBusThread) {
     }
 }
 
-unsafe fn wasm_bus_recv(
+// Incidates that a call that will be made should invoke a callback
+// back to this process under the designated handle.
+unsafe fn wasm_bus_callback(
     thread: &WasmBusThread,
     parent: u32,
     handle: u32,
-    topic: WasmPtr<u8, Array>,
+    topic_ptr: WasmPtr<u8, Array>,
     topic_len: u32,
 ) {
     let parent = if parent != u32::MAX {
@@ -125,7 +138,7 @@ unsafe fn wasm_bus_recv(
     } else {
         None
     };
-    let topic = topic.get_utf8_str(thread.memory(), topic_len).unwrap();
+    let topic = topic_ptr.get_utf8_str(thread.memory(), topic_len).unwrap();
     debug!(
         "wasm-bus::recv (parent={:?}, handle={}, topic={})",
         parent, handle, topic
@@ -139,14 +152,37 @@ unsafe fn wasm_bus_recv(
     }
 }
 
+// Polls the operating system for messages which will be returned via
+// the 'wasm_bus_start' function call.
+unsafe fn wasm_bus_poll(_thread: &WasmBusThread) {
+    debug!("wasm-bus::poll");
+}
+
+// Tells the operating system that this program is ready to respond
+// to calls on a particular topic name.
+unsafe fn wasm_bus_listen(
+    thread: &WasmBusThread,
+    topic_ptr: WasmPtr<u8, Array>,
+    topic_len: u32,
+) {
+    let topic = topic_ptr.get_utf8_str(thread.memory(), topic_len).unwrap();
+    debug!("wasm-bus::listen (topic={})", topic);
+
+    let mut inner = thread.inner.unwrap();
+    inner.listens.insert(topic.to_string());
+}
+
+// Indicates that a fault has occured while processing a call
 unsafe fn wasm_bus_fault(_thread: &WasmBusThread, handle: u32, error: i32) {
     debug!("wasm-bus::error (handle={}, error={})", handle, error);
 }
 
+// Returns the response of a listen invokation to a program
+// from the operating system
 unsafe fn wasm_bus_reply(
     thread: &WasmBusThread,
     handle: u32,
-    response: WasmPtr<u8, Array>,
+    response_ptr: WasmPtr<u8, Array>,
     response_len: u32,
 ) {
     debug!(
@@ -157,19 +193,23 @@ unsafe fn wasm_bus_reply(
     // Grab the data we are sending back
     let _response = thread
         .memory()
-        .uint8view_with_byte_offset_and_length(response.offset(), response_len)
+        .uint8view_with_byte_offset_and_length(response_ptr.offset(), response_len)
         .to_vec();
 }
 
+// Calls a function using the operating system call to find
+// the right target based on the wapm and topic.
+// The operating system will respond with either a 'wasm_bus_finish'
+// or a 'wasm_bus_error' message.
 unsafe fn wasm_bus_call(
     thread: &WasmBusThread,
     parent: u32,
     handle: u32,
-    wapm: WasmPtr<u8, Array>,
+    wapm_ptr: WasmPtr<u8, Array>,
     wapm_len: u32,
-    topic: WasmPtr<u8, Array>,
+    topic_ptr: WasmPtr<u8, Array>,
     topic_len: u32,
-    request: WasmPtr<u8, Array>,
+    request_ptr: WasmPtr<u8, Array>,
     request_len: u32,
 ) -> u32 {
     let parent = if parent != u32::MAX {
@@ -177,8 +217,8 @@ unsafe fn wasm_bus_call(
     } else {
         None
     };
-    let wapm = wapm.get_utf8_str(thread.memory(), wapm_len).unwrap();
-    let topic = topic.get_utf8_str(thread.memory(), topic_len).unwrap();
+    let wapm = wapm_ptr.get_utf8_str(thread.memory(), wapm_len).unwrap();
+    let topic = topic_ptr.get_utf8_str(thread.memory(), topic_len).unwrap();
     if let Some(parent) = parent {
         let parent: u32 = parent.into();
         debug!(
@@ -194,11 +234,11 @@ unsafe fn wasm_bus_call(
 
     let request = thread
         .memory()
-        .uint8view_with_byte_offset_and_length(request.offset(), request_len)
+        .uint8view_with_byte_offset_and_length(request_ptr.offset(), request_len)
         .to_vec();
 
     // Grab references to the ABI that will be used
-    let data_feeder = match WasmBusFeeder::new(thread, handle) {
+    let data_feeder = match WasmBusCallback::new(thread, handle) {
         Ok(a) => a,
         Err(err) => {
             return err.into();
@@ -206,14 +246,14 @@ unsafe fn wasm_bus_call(
     };
 
     // Grab all the client callbacks that have been registered
-    let client_callbacks: HashMap<String, WasmBusFeeder> = thread
+    let client_callbacks: HashMap<String, WasmBusCallback> = thread
         .inner
         .unwrap()
         .callbacks
         .remove(&handle)
         .map(|a| {
             a.into_iter()
-                .map(|(topic, handle)| (topic, WasmBusFeeder::new(thread, handle).unwrap()))
+                .map(|(topic, handle)| (topic, WasmBusCallback::new(thread, handle).unwrap()))
                 .collect()
         })
         .unwrap_or_default();
@@ -266,6 +306,7 @@ unsafe fn wasm_bus_call(
     CallError::Success.into()
 }
 
+// Returns a unqiue ID for the thread
 unsafe fn wasm_bus_thread_id(thread: &WasmBusThread) -> u32 {
     trace!("wasm-bus::thread_id (id={})", thread.thread_id);
     thread.thread_id

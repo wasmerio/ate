@@ -19,16 +19,16 @@ use crate::fd::*;
 use crate::pipe::*;
 use crate::reactor::*;
 
-struct ProcessCreated {
-    invoker: ProcessExecInvokable,
-    session: ProcessExecSession,
+pub struct ProcessCreated {
+    pub invoker: ProcessExecInvokable,
+    pub session: ProcessExecSession,
 }
 
 struct ProcessExecCreate {
     request: Spawn,
     result: mpsc::Sender<Result<ProcessCreated, i32>>,
-    on_stdout: Option<WasmBusFeeder>,
-    on_stderr: Option<WasmBusFeeder>,
+    on_stdout: Option<WasmBusCallback>,
+    on_stderr: Option<WasmBusCallback>,
 }
 
 #[derive(Derivative, Clone)]
@@ -66,8 +66,8 @@ impl ProcessExecFactory {
     pub fn create(
         &self,
         request: Spawn,
-        mut client_callbacks: HashMap<String, WasmBusFeeder>,
-    ) -> Result<(Box<dyn Invokable>, Option<Box<dyn Session>>), CallError> {
+        mut client_callbacks: HashMap<String, WasmBusCallback>,
+    ) -> Result<ProcessCreated, CallError> {
         // Grab the callbacks and build the requiest
         let on_stdout = client_callbacks.remove(&type_name::<DataStdout>().to_string());
         let on_stderr = client_callbacks.remove(&type_name::<DataStderr>().to_string());
@@ -192,11 +192,11 @@ impl ProcessExecFactory {
             Ok(created) => created,
             Err(err) => {
                 warn!("failed to created process - internal error - code={}", err);
-                return Ok((ErrornousInvokable::new(CallError::Unknown), None));
+                return Err(CallError::Unknown);
             }
         };
 
-        Ok((Box::new(ret.invoker), Some(Box::new(ret.session))))
+        Ok(ret)
     }
 }
 
@@ -204,8 +204,8 @@ pub struct ProcessExecInvokable {
     stdout: Option<mpsc::Receiver<Vec<u8>>>,
     stderr: Option<mpsc::Receiver<Vec<u8>>>,
     eval_rx: Option<mpsc::Receiver<EvalPlan>>,
-    on_stdout: Option<WasmBusFeeder>,
-    on_stderr: Option<WasmBusFeeder>,
+    on_stdout: Option<WasmBusCallback>,
+    on_stderr: Option<WasmBusCallback>,
 }
 
 #[async_trait]
@@ -301,6 +301,7 @@ fn encode_eval_response(res: Option<EvalPlan>) -> Result<Vec<u8>, CallError> {
     })?)
 }
 
+#[derive(Clone)]
 pub struct ProcessExecSession {
     stdin: Option<mpsc::Sender<Vec<u8>>>,
 }

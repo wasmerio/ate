@@ -14,7 +14,7 @@ use crate::api::*;
 
 pub fn web_socket(
     connect: Connect,
-    mut client_callbacks: HashMap<String, WasmBusFeeder>,
+    mut client_callbacks: HashMap<String, WasmBusCallback>,
 ) -> Result<(WebSocketInvoker, WebSocketSession), CallError> {
     let system = System::default();
 
@@ -123,8 +123,8 @@ pub fn web_socket(
 pub struct WebSocket {
     rx_state: mpsc::Receiver<SocketState>,
     rx_recv: mpsc::Receiver<Vec<u8>>,
-    on_state_change: WasmBusFeeder,
-    on_received: WasmBusFeeder,
+    on_state_change: WasmBusCallback,
+    on_received: WasmBusCallback,
 }
 
 impl WebSocket {

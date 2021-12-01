@@ -4,8 +4,14 @@ mod error;
 mod handle;
 mod recv;
 mod reply;
-#[cfg(target_arch = "wasm32")]
+#[cfg(feature = "syscalls")]
 pub(crate) mod syscall;
+#[cfg(not(feature = "syscalls"))]
+pub(crate) mod unsupported;
+
+#[allow(unused_imports)]
+#[cfg(not(feature = "syscalls"))]
+pub(crate) use unsupported as syscall;
 
 use serde::*;
 use std::any::type_name;
@@ -44,18 +50,18 @@ where
     CallBuilder::new(call, req)
 }
 
-pub fn recv<RES, REQ, F>(callback: F) -> Recv
+pub fn listen<RES, REQ, F>(_callback: F) -> Recv
 where
     REQ: de::DeserializeOwned + Send + Sync + 'static,
     RES: Serialize + Send + Sync + 'static,
     F: Fn(REQ) -> Result<RES, CallError>,
     F: Send + Sync + 'static,
 {
-    recv_internal::<RES, REQ, F>(None, callback)
+    panic!("listen not supported on this platform");
 }
 
 #[cfg(target_arch = "wasm32")]
-pub(crate) fn recv_internal<RES, REQ, F>(parent: Option<CallHandle>, callback: F) -> Recv
+pub(crate) fn callback_internal<RES, REQ, F>(parent: CallHandle, callback: F) -> Recv
 where
     REQ: de::DeserializeOwned + Send + Sync + 'static,
     RES: Serialize + Send + Sync + 'static,
@@ -63,15 +69,15 @@ where
     F: Send + 'static,
 {
     let topic = type_name::<REQ>();
-    let recv = crate::engine::BusEngine::recv(callback);
+    let recv = crate::engine::BusEngine::callback(callback);
     let handle = recv.handle;
 
-    syscall::recv(parent, handle, topic);
+    syscall::callback(parent, handle, topic);
     return recv;
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub(crate) fn recv_internal<RES, REQ, F>(_parent: Option<CallHandle>, _callback: F) -> Recv
+pub(crate) fn callback_internal<RES, REQ, F>(_parent: CallHandle, _callback: F) -> Recv
 where
     REQ: de::DeserializeOwned + Send + Sync + 'static,
     RES: Serialize + Send + Sync + 'static,

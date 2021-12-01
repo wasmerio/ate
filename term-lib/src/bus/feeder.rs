@@ -10,18 +10,18 @@ use crate::wasmer::NativeFunc;
 use crate::wasmer::WasmPtr;
 
 #[derive(Clone)]
-pub struct WasmBusFeeder {
+pub struct WasmBusCallback {
     memory: Memory,
-    native_data: NativeFunc<(u32, WasmPtr<u8, Array>, u32), ()>,
+    native_finish: NativeFunc<(u32, WasmPtr<u8, Array>, u32), ()>,
     native_malloc: NativeFunc<u32, WasmPtr<u8, Array>>,
     native_error: NativeFunc<(u32, u32), ()>,
     handle: u32,
 }
 
-impl WasmBusFeeder {
-    pub fn new(thread: &WasmBusThread, handle: u32) -> Result<WasmBusFeeder, CallError> {
+impl WasmBusCallback {
+    pub fn new(thread: &WasmBusThread, handle: u32) -> Result<WasmBusCallback, CallError> {
         let memory = thread.memory().clone();
-        let native_data = thread.wasm_bus_data_ref();
+        let native_data = thread.wasm_bus_finish_ref();
         let native_malloc = thread.wasm_bus_malloc_ref();
         let native_error = thread.wasm_bus_error_ref();
 
@@ -30,9 +30,9 @@ impl WasmBusFeeder {
             return Err(CallError::IncorrectAbi.into());
         }
 
-        Ok(WasmBusFeeder {
+        Ok(WasmBusCallback {
             memory,
-            native_data: native_data.unwrap().clone(),
+            native_finish: native_data.unwrap().clone(),
             native_malloc: native_malloc.unwrap().clone(),
             native_error: native_error.unwrap().clone(),
             handle,
@@ -60,7 +60,7 @@ impl WasmBusFeeder {
             .uint8view_with_byte_offset_and_length(buf.offset(), buf_len)
             .copy_from(&data[..]);
 
-        self.native_data.call(self.handle, buf, buf_len).unwrap();
+        self.native_finish.call(self.handle, buf, buf_len).unwrap();
     }
 
     pub fn feed_bytes_or_error(&self, data: Result<Vec<u8>, CallError>) {

@@ -159,7 +159,7 @@ impl BusEngine {
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub fn recv<RES, REQ, F>(mut callback: F) -> Recv
+    pub fn callback<RES, REQ, F>(mut callback: F) -> Recv
     where
         REQ: de::DeserializeOwned + Send + Sync + 'static,
         RES: Serialize + Send + Sync + 'static,
@@ -204,7 +204,7 @@ impl BusEngine {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn recv<RES, REQ, F>(_callback: F) -> Recv
+    pub fn callback<RES, REQ, F>(_callback: F) -> Recv
     where
         REQ: de::DeserializeOwned + Send + Sync + 'static,
         RES: Serialize + Send + Sync + 'static,

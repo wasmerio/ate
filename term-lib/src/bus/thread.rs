@@ -10,6 +10,7 @@ use crate::wasmer_wasi::WasiThread;
 use std::cell::RefCell;
 use std::cell::RefMut;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -50,6 +51,7 @@ impl WasmBusThreadPool {
             invocations: HashMap::default(),
             factory: BusFactory::new(self.process_factory.clone()),
             callbacks: HashMap::default(),
+            listens: HashSet::default(),
         };
 
         let ret = WasmBusThread {
@@ -61,7 +63,8 @@ impl WasmBusThreadPool {
             memory: thread.memory_clone(),
             wasm_bus_free: LazyInit::new(),
             wasm_bus_malloc: LazyInit::new(),
-            wasm_bus_data: LazyInit::new(),
+            wasm_bus_start: LazyInit::new(),
+            wasm_bus_finish: LazyInit::new(),
             wasm_bus_error: LazyInit::new(),
         };
 
@@ -73,6 +76,7 @@ impl WasmBusThreadPool {
 pub(super) struct WasmBusThreadInner {
     pub(super) invocations: HashMap<u32, Pin<Box<dyn Future<Output = ()> + Send + 'static>>>,
     pub(super) callbacks: HashMap<u32, HashMap<String, u32>>,
+    pub(super) listens: HashSet<String>,
     pub(super) factory: BusFactory,
 }
 
@@ -103,8 +107,10 @@ pub struct WasmBusThread {
     wasm_bus_free: LazyInit<NativeFunc<(WasmPtr<u8, Array>, u32), ()>>,
     #[wasmer(export(name = "wasm_bus_malloc"))]
     wasm_bus_malloc: LazyInit<NativeFunc<u32, WasmPtr<u8, Array>>>,
-    #[wasmer(export(name = "wasm_bus_data"))]
-    wasm_bus_data: LazyInit<NativeFunc<(u32, WasmPtr<u8, Array>, u32), ()>>,
+    #[wasmer(export(name = "wasm_bus_start"))]
+    wasm_bus_start: LazyInit<NativeFunc<(u32, WasmPtr<u8, Array>, u32, WasmPtr<u8, Array>, u32), u32>>,
+    #[wasmer(export(name = "wasm_bus_finish"))]
+    wasm_bus_finish: LazyInit<NativeFunc<(u32, WasmPtr<u8, Array>, u32), ()>>,
     #[wasmer(export(name = "wasm_bus_error"))]
     wasm_bus_error: LazyInit<NativeFunc<(u32, u32), ()>>,
 }
