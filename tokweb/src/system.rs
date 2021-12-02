@@ -9,7 +9,6 @@ use term_lib::api::abi::SystemAbi;
 use tokio::sync::mpsc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use wasi_net::prelude::http::StatusCode;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::*;
 
@@ -139,7 +138,7 @@ impl SystemAbi for WebSystem {
                     headers,
                     data: Some(data),
                 };
-                debug!("response status {}", StatusCode::from_u16(status).unwrap());
+                debug!("response status {}", status);
 
                 let _ = tx.send(Ok(resp)).await;
             })
