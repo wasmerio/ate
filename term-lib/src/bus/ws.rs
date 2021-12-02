@@ -28,13 +28,14 @@ pub fn web_socket(
     let on_received = on_received.unwrap();
 
     // Construct the channels
+    let (tx_keepalive, mut rx_keepalive) = mpsc::channel(1);
     let (tx_recv, rx_recv) = mpsc::channel(MAX_MPSC);
     let (tx_state, rx_state) = mpsc::channel::<SocketState>(MAX_MPSC);
     let (tx_send, mut rx_send) = mpsc::channel::<Send>(MAX_MPSC);
 
     // The web socket will be started in a background thread as it
     // is an asynchronous IO primative
-    system.spawn_shared(move || async move {
+    system.spawn_dedicated(move || async move {
         // Open the web socket
         let ws_sys = match system.web_socket(connect.url.as_str()) {
             Ok(a) => a,
@@ -84,12 +85,15 @@ pub fn web_socket(
         // The main loop does all the processing
         loop {
             select! {
+                _ = rx_keepalive.recv() => {
+                    return;
+                }
                 state = rx_state_inner.recv() => {
                     if let Some(state) = &state {
                         let _ = tx_state.send(state.clone()).await;
                     }
                     if state != Some(SocketState::Opened) {
-                        return
+                        return;
                     }
                 }
                 request = rx_send.recv() => {
@@ -110,6 +114,7 @@ pub fn web_socket(
     // Return the invokers
     let invoker = WebSocketInvoker {
         ws: Some(WebSocket {
+            tx_keepalive,
             rx_state,
             rx_recv,
             on_state_change,
@@ -121,6 +126,8 @@ pub fn web_socket(
 }
 
 pub struct WebSocket {
+    #[allow(dead_code)]
+    tx_keepalive: mpsc::Sender<()>,
     rx_state: mpsc::Receiver<SocketState>,
     rx_recv: mpsc::Receiver<Vec<u8>>,
     on_state_change: WasmBusCallback,
@@ -143,8 +150,12 @@ impl WebSocket {
                             debug!("confirmed websocket closed before it opened");
                             return;
                         }
-                        _ => {
+                        Some(_) => {
                             debug!("confirmed websocket failed before it opened");
+                            return;
+                        }
+                        None => {
+                            debug!("confirmed websocket closed by client");
                             return;
                         }
                     }

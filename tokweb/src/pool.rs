@@ -393,38 +393,37 @@ impl ThreadState {
                     }
 
                     // Sort them in the order of index (so older ones come first)
-                    others.sort_by_key(|k| k.idx);                  
+                    others.sort_by_key(|k| k.idx);
 
                     // If the number of others (plus us) exceeds the maximum then
                     // we either drop ourselves or one of the others
-                    if others.len() + 1 > pool.idle_size
-                    {
+                    if others.len() + 1 > pool.idle_size {
                         // How many are there already there that have a lower index - are we the one without a chair?
-                        let existing = others.iter().map(|a| a.idx).filter(|a| *a < thread_index).count();
+                        let existing = others
+                            .iter()
+                            .map(|a| a.idx)
+                            .filter(|a| *a < thread_index)
+                            .count();
                         if existing >= pool.idle_size {
                             for other in others {
-                                let _ = state.pool.idle_tx.send(other).await;   
+                                let _ = state.pool.idle_tx.send(other).await;
                             }
                             info!(
                                 "worker closed (index={}, type={:?})",
                                 thread_index, pool.type_
                             );
                             break;
-                        }
-                        else
-                        {
+                        } else {
                             // Someone else is the one (the last one)
                             let leftover_chairs = others.len() - 1;
                             for other in others.into_iter().take(leftover_chairs) {
-                                let _ = state.pool.idle_tx.send(other).await;   
+                                let _ = state.pool.idle_tx.send(other).await;
                             }
                         }
-                    }
-                    else 
-                    {
+                    } else {
                         // Add them all back in again (but in the right order)
                         for other in others {
-                            let _ = state.pool.idle_tx.send(other).await;   
+                            let _ = state.pool.idle_tx.send(other).await;
                         }
                     }
                 }
@@ -432,7 +431,8 @@ impl ThreadState {
                 // Now register ourselves as idle
                 trace!(
                     "pool is idle (thread_index={}, type={:?})",
-                    thread_index, pool.type_
+                    thread_index,
+                    pool.type_
                 );
                 let idle = IdleThread {
                     idx: thread_index,

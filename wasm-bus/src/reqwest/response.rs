@@ -2,11 +2,11 @@ use http::header::HeaderName;
 use http::HeaderMap;
 use http::HeaderValue;
 use http::StatusCode;
-use serde::*;
 use serde::de::DeserializeOwned;
-use std::io::Read;
+use serde::*;
 use std::io::Error;
 use std::io::ErrorKind;
+use std::io::Read;
 
 use crate::backend::reqwest::*;
 

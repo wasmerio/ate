@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use js_sys::Promise;
-use wasi_net::prelude::http::StatusCode;
 use std::cell::RefCell;
 use std::future::Future;
 use std::pin::Pin;
@@ -10,6 +9,7 @@ use term_lib::api::abi::SystemAbi;
 use tokio::sync::mpsc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
+use wasi_net::prelude::http::StatusCode;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::*;
 
@@ -29,8 +29,7 @@ impl WebSystem {
 }
 
 #[async_trait]
-impl SystemAbi
-for WebSystem {
+impl SystemAbi for WebSystem {
     fn task_shared(
         &self,
         task: Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
@@ -64,25 +63,29 @@ for WebSystem {
 
     fn sleep(&self, ms: i32) -> AsyncResult<()> {
         let (tx, rx) = mpsc::channel(1);
-        self.task_shared(Box::new(move || Box::pin(async move {
-            let promise = sleep(ms);
-            let js_fut = JsFuture::from(promise);
+        self.task_shared(Box::new(move || {
+            Box::pin(async move {
+                let promise = sleep(ms);
+                let js_fut = JsFuture::from(promise);
 
-            let _ = js_fut.await;
-            let _ = tx.send(()).await;
-        })));
+                let _ = js_fut.await;
+                let _ = tx.send(()).await;
+            })
+        }));
         AsyncResult::new(rx)
     }
 
     fn fetch_file(&self, path: &str) -> AsyncResult<Result<Vec<u8>, i32>> {
         let url = path.to_string();
         let headers = vec![("Accept".to_string(), "application/wasm".to_string())];
-        
+
         let (tx, rx) = mpsc::channel(1);
-        self.task_shared(Box::new(move || Box::pin(async move {
-            let ret = crate::common::fetch_data(url.as_str(), "GET", headers, None).await;
-            let _ = tx.send(ret).await;
-        })));
+        self.task_shared(Box::new(move || {
+            Box::pin(async move {
+                let ret = crate::common::fetch_data(url.as_str(), "GET", headers, None).await;
+                let _ = tx.send(ret).await;
+            })
+        }));
         AsyncResult::new(rx)
     }
 
@@ -95,48 +98,52 @@ for WebSystem {
     ) -> AsyncResult<Result<ReqwestResponse, i32>> {
         let url = url.to_string();
         let method = method.to_string();
-        
+
         let (tx, rx) = mpsc::channel(1);
-        self.task_shared(Box::new(move || Box::pin(async move {
-            let resp = match crate::common::fetch(url.as_str(), method.as_str(), headers, data).await {
-                Ok(a) => a,
-                Err(err) => {
-                    let _ = tx.send(Err(err)).await;
-                    return;
-                }
-            };
+        self.task_shared(Box::new(move || {
+            Box::pin(async move {
+                let resp = match crate::common::fetch(url.as_str(), method.as_str(), headers, data)
+                    .await
+                {
+                    Ok(a) => a,
+                    Err(err) => {
+                        let _ = tx.send(Err(err)).await;
+                        return;
+                    }
+                };
 
-            let ok =  resp.ok();
-            let redirected = resp.redirected();
-            let status = resp.status();
-            let status_text = resp.status_text();
+                let ok = resp.ok();
+                let redirected = resp.redirected();
+                let status = resp.status();
+                let status_text = resp.status_text();
 
-            let data = match crate::common::get_response_data(resp).await {
-                Ok(a) => a,
-                Err(err) => {
-                    let _ = tx.send(Err(err)).await;
-                    return;
-                }
-            };
+                let data = match crate::common::get_response_data(resp).await {
+                    Ok(a) => a,
+                    Err(err) => {
+                        let _ = tx.send(Err(err)).await;
+                        return;
+                    }
+                };
 
-            let headers = Vec::new();
-            // we can't implement this as the method resp.headers().keys() is missing!
-            // how else are we going to parse the headers
+                let headers = Vec::new();
+                // we can't implement this as the method resp.headers().keys() is missing!
+                // how else are we going to parse the headers
 
-            debug!("received {} bytes", data.len());
-            let resp = ReqwestResponse {
-                pos: 0,
-                ok,
-                redirected,
-                status,
-                status_text,
-                headers,
-                data: Some(data),
-            };
-            debug!("response status {}", StatusCode::from_u16(status).unwrap());
+                debug!("received {} bytes", data.len());
+                let resp = ReqwestResponse {
+                    pos: 0,
+                    ok,
+                    redirected,
+                    status,
+                    status_text,
+                    headers,
+                    data: Some(data),
+                };
+                debug!("response status {}", StatusCode::from_u16(status).unwrap());
 
-            let _ = tx.send(Ok(resp)).await;
-        })));
+                let _ = tx.send(Ok(resp)).await;
+            })
+        }));
         AsyncResult::new(rx)
     }
 
