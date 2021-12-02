@@ -49,7 +49,7 @@ pub struct WebThreadPool {
     pool_management: Arc<PoolState>,
     pool_reactors: Arc<PoolState>,
     pool_stateful: Arc<PoolState>,
-    pool_blocking: Arc<PoolState>,
+    pool_dedicated: Arc<PoolState>,
 }
 
 enum Message {
@@ -91,9 +91,8 @@ pub struct PoolState {
     #[derivative(Debug = "ignore")]
     idle_rx: Mutex<mpsc::Receiver<IdleThread>>,
     idle_tx: mpsc::Sender<IdleThread>,
-    size: AtomicUsize,
-    min_size: usize,
-    max_size: usize,
+    idx_seed: AtomicUsize,
+    idle_size: usize,
     blocking: bool,
     spawn: mpsc::Sender<Message>,
     #[allow(dead_code)]
@@ -154,10 +153,9 @@ impl WebThreadPool {
         let pool_management = Arc::new(PoolState {
             idle_rx: Mutex::new(idle_rx0),
             idle_tx: idle_tx0,
-            size: AtomicUsize::new(0),
+            idx_seed: AtomicUsize::new(0),
             blocking: true,
-            min_size: 1,
-            max_size: size,
+            idle_size: 0,
             type_: PoolType::Management,
             spawn: spawn_tx0,
         });
@@ -165,10 +163,9 @@ impl WebThreadPool {
         let pool_reactors = Arc::new(PoolState {
             idle_rx: Mutex::new(idle_rx1),
             idle_tx: idle_tx1,
-            size: AtomicUsize::new(0),
+            idx_seed: AtomicUsize::new(0),
             blocking: false,
-            min_size: 1,
-            max_size: size,
+            idle_size: 2usize.max(size),
             type_: PoolType::Shared,
             spawn: spawn_tx1,
         });
@@ -176,10 +173,9 @@ impl WebThreadPool {
         let pool_stateful = Arc::new(PoolState {
             idle_rx: Mutex::new(idle_rx2),
             idle_tx: idle_tx2,
-            size: AtomicUsize::new(0),
+            idx_seed: AtomicUsize::new(0),
             blocking: true,
-            min_size: 1,
-            max_size: 1000usize,
+            idle_size: 2usize.max(size),
             type_: PoolType::Stateful,
             spawn: spawn_tx2,
         });
@@ -187,10 +183,9 @@ impl WebThreadPool {
         let pool_dedicated = Arc::new(PoolState {
             idle_rx: Mutex::new(idle_rx3),
             idle_tx: idle_tx3,
-            size: AtomicUsize::new(0),
+            idx_seed: AtomicUsize::new(0),
             blocking: true,
-            min_size: 1,
-            max_size: 1000usize,
+            idle_size: 1usize.max(size),
             type_: PoolType::Dedicated,
             spawn: spawn_tx3,
         });
@@ -227,7 +222,7 @@ impl WebThreadPool {
             pool_management,
             pool_reactors,
             pool_stateful,
-            pool_blocking: pool_dedicated,
+            pool_dedicated,
         };
 
         Ok(pool)
@@ -253,7 +248,7 @@ impl WebThreadPool {
     }
 
     pub fn spawn_dedicated(&self, task: BoxRun<'static, ()>) {
-        self.pool_blocking.spawn(Message::Run(task));
+        self.pool_dedicated.spawn(Message::Run(task));
     }
 }
 
@@ -274,7 +269,7 @@ impl PoolState {
 
     fn expand(self: &Arc<Self>, init: Message) {
         let (tx, rx) = mpsc::channel(MAX_MPSC);
-        let idx = self.size.fetch_add(1usize, Ordering::Release);
+        let idx = self.idx_seed.fetch_add(1usize, Ordering::Release);
         let state = Arc::new(ThreadState {
             pool: Arc::clone(self),
             idx,
@@ -392,21 +387,53 @@ impl ThreadState {
                 // The reason we keep older threads is to maximize cache hits such
                 // as module compile caches.
                 if let Ok(mut lock) = state.pool.idle_rx.try_lock() {
-                    if let Ok(other) = lock.try_recv() {
-                        if other.idx < thread_index {
-                            drop(lock);
-                            if let Ok(_) = state.pool.idle_tx.send(other).await {
-                                info!(
-                                    "worker closed (index={}, type={:?})",
-                                    thread_index, pool.type_
-                                );
-                                break;
+                    let mut others = Vec::new();
+                    while let Ok(other) = lock.try_recv() {
+                        others.push(other);
+                    }
+
+                    // Sort them in the order of index (so older ones come first)
+                    others.sort_by_key(|k| k.idx);                  
+
+                    // If the number of others (plus us) exceeds the maximum then
+                    // we either drop ourselves or one of the others
+                    if others.len() + 1 > pool.idle_size
+                    {
+                        // How many are there already there that have a lower index - are we the one without a chair?
+                        let existing = others.iter().map(|a| a.idx).filter(|a| *a < thread_index).count();
+                        if existing >= pool.idle_size {
+                            for other in others {
+                                let _ = state.pool.idle_tx.send(other).await;   
                             }
+                            info!(
+                                "worker closed (index={}, type={:?})",
+                                thread_index, pool.type_
+                            );
+                            break;
+                        }
+                        else
+                        {
+                            // Someone else is the one (the last one)
+                            let leftover_chairs = others.len() - 1;
+                            for other in others.into_iter().take(leftover_chairs) {
+                                let _ = state.pool.idle_tx.send(other).await;   
+                            }
+                        }
+                    }
+                    else 
+                    {
+                        // Add them all back in again (but in the right order)
+                        for other in others {
+                            let _ = state.pool.idle_tx.send(other).await;   
                         }
                     }
                 }
 
                 // Now register ourselves as idle
+                trace!(
+                    "pool is idle (thread_index={}, type={:?})",
+                    thread_index, pool.type_
+                );
                 let idle = IdleThread {
                     idx: thread_index,
                     work: work_tx.clone(),

@@ -2,20 +2,13 @@ use http::header::HeaderName;
 use http::HeaderMap;
 use http::HeaderValue;
 use http::StatusCode;
+use serde::*;
 use serde::de::DeserializeOwned;
 use std::io::Read;
+use std::io::Error;
+use std::io::ErrorKind;
 
-use super::*;
-
-pub struct Response {
-    pub(crate) pos: usize,
-    pub(crate) data: Option<Vec<u8>>,
-    pub(crate) ok: bool,
-    pub(crate) redirected: bool,
-    pub(crate) status: StatusCode,
-    pub(crate) status_text: String,
-    pub(crate) headers: Vec<(String, String)>,
-}
+use crate::backend::reqwest::*;
 
 impl Response {
     pub fn json<T: DeserializeOwned>(&self) -> Result<T, Error> {
@@ -46,7 +39,7 @@ impl Response {
     }
 
     pub fn status(&self) -> StatusCode {
-        self.status
+        StatusCode::from_u16(self.status).unwrap_or(StatusCode::OK)
     }
 
     pub fn ok(&self) -> bool {

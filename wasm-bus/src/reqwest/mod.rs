@@ -17,7 +17,6 @@ pub(crate) use into_url::*;
 pub(crate) use mime::*;
 pub(crate) use multipart::*;
 pub(crate) use request_builder::*;
-pub(crate) use response::*;
 
 pub use ::http;
 pub use ::http::header;
@@ -27,5 +26,6 @@ pub use client_builder::ClientBuilder;
 pub use mime::Mime;
 pub use multipart::Form;
 pub use request_builder::RequestBuilder;
+pub use response::*;
 
 pub const WAPM_NAME: &'static str = "os";

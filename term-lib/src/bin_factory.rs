@@ -76,7 +76,7 @@ impl BinFactory {
         }
 
         // First just try to find it
-        if let Ok(data) = fetch_file(format!("/bin/{}.wasm", name).as_str()).await {
+        if let Ok(data) = fetch_file(format!("/bin/{}.wasm", name).as_str()).join().await.unwrap() {
             let data = BinaryPackage::new(Bytes::from(data));
             cache.insert(name, Some(data.clone()));
             stdout.write_clear_line().await;
@@ -114,7 +114,7 @@ impl BinFactory {
         }
 
         // Try and find it via a fetch
-        if let Ok(data) = fetch_file(format!("/bin/{}.alias", name).as_str()).await {
+        if let Ok(data) = fetch_file(format!("/bin/{}.alias", name).as_str()).join().await.unwrap() {
             let alias = String::from_utf8_lossy(&data[..]).trim().to_string();
             info!("binary alias '{}' found for {}", alias, name);
             cache.insert(name, Some(alias.clone()));
@@ -129,9 +129,9 @@ impl BinFactory {
     }
 }
 
-async fn fetch_file(path: &str) -> Result<Vec<u8>, i32> {
+fn fetch_file(path: &str) -> AsyncResult<Result<Vec<u8>, i32>> {
     let system = System::default();
-    system.fetch_file(path).await
+    system.fetch_file(path)  
 }
 
 fn hash_of_binary(data: &Bytes) -> String {

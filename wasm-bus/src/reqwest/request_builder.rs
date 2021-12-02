@@ -6,8 +6,7 @@ use std::io::Write;
 
 use super::*;
 use crate::abi::call;
-use crate::backend::reqwest::Request as BackendRequest;
-use crate::backend::reqwest::Response as BackendResponse;
+use crate::backend::reqwest::*;
 
 pub struct RequestBuilder {
     pub(crate) method: http::Method,
@@ -48,7 +47,7 @@ impl RequestBuilder {
     pub fn send(self) -> Result<Response, std::io::Error> {
         let url = self.url.to_string();
 
-        let submit = BackendRequest {
+        let submit = Request {
             url,
             method: self.method.to_string(),
             headers: self
@@ -64,7 +63,7 @@ impl RequestBuilder {
                 .next(),
         };
 
-        let res: Result<BackendResponse, i32> = call(WAPM_NAME.into(), submit)
+        let res: Result<Response, i32> = call(WAPM_NAME.into(), submit)
             .invoke()
             .join()
             .wait()
@@ -86,7 +85,7 @@ impl RequestBuilder {
         Ok(Response {
             ok: res.ok,
             redirected: res.redirected,
-            status,
+            status: status.as_u16(),
             status_text: res.status_text,
             headers: res.headers,
             pos: 0usize,

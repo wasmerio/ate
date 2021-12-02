@@ -7,6 +7,7 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 
 use super::*;
+use wasm_bus::backend::reqwest::Response as ReqwestResponse;
 
 // This ABI implements a number of low level operating system
 // functions that this terminal depends upon
@@ -47,10 +48,10 @@ where
     fn task_local(&self, task: Pin<Box<dyn Future<Output = ()> + 'static>>);
 
     /// Puts the current thread to sleep for a fixed number of milliseconds
-    fn sleep(&self, ms: i32) -> Pin<Box<dyn Future<Output = ()>>>;
+    fn sleep(&self, ms: i32) -> AsyncResult<()>;
 
     /// Fetches a data file from the local context of the process
-    fn fetch_file(&self, path: &str) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, i32>>>>;
+    fn fetch_file(&self, path: &str) -> AsyncResult<Result<Vec<u8>, i32>>;
 
     /// Performs a HTTP or HTTPS request to a destination URL
     fn reqwest(
@@ -59,7 +60,7 @@ where
         method: &str,
         headers: Vec<(String, String)>,
         data: Option<Vec<u8>>,
-    ) -> Pin<Box<dyn Future<Output = Result<ReqwestResponse, i32>>>>;
+    ) -> AsyncResult<Result<ReqwestResponse, i32>>;
 
     fn web_socket(&self, url: &str) -> Result<Arc<dyn WebSocketAbi>, String>;
 }
