@@ -139,6 +139,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>>
 ## Changelog
 
 ```
+1.0.2  -= WASM BUS =-
+       + Integrated with the WASM bus (wasm-bus) which allows for ATE to use
+         the web sockets while running in a controlled sandbox.
+
 1.0.0  -= Major Release =-
 
        + Major compatibility breaking refactor of the code to bring it up to
