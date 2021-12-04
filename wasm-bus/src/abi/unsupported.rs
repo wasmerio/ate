@@ -11,7 +11,7 @@ pub fn rand() -> u32 {
     panic!("unsupported on this platform");
 }
 
-pub fn error(_handle: CallHandle, _error: i32) {
+pub fn fault(_handle: CallHandle, _error: u32) {
     panic!("unsupported on this platform");
 }
 

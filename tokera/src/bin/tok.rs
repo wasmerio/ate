@@ -7,6 +7,7 @@ use std::sync::Arc;
 use tokera::cmd::*;
 use tokera::error::*;
 use tokera::opt::*;
+use tokera::bus::*;
 use tokera::prelude::*;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
@@ -64,6 +65,10 @@ enum SubCommand {
     /// use for application data persistance, file systems and web sites.
     #[clap()]
     Db(OptsDatabase),
+    /// Starts the process in BUS mode which will allow it to accept calls from other
+    /// processes.
+    #[clap()]
+    Bus(OptsBus),
     /// Tokens are stored authentication and authorization secrets used by other processes.
     /// Using this command you may generate a custom token however the usual method for
     /// authentication is to use the login command instead.
@@ -158,6 +163,7 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
             "user" => Some(SubCommand::User(OptsUser::parse())),
             "domain" => Some(SubCommand::Domain(OptsDomain::parse())),
             "db" => Some(SubCommand::Db(OptsDatabase::parse())),
+            "bus" => Some(SubCommand::Bus(OptsBus::parse())),
             "service" => Some(SubCommand::Service(OptsService::parse())),
             "contract" => Some(SubCommand::Contract(OptsContract::parse())),
             "wallet" => Some(SubCommand::Wallet(OptsWallet::parse())),
@@ -217,6 +223,7 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
     let needs_token = match &opts.subcmd {
         SubCommand::Login(..) => false,
         SubCommand::Token(..) => false,
+        SubCommand::Bus(..) => false,
         _ => true,
     };
 
@@ -239,6 +246,9 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
         }
         SubCommand::Db(opts_db) => {
             main_opts_db(opts_db, None, Some(opts.token_path), auth, "Domain name").await?;
+        }
+        SubCommand::Bus(opts_bus) => {
+            main_opts_bus(opts_bus, opts.token_path, auth).await?;
         }
         #[cfg(not(feature_os = "wasi"))]
         SubCommand::Token(opts_token) => {

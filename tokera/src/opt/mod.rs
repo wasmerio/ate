@@ -14,6 +14,7 @@ mod transfer;
 mod wallet;
 mod wallet_action;
 mod withdraw;
+mod bus;
 
 pub use ate_auth::opt::*;
 
@@ -33,3 +34,4 @@ pub use transfer::*;
 pub use wallet::*;
 pub use wallet_action::*;
 pub use withdraw::*;
+pub use bus::*;

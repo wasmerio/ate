@@ -20,7 +20,7 @@ pub(crate) mod raw {
     pub fn wasm_bus_rand(thread: &WasmBusThread) -> u32 {
         unsafe { super::wasm_bus_rand(thread) }
     }
-    pub fn wasm_bus_tick(thread: &WasmBusThread) {
+    pub fn wasm_bus_tick(thread: &WasmBusThread) -> bool {
         unsafe { super::wasm_bus_tick(thread) }
     }
     pub fn wasm_bus_listen(thread: &WasmBusThread, topic_ptr: WasmPtr<u8, Array>, topic_len: u32) {
@@ -35,7 +35,7 @@ pub(crate) mod raw {
     ) {
         unsafe { super::wasm_bus_callback(thread, parent, handle, topic_ptr, topic_len) }
     }
-    pub fn wasm_bus_fault(thread: &WasmBusThread, handle: u32, error: i32) {
+    pub fn wasm_bus_fault(thread: &WasmBusThread, handle: u32, error: u32) {
         unsafe { super::wasm_bus_fault(thread, handle, error) }
     }
     pub fn wasm_bus_poll(thread: &WasmBusThread) {
@@ -91,7 +91,8 @@ unsafe fn wasm_bus_rand(_thread: &WasmBusThread) -> u32 {
     fastrand::u32(..)
 }
 
-unsafe fn wasm_bus_tick(thread: &WasmBusThread) {
+unsafe fn wasm_bus_tick(thread: &WasmBusThread) -> bool
+{
     // Take the invocations out of the idle list and process them
     // (we need to do this outside of the thread local lock as
     //  otherwise the re-entrance will panic the system)
@@ -111,7 +112,7 @@ unsafe fn wasm_bus_tick(thread: &WasmBusThread) {
         }
     }
 
-    // If there are any carry overs then readd them
+    // If there are any carry overs then re-add them
     if carry_over.is_empty() == false {
         let mut inner = thread.inner.unwrap();
         for (key, invoke) in carry_over {
@@ -150,8 +151,11 @@ unsafe fn wasm_bus_callback(
 
 // Polls the operating system for messages which will be returned via
 // the 'wasm_bus_start' function call.
-unsafe fn wasm_bus_poll(_thread: &WasmBusThread) {
+unsafe fn wasm_bus_poll(thread: &WasmBusThread) {
     debug!("wasm-bus::poll");
+
+    wasm_bus_tick(thread);
+    std::thread::sleep(std::time::Duration::from_millis(10));
 }
 
 // Tells the operating system that this program is ready to respond
@@ -165,7 +169,7 @@ unsafe fn wasm_bus_listen(thread: &WasmBusThread, topic_ptr: WasmPtr<u8, Array>,
 }
 
 // Indicates that a fault has occured while processing a call
-unsafe fn wasm_bus_fault(_thread: &WasmBusThread, handle: u32, error: i32) {
+unsafe fn wasm_bus_fault(_thread: &WasmBusThread, handle: u32, error: u32) {
     debug!("wasm-bus::error (handle={}, error={})", handle, error);
 }
 

@@ -50,11 +50,16 @@ mod raw {
             request_len
         );
         unsafe {
-            let _request = Vec::from_raw_parts(
+            let request = Vec::from_raw_parts(
                 request_ptr as *mut u8,
                 request_len as usize,
                 request_len as usize,
             );
+
+            let handle: CallHandle = handle.into();
+            if let Err(err) = crate::engine::BusEngine::start(topic, handle, request) {
+                fault(handle.into(), err as u32);
+            }
         }
 
         #[cfg(feature = "rt")]
@@ -74,7 +79,7 @@ mod raw {
             let response =
                 Vec::from_raw_parts(data as *mut u8, data_len as usize, data_len as usize);
 
-            let _ = crate::engine::BusEngine::put(handle.into(), response);
+            crate::engine::BusEngine::finish(handle.into(), response);
         }
 
         #[cfg(feature = "rt")]
@@ -98,7 +103,7 @@ mod raw {
         pub(crate) fn rand() -> u32;
 
         // Indicates that a fault has occured while processing a call
-        pub(crate) fn fault(handle: u32, error: i32);
+        pub(crate) fn fault(handle: u32, error: u32);
 
         // Returns the response of a listen invokation to a program
         // from the operating system
@@ -147,7 +152,7 @@ pub fn rand() -> u32 {
     unsafe { raw::rand() }
 }
 
-pub fn error(handle: CallHandle, error: i32) {
+pub fn fault(handle: CallHandle, error: u32) {
     unsafe {
         raw::fault(handle.id, error);
     }

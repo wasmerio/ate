@@ -37,7 +37,7 @@ pub struct Call {
     pub(crate) parent: Option<CallHandle>,
     #[derivative(Debug = "ignore")]
     pub(crate) state: Arc<Mutex<CallState>>,
-    pub(crate) callbacks: Arc<Mutex<Vec<Recv>>>,
+    pub(crate) callbacks: Arc<Mutex<Vec<Finish>>>,
 }
 
 impl CallOps for Call {

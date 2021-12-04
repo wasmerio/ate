@@ -2,7 +2,9 @@ mod call;
 mod data;
 mod error;
 mod handle;
-mod recv;
+mod finish;
+#[cfg(feature = "rt")]
+mod listen;
 mod reply;
 #[cfg(feature = "syscalls")]
 pub(crate) mod syscall;
@@ -21,7 +23,9 @@ pub use call::*;
 pub use data::*;
 pub use error::*;
 pub use handle::*;
-pub use recv::*;
+pub use finish::*;
+#[cfg(feature = "rt")]
+pub use listen::*;
 pub use reply::*;
 
 pub fn call<T>(wapm: Cow<'static, str>, request: T) -> CallBuilder
@@ -50,7 +54,8 @@ where
     CallBuilder::new(call, req)
 }
 
-pub fn listen<RES, REQ, F>(_callback: F) -> Recv
+#[cfg(feature = "rt")]
+pub fn listen<RES, REQ, F>(_callback: F) -> ListenService
 where
     REQ: de::DeserializeOwned + Send + Sync + 'static,
     RES: Serialize + Send + Sync + 'static,
@@ -61,7 +66,7 @@ where
 }
 
 #[cfg(target_arch = "wasm32")]
-pub(crate) fn callback_internal<RES, REQ, F>(parent: CallHandle, callback: F) -> Recv
+pub(crate) fn callback_internal<RES, REQ, F>(parent: CallHandle, callback: F) -> Finish
 where
     REQ: de::DeserializeOwned + Send + Sync + 'static,
     RES: Serialize + Send + Sync + 'static,
@@ -77,7 +82,7 @@ where
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub(crate) fn callback_internal<RES, REQ, F>(_parent: CallHandle, _callback: F) -> Recv
+pub(crate) fn callback_internal<RES, REQ, F>(_parent: CallHandle, _callback: F) -> Finish
 where
     REQ: de::DeserializeOwned + Send + Sync + 'static,
     RES: Serialize + Send + Sync + 'static,
@@ -87,7 +92,7 @@ where
     panic!("recv not supported on this platform");
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32"))]
 pub(self) fn reply<RES>(handle: CallHandle, response: RES)
 where
     RES: Serialize,
@@ -96,7 +101,7 @@ where
         Ok(res) => {
             syscall::reply(handle, &res[..]);
         }
-        Err(_err) => syscall::error(handle, CallError::SerializationFailed as i32),
+        Err(_err) => syscall::fault(handle, CallError::SerializationFailed as u32),
     };
 }
 

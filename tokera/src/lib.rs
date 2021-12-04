@@ -6,3 +6,4 @@ pub mod model;
 pub mod opt;
 pub mod prelude;
 pub mod request;
+pub mod bus;
