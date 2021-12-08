@@ -8,15 +8,15 @@ use std::sync::Arc;
 use tracing::{debug, error, info, trace, warn};
 
 #[derive(Debug, Clone)]
-struct MountPoint {
-    path: String,
-    name: String,
-    fs: Arc<Box<dyn FileSystem>>,
+pub struct MountPoint {
+    pub path: String,
+    pub name: String,
+    pub fs: Arc<Box<dyn FileSystem>>,
 }
 
 #[derive(Debug, Clone)]
 pub struct UnionFileSystem {
-    mounts: Vec<MountPoint>,
+    pub mounts: Vec<MountPoint>,
 }
 
 impl UnionFileSystem {
@@ -76,69 +76,107 @@ impl FileSystem for UnionFileSystem {
             //return Err(FsError::AlreadyExists);
             return Ok(());
         }
+        let mut ret_error = FsError::EntityNotFound;
         let path = path.to_string_lossy();
         for (path, mount) in filter_mounts(&self.mounts, path.as_ref()) {
-            if let Ok(ret) = mount.fs.create_dir(Path::new(path)) {
-                return Ok(ret);
+            match mount.fs.create_dir(Path::new(path)) {
+                Ok(ret) => {
+                    return Ok(ret);
+                }
+                Err(err) => {
+                    ret_error = err;
+                }
             }
         }
-        Err(FsError::EntityNotFound)
+        Err(ret_error)
     }
     fn remove_dir(&self, path: &Path) -> Result<()> {
         debug!("remove_dir: path={}", path.display());
+        let mut ret_error = FsError::EntityNotFound;
         let path = path.to_string_lossy();
         for (path, mount) in filter_mounts(&self.mounts, path.as_ref()) {
-            if let Ok(ret) = mount.fs.remove_dir(Path::new(path)) {
-                return Ok(ret);
+            match mount.fs.remove_dir(Path::new(path)) {
+                Ok(ret) => {
+                    return Ok(ret);
+                }
+                Err(err) => {
+                    ret_error = err;
+                }
             }
         }
-        Err(FsError::EntityNotFound)
+        Err(ret_error)
     }
     fn rename(&self, from: &Path, to: &Path) -> Result<()> {
         debug!("rename: from={} to={}", from.display(), to.display());
+        let mut ret_error = FsError::EntityNotFound;
         let from = from.to_string_lossy();
         let to = to.to_string_lossy();
         for (path, mount) in filter_mounts(&self.mounts, from.as_ref()) {
             let to = if to.starts_with(mount.path.as_str()) {
                 &to[mount.path.len()..]
             } else {
-                return Err(FsError::UnknownError);
+                ret_error = FsError::UnknownError;
+                continue;
             };
-            if let Ok(ret) = mount.fs.rename(Path::new(from.as_ref()), Path::new(to)) {
-                return Ok(ret);
+            match mount.fs.rename(Path::new(from.as_ref()), Path::new(to)) {
+                Ok(ret) => {
+                    return Ok(ret);
+                }
+                Err(err) => {
+                    ret_error = err;
+                }
             }
         }
-        Err(FsError::EntityNotFound)
+        Err(ret_error)
     }
     fn metadata(&self, path: &Path) -> Result<Metadata> {
         debug!("metadata: path={}", path.display());
+        let mut ret_error = FsError::EntityNotFound;
         let path = path.to_string_lossy();
         for (path, mount) in filter_mounts(&self.mounts, path.as_ref()) {
-            if let Ok(ret) = mount.fs.metadata(Path::new(path)) {
-                return Ok(ret);
+            match mount.fs.metadata(Path::new(path)) {
+                Ok(ret) => {
+                    return Ok(ret);
+                }
+                Err(err) => {
+                    ret_error = err;
+                }
             }
         }
-        Err(FsError::EntityNotFound)
+        Err(ret_error)
     }
     fn symlink_metadata(&self, path: &Path) -> Result<Metadata> {
         debug!("symlink_metadata: path={}", path.display());
+        let mut ret_error = FsError::EntityNotFound;
         let path = path.to_string_lossy();
         for (path, mount) in filter_mounts(&self.mounts, path.as_ref()) {
-            if let Ok(ret) = mount.fs.symlink_metadata(Path::new(path)) {
-                return Ok(ret);
+            match mount.fs.symlink_metadata(Path::new(path)) {
+                Ok(ret) => {
+                    return Ok(ret);
+                }
+                Err(err) => {
+                    ret_error = err;
+                }
             }
         }
-        Err(FsError::EntityNotFound)
+        debug!("symlink_metadata: failed={}", ret_error);
+        Err(ret_error)
     }
     fn remove_file(&self, path: &Path) -> Result<()> {
         debug!("remove_file: path={}", path.display());
+        let mut ret_error = FsError::EntityNotFound;
         let path = path.to_string_lossy();
         for (path, mount) in filter_mounts(&self.mounts, path.as_ref()) {
-            if let Ok(ret) = mount.fs.remove_file(Path::new(path)) {
-                return Ok(ret);
+            match mount.fs.remove_file(Path::new(path)) {
+                Ok(ret) => {
+                    return Ok(ret);
+                }
+                Err(err) => {
+                    ret_error = err;
+                }
             }
         }
-        Err(FsError::EntityNotFound)
+        Err(ret_error)
     }
     fn new_open_options(&self) -> OpenOptions {
         let opener = Box::new(UnionFileOpener {
@@ -152,6 +190,7 @@ fn filter_mounts<'a, 'b>(
     mounts: &'a Vec<MountPoint>,
     mut path: &'b str,
 ) -> impl Iterator<Item = (&'b str, &'a MountPoint)> {
+    let mut biggest_path = 0usize;
     let mut ret = Vec::new();
     for mount in mounts.iter().rev() {
         if path.starts_with(mount.path.as_str()) || path.starts_with(&mount.path[1..]) {
@@ -160,9 +199,13 @@ fn filter_mounts<'a, 'b>(
             } else {
                 &path[mount.path.len()..]
             };
-            ret.push((path, mount))
+            let path = if path.len() > 0 { path } else { "/" };
+            ret.push((path, mount));
+
+            biggest_path = biggest_path.max(mount.path.len());
         }
     }
+    ret.retain(|(a, b)| b.path.len() >= biggest_path);
     ret.into_iter()
 }
 

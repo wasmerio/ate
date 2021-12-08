@@ -2,6 +2,7 @@ mod about;
 mod cd;
 mod export;
 mod help;
+mod mount;
 mod pwd;
 mod readonly;
 mod reset;
@@ -12,6 +13,7 @@ use about::*;
 use cd::*;
 use export::*;
 use help::*;
+use mount::*;
 use pwd::*;
 use readonly::*;
 use reset::*;
@@ -26,11 +28,22 @@ use super::eval::EvalContext;
 use super::eval::ExecResponse;
 use super::stdio::*;
 
-pub type Command = fn(
-    &[String],
-    &mut EvalContext,
-    Stdio,
-) -> Pin<Box<dyn Future<Output = Result<ExecResponse, i32>>>>;
+pub type Command =
+    fn(&[String], &mut EvalContext, Stdio) -> Pin<Box<dyn Future<Output = CommandResult>>>;
+
+pub struct CommandResult {
+    pub result: Result<ExecResponse, i32>,
+    pub ctx: Option<EvalContext>,
+}
+
+impl From<ExecResponse> for CommandResult {
+    fn from(val: ExecResponse) -> CommandResult {
+        CommandResult {
+            result: Ok(val),
+            ctx: None,
+        }
+    }
+}
 
 #[derive(Default)]
 pub struct Builtins {
@@ -49,6 +62,7 @@ impl Builtins {
         b.insert("source", source);
         b.insert("pwd", pwd);
         b.insert("reset", reset);
+        b.insert("mount", mount);
         b
     }
 

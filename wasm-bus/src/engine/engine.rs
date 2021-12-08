@@ -2,6 +2,8 @@
 use once_cell::sync::Lazy;
 use serde::*;
 use std::borrow::Cow;
+#[allow(unused_imports)]
+use std::future::Future;
 use std::sync::RwLock;
 use std::sync::RwLockReadGuard;
 use std::sync::RwLockWriteGuard;
@@ -10,8 +12,6 @@ use std::task::{Context, Waker};
 use std::{collections::HashMap, collections::HashSet, sync::Mutex};
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-#[allow(unused_imports)]
-use std::future::Future;
 
 use crate::abi::*;
 
@@ -23,7 +23,7 @@ pub struct BusEngineState {
     pub calls: HashMap<CallHandle, Arc<dyn CallOps>>,
     pub callbacks: HashMap<CallHandle, Arc<dyn FinishOps>>,
     #[cfg(feature = "rt")]
-    pub listening: HashMap<String, ListenService>,    
+    pub listening: HashMap<String, ListenService>,
 }
 
 #[derive(Default)]
@@ -69,9 +69,7 @@ impl BusEngine {
 
             listen.process(handle, request);
             return Ok(());
-        }
-        else
-        {
+        } else {
             return Err(CallError::InvalidHandle);
         }
     }
@@ -164,8 +162,8 @@ impl BusEngine {
 
             {
                 let mut state = BusEngine::write();
-                if state.handles.contains(&handle) == false &&
-                   state.calls.contains_key(&handle) == false
+                if state.handles.contains(&handle) == false
+                    && state.calls.contains_key(&handle) == false
                 {
                     state.handles.insert(handle);
                     state.calls.insert(handle, Arc::new(call.clone()));
@@ -220,8 +218,9 @@ impl BusEngine {
 
     #[cfg(target_arch = "wasm32")]
     fn register<F>(callback: F) -> Finish
-    where F: FnMut(Vec<u8>) -> Result<Vec<u8>, CallError>,
-          F: Send + 'static
+    where
+        F: FnMut(Vec<u8>) -> Result<Vec<u8>, CallError>,
+        F: Send + 'static,
     {
         let handle = CallHandle {
             id: crate::abi::syscall::rand(),
@@ -239,8 +238,8 @@ impl BusEngine {
 
             {
                 let mut state = BusEngine::write();
-                if state.handles.contains(&handle) == false &&
-                   state.callbacks.contains_key(&handle) == false
+                if state.handles.contains(&handle) == false
+                    && state.callbacks.contains_key(&handle) == false
                 {
                     state.handles.insert(handle);
                     state.callbacks.insert(handle, Arc::new(recv.clone()));
@@ -253,7 +252,8 @@ impl BusEngine {
 
     #[cfg(not(target_arch = "wasm32"))]
     fn register<F>(_callback: F) -> Finish
-    where F: FnMut(Vec<u8>) -> Result<(), CallError>,
+    where
+        F: FnMut(Vec<u8>) -> Result<(), CallError>,
     {
         panic!("recv not supported on this platform");
     }
@@ -261,19 +261,21 @@ impl BusEngine {
     #[cfg(feature = "rt")]
     #[cfg(target_arch = "wasm32")]
     pub fn listen<F, Fut>(topic: String, callback: F)
-    where F: Fn(Vec<u8>) -> Result<Fut, CallError>,
-          F: Send + Sync + 'static,
-          Fut: Future<Output=Result<Vec<u8>, CallError>>,
-          Fut: Send + 'static,
+    where
+        F: Fn(Vec<u8>) -> Result<Fut, CallError>,
+        F: Send + Sync + 'static,
+        Fut: Future<Output = Result<Vec<u8>, CallError>>,
+        Fut: Send + 'static,
     {
         {
             let mut state = BusEngine::write();
-            state.listening.insert(topic.clone(), ListenService::new(Arc::new(move |req| {
-                let res = callback(req);
-                Box::pin(async move {
-                    Ok(res?.await?)
-                })
-            })));
+            state.listening.insert(
+                topic.clone(),
+                ListenService::new(Arc::new(move |req| {
+                    let res = callback(req);
+                    Box::pin(async move { Ok(res?.await?) })
+                })),
+            );
         }
 
         crate::abi::syscall::listen(topic.as_str());
@@ -282,10 +284,11 @@ impl BusEngine {
     #[cfg(feature = "rt")]
     #[cfg(not(target_arch = "wasm32"))]
     pub fn listen<F, Fut>(_topic: String, _callback: F)
-    where F: Fn(Vec<u8>) -> Result<Fut, CallError>,
-          F: Send + Sync + 'static,
-          Fut: Future<Output=Result<Vec<u8>, CallError>>,
-          Fut: Send + 'static,
+    where
+        F: Fn(Vec<u8>) -> Result<Fut, CallError>,
+        F: Send + Sync + 'static,
+        Fut: Future<Output = Result<Vec<u8>, CallError>>,
+        Fut: Send + 'static,
     {
         panic!("listen not supported on this platform");
     }

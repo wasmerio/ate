@@ -67,11 +67,12 @@ pub struct EvalContext {
     pub input: String,
     pub stdio: Stdio,
     pub root: UnionFileSystem,
-    pub exec_factory: ExecFactory,
+    pub new_mounts: Vec<MountPoint>,
+    pub exec_factory: EvalFactory,
     pub job: Job,
 }
 
-pub(crate) async fn eval(mut ctx: EvalContext) -> mpsc::Receiver<EvalPlan> {
+pub(crate) fn eval(mut ctx: EvalContext) -> mpsc::Receiver<EvalPlan> {
     let system = ctx.system;
     let builtins = Builtins::new();
     let parser = grammar::programParser::new();

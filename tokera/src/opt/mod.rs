@@ -1,4 +1,5 @@
 mod balance;
+mod bus;
 mod contract;
 mod create_wallet;
 mod deposit;
@@ -14,11 +15,11 @@ mod transfer;
 mod wallet;
 mod wallet_action;
 mod withdraw;
-mod bus;
 
 pub use ate_auth::opt::*;
 
 pub use balance::*;
+pub use bus::*;
 pub use contract::*;
 pub use create_wallet::*;
 pub use deposit::*;
@@ -34,4 +35,3 @@ pub use transfer::*;
 pub use wallet::*;
 pub use wallet_action::*;
 pub use withdraw::*;
-pub use bus::*;

@@ -100,6 +100,16 @@ impl Tty {
  Terminal v1.0 ( www.tokera.com ) \x1B[30;1m\r
       \powered by wasmer.io/      \r\n"#;
 
+    pub const MOUNT_USAGE: &'static str = r#"Usage:
+ mount [<wapm-name>] <mountpoint> <target>
+
+ <wapm-name>: Name of the WAPM program that will serve the file-system (default: tok)
+ <mounpoint>: Location where the file-system will be mounted to
+ <target>: Target name passed to the WAPM program and is ued for the mounting
+
+ Example: mount tok /www tokera.sh/www
+"#;
+
     pub const ABOUT: &'static str = include_str!("txt/about.md");
     pub const ABOUT_TOKERA: &'static str = include_str!("txt/about_tokera.md");
     pub const ABOUT_WASMER: &'static str = include_str!("txt/about_wasmer.md");

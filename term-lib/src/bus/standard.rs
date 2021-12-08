@@ -23,7 +23,7 @@ impl StandardBus {
         }
     }
 
-    pub fn create(
+    pub async fn create(
         &self,
         wapm: &str,
         topic: &str,
@@ -52,7 +52,8 @@ impl StandardBus {
 
                 let created = self
                     .process_factory
-                    .create(request, client_callbacks.clone())?;
+                    .eval(request, client_callbacks.clone())
+                    .await?;
                 Ok((Box::new(created.invoker), Some(Box::new(created.session))))
             }
             _ => Err(CallError::InvalidTopic),

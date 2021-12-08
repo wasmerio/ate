@@ -1,6 +1,7 @@
 use std::future::Future;
 use std::pin::Pin;
 
+use super::CommandResult;
 use crate::eval::EvalContext;
 use crate::eval::ExecResponse;
 use crate::stdio::*;
@@ -9,7 +10,7 @@ pub(super) fn export(
     args: &[String],
     ctx: &mut EvalContext,
     stdio: Stdio,
-) -> Pin<Box<dyn Future<Output = Result<ExecResponse, i32>>>> {
+) -> Pin<Box<dyn Future<Output = CommandResult>>> {
     if args.len() <= 1 || args[1] == "-p" {
         let output = ctx
             .env
@@ -27,7 +28,7 @@ pub(super) fn export(
             for output in output {
                 let _ = stdio.println(format_args!("{}", output)).await;
             }
-            Ok(ExecResponse::Immediate(0))
+            ExecResponse::Immediate(0).into()
         });
     }
 
@@ -41,5 +42,5 @@ pub(super) fn export(
         }
     }
 
-    Box::pin(async move { Ok(ExecResponse::Immediate(0)) })
+    Box::pin(async move { ExecResponse::Immediate(0).into() })
 }

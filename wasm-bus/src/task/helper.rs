@@ -1,7 +1,7 @@
 use std::future::Future;
 
-use crate::rt::RUNTIME;
 pub use crate::engine::ListenerBuilder;
+use crate::rt::RUNTIME;
 
 pub fn block_on<F>(task: F) -> F::Output
 where
@@ -21,7 +21,6 @@ pub fn wake() {
     RUNTIME.wake();
 }
 
-pub fn serve()
-{
+pub fn serve() {
     RUNTIME.serve();
 }

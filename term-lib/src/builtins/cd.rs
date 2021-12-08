@@ -2,23 +2,24 @@ use std::future::Future;
 use std::path::Path;
 use std::pin::Pin;
 
+use super::CommandResult;
 use crate::eval::EvalContext;
 use crate::eval::ExecResponse;
+use crate::fs::AsyncifyFileSystem;
 use crate::stdio::*;
-use crate::wasmer_vfs::FileSystem;
 
 pub(super) fn cd(
     args: &[String],
     ctx: &mut EvalContext,
     mut stdio: Stdio,
-) -> Pin<Box<dyn Future<Output = Result<ExecResponse, i32>>>> {
+) -> Pin<Box<dyn Future<Output = CommandResult>>> {
     if args.len() > 2 {
         return Box::pin(async move {
             let _ = stdio
                 .stderr
                 .write(format!("cd: too many arguments\r\n").as_bytes())
                 .await;
-            Ok(ExecResponse::Immediate(0))
+            ExecResponse::Immediate(0).into()
         });
     }
 
@@ -35,7 +36,7 @@ pub(super) fn cd(
                     .stderr
                     .write(format!("cd: -: OLDPWD not set\r\n").as_bytes())
                     .await;
-                Ok(ExecResponse::Immediate(0))
+                ExecResponse::Immediate(0).into()
             });
         }
     } else {
@@ -44,32 +45,37 @@ pub(super) fn cd(
             dir.insert_str(0, current(ctx).as_str());
         }
 
-        dir = canonicalize(dir.as_str());
-        if ctx.root.read_dir(Path::new(dir.as_str())).is_err() {
-            return Box::pin(async move {
-                let _ = stdio
-                    .stderr
-                    .write(format!("cd: {}: No such directory\r\n", dir).as_bytes())
-                    .await;
-                Ok(ExecResponse::Immediate(0))
-            });
-        }
-        dir
+        canonicalize(dir.as_str())
     };
 
     if dir.ends_with("/") == false {
         dir += "/";
     }
 
-    ctx.env.set_var("OLDPWD", current(ctx));
-    set_current(ctx, dir.as_str());
-    ctx.env.set_var("PWD", dir.clone());
-
+    let mut ctx = ctx.clone();
     Box::pin(async move {
+        if AsyncifyFileSystem::new(ctx.root.clone())
+            .read_dir(Path::new(dir.as_str()))
+            .await
+            .is_err()
+        {
+            let _ = stdio
+                .stderr
+                .write(format!("cd: {}: No such directory\r\n", dir).as_bytes())
+                .await;
+            return ExecResponse::Immediate(0).into();
+        }
+
+        ctx.env.set_var("OLDPWD", current(&ctx));
+        set_current(&mut ctx, dir.as_str());
+        ctx.env.set_var("PWD", dir.clone());
+
         if print_path {
             let _ = stdio.stdout.write(format!("{}\r\n", dir).as_bytes()).await;
         }
-        Ok(ExecResponse::Immediate(0))
+        let mut ret: CommandResult = ExecResponse::Immediate(0).into();
+        ret.ctx = Some(ctx);
+        ret
     })
 }
 

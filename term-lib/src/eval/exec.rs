@@ -2,6 +2,7 @@
 #![allow(unused)]
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
+use sha2::digest::generic_array::sequence::Lengthen;
 use std::io::Read;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
@@ -54,39 +55,57 @@ pub async fn exec(
     mut stdio: Stdio,
     redirect: &Vec<Redirect>,
 ) -> Result<ExecResponse, i32> {
+    // If there is a built in then use it
+    if let Some(builtin) = builtins.get(cmd) {
+        *show_result = true;
+        let mut ret = builtin(&args, ctx, stdio).await;
+        if let Some(mut new_ctx) = ret.ctx {
+            ctx.path = new_ctx.path;
+            ctx.new_mounts.append(&mut new_ctx.new_mounts);
+        }
+        return Ok(match ret.result {
+            Ok(a) => a,
+            Err(err) => ExecResponse::Immediate(err),
+        });
+    }
+
+    let (process, process_result, _) =
+        exec_process(ctx, cmd, args, env_vars, show_result, stdio, redirect).await?;
+
+    Ok(ExecResponse::Process(process, process_result))
+}
+
+pub async fn exec_process(
+    ctx: &mut EvalContext,
+    cmd: &String,
+    args: &Vec<String>,
+    env_vars: &Vec<String>,
+    show_result: &mut bool,
+    mut stdio: Stdio,
+    redirect: &Vec<Redirect>,
+) -> Result<(Process, AsyncResult<i32>, Arc<WasmBusThreadPool>), i32>
+{
     // Make an error message function
     let mut early_stderr = stdio.stderr.clone();
-    let on_early_exit = |msg: Option<String>, res: ExecResponse| async move {
+    let on_early_exit = |msg: Option<String>, err: i32| async move {
         *show_result = true;
         if let Some(msg) = msg {
             let _ = early_stderr.write(msg.as_bytes()).await;
         }
-        Ok(res)
+        Err(err)
     };
-
-    // If there is a built in then use it
-    if let Some(builtin) = builtins.get(cmd) {
-        return on_early_exit(
-            None,
-            match builtin(args, ctx, stdio).await {
-                Ok(a) => a,
-                Err(err) => ExecResponse::Immediate(err),
-            },
-        )
-        .await;
-    }
 
     // Grab the private file system for this binary (if the binary changes the private
     // file system will also change)
     let (data_hash, data, fs_private) = match load_bin(ctx, cmd, &mut stdio).await {
         Some(a) => (a.hash, a.data, a.fs),
         None => {
-            return on_early_exit(None, ExecResponse::Immediate(err::ERR_ENOENT)).await;
+            return on_early_exit(None, err::ERR_ENOENT).await;
         }
     };
 
     // Create the filesystem
-    let fs = {
+    let (fs, union) = {
         let root = ctx.root.clone();
         let stdio = stdio.clone();
 
@@ -99,21 +118,24 @@ pub async fn exec(
         );
         union.mount("tmp", Path::new("/tmp"), Box::new(TmpFileSystem::default()));
         union.mount("private", Path::new("/.private"), Box::new(fs_private));
-        Box::new(union)
+
+        (AsyncifyFileSystem::new(union.clone()), union)
     };
 
-    // Perfform all the redirects
+    // Perform all the redirects
     for redirect in redirect.iter() {
         // Attempt to open the file
         let file = fs
             .new_open_options()
+            .await
             .create(redirect.op.write())
             .create_new(redirect.op.write() && redirect.op.append() == false)
             .truncate(redirect.op.write() && redirect.op.append() == false)
             .append(redirect.op.append())
             .read(redirect.op.read())
             .write(redirect.op.write())
-            .open(redirect.filename.clone());
+            .open(redirect.filename.clone())
+            .await;
         match file {
             Ok(mut file) => {
                 // Open a new file description
@@ -134,7 +156,7 @@ pub async fn exec(
                         1 => stdio.stdout = fd,
                         2 => stdio.stderr = fd,
                         _ => {
-                            return on_early_exit(Some(format!("redirecting non-standard file descriptors is not yet supported")), ExecResponse::Immediate(err::ERR_EINVAL)).await;
+                            return on_early_exit(Some(format!("redirecting non-standard file descriptors is not yet supported")), err::ERR_EINVAL).await;
                         }
                     };
 
@@ -148,14 +170,13 @@ pub async fn exec(
                 let is_write = redirect.op.write();
                 system.fork_shared(move || async move {
                     if is_read {
-                        let mut buf = [0u8; 4096];
-                        while let Ok(read) = file.read(&mut buf) {
-                            let _ = tx.send((&buf[0..read]).to_vec()).await;
+                        while let Ok(read) = file.read(4096).await {
+                            let _ = tx.send(read).await;
                         }
                     }
                     if is_write {
                         while let Some(data) = rx.recv().await {
-                            let _ = file.write_all(&data[..]);
+                            let _ = file.write_all(data).await;
                         }
                     }
                 });
@@ -163,10 +184,10 @@ pub async fn exec(
             Err(err) => {
                 return on_early_exit(
                     Some(format!("failed to open the redirected file")),
-                    ExecResponse::Immediate(match err {
+                    match err {
                         FsError::EntityNotFound => ERR_ENOENT,
                         _ => ERR_EIO,
-                    }),
+                    },
                 )
                 .await;
             }
@@ -184,10 +205,14 @@ pub async fn exec(
 
     // The BUS pool is what gives this WASM process its syscall and operation system
     // functions and services
-    let bus_pool = WasmBusThreadPool::new(sub_process_factory);
+    let bus_thread_pool = WasmBusThreadPool::new(sub_process_factory);
+    let bus_thread_pool_ret = Arc::clone(&bus_thread_pool);
 
     // We listen for any forced exits using this channel
     let forced_exit = Arc::new(AtomicI32::new(0));
+
+    // This wait point is so that the main thread is created before it returns
+    let (checkpoint_tx, mut checkpoint_rx) = mpsc::channel(1);
 
     // Spawn the process on a background thread
     let mut tty = ctx.stdio.stderr.clone();
@@ -265,7 +290,7 @@ pub async fn exec(
                 // Add the tick callback that will invoke the WASM bus background
                 // operations on the current thread
                 {
-                    let bus_pool = Arc::clone(&bus_pool);
+                    let bus_pool = Arc::clone(&bus_thread_pool);
                     wasi_env.on_yield(move |thread| {
                         let forced_exit = forced_exit.load(Ordering::Acquire);
                         if forced_exit != 0 {
@@ -281,7 +306,7 @@ pub async fn exec(
                 }
 
                 // Finish off the WasiEnv
-                let mut wasi_env = match wasi_env.set_fs(fs).finalize() {
+                let mut wasi_env = match wasi_env.set_fs(Box::new(union)).finalize() {
                     Ok(a) => a,
                     Err(err) => {
                         drop(module);
@@ -306,8 +331,8 @@ pub async fn exec(
 
                 // Generate an `ImportObject`.
                 let wasi_import = wasi_thread.import_object(&module).unwrap();
-                let mut wasm_bus_import = bus_pool.get_or_create(&wasi_thread);
-                let wasm_bus_import = wasm_bus_import.import_object(&module);
+                let mut wasm_thread = bus_thread_pool.get_or_create(&wasi_thread);
+                let wasm_bus_import = wasm_thread.import_object(&module);
                 let import = wasi_import.chain_front(wasm_bus_import);
 
                 // Let's instantiate the module with the imports.
@@ -318,6 +343,9 @@ pub async fn exec(
                     .exports
                     .get_native_function::<(), ()>("_start")
                     .ok();
+
+                // We are ready for the checkpoint
+                checkpoint_tx.send(()).await;
 
                 // If there is a start function
                 debug!("called main() on {}", cmd);
@@ -351,6 +379,10 @@ pub async fn exec(
             })
     };
 
+    // Wait for the checkpoint (either it triggers or it fails because its never reached
+    // but whatever happens this checkpoint will be released)
+    checkpoint_rx.recv().await;
+
     // Generate a PID for this process
     let (pid, process) = {
         let mut guard = ctx.reactor.write().await;
@@ -365,5 +397,5 @@ pub async fn exec(
     };
     debug!("process created (pid={})", pid);
 
-    Ok(ExecResponse::Process(process, process_result))
+    Ok((process, process_result, bus_thread_pool_ret))
 }

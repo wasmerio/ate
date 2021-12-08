@@ -3,6 +3,7 @@ use std::pin::Pin;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
+use super::CommandResult;
 use crate::eval::EvalContext;
 use crate::eval::ExecResponse;
 use crate::stdio::*;
@@ -12,7 +13,7 @@ pub(super) fn about(
     args: &[String],
     _ctx: &mut EvalContext,
     mut stdio: Stdio,
-) -> Pin<Box<dyn Future<Output = Result<ExecResponse, i32>>>> {
+) -> Pin<Box<dyn Future<Output = CommandResult>>> {
     let txt = if args.len() <= 1 {
         Tty::ABOUT
     } else {
@@ -26,6 +27,6 @@ pub(super) fn about(
     Box::pin(async move {
         let _ = stdio.stdout.write(txt.as_bytes()).await;
         let _ = stdio.stdout.write("\r\n".as_bytes()).await;
-        Ok(ExecResponse::Immediate(0))
+        ExecResponse::Immediate(0).into()
     })
 }

@@ -4,72 +4,70 @@ use std::pin::Pin;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
+use super::CommandResult;
 use crate::err;
 use crate::eval::eval;
 use crate::eval::EvalContext;
 use crate::eval::EvalPlan;
 use crate::eval::ExecResponse;
+use crate::fs::*;
 use crate::stdio::*;
-use crate::wasmer_vfs::FileSystem;
 
 pub(super) fn source(
     args: &[String],
     ctx: &mut EvalContext,
     mut stdio: Stdio,
-) -> Pin<Box<dyn Future<Output = Result<ExecResponse, i32>>>> {
+) -> Pin<Box<dyn Future<Output = CommandResult>>> {
     if args.len() != 2 {
-        return Box::pin(async move { Ok(ExecResponse::Immediate(err::ERR_EINVAL)) });
+        return Box::pin(async move { ExecResponse::Immediate(err::ERR_EINVAL).into() });
     }
 
     // Read the script
     let script = args[1].clone();
-    let script = ctx
-        .root
-        .new_open_options()
-        .read(true)
-        .open(&Path::new(&script));
-    let mut script = match script {
-        Ok(a) => a,
-        Err(_) => {
-            return Box::pin(async move {
+    let mut ctx = ctx.clone();
+    return Box::pin(async move {
+        let script = AsyncifyFileSystem::new(ctx.root.clone())
+            .new_open_options()
+            .await
+            .read(true)
+            .open(&Path::new(&script))
+            .await;
+        let mut script = match script {
+            Ok(a) => a,
+            Err(_) => {
                 let _ = stdio
                     .stderr
                     .write(format!("exec: script not found\r\n").as_bytes())
                     .await;
-                Ok(ExecResponse::Immediate(1))
-            });
-        }
-    };
-    let script = {
-        let mut s = String::new();
-        if let Err(_) = script.read_to_string(&mut s) {
-            return Box::pin(async move {
-                let _ = stdio
-                    .stderr
-                    .write(format!("exec: script not readable\r\n").as_bytes())
-                    .await;
-                Ok(ExecResponse::Immediate(err::ERR_ENOENT))
-            });
-        }
-        s
-    };
+                return ExecResponse::Immediate(1).into();
+            }
+        };
+        let script = {
+            match script.read_to_string().await {
+                Ok(s) => s,
+                Err(_err) => {
+                    let _ = stdio
+                        .stderr
+                        .write(format!("exec: script not readable\r\n").as_bytes())
+                        .await;
+                    return ExecResponse::Immediate(err::ERR_ENOENT).into();
+                }
+            }
+        };
 
-    let mut ctx = ctx.clone();
-    ctx.input = script;
+        ctx.input = script;
 
-    // Now run the evaluation again but using this new scripts
-    Box::pin(async move {
         let mut stdout = ctx.stdio.stdout.clone();
         let mut stderr = ctx.stdio.stderr.clone();
 
-        let mut process = eval(ctx).await;
+        let mut process = eval(ctx);
         let result = process.recv().await;
         drop(process);
 
         match result {
             Some(EvalPlan::Executed {
                 code,
-                ctx: _,
+                ctx,
                 show_result,
             }) => {
                 debug!("exec executed (code={})", code);
@@ -79,32 +77,34 @@ pub(super) fn source(
                     chars += "\r\n";
                     let _ = stdout.write(chars.as_bytes()).await;
                 }
-                Ok(ExecResponse::Immediate(code))
+                let mut ret: CommandResult = ExecResponse::Immediate(code).into();
+                ret.ctx = Some(ctx);
+                ret
             }
             Some(EvalPlan::InternalError) => {
                 debug!("eval internal error");
                 let _ = stderr.write("exec: internal error\r\n".as_bytes()).await;
-                Ok(ExecResponse::Immediate(err::ERR_EINTR))
+                ExecResponse::Immediate(err::ERR_EINTR).into()
             }
             Some(EvalPlan::MoreInput) => {
                 debug!("eval more input");
                 let _ = stderr
                     .write("exec: incomplete command\r\n".as_bytes())
                     .await;
-                Ok(ExecResponse::Immediate(err::ERR_EINVAL))
+                ExecResponse::Immediate(err::ERR_EINVAL).into()
             }
             Some(EvalPlan::Invalid) => {
                 debug!("eval invalid");
                 let _ = stderr.write("exec: invalid command\r\n".as_bytes()).await;
-                Ok(ExecResponse::Immediate(err::ERR_EINVAL))
+                ExecResponse::Immediate(err::ERR_EINVAL).into()
             }
             None => {
                 debug!("eval recv error");
                 let _ = stderr
                     .write(format!("exec: command failed\r\n").as_bytes())
                     .await;
-                Ok(ExecResponse::Immediate(err::ERR_EINTR))
+                ExecResponse::Immediate(err::ERR_EINTR).into()
             }
         }
-    })
+    });
 }

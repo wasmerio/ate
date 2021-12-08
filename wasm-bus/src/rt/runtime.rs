@@ -9,12 +9,16 @@ use std::task::Context;
 use std::task::Poll;
 use std::task::Waker;
 
-use crate::abi::CallError;
 use super::*;
+use crate::abi::CallError;
 
 pub(crate) static RUNTIME: Lazy<Runtime> = Lazy::new(|| Runtime::default());
 
-type ListenCallback = Box<dyn Fn(u32, Vec<u8>) -> Pin<Box<dyn Future<Output=Result<Vec<u8>, CallError>>>> + Send + 'static>;
+type ListenCallback = Box<
+    dyn Fn(u32, Vec<u8>) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, CallError>>>>
+        + Send
+        + 'static,
+>;
 
 #[derive(Clone, Default)]
 pub struct Runtime {
@@ -70,8 +74,7 @@ impl Runtime {
         }
     }
 
-    pub fn serve(&self)
-    {
+    pub fn serve(&self) {
         let waker: Waker = self.waker.clone().into_waker();
         let mut cx = Context::from_waker(&waker);
 
@@ -93,6 +96,7 @@ impl Runtime {
                     }
                 }
             }
+            std::thread::yield_now();
             crate::abi::syscall::poll();
         }
     }

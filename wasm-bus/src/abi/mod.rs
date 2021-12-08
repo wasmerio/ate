@@ -1,8 +1,8 @@
 mod call;
 mod data;
 mod error;
-mod handle;
 mod finish;
+mod handle;
 #[cfg(feature = "rt")]
 mod listen;
 mod reply;
@@ -22,8 +22,8 @@ use std::borrow::Cow;
 pub use call::*;
 pub use data::*;
 pub use error::*;
-pub use handle::*;
 pub use finish::*;
+pub use handle::*;
 #[cfg(feature = "rt")]
 pub use listen::*;
 pub use reply::*;

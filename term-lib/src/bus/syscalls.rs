@@ -20,7 +20,7 @@ pub(crate) mod raw {
     pub fn wasm_bus_rand(thread: &WasmBusThread) -> u32 {
         unsafe { super::wasm_bus_rand(thread) }
     }
-    pub fn wasm_bus_tick(thread: &WasmBusThread) -> bool {
+    pub fn wasm_bus_tick(thread: &WasmBusThread) {
         unsafe { super::wasm_bus_tick(thread) }
     }
     pub fn wasm_bus_listen(thread: &WasmBusThread, topic_ptr: WasmPtr<u8, Array>, topic_len: u32) {
@@ -91,8 +91,7 @@ unsafe fn wasm_bus_rand(_thread: &WasmBusThread) -> u32 {
     fastrand::u32(..)
 }
 
-unsafe fn wasm_bus_tick(thread: &WasmBusThread) -> bool
-{
+unsafe fn wasm_bus_tick(thread: &WasmBusThread) {
     // Take the invocations out of the idle list and process them
     // (we need to do this outside of the thread local lock as
     //  otherwise the re-entrance will panic the system)
@@ -152,9 +151,10 @@ unsafe fn wasm_bus_callback(
 // Polls the operating system for messages which will be returned via
 // the 'wasm_bus_start' function call.
 unsafe fn wasm_bus_poll(thread: &WasmBusThread) {
-    debug!("wasm-bus::poll");
-
-    wasm_bus_tick(thread);
+    trace!("wasm-bus::poll");
+    if *thread.polling.borrow() == false {
+        let _ = thread.inner.unwrap().polling.send(true);
+    }
     std::thread::sleep(std::time::Duration::from_millis(10));
 }
 
@@ -256,21 +256,14 @@ unsafe fn wasm_bus_call(
 
     // If its got a parent then we already have an active stream here so we need
     // to feed these results into that stream
-    let mut invoke = if let Some(parent) = parent {
-        if let Some(session) = thread.inner.unwrap().factory.get(parent) {
-            session.call(topic.as_ref(), &request)
-        } else {
-            ErrornousInvokable::new(CallError::InvalidHandle)
-        }
-    } else {
-        thread.inner.unwrap().factory.start(
-            handle.into(),
-            &wapm,
-            &topic,
-            &request,
-            client_callbacks,
-        )
-    };
+    let mut invoke = thread.inner.unwrap().factory.start(
+        parent,
+        handle.into(),
+        wapm.to_string(),
+        topic.to_string(),
+        request,
+        client_callbacks,
+    );
 
     // Invoke the send operation
     let invoke = {

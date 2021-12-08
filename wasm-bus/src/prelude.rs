@@ -7,3 +7,8 @@ pub use super::ws::{SocketBuilder, WebSocket};
 
 pub use crate::abi::call;
 pub use crate::abi::Call;
+
+#[cfg(feature = "rt")]
+pub use crate::task::serve;
+#[cfg(feature = "rt")]
+pub use crate::task::ListenerBuilder;

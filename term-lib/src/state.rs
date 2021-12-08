@@ -16,6 +16,7 @@ use super::environment::Environment;
 use super::eval::Process;
 use super::eval::*;
 use super::fd::*;
+use super::fs::*;
 use super::poll::*;
 use super::reactor::*;
 use super::tty::*;
@@ -26,16 +27,18 @@ pub struct ConsoleState {
     pub env: Environment,
     pub last_return: i32,
     pub unfinished_line: bool,
+    pub rootfs: UnionFileSystem,
 }
 
 impl ConsoleState {
-    pub fn new() -> ConsoleState {
+    pub fn new(root: UnionFileSystem) -> ConsoleState {
         ConsoleState {
             path: "/".to_string(),
             user: "tokera.sh".to_string(),
             env: Environment::default(),
             last_return: 0,
             unfinished_line: false,
+            rootfs: root,
         }
     }
 

@@ -44,10 +44,9 @@ pub struct Console {
     tty: Tty,
     pool: Pool,
     reactor: Arc<RwLock<Reactor>>,
-    mounts: UnionFileSystem,
     stdout: Stdout,
     stderr: Fd,
-    exec: ExecFactory,
+    exec: EvalFactory,
 }
 
 impl Console {
@@ -60,7 +59,7 @@ impl Console {
     ) -> Console {
         let reactor = Reactor::new();
 
-        let state = Arc::new(Mutex::new(ConsoleState::new()));
+        let state = Arc::new(Mutex::new(ConsoleState::new(super::fs::create_root_fs())));
         let (stdout, mut tty_rx) = pipe_out();
         let stderr = stdout.clone();
         let stdout = Stdout::new(stdout);
@@ -88,9 +87,8 @@ impl Console {
         let is_mobile = is_mobile(&user_agent);
         let tty = Tty::new(stdout.clone(), is_mobile);
 
-        let mounts = super::fs::create_root_fs();
         let bins = BinFactory::new();
-        let exec_factory = ExecFactory::new(
+        let exec_factory = EvalFactory::new(
             bins.clone(),
             tty.clone(),
             reactor.clone(),
@@ -111,7 +109,6 @@ impl Console {
             tty,
             reactor,
             pool,
-            mounts,
             exec: exec_factory,
         }
     }
@@ -120,7 +117,10 @@ impl Console {
         crate::glue::show_terminal();
 
         let mut location_file = self
-            .mounts
+            .state
+            .lock()
+            .unwrap()
+            .rootfs
             .new_open_options()
             .create_new(true)
             .write(true)
@@ -139,7 +139,10 @@ impl Console {
 
         if let Some(run_command) = &run_command {
             let mut init_file = self
-                .mounts
+                .state
+                .lock()
+                .unwrap()
+                .rootfs
                 .new_open_options()
                 .create_new(true)
                 .write(true)
@@ -190,18 +193,19 @@ impl Console {
         }
 
         let reactor = self.reactor.clone();
-        let (env, path) = {
+        let (env, path, root) = {
             let mut state = self.state.lock().unwrap();
             state.unfinished_line = false;
             let env = state.env.clone();
             let path = state.path.clone();
-            (env, path)
+            let root = state.rootfs.clone();
+            (env, path, root)
         };
 
         // Generate the job and make it the active version
         let job = {
             let mut reactor = reactor.write().await;
-            let job = match reactor.generate_job(path.clone(), env.clone(), self.mounts.clone()) {
+            let job = match reactor.generate_job(path.clone(), env.clone(), root.clone()) {
                 Ok((_, job)) => job,
                 Err(_) => {
                     drop(reactor);
@@ -233,9 +237,9 @@ impl Console {
                 self.stderr.clone(),
                 path,
                 Vec::new(),
-                self.mounts.clone(),
+                root,
             );
-            self.exec.spawn(ctx).await
+            self.exec.eval(ctx)
         };
 
         // Spawn a background thread that will process the result
@@ -263,12 +267,13 @@ impl Console {
             match rx {
                 Some(EvalPlan::Executed {
                     code,
-                    ctx,
+                    mut ctx,
                     show_result,
                 }) => {
                     debug!("eval executed (code={})", code);
                     let should_line_feed = {
                         let mut state = state.lock().unwrap();
+                        state.rootfs.mounts.append(&mut ctx.new_mounts);
                         state.last_return = code;
                         state.path = ctx.path;
                         state.env = ctx.env;

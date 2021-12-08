@@ -2,7 +2,9 @@ use async_trait::async_trait;
 use derivative::*;
 use std::any::type_name;
 use std::collections::HashMap;
+use std::future::Future;
 use std::ops::Deref;
+use std::pin::Pin;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::sync::RwLock;
@@ -19,14 +21,13 @@ use crate::fd::*;
 use crate::pipe::*;
 use crate::reactor::*;
 
-pub struct ProcessCreated {
+pub struct EvalCreated {
     pub invoker: ProcessExecInvokable,
     pub session: ProcessExecSession,
 }
 
 struct ProcessExecCreate {
     request: Spawn,
-    result: mpsc::Sender<Result<ProcessCreated, i32>>,
     on_stdout: Option<WasmBusCallback>,
     on_stderr: Option<WasmBusCallback>,
 }
@@ -38,16 +39,27 @@ pub struct ProcessExecFactory {
     #[derivative(Debug = "ignore")]
     reactor: Arc<RwLock<Reactor>>,
     #[derivative(Debug = "ignore")]
-    exec_factory: ExecFactory,
+    exec_factory: EvalFactory,
     inherit_stdin: WeakFd,
     inherit_stdout: WeakFd,
     inherit_stderr: WeakFd,
 }
 
+pub struct LaunchContext {
+    eval: EvalContext,
+    path: String,
+    args: Vec<String>,
+    stdin_tx: Option<mpsc::Sender<Vec<u8>>>,
+    stdout_rx: Option<mpsc::Receiver<Vec<u8>>>,
+    stderr_rx: Option<mpsc::Receiver<Vec<u8>>>,
+    on_stdout: Option<WasmBusCallback>,
+    on_stderr: Option<WasmBusCallback>,
+}
+
 impl ProcessExecFactory {
     pub fn new(
         reactor: Arc<RwLock<Reactor>>,
-        exec_factory: ExecFactory,
+        exec_factory: EvalFactory,
         inherit_stdin: WeakFd,
         inherit_stdout: WeakFd,
         inherit_stderr: WeakFd,
@@ -63,19 +75,23 @@ impl ProcessExecFactory {
         }
     }
 
-    pub fn create(
+    pub async fn launch<T, F>(
         &self,
         request: Spawn,
         mut client_callbacks: HashMap<String, WasmBusCallback>,
-    ) -> Result<ProcessCreated, CallError> {
+        funct: F,
+    ) -> Result<T, CallError>
+    where
+        F: Fn(LaunchContext) -> Pin<Box<dyn Future<Output = Result<T, i32>>>>,
+        F: Send + 'static,
+        T: Send,
+    {
         // Grab the callbacks and build the requiest
         let on_stdout = client_callbacks.remove(&type_name::<DataStdout>().to_string());
         let on_stderr = client_callbacks.remove(&type_name::<DataStderr>().to_string());
 
-        let (tx_result, mut rx_result) = mpsc::channel(1);
         let create = ProcessExecCreate {
             request,
-            result: tx_result,
             on_stdout,
             on_stderr,
         };
@@ -87,7 +103,7 @@ impl ProcessExecFactory {
         let inherit_stdout = self.inherit_stdout.upgrade();
         let inherit_stderr = self.inherit_stderr.upgrade();
         let exec_factory = self.exec_factory.clone();
-        self.system.spawn_dedicated(move || async move {
+        let result = self.system.spawn_dedicated(move || async move {
             let path = create.request.path;
             let args = create.request.args;
             let current_dir = create.request.current_dir;
@@ -95,108 +111,152 @@ impl ProcessExecFactory {
             let stdout_mode = create.request.stdout_mode;
             let stderr_mode = create.request.stderr_mode;
             let pre_open = create.request.pre_open;
-            let reactor = reactor.clone();
             let on_stdout = create.on_stdout;
             let on_stderr = create.on_stderr;
 
-            let resp = move || async move {
-                // Build the comand string
-                let mut cmd = path.clone();
-                for arg in args {
-                    cmd.push_str(" ");
-                    if arg.contains(" ")
-                        && cmd.starts_with("\"") == false
-                        && cmd.starts_with("'") == false
-                    {
-                        cmd.push_str("\"");
-                        cmd.push_str(&arg);
-                        cmd.push_str("\"");
-                    } else {
-                        cmd.push_str(&arg);
-                    }
-                }
-
-                // Get the current job (if there is none then fail)
-                let job = {
-                    let reactor = reactor.read().await;
-                    reactor.get_current_job().ok_or(err::ERR_ECHILD)?
-                };
-
-                // Create all the stdio
-                let (stdin, stdin_tx) = pipe_in(ReceiverMode::Stream);
-                let (stdout, stdout_rx) = pipe_out();
-                let (stderr, stderr_rx) = pipe_out();
-
-                // Perform hooks back to the main stdio
-                let (stdin, stdin_tx) = match stdin_mode {
-                    StdioMode::Null => (stdin, None),
-                    StdioMode::Inherit if inherit_stdin.is_some() => (inherit_stdin.unwrap(), None),
-                    StdioMode::Inherit => (stdin, None),
-                    StdioMode::Piped => (stdin, Some(stdin_tx)),
-                };
-                let (stdout, stdout_rx) = match stdout_mode {
-                    StdioMode::Null => (stdout, None),
-                    StdioMode::Inherit if inherit_stdout.is_some() => {
-                        (inherit_stdout.unwrap(), None)
-                    }
-                    StdioMode::Inherit => (stdout, None),
-                    StdioMode::Piped => (stdout, Some(stdout_rx)),
-                };
-                let (stderr, stderr_rx) = match stderr_mode {
-                    StdioMode::Null => (stderr, None),
-                    StdioMode::Inherit if inherit_stderr.is_some() => {
-                        (inherit_stderr.unwrap(), None)
-                    }
-                    StdioMode::Inherit => (stderr, None),
-                    StdioMode::Piped => (stderr, Some(stderr_rx)),
-                };
-
-                // Build a context
-                let ctx = SpawnContext::new(
-                    cmd,
-                    job.env.deref().clone(),
-                    job.clone(),
-                    stdin,
-                    stdout,
-                    stderr,
-                    current_dir.unwrap_or(job.working_dir.clone()),
-                    pre_open,
-                    job.root.clone(),
-                );
-
-                // Start the process
-                let eval_rx = exec_factory.spawn(ctx).await;
-
-                // Build the invokable process and return it to the caller
-                let ret = ProcessCreated {
-                    invoker: ProcessExecInvokable {
-                        stdout: stdout_rx,
-                        stderr: stderr_rx,
-                        eval_rx: Some(eval_rx),
-                        on_stdout,
-                        on_stderr,
-                    },
-                    session: ProcessExecSession { stdin: stdin_tx },
-                };
-
-                // We are done (this will close all the pipes)
-                Ok(ret)
+            // Get the current job (if there is none then fail)
+            let job = {
+                let reactor = reactor.read().await;
+                reactor.get_current_job().ok_or(err::ERR_ECHILD)?
             };
-            let _ = create.result.send(resp().await).await;
+
+            // Build the comand string
+            let mut cmd = path.clone();
+            for arg in args.iter() {
+                cmd.push_str(" ");
+                if arg.contains(" ")
+                    && cmd.starts_with("\"") == false
+                    && cmd.starts_with("'") == false
+                {
+                    cmd.push_str("\"");
+                    cmd.push_str(arg);
+                    cmd.push_str("\"");
+                } else {
+                    cmd.push_str(arg);
+                }
+            }
+
+            // Create all the stdio
+            let (stdin, stdin_tx) = pipe_in(ReceiverMode::Stream);
+            let (stdout, stdout_rx) = pipe_out();
+            let (stderr, stderr_rx) = pipe_out();
+
+            // Perform hooks back to the main stdio
+            let (stdin, stdin_tx) = match stdin_mode {
+                StdioMode::Null => (stdin, None),
+                StdioMode::Inherit if inherit_stdin.is_some() => (inherit_stdin.unwrap(), None),
+                StdioMode::Inherit => (stdin, None),
+                StdioMode::Piped => (stdin, Some(stdin_tx)),
+            };
+            let (stdout, stdout_rx) = match stdout_mode {
+                StdioMode::Null => (stdout, None),
+                StdioMode::Inherit if inherit_stdout.is_some() => (inherit_stdout.unwrap(), None),
+                StdioMode::Inherit => (stdout, None),
+                StdioMode::Piped => (stdout, Some(stdout_rx)),
+            };
+            let (stderr, stderr_rx) = match stderr_mode {
+                StdioMode::Null => (stderr, None),
+                StdioMode::Inherit if inherit_stderr.is_some() => (inherit_stderr.unwrap(), None),
+                StdioMode::Inherit => (stderr, None),
+                StdioMode::Piped => (stderr, Some(stderr_rx)),
+            };
+
+            // Create the eval context
+            let spawn = SpawnContext::new(
+                cmd,
+                job.env.deref().clone(),
+                job.clone(),
+                stdin,
+                stdout,
+                stderr,
+                current_dir.unwrap_or(job.working_dir.clone()),
+                pre_open,
+                job.root.clone(),
+            );
+            let eval = exec_factory.create_context(spawn);
+
+            // Build a context
+            let ctx = LaunchContext {
+                eval,
+                path,
+                args,
+                stdin_tx,
+                stdout_rx,
+                stderr_rx,
+                on_stdout,
+                on_stderr,
+            };
+
+            // Start the process
+            Ok(funct(ctx).await?)
         });
 
-        let ret = match rx_result
-            .blocking_recv()
-            .ok_or_else(|| CallError::Aborted)?
-        {
+        let ret = match result.join().await.ok_or_else(|| CallError::Aborted)? {
             Ok(created) => created,
             Err(err) => {
+                let err: i32 = err;
                 warn!("failed to created process - internal error - code={}", err);
                 return Err(CallError::Unknown);
             }
         };
 
         Ok(ret)
+    }
+
+    pub async fn eval(
+        &self,
+        request: Spawn,
+        client_callbacks: HashMap<String, WasmBusCallback>,
+    ) -> Result<EvalCreated, CallError> {
+        self.launch(request, client_callbacks, |ctx: LaunchContext| {
+            Box::pin(async move {
+                let eval_rx = crate::eval::eval(ctx.eval);
+
+                Ok(EvalCreated {
+                    invoker: ProcessExecInvokable {
+                        stdout: ctx.stdout_rx,
+                        stderr: ctx.stderr_rx,
+                        eval_rx: Some(eval_rx),
+                        on_stdout: ctx.on_stdout,
+                        on_stderr: ctx.on_stderr,
+                    },
+                    session: ProcessExecSession {
+                        stdin: ctx.stdin_tx,
+                    },
+                })
+            })
+        })
+        .await
+    }
+
+    pub async fn create(
+        &self,
+        request: Spawn,
+        client_callbacks: HashMap<String, WasmBusCallback>,
+    ) -> Result<(Process, AsyncResult<i32>, Arc<WasmBusThreadPool>), CallError> {
+        self.launch(request, client_callbacks, |mut ctx: LaunchContext| {
+            Box::pin(async move {
+                let stdio = ctx.eval.stdio.clone();
+                let env = ctx.eval.env.clone().into_exported();
+
+                let mut show_result = false;
+                let redirect = Vec::new();
+
+                let ret = exec_process(
+                    &mut ctx.eval,
+                    &ctx.path,
+                    &ctx.args,
+                    &env,
+                    &mut show_result,
+                    stdio,
+                    &redirect,
+                )
+                .await?;
+
+                Ok(ret)
+            })
+        })
+        .await
     }
 }
 

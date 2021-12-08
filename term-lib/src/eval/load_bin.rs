@@ -24,19 +24,19 @@ pub async fn load_bin(
     let mut already = HashSet::<String>::default();
     let mut name = name.clone();
     debug!("scanning for {}", format!("/bin/{}.alias", name));
-    while let Ok(mut file) = ctx
-        .root
+    while let Ok(mut file) = AsyncifyFileSystem::new(ctx.root.clone())
         .new_open_options()
+        .await
         .read(true)
         .open(format!("/bin/{}.alias", name))
+        .await
     {
         if already.contains(&name) {
             break;
         }
         already.insert(name.clone());
 
-        let mut d = Vec::new();
-        if let Ok(_) = file.read_to_end(&mut d) {
+        if let Ok(d) = file.read_to_end().await {
             let next = String::from_utf8_lossy(&d[..]).trim().to_string();
             info!("binary alias '{}' found for {}", next, name);
             name = next;
@@ -53,9 +53,14 @@ pub async fn load_bin(
         file_checks.push(format!("{}{}", ctx.path, &name[2..]));
     }
     for file_check in file_checks {
-        if let Ok(mut file) = ctx.root.new_open_options().read(true).open(file_check) {
-            let mut d = Vec::new();
-            if let Ok(_) = file.read_to_end(&mut d) {
+        if let Ok(mut file) = AsyncifyFileSystem::new(ctx.root.clone())
+            .new_open_options()
+            .await
+            .read(true)
+            .open(file_check)
+            .await
+        {
+            if let Ok(d) = file.read_to_end().await {
                 let d = Bytes::from(d);
                 return Some(BinaryPackage::new(d));
             }
