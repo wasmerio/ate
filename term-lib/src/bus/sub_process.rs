@@ -113,10 +113,45 @@ impl SubProcess {
 
     pub fn create(
         &self,
-        _topic: &str,
-        _request: &Vec<u8>,
+        topic: &str,
+        request: Vec<u8>,
         _client_callbacks: HashMap<String, WasmBusCallback>,
-    ) -> Result<(Box<dyn Invokable>, Option<Box<dyn Session>>), CallError> {
-        return Err(CallError::InvalidTopic);
+    ) -> Result<(Box<dyn Invokable>, Option<Box<dyn Session>>), CallError>
+    {
+        let threads = match self.threads.first() {
+            Some(a) => a,
+            None => {
+                return Err(CallError::Unsupported);        
+            }
+        };
+
+        let topic = topic.to_string();
+        let invoker = threads.call_raw(None, topic, request);
+        let session =  SubProcessSession::new(threads.clone(), invoker.handle());
+        Ok((Box::new(invoker), Some(Box::new(session))))
+    }
+}
+
+pub struct SubProcessSession {
+    pub handle: WasmBusThreadHandle,
+    pub thread: WasmBusThread,
+}
+
+impl SubProcessSession {
+    pub fn new(thread: WasmBusThread, handle: WasmBusThreadHandle) -> SubProcessSession {
+        SubProcessSession {
+            thread,
+            handle,
+        }
+    }
+}
+
+impl Session
+for SubProcessSession
+{
+    fn call(&mut self, topic: &str, request: Vec<u8>) -> Box<dyn Invokable + 'static> {
+        let topic = topic.to_string();
+        let invoker = self.thread.call_raw(Some(self.handle.handle()), topic, request);
+        Box::new(invoker)
     }
 }

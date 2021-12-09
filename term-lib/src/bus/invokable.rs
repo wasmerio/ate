@@ -19,7 +19,7 @@ pub trait Session
 where
     Self: Send,
 {
-    fn call(&mut self, _topic: &str, _request: &Vec<u8>) -> Box<dyn Invokable + 'static> {
+    fn call(&mut self, _topic: &str, _request: Vec<u8>) -> Box<dyn Invokable + 'static> {
         ErrornousInvokable::new(CallError::InvalidTopic)
     }
 }

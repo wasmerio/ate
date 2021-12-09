@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use crate::wasmer::Array;
 use crate::wasmer::ImportObject;
 use crate::wasmer::LazyInit;
@@ -138,7 +139,7 @@ pub(crate) struct WasmBusThreadWork {
     pub parent: Option<CallHandle>,
     pub handle: WasmBusThreadHandle,
     pub data: Vec<u8>,
-    pub tx: mpsc::Sender<Result<Vec<u8>, CallError>>,
+    pub tx: mpsc::Sender<Vec<u8>>,
 }
 
 pub(super) struct WasmBusThreadInner {
@@ -216,7 +217,7 @@ impl WasmBusThread {
     }
 
     /// Issues work on the BUS
-    fn call_internal(&self, parent: Option<CallHandle>, topic: String, data: Vec<u8>) -> (mpsc::Receiver<Result<Vec<u8>, CallError>>, WasmBusThreadHandle)
+    fn call_internal(&self, parent: Option<CallHandle>, topic: String, data: Vec<u8>) -> (mpsc::Receiver<Vec<u8>>, WasmBusThreadHandle)
     {
         // Create a call handle
         let handle = self.generate_handle();
@@ -233,8 +234,7 @@ impl WasmBusThread {
                     }
                 }
             }).block_on() {
-                let (tx, rx) = mpsc::channel(1);
-                let _ = tx.blocking_send(Err(CallError::Aborted));
+                let (_, rx) = mpsc::channel(1);
                 return (rx, handle);
             }
         }
@@ -254,13 +254,13 @@ impl WasmBusThread {
     }
 
     /// Issues work on the BUS
-    pub fn call_raw(&self, parent: Option<CallHandle>, topic: String, data: Vec<u8>) -> (AsyncResult<Result<Vec<u8>, CallError>>, WasmBusThreadHandle)
+    pub fn call_raw(&self, parent: Option<CallHandle>, topic: String, data: Vec<u8>) -> AsyncWasmBusResultRaw
     {
         let (rx, handle) = self.call_internal(parent, topic, data);
-        (AsyncResult::new(rx), handle)
+        AsyncWasmBusResultRaw::new(rx, handle)
     }
 
-    pub fn call<RES, REQ>(&self, request: REQ) -> AsyncWasmBusResult<RES>
+    pub fn call<RES, REQ>(&self, request: REQ) -> Result<AsyncWasmBusResult<RES>, CallError>
     where REQ: Serialize,
           RES: de::DeserializeOwned
     {
@@ -269,14 +269,48 @@ impl WasmBusThread {
         let data = match bincode::serialize(&request) {
             Ok(a) => a,
             Err(_err) => {
-                let (tx, rx) = mpsc::channel(1);
-                let _ = tx.blocking_send(Err(CallError::SerializationFailed));
-                return AsyncWasmBusResult::new(self, rx, self.generate_handle());
+                return Err(CallError::SerializationFailed);
             },
         };
         
         let (rx, handle) = self.call_internal(None, topic.to_string(), data);
-        AsyncWasmBusResult::new(self, rx, handle)
+        Ok(AsyncWasmBusResult::new(self, rx, handle))
+    }
+}
+
+pub struct AsyncWasmBusResultRaw {
+    pub(crate) rx: mpsc::Receiver<Vec<u8>>,
+    pub(crate) handle: WasmBusThreadHandle,
+}
+
+impl AsyncWasmBusResultRaw {
+    pub fn new(rx: mpsc::Receiver<Vec<u8>>, handle: WasmBusThreadHandle) -> Self {
+        Self {
+            rx,
+            handle,
+        }
+    }
+
+    pub fn handle(&self) -> WasmBusThreadHandle {
+        self.handle.clone()
+    }
+
+    pub fn block_on(mut self) -> Option<Vec<u8>> {
+        self.rx.blocking_recv()
+    }
+
+    pub async fn join(mut self) -> Option<Vec<u8>> {
+        self.rx.recv().await
+    }
+}
+
+#[async_trait]
+impl Invokable
+for AsyncWasmBusResultRaw
+{
+    async fn process(&mut self) -> Result<Vec<u8>, CallError> {
+        self.rx.recv().await
+            .ok_or_else(|| CallError::Aborted)
     }
 }
 
@@ -285,14 +319,14 @@ where T: de::DeserializeOwned
 {
     pub(crate) thread: WasmBusThread,
     pub(crate) handle: WasmBusThreadHandle,
-    pub(crate) rx: mpsc::Receiver<Result<Vec<u8>, CallError>>,
+    pub(crate) rx: mpsc::Receiver<Vec<u8>>,
     _marker: PhantomData<T>
 }
 
 impl<T> AsyncWasmBusResult<T>
 where T: de::DeserializeOwned
 {
-    pub fn new(thread: &WasmBusThread, rx: mpsc::Receiver<Result<Vec<u8>, CallError>>, handle: WasmBusThreadHandle) -> Self {
+    pub fn new(thread: &WasmBusThread, rx: mpsc::Receiver<Vec<u8>>, handle: WasmBusThreadHandle) -> Self {
         Self {
             thread: thread.clone(),
             handle,
@@ -303,7 +337,7 @@ where T: de::DeserializeOwned
 
     pub fn block_on(mut self) -> Result<T, CallError> {
         let data = self.rx.blocking_recv()
-            .ok_or_else(|| CallError::Aborted)??;
+            .ok_or_else(|| CallError::Aborted)?;
         match bincode::deserialize::<T>(&data[..]) {
             Ok(a) => Ok(a),
             Err(_err) => Err(CallError::SerializationFailed),
@@ -312,14 +346,14 @@ where T: de::DeserializeOwned
 
     pub async fn join(mut self) -> Result<T, CallError> {
         let data = self.rx.recv().await
-            .ok_or_else(|| CallError::Aborted)??;
+            .ok_or_else(|| CallError::Aborted)?;
         match bincode::deserialize::<T>(&data[..]) {
             Ok(a) => Ok(a),
             Err(_err) => Err(CallError::SerializationFailed),
         }
     }
 
-    pub fn call<RES, REQ>(&self, request: REQ) -> AsyncWasmBusResult<RES>
+    pub fn call<RES, REQ>(&self, request: REQ) -> Result<AsyncWasmBusResult<RES>, CallError>
     where REQ: Serialize,
           RES: de::DeserializeOwned
     {
@@ -328,13 +362,11 @@ where T: de::DeserializeOwned
         let data = match bincode::serialize(&request) {
             Ok(a) => a,
             Err(_err) => {
-                let (tx, rx) = mpsc::channel(1);
-                let _ = tx.blocking_send(Err(CallError::SerializationFailed));
-                return AsyncWasmBusResult::new(&self.thread, rx, self.thread.generate_handle());
+                return Err(CallError::SerializationFailed);
             },
         };
         
         let (rx, handle) = self.thread.call_internal(Some(self.handle.handle()), topic.to_string(), data);
-        AsyncWasmBusResult::new(&self.thread, rx, handle)
+        Ok(AsyncWasmBusResult::new(&self.thread, rx, handle))
     }
 }

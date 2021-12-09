@@ -197,7 +197,7 @@ pub struct WebSocketSession {
 }
 
 impl Session for WebSocketSession {
-    fn call(&mut self, topic: &str, request: &Vec<u8>) -> Box<dyn Invokable + 'static> {
+    fn call(&mut self, topic: &str, request: Vec<u8>) -> Box<dyn Invokable + 'static> {
         if topic == type_name::<Send>() {
             let request: Send = match decode_request(request.as_ref()) {
                 Ok(a) => a,

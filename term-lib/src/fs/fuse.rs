@@ -47,10 +47,11 @@ impl FileSystem for FuseFileSystem {
     fn read_dir(&self, path: &Path) -> Result<ReadDir, FsError> {
         debug!("read_dir: path={}", path.display());
 
-        let dir: backend::Dir = self.sub.main
+        let dir = self.sub.main
             .call(backend::ReadDir {
                 path: path.to_string_lossy().to_string(),
             })
+            .map_err(|_| FsError::IOError)?
             .block_on()
             .map_err(|_| FsError::IOError)?;
 
@@ -64,6 +65,7 @@ impl FileSystem for FuseFileSystem {
             .call(backend::CreateDir {
                 path: path.to_string_lossy().to_string(),
             })
+            .map_err(|_| FsError::IOError)?
             .block_on()
             .map_err(|_| FsError::IOError)
     }
@@ -75,6 +77,7 @@ impl FileSystem for FuseFileSystem {
             .call(backend::RemoveDir {
                 path: path.to_string_lossy().to_string(),
             })
+            .map_err(|_| FsError::IOError)?
             .block_on()
             .map_err(|_| FsError::IOError)
     }
@@ -87,6 +90,7 @@ impl FileSystem for FuseFileSystem {
                 from: from.to_string_lossy().to_string(),
                 to: to.to_string_lossy().to_string(),
             })
+            .map_err(|_| FsError::IOError)?
             .block_on()
             .map_err(|_| FsError::IOError)
     }
@@ -98,6 +102,7 @@ impl FileSystem for FuseFileSystem {
             .call(backend::ReadMetadata {
                 path: path.to_string_lossy().to_string(),
             })
+            .map_err(|_| FsError::IOError)?
             .block_on()
             .map_err(|_| FsError::IOError)?;
 
@@ -111,6 +116,7 @@ impl FileSystem for FuseFileSystem {
             .call(backend::ReadSymlinkMetadata {
                 path: path.to_string_lossy().to_string(),
             })
+            .map_err(|_| FsError::IOError)?
             .block_on()
             .map_err(|_| FsError::IOError)?;
 
@@ -124,6 +130,7 @@ impl FileSystem for FuseFileSystem {
             .call(backend::RemoveFile {
                 path: path.to_string_lossy().to_string(),
             })
+            .map_err(|_| FsError::IOError)?
             .block_on()
             .map_err(|_| FsError::IOError)
     }
@@ -162,12 +169,14 @@ impl FileOpener for FuseFileOpener {
                 create: conf.create(),
                 append: conf.append(),
                 truncate: conf.truncate(),
-            });
+            })
+            .map_err(|_| FsError::IOError)?;
 
         let meta = task
             .call(backend::Open {
                 path: path.to_string_lossy().to_string(),
             })
+            .map_err(|_| FsError::IOError)?
             .block_on()
             .map_err(|_| FsError::IOError)?;
 
@@ -198,6 +207,7 @@ impl Seek for FuseVirtualFile {
 
         let ret: io::Result<_> = self.task
             .call::<Result<_, backend::FsError>, _>(seek)
+            .map_err(|err| err.into_io_error())?
             .block_on()
             .map_err(|err| err.into_io_error())?
             .map_err(|err| err.into());
@@ -209,6 +219,7 @@ impl Write for FuseVirtualFile {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let ret: io::Result<_> = self.task
             .call::<Result<_, backend::FsError>, _>(backend::Write { data: buf.to_vec() })
+            .map_err(|err| err.into_io_error())?
             .block_on()
             .map_err(|err| err.into_io_error())?
             .map_err(|err| err.into());
@@ -218,6 +229,7 @@ impl Write for FuseVirtualFile {
     fn flush(&mut self) -> io::Result<()> {
         let ret: io::Result<_> = self.task
             .call::<Result<_, backend::FsError>, _>(backend::Flush {})
+            .map_err(|err| err.into_io_error())?
             .block_on()
             .map_err(|err| err.into_io_error())?
             .map_err(|err| err.into());
@@ -230,6 +242,7 @@ impl Read for FuseVirtualFile {
         let data: io::Result<Vec<u8>> = self
             .task
             .call::<Result<_, backend::FsError>, _>(backend::Flush {})
+            .map_err(|err| err.into_io_error())?
             .block_on()
             .map_err(|err| err.into_io_error())?
             .map_err(|err| err.into());
@@ -266,6 +279,7 @@ for FuseVirtualFile {
     fn set_len(&mut self, new_size: u64) -> Result<(), FsError> {
         let result: Result<(), FsError> = self.task
             .call::<Result<_, backend::FsError>, _>(backend::SetLength { len: new_size })
+            .map_err(|_| FsError::IOError)?
             .block_on()
             .map_err(|_| FsError::IOError)?
             .map_err(|err| conv_fs_error(err));
@@ -278,6 +292,7 @@ for FuseVirtualFile {
     fn unlink(&mut self) -> Result<(), FsError> {
         self.task
             .call::<Result<_, backend::FsError>, _>(backend::Unlink {})
+            .map_err(|_| FsError::IOError)?
             .block_on()
             .map_err(|_| FsError::IOError)?
             .map_err(|err| conv_fs_error(err))

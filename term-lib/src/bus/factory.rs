@@ -40,7 +40,7 @@ impl BusFactory {
         if let Some(parent) = parent {
             let mut sessions = self.sessions.lock().unwrap();
             if let Some(session) = sessions.get_mut(&parent) {
-                return session.call(topic.as_ref(), &request);
+                return session.call(topic.as_ref(), request);
             }
         }
 
@@ -52,7 +52,7 @@ impl BusFactory {
             sessions: self.sessions.clone(),
             wapm,
             topic,
-            request,
+            request: Some(request),
             client_callbacks,
         })
     }
@@ -73,7 +73,7 @@ where
     sessions: Arc<Mutex<HashMap<CallHandle, Box<dyn Session>>>>,
     wapm: String,
     topic: String,
-    request: Vec<u8>,
+    request: Option<Vec<u8>>,
     client_callbacks: HashMap<String, WasmBusCallback>,
 }
 
@@ -86,13 +86,21 @@ where
         // Get the client callbacks
         let client_callbacks = self.client_callbacks.clone();
 
+        // Get the request data
+        let request = match self.request.take() {
+            Some(a) => a,
+            None => {
+                return Err(CallError::Unknown);
+            }
+        };
+
         // The standard bus allows for things like web sockets, http requests, etc...
         match self
             .standard
             .create(
                 self.wapm.as_str(),
                 self.topic.as_str(),
-                &self.request,
+                &request,
                 &client_callbacks,
             )
             .await
@@ -118,7 +126,7 @@ where
             .await?;
 
         // Next we kick all the call itself into the process (with assocated callbacks)
-        let call = sub_process.create(self.topic.as_str(), &self.request, client_callbacks)?;
+        let call = sub_process.create(self.topic.as_str(), request, client_callbacks)?;
         let mut invoker = match call {
             (invoker, Some(session)) => {
                 let mut sessions = self.sessions.lock().unwrap();

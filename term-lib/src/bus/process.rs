@@ -367,7 +367,7 @@ pub struct ProcessExecSession {
 }
 
 impl Session for ProcessExecSession {
-    fn call(&mut self, topic: &str, request: &Vec<u8>) -> Box<dyn Invokable + 'static> {
+    fn call(&mut self, topic: &str, request: Vec<u8>) -> Box<dyn Invokable + 'static> {
         if topic == type_name::<OutOfBand>() {
             let request: OutOfBand = match decode_request(request.as_ref()) {
                 Ok(a) => a,
