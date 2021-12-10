@@ -32,19 +32,26 @@ mod raw {
     // request is to be processed by this program
     #[no_mangle]
     pub extern "C" fn wasm_bus_start(
+        parent: u32,
         handle: u32,
         topic_ptr: u32,
         topic_len: u32,
         request_ptr: u32,
         request_len: u32,
     ) {
+        let parent = match parent {
+            u32::MAX => None,
+            a => Some(a.into())
+        };
+
         let topic = unsafe {
             let topic =
                 Vec::from_raw_parts(topic_ptr as *mut u8, topic_len as usize, topic_len as usize);
             String::from_utf8_lossy(&topic[..]).to_string()
         };
         trace!(
-            "wasm_bus_start (handle={}, topic={}, request={} bytes)",
+            "wasm_bus_start (parent={:?}, handle={}, topic={}, request={} bytes)",
+            parent,
             handle,
             topic,
             request_len
@@ -57,7 +64,7 @@ mod raw {
             );
 
             let handle: CallHandle = handle.into();
-            if let Err(err) = crate::engine::BusEngine::start(topic, handle, request) {
+            if let Err(err) = crate::engine::BusEngine::start(topic, parent, handle, request) {
                 fault(handle.into(), err as u32);
             }
         }

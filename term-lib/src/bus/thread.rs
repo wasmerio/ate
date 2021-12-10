@@ -75,6 +75,7 @@ impl WasmBusThreadPool {
         let (polling_tx, polling_rx) = watch::channel(false);
         let inner = WasmBusThreadInner {
             invocations: HashMap::default(),
+            calls: HashMap::default(),
             polling: polling_tx,
             factory: BusFactory::new(self.process_factory.clone()),
             callbacks: HashMap::default(),
@@ -139,11 +140,12 @@ pub(crate) struct WasmBusThreadWork {
     pub parent: Option<CallHandle>,
     pub handle: WasmBusThreadHandle,
     pub data: Vec<u8>,
-    pub tx: mpsc::Sender<Vec<u8>>,
+    pub tx: mpsc::Sender<Result<Vec<u8>, CallError>>,
 }
 
 pub(super) struct WasmBusThreadInner {
     pub(super) invocations: HashMap<u32, Pin<Box<dyn Future<Output = ()> + Send + 'static>>>,
+    pub(super) calls: HashMap<u32, mpsc::Sender<Result<Vec<u8>, CallError>>>,
     pub(super) polling: watch::Sender<bool>,
     pub(super) callbacks: HashMap<u32, HashMap<String, u32>>,
     pub(super) listens: HashSet<String>,
@@ -169,7 +171,7 @@ unsafe impl Sync for WasmBusThreadProtected {}
 /// The environment provided to the WASI imports.
 #[derive(Clone, WasmerEnv)]
 pub struct WasmBusThread {
-    system: System,
+    pub(crate) system: System,
     pub thread_id: u32,
     pub pool: Arc<WasmBusThreadPool>,
     pub polling: watch::Receiver<bool>,
@@ -184,7 +186,7 @@ pub struct WasmBusThread {
     wasm_bus_malloc: LazyInit<NativeFunc<u32, WasmPtr<u8, Array>>>,
     #[wasmer(export(name = "wasm_bus_start"))]
     wasm_bus_start:
-        LazyInit<NativeFunc<(u32, WasmPtr<u8, Array>, u32, WasmPtr<u8, Array>, u32), ()>>,
+        LazyInit<NativeFunc<(u32, u32, WasmPtr<u8, Array>, u32, WasmPtr<u8, Array>, u32), ()>>,
     #[wasmer(export(name = "wasm_bus_finish"))]
     wasm_bus_finish: LazyInit<NativeFunc<(u32, WasmPtr<u8, Array>, u32), ()>>,
     #[wasmer(export(name = "wasm_bus_error"))]
@@ -217,7 +219,7 @@ impl WasmBusThread {
     }
 
     /// Issues work on the BUS
-    fn call_internal(&self, parent: Option<CallHandle>, topic: String, data: Vec<u8>) -> (mpsc::Receiver<Vec<u8>>, WasmBusThreadHandle)
+    fn call_internal(&self, parent: Option<CallHandle>, topic: String, data: Vec<u8>) -> (mpsc::Receiver<Result<Vec<u8>, CallError>>, WasmBusThreadHandle)
     {
         // Create a call handle
         let handle = self.generate_handle();
@@ -279,12 +281,12 @@ impl WasmBusThread {
 }
 
 pub struct AsyncWasmBusResultRaw {
-    pub(crate) rx: mpsc::Receiver<Vec<u8>>,
+    pub(crate) rx: mpsc::Receiver<Result<Vec<u8>, CallError>>,
     pub(crate) handle: WasmBusThreadHandle,
 }
 
 impl AsyncWasmBusResultRaw {
-    pub fn new(rx: mpsc::Receiver<Vec<u8>>, handle: WasmBusThreadHandle) -> Self {
+    pub fn new(rx: mpsc::Receiver<Result<Vec<u8>, CallError>>, handle: WasmBusThreadHandle) -> Self {
         Self {
             rx,
             handle,
@@ -295,12 +297,12 @@ impl AsyncWasmBusResultRaw {
         self.handle.clone()
     }
 
-    pub fn block_on(mut self) -> Option<Vec<u8>> {
-        self.rx.blocking_recv()
+    pub fn block_on(mut self) -> Result<Vec<u8>, CallError> {
+        self.rx.blocking_recv().ok_or_else(|| CallError::Aborted)?
     }
 
-    pub async fn join(mut self) -> Option<Vec<u8>> {
-        self.rx.recv().await
+    pub async fn join(mut self) -> Result<Vec<u8>, CallError> {
+        self.rx.recv().await.ok_or_else(|| CallError::Aborted)?
     }
 }
 
@@ -310,7 +312,7 @@ for AsyncWasmBusResultRaw
 {
     async fn process(&mut self) -> Result<Vec<u8>, CallError> {
         self.rx.recv().await
-            .ok_or_else(|| CallError::Aborted)
+            .ok_or_else(|| CallError::Aborted)?
     }
 }
 
@@ -319,14 +321,14 @@ where T: de::DeserializeOwned
 {
     pub(crate) thread: WasmBusThread,
     pub(crate) handle: WasmBusThreadHandle,
-    pub(crate) rx: mpsc::Receiver<Vec<u8>>,
+    pub(crate) rx: mpsc::Receiver<Result<Vec<u8>, CallError>>,
     _marker: PhantomData<T>
 }
 
 impl<T> AsyncWasmBusResult<T>
 where T: de::DeserializeOwned
 {
-    pub fn new(thread: &WasmBusThread, rx: mpsc::Receiver<Vec<u8>>, handle: WasmBusThreadHandle) -> Self {
+    pub fn new(thread: &WasmBusThread, rx: mpsc::Receiver<Result<Vec<u8>, CallError>>, handle: WasmBusThreadHandle) -> Self {
         Self {
             thread: thread.clone(),
             handle,
@@ -337,7 +339,7 @@ where T: de::DeserializeOwned
 
     pub fn block_on(mut self) -> Result<T, CallError> {
         let data = self.rx.blocking_recv()
-            .ok_or_else(|| CallError::Aborted)?;
+            .ok_or_else(|| CallError::Aborted)??;
         match bincode::deserialize::<T>(&data[..]) {
             Ok(a) => Ok(a),
             Err(_err) => Err(CallError::SerializationFailed),
@@ -346,7 +348,7 @@ where T: de::DeserializeOwned
 
     pub async fn join(mut self) -> Result<T, CallError> {
         let data = self.rx.recv().await
-            .ok_or_else(|| CallError::Aborted)?;
+            .ok_or_else(|| CallError::Aborted)??;
         match bincode::deserialize::<T>(&data[..]) {
             Ok(a) => Ok(a),
             Err(_err) => Err(CallError::SerializationFailed),

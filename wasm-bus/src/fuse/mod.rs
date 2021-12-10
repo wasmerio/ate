@@ -192,6 +192,8 @@ impl OpenOptions {
     }
 
     pub async fn open(&mut self, path: &Path) -> FsResult<VirtualFile> {
+        debug!("open: path={}", path.display());
+
         let task = self
             .fs
             .task
