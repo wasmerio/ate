@@ -5,9 +5,9 @@ mod finish;
 mod handle;
 #[cfg(feature = "rt")]
 mod listen;
+mod reply;
 #[cfg(feature = "rt")]
 mod respond_to;
-mod reply;
 #[cfg(feature = "syscalls")]
 pub(crate) mod syscall;
 #[cfg(not(feature = "syscalls"))]

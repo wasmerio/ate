@@ -8,8 +8,8 @@ use std::io::Write;
 use std::path::Path;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use wasm_bus::backend::fuse as backend;
 use wasm_bus::abi::CallError;
+use wasm_bus::backend::fuse as backend;
 use wasmer_vfs::DirEntry;
 use wasmer_vfs::FileOpener;
 use wasmer_vfs::FileSystem;

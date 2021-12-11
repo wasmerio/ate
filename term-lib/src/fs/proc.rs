@@ -322,7 +322,7 @@ impl Write for LogFile {
         let mut to_write = Vec::with_capacity(prefix.len() + buf.len());
         to_write.write_all(prefix)?;
         to_write.write_all(buf)?;
-        
+
         self.fd.write_all(&to_write[..])?;
         Ok(ret)
     }

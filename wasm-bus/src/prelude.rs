@@ -9,11 +9,11 @@ pub use crate::abi::call;
 pub use crate::abi::Call;
 
 #[cfg(feature = "rt")]
-pub use crate::task::serve;
-#[cfg(feature = "rt")]
 pub use crate::task::listen;
 #[cfg(feature = "rt")]
 pub use crate::task::respond_to;
+#[cfg(feature = "rt")]
+pub use crate::task::serve;
 
 pub use crate::abi::CallError;
 pub use crate::abi::CallHandle;

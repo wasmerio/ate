@@ -89,7 +89,7 @@ impl Console {
                 let txt = String::from_utf8_lossy(&data[..]);
                 let mut txt = txt.as_ref();
                 while txt.ends_with("\n") || txt.ends_with("\r") {
-                    txt = &txt[..(txt.len()-1)];
+                    txt = &txt[..(txt.len() - 1)];
                 }
                 console::log(txt);
             }

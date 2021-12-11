@@ -6,9 +6,9 @@ use std::sync::Arc;
 use tracing::{debug, error, info, trace, warn};
 
 use crate::api::*;
+use crate::bus::WasmBusThreadPool;
 use crate::common::*;
 use crate::err::*;
-use crate::bus::WasmBusThreadPool;
 use crate::wasmer_wasi::WasiEnv;
 
 pub struct Process {

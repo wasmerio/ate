@@ -193,7 +193,7 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
     // We upgrade the verbosity for certain commands by default
     opts.verbose = opts.verbose.max(match &opts.subcmd {
         SubCommand::Bus(..) => 2,
-        _ => 0
+        _ => 0,
     });
 
     ate::log_init(opts.verbose, opts.debug);

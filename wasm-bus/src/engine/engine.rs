@@ -64,7 +64,7 @@ impl BusEngine {
             if let Some(respond_to) = state.respond_to.get(&topic) {
                 let respond_to = respond_to.clone();
                 drop(state);
-                
+
                 let mut state = BusEngine::write();
                 if state.handles.contains(&handle) == false {
                     state.handles.insert(handle);
@@ -80,7 +80,7 @@ impl BusEngine {
         } else if let Some(listen) = state.listening.get(&topic) {
             let listen = listen.clone();
             drop(state);
-            
+
             let mut state = BusEngine::write();
             if state.handles.contains(&handle) == false {
                 state.handles.insert(handle);
@@ -326,7 +326,9 @@ impl BusEngine {
         {
             let mut state = BusEngine::write();
             if state.respond_to.contains_key(&topic) == false {
-                state.respond_to.insert(topic.clone(), RespondToService::default());
+                state
+                    .respond_to
+                    .insert(topic.clone(), RespondToService::default());
                 crate::abi::syscall::listen(topic.as_str());
             }
             let respond_to = state.respond_to.get_mut(&topic).unwrap();

@@ -150,7 +150,7 @@ pub(crate) enum WasmBusThreadWork {
         handle: WasmBusThreadHandle,
         data: Vec<u8>,
         tx: mpsc::Sender<Result<Vec<u8>, CallError>>,
-    }
+    },
 }
 
 pub(super) struct WasmBusThreadInner {
@@ -303,8 +303,7 @@ impl WasmBusThread {
         Ok(AsyncWasmBusResult::new(self, rx, handle))
     }
 
-    pub fn wait_for_poll(&self) -> bool
-    {
+    pub fn wait_for_poll(&self) -> bool {
         // fast path
         if *self.polling.borrow() == false {
             // slow path
@@ -327,8 +326,7 @@ impl WasmBusThread {
         return true;
     }
 
-    pub async fn async_wait_for_poll(&mut self) -> bool
-    {
+    pub async fn async_wait_for_poll(&mut self) -> bool {
         while *self.polling.borrow() == false {
             let mut polling = self.polling.clone();
             while *polling.borrow() == false {
@@ -449,18 +447,13 @@ where
 }
 
 #[derive(Clone)]
-pub struct AsyncWasmBusSession
-{
+pub struct AsyncWasmBusSession {
     pub(crate) thread: WasmBusThread,
     pub(crate) handle: WasmBusThreadHandle,
 }
 
-impl AsyncWasmBusSession
-{
-    pub fn new(
-        thread: &WasmBusThread,
-        handle: WasmBusThreadHandle,
-    ) -> Self {
+impl AsyncWasmBusSession {
+    pub fn new(thread: &WasmBusThread, handle: WasmBusThreadHandle) -> Self {
         Self {
             thread: thread.clone(),
             handle,

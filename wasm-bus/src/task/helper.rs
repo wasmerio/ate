@@ -1,11 +1,11 @@
-use std::future::Future;
-use std::any::type_name;
 use serde::*;
+use std::any::type_name;
+use std::future::Future;
 
-use crate::rt::RUNTIME;
-use crate::engine::BusEngine;
 use crate::abi::CallError;
 use crate::abi::CallHandle;
+use crate::engine::BusEngine;
+use crate::rt::RUNTIME;
 
 pub fn block_on<F>(task: F) -> F::Output
 where
@@ -50,8 +50,7 @@ where
 
         Ok(async move {
             let res = res.await;
-            let res =
-                bincode::serialize(&res).map_err(|_| CallError::SerializationFailed)?;
+            let res = bincode::serialize(&res).map_err(|_| CallError::SerializationFailed)?;
             Ok(res)
         })
     });
@@ -78,8 +77,7 @@ where
 
         Ok(async move {
             let res = res.await;
-            let res =
-                bincode::serialize(&res).map_err(|_| CallError::SerializationFailed)?;
+            let res = bincode::serialize(&res).map_err(|_| CallError::SerializationFailed)?;
             Ok(res)
         })
     });

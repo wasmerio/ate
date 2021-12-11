@@ -174,7 +174,7 @@ unsafe fn wasm_bus_poll(thread: &WasmBusThread) {
                 let _ = tx.send(Err(CallError::IncorrectAbi));
                 return;
             }
-            
+
             // Check the listening is of the correct type
             if thread.inner.unwrap().listens.contains(&topic) == false {
                 debug!("invalid topic - {}", topic);

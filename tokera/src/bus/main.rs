@@ -16,9 +16,12 @@ pub async fn main_opts_bus(
     listen(move |handle: CallHandle, _mount: Mount| async move {
         info!("we made it! - MOUNT");
 
-        respond_to(handle, move |_handle, _meta: ReadSymlinkMetadata| async move {
-            info!("we made it! - META");
-        });
+        respond_to(
+            handle,
+            move |_handle, _meta: ReadSymlinkMetadata| async move {
+                info!("we made it! - META");
+            },
+        );
     });
 
     // Enter a polling loop

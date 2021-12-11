@@ -14,7 +14,10 @@ use crate::task::spawn;
 pub struct ListenService {
     #[derivative(Debug = "ignore")]
     pub(crate) callback: Arc<
-        dyn Fn(CallHandle, Vec<u8>) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, CallError>> + Send>>
+        dyn Fn(
+                CallHandle,
+                Vec<u8>,
+            ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, CallError>> + Send>>
             + Send
             + Sync,
     >,
@@ -23,14 +26,16 @@ pub struct ListenService {
 impl ListenService {
     pub fn new(
         callback: Arc<
-            dyn Fn(CallHandle, Vec<u8>) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, CallError>> + Send>>
+            dyn Fn(
+                    CallHandle,
+                    Vec<u8>,
+                )
+                    -> Pin<Box<dyn Future<Output = Result<Vec<u8>, CallError>> + Send>>
                 + Send
                 + Sync,
         >,
     ) -> ListenService {
-        ListenService {
-            callback,
-        }
+        ListenService { callback }
     }
 
     pub fn process(&self, handle: CallHandle, request: Vec<u8>) {

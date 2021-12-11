@@ -1,11 +1,11 @@
 use derivative::*;
+use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::sync::Mutex;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use std::collections::HashMap;
-use std::sync::Mutex;
 
 use crate::abi::CallError;
 use crate::abi::CallHandle;
@@ -15,24 +15,38 @@ use crate::task::spawn;
 #[derivative(Debug)]
 pub struct RespondToService {
     #[derivative(Debug = "ignore")]
-    pub(crate) callbacks: Arc<Mutex<
-        HashMap<CallHandle,
-            Arc<
-                dyn Fn(CallHandle, Vec<u8>) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, CallError>> + Send>>
-                + Send
-                + Sync
-            >
-        >
-    >>,
+    pub(crate) callbacks: Arc<
+        Mutex<
+            HashMap<
+                CallHandle,
+                Arc<
+                    dyn Fn(
+                            CallHandle,
+                            Vec<u8>,
+                        )
+                            -> Pin<Box<dyn Future<Output = Result<Vec<u8>, CallError>> + Send>>
+                        + Send
+                        + Sync,
+                >,
+            >,
+        >,
+    >,
 }
 
 impl RespondToService {
-    pub fn add(&self, parent: CallHandle, callback: Arc<
-        dyn Fn(CallHandle, Vec<u8>) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, CallError>> + Send>>
-        + Send
-        + Sync
-    >)
-    {
+    pub fn add(
+        &self,
+        parent: CallHandle,
+        callback: Arc<
+            dyn Fn(
+                    CallHandle,
+                    Vec<u8>,
+                )
+                    -> Pin<Box<dyn Future<Output = Result<Vec<u8>, CallError>> + Send>>
+                + Send
+                + Sync,
+        >,
+    ) {
         let mut callbacks = self.callbacks.lock().unwrap();
         callbacks.insert(parent, callback);
     }
