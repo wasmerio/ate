@@ -14,6 +14,7 @@ trait ListenerBuilderOps {
     fn build(&mut self);
 }
 
+#[must_use = "the listener only listens if you consume it"]
 pub struct ListenerBuilder<REQ, RES>
 where
     REQ: de::DeserializeOwned,
@@ -95,16 +96,10 @@ where
     fn build(&mut self) {
         if let Some(callback) = self.callback.take() {
             super::BusEngine::listen(self.topic.clone(), move |req| {
-                let req =
-                    bincode::deserialize(&req[..]).map_err(|_| CallError::DeserializationFailed)?;
-
                 let res = callback.deref()(req);
 
                 Ok(async move {
-                    let res = res.await;
-                    let res =
-                        bincode::serialize(&res?).map_err(|_| CallError::SerializationFailed)?;
-                    Ok(res)
+                    res.await
                 })
             });
         }

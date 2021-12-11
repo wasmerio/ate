@@ -15,7 +15,7 @@ pub async fn main_opts_bus(
     // Register all the functions
     task::ListenerBuilder::new(move |_mount: Mount| async move {
         info!("we made it!");
-    });
+    }).listen();
 
     // Enter a polling loop
     task::serve();

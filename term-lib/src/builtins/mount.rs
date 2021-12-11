@@ -71,14 +71,14 @@ pub(super) fn mount(
             .await;
 
         let factory = SubProcessFactory::new(factory);
-        let sub_process = match factory.get_or_create(wapm.as_str(), StdioMode::Log).await {
+        let mut sub_process = match factory.get_or_create(wapm.as_str(), StdioMode::Log).await {
             Ok(a) => a,
             Err(_) => {
                 let _ = stdio
                     .stderr
                     .write(format!("mount: wapm program not found\r\n").as_bytes())
                     .await;
-                return ExecResponse::Immediate(0).into();
+                return ExecResponse::Immediate(1).into();
             }
         };
 
@@ -87,7 +87,18 @@ pub(super) fn mount(
             .write(format!("Waiting for poll\r\n").as_bytes())
             .await;
 
-        let fs = FuseFileSystem::new(sub_process, target.as_str());
+        sub_process.main.async_wait_for_poll().await;
+
+        let fs = match FuseFileSystem::new(sub_process, target.as_str()) {
+            Ok(a) => a,
+            Err(err) => {
+                let _ = stdio
+                    .stderr
+                    .write(format!("mount: mount call failed ({})\r\n", err).as_bytes())
+                    .await;
+                return ExecResponse::Immediate(1).into();
+            }
+        };
 
         let _ = stdio
             .stdout

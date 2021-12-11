@@ -9,6 +9,7 @@ use std::path::Path;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::backend::fuse as backend;
+use wasm_bus::abi::CallError;
 use wasmer_vfs::DirEntry;
 use wasmer_vfs::FileOpener;
 use wasmer_vfs::FileSystem;
@@ -22,24 +23,32 @@ use wasmer_vfs::VirtualFile;
 
 use crate::api::*;
 use crate::bus::AsyncWasmBusResult;
+use crate::bus::AsyncWasmBusSession;
 use crate::bus::SubProcess;
 
-#[derive(Derivative)]
-#[derivative(Debug, Clone)]
+#[derive(Derivative, Clone)]
+#[derivative(Debug)]
 pub struct FuseFileSystem {
     system: System,
     #[derivative(Debug = "ignore")]
     sub: SubProcess,
     target: String,
+    #[derivative(Debug = "ignore")]
+    task: AsyncWasmBusSession,
 }
 
 impl FuseFileSystem {
-    pub fn new(process: SubProcess, target: &str) -> FuseFileSystem {
-        FuseFileSystem {
+    pub fn new(process: SubProcess, target: &str) -> Result<FuseFileSystem, CallError> {
+        let task: AsyncWasmBusResult<()> = process.main.call(backend::Mount {
+            name: target.to_string(),
+        })?;
+
+        Ok(FuseFileSystem {
             system: System::default(),
             sub: process,
             target: target.to_string(),
-        }
+            task: task.session(),
+        })
     }
 }
 
@@ -48,8 +57,7 @@ impl FileSystem for FuseFileSystem {
         debug!("read_dir: path={}", path.display());
 
         let dir = self
-            .sub
-            .main
+            .task
             .call(backend::ReadDir {
                 path: path.to_string_lossy().to_string(),
             })
@@ -63,8 +71,7 @@ impl FileSystem for FuseFileSystem {
     fn create_dir(&self, path: &Path) -> Result<(), FsError> {
         debug!("create_dir: path={}", path.display());
 
-        self.sub
-            .main
+        self.task
             .call(backend::CreateDir {
                 path: path.to_string_lossy().to_string(),
             })
@@ -76,8 +83,7 @@ impl FileSystem for FuseFileSystem {
     fn remove_dir(&self, path: &Path) -> Result<(), FsError> {
         debug!("remove_dir: path={}", path.display());
 
-        self.sub
-            .main
+        self.task
             .call(backend::RemoveDir {
                 path: path.to_string_lossy().to_string(),
             })
@@ -89,8 +95,7 @@ impl FileSystem for FuseFileSystem {
     fn rename(&self, from: &Path, to: &Path) -> Result<(), FsError> {
         debug!("rename: from={}, to={}", from.display(), to.display());
 
-        self.sub
-            .main
+        self.task
             .call(backend::Rename {
                 from: from.to_string_lossy().to_string(),
                 to: to.to_string_lossy().to_string(),
@@ -104,8 +109,7 @@ impl FileSystem for FuseFileSystem {
         debug!("metadata: path={}", path.display());
 
         let metadata = self
-            .sub
-            .main
+            .task
             .call(backend::ReadMetadata {
                 path: path.to_string_lossy().to_string(),
             })
@@ -120,8 +124,7 @@ impl FileSystem for FuseFileSystem {
         debug!("symlink_metadata: path={}", path.display());
 
         let metadata = self
-            .sub
-            .main
+            .task
             .call(backend::ReadSymlinkMetadata {
                 path: path.to_string_lossy().to_string(),
             })
@@ -135,8 +138,7 @@ impl FileSystem for FuseFileSystem {
     fn remove_file(&self, path: &Path) -> Result<(), FsError> {
         debug!("remove_file: path={}", path.display());
 
-        self.sub
-            .main
+        self.task
             .call(backend::RemoveFile {
                 path: path.to_string_lossy().to_string(),
             })
@@ -171,8 +173,7 @@ impl FileOpener for FuseFileOpener {
 
         let task: AsyncWasmBusResult<()> = self
             .fs
-            .sub
-            .main
+            .task
             .call(backend::NewOpen {
                 read: conf.read(),
                 write: conf.write(),

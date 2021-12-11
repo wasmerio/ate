@@ -302,6 +302,43 @@ impl WasmBusThread {
         let (rx, handle) = self.call_internal(None, topic.to_string(), data);
         Ok(AsyncWasmBusResult::new(self, rx, handle))
     }
+
+    pub fn wait_for_poll(&self) -> bool
+    {
+        // fast path
+        if *self.polling.borrow() == false {
+            // slow path
+            let mut polling = self.polling.clone();
+            if let None = self
+                .system
+                .spawn_dedicated(move || async move {
+                    while *polling.borrow() == false {
+                        if let Err(_) = polling.changed().await {
+                            return;
+                        }
+                    }
+                })
+                .block_on()
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    pub async fn async_wait_for_poll(&mut self) -> bool
+    {
+        while *self.polling.borrow() == false {
+            let mut polling = self.polling.clone();
+            while *polling.borrow() == false {
+                if let Err(_) = polling.changed().await {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
 }
 
 pub struct AsyncWasmBusResultRaw {
@@ -380,6 +417,53 @@ where
         match bincode::deserialize::<T>(&data[..]) {
             Ok(a) => Ok(a),
             Err(_err) => Err(CallError::SerializationFailed),
+        }
+    }
+
+    pub fn call<RES, REQ>(&self, request: REQ) -> Result<AsyncWasmBusResult<RES>, CallError>
+    where
+        REQ: Serialize,
+        RES: de::DeserializeOwned,
+    {
+        // Serialize
+        let topic = type_name::<REQ>();
+        let data = match bincode::serialize(&request) {
+            Ok(a) => a,
+            Err(_err) => {
+                return Err(CallError::SerializationFailed);
+            }
+        };
+
+        let (rx, handle) =
+            self.thread
+                .call_internal(Some(self.handle.handle()), topic.to_string(), data);
+        Ok(AsyncWasmBusResult::new(&self.thread, rx, handle))
+    }
+
+    pub fn session(self) -> AsyncWasmBusSession {
+        AsyncWasmBusSession {
+            thread: self.thread,
+            handle: self.handle,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct AsyncWasmBusSession
+{
+    pub(crate) thread: WasmBusThread,
+    pub(crate) handle: WasmBusThreadHandle,
+}
+
+impl AsyncWasmBusSession
+{
+    pub fn new(
+        thread: &WasmBusThread,
+        handle: WasmBusThreadHandle,
+    ) -> Self {
+        Self {
+            thread: thread.clone(),
+            handle,
         }
     }
 
