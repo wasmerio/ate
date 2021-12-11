@@ -55,6 +55,13 @@ impl WasmBusThreadPool {
             .map(|a| a.clone())
     }
 
+    pub fn wake_all(&self) {
+        let threads = self.threads.read().unwrap();
+        for thread in threads.values() {
+            let _ = thread.work_tx.blocking_send(WasmBusThreadWork::Wake);
+        }
+    }
+
     pub fn get_or_create(self: &Arc<WasmBusThreadPool>, thread: &WasiThread) -> WasmBusThread {
         // fast path
         let thread_id = thread.thread_id();
@@ -135,12 +142,15 @@ impl Drop for WasmBusThreadHandle {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct WasmBusThreadWork {
-    pub topic: String,
-    pub parent: Option<CallHandle>,
-    pub handle: WasmBusThreadHandle,
-    pub data: Vec<u8>,
-    pub tx: mpsc::Sender<Result<Vec<u8>, CallError>>,
+pub(crate) enum WasmBusThreadWork {
+    Wake,
+    Call {
+        topic: String,
+        parent: Option<CallHandle>,
+        handle: WasmBusThreadHandle,
+        data: Vec<u8>,
+        tx: mpsc::Sender<Result<Vec<u8>, CallError>>,
+    }
 }
 
 pub(super) struct WasmBusThreadInner {
@@ -252,7 +262,7 @@ impl WasmBusThread {
 
         // Send the work to the thread
         let (tx, rx) = mpsc::channel(1);
-        let _ = self.work_tx.blocking_send(WasmBusThreadWork {
+        let _ = self.work_tx.blocking_send(WasmBusThreadWork::Call {
             topic,
             parent,
             handle: handle.clone(),

@@ -159,53 +159,67 @@ unsafe fn wasm_bus_poll(thread: &WasmBusThread) {
 
     // Lets wait for some work!
     let work = thread.inner.unwrap().work_rx.blocking_recv();
-    if let Some(work) = work {
-        let native_memory = thread.memory_ref();
-        let native_malloc = thread.wasm_bus_malloc_ref();
-        let native_start = thread.wasm_bus_start_ref();
-        if native_memory.is_none() || native_malloc.is_none() || native_start.is_none() {
-            let _ = work.tx.send(Err(CallError::IncorrectAbi));
-        } else {
-            // Determine the parent handle
-            let parent = work.parent.map(|a| a.into()).unwrap_or(u32::MAX);
-
-            // Record the handler so that when the call completes it notifies the
-            // one who put this work on the queue
-            let handle: u32 = work.handle.handle().into();
-            {
-                let mut inner = thread.inner.unwrap();
-                inner.calls.insert(handle, work.tx);
+    match work {
+        Some(WasmBusThreadWork::Call {
+            topic,
+            parent,
+            handle,
+            data,
+            tx,
+        }) => {
+            let native_memory = thread.memory_ref();
+            let native_malloc = thread.wasm_bus_malloc_ref();
+            let native_start = thread.wasm_bus_start_ref();
+            if native_memory.is_none() || native_malloc.is_none() || native_start.is_none() {
+                let _ = tx.send(Err(CallError::IncorrectAbi));
+            } else {
+                // Determine the parent handle
+                let parent = parent.map(|a| a.into()).unwrap_or(u32::MAX);
+    
+                // Record the handler so that when the call completes it notifies the
+                // one who put this work on the queue
+                let handle: u32 = handle.handle().into();
+                {
+                    let mut inner = thread.inner.unwrap();
+                    inner.calls.insert(handle, tx);
+                }
+    
+                // Invoke the call
+                let native_memory = native_memory.unwrap();
+                let native_malloc = native_malloc.unwrap();
+                let native_start = native_start.unwrap();
+    
+                let topic = topic.as_bytes();
+                let topic_len = topic.len() as u32;
+                let topic_ptr = native_malloc.call(topic_len).unwrap();
+                native_memory
+                    .uint8view_with_byte_offset_and_length(topic_ptr.offset(), topic_len)
+                    .copy_from(&topic[..]);
+    
+                let request = &data[..];
+                let request_len = request.len() as u32;
+                let request_ptr = native_malloc.call(request_len).unwrap();
+                native_memory
+                    .uint8view_with_byte_offset_and_length(request_ptr.offset(), request_len)
+                    .copy_from(&request[..]);
+    
+                native_start
+                    .call(
+                        parent,
+                        handle,
+                        topic_ptr,
+                        topic_len,
+                        request_ptr,
+                        request_len,
+                    )
+                    .unwrap();
             }
-
-            // Invoke the call
-            let native_memory = native_memory.unwrap();
-            let native_malloc = native_malloc.unwrap();
-            let native_start = native_start.unwrap();
-
-            let topic = work.topic.as_bytes();
-            let topic_len = topic.len() as u32;
-            let topic_ptr = native_malloc.call(topic_len).unwrap();
-            native_memory
-                .uint8view_with_byte_offset_and_length(topic_ptr.offset(), topic_len)
-                .copy_from(&topic[..]);
-
-            let request = &work.data[..];
-            let request_len = request.len() as u32;
-            let request_ptr = native_malloc.call(request_len).unwrap();
-            native_memory
-                .uint8view_with_byte_offset_and_length(request_ptr.offset(), request_len)
-                .copy_from(&request[..]);
-
-            native_start
-                .call(
-                    parent,
-                    handle,
-                    topic_ptr,
-                    topic_len,
-                    request_ptr,
-                    request_len,
-                )
-                .unwrap();
+        }
+        Some(WasmBusThreadWork::Wake) => {
+            debug!("polling loop awoken");
+        }
+        None => {
+            debug!("polling loop has exited");
         }
     }
 }

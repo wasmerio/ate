@@ -23,6 +23,7 @@ use super::fs::*;
 use super::job::*;
 use super::poll::*;
 use super::stdio::*;
+use super::bus::WasmBusThreadPool;
 
 #[derive(Debug)]
 pub struct Reactor {
@@ -52,7 +53,7 @@ impl Reactor {
         }
     }
 
-    pub fn generate_pid(&mut self, forced_exit: Arc<AtomicI32>) -> Result<Pid, i32> {
+    pub fn generate_pid(&mut self, thread_pool: Arc<WasmBusThreadPool>, forced_exit: Arc<AtomicI32>) -> Result<Pid, i32> {
         for _ in 0..10000 {
             let pid = self.pid_seed;
             self.pid_seed += 1;
@@ -62,6 +63,7 @@ impl Reactor {
                     Process {
                         system: self.system,
                         pid,
+                        thread_pool,
                         forced_exit,
                     },
                 );

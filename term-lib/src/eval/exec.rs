@@ -402,7 +402,7 @@ pub async fn exec_process(
     // Generate a PID for this process
     let (pid, process) = {
         let mut guard = ctx.reactor.write().await;
-        let pid = guard.generate_pid(forced_exit)?;
+        let pid = guard.generate_pid(bus_thread_pool_ret.clone(), forced_exit)?;
         let process = match guard.get_process(pid) {
             Some(a) => a,
             None => {
