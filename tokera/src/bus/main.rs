@@ -3,7 +3,7 @@ use crate::opt::OptsBus;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::backend::fuse::*;
-use wasm_bus::task;
+use wasm_bus::prelude::*;
 
 pub async fn main_opts_bus(
     _opts: OptsBus,
@@ -13,15 +13,15 @@ pub async fn main_opts_bus(
     info!("wasm bus initializing");
 
     // Register all the functions
-    task::ListenerBuilder::new(move |_mount: Mount| async move {
+    listen(move |handle: CallHandle, _mount: Mount| async move {
         info!("we made it! - MOUNT");
-    })
-    .add(task::ListenerBuilder::new(move |_meta: ReadSymlinkMetadata| async move {
-        info!("we made it! - META");
-    }))
-    .listen();
+
+        respond_to(handle, move |_handle, _meta: ReadSymlinkMetadata| async move {
+            info!("we made it! - META");
+        });
+    });
 
     // Enter a polling loop
-    task::serve();
+    serve();
     Ok(())
 }

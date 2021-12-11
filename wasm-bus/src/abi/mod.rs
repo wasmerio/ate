@@ -5,6 +5,8 @@ mod finish;
 mod handle;
 #[cfg(feature = "rt")]
 mod listen;
+#[cfg(feature = "rt")]
+mod respond_to;
 mod reply;
 #[cfg(feature = "syscalls")]
 pub(crate) mod syscall;
@@ -27,6 +29,8 @@ pub use handle::*;
 #[cfg(feature = "rt")]
 pub use listen::*;
 pub use reply::*;
+#[cfg(feature = "rt")]
+pub use respond_to::*;
 
 pub fn call<T>(wapm: Cow<'static, str>, request: T) -> CallBuilder
 where
@@ -52,17 +56,6 @@ where
     };
 
     CallBuilder::new(call, req)
-}
-
-#[cfg(feature = "rt")]
-pub fn listen<RES, REQ, F>(_callback: F) -> ListenService
-where
-    REQ: de::DeserializeOwned + Send + Sync + 'static,
-    RES: Serialize + Send + Sync + 'static,
-    F: Fn(REQ) -> Result<RES, CallError>,
-    F: Send + Sync + 'static,
-{
-    panic!("listen not supported on this platform");
 }
 
 #[cfg(target_arch = "wasm32")]

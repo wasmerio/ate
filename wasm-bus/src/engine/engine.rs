@@ -24,6 +24,8 @@ pub struct BusEngineState {
     pub callbacks: HashMap<CallHandle, Arc<dyn FinishOps>>,
     #[cfg(feature = "rt")]
     pub listening: HashMap<String, ListenService>,
+    #[cfg(feature = "rt")]
+    pub respond_to: HashMap<String, RespondToService>,
 }
 
 #[derive(Default)]
@@ -53,29 +55,43 @@ impl BusEngine {
     #[cfg(feature = "rt")]
     pub fn start(
         topic: String,
-        _parent: Option<CallHandle>,
+        parent: Option<CallHandle>,
         handle: CallHandle,
         request: Vec<u8>,
     ) -> Result<(), CallError> {
-        let listen = {
-            let state = BusEngine::read();
-            if let Some(listen) = state.listening.get(&topic) {
-                let listen = listen.clone();
+        let state = BusEngine::read();
+        if let Some(parent) = parent {
+            if let Some(respond_to) = state.respond_to.get(&topic) {
+                let respond_to = respond_to.clone();
                 drop(state);
-                listen
+                
+                let mut state = BusEngine::write();
+                if state.handles.contains(&handle) == false {
+                    state.handles.insert(handle);
+
+                    respond_to.process(parent, handle, request);
+                    return Ok(());
+                } else {
+                    return Err(CallError::InvalidHandle);
+                }
             } else {
-                return Err(CallError::InvalidTopic);
+                return Err(CallError::InvalidHandle);
             }
-        };
+        } else if let Some(listen) = state.listening.get(&topic) {
+            let listen = listen.clone();
+            drop(state);
+            
+            let mut state = BusEngine::write();
+            if state.handles.contains(&handle) == false {
+                state.handles.insert(handle);
 
-        let mut state = BusEngine::write();
-        if state.handles.contains(&handle) == false {
-            state.handles.insert(handle);
-
-            listen.process(handle, request);
-            return Ok(());
+                listen.process(handle, request);
+                return Ok(());
+            } else {
+                return Err(CallError::InvalidHandle);
+            }
         } else {
-            return Err(CallError::InvalidHandle);
+            return Err(CallError::InvalidTopic);
         }
     }
 
@@ -265,9 +281,9 @@ impl BusEngine {
 
     #[cfg(feature = "rt")]
     #[cfg(target_arch = "wasm32")]
-    pub fn listen<F, Fut>(topic: String, callback: F)
+    pub(crate) fn listen_internal<F, Fut>(topic: String, callback: F)
     where
-        F: Fn(Vec<u8>) -> Result<Fut, CallError>,
+        F: Fn(CallHandle, Vec<u8>) -> Result<Fut, CallError>,
         F: Send + Sync + 'static,
         Fut: Future<Output = Result<Vec<u8>, CallError>>,
         Fut: Send + 'static,
@@ -276,8 +292,8 @@ impl BusEngine {
             let mut state = BusEngine::write();
             state.listening.insert(
                 topic.clone(),
-                ListenService::new(Arc::new(move |req| {
-                    let res = callback(req);
+                ListenService::new(Arc::new(move |handle, req| {
+                    let res = callback(handle, req);
                     Box::pin(async move { Ok(res?.await?) })
                 })),
             );
@@ -288,13 +304,51 @@ impl BusEngine {
 
     #[cfg(feature = "rt")]
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn listen<F, Fut>(_topic: String, _callback: F)
+    pub(crate) fn listen_internal<F, Fut>(_topic: String, _callback: F)
     where
-        F: Fn(Vec<u8>) -> Result<Fut, CallError>,
+        F: Fn(CallHandle, Vec<u8>) -> Result<Fut, CallError>,
         F: Send + Sync + 'static,
         Fut: Future<Output = Result<Vec<u8>, CallError>>,
         Fut: Send + 'static,
     {
         panic!("listen not supported on this platform");
+    }
+
+    #[cfg(feature = "rt")]
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn respond_to_internal<F, Fut>(topic: String, parent: CallHandle, callback: F)
+    where
+        F: Fn(CallHandle, Vec<u8>) -> Result<Fut, CallError>,
+        F: Send + Sync + 'static,
+        Fut: Future<Output = Result<Vec<u8>, CallError>>,
+        Fut: Send + 'static,
+    {
+        {
+            let mut state = BusEngine::write();
+            if state.respond_to.contains_key(&topic) == false {
+                state.respond_to.insert(topic.clone(), RespondToService::default());
+                crate::abi::syscall::listen(topic.as_str());
+            }
+            let respond_to = state.respond_to.get_mut(&topic).unwrap();
+            respond_to.add(
+                parent,
+                Arc::new(move |handle, req| {
+                    let res = callback(handle, req);
+                    Box::pin(async move { Ok(res?.await?) })
+                }),
+            );
+        }
+    }
+
+    #[cfg(feature = "rt")]
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn respond_to_internal<F, Fut>(_topic: String, _parent: CallHandle, _callback: F)
+    where
+        F: Fn(CallHandle, Vec<u8>) -> Result<Fut, CallError>,
+        F: Send + Sync + 'static,
+        Fut: Future<Output = Result<Vec<u8>, CallError>>,
+        Fut: Send + 'static,
+    {
+        panic!("respond_to not supported on this platform");
     }
 }

@@ -11,4 +11,9 @@ pub use crate::abi::Call;
 #[cfg(feature = "rt")]
 pub use crate::task::serve;
 #[cfg(feature = "rt")]
-pub use crate::task::ListenerBuilder;
+pub use crate::task::listen;
+#[cfg(feature = "rt")]
+pub use crate::task::respond_to;
+
+pub use crate::abi::CallError;
+pub use crate::abi::CallHandle;
