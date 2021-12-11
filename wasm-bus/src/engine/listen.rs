@@ -70,17 +70,15 @@ where
         }
     }
 
-    pub fn add<REQ2, RES2, F, Fut>(&mut self, sub_routine: ListenerBuilder<REQ2, RES2>)
+    pub fn add<REQ2, RES2>(mut self, sub_routine: ListenerBuilder<REQ2, RES2>) -> Self
     where
         REQ2: de::DeserializeOwned + 'static,
         RES2: Serialize + 'static,
-        F: Fn(REQ2) -> Fut,
-        F: Send + 'static,
-        Fut: Future<Output = RES2> + 'static,
     {
         let topic = type_name::<REQ2>().to_string();
         let sub_routine: Box<dyn ListenerBuilderOps> = Box::new(sub_routine);
         self.sub_routines.insert(topic.clone(), sub_routine);
+        self
     }
 
     pub fn listen(mut self) {

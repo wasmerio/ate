@@ -86,8 +86,12 @@ impl Console {
         // Log
         system.fork_local(async move {
             while let Some(data) = log_rx.recv().await {
-                let text = String::from_utf8_lossy(&data[..])[..].replace("\n", "\r\n");
-                console::log(text.as_str());
+                let txt = String::from_utf8_lossy(&data[..]);
+                let mut txt = txt.as_ref();
+                while txt.ends_with("\n") || txt.ends_with("\r") {
+                    txt = &txt[..(txt.len()-1)];
+                }
+                console::log(txt);
             }
         });
 

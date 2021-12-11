@@ -23,7 +23,6 @@ use crate::tty::*;
 
 #[derive(Debug)]
 pub struct ProcFileSystem {
-    log_prefix: String,
     type_file: FileType,
     type_dir: FileType,
     type_char: FileType,
@@ -31,9 +30,8 @@ pub struct ProcFileSystem {
 }
 
 impl ProcFileSystem {
-    pub fn new(log_prefix: String, stdio: Stdio) -> ProcFileSystem {
+    pub fn new(stdio: Stdio) -> ProcFileSystem {
         let mut ret = ProcFileSystem {
-            log_prefix,
             type_file: FileType::default(),
             type_dir: FileType::default(),
             type_char: FileType::default(),
@@ -146,7 +144,6 @@ impl FileSystem for ProcFileSystem {
     }
     fn new_open_options(&self) -> OpenOptions {
         let opener = Box::new(CoreFileOpener {
-            log_prefix: self.log_prefix.clone(),
             stdio: self.stdio.clone(),
         });
         OpenOptions::new(opener)
@@ -155,7 +152,6 @@ impl FileSystem for ProcFileSystem {
 
 #[derive(Debug)]
 pub struct CoreFileOpener {
-    log_prefix: String,
     stdio: Stdio,
 }
 
@@ -168,7 +164,7 @@ impl FileOpener for CoreFileOpener {
             "/stdin" | "stdin" => Ok(Box::new(self.stdio.stdin.clone())),
             "/stdout" | "stdout" => Ok(Box::new(self.stdio.stdout.clone())),
             "/stderr" | "stderr" => Ok(Box::new(self.stdio.stderr.clone())),
-            "/log" | "log" => Ok(Box::new(LogFile::new(self.log_prefix.clone(), &self.stdio))),
+            "/log" | "log" => Ok(Box::new(self.stdio.log.clone())),
             "/null" | "null" => Ok(Box::new(NullFile::default())),
             "/tty" | "tty" => Ok(Box::new(TtyFile::new(&self.stdio))),
             _ => Err(FsError::EntityNotFound),
@@ -322,16 +318,6 @@ impl Write for LogFile {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let ret = buf.len();
         let prefix = self.prefix.as_bytes();
-
-        let txt_store;
-        let buf = if let Ok(mut txt) = String::from_utf8(buf.to_vec()) {
-            while txt.ends_with("\n") { txt = txt[..(txt.len()-1)].to_string(); }
-            while txt.ends_with("\r") { txt = txt[..(txt.len()-1)].to_string(); }
-            txt_store = txt;
-            txt_store.as_bytes()
-        } else {
-            buf
-        };
 
         let mut to_write = Vec::with_capacity(prefix.len() + buf.len());
         to_write.write_all(prefix)?;

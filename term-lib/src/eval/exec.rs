@@ -107,14 +107,13 @@ pub async fn exec_process(
     let (fs, union) = {
         let root = ctx.root.clone();
         let stdio = stdio.clone();
-        let log_prefix = format!("[{}] ", cmd);
 
         let mut union = UnionFileSystem::new();
         union.mount("root", Path::new("/"), Box::new(root));
         union.mount(
             "proc",
             Path::new("/dev"),
-            Box::new(ProcFileSystem::new(log_prefix, stdio)),
+            Box::new(ProcFileSystem::new(stdio)),
         );
         union.mount("tmp", Path::new("/tmp"), Box::new(TmpFileSystem::default()));
         union.mount("private", Path::new("/.private"), Box::new(fs_private));
