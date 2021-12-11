@@ -60,6 +60,7 @@ pub(super) fn mount(
         stdio.stdin.downgrade(),
         stdio.stdout.downgrade(),
         stdio.stderr.downgrade(),
+        stdio.log.downgrade(),
     );
 
     let mut ctx = ctx.clone();
@@ -70,7 +71,7 @@ pub(super) fn mount(
             .await;
 
         let factory = SubProcessFactory::new(factory);
-        let sub_process = match factory.get_or_create(wapm.as_str(), StdioMode::Null).await {
+        let sub_process = match factory.get_or_create(wapm.as_str(), StdioMode::Log).await {
             Ok(a) => a,
             Err(_) => {
                 let _ = stdio

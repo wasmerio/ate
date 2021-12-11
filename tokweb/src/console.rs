@@ -60,7 +60,8 @@ impl Console {
         let reactor = Reactor::new();
 
         let state = Arc::new(Mutex::new(ConsoleState::new(super::fs::create_root_fs())));
-        let (stdout, mut tty_rx) = pipe_out();
+        let (stdout, mut tty_rx) = pipe_out(true);
+        let (log, mut log_rx) = pipe_out(false);
         let stderr = stdout.clone();
         let stdout = Stdout::new(stdout);
 
@@ -82,6 +83,14 @@ impl Console {
             });
         }
 
+        // Log
+        system.fork_local(async move {
+            while let Some(data) = log_rx.recv().await {
+                let text = String::from_utf8_lossy(&data[..])[..].replace("\n", "\r\n");
+                console::log(text.as_str());
+            }
+        });
+
         let location = url::Url::parse(&location).unwrap();
 
         let is_mobile = is_mobile(&user_agent);
@@ -94,6 +103,7 @@ impl Console {
             reactor.clone(),
             stdout.clone(),
             stderr.clone(),
+            log.clone(),
         );
 
         Console {

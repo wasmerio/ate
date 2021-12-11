@@ -122,7 +122,7 @@ where
         // First we get or start the sub_process that will handle the requests
         let sub_process = self
             .sub_processes
-            .get_or_create(self.wapm.as_str(), StdioMode::Null)
+            .get_or_create(self.wapm.as_str(), StdioMode::Log)
             .await?;
 
         // Next we kick all the call itself into the process (with assocated callbacks)

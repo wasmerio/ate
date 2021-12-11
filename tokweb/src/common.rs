@@ -222,3 +222,13 @@ extern "C" {
     #[wasm_bindgen(js_name = "isWorker")]
     fn is_worker() -> bool;
 }
+
+pub mod console {
+    use wasm_bindgen::prelude::*;
+    
+    #[wasm_bindgen]
+    extern "C" {
+        #[wasm_bindgen(js_namespace = console)]
+        pub fn log(s: &str);
+    }
+}

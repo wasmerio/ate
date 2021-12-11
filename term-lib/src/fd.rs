@@ -34,6 +34,7 @@ use crate::wasmer_wasi::{types as wasi_types, WasiFile, WasiFsError};
 
 #[derive(Debug, Clone)]
 pub struct Fd {
+    pub(crate) is_tty: bool,
     pub(crate) forced_exit: Arc<AtomicU32>,
     pub(crate) closed: Arc<AtomicBool>,
     pub(crate) blocking: Arc<AtomicBool>,
@@ -45,8 +46,10 @@ impl Fd {
     pub fn new(
         tx: Option<mpsc::Sender<Vec<u8>>>,
         rx: Option<Arc<AsyncMutex<ReactorPipeReceiver>>>,
+        is_tty: bool,
     ) -> Fd {
         Fd {
+            is_tty,
             forced_exit: Arc::new(AtomicU32::new(0)),
             closed: Arc::new(AtomicBool::new(false)),
             blocking: Arc::new(AtomicBool::new(true)),
@@ -57,6 +60,7 @@ impl Fd {
 
     pub fn combine(fd1: &Fd, fd2: &Fd) -> Fd {
         let mut ret = Fd {
+            is_tty: fd1.is_tty || fd2.is_tty,
             forced_exit: fd1.forced_exit.clone(),
             closed: fd1.closed.clone(),
             blocking: Arc::new(AtomicBool::new(fd1.blocking.load(Ordering::Relaxed))),
@@ -89,6 +93,10 @@ impl Fd {
 
     pub fn close(&self) {
         self.closed.store(true, Ordering::Release);
+    }
+
+    pub fn is_tty(&self) -> bool {
+        self.is_tty
     }
 
     pub fn is_closed(&self) -> bool {
@@ -292,6 +300,7 @@ impl VirtualFile for Fd {
 
 #[derive(Debug, Clone)]
 pub struct WeakFd {
+    pub(crate) is_tty: bool,
     pub(crate) forced_exit: Weak<AtomicU32>,
     pub(crate) closed: Weak<AtomicBool>,
     pub(crate) blocking: Weak<AtomicBool>,
@@ -327,6 +336,7 @@ impl WeakFd {
         let receiver = self.receiver.iter().filter_map(|a| a.upgrade()).next();
 
         Some(Fd {
+            is_tty: self.is_tty,
             forced_exit,
             closed,
             blocking,
@@ -345,6 +355,7 @@ impl Fd {
         let receiver = self.receiver.iter().map(|a| Arc::downgrade(&a)).next();
 
         WeakFd {
+            is_tty: self.is_tty,
             forced_exit,
             closed,
             blocking,

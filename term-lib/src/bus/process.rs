@@ -43,6 +43,7 @@ pub struct ProcessExecFactory {
     inherit_stdin: WeakFd,
     inherit_stdout: WeakFd,
     inherit_stderr: WeakFd,
+    inherit_log: WeakFd,
 }
 
 pub struct LaunchContext {
@@ -63,6 +64,7 @@ impl ProcessExecFactory {
         inherit_stdin: WeakFd,
         inherit_stdout: WeakFd,
         inherit_stderr: WeakFd,
+        inherit_log: WeakFd,
     ) -> ProcessExecFactory {
         let system = System::default();
         ProcessExecFactory {
@@ -72,6 +74,7 @@ impl ProcessExecFactory {
             inherit_stdin,
             inherit_stdout,
             inherit_stderr,
+            inherit_log,
         }
     }
 
@@ -102,6 +105,7 @@ impl ProcessExecFactory {
         let inherit_stdin = self.inherit_stdin.upgrade();
         let inherit_stdout = self.inherit_stdout.upgrade();
         let inherit_stderr = self.inherit_stderr.upgrade();
+        let inherit_log = self.inherit_log.upgrade();
         let exec_factory = self.exec_factory.clone();
         let result = self.system.spawn_dedicated(move || async move {
             let path = create.request.path;
@@ -137,9 +141,9 @@ impl ProcessExecFactory {
             }
 
             // Create all the stdio
-            let (stdin, stdin_tx) = pipe_in(ReceiverMode::Stream);
-            let (stdout, stdout_rx) = pipe_out();
-            let (stderr, stderr_rx) = pipe_out();
+            let (stdin, stdin_tx) = pipe_in(ReceiverMode::Stream, false);
+            let (stdout, stdout_rx) = pipe_out(false);
+            let (stderr, stderr_rx) = pipe_out(false);
 
             // Perform hooks back to the main stdio
             let (stdin, stdin_tx) = match stdin_mode {
@@ -147,18 +151,23 @@ impl ProcessExecFactory {
                 StdioMode::Inherit if inherit_stdin.is_some() => (inherit_stdin.unwrap(), None),
                 StdioMode::Inherit => (stdin, None),
                 StdioMode::Piped => (stdin, Some(stdin_tx)),
+                StdioMode::Log => (stdin, None),
             };
             let (stdout, stdout_rx) = match stdout_mode {
                 StdioMode::Null => (stdout, None),
                 StdioMode::Inherit if inherit_stdout.is_some() => (inherit_stdout.unwrap(), None),
                 StdioMode::Inherit => (stdout, None),
                 StdioMode::Piped => (stdout, Some(stdout_rx)),
+                StdioMode::Log if inherit_log.is_some() => (inherit_log.clone().unwrap(), None),
+                StdioMode::Log => (stdout, None),
             };
             let (stderr, stderr_rx) = match stderr_mode {
                 StdioMode::Null => (stderr, None),
                 StdioMode::Inherit if inherit_stderr.is_some() => (inherit_stderr.unwrap(), None),
                 StdioMode::Inherit => (stderr, None),
                 StdioMode::Piped => (stderr, Some(stderr_rx)),
+                StdioMode::Log if inherit_log.is_some() => (inherit_log.clone().unwrap(), None),
+                StdioMode::Log => (stderr, None),
             };
 
             // Create the eval context

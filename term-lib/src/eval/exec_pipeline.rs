@@ -45,7 +45,7 @@ pub(super) async fn exec_pipeline<'a>(
 
                     cur_stdin = next_stdin.clone();
                     if i + 1 < pipeline.commands.len() {
-                        let (w, r) = pipe(ReceiverMode::Stream);
+                        let (w, r) = pipe(ReceiverMode::Stream, end_stdout.is_tty());
                         next_stdin = r;
                         cur_stdout = w;
                     } else {
@@ -56,6 +56,7 @@ pub(super) async fn exec_pipeline<'a>(
                         stdin: cur_stdin.clone(),
                         stdout: cur_stdout.clone(),
                         stderr: cur_stderr.clone(),
+                        log: ctx.stdio.log.clone(),
                         tty: ctx.stdio.tty.clone(),
                     };
 

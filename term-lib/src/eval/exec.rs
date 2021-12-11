@@ -108,13 +108,14 @@ pub async fn exec_process(
     let (fs, union) = {
         let root = ctx.root.clone();
         let stdio = stdio.clone();
+        let log_prefix = format!("[{}] ", cmd);
 
         let mut union = UnionFileSystem::new();
         union.mount("root", Path::new("/"), Box::new(root));
         union.mount(
             "proc",
             Path::new("/dev"),
-            Box::new(ProcFileSystem::new(stdio)),
+            Box::new(ProcFileSystem::new(log_prefix, stdio)),
         );
         union.mount("tmp", Path::new("/tmp"), Box::new(TmpFileSystem::default()));
         union.mount("private", Path::new("/.private"), Box::new(fs_private));
@@ -140,7 +141,7 @@ pub async fn exec_process(
             Ok(mut file) => {
                 // Open a new file description
                 let (tx, mut rx) = {
-                    let (fd, tx, rx) = bidirectional_with_defaults();
+                    let (fd, tx, rx) = bidirectional_with_defaults(false);
 
                     // We now connect the newly opened file descriptor with the read file
                     match redirect.fd {
@@ -201,6 +202,7 @@ pub async fn exec_process(
         stdio.stdin.downgrade(),
         stdio.stdout.downgrade(),
         stdio.stderr.downgrade(),
+        stdio.log.downgrade(),
     );
 
     // The BUS pool is what gives this WASM process its syscall and operation system
@@ -215,7 +217,7 @@ pub async fn exec_process(
     let (checkpoint_tx, mut checkpoint_rx) = mpsc::channel(1);
 
     // Spawn the process on a background thread
-    let mut tty = ctx.stdio.stderr.clone();
+    let mut stderr = ctx.stdio.stderr.clone();
     let reactor = ctx.reactor.clone();
     let cmd = cmd.clone();
     let args = args.clone();
@@ -229,21 +231,27 @@ pub async fn exec_process(
 
                 // Load or compile the module (they are cached in therad local storage)
                 let mut module = thread_local.modules.get_mut(&data_hash);
-                if module.is_none() {
+                if module.is_none()
+                {
+                    if stderr.is_tty() {
+                        let _ = stderr.write("Compiling...".as_bytes()).await;
+                    } else {
+                        let _ = stderr.write(format!("[console] compiling WASM module ({})", cmd).as_bytes()).await;
+                    }
+
                     // Cache miss - compile the module
-                    let _ = tty.write("Compiling...".as_bytes()).await;
                     let store = Store::default();
                     let compiled_module = match Module::new(&store, &data[..]) {
                         Ok(a) => a,
                         Err(err) => {
-                            tty.write_clear_line().await;
-                            let _ = tty
+                            if stderr.is_tty() { stderr.write_clear_line().await; }
+                            let _ = stderr
                                 .write(format!("compile-error: {}\n", err).as_bytes())
                                 .await;
                             return ERR_ENOEXEC;
                         }
                     };
-                    tty.write_clear_line().await;
+                    if stderr.is_tty() { stderr.write_clear_line().await; }
                     info!(
                         "compiled {}",
                         compiled_module.name().unwrap_or_else(|| cmd.as_str())
@@ -271,8 +279,8 @@ pub async fn exec_process(
                 if preopen.len() > 0 {
                     for pre_open in preopen {
                         if wasi_env.preopen_dir(Path::new(pre_open.as_str())).is_ok() == false {
-                            tty.write_clear_line().await;
-                            let _ = tty
+                            if stderr.is_tty() { stderr.write_clear_line().await; }
+                            let _ = stderr
                                 .write(format!("pre-open error (path={})\n", pre_open).as_bytes())
                                 .await;
                             return ERR_ENOEXEC;
@@ -310,8 +318,8 @@ pub async fn exec_process(
                     Ok(a) => a,
                     Err(err) => {
                         drop(module);
-                        tty.write_clear_line().await;
-                        let _ = tty
+                        if stderr.is_tty() { stderr.write_clear_line().await; }
+                        let _ = stderr
                             .write(format!("exec error: {}\n", err.to_string()).as_bytes())
                             .await;
                         return ERR_ENOEXEC;

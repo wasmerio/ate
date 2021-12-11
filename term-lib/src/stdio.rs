@@ -18,6 +18,7 @@ pub struct Stdio {
     pub stdin: Fd,
     pub stdout: Fd,
     pub stderr: Fd,
+    pub log: Fd,
     pub tty: Tty,
 }
 

@@ -53,6 +53,7 @@ pub struct EvalFactoryState {
     pub reactor: Arc<RwLock<Reactor>>,
     pub stdout: Stdout,
     pub stderr: Fd,
+    pub log: Fd,
 }
 
 #[derive(Clone)]
@@ -67,6 +68,7 @@ impl EvalFactory {
         reactor: Arc<RwLock<Reactor>>,
         stdout: Stdout,
         stderr: Fd,
+        log: Fd,
     ) -> EvalFactory {
         EvalFactory {
             state: Arc::new(EvalFactoryState {
@@ -75,6 +77,7 @@ impl EvalFactory {
                 reactor,
                 stdout,
                 stderr,
+                log,
             }),
         }
     }
@@ -85,6 +88,7 @@ impl EvalFactory {
             stdin: ctx.stdin,
             stdout: ctx.stdout,
             stderr: ctx.stderr,
+            log: self.state.log.clone(),
             tty: self.state.tty.clone(),
         };
 

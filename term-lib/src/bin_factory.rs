@@ -51,7 +51,7 @@ impl BinFactory {
         }
     }
 
-    pub async fn get(&self, name: &str, mut stdout: Fd) -> Option<BinaryPackage> {
+    pub async fn get(&self, name: &str, mut stderr: Fd) -> Option<BinaryPackage> {
         let mut name = name.to_string();
 
         // Fast path
@@ -63,15 +63,19 @@ impl BinFactory {
         }
 
         // Tell the console we are fetching
-        stdout.write_clear_line().await;
-        let _ = stdout.write("Fetching...".as_bytes()).await;
+        if stderr.is_tty() {
+            stderr.write_clear_line().await;
+            let _ = stderr.write("Fetching...".as_bytes()).await;
+        } else {
+            let _ = stderr.write(format!("[console] fetching '{}' from site", name).as_bytes()).await;
+        }
 
         // Slow path
         let mut cache = self.cache.write().await;
 
         // Check the cache
         if let Some(data) = cache.get(&name) {
-            stdout.write_clear_line().await;
+            if stderr.is_tty() { stderr.write_clear_line().await; }
             return data.clone();
         }
 
@@ -83,17 +87,17 @@ impl BinFactory {
         {
             let data = BinaryPackage::new(Bytes::from(data));
             cache.insert(name, Some(data.clone()));
-            stdout.write_clear_line().await;
+            if stderr.is_tty() { stderr.write_clear_line().await; }
             return Some(data);
         }
 
         // NAK
         cache.insert(name, None);
-        stdout.write_clear_line().await;
+        if stderr.is_tty() { stderr.write_clear_line().await; }
         return None;
     }
 
-    pub async fn alias(&self, name: &str, mut stdout: Fd) -> Option<String> {
+    pub async fn alias(&self, name: &str, mut stderr: Fd) -> Option<String> {
         let mut name = name.to_string();
 
         // Fast path
@@ -105,15 +109,19 @@ impl BinFactory {
         }
 
         // Tell the console we are fetching
-        stdout.write_clear_line().await;
-        let _ = stdout.write("Probing...".as_bytes()).await;
+        if stderr.is_tty() {
+            stderr.write_clear_line().await;
+            let _ = stderr.write("Probing...".as_bytes()).await;
+        } else {
+            let _ = stderr.write(format!("[console] probing for alias of '{}'", name).as_bytes()).await;
+        }
 
         // Slow path
         let mut cache = self.alias.write().await;
 
         // Check the cache
         if let Some(data) = cache.get(&name) {
-            stdout.write_clear_line().await;
+            if stderr.is_tty() { stderr.write_clear_line().await; }
             return data.clone();
         }
 
@@ -126,13 +134,13 @@ impl BinFactory {
             let alias = String::from_utf8_lossy(&data[..]).trim().to_string();
             info!("binary alias '{}' found for {}", alias, name);
             cache.insert(name, Some(alias.clone()));
-            stdout.write_clear_line().await;
+            if stderr.is_tty() { stderr.write_clear_line().await; }
             return Some(alias);
         }
 
         // NAK
         cache.insert(name, None);
-        stdout.write_clear_line().await;
+        if stderr.is_tty() { stderr.write_clear_line().await; }
         return None;
     }
 }

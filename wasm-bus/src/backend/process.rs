@@ -30,6 +30,7 @@ pub enum StdioMode {
     Piped,
     Inherit,
     Null,
+    Log,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
