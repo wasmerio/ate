@@ -320,12 +320,25 @@ impl Seek for LogFile {
 
 impl Write for LogFile {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let ret = buf.len();
         let prefix = self.prefix.as_bytes();
+
+        let txt_store;
+        let buf = if let Ok(mut txt) = String::from_utf8(buf.to_vec()) {
+            while txt.ends_with("\n") { txt = txt[..(txt.len()-1)].to_string(); }
+            while txt.ends_with("\r") { txt = txt[..(txt.len()-1)].to_string(); }
+            txt_store = txt;
+            txt_store.as_bytes()
+        } else {
+            buf
+        };
+
         let mut to_write = Vec::with_capacity(prefix.len() + buf.len());
         to_write.write_all(prefix)?;
         to_write.write_all(buf)?;
+        
         self.fd.write_all(&to_write[..])?;
-        Ok(buf.len())
+        Ok(ret)
     }
     fn flush(&mut self) -> io::Result<()> {
         self.fd.flush()

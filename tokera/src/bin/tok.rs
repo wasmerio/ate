@@ -158,7 +158,7 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
     let binary = binary_path(&mut args);
     let binary_as_util = name(&binary);
 
-    let opts = {
+    let mut opts = {
         let cmd = match binary_as_util {
             "user" => Some(SubCommand::User(OptsUser::parse())),
             "domain" => Some(SubCommand::Domain(OptsDomain::parse())),
@@ -173,7 +173,7 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
         };
         match cmd {
             Some(cmd) => Opts {
-                verbose: 0,
+                verbose: 1,
                 #[cfg(not(target_os = "wasi"))]
                 token_path: "~/tok/token".to_string(),
                 #[cfg(target_os = "wasi")]
@@ -189,6 +189,12 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
             None => Opts::parse(),
         }
     };
+
+    // We upgrade the verbosity for certain commands by default
+    opts.verbose = opts.verbose.max(match &opts.subcmd {
+        SubCommand::Bus(..) => 2,
+        _ => 0
+    });
 
     ate::log_init(opts.verbose, opts.debug);
 

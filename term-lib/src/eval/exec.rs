@@ -183,7 +183,7 @@ pub async fn exec_process(
             }
             Err(err) => {
                 return on_early_exit(
-                    Some(format!("failed to open the redirected file")),
+                    Some(format!("failed to open the redirected file: ")),
                     match err {
                         FsError::EntityNotFound => ERR_ENOENT,
                         _ => ERR_EIO,
