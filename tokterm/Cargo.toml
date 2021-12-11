@@ -28,7 +28,7 @@ serde_json = "^1"
 tokio = { version = "^1", features = [ "rt", "rt-multi-thread", "time", "sync", "macros" ], default_features = false }
 derivative = { version = "^2" }
 base64 = { version = "^0.13" }
-wasm-bus = { version = "^0.2", path = "../wasm-bus", features = [ "backend" ], default_features = false }
+wasm-bus = { version = "^0.3", path = "../wasm-bus", features = [ "backend" ], default_features = false }
 url = { version = "^2" }
 fastrand = "^1.5"
 bincode = "1"
