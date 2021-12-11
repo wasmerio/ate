@@ -83,8 +83,7 @@ pub async fn exec_process(
     show_result: &mut bool,
     mut stdio: Stdio,
     redirect: &Vec<Redirect>,
-) -> Result<(Process, AsyncResult<i32>, Arc<WasmBusThreadPool>), i32>
-{
+) -> Result<(Process, AsyncResult<i32>, Arc<WasmBusThreadPool>), i32> {
     // Make an error message function
     let mut early_stderr = stdio.stderr.clone();
     let on_early_exit = |msg: Option<String>, err: i32| async move {
@@ -231,12 +230,13 @@ pub async fn exec_process(
 
                 // Load or compile the module (they are cached in therad local storage)
                 let mut module = thread_local.modules.get_mut(&data_hash);
-                if module.is_none()
-                {
+                if module.is_none() {
                     if stderr.is_tty() {
                         let _ = stderr.write("Compiling...".as_bytes()).await;
                     } else {
-                        let _ = stderr.write(format!("[console] compiling WASM module ({})", cmd).as_bytes()).await;
+                        let _ = stderr
+                            .write(format!("[console] compiling WASM module ({})", cmd).as_bytes())
+                            .await;
                     }
 
                     // Cache miss - compile the module
@@ -244,14 +244,18 @@ pub async fn exec_process(
                     let compiled_module = match Module::new(&store, &data[..]) {
                         Ok(a) => a,
                         Err(err) => {
-                            if stderr.is_tty() { stderr.write_clear_line().await; }
+                            if stderr.is_tty() {
+                                stderr.write_clear_line().await;
+                            }
                             let _ = stderr
                                 .write(format!("compile-error: {}\n", err).as_bytes())
                                 .await;
                             return ERR_ENOEXEC;
                         }
                     };
-                    if stderr.is_tty() { stderr.write_clear_line().await; }
+                    if stderr.is_tty() {
+                        stderr.write_clear_line().await;
+                    }
                     info!(
                         "compiled {}",
                         compiled_module.name().unwrap_or_else(|| cmd.as_str())
@@ -279,7 +283,9 @@ pub async fn exec_process(
                 if preopen.len() > 0 {
                     for pre_open in preopen {
                         if wasi_env.preopen_dir(Path::new(pre_open.as_str())).is_ok() == false {
-                            if stderr.is_tty() { stderr.write_clear_line().await; }
+                            if stderr.is_tty() {
+                                stderr.write_clear_line().await;
+                            }
                             let _ = stderr
                                 .write(format!("pre-open error (path={})\n", pre_open).as_bytes())
                                 .await;
@@ -318,7 +324,9 @@ pub async fn exec_process(
                     Ok(a) => a,
                     Err(err) => {
                         drop(module);
-                        if stderr.is_tty() { stderr.write_clear_line().await; }
+                        if stderr.is_tty() {
+                            stderr.write_clear_line().await;
+                        }
                         let _ = stderr
                             .write(format!("exec error: {}\n", err.to_string()).as_bytes())
                             .await;

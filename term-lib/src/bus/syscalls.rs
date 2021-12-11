@@ -156,24 +156,18 @@ unsafe fn wasm_bus_poll(thread: &WasmBusThread) {
     if *thread.polling.borrow() == false {
         let _ = thread.inner.unwrap().polling.send(true);
     }
-    
+
     // Lets wait for some work!
     let work = thread.inner.unwrap().work_rx.blocking_recv();
-    if let Some(work) = work
-    {
+    if let Some(work) = work {
         let native_memory = thread.memory_ref();
         let native_malloc = thread.wasm_bus_malloc_ref();
         let native_start = thread.wasm_bus_start_ref();
         if native_memory.is_none() || native_malloc.is_none() || native_start.is_none() {
             let _ = work.tx.send(Err(CallError::IncorrectAbi));
-        }
-
-        else
-        {
+        } else {
             // Determine the parent handle
-            let parent = work.parent
-                .map(|a| a.into())
-                .unwrap_or(u32::MAX);
+            let parent = work.parent.map(|a| a.into()).unwrap_or(u32::MAX);
 
             // Record the handler so that when the call completes it notifies the
             // one who put this work on the queue
@@ -202,7 +196,16 @@ unsafe fn wasm_bus_poll(thread: &WasmBusThread) {
                 .uint8view_with_byte_offset_and_length(request_ptr.offset(), request_len)
                 .copy_from(&request[..]);
 
-            native_start.call(parent, handle, topic_ptr, topic_len, request_ptr, request_len).unwrap();
+            native_start
+                .call(
+                    parent,
+                    handle,
+                    topic_ptr,
+                    topic_len,
+                    request_ptr,
+                    request_len,
+                )
+                .unwrap();
         }
     }
 }

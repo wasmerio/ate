@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use crate::wasmer::Array;
 use crate::wasmer::ImportObject;
 use crate::wasmer::LazyInit;
@@ -8,22 +7,23 @@ use crate::wasmer::NativeFunc;
 use crate::wasmer::WasmPtr;
 use crate::wasmer::WasmerEnv;
 use crate::wasmer_wasi::WasiThread;
+use async_trait::async_trait;
+use serde::*;
+use std::any::type_name;
 use std::cell::RefCell;
 use std::cell::RefMut;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::future::Future;
+use std::marker::PhantomData;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::RwLock;
-use tokio::sync::watch;
 use tokio::sync::mpsc;
-use wasm_bus::abi::*;
-use serde::*;
-use std::any::type_name;
+use tokio::sync::watch;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use std::marker::PhantomData;
+use wasm_bus::abi::*;
 
 use super::*;
 
@@ -45,17 +45,17 @@ impl WasmBusThreadPool {
         })
     }
 
-    pub fn first(&self) -> Option<WasmBusThread>
-    {
+    pub fn first(&self) -> Option<WasmBusThread> {
         let threads = self.threads.read().unwrap();
-        threads.keys().min()
+        threads
+            .keys()
+            .min()
             .map(|id| threads.get(id))
             .flatten()
             .map(|a| a.clone())
     }
 
-    pub fn get_or_create(self: &Arc<WasmBusThreadPool>, thread: &WasiThread) -> WasmBusThread
-    {
+    pub fn get_or_create(self: &Arc<WasmBusThreadPool>, thread: &WasiThread) -> WasmBusThread {
         // fast path
         let thread_id = thread.thread_id();
         {
@@ -111,9 +111,11 @@ pub struct WasmBusThreadHandle {
     pub work_register: Arc<RwLock<HashSet<CallHandle>>>,
 }
 
-impl WasmBusThreadHandle
-{
-    pub fn new(handle: CallHandle, work_register: &Arc<RwLock<HashSet<CallHandle>>>) -> WasmBusThreadHandle {
+impl WasmBusThreadHandle {
+    pub fn new(
+        handle: CallHandle,
+        work_register: &Arc<RwLock<HashSet<CallHandle>>>,
+    ) -> WasmBusThreadHandle {
         WasmBusThreadHandle {
             handle,
             work_register: Arc::clone(work_register),
@@ -125,9 +127,7 @@ impl WasmBusThreadHandle
     }
 }
 
-impl Drop
-for WasmBusThreadHandle
-{
+impl Drop for WasmBusThreadHandle {
     fn drop(&mut self) {
         let mut work_register = self.work_register.write().unwrap();
         work_register.remove(&self.handle);
@@ -205,8 +205,7 @@ impl WasmBusThread {
             .expect("Memory should be set on `WasiThread` first")
     }
 
-    fn generate_handle(&self) -> WasmBusThreadHandle
-    {
+    fn generate_handle(&self) -> WasmBusThreadHandle {
         let mut work_register = self.pool.work_register.write().unwrap();
         loop {
             let handle: CallHandle = fastrand::u32(..).into();
@@ -219,23 +218,33 @@ impl WasmBusThread {
     }
 
     /// Issues work on the BUS
-    fn call_internal(&self, parent: Option<CallHandle>, topic: String, data: Vec<u8>) -> (mpsc::Receiver<Result<Vec<u8>, CallError>>, WasmBusThreadHandle)
-    {
+    fn call_internal(
+        &self,
+        parent: Option<CallHandle>,
+        topic: String,
+        data: Vec<u8>,
+    ) -> (
+        mpsc::Receiver<Result<Vec<u8>, CallError>>,
+        WasmBusThreadHandle,
+    ) {
         // Create a call handle
         let handle = self.generate_handle();
 
         // fast path
-        if *self.polling.borrow() == false
-        {
+        if *self.polling.borrow() == false {
             // slow path
             let mut polling = self.polling.clone();
-            if let None = self.system.spawn_dedicated(move || async move {
-                while *polling.borrow() == false {
-                    if let Err(_) = polling.changed().await {
-                        return;
+            if let None = self
+                .system
+                .spawn_dedicated(move || async move {
+                    while *polling.borrow() == false {
+                        if let Err(_) = polling.changed().await {
+                            return;
+                        }
                     }
-                }
-            }).block_on() {
+                })
+                .block_on()
+            {
                 let (_, rx) = mpsc::channel(1);
                 return (rx, handle);
             }
@@ -248,7 +257,7 @@ impl WasmBusThread {
             parent,
             handle: handle.clone(),
             data,
-            tx
+            tx,
         });
 
         // Return the receiver
@@ -256,15 +265,20 @@ impl WasmBusThread {
     }
 
     /// Issues work on the BUS
-    pub fn call_raw(&self, parent: Option<CallHandle>, topic: String, data: Vec<u8>) -> AsyncWasmBusResultRaw
-    {
+    pub fn call_raw(
+        &self,
+        parent: Option<CallHandle>,
+        topic: String,
+        data: Vec<u8>,
+    ) -> AsyncWasmBusResultRaw {
         let (rx, handle) = self.call_internal(parent, topic, data);
         AsyncWasmBusResultRaw::new(rx, handle)
     }
 
     pub fn call<RES, REQ>(&self, request: REQ) -> Result<AsyncWasmBusResult<RES>, CallError>
-    where REQ: Serialize,
-          RES: de::DeserializeOwned
+    where
+        REQ: Serialize,
+        RES: de::DeserializeOwned,
     {
         // Serialize
         let topic = type_name::<REQ>();
@@ -272,9 +286,9 @@ impl WasmBusThread {
             Ok(a) => a,
             Err(_err) => {
                 return Err(CallError::SerializationFailed);
-            },
+            }
         };
-        
+
         let (rx, handle) = self.call_internal(None, topic.to_string(), data);
         Ok(AsyncWasmBusResult::new(self, rx, handle))
     }
@@ -286,11 +300,11 @@ pub struct AsyncWasmBusResultRaw {
 }
 
 impl AsyncWasmBusResultRaw {
-    pub fn new(rx: mpsc::Receiver<Result<Vec<u8>, CallError>>, handle: WasmBusThreadHandle) -> Self {
-        Self {
-            rx,
-            handle,
-        }
+    pub fn new(
+        rx: mpsc::Receiver<Result<Vec<u8>, CallError>>,
+        handle: WasmBusThreadHandle,
+    ) -> Self {
+        Self { rx, handle }
     }
 
     pub fn handle(&self) -> WasmBusThreadHandle {
@@ -307,38 +321,43 @@ impl AsyncWasmBusResultRaw {
 }
 
 #[async_trait]
-impl Invokable
-for AsyncWasmBusResultRaw
-{
+impl Invokable for AsyncWasmBusResultRaw {
     async fn process(&mut self) -> Result<Vec<u8>, CallError> {
-        self.rx.recv().await
-            .ok_or_else(|| CallError::Aborted)?
+        self.rx.recv().await.ok_or_else(|| CallError::Aborted)?
     }
 }
 
 pub struct AsyncWasmBusResult<T>
-where T: de::DeserializeOwned
+where
+    T: de::DeserializeOwned,
 {
     pub(crate) thread: WasmBusThread,
     pub(crate) handle: WasmBusThreadHandle,
     pub(crate) rx: mpsc::Receiver<Result<Vec<u8>, CallError>>,
-    _marker: PhantomData<T>
+    _marker: PhantomData<T>,
 }
 
 impl<T> AsyncWasmBusResult<T>
-where T: de::DeserializeOwned
+where
+    T: de::DeserializeOwned,
 {
-    pub fn new(thread: &WasmBusThread, rx: mpsc::Receiver<Result<Vec<u8>, CallError>>, handle: WasmBusThreadHandle) -> Self {
+    pub fn new(
+        thread: &WasmBusThread,
+        rx: mpsc::Receiver<Result<Vec<u8>, CallError>>,
+        handle: WasmBusThreadHandle,
+    ) -> Self {
         Self {
             thread: thread.clone(),
             handle,
             rx,
-            _marker: PhantomData
+            _marker: PhantomData,
         }
     }
 
     pub fn block_on(mut self) -> Result<T, CallError> {
-        let data = self.rx.blocking_recv()
+        let data = self
+            .rx
+            .blocking_recv()
             .ok_or_else(|| CallError::Aborted)??;
         match bincode::deserialize::<T>(&data[..]) {
             Ok(a) => Ok(a),
@@ -347,8 +366,7 @@ where T: de::DeserializeOwned
     }
 
     pub async fn join(mut self) -> Result<T, CallError> {
-        let data = self.rx.recv().await
-            .ok_or_else(|| CallError::Aborted)??;
+        let data = self.rx.recv().await.ok_or_else(|| CallError::Aborted)??;
         match bincode::deserialize::<T>(&data[..]) {
             Ok(a) => Ok(a),
             Err(_err) => Err(CallError::SerializationFailed),
@@ -356,8 +374,9 @@ where T: de::DeserializeOwned
     }
 
     pub fn call<RES, REQ>(&self, request: REQ) -> Result<AsyncWasmBusResult<RES>, CallError>
-    where REQ: Serialize,
-          RES: de::DeserializeOwned
+    where
+        REQ: Serialize,
+        RES: de::DeserializeOwned,
     {
         // Serialize
         let topic = type_name::<REQ>();
@@ -365,10 +384,12 @@ where T: de::DeserializeOwned
             Ok(a) => a,
             Err(_err) => {
                 return Err(CallError::SerializationFailed);
-            },
+            }
         };
-        
-        let (rx, handle) = self.thread.call_internal(Some(self.handle.handle()), topic.to_string(), data);
+
+        let (rx, handle) =
+            self.thread
+                .call_internal(Some(self.handle.handle()), topic.to_string(), data);
         Ok(AsyncWasmBusResult::new(&self.thread, rx, handle))
     }
 }

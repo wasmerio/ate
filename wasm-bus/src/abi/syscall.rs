@@ -41,7 +41,7 @@ mod raw {
     ) {
         let parent = match parent {
             u32::MAX => None,
-            a => Some(a.into())
+            a => Some(a.into()),
         };
 
         let topic = unsafe {

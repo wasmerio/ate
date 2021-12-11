@@ -51,7 +51,12 @@ impl BusEngine {
 
     // This function will block
     #[cfg(feature = "rt")]
-    pub fn start(topic: String, _parent: Option<CallHandle>, handle: CallHandle, request: Vec<u8>) -> Result<(), CallError> {
+    pub fn start(
+        topic: String,
+        _parent: Option<CallHandle>,
+        handle: CallHandle,
+        request: Vec<u8>,
+    ) -> Result<(), CallError> {
         let listen = {
             let state = BusEngine::read();
             if let Some(listen) = state.listening.get(&topic) {

@@ -53,7 +53,9 @@ pub fn bidirectional(
     (fd, tx_read, rx_write)
 }
 
-pub fn bidirectional_with_defaults(is_tty: bool) -> (Fd, mpsc::Sender<Vec<u8>>, mpsc::Receiver<Vec<u8>>) {
+pub fn bidirectional_with_defaults(
+    is_tty: bool,
+) -> (Fd, mpsc::Sender<Vec<u8>>, mpsc::Receiver<Vec<u8>>) {
     bidirectional(MAX_MPSC, MAX_MPSC, ReceiverMode::Stream, is_tty)
 }
 

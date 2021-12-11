@@ -94,11 +94,17 @@ pub struct SubProcess {
     pub process_result: Arc<Mutex<AsyncResult<i32>>>,
     pub inner: Arc<SubProcessInner>,
     pub threads: Arc<WasmBusThreadPool>,
-    pub main: WasmBusThread
+    pub main: WasmBusThread,
 }
 
 impl SubProcess {
-    pub fn new(wapm: &str, process: Process, process_result: AsyncResult<i32>, threads: Arc<WasmBusThreadPool>, main: WasmBusThread) -> SubProcess {
+    pub fn new(
+        wapm: &str,
+        process: Process,
+        process_result: AsyncResult<i32>,
+        threads: Arc<WasmBusThreadPool>,
+        main: WasmBusThread,
+    ) -> SubProcess {
         SubProcess {
             system: System::default(),
             process,
@@ -107,7 +113,7 @@ impl SubProcess {
                 wapm: wapm.to_string(),
             }),
             threads,
-            main
+            main,
         }
     }
 
@@ -116,18 +122,17 @@ impl SubProcess {
         topic: &str,
         request: Vec<u8>,
         _client_callbacks: HashMap<String, WasmBusCallback>,
-    ) -> Result<(Box<dyn Invokable>, Option<Box<dyn Session>>), CallError>
-    {
+    ) -> Result<(Box<dyn Invokable>, Option<Box<dyn Session>>), CallError> {
         let threads = match self.threads.first() {
             Some(a) => a,
             None => {
-                return Err(CallError::Unsupported);        
+                return Err(CallError::Unsupported);
             }
         };
 
         let topic = topic.to_string();
         let invoker = threads.call_raw(None, topic, request);
-        let session =  SubProcessSession::new(threads.clone(), invoker.handle());
+        let session = SubProcessSession::new(threads.clone(), invoker.handle());
         Ok((Box::new(invoker), Some(Box::new(session))))
     }
 }
@@ -139,19 +144,16 @@ pub struct SubProcessSession {
 
 impl SubProcessSession {
     pub fn new(thread: WasmBusThread, handle: WasmBusThreadHandle) -> SubProcessSession {
-        SubProcessSession {
-            thread,
-            handle,
-        }
+        SubProcessSession { thread, handle }
     }
 }
 
-impl Session
-for SubProcessSession
-{
+impl Session for SubProcessSession {
     fn call(&mut self, topic: &str, request: Vec<u8>) -> Box<dyn Invokable + 'static> {
         let topic = topic.to_string();
-        let invoker = self.thread.call_raw(Some(self.handle.handle()), topic, request);
+        let invoker = self
+            .thread
+            .call_raw(Some(self.handle.handle()), topic, request);
         Box::new(invoker)
     }
 }
