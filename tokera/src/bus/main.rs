@@ -19,7 +19,7 @@ pub async fn main_opts_bus(
     info!("wasm bus initializing");
 
     // Load the session
-    let session_user = match main_session_user(None, Some(token_path.clone()), Some(auth_url.clone())).await {
+    let session_user = match main_session_user(None, Some(token_path.clone()), None).await {
         Ok(a) => a,
         Err(err) => {
             warn!("failed to acquire token - {}", err);
