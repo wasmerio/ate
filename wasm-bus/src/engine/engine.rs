@@ -143,6 +143,10 @@ impl BusEngine {
 
     pub fn remove(handle: &CallHandle) {
         if let Some(mut state) = BusEngine::try_write() {
+            #[cfg(feature = "rt")]
+            for respond_to in state.respond_to.values_mut() {
+                respond_to.remove(handle);
+            }
             state.handles.remove(handle);
             if let Some(delayed_remove) = state.calls.remove(handle) {
                 drop(state);

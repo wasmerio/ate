@@ -51,6 +51,14 @@ impl RespondToService {
         callbacks.insert(parent, callback);
     }
 
+    pub fn remove(
+        &self,
+        handle: &CallHandle
+    ) {
+        let mut callbacks = self.callbacks.lock().unwrap();
+        callbacks.remove(handle);
+    }
+
     pub fn process(&self, parent: CallHandle, handle: CallHandle, request: Vec<u8>) {
         let callback = {
             let callbacks = self.callbacks.lock().unwrap();
@@ -72,6 +80,7 @@ impl RespondToService {
                     crate::abi::syscall::fault(handle, err as u32);
                 }
             }
+            crate::engine::BusEngine::remove(&handle);
         });
     }
 }

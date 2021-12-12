@@ -51,6 +51,7 @@ impl ListenService {
                     crate::abi::syscall::fault(handle, err as u32);
                 }
             }
+            crate::engine::BusEngine::remove(&handle);
         });
     }
 }
