@@ -1,4 +1,3 @@
-use crate::error::*;
 use crate::opt::OptsBus;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
@@ -16,8 +15,17 @@ pub async fn main_opts_bus(
     conf: AteConfig,
     token_path: String,
     auth_url: url::Url,
-) -> Result<(), BusError> {
+) -> Result<(), crate::error::BusError> {
     info!("wasm bus initializing");
+
+    // Load the session
+    let session_user = match main_session_user(None, Some(token_path.clone()), Some(auth_url.clone())).await {
+        Ok(a) => a,
+        Err(err) => {
+            warn!("failed to acquire token - {}", err);
+            return Err(crate::error::BusErrorKind::LoginFailed.into());
+        }
+    };
 
     // Build the configuration used to access the chains
     let mut conf = conf.clone();
@@ -43,21 +51,12 @@ pub async fn main_opts_bus(
             group = Some(group_str.to_string());
         }
 
+        let session_user = session_user.clone();
         let remote = opts.remote.clone();
         let registry = registry.clone();
-        let token_path = token_path.clone();
         let auth_url = auth_url.clone();
         async move
         {
-            // Load the session
-            let session_user = match main_session_user(None, Some(token_path.clone()), Some(auth_url)).await {
-                Ok(a) => a,
-                Err(err) => {
-                    warn!("failed to acquire token - {}", err);
-                    return;
-                }
-            };
-            
             // Attempt to grab additional permissions for the group (if it has any)
             let session: AteSessionType = if group.is_some() {
                 match main_gather(
@@ -79,7 +78,7 @@ pub async fn main_opts_bus(
             };
 
             // Load the chain
-            let key = ChainKey::from(mount.name);
+            let key = ChainKey::from(mount.name.clone());
             let chain = match registry.open(&remote, &key).await {
                 Ok(a) => a,
                 Err(err) => {
@@ -109,7 +108,7 @@ pub async fn main_opts_bus(
                         let accessor = accessor.clone();
                         async move {
                             let context = RequestContext::default();
-                            if let Ok(Some(file)) = accessor.search(&context, meta.path.as_str()).await {
+                            if let Ok(Some(_file)) = accessor.search(&context, meta.path.as_str()).await {
                                 info!("we made it! - META (path={}) - found", meta.path);
                             } else {
                                 info!("we made it! - META (path={}) - missing", meta.path);

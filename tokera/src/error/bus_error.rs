@@ -7,4 +7,10 @@ error_chain! {
     foreign_links {
         IO(tokio::io::Error);
     }
+    errors {
+        LoginFailed {
+            description("failed to login with the supplied token"),
+            display("failed to login with the supplied token"),
+        }
+    }
 }
