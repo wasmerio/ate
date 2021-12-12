@@ -4,6 +4,7 @@ use crate::opt::OptsBus;
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::backend::fuse::*;
 use wasm_bus::prelude::*;
+use tokio::sync::mpsc;
 
 pub async fn main_opts_bus(
     _opts: OptsBus,
@@ -22,6 +23,18 @@ pub async fn main_opts_bus(
                 info!("we made it! - META");
             },
         );
+
+        let (tx_unmount, mut rx_unmount) = mpsc::channel::<()>(1); 
+        respond_to(
+            handle,
+            move |_handle, _meta: Unmount| {
+                let tx = tx_unmount.clone();
+                async move {
+                    let _ = tx.send(()).await;
+                }
+            },
+        );
+        let _ = rx_unmount.recv().await;
     });
 
     // Enter a polling loop
