@@ -2,6 +2,8 @@ use serde::*;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
+use tokio::sync::mpsc;
+use tokio::sync::watch;
 
 use super::*;
 use crate::wasmer::Array;
@@ -15,6 +17,8 @@ pub struct WasmBusCallback {
     native_finish: NativeFunc<(u32, WasmPtr<u8, Array>, u32), ()>,
     native_malloc: NativeFunc<u32, WasmPtr<u8, Array>>,
     native_error: NativeFunc<(u32, u32), ()>,
+    thread_polling: watch::Receiver<bool>,
+    thread_work_tx: mpsc::Sender<WasmBusThreadWork>,
     handle: u32,
 }
 
@@ -35,8 +39,18 @@ impl WasmBusCallback {
             native_finish: native_data.unwrap().clone(),
             native_malloc: native_malloc.unwrap().clone(),
             native_error: native_error.unwrap().clone(),
+            thread_polling: thread.polling.clone(),
+            thread_work_tx: thread.work_tx.clone(),
             handle,
         })
+    }
+
+    pub fn waker(&self) -> WasmBusCallbackWaker
+    {
+        WasmBusCallbackWaker {
+            polling: self.thread_polling.clone(),
+            work_tx: self.thread_work_tx.clone()
+        }
     }
 
     pub fn feed<T>(&self, data: T)
@@ -77,5 +91,20 @@ impl WasmBusCallback {
             err
         );
         self.native_error.call(self.handle, err.into()).unwrap();
+    }
+}
+
+#[derive(Clone)]
+pub struct WasmBusCallbackWaker {
+    polling: watch::Receiver<bool>,
+    work_tx: mpsc::Sender<WasmBusThreadWork>,
+}
+
+impl WasmBusCallbackWaker {
+    pub fn wake(&self)
+    {
+        if *self.polling.borrow() == true {
+            let _ = self.work_tx.blocking_send(WasmBusThreadWork::Wake);
+        }
     }
 }

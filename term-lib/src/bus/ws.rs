@@ -25,7 +25,9 @@ pub fn web_socket(
         return Err(CallError::MissingCallbacks);
     }
     let on_state_change = on_state_change.unwrap();
+    let on_state_change_waker = on_state_change.waker();
     let on_received = on_received.unwrap();
+    let on_received_waker = on_received.waker();
 
     // Construct the channels
     let (tx_keepalive, mut rx_keepalive) = mpsc::channel(1);
@@ -52,15 +54,19 @@ pub fn web_socket(
 
         {
             let tx_state_inner = tx_state_inner.clone();
+            let on_state_change_waker = on_state_change_waker.clone();
             ws_sys.set_onopen(Box::new(move || {
                 let _ = tx_state_inner.blocking_send(SocketState::Opened);
+                on_state_change_waker.wake();
             }));
         }
 
         {
             let tx_state_inner = tx_state_inner.clone();
+            let on_state_change_waker = on_state_change_waker.clone();
             ws_sys.set_onclose(Box::new(move || {
                 let _ = tx_state_inner.blocking_send(SocketState::Closed);
+                on_state_change_waker.wake();
             }));
         }
 
@@ -71,6 +77,7 @@ pub fn web_socket(
                 if let Err(err) = tx_recv.blocking_send(data) {
                     trace!("websocket bytes silently dropped - {}", err);
                 }
+                on_received_waker.wake();
             }));
         }
 

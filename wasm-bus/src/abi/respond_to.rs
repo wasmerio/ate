@@ -65,6 +65,11 @@ impl RespondToService {
             if let Some(callback) = callbacks.get(&parent) {
                 Arc::clone(callback)
             } else {
+                spawn(async move {
+                    let err: u32 = CallError::InvalidHandle.into();
+                    crate::abi::syscall::fault(handle, err as u32);
+                    crate::engine::BusEngine::remove(&handle);
+                });
                 return;
             }
         };

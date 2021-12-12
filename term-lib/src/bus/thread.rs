@@ -240,24 +240,10 @@ impl WasmBusThread {
         // Create a call handle
         let handle = self.generate_handle();
 
-        // fast path
-        if *self.polling.borrow() == false {
-            // slow path
-            let mut polling = self.polling.clone();
-            if let None = self
-                .system
-                .spawn_dedicated(move || async move {
-                    while *polling.borrow() == false {
-                        if let Err(_) = polling.changed().await {
-                            return;
-                        }
-                    }
-                })
-                .block_on()
-            {
-                let (_, rx) = mpsc::channel(1);
-                return (rx, handle);
-            }
+        // Wait for the polling to finish
+        if self.wait_for_poll() == false {
+            let (_, rx) = mpsc::channel(1);
+            return (rx, handle);
         }
 
         // Send the work to the thread
