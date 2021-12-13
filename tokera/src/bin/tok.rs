@@ -4,6 +4,7 @@ use clap::Parser;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+#[cfg(feature = "bus")]
 use tokera::bus::*;
 use tokera::cmd::*;
 use tokera::error::*;
@@ -194,7 +195,8 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
 
     // We upgrade the verbosity for certain commands by default
     opts.verbose = opts.verbose.max(match &opts.subcmd {
-        SubCommand::Bus(..) => 2,
+        #[cfg(feature = "bus")]
+        SubCommand::Bus(..) => 4,
         _ => 0,
     });
 

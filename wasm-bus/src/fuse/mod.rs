@@ -43,7 +43,7 @@ impl FileSystem {
             .map_err(|_| backend::FsError::IOError)?
     }
 
-    async fn create_dir(&self, path: &Path) -> FsResult<()> {
+    async fn create_dir(&self, path: &Path) -> FsResult<backend::Metadata> {
         debug!("create_dir: path={}", path.display());
 
         self.task
@@ -228,6 +228,16 @@ pub struct VirtualFile {
     fs: FileSystem,
     task: Call,
     meta: backend::Metadata,
+}
+
+impl Drop for VirtualFile {
+    fn drop(&mut self) {
+        let _ = self.task
+            .call(backend::Close { })
+            .invoke()
+            .join::<FsResult<()>>()
+            .spawn();
+    }
 }
 
 impl Seek for VirtualFile {

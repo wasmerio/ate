@@ -58,7 +58,7 @@ impl WasmBusThreadPool {
     pub fn wake_all(&self) {
         let threads = self.threads.read().unwrap();
         for thread in threads.values() {
-            let _ = thread.work_tx.blocking_send(WasmBusThreadWork::Wake);
+            let _ = thread.waker.wake();
         }
     }
 
@@ -91,6 +91,7 @@ impl WasmBusThreadPool {
         };
 
         let ret = WasmBusThread {
+            waker: Arc::new(ThreadWaker::new(work_tx.clone(), polling_rx.clone())),
             thread_id: thread.thread_id(),
             system: System::default(),
             pool: Arc::clone(self),
@@ -183,6 +184,7 @@ unsafe impl Sync for WasmBusThreadProtected {}
 pub struct WasmBusThread {
     pub(crate) system: System,
     pub thread_id: u32,
+    pub(crate) waker: Arc<ThreadWaker>,
     pub pool: Arc<WasmBusThreadPool>,
     pub polling: watch::Receiver<bool>,
     pub(crate) inner: Arc<WasmBusThreadProtected>,

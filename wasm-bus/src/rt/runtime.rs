@@ -78,6 +78,7 @@ impl Runtime {
         let waker: Waker = self.waker.clone().into_waker();
         let mut cx = Context::from_waker(&waker);
 
+        let mut last_waker = self.waker.get();
         let mut carry_over = Vec::new();
         loop {
             if let Ok(mut lock) = self.tasks.try_lock() {
@@ -96,7 +97,15 @@ impl Runtime {
                     }
                 }
             }
+
             std::thread::yield_now();
+
+            let cur_waker = self.waker.get();
+            if cur_waker != last_waker {
+                last_waker = cur_waker;
+                continue;
+            }
+            
             crate::abi::syscall::poll();
         }
     }
@@ -113,5 +122,6 @@ impl Runtime {
         tasks.push(Box::pin(async move {
             task.await;
         }));
+        self.wake();
     }
 }

@@ -173,6 +173,7 @@ impl Call {
 }
 
 #[derive(Debug, Clone)]
+#[must_use = "this `Call` only does something when you consume it"]
 pub struct CallJoin<T>
 where
     T: de::DeserializeOwned,
@@ -197,6 +198,14 @@ where
     #[cfg(feature = "rt")]
     pub fn wait(self) -> Result<T, CallError> {
         crate::task::block_on(self)
+    }
+
+    /// Spawns the work on a background thread
+    #[cfg(feature = "rt")]
+    pub fn spawn(self)
+    where T: Send + 'static
+    {
+        crate::task::spawn(self);
     }
 
     /// Tries to get the result of the call to the server but will not

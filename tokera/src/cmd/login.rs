@@ -23,14 +23,19 @@ pub async fn main_opts_login(
     // Convert the token path to a real path
     let token_path = shellexpand::tilde(&token_path).to_string();
 
-    // Get the token session
-    let session = main_login(action.email, action.password, auth.clone()).await?;
-    let session: AteSessionType = if action.sudo {
-        main_sudo(session, None, auth).await?.into()
+    // If a token was supplied then just use it, otherwise we need to get one
+    let token = if let Some(token) = action.token {
+        token
     } else {
-        session.into()
-    };
-    let token = session_to_b64(session).unwrap();
+        // Get the token session
+        let session = main_login(action.email, action.password, auth.clone()).await?;
+        let session: AteSessionType = if action.sudo {
+            main_sudo(session, None, auth).await?.into()
+        } else {
+            session.into()
+        };
+        session_to_b64(session).unwrap()
+    };    
 
     // Remove any old paths
     if let Ok(old) = std::fs::canonicalize(token_path.clone()) {

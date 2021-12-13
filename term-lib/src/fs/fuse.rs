@@ -58,51 +58,54 @@ impl FileSystem for FuseFileSystem {
 
         let dir = self
             .task
-            .call(backend::ReadDir {
+            .call::<Result<_, backend::FsError>, _>(backend::ReadDir {
                 path: path.to_string_lossy().to_string(),
             })
             .map_err(|_| FsError::IOError)?
             .block_on()
             .map_err(|_| FsError::IOError)?;
 
-        Ok(conv_dir(dir))
+        Ok(conv_dir(dir.map_err(conv_fs_error)?))
     }
 
     fn create_dir(&self, path: &Path) -> Result<(), FsError> {
         debug!("create_dir: path={}", path.display());
 
         self.task
-            .call(backend::CreateDir {
+            .call::<Result<backend::Metadata, backend::FsError>, _>(backend::CreateDir {
                 path: path.to_string_lossy().to_string(),
             })
             .map_err(|_| FsError::IOError)?
             .block_on()
-            .map_err(|_| FsError::IOError)
+            .map_err(|_| FsError::IOError)?
+            .map_err(conv_fs_error)?;
     }
 
     fn remove_dir(&self, path: &Path) -> Result<(), FsError> {
         debug!("remove_dir: path={}", path.display());
 
         self.task
-            .call(backend::RemoveDir {
+            .call::<Result<_, backend::FsError>, _>(backend::RemoveDir {
                 path: path.to_string_lossy().to_string(),
             })
             .map_err(|_| FsError::IOError)?
             .block_on()
-            .map_err(|_| FsError::IOError)
+            .map_err(|_| FsError::IOError)?
+            .map_err(conv_fs_error)
     }
 
     fn rename(&self, from: &Path, to: &Path) -> Result<(), FsError> {
         debug!("rename: from={}, to={}", from.display(), to.display());
 
         self.task
-            .call(backend::Rename {
+            .call::<Result<_, backend::FsError>, _>(backend::Rename {
                 from: from.to_string_lossy().to_string(),
                 to: to.to_string_lossy().to_string(),
             })
             .map_err(|_| FsError::IOError)?
             .block_on()
-            .map_err(|_| FsError::IOError)
+            .map_err(|_| FsError::IOError)?
+            .map_err(conv_fs_error)
     }
 
     fn metadata(&self, path: &Path) -> Result<Metadata, FsError> {
@@ -110,14 +113,14 @@ impl FileSystem for FuseFileSystem {
 
         let metadata = self
             .task
-            .call(backend::ReadMetadata {
+            .call::<Result<_, backend::FsError>, _>(backend::ReadMetadata {
                 path: path.to_string_lossy().to_string(),
             })
             .map_err(|_| FsError::IOError)?
             .block_on()
             .map_err(|_| FsError::IOError)?;
 
-        Ok(conv_metadata(metadata))
+        Ok(conv_metadata(metadata.map_err(conv_fs_error)?))
     }
 
     fn symlink_metadata(&self, path: &Path) -> Result<Metadata, FsError> {
@@ -125,26 +128,27 @@ impl FileSystem for FuseFileSystem {
 
         let metadata = self
             .task
-            .call(backend::ReadSymlinkMetadata {
+            .call::<Result<_, backend::FsError>, _>(backend::ReadSymlinkMetadata {
                 path: path.to_string_lossy().to_string(),
             })
             .map_err(|_| FsError::IOError)?
             .block_on()
             .map_err(|_| FsError::IOError)?;
-
-        Ok(conv_metadata(metadata))
+        
+        Ok(conv_metadata(metadata.map_err(conv_fs_error)?))
     }
 
     fn remove_file(&self, path: &Path) -> Result<(), FsError> {
         debug!("remove_file: path={}", path.display());
 
         self.task
-            .call(backend::RemoveFile {
+            .call::<Result<_, backend::FsError>, _>(backend::RemoveFile {
                 path: path.to_string_lossy().to_string(),
             })
             .map_err(|_| FsError::IOError)?
             .block_on()
-            .map_err(|_| FsError::IOError)
+            .map_err(|_| FsError::IOError)?
+            .map_err(conv_fs_error)
     }
 
     fn new_open_options(&self) -> OpenOptions {
@@ -171,10 +175,10 @@ impl FileOpener for FuseFileOpener {
     ) -> Result<Box<dyn VirtualFile>, FsError> {
         debug!("open: path={}", path.display());
 
-        let task: AsyncWasmBusResult<()> = self
+        let task = self
             .fs
             .task
-            .call(backend::NewOpen {
+            .call::<Result<(), backend::FsError>, _>(backend::NewOpen {
                 read: conf.read(),
                 write: conf.write(),
                 create_new: conf.create_new(),
@@ -185,12 +189,13 @@ impl FileOpener for FuseFileOpener {
             .map_err(|_| FsError::IOError)?;
 
         let meta = task
-            .call(backend::Open {
+            .call::<Result<_, backend::FsError>, _>(backend::Open {
                 path: path.to_string_lossy().to_string(),
             })
             .map_err(|_| FsError::IOError)?
             .block_on()
-            .map_err(|_| FsError::IOError)?;
+            .map_err(|_| FsError::IOError)?
+            .map_err(conv_fs_error)?;
 
         return Ok(Box::new(FuseVirtualFile {
             fs: self.fs.clone(),
@@ -205,8 +210,14 @@ impl FileOpener for FuseFileOpener {
 pub struct FuseVirtualFile {
     fs: FuseFileSystem,
     #[derivative(Debug = "ignore")]
-    task: AsyncWasmBusResult<()>,
+    task: AsyncWasmBusResult<Result<(), backend::FsError>>,
     meta: backend::Metadata,
+}
+
+impl Drop for FuseVirtualFile {
+    fn drop(&mut self) {
+        let _ = self.task.call::<Result<(), backend::FsError>, _>(backend::Close { });
+    }
 }
 
 impl Seek for FuseVirtualFile {
@@ -297,7 +308,7 @@ impl VirtualFile for FuseVirtualFile {
             .map_err(|_| FsError::IOError)?
             .block_on()
             .map_err(|_| FsError::IOError)?
-            .map_err(|err| conv_fs_error(err));
+            .map_err(conv_fs_error);
         result?;
 
         self.meta.len = new_size;
@@ -310,7 +321,7 @@ impl VirtualFile for FuseVirtualFile {
             .map_err(|_| FsError::IOError)?
             .block_on()
             .map_err(|_| FsError::IOError)?
-            .map_err(|err| conv_fs_error(err))
+            .map_err(conv_fs_error)
     }
 }
 

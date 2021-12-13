@@ -1,3 +1,4 @@
+use cooked_waker::*;
 use crate::wasmer::Array;
 use crate::wasmer::WasmPtr;
 use std::collections::HashMap;
@@ -8,6 +9,7 @@ use std::task::Poll;
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
 use wasm_bus::abi::CallHandle;
+use std::task::Waker;
 
 use super::thread::WasmBusThread;
 use super::*;
@@ -20,7 +22,7 @@ pub(crate) mod raw {
     pub fn wasm_bus_rand(thread: &WasmBusThread) -> u32 {
         unsafe { super::wasm_bus_rand(thread) }
     }
-    pub fn wasm_bus_tick(thread: &WasmBusThread) {
+    pub fn wasm_bus_tick(thread: &WasmBusThread) -> bool {
         unsafe { super::wasm_bus_tick(thread) }
     }
     pub fn wasm_bus_listen(thread: &WasmBusThread, topic_ptr: WasmPtr<u8, Array>, topic_len: u32) {
@@ -91,33 +93,48 @@ unsafe fn wasm_bus_rand(_thread: &WasmBusThread) -> u32 {
     fastrand::u32(..)
 }
 
-unsafe fn wasm_bus_tick(thread: &WasmBusThread) {
-    // Take the invocations out of the idle list and process them
-    // (we need to do this outside of the thread local lock as
-    //  otherwise the re-entrance will panic the system)
-    let invocations = {
-        let mut inner = thread.inner.unwrap();
-        inner.invocations.drain().collect::<Vec<_>>()
-    };
-
-    // Run all the invocations and build a carry over list
-    let waker = dummy_waker::dummy_waker();
+unsafe fn wasm_bus_tick(thread: &WasmBusThread) -> bool {
+    // We enter a loop that the waker will keep running
+    let waker: Waker = thread.waker.clone().into_waker();
     let mut cx = Context::from_waker(&waker);
-    let mut carry_over = Vec::new();
-    for (key, mut invocation) in invocations {
-        let pinned_invocation = invocation.as_mut();
-        if let Poll::Pending = pinned_invocation.poll(&mut cx) {
-            carry_over.push((key, invocation));
+    let start_waker = thread.waker.get();
+    let mut last_waker = thread.waker.get();
+    loop
+    {
+        // Take the invocations out of the idle list and process them
+        // (we need to do this outside of the thread local lock as
+        //  otherwise the re-entrance will panic the system)
+        let invocations = {
+            let mut inner = thread.inner.unwrap();
+            inner.invocations.drain().collect::<Vec<_>>()
+        };
+
+        // Run all the invocations and build a carry over list
+        let mut carry_over = Vec::new();
+        for (key, mut invocation) in invocations {
+            let pinned_invocation = invocation.as_mut();
+            if let Poll::Pending = pinned_invocation.poll(&mut cx) {
+                carry_over.push((key, invocation));
+            }
         }
+
+        // If there are any carry overs then re-add them
+        if carry_over.is_empty() == false {
+            let mut inner = thread.inner.unwrap();
+            for (key, invoke) in carry_over {
+                inner.invocations.insert(key, invoke);
+            }
+        }
+
+        // Update the waker and continue (or if not woken then we are done)
+        let cur_waker = thread.waker.get();
+        if last_waker == cur_waker {
+            break;
+        }
+        last_waker = cur_waker;
     }
 
-    // If there are any carry overs then re-add them
-    if carry_over.is_empty() == false {
-        let mut inner = thread.inner.unwrap();
-        for (key, invoke) in carry_over {
-            inner.invocations.insert(key, invoke);
-        }
-    }
+    return start_waker != last_waker;
 }
 
 // Incidates that a call that will be made should invoke a callback
@@ -153,12 +170,15 @@ unsafe fn wasm_bus_callback(
 unsafe fn wasm_bus_poll(thread: &WasmBusThread) {
     trace!("wasm-bus::poll");
 
-    if *thread.polling.borrow() == false {
-        let _ = thread.inner.unwrap().polling.send(true);
+    // If the poll is woken then return
+    if crate::bus::syscalls::raw::wasm_bus_tick(thread) == true {
+        return;
     }
 
     // Lets wait for some work!
+    let _ = thread.inner.unwrap().polling.send(true);
     let work = thread.inner.unwrap().work_rx.blocking_recv();
+    let _ = thread.inner.unwrap().polling.send(false);
     match work {
         Some(WasmBusThreadWork::Call {
             topic,
@@ -225,6 +245,7 @@ unsafe fn wasm_bus_poll(thread: &WasmBusThread) {
         }
         Some(WasmBusThreadWork::Wake) => {
             debug!("polling loop awoken");
+            crate::bus::syscalls::raw::wasm_bus_tick(thread);
         }
         None => {
             debug!("polling loop has exited");

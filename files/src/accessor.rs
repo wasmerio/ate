@@ -47,6 +47,7 @@ where
     pub impersonate_uid: bool,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct RequestContext {
     pub uid: u32,
     pub gid: u32,
@@ -567,6 +568,11 @@ impl FileAccessor {
             }
         }
 
+        if dao.dentry.uid == 0 {
+            trace!("access mode={:#02x} - ok", dao.dentry.mode);
+            return Ok(());
+        }
+
         if req.uid == 0 {
             trace!("access mode={:#02x} - ok", dao.dentry.mode);
             return Ok(());
@@ -743,6 +749,9 @@ impl FileAccessor {
                 return Ok(None);
             }
         };
+        if path == "/" {
+            return Ok(Some(ret));
+        }
         for comp in path.split("/") {
             if comp.len() <= 0 {
                 continue;

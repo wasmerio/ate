@@ -129,6 +129,10 @@ pub struct Open {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Close {
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NewOpen {
     pub read: bool,
     pub write: bool,
@@ -166,7 +170,7 @@ pub struct Read {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Flush {}
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct FileType {
     pub dir: bool,
     pub file: bool,
@@ -202,7 +206,7 @@ pub struct DirEntry {
     pub metadata: Option<Metadata>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Dir {
     pub data: Vec<DirEntry>,
 }

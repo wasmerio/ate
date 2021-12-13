@@ -2,11 +2,15 @@ use crate::opt::OptsBus;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::backend::fuse::*;
+use wasm_bus::backend::fuse as backend;
 use wasm_bus::prelude::*;
+use wasm_bus::fuse::FsResult;
+use wasm_bus::fuse::FsError;
 use tokio::sync::mpsc;
 use std::sync::Arc;
 use ate::prelude::*;
 use ate_files::prelude::*;
+use ate_files::codes::*;
 use ate_auth::prelude::*;
 use std::time::Duration;
 
@@ -77,6 +81,11 @@ pub async fn main_opts_bus(
                 session_user.into()
             };
 
+            // Build the request context
+            let mut context = RequestContext::default();
+            context.uid = session.uid().unwrap_or_default();
+            context.gid = session.gid().unwrap_or_default();
+
             // Load the chain
             let key = ChainKey::from(mount.name.clone());
             let chain = match registry.open(&remote, &key).await {
@@ -104,16 +113,255 @@ pub async fn main_opts_bus(
                 let accessor = accessor.clone();
                 respond_to(
                     handle,
+                    move |_handle, meta: ReadMetadata| {
+                        debug!("bus::read-metadata(path={})", meta.path);
+                        let accessor = accessor.clone();
+                        async move {
+                            if let Ok(Some(file)) = accessor.search(&context, meta.path.as_str()).await {
+                                FsResult::Ok(conv_meta(file))
+                            } else {
+                                FsResult::Err(FsError::EntityNotFound)
+                            }                            
+                        }
+                    },
+                );
+            }
+            {
+                let accessor = accessor.clone();
+                respond_to(
+                    handle,
                     move |_handle, meta: ReadSymlinkMetadata| {
+                        debug!("bus::read-symlink-metadata(path={})", meta.path);
+                        let accessor = accessor.clone();
+                        async move {
+                            if let Ok(Some(file)) = accessor.search(&context, meta.path.as_str()).await {
+                                FsResult::Ok(conv_meta(file))
+                            } else {
+                                FsResult::Err(FsError::EntityNotFound)
+                            }
+                            
+                        }
+                    },
+                );
+            }
+            {
+                let accessor = accessor.clone();
+                respond_to(
+                    handle,
+                    move |_handle, read_dir: ReadDir| {
+                        debug!("bus::read-dir(path={})", read_dir.path);
+                        let accessor = accessor.clone();
+                        async move {
+                            if let Ok(Some(file)) = accessor.search(&context, read_dir.path.as_str()).await {
+                                if let Ok(fh) = accessor.opendir(&context, file.ino, O_RDONLY as u32).await {
+                                    let mut ret = backend::Dir::default();
+                                    for entry in fh.children.iter() {
+                                        if entry.name == "." ||
+                                           entry.name == ".." {
+                                            continue;
+                                        }
+                                        trace!("bus::read-dir::found - {}", entry.name);
+                                        ret.data.push(backend::DirEntry {
+                                            path: entry.name.clone(),
+                                            metadata: Some(conv_meta(entry.attr.clone())),
+                                        });
+                                    }
+                                    let _ = accessor.releasedir(&context, file.ino, fh.fh, 0).await;
+                                    FsResult::Ok(ret)
+                                } else {
+                                    FsResult::Err(FsError::IOError)
+                                }
+                            } else {
+                                FsResult::Err(FsError::EntityNotFound)
+                            }
+                        }
+                    },
+                );
+            }
+            {
+                let accessor = accessor.clone();
+                respond_to(
+                    handle,
+                    move |_handle, create_dir: CreateDir| {
+                        debug!("bus::create-dir(path={})", create_dir.path);
                         let accessor = accessor.clone();
                         async move {
                             let context = RequestContext::default();
-                            if let Ok(Some(_file)) = accessor.search(&context, meta.path.as_str()).await {
-                                info!("we made it! - META (path={}) - found", meta.path);
+                            let path = std::path::Path::new(&create_dir.path);
+                            let name = path.file_name()
+                                .ok_or_else(|| FsError::InvalidInput)?;
+                            let parent = path.parent()
+                                .ok_or_else(|| FsError::InvalidInput)?;
+                            if let Ok(Some(parent)) = accessor.search(&context, parent.to_string_lossy().as_ref()).await {
+                                let attr = accessor.mkdir(&context, parent.ino, name.to_string_lossy().as_ref(), parent.mode).await
+                                    .map_err(|_| FsError::IOError)?;
+                                Ok(conv_meta(attr))
                             } else {
-                                info!("we made it! - META (path={}) - missing", meta.path);
+                                Err(FsError::EntityNotFound)
                             }
+                        }
+                    },
+                );
+            }
+            {
+                let accessor = accessor.clone();
+                respond_to(
+                    handle,
+                    move |_handle, remove_dir: RemoveDir| {
+                        debug!("bus::remove-dir(path={})", remove_dir.path);
+                        let accessor = accessor.clone();
+                        async move {
+                            let context = RequestContext::default();
+                            let path = std::path::Path::new(&remove_dir.path);
+                            let name = path.file_name()
+                                .ok_or_else(|| FsError::InvalidInput)?;
+                            let parent = path.parent()
+                                .ok_or_else(|| FsError::InvalidInput)?;
+                                if let Ok(Some(parent)) = accessor.search(&context, parent.to_string_lossy().as_ref()).await {
+                                    let _ = accessor.rmdir(&context, parent.ino, name.to_string_lossy().as_ref()).await;
+                                    Ok(())
+                                } else {
+                                    Err(FsError::EntityNotFound)
+                                }
                             
+                        }
+                    },
+                );
+            }
+            {
+                let accessor = accessor.clone();
+                respond_to(
+                    handle,
+                    move |_handle, rename: Rename| {
+                        debug!("bus::rename(from={}, to={})", rename.from, rename.to);
+                        let _accessor = accessor.clone();
+                        async move {
+                        }
+                    },
+                );
+            }
+            {
+                let accessor = accessor.clone();
+                respond_to(
+                    handle,
+                    move |_handle, remove_file: RemoveFile| {
+                        debug!("bus::remove_file(path={})", remove_file.path);
+                        let _accessor = accessor.clone();
+                        async move {                          
+                        }
+                    },
+                );
+            }
+            {
+                let accessor = accessor.clone();
+                respond_to(
+                    handle,
+                    move |handle, _new_open: NewOpen| {
+                        let accessor = accessor.clone();
+                        async move {
+                            {
+                                let accessor = accessor.clone();
+                                respond_to(
+                                    handle,
+                                    move |_handle, open: Open| {
+                                        debug!("bus::open(path={})", open.path);
+                                        let _accessor = accessor.clone();
+                                        async move {
+                                        }
+                                    },
+                                );
+                            }
+
+                            {
+                                let accessor = accessor.clone();
+                                respond_to(
+                                    handle,
+                                    move |_handle, _unlink: Unlink| {
+                                        debug!("bus::unlink");
+                                        let _accessor = accessor.clone();
+                                        async move {
+                                        }
+                                    },
+                                );
+                            }
+
+                            {
+                                let accessor = accessor.clone();
+                                respond_to(
+                                    handle,
+                                    move |_handle, set_length: SetLength| {
+                                        debug!("bus::set-length(len={})", set_length.len);
+                                        let _accessor = accessor.clone();
+                                        async move {
+                                        }
+                                    },
+                                );
+                            }
+
+                            {
+                                let accessor = accessor.clone();
+                                respond_to(
+                                    handle,
+                                    move |_handle, seek: Seek| {
+                                        debug!("bus::seek({:?})", seek);
+                                        let _accessor = accessor.clone();
+                                        async move {
+                                        }
+                                    },
+                                );
+                            }
+
+                            {
+                                let accessor = accessor.clone();
+                                respond_to(
+                                    handle,
+                                    move |_handle, write: Write| {
+                                        debug!("bus::write({} bytes)", write.data.len());
+                                        let _accessor = accessor.clone();
+                                        async move {
+                                        }
+                                    },
+                                );
+                            }
+
+                            {
+                                let accessor = accessor.clone();
+                                respond_to(
+                                    handle,
+                                    move |_handle, read: Read| {
+                                        debug!("bus::read({} bytes)", read.len);
+                                        let _accessor = accessor.clone();
+                                        async move {
+                                        }
+                                    },
+                                );
+                            }
+
+                            {
+                                let accessor = accessor.clone();
+                                respond_to(
+                                    handle,
+                                    move |_handle, _flush: Flush| {
+                                        debug!("bus::flush");
+                                        let _accessor = accessor.clone();
+                                        async move {
+                                        }
+                                    },
+                                );
+                            }
+
+                            // The file will shuclosetdown when an close command is received
+                            let (tx_close, mut rx_close) = mpsc::channel::<()>(1); 
+                            respond_to(
+                                handle,
+                                move |_handle, _close: Close| {
+                                    debug!("bus::close");
+                                    let _accessor = accessor.clone();
+                                    let tx_close = tx_close.clone();
+                                    async move { let _ = tx_close.send(()).await; }
+                                },
+                            );
+                            let _ = rx_close.recv().await;
                         }
                     },
                 );
@@ -128,9 +376,7 @@ pub async fn main_opts_bus(
                 handle,
                 move |_handle, _meta: Unmount| {
                     let tx = tx_unmount.clone();
-                    async move {
-                        let _ = tx.send(()).await;
-                    }
+                    async move { let _ = tx.send(()).await; }
                 },
             );
             let _ = rx_unmount.recv().await;
@@ -140,4 +386,27 @@ pub async fn main_opts_bus(
     // Enter a polling loop
     serve();
     Ok(())
+}
+
+fn conv_file_type(kind: ate_files::api::FileKind) -> backend::FileType
+{
+    let mut ret = backend::FileType::default();
+    match kind {
+        ate_files::api::FileKind::Directory => { ret.dir = true; }
+        ate_files::api::FileKind::RegularFile => { ret.file = true; }
+        ate_files::api::FileKind::FixedFile => { ret.file = true; }
+        ate_files::api::FileKind::SymLink => { ret.symlink = true; }
+    }
+    ret
+}
+
+fn conv_meta(file: ate_files::attr::FileAttr) -> backend::Metadata
+{
+    backend::Metadata {
+        ft: conv_file_type(file.kind),
+        accessed: file.accessed,
+        created: file.created,
+        modified: file.updated,
+        len: file.size
+    }
 }

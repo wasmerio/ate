@@ -14,4 +14,7 @@ pub struct OptsLogin {
     /// that has access to make changes to the wallet without MFA challenges
     #[clap(long)]
     pub sudo: bool,
+    /// Supplies an encoded token as a login context
+    #[clap(long)]
+    pub token: Option<String>,
 }

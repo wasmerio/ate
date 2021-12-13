@@ -11,7 +11,7 @@ repository = "https://github.com/john-sharratt/Tokera"
 readme = "README.md"
 
 [features]
-default = [ "client", "server" ]
+default = [ "client", "server", "bus" ]
 client_web = [ "ate/client_web" ]
 client = [ "enable_full", "ate/client" ]
 server = [ "enable_full", "ctrlc-async", "ate/server", "ate/enable_mt" ]
