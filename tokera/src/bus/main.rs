@@ -186,7 +186,6 @@ pub async fn main_opts_bus(
                         debug!("bus::create-dir(path={})", create_dir.path);
                         let accessor = accessor.clone();
                         async move {
-                            let context = RequestContext::default();
                             let path = std::path::Path::new(&create_dir.path);
                             let name = path.file_name()
                                 .ok_or_else(|| FsError::InvalidInput)?;
@@ -211,19 +210,17 @@ pub async fn main_opts_bus(
                         debug!("bus::remove-dir(path={})", remove_dir.path);
                         let accessor = accessor.clone();
                         async move {
-                            let context = RequestContext::default();
                             let path = std::path::Path::new(&remove_dir.path);
                             let name = path.file_name()
                                 .ok_or_else(|| FsError::InvalidInput)?;
                             let parent = path.parent()
                                 .ok_or_else(|| FsError::InvalidInput)?;
-                                if let Ok(Some(parent)) = accessor.search(&context, parent.to_string_lossy().as_ref()).await {
-                                    let _ = accessor.rmdir(&context, parent.ino, name.to_string_lossy().as_ref()).await;
-                                    Ok(())
-                                } else {
-                                    Err(FsError::EntityNotFound)
-                                }
-                            
+                            if let Ok(Some(parent)) = accessor.search(&context, parent.to_string_lossy().as_ref()).await {
+                                let _ = accessor.rmdir(&context, parent.ino, name.to_string_lossy().as_ref()).await;
+                                Ok(())
+                            } else {
+                                Err(FsError::EntityNotFound)
+                            }                            
                         }
                     },
                 );
@@ -234,8 +231,28 @@ pub async fn main_opts_bus(
                     handle,
                     move |_handle, rename: Rename| {
                         debug!("bus::rename(from={}, to={})", rename.from, rename.to);
-                        let _accessor = accessor.clone();
+                        let accessor = accessor.clone();
                         async move {
+                            let path = std::path::Path::new(&rename.from);
+                            let new_path = std::path::Path::new(&rename.to);
+                            let name = path.file_name()
+                                .ok_or_else(|| FsError::InvalidInput)?;
+                            let new_name = new_path.file_name()
+                                .ok_or_else(|| FsError::InvalidInput)?;
+                            let parent = path.parent()
+                                .ok_or_else(|| FsError::InvalidInput)?;
+                            let new_parent = new_path.parent()
+                                .ok_or_else(|| FsError::InvalidInput)?;
+                            if let Ok(Some(parent)) = accessor.search(&context, parent.to_string_lossy().as_ref()).await {
+                                if let Ok(Some(new_parent)) = accessor.search(&context, new_parent.to_string_lossy().as_ref()).await {
+                                    let _ = accessor.rename(&context, parent.ino, name.to_string_lossy().as_ref(), new_parent.ino, new_name.to_string_lossy().as_ref()).await;
+                                    Ok(())
+                                } else {
+                                    Err(FsError::EntityNotFound)
+                                }
+                            } else {
+                                Err(FsError::EntityNotFound)
+                            }
                         }
                     },
                 );
@@ -246,8 +263,19 @@ pub async fn main_opts_bus(
                     handle,
                     move |_handle, remove_file: RemoveFile| {
                         debug!("bus::remove_file(path={})", remove_file.path);
-                        let _accessor = accessor.clone();
-                        async move {                          
+                        let accessor = accessor.clone();
+                        async move {
+                            let path = std::path::Path::new(&remove_file.path);
+                            let name = path.file_name()
+                                .ok_or_else(|| FsError::InvalidInput)?;
+                            let parent = path.parent()
+                                .ok_or_else(|| FsError::InvalidInput)?;
+                            if let Ok(Some(parent)) = accessor.search(&context, parent.to_string_lossy().as_ref()).await {
+                                let _ = accessor.unlink(&context, parent.ino, name.to_string_lossy().as_ref()).await;
+                                Ok(())
+                            } else {
+                                Err(FsError::EntityNotFound)
+                            }                            
                         }
                     },
                 );
@@ -258,93 +286,97 @@ pub async fn main_opts_bus(
                     handle,
                     move |handle, _new_open: NewOpen| {
                         let accessor = accessor.clone();
-                        async move {
+                        async move
+                        {
                             {
                                 let accessor = accessor.clone();
                                 respond_to(
                                     handle,
-                                    move |_handle, open: Open| {
+                                    move |_, open: Open| {
                                         debug!("bus::open(path={})", open.path);
-                                        let _accessor = accessor.clone();
-                                        async move {
-                                        }
-                                    },
-                                );
-                            }
+                                        let accessor = accessor.clone();
 
-                            {
-                                let accessor = accessor.clone();
-                                respond_to(
-                                    handle,
-                                    move |_handle, _unlink: Unlink| {
-                                        debug!("bus::unlink");
-                                        let _accessor = accessor.clone();
-                                        async move {
-                                        }
-                                    },
-                                );
-                            }
-
-                            {
-                                let accessor = accessor.clone();
-                                respond_to(
-                                    handle,
-                                    move |_handle, set_length: SetLength| {
-                                        debug!("bus::set-length(len={})", set_length.len);
-                                        let _accessor = accessor.clone();
-                                        async move {
-                                        }
-                                    },
-                                );
-                            }
-
-                            {
-                                let accessor = accessor.clone();
-                                respond_to(
-                                    handle,
-                                    move |_handle, seek: Seek| {
-                                        debug!("bus::seek({:?})", seek);
-                                        let _accessor = accessor.clone();
-                                        async move {
-                                        }
-                                    },
-                                );
-                            }
-
-                            {
-                                let accessor = accessor.clone();
-                                respond_to(
-                                    handle,
-                                    move |_handle, write: Write| {
-                                        debug!("bus::write({} bytes)", write.data.len());
-                                        let _accessor = accessor.clone();
-                                        async move {
-                                        }
-                                    },
-                                );
-                            }
-
-                            {
-                                let accessor = accessor.clone();
-                                respond_to(
-                                    handle,
-                                    move |_handle, read: Read| {
-                                        debug!("bus::read({} bytes)", read.len);
-                                        let _accessor = accessor.clone();
-                                        async move {
-                                        }
-                                    },
-                                );
-                            }
-
-                            {
-                                let accessor = accessor.clone();
-                                respond_to(
-                                    handle,
-                                    move |_handle, _flush: Flush| {
-                                        debug!("bus::flush");
-                                        let _accessor = accessor.clone();
-                                        async move {
+                                        
+                                        
+                                        async move
+                                        {
+                                            {
+                                                let accessor = accessor.clone();
+                                                respond_to(
+                                                    handle,
+                                                    move |_handle, _unlink: Unlink| {
+                                                        debug!("bus::unlink");
+                                                        let _accessor = accessor.clone();
+                                                        async move {
+                                                        }
+                                                    },
+                                                );
+                                            }
+                
+                                            {
+                                                let accessor = accessor.clone();
+                                                respond_to(
+                                                    handle,
+                                                    move |_handle, set_length: SetLength| {
+                                                        debug!("bus::set-length(len={})", set_length.len);
+                                                        let _accessor = accessor.clone();
+                                                        async move {
+                                                        }
+                                                    },
+                                                );
+                                            }
+                
+                                            {
+                                                let accessor = accessor.clone();
+                                                respond_to(
+                                                    handle,
+                                                    move |_handle, seek: Seek| {
+                                                        debug!("bus::seek({:?})", seek);
+                                                        let _accessor = accessor.clone();
+                                                        async move {
+                                                        }
+                                                    },
+                                                );
+                                            }
+                
+                                            {
+                                                let accessor = accessor.clone();
+                                                respond_to(
+                                                    handle,
+                                                    move |_handle, write: Write| {
+                                                        debug!("bus::write({} bytes)", write.data.len());
+                                                        let _accessor = accessor.clone();
+                                                        async move {
+                                                        }
+                                                    },
+                                                );
+                                            }
+                
+                                            {
+                                                let accessor = accessor.clone();
+                                                respond_to(
+                                                    handle,
+                                                    move |_handle, read: Read| {
+                                                        debug!("bus::read({} bytes)", read.len);
+                                                        let _accessor = accessor.clone();
+                                                        async move {
+                                                        }
+                                                    },
+                                                );
+                                            }
+                
+                                            {
+                                                let accessor = accessor.clone();
+                                                respond_to(
+                                                    handle,
+                                                    move |_handle, _flush: Flush| {
+                                                        debug!("bus::flush");
+                                                        let _accessor = accessor.clone();
+                                                        async move {
+                                                        }
+                                                    },
+                                                );
+                                            }
                                         }
                                     },
                                 );
