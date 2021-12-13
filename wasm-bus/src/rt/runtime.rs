@@ -105,7 +105,7 @@ impl Runtime {
                 last_waker = cur_waker;
                 continue;
             }
-            
+
             crate::abi::syscall::poll();
         }
     }

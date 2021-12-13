@@ -203,7 +203,8 @@ where
     /// Spawns the work on a background thread
     #[cfg(feature = "rt")]
     pub fn spawn(self)
-    where T: Send + 'static
+    where
+        T: Send + 'static,
     {
         crate::task::spawn(self);
     }

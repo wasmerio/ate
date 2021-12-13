@@ -129,8 +129,7 @@ pub struct Open {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Close {
-}
+pub struct Close {}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NewOpen {

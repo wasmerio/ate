@@ -1,15 +1,15 @@
-use cooked_waker::*;
 use crate::wasmer::Array;
 use crate::wasmer::WasmPtr;
+use cooked_waker::*;
 use std::collections::HashMap;
 use std::future::Future;
 use std::task::Context;
 use std::task::Poll;
+use std::task::Waker;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
 use wasm_bus::abi::CallHandle;
-use std::task::Waker;
 
 use super::thread::WasmBusThread;
 use super::*;
@@ -99,8 +99,7 @@ unsafe fn wasm_bus_tick(thread: &WasmBusThread) -> bool {
     let mut cx = Context::from_waker(&waker);
     let start_waker = thread.waker.get();
     let mut last_waker = thread.waker.get();
-    loop
-    {
+    loop {
         // Take the invocations out of the idle list and process them
         // (we need to do this outside of the thread local lock as
         //  otherwise the re-entrance will panic the system)

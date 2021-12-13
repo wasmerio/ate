@@ -10,8 +10,8 @@ pub(crate) mod syscalls;
 mod thread;
 mod time;
 mod util;
-mod ws;
 mod waker;
+mod ws;
 
 pub(crate) use factory::*;
 pub(crate) use feeder::*;

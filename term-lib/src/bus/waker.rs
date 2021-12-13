@@ -1,9 +1,9 @@
-#[allow(unused_imports, dead_code)]
-use tracing::{debug, error, info, trace, warn};
 use cooked_waker::*;
 use std::sync::atomic::*;
 use tokio::sync::mpsc;
 use tokio::sync::watch;
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, trace, warn};
 
 use crate::bus::WasmBusThreadWork;
 
@@ -14,9 +14,11 @@ pub(crate) struct ThreadWaker {
     work_tx: mpsc::Sender<WasmBusThreadWork>,
 }
 
-impl ThreadWaker
-{
-    pub fn new(work_tx: mpsc::Sender<WasmBusThreadWork>, polling: watch::Receiver<bool>) -> ThreadWaker {
+impl ThreadWaker {
+    pub fn new(
+        work_tx: mpsc::Sender<WasmBusThreadWork>,
+        polling: watch::Receiver<bool>,
+    ) -> ThreadWaker {
         ThreadWaker {
             count: AtomicUsize::default(),
             polling,

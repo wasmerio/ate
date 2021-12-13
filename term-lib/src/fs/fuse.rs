@@ -134,7 +134,7 @@ impl FileSystem for FuseFileSystem {
             .map_err(|_| FsError::IOError)?
             .block_on()
             .map_err(|_| FsError::IOError)?;
-        
+
         Ok(conv_metadata(metadata.map_err(conv_fs_error)?))
     }
 
@@ -216,7 +216,9 @@ pub struct FuseVirtualFile {
 
 impl Drop for FuseVirtualFile {
     fn drop(&mut self) {
-        let _ = self.task.call::<Result<(), backend::FsError>, _>(backend::Close { });
+        let _ = self
+            .task
+            .call::<Result<(), backend::FsError>, _>(backend::Close {});
     }
 }
 

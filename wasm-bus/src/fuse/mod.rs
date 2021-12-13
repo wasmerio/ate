@@ -232,8 +232,9 @@ pub struct VirtualFile {
 
 impl Drop for VirtualFile {
     fn drop(&mut self) {
-        let _ = self.task
-            .call(backend::Close { })
+        let _ = self
+            .task
+            .call(backend::Close {})
             .invoke()
             .join::<FsResult<()>>()
             .spawn();

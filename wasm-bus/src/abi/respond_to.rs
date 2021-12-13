@@ -51,10 +51,7 @@ impl RespondToService {
         callbacks.insert(parent, callback);
     }
 
-    pub fn remove(
-        &self,
-        handle: &CallHandle
-    ) {
+    pub fn remove(&self, handle: &CallHandle) {
         let mut callbacks = self.callbacks.lock().unwrap();
         callbacks.remove(handle);
     }

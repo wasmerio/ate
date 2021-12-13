@@ -1,8 +1,8 @@
 use serde::*;
+use std::sync::Arc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
-use std::sync::Arc;
 
 use super::*;
 use crate::wasmer::Array;
@@ -42,8 +42,7 @@ impl WasmBusCallback {
         })
     }
 
-    pub(crate) fn waker(&self) -> Arc<ThreadWaker>
-    {
+    pub(crate) fn waker(&self) -> Arc<ThreadWaker> {
         self.waker.clone()
     }
 

@@ -35,7 +35,7 @@ pub async fn main_opts_login(
             session.into()
         };
         session_to_b64(session).unwrap()
-    };    
+    };
 
     // Remove any old paths
     if let Ok(old) = std::fs::canonicalize(token_path.clone()) {
