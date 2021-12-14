@@ -285,7 +285,7 @@ impl Read for VirtualFile {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let data: Result<Vec<u8>, io::Error> = self
             .task
-            .call(backend::Flush {})
+            .call(backend::Read { len: buf.len() as u64 })
             .invoke()
             .join::<FsResult<Vec<u8>>>()
             .wait()

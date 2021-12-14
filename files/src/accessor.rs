@@ -383,6 +383,13 @@ impl FileAccessor {
         Ok(())
     }
 
+    pub async fn sync_all(&self) -> Result<()> {
+        self.tick().await?;
+        self.commit().await?;
+        self.chain.sync().await?;
+        Ok(())
+    }
+
     pub async fn commit_internal(&self) -> Result<()> {
         trace!("commit");
         let open_handles = {

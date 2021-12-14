@@ -1,6 +1,6 @@
 [package]
 name = "wasm-bus"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 description = "Invocation bus for web assembly modules"

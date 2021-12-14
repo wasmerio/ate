@@ -71,7 +71,7 @@ impl FileSystem for FuseFileSystem {
     fn create_dir(&self, path: &Path) -> Result<(), FsError> {
         debug!("create_dir: path={}", path.display());
 
-        self.task
+        let _meta = self.task
             .call::<Result<backend::Metadata, backend::FsError>, _>(backend::CreateDir {
                 path: path.to_string_lossy().to_string(),
             })
@@ -79,6 +79,7 @@ impl FileSystem for FuseFileSystem {
             .block_on()
             .map_err(|_| FsError::IOError)?
             .map_err(conv_fs_error)?;
+        Ok(())
     }
 
     fn remove_dir(&self, path: &Path) -> Result<(), FsError> {
@@ -269,7 +270,7 @@ impl Read for FuseVirtualFile {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let data: io::Result<Vec<u8>> = self
             .task
-            .call::<Result<_, backend::FsError>, _>(backend::Flush {})
+            .call::<Result<_, backend::FsError>, _>(backend::Read { len: buf.len() as u64 })
             .map_err(|err| err.into_io_error())?
             .block_on()
             .map_err(|err| err.into_io_error())?

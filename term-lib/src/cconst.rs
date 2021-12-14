@@ -82,7 +82,7 @@ impl Tty {
 \x1B[33;1m   //  .    \         /^|_/ / .\ . \ ~\  / \    \x1B[1;34m   wwwww      wwwwwwwwww   wwwww  \x1B[0m  • Tokera commands:  tok\r
 \x1B[33;1m__//     ^ . \_______| /   / _  \   \  \_| |___ \x1B[1;34m   wwwwww  w      wwwwwww  wwwww  \x1B[0m  • Core utils:       coreutils\r
 \x1B[33;1m|    \x1B[1;31m _____     _                 \x1B[33;1m       | |   |\x1B[1;34m   wwwwwwwwwwwwww   wwwww  wwwww  \x1B[0m  • Pipe: echo blah | cowsay\r
-\x1B[33;1m|    \x1B[1;31m|_   _|__ | | _____ ___ __ _ \x1B[33;1m      /| |\  |\x1B[1;34m   wwwwwwwwwwwwww   wwwww  wwwww  \x1B[0m  • QuickJS:          qjs\r
+\x1B[33;1m|    \x1B[1;31m|_   _|__ | | _____ ___ __ _ \x1B[33;1m      /| |\  |\x1B[1;34m   wwwwwwwwwwwwww   wwwww  wwwww  \x1B[0m  • Mount: mount --help\r
 \x1B[33;1m|    \x1B[1;31m  | |/ _ \| |/ / _ \  _/ _  |\x1B[33;1m* ,  | |_| | |\x1B[1;34m   wwwwwwwwwwwwww   wwwww  wwwww  \x1B[0m  • Access a wallet:  wallet\r
 \x1B[33;1m|    \x1B[1;31m  | | (_) |   <  __/ || (_| |\x1B[33;1m     |/ " \| |\x1B[1;34m   wwwwwwwwwwwwww   wwwww   wwww  \x1B[0m  \r
 \x1B[33;1m| ~  \x1B[1;31m  |_|\___/|_|\_\___|_| \__/_|\x1B[33;1m       """   |\x1B[1;34m   wwwwwwwwwwwwwww  wwwww         \x1B[0m  MORE INFO:\r
