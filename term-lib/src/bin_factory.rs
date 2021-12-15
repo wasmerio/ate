@@ -2,6 +2,7 @@
 #![allow(unused)]
 use bytes::Bytes;
 use derivative::*;
+use serde::*;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -10,7 +11,6 @@ use tokio::sync::oneshot;
 use tokio::sync::RwLock;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use serde::*;
 
 use super::common::*;
 use super::err;
@@ -41,8 +41,7 @@ impl BinaryPackage {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AliasConfig
-{
+pub struct AliasConfig {
     pub alias: String,
     #[serde(default)]
     pub chroot: bool,
@@ -150,11 +149,7 @@ impl BinFactory {
 
         // Try and find it via a fetch
         let alias_path = format!("/bin/{}.alias", name);
-        if let Ok(data) = fetch_file(alias_path.as_str())
-            .join()
-            .await
-            .unwrap()
-        {
+        if let Ok(data) = fetch_file(alias_path.as_str()).join().await.unwrap() {
             // Decode the file into a yaml configuration
             match serde_yaml::from_slice::<AliasConfig>(&data[..]) {
                 Ok(alias) => {
@@ -164,7 +159,7 @@ impl BinFactory {
                         stderr.write_clear_line().await;
                     }
                     return Some(alias);
-                },
+                }
                 Err(err) => {
                     warn!("alias file corrupt: {}", alias_path);
                 }

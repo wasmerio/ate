@@ -84,8 +84,7 @@ pub async fn exec_process(
     show_result: &mut bool,
     mut stdio: Stdio,
     redirect: &Vec<Redirect>,
-) -> Result<(Process, AsyncResult<i32>, Arc<WasmBusThreadPool>), i32>
-{
+) -> Result<(Process, AsyncResult<i32>, Arc<WasmBusThreadPool>), i32> {
     // Make an error message function
     let mut early_stderr = stdio.stderr.clone();
     let on_early_exit = |msg: Option<String>, err: i32| async move {
@@ -101,9 +100,11 @@ pub async fn exec_process(
     let mut chroot = ctx.chroot;
     let (data_hash, data, fs_private) = match load_bin(ctx, cmd, &mut stdio).await {
         Some(a) => {
-            if a.chroot { chroot = true; }
+            if a.chroot {
+                chroot = true;
+            }
             (a.hash, a.data, a.fs)
-        },
+        }
         None => {
             return on_early_exit(None, err::ERR_ENOENT).await;
         }
@@ -126,7 +127,7 @@ pub async fn exec_process(
 
         (AsyncifyFileSystem::new(union.clone()), union)
     };
-    
+
     // Perform all the redirects
     for redirect in redirect.iter() {
         // Attempt to open the file
@@ -188,7 +189,10 @@ pub async fn exec_process(
             }
             Err(err) => {
                 return on_early_exit(
-                    Some(format!("failed to open the redirected file '{}' ({}): ", redirect.filename, err)),
+                    Some(format!(
+                        "failed to open the redirected file '{}' ({}): ",
+                        redirect.filename, err
+                    )),
                     match err {
                         FsError::EntityNotFound => ERR_ENOENT,
                         _ => ERR_EIO,
@@ -225,7 +229,11 @@ pub async fn exec_process(
     let reactor = ctx.reactor.clone();
     let cmd = cmd.clone();
     let args = args.clone();
-    let chroot = if chroot { Some(ctx.working_dir.clone()) } else { None };
+    let chroot = if chroot {
+        Some(ctx.working_dir.clone())
+    } else {
+        None
+    };
     let preopen = ctx.pre_open.clone();
     let process_result = {
         let forced_exit = Arc::clone(&forced_exit);
@@ -305,9 +313,7 @@ pub async fn exec_process(
                         .unwrap()
                         .map_dir(".", Path::new(chroot.as_str()));
                 } else {
-                    wasi_env
-                        .preopen_dir(Path::new("/"))
-                        .unwrap();    
+                    wasi_env.preopen_dir(Path::new("/")).unwrap();
                 }
 
                 // Add the tick callback that will invoke the WASM bus background

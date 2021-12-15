@@ -174,7 +174,7 @@ impl DioMutState {
 ///
 /// When setting the scope for the DIO it will behave differently when the commit function
 /// is invoked based on what scope you set for the transaction.
-pub struct  DioMut {
+pub struct DioMut {
     pub dio: Arc<Dio>,
     pub scope: TransactionScope,
     pub(crate) state: Mutex<DioMutState>,

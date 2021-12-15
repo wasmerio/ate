@@ -180,7 +180,10 @@ impl ProcessExecFactory {
                 stdout,
                 stderr,
                 chroot,
-                working_dir.as_ref().map(|a| a.clone()).unwrap_or("/".to_string()),
+                working_dir
+                    .as_ref()
+                    .map(|a| a.clone())
+                    .unwrap_or("/".to_string()),
                 pre_open,
                 job.root.clone(),
             );

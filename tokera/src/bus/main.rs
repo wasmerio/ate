@@ -293,19 +293,31 @@ pub async fn main_opts_bus(
                     async move {
                         // Determine all the flags
                         let mut flags = 0i32;
-                        if new_open.append { flags |= O_APPEND; }
-                        if new_open.create { flags |= O_CREAT; }
-                        if new_open.create_new { flags |= O_CREAT | O_TRUNC; }
-                        if new_open.read && new_open.write { flags |= O_RDWR; }
-                        else if new_open.read { flags |= O_RDONLY; }
-                        else if new_open.write { flags |= O_WRONLY; }
-                        if new_open.truncate { flags |= O_TRUNC; }
+                        if new_open.append {
+                            flags |= O_APPEND;
+                        }
+                        if new_open.create {
+                            flags |= O_CREAT;
+                        }
+                        if new_open.create_new {
+                            flags |= O_CREAT | O_TRUNC;
+                        }
+                        if new_open.read && new_open.write {
+                            flags |= O_RDWR;
+                        } else if new_open.read {
+                            flags |= O_RDONLY;
+                        } else if new_open.write {
+                            flags |= O_WRONLY;
+                        }
+                        if new_open.truncate {
+                            flags |= O_TRUNC;
+                        }
                         let append = new_open.append;
                         let create = new_open.create | new_open.create_new;
 
                         // Every file as an offset pointer
                         let offset = Arc::new(Mutex::new(0u64));
-                        
+
                         // We either receive the open or close command
                         let (tx_close, mut rx_close) = mpsc::channel::<()>(1);
                         {
@@ -314,29 +326,49 @@ pub async fn main_opts_bus(
                             respond_to(handle, move |_, open: Open| {
                                 debug!("bus::open(path={})", open.path);
                                 let offset = offset.clone();
-                                let accessor = accessor.clone();  
+                                let accessor = accessor.clone();
                                 let tx_close = tx_close.clone();
                                 async move {
-                                    let file = if let Ok(Some(file)) = accessor.search(&context, open.path.as_str()).await {
-                                        match accessor.open(&context, file.ino, flags as u32).await {
+                                    let file = if let Ok(Some(file)) =
+                                        accessor.search(&context, open.path.as_str()).await
+                                    {
+                                        match accessor.open(&context, file.ino, flags as u32).await
+                                        {
                                             Ok(a) => a,
                                             Err(err) => {
-                                                debug!("open failed (path={}) - {}", open.path, err);
+                                                debug!(
+                                                    "open failed (path={}) - {}",
+                                                    open.path, err
+                                                );
                                                 return FsResult::Err(FsError::IOError);
                                             }
                                         }
                                     } else if create == true {
                                         let path = std::path::Path::new(&open.path);
-                                        let name = path.file_name().ok_or_else(|| FsError::InvalidInput)?;
-                                        let parent = path.parent().ok_or_else(|| FsError::InvalidInput)?;
+                                        let name = path
+                                            .file_name()
+                                            .ok_or_else(|| FsError::InvalidInput)?;
+                                        let parent =
+                                            path.parent().ok_or_else(|| FsError::InvalidInput)?;
                                         if let Ok(Some(parent)) = accessor
                                             .search(&context, parent.to_string_lossy().as_ref())
                                             .await
                                         {
-                                            match accessor.create(&context, parent.ino, name.to_string_lossy().as_ref(), 0o666 as u32).await {
+                                            match accessor
+                                                .create(
+                                                    &context,
+                                                    parent.ino,
+                                                    name.to_string_lossy().as_ref(),
+                                                    0o666 as u32,
+                                                )
+                                                .await
+                                            {
                                                 Ok(a) => a,
                                                 Err(err) => {
-                                                    debug!("open failed (path={}) - {}", open.path, err);
+                                                    debug!(
+                                                        "open failed (path={}) - {}",
+                                                        open.path, err
+                                                    );
                                                     return FsResult::Err(FsError::IOError);
                                                 }
                                             }
@@ -360,14 +392,25 @@ pub async fn main_opts_bus(
                                             let accessor = accessor.clone();
                                             async move {
                                                 let path = std::path::Path::new(&path);
-                                                let name = path.file_name().ok_or_else(|| FsError::InvalidInput)?;
-                                                let parent = path.parent().ok_or_else(|| FsError::InvalidInput)?;
+                                                let name = path
+                                                    .file_name()
+                                                    .ok_or_else(|| FsError::InvalidInput)?;
+                                                let parent = path
+                                                    .parent()
+                                                    .ok_or_else(|| FsError::InvalidInput)?;
                                                 if let Ok(Some(parent)) = accessor
-                                                    .search(&context, parent.to_string_lossy().as_ref())
+                                                    .search(
+                                                        &context,
+                                                        parent.to_string_lossy().as_ref(),
+                                                    )
                                                     .await
                                                 {
                                                     let _ = accessor
-                                                        .unlink(&context, parent.ino, name.to_string_lossy().as_ref())
+                                                        .unlink(
+                                                            &context,
+                                                            parent.ino,
+                                                            name.to_string_lossy().as_ref(),
+                                                        )
                                                         .await;
                                                     Ok(())
                                                 } else {
@@ -385,7 +428,9 @@ pub async fn main_opts_bus(
                                                 debug!("bus::set-length(len={})", set_length.len);
                                                 let file = file.clone();
                                                 async move {
-                                                    if let Ok(_) = file.spec.fallocate(set_length.len).await {
+                                                    if let Ok(_) =
+                                                        file.spec.fallocate(set_length.len).await
+                                                    {
                                                         Ok(())
                                                     } else {
                                                         Err(FsError::IOError)
@@ -406,37 +451,49 @@ pub async fn main_opts_bus(
                                                 let mut offset = offset.lock().unwrap();
                                                 match seek {
                                                     Seek::Current(a) if a > 0 => {
-                                                        if let Some(a) = offset.checked_add(a.abs() as u64) {
+                                                        if let Some(a) =
+                                                            offset.checked_add(a.abs() as u64)
+                                                        {
                                                             *offset = a;
                                                         } else {
                                                             return Err(FsError::InvalidInput);
                                                         }
                                                     }
                                                     Seek::Current(a) if a < 0 => {
-                                                        if let Some(a) = offset.checked_sub(a.abs() as u64) {
+                                                        if let Some(a) =
+                                                            offset.checked_sub(a.abs() as u64)
+                                                        {
                                                             *offset = a;
                                                         } else {
                                                             return Err(FsError::InvalidInput);
                                                         }
                                                     }
-                                                    Seek::Current(_) => { }
+                                                    Seek::Current(_) => {}
                                                     Seek::End(a) if a > 0 => {
-                                                        if let Some(a) = file.spec.size().checked_add(a.abs() as u64) {
+                                                        if let Some(a) = file
+                                                            .spec
+                                                            .size()
+                                                            .checked_add(a.abs() as u64)
+                                                        {
                                                             *offset = a;
                                                         } else {
                                                             return Err(FsError::InvalidInput);
                                                         }
                                                     }
                                                     Seek::End(a) if a < 0 => {
-                                                        if let Some(a) = file.spec.size().checked_sub(a.abs() as u64) {
+                                                        if let Some(a) = file
+                                                            .spec
+                                                            .size()
+                                                            .checked_sub(a.abs() as u64)
+                                                        {
                                                             *offset = a;
                                                         } else {
                                                             return Err(FsError::InvalidInput);
                                                         }
                                                     }
-                                                    Seek::End(_) => { }
+                                                    Seek::End(_) => {}
                                                     Seek::Start(a) => {
-                                                        *offset = a;                                                   
+                                                        *offset = a;
                                                     }
                                                 }
                                                 Ok(*offset)
@@ -461,7 +518,9 @@ pub async fn main_opts_bus(
                                                 };
 
                                                 error!("ARRRRR!");
-                                                file.spec.write(offset, &write.data[..]).await
+                                                file.spec
+                                                    .write(offset, &write.data[..])
+                                                    .await
                                                     .map_err(|err| {
                                                         debug!("write failed - {}", err);
                                                         FsError::IOError
@@ -479,7 +538,9 @@ pub async fn main_opts_bus(
                                             let file = file.clone();
                                             async move {
                                                 let offset = offset.lock().unwrap().clone();
-                                                file.spec.read(offset, read.len).await
+                                                file.spec
+                                                    .read(offset, read.len)
+                                                    .await
                                                     .map_err(|err| {
                                                         debug!("read failed - {}", err);
                                                         FsError::IOError
@@ -495,11 +556,10 @@ pub async fn main_opts_bus(
                                             debug!("bus::flush");
                                             let file = file.clone();
                                             async move {
-                                                file.spec.commit().await
-                                                    .map_err(|err| {
-                                                        debug!("flush failed - {}", err);
-                                                        FsError::IOError
-                                                    })
+                                                file.spec.commit().await.map_err(|err| {
+                                                    debug!("flush failed - {}", err);
+                                                    FsError::IOError
+                                                })
                                             }
                                         });
                                     }
