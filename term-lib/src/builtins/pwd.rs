@@ -21,7 +21,7 @@ pub(super) fn pwd(
         });
     }
 
-    let dir = ctx.path.clone();
+    let dir = ctx.working_dir.clone();
     Box::pin(async move {
         let _ = stdio.stdout.write(format!("{}\r\n", dir).as_bytes()).await;
         ExecResponse::Immediate(0).into()

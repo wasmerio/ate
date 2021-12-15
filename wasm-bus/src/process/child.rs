@@ -92,7 +92,8 @@ impl Child {
             WAPM_NAME.into(),
             Spawn {
                 path: cmd.path.clone(),
-                current_dir: cmd.current_dir.clone(),
+                chroot: cmd.working_dir,
+                working_dir: cmd.working_dir.clone(),
                 args: cmd.args.clone(),
                 stdin_mode,
                 stdout_mode,

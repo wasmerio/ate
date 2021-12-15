@@ -60,7 +60,8 @@ pub async fn exec(
         *show_result = true;
         let mut ret = builtin(&args, ctx, stdio).await;
         if let Some(mut new_ctx) = ret.ctx {
-            ctx.path = new_ctx.path;
+            ctx.working_dir = new_ctx.working_dir;
+            ctx.new_pwd = new_ctx.new_pwd;
             ctx.new_mounts.append(&mut new_ctx.new_mounts);
         }
         return Ok(match ret.result {
@@ -83,7 +84,8 @@ pub async fn exec_process(
     show_result: &mut bool,
     mut stdio: Stdio,
     redirect: &Vec<Redirect>,
-) -> Result<(Process, AsyncResult<i32>, Arc<WasmBusThreadPool>), i32> {
+) -> Result<(Process, AsyncResult<i32>, Arc<WasmBusThreadPool>), i32>
+{
     // Make an error message function
     let mut early_stderr = stdio.stderr.clone();
     let on_early_exit = |msg: Option<String>, err: i32| async move {
@@ -96,8 +98,12 @@ pub async fn exec_process(
 
     // Grab the private file system for this binary (if the binary changes the private
     // file system will also change)
+    let mut chroot = ctx.chroot;
     let (data_hash, data, fs_private) = match load_bin(ctx, cmd, &mut stdio).await {
-        Some(a) => (a.hash, a.data, a.fs),
+        Some(a) => {
+            if a.chroot { chroot = true; }
+            (a.hash, a.data, a.fs)
+        },
         None => {
             return on_early_exit(None, err::ERR_ENOENT).await;
         }
@@ -120,7 +126,7 @@ pub async fn exec_process(
 
         (AsyncifyFileSystem::new(union.clone()), union)
     };
-
+    
     // Perform all the redirects
     for redirect in redirect.iter() {
         // Attempt to open the file
@@ -219,7 +225,7 @@ pub async fn exec_process(
     let reactor = ctx.reactor.clone();
     let cmd = cmd.clone();
     let args = args.clone();
-    let path = ctx.path.clone();
+    let chroot = if chroot { Some(ctx.working_dir.clone()) } else { None };
     let preopen = ctx.pre_open.clone();
     let process_result = {
         let forced_exit = Arc::clone(&forced_exit);
@@ -293,11 +299,15 @@ pub async fn exec_process(
                     }
 
                 // Or we default and open the current directory
+                } else if let Some(chroot) = chroot {
+                    wasi_env
+                        .preopen_dir(Path::new(chroot.as_str()))
+                        .unwrap()
+                        .map_dir(".", Path::new(chroot.as_str()));
                 } else {
                     wasi_env
                         .preopen_dir(Path::new("/"))
-                        .unwrap()
-                        .map_dir(".", Path::new(path.as_str()));
+                        .unwrap();    
                 }
 
                 // Add the tick callback that will invoke the WASM bus background

@@ -51,8 +51,9 @@ impl SubProcessFactory {
         let empty_client_callbacks = HashMap::default();
         let spawn = Spawn {
             path: wapm.clone(),
-            args: vec!["wapm".to_string(), "bus".to_string()],
-            current_dir: None,
+            args: vec![wapm.to_string(), "bus".to_string()],
+            chroot: false,
+            working_dir: None,
             stdin_mode: stdio_mode,
             stdout_mode: stdio_mode,
             stderr_mode: stdio_mode,

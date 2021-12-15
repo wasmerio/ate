@@ -1,1 +1,2 @@
-uutils
+alias: uutils
+chroot: true

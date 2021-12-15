@@ -57,7 +57,8 @@ use super::*;
 pub struct Command {
     pub(super) path: String,
     pub(super) args: Vec<String>,
-    pub(super) current_dir: Option<String>,
+    pub(super) chroot: bool,
+    pub(super) working_dir: Option<String>,
     pub(super) stdin: Option<Stdio>,
     pub(super) stdout: Option<Stdio>,
     pub(super) stderr: Option<Stdio>,
@@ -94,7 +95,8 @@ impl Command {
         Command {
             path: path.to_string(),
             args: Vec::new(),
-            current_dir: None,
+            chroot: false,
+            working_dir: None,
             stdin: None,
             stdout: None,
             stderr: None,
@@ -200,14 +202,36 @@ impl Command {
     /// use wasi_net::Command;
     ///
     /// Command::new("ls")
-    ///         .current_dir("/bin")
+    ///         .working_dir("/bin")
+    ///         .chroot(true)
     ///         .spawn()
     ///         .expect("ls command failed to start");
     /// ```
     ///
     /// [`canonicalize`]: crate::fs::canonicalize
-    pub fn current_dir(&mut self, dir: &str) -> &mut Command {
-        self.current_dir = Some(dir.to_string());
+    pub fn working_dir(&mut self, dir: &str) -> &mut Command {
+        self.working_dir = Some(dir.to_string());
+        self
+    }
+
+    /// Indicates that the root file system will be pivoted to a particular
+    /// path as if it were the root.
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```no_run
+    /// use wasi_net::Command;
+    ///
+    /// Command::new("ls")
+    ///         .working_dir("/bin")
+    ///         .chroot(true)
+    ///         .spawn()
+    ///         .expect("ls command failed to start");
+    /// ```
+    pub fn chroot(&mut self, chroot: bool) -> &mut Command {
+        self.chroot = chroot;
         self
     }
 

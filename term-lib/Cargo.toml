@@ -47,3 +47,4 @@ dummy-waker = "^1"
 clap = "^3.0.0-beta.5"
 wild = "^2"
 cooked-waker = { version = "^5" }
+serde_yaml = { version = "^0.8" }

@@ -114,9 +114,10 @@ fn home(ctx: &EvalContext) -> String {
 }
 
 fn current(ctx: &EvalContext) -> String {
-    ctx.path.clone()
+    ctx.working_dir.clone()
 }
 
 fn set_current(ctx: &mut EvalContext, path: &str) {
-    ctx.path = path.to_string();
+    ctx.working_dir = path.to_string();
+    ctx.new_pwd = Some(path.to_string());
 }

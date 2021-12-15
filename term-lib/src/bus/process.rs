@@ -110,7 +110,8 @@ impl ProcessExecFactory {
         let result = self.system.spawn_dedicated(move || async move {
             let path = create.request.path;
             let args = create.request.args;
-            let current_dir = create.request.current_dir;
+            let chroot = create.request.chroot;
+            let working_dir = create.request.working_dir;
             let stdin_mode = create.request.stdin_mode;
             let stdout_mode = create.request.stdout_mode;
             let stderr_mode = create.request.stderr_mode;
@@ -178,7 +179,8 @@ impl ProcessExecFactory {
                 stdin,
                 stdout,
                 stderr,
-                current_dir.unwrap_or(job.working_dir.clone()),
+                chroot,
+                working_dir.as_ref().map(|a| a.clone()).unwrap_or("/".to_string()),
                 pre_open,
                 job.root.clone(),
             );

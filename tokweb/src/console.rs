@@ -249,7 +249,8 @@ impl Console {
                 job.stdin.clone(),
                 self.stdout.fd.clone(),
                 self.stderr.clone(),
-                path,
+                false,
+                job.working_dir.clone(),
                 Vec::new(),
                 root,
             );
@@ -289,7 +290,9 @@ impl Console {
                         let mut state = state.lock().unwrap();
                         state.rootfs.mounts.append(&mut ctx.new_mounts);
                         state.last_return = code;
-                        state.path = ctx.path;
+                        if let Some(path) = ctx.new_pwd {
+                            state.path = path;
+                        }
                         state.env = ctx.env;
                         state.unfinished_line
                     };

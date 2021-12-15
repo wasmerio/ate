@@ -50,7 +50,7 @@ pub async fn load_bin(
     if name.starts_with("/") {
         file_checks.push(name.clone());
     } else if name.starts_with("./") && name.len() > 2 {
-        file_checks.push(format!("{}{}", ctx.path, &name[2..]));
+        file_checks.push(format!("{}{}", ctx.working_dir, &name[2..]));
     }
     for file_check in file_checks {
         if let Ok(mut file) = AsyncifyFileSystem::new(ctx.root.clone())
@@ -67,15 +67,25 @@ pub async fn load_bin(
         }
     }
 
-    // Resolve some more alias possibilities using fetch commands
+    // Resolve some more alias possibilities using fetch commands (with cached results)
+    let mut chroot = false;
     while let Some(next) = ctx.bins.alias(name.as_str(), stdio.stderr.clone()).await {
         if already.contains(&name) {
             break;
         }
         already.insert(name.clone());
-        name = next;
+        if next.chroot {
+            chroot = true;
+        }
+        name = next.alias;
     }
 
     // Fetch the data asynchronously (from the web site)
-    ctx.bins.get(name.as_str(), stdio.stderr.clone()).await
+    let mut ret = ctx.bins.get(name.as_str(), stdio.stderr.clone()).await;
+    if let Some(ret) = ret.as_mut() {
+        if chroot {
+            ret.chroot = true;
+        }
+    }
+    ret
 }

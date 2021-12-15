@@ -10,6 +10,7 @@ use tokio::sync::oneshot;
 use tokio::sync::RwLock;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
+use serde::*;
 
 use super::common::*;
 use super::err;
@@ -23,6 +24,7 @@ pub struct BinaryPackage {
     #[derivative(Debug = "ignore")]
     pub data: Bytes,
     pub hash: String,
+    pub chroot: bool,
     pub fs: TmpFileSystem,
 }
 
@@ -32,14 +34,23 @@ impl BinaryPackage {
         BinaryPackage {
             data,
             hash,
+            chroot: false,
             fs: TmpFileSystem::default(),
         }
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AliasConfig
+{
+    pub alias: String,
+    #[serde(default)]
+    pub chroot: bool,
+}
+
 #[derive(Debug, Clone)]
 pub struct BinFactory {
-    pub alias: Arc<RwLock<HashMap<String, Option<String>>>>,
+    pub alias: Arc<RwLock<HashMap<String, Option<AliasConfig>>>>,
     pub cache: Arc<RwLock<HashMap<String, Option<BinaryPackage>>>>,
 }
 
@@ -105,7 +116,7 @@ impl BinFactory {
         return None;
     }
 
-    pub async fn alias(&self, name: &str, mut stderr: Fd) -> Option<String> {
+    pub async fn alias(&self, name: &str, mut stderr: Fd) -> Option<AliasConfig> {
         let mut name = name.to_string();
 
         // Fast path
@@ -138,18 +149,26 @@ impl BinFactory {
         }
 
         // Try and find it via a fetch
-        if let Ok(data) = fetch_file(format!("/bin/{}.alias", name).as_str())
+        let alias_path = format!("/bin/{}.alias", name);
+        if let Ok(data) = fetch_file(alias_path.as_str())
             .join()
             .await
             .unwrap()
         {
-            let alias = String::from_utf8_lossy(&data[..]).trim().to_string();
-            info!("binary alias '{}' found for {}", alias, name);
-            cache.insert(name, Some(alias.clone()));
-            if stderr.is_tty() {
-                stderr.write_clear_line().await;
+            // Decode the file into a yaml configuration
+            match serde_yaml::from_slice::<AliasConfig>(&data[..]) {
+                Ok(alias) => {
+                    info!("binary alias '{}' found for {}", alias.alias, name);
+                    cache.insert(name, Some(alias.clone()));
+                    if stderr.is_tty() {
+                        stderr.write_clear_line().await;
+                    }
+                    return Some(alias);
+                },
+                Err(err) => {
+                    warn!("alias file corrupt: {}", alias_path);
+                }
             }
-            return Some(alias);
         }
 
         // NAK

@@ -4,7 +4,8 @@ use serde::*;
 pub struct Spawn {
     pub path: String,
     pub args: Vec<String>,
-    pub current_dir: Option<String>,
+    pub chroot: bool,
+    pub working_dir: Option<String>,
     pub stdin_mode: StdioMode,
     pub stdout_mode: StdioMode,
     pub stderr_mode: StdioMode,
