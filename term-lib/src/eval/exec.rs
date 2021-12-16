@@ -295,7 +295,12 @@ pub async fn exec_process(
                 // Add the extra pre-opens
                 if preopen.len() > 0 {
                     for pre_open in preopen {
-                        if wasi_env.preopen_dir(Path::new(pre_open.as_str())).is_ok() == false {
+                        let res = if let Some((alias, po_dir)) = pre_open.split_once(":") {
+                            wasi_env.map_dir(alias, po_dir).is_ok()
+                        } else {
+                            wasi_env.preopen_dir(Path::new(pre_open.as_str())).is_ok()
+                        };
+                        if res == false {
                             if stderr.is_tty() {
                                 stderr.write_clear_line().await;
                             }
