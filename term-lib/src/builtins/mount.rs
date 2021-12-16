@@ -45,10 +45,10 @@ pub(super) fn mount(
         }
         _ => {
             return Box::pin(async move {
-                let _ = stdio
-                    .stderr
-                    .write(Tty::MOUNT_USAGE.to_string().as_bytes())
-                    .await;
+                // let _ = stdio
+                //     .stderr
+                //     .write(Tty::MOUNT_USAGE.to_string().as_bytes())
+                //     .await;
                 ExecResponse::Immediate(0).into()
             });
         }
