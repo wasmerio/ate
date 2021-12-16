@@ -2,6 +2,7 @@
 #![allow(dead_code)]
 use bytes::{Buf, BytesMut};
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::Arc;
 use std::sync::Mutex;
 use tokio::sync::mpsc;
@@ -47,24 +48,30 @@ impl ConsoleState {
             if need_more_text {
                 ">".to_string()
             } else {
-                "$".to_string()
+                "→".to_string()
             }
         };
 
+        let path = Path::new(&self.path);
+        let parent_root = if self.path == "/" || path.parent() == Some(Path::new("/")) {
+            "/"
+        } else {
+            ""
+        };
+        let end_path = path.file_name().map(|s| s.to_str().unwrap()).unwrap_or("");
         if color {
             format!(
-                "{}{}{}:{}{}{}{} {}",
-                Tty::COL_GREEN,
-                self.user,
-                Tty::COL_WHITE,
+                "{}{} {}{}{}{} {}",
                 Tty::COL_BLUE,
-                self.path,
-                Tty::COL_WHITE,
                 prompt_symbol,
+                Tty::COL_BOLD,
+                parent_root,
+                end_path,
+                Tty::COL_WHITE,
                 Tty::COL_RESET
             )
         } else {
-            format!("{}:{}{} ", self.user, self.path, prompt_symbol)
+            format!("{} ", prompt_symbol)
         }
     }
 }

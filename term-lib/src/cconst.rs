@@ -55,6 +55,7 @@ impl Tty {
     pub const TERM_NO_WRAPAROUND: &'static str = "\x1b[?7l";
     pub const TERM_NO_REVERSE_WRAPAROUND: &'static str = "\x1b[?45l";
 
+    pub const COL_BOLD: &'static str = "\x1B[34;1m";
     pub const COL_RESET: &'static str = "\x1B[0m";
     pub const COL_BLACK: &'static str = "\x1B[0;30m";
     pub const COL_GRAY: &'static str = "\x1B[1;30m";
@@ -73,42 +74,9 @@ impl Tty {
     pub const COL_LIGHT_GRAY: &'static str = "\x1B[0;37m";
     pub const COL_WHITE: &'static str = "\x1B[1;37m";
 
-    pub const WELCOME: &'static str = r#"\x1B[0m
-\x1B[33;1m                            /\       -X-     +  \x1B[1;34m                  ww              \x1B[37;1m  tokera.sh v1.0\r
-\x1B[33;1m               +           /  \_                \x1B[1;34m                  wwwww           \x1B[37;1m  Powered by wasmer.io\r
-\x1B[33;1m        /\               _/ ^ / \  _            \x1B[1;34m           ww     wwwwww  w       \x1B[37;1m  \r
-\x1B[33;1m     /\/  \      +      |   _/ ` \/ \    +      \x1B[1;34m           wwwww      wwwwwwwww   \x1B[0m  QUICK START:\r
-\x1B[33;1m    //  `  \            |  / __   \ `\    _     \x1B[1;34m   ww      wwwwww  w     wwwwwww  \x1B[0m  • WAPM commands:    wapm\r
-\x1B[33;1m   //  .    \         /^|_/ / .\ . \ ~\  / \    \x1B[1;34m   wwwww      wwwwwwwwww   wwwww  \x1B[0m  • Tokera commands:  tok\r
-\x1B[33;1m__//     ^ . \_______| /   / _  \   \  \_| |___ \x1B[1;34m   wwwwww  w      wwwwwww  wwwww  \x1B[0m  • Core utils:       coreutils\r
-\x1B[33;1m|    \x1B[1;31m _____     _                 \x1B[33;1m       | |   |\x1B[1;34m   wwwwwwwwwwwwww   wwwww  wwwww  \x1B[0m  • Pipe: echo blah | cowsay\r
-\x1B[33;1m|    \x1B[1;31m|_   _|__ | | _____ ___ __ _ \x1B[33;1m      /| |\  |\x1B[1;34m   wwwwwwwwwwwwww   wwwww  wwwww  \x1B[0m  • Mount: mount --help\r
-\x1B[33;1m|    \x1B[1;31m  | |/ _ \| |/ / _ \  _/ _  |\x1B[33;1m* ,  | |_| | |\x1B[1;34m   wwwwwwwwwwwwww   wwwww  wwwww  \x1B[0m  • Access a wallet:  wallet\r
-\x1B[33;1m|    \x1B[1;31m  | | (_) |   <  __/ || (_| |\x1B[33;1m     |/ " \| |\x1B[1;34m   wwwwwwwwwwwwww   wwwww   wwww  \x1B[0m  \r
-\x1B[33;1m| ~  \x1B[1;31m  |_|\___/|_|\_\___|_| \__/_|\x1B[33;1m       """   |\x1B[1;34m   wwwwwwwwwwwwwww  wwwww         \x1B[0m  MORE INFO:\r
-\x1B[33;1m|______________________________________________|\x1B[1;34m      wwwwwwwwwwww   wwww         \x1B[0m  • Usage Information: help\r
-\x1B[37;1m    Tokera v1.0 Copyright (C) 2016 Tokera Ltd   \x1B[1;34m          wwwwwwww                \x1B[0m  • About Tokera: about tokera\r
-\x1B[37;1m               ( www.tokera.com )               \x1B[1;34m              wwww                \x1B[0m  • About Wasmer: about wasmer\r
-\x1B[0m\r\n"#;
+    pub const WELCOME: &'static str = r#""#;
 
-    pub const WELCOME_SMALL: &'static str = r#"\x1B[1;31m   _____     _                    \r
-  |_   _|__ | | _____ ___ __ _    \r
-    | |/ _ \| |/ / _ \  _/ _  |   \r
-    | | (_) |   <  __/ || (_| |   \r
-    |_|\___/|_|\_\___|_| \__/_|   \x1B[33;1m\r
- ________________________________ \x1B[37;1m\r
- Terminal v1.0 ( www.tokera.com ) \x1B[30;1m\r
-      \powered by wasmer.io/      \r\n"#;
-
-    pub const MOUNT_USAGE: &'static str = r#"Usage:
- mount [<wapm-name>] <mountpoint> <target>
-
- <wapm-name>: Name of the WAPM program that will serve the file-system (default: tok)
- <mounpoint>: Location where the file-system will be mounted to
- <target>: Target name passed to the WAPM program and is ued for the mounting
-
- Example: mount tok /www tokera.sh/www
-"#;
+    pub const WELCOME_SMALL: &'static str = r#""#;
 
     pub const ABOUT: &'static str = include_str!("txt/about.md");
     pub const ABOUT_TOKERA: &'static str = include_str!("txt/about_tokera.md");

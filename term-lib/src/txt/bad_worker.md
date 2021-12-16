@@ -2,7 +2,7 @@
 \x1B[1;31mBackground worker threads failed - {error}\x1B[30;1m
 
 It would appear that your browser does not support background worker threads
-which means that https://tokera.sh will not be able to launch processes and
+which means that the WAPM shell will not be able to launch processes and
 effectively becomes very limited.\x1B[37;1m
 
 List supported major browsers:

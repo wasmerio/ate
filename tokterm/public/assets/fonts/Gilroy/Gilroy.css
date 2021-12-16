@@ -1,0 +1,32 @@
+@font-face {
+    font-family: 'Gilroy';
+    src: url('Gilroy-Semibold.eot');
+    src: url('Gilroy-Semibold.eot?#iefix') format('embedded-opentype'),
+    url('Gilroy-Semibold.woff') format('woff'),
+    url('Gilroy-Semibold.ttf') format('truetype');
+    font-weight: 600;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Gilroy';
+    src: url('Gilroy-Medium.eot');
+    src: url('Gilroy-Medium.eot?#iefix') format('embedded-opentype'),
+    url('Gilroy-Medium.woff') format('woff'),
+    url('Gilroy-Medium.ttf') format('truetype');
+    font-weight: 500;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Gilroy';
+    src: url('./Gilroy-Bold.eot');
+    src: url('./Gilroy-Bold.eot?#iefix') format('embedded-opentype'),
+    url('./Gilroy-Bold.woff') format('woff'),
+    url('./Gilroy-Bold.ttf') format('truetype');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}

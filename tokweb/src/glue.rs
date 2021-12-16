@@ -68,7 +68,17 @@ pub fn start() -> Result<(), JsValue> {
             .with_font_size(16u32)
             .with_draw_bold_text_in_bright_colors(true)
             .with_right_click_selects_word(true)
-            .with_theme(&Theme::new()),
+            .with_transparency(true)
+            .with_font_size(17)
+            .with_font_family("Zeitung Mono Pro")
+            .with_theme(
+                &Theme::new()
+                    .with_background("#23104400")
+                    .with_foreground("#ffffff")
+                    .with_black("#fdf6e3")
+                    .with_green("#02C39A")
+                    .with_cyan("#4AB3FF"),
+            ),
     );
 
     let pool = WebThreadPool::new_with_max_threads().unwrap();
