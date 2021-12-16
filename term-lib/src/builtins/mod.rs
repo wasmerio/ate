@@ -8,6 +8,7 @@ mod readonly;
 mod reset;
 mod source;
 mod unset;
+mod wax;
 
 use about::*;
 use cd::*;
@@ -19,6 +20,7 @@ use readonly::*;
 use reset::*;
 use source::*;
 use unset::*;
+use wax::*;
 
 use std::collections::HashMap;
 use std::future::Future;
@@ -63,6 +65,7 @@ impl Builtins {
         b.insert("pwd", pwd);
         b.insert("reset", reset);
         b.insert("mount", mount);
+        b.insert("wax", wax);
         b
     }
 
