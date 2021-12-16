@@ -4,6 +4,8 @@ use std::sync::Arc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::backend::process::StdioMode;
+use wasmer_vfs::FileSystem;
+use std::path::Path;
 
 use super::CommandResult;
 use crate::bus::ProcessExecFactory;
@@ -65,6 +67,15 @@ pub(super) fn mount(
 
     let mut ctx = ctx.clone();
     return Box::pin(async move {
+        let path_mountpoint = Path::new(mountpoint.as_str());
+        if let Err(err) = ctx.root.read_dir(path_mountpoint) {
+            let _ = stdio
+                .stderr
+                .write(format!("mount: the mountpoint is invalid: {}\r\n", err).as_bytes())
+                .await;
+            return ExecResponse::Immediate(1).into();
+        }
+
         let _ = stdio
             .stdout
             .write(format!("Mounting {}@{} at {}\r\n", target, wapm, mountpoint).as_bytes())
