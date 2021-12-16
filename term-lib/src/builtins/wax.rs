@@ -26,7 +26,7 @@ pub(super) fn wax(
     let args = &args[..];
 
     // Build the script that we will execute
-    let mut script = format!("wapm install {} && wapm run {}", cmd, cmd);
+    let mut script = format!("wapm install {} && wapm run {} --", cmd, cmd);
     for arg in args {
         script.push_str(format!(" {}", arg).as_str());
     }
