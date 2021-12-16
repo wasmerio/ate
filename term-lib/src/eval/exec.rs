@@ -101,7 +101,9 @@ pub async fn exec_process(
     let mut chroot = ctx.chroot;
     let (data_hash, data, fs_private) = match load_bin(ctx, cmd, &mut stdio).await {
         Some(a) => {
-            if a.chroot { chroot = true; }
+            if a.chroot {
+                chroot = true;
+            }
             preopen.extend(a.mappings.into_iter());
 
             (a.hash, a.data, a.fs)

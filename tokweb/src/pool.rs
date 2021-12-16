@@ -182,23 +182,21 @@ impl WebThreadPool {
 
         // The management thread will spawn other threads - this thread is safe from
         // being blocked by other thrads
-        wasm_bindgen_futures::spawn_local(
-            async move {
-                loop {
-                    select! {
-                        spawn = spawn_rx1.recv() => {
-                            if let Some(spawn) = spawn { pool1.expand(spawn); } else { break; }
-                        }
-                        spawn = spawn_rx2.recv() => {
-                            if let Some(spawn) = spawn { pool2.expand(spawn); } else { break; }
-                        }
-                        spawn = spawn_rx3.recv() => {
-                            if let Some(spawn) = spawn { pool3.expand(spawn); } else { break; }
-                        }
+        wasm_bindgen_futures::spawn_local(async move {
+            loop {
+                select! {
+                    spawn = spawn_rx1.recv() => {
+                        if let Some(spawn) = spawn { pool1.expand(spawn); } else { break; }
+                    }
+                    spawn = spawn_rx2.recv() => {
+                        if let Some(spawn) = spawn { pool2.expand(spawn); } else { break; }
+                    }
+                    spawn = spawn_rx3.recv() => {
+                        if let Some(spawn) = spawn { pool3.expand(spawn); } else { break; }
                     }
                 }
             }
-        );
+        });
 
         let pool = WebThreadPool {
             pool_reactors,
@@ -237,25 +235,32 @@ impl PoolState {
     fn spawn(self: &Arc<Self>, mut msg: Message) {
         for _ in 0..10 {
             let guard = {
-                self.idle_rx.try_lock().ok().map(|mut idle_rx| {
-                    idle_rx.try_recv().ok()
-                })
+                self.idle_rx
+                    .try_lock()
+                    .ok()
+                    .map(|mut idle_rx| idle_rx.try_recv().ok())
             };
             if let Some(thread) = guard {
                 if let Some(thread) = thread {
                     thread.consume(msg);
                     return;
                 }
-                break;    
+                break;
             }
             std::thread::yield_now();
         }
 
         for _ in 0..100 {
             match self.spawn.try_send(msg) {
-                Ok(_) => { return; }
-                Err(mpsc::error::TrySendError::Closed(_)) => { return; }
-                Err(mpsc::error::TrySendError::Full(m)) => { msg = m; }
+                Ok(_) => {
+                    return;
+                }
+                Err(mpsc::error::TrySendError::Closed(_)) => {
+                    return;
+                }
+                Err(mpsc::error::TrySendError::Full(m)) => {
+                    msg = m;
+                }
             }
             std::thread::yield_now();
         }

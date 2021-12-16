@@ -8,9 +8,9 @@ use std::path::PathBuf;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
+use super::AliasConfig;
 use super::BinaryPackage;
 use super::EvalContext;
-use super::AliasConfig;
 use crate::err::*;
 use crate::fs::*;
 use crate::stdio::*;
@@ -42,7 +42,9 @@ pub async fn load_bin(
         if let Ok(d) = file.read_to_end().await {
             match serde_yaml::from_slice::<AliasConfig>(&d[..]) {
                 Ok(mut next) => {
-                    if next.chroot { chroot = true; }
+                    if next.chroot {
+                        chroot = true;
+                    }
                     mappings.extend(next.mappings.into_iter());
 
                     info!("binary alias '{}' found for {}", next.run, name);
@@ -76,7 +78,9 @@ pub async fn load_bin(
             if let Ok(d) = file.read_to_end().await {
                 let d = Bytes::from(d);
                 let mut ret = BinaryPackage::new(d);
-                if chroot { ret.chroot = true; }
+                if chroot {
+                    ret.chroot = true;
+                }
                 ret.mappings.extend(mappings.into_iter());
                 return Some(ret);
             }
@@ -98,7 +102,9 @@ pub async fn load_bin(
     // Fetch the data asynchronously (from the web site)
     let mut ret = ctx.bins.get(name.as_str(), stdio.stderr.clone()).await;
     if let Some(ret) = ret.as_mut() {
-        if chroot { ret.chroot = true; }
+        if chroot {
+            ret.chroot = true;
+        }
         ret.mappings.extend(mappings.into_iter());
     }
     ret

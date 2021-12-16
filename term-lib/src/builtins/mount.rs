@@ -1,11 +1,11 @@
 use std::future::Future;
+use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::backend::process::StdioMode;
 use wasmer_vfs::FileSystem;
-use std::path::Path;
 
 use super::CommandResult;
 use crate::bus::ProcessExecFactory;

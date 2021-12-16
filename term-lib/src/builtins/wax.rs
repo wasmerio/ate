@@ -67,9 +67,7 @@ pub(super) fn wax(
             }
             Some(EvalPlan::MoreInput) => {
                 debug!("wax more input");
-                let _ = stderr
-                    .write("wax: incomplete command\r\n".as_bytes())
-                    .await;
+                let _ = stderr.write("wax: incomplete command\r\n".as_bytes()).await;
                 ExecResponse::Immediate(err::ERR_EINVAL).into()
             }
             Some(EvalPlan::Invalid) => {
