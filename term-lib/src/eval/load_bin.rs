@@ -10,6 +10,7 @@ use tracing::{debug, error, info, trace, warn};
 
 use super::BinaryPackage;
 use super::EvalContext;
+use super::AliasConfig;
 use crate::err::*;
 use crate::fs::*;
 use crate::stdio::*;
@@ -21,6 +22,8 @@ pub async fn load_bin(
     stdio: &mut Stdio,
 ) -> Option<BinaryPackage> {
     // Resolve any alias
+    let mut chroot = false;
+    let mut mappings = Vec::new();
     let mut already = HashSet::<String>::default();
     let mut name = name.clone();
     debug!("scanning for {}", format!("/bin/{}.alias", name));
@@ -37,9 +40,19 @@ pub async fn load_bin(
         already.insert(name.clone());
 
         if let Ok(d) = file.read_to_end().await {
-            let next = String::from_utf8_lossy(&d[..]).trim().to_string();
-            info!("binary alias '{}' found for {}", next, name);
-            name = next;
+            match serde_yaml::from_slice::<AliasConfig>(&d[..]) {
+                Ok(mut next) => {
+                    if next.chroot { chroot = true; }
+                    mappings.extend(next.mappings.into_iter());
+
+                    info!("binary alias '{}' found for {}", next.run, name);
+                    name = next.run;
+                }
+                Err(err) => {
+                    debug!("alias file corrupt: /bin/{}.alias - {}", name, err);
+                    break;
+                }
+            }
         } else {
             break;
         }
@@ -62,13 +75,15 @@ pub async fn load_bin(
         {
             if let Ok(d) = file.read_to_end().await {
                 let d = Bytes::from(d);
-                return Some(BinaryPackage::new(d));
+                let mut ret = BinaryPackage::new(d);
+                if chroot { ret.chroot = true; }
+                ret.mappings.extend(mappings.into_iter());
+                return Some(ret);
             }
         }
     }
 
     // Resolve some more alias possibilities using fetch commands (with cached results)
-    let mut chroot = false;
     while let Some(next) = ctx.bins.alias(name.as_str(), stdio.stderr.clone()).await {
         if already.contains(&name) {
             break;
@@ -77,15 +92,14 @@ pub async fn load_bin(
         if next.chroot {
             chroot = true;
         }
-        name = next.alias;
+        name = next.run;
     }
 
     // Fetch the data asynchronously (from the web site)
     let mut ret = ctx.bins.get(name.as_str(), stdio.stderr.clone()).await;
     if let Some(ret) = ret.as_mut() {
-        if chroot {
-            ret.chroot = true;
-        }
+        if chroot { ret.chroot = true; }
+        ret.mappings.extend(mappings.into_iter());
     }
     ret
 }

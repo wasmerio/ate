@@ -26,6 +26,7 @@ pub struct BinaryPackage {
     pub hash: String,
     pub chroot: bool,
     pub fs: TmpFileSystem,
+    pub mappings: Vec<String>,
 }
 
 impl BinaryPackage {
@@ -36,15 +37,20 @@ impl BinaryPackage {
             hash,
             chroot: false,
             fs: TmpFileSystem::default(),
+            mappings: Vec::new(),
         }
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AliasConfig {
-    pub alias: String,
+    pub run: String,
     #[serde(default)]
     pub chroot: bool,
+    #[serde(default)]
+    pub base: Option<String>,
+    #[serde(default)]
+    pub mappings: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -153,7 +159,7 @@ impl BinFactory {
             // Decode the file into a yaml configuration
             match serde_yaml::from_slice::<AliasConfig>(&data[..]) {
                 Ok(alias) => {
-                    info!("binary alias '{}' found for {}", alias.alias, name);
+                    info!("binary alias '{}' found for {}", alias.run, name);
                     cache.insert(name, Some(alias.clone()));
                     if stderr.is_tty() {
                         stderr.write_clear_line().await;
