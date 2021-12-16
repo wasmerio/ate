@@ -55,6 +55,7 @@ pub(super) fn source(
             }
         };
 
+        ctx.stdio = stdio;
         ctx.input = script;
 
         let mut stdout = ctx.stdio.stdout.clone();

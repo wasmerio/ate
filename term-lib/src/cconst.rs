@@ -107,7 +107,7 @@ impl Tty {
  <mounpoint>: Location where the file-system will be mounted to
  <target>: Target name passed to the WAPM program and is ued for the mounting
 
- Example: mount tok /www tokera.sh/www
+ Example: mount tok /www tokera.com/wasm
 "#;
 
     pub const ABOUT: &'static str = include_str!("txt/about.md");

@@ -7,6 +7,7 @@ use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::sync::Arc;
+use std::sync::Mutex;
 use tokio::sync::oneshot;
 use tokio::sync::RwLock;
 #[allow(unused_imports, dead_code)]
@@ -55,6 +56,7 @@ pub struct AliasConfig {
 
 #[derive(Debug, Clone)]
 pub struct BinFactory {
+    pub wax: Arc<Mutex<HashSet<String>>>,
     pub alias: Arc<RwLock<HashMap<String, Option<AliasConfig>>>>,
     pub cache: Arc<RwLock<HashMap<String, Option<BinaryPackage>>>>,
 }
@@ -62,6 +64,7 @@ pub struct BinFactory {
 impl BinFactory {
     pub fn new() -> BinFactory {
         BinFactory {
+            wax: Arc::new(Mutex::new(HashSet::new())),
             alias: Arc::new(RwLock::new(HashMap::new())),
             cache: Arc::new(RwLock::new(HashMap::new())),
         }

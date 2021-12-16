@@ -90,6 +90,10 @@ impl Tty {
         }
     }
 
+    pub fn fd(&self) -> Fd {
+        self.stdout.fd.clone()
+    }
+
     pub async fn reset_line(&self) {
         self.inner_async.lock().await.reset_line();
     }
