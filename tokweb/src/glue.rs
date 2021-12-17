@@ -42,7 +42,7 @@ pub enum InputEvent {
 }
 
 #[wasm_bindgen]
-pub fn start() -> Result<(), JsValue> {
+pub fn start(terminal_element: web_sys::Element, front_buffer: HtmlCanvasElement) -> Result<(), JsValue> {
     #[wasm_bindgen]
     extern "C" {
         #[wasm_bindgen(js_namespace = navigator, js_name = userAgent)]
@@ -93,23 +93,7 @@ pub fn start() -> Result<(), JsValue> {
     let is_mobile = crate::common::is_mobile(&user_agent);
     debug!("user_agent: {}", user_agent);
 
-    let elem = window
-        .document()
-        .unwrap()
-        .get_element_by_id("terminal")
-        .unwrap();
-
-    terminal.open(elem.clone().dyn_into()?);
-
-    let front_buffer = window
-        .document()
-        .unwrap()
-        .get_element_by_id("frontBuffer")
-        .unwrap();
-    let front_buffer: HtmlCanvasElement = front_buffer
-        .dyn_into::<HtmlCanvasElement>()
-        .map_err(|_| ())
-        .unwrap();
+    terminal.open(terminal_element.dyn_into()?);
 
     let mut console = Console::new(
         terminal.clone().dyn_into().unwrap(),
