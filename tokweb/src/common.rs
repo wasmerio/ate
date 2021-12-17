@@ -220,7 +220,7 @@ pub fn is_mobile(user_agent: &str) -> bool {
 #[wasm_bindgen(module = "/public/worker.js")]
 extern "C" {
     #[wasm_bindgen(js_name = "isWorker")]
-    fn is_worker() -> bool;
+    pub fn is_worker() -> bool;
 }
 
 pub mod console {

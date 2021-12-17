@@ -74,7 +74,7 @@ impl Into<io::Error> for CallError {
             ),
             err => io::Error::new(
                 io::ErrorKind::Other,
-                format!("wapm bus error - {}", err.to_string()).as_str(),
+                format!("wasm bus error - {}", err.to_string()).as_str(),
             ),
         }
     }

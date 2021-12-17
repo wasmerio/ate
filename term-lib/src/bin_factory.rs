@@ -7,6 +7,7 @@ use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::sync::Arc;
+use std::sync::Mutex;
 use tokio::sync::oneshot;
 use tokio::sync::RwLock;
 #[allow(unused_imports, dead_code)]
@@ -26,6 +27,7 @@ pub struct BinaryPackage {
     pub hash: String,
     pub chroot: bool,
     pub fs: TmpFileSystem,
+    pub mappings: Vec<String>,
 }
 
 impl BinaryPackage {
@@ -36,19 +38,25 @@ impl BinaryPackage {
             hash,
             chroot: false,
             fs: TmpFileSystem::default(),
+            mappings: Vec::new(),
         }
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AliasConfig {
-    pub alias: String,
+    pub run: String,
     #[serde(default)]
     pub chroot: bool,
+    #[serde(default)]
+    pub base: Option<String>,
+    #[serde(default)]
+    pub mappings: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
 pub struct BinFactory {
+    pub wax: Arc<Mutex<HashSet<String>>>,
     pub alias: Arc<RwLock<HashMap<String, Option<AliasConfig>>>>,
     pub cache: Arc<RwLock<HashMap<String, Option<BinaryPackage>>>>,
 }
@@ -56,6 +64,7 @@ pub struct BinFactory {
 impl BinFactory {
     pub fn new() -> BinFactory {
         BinFactory {
+            wax: Arc::new(Mutex::new(HashSet::new())),
             alias: Arc::new(RwLock::new(HashMap::new())),
             cache: Arc::new(RwLock::new(HashMap::new())),
         }
@@ -153,7 +162,7 @@ impl BinFactory {
             // Decode the file into a yaml configuration
             match serde_yaml::from_slice::<AliasConfig>(&data[..]) {
                 Ok(alias) => {
-                    info!("binary alias '{}' found for {}", alias.alias, name);
+                    info!("binary alias '{}' found for {}", alias.run, name);
                     cache.insert(name, Some(alias.clone()));
                     if stderr.is_tty() {
                         stderr.write_clear_line().await;

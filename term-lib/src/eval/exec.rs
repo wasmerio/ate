@@ -97,12 +97,15 @@ pub async fn exec_process(
 
     // Grab the private file system for this binary (if the binary changes the private
     // file system will also change)
+    let mut preopen = ctx.pre_open.clone();
     let mut chroot = ctx.chroot;
     let (data_hash, data, fs_private) = match load_bin(ctx, cmd, &mut stdio).await {
         Some(a) => {
             if a.chroot {
                 chroot = true;
             }
+            preopen.extend(a.mappings.into_iter());
+
             (a.hash, a.data, a.fs)
         }
         None => {
@@ -234,7 +237,6 @@ pub async fn exec_process(
     } else {
         None
     };
-    let preopen = ctx.pre_open.clone();
     let process_result = {
         let forced_exit = Arc::clone(&forced_exit);
         ctx.system
@@ -295,7 +297,12 @@ pub async fn exec_process(
                 // Add the extra pre-opens
                 if preopen.len() > 0 {
                     for pre_open in preopen {
-                        if wasi_env.preopen_dir(Path::new(pre_open.as_str())).is_ok() == false {
+                        let res = if let Some((alias, po_dir)) = pre_open.split_once(":") {
+                            wasi_env.map_dir(alias, po_dir).is_ok()
+                        } else {
+                            wasi_env.preopen_dir(Path::new(pre_open.as_str())).is_ok()
+                        };
+                        if res == false {
                             if stderr.is_tty() {
                                 stderr.write_clear_line().await;
                             }

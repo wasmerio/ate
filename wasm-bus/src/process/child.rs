@@ -223,9 +223,12 @@ impl Child {
     pub fn wait(&mut self) -> io::Result<ExitStatus> {
         self.task
             .clone()
-            .join()
+            .join::<ProcessExited>()
             .wait()
             .map_err(|err| err.into_io_error())
+            .map(|a| ExitStatus {
+                code: Some(a.exit_code),
+            })
     }
 
     /// Simultaneously waits for the child to exit and collect all remaining
@@ -296,7 +299,7 @@ impl Child {
 }
 
 pub struct ChildJoin {
-    result: CallJoin<ExitStatus>,
+    result: CallJoin<ProcessExited>,
 }
 
 impl ChildJoin {
@@ -335,7 +338,14 @@ impl ChildJoin {
     /// }
     /// ```
     pub fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
-        self.result.try_wait().map_err(|err| err.into_io_error())
+        self.result
+            .try_wait()
+            .map_err(|err| err.into_io_error())
+            .map(|a| {
+                a.map(|b| ExitStatus {
+                    code: Some(b.exit_code),
+                })
+            })
     }
 }
 
@@ -346,7 +356,12 @@ impl Future for ChildJoin {
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let result = Pin::new(&mut self.result);
         match result.poll(cx) {
-            Poll::Ready(Ok(a)) => Poll::Ready(Ok(a)),
+            Poll::Ready(Ok(a)) => {
+                let a = ExitStatus {
+                    code: Some(a.exit_code),
+                };
+                Poll::Ready(Ok(a))
+            }
             Poll::Ready(Err(err)) => Poll::Ready(Err(err.into_io_error())),
             Poll::Pending => Poll::Pending,
         }

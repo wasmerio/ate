@@ -46,7 +46,6 @@ impl AssertSendSync for WebThreadPool {}
 #[wasm_bindgen]
 #[derive(Debug, Clone)]
 pub struct WebThreadPool {
-    pool_management: Arc<PoolState>,
     pool_reactors: Arc<PoolState>,
     pool_stateful: Arc<PoolState>,
     pool_dedicated: Arc<PoolState>,
@@ -68,7 +67,6 @@ impl Debug for Message {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum PoolType {
-    Management,
     Shared,
     Stateful,
     Dedicated,
@@ -140,25 +138,13 @@ impl WebThreadPool {
     pub fn new(size: usize) -> Result<WebThreadPool, JsValue> {
         info!("pool::create(size={})", size);
 
-        let (idle_tx0, idle_rx0) = mpsc::channel(MAX_MPSC);
         let (idle_tx1, idle_rx1) = mpsc::channel(MAX_MPSC);
         let (idle_tx2, idle_rx2) = mpsc::channel(MAX_MPSC);
         let (idle_tx3, idle_rx3) = mpsc::channel(MAX_MPSC);
 
-        let (spawn_tx0, mut spawn_rx0) = mpsc::channel(MAX_MPSC);
         let (spawn_tx1, mut spawn_rx1) = mpsc::channel(MAX_MPSC);
         let (spawn_tx2, mut spawn_rx2) = mpsc::channel(MAX_MPSC);
         let (spawn_tx3, mut spawn_rx3) = mpsc::channel(MAX_MPSC);
-
-        let pool_management = Arc::new(PoolState {
-            idle_rx: Mutex::new(idle_rx0),
-            idle_tx: idle_tx0,
-            idx_seed: AtomicUsize::new(0),
-            blocking: true,
-            idle_size: 0,
-            type_: PoolType::Management,
-            spawn: spawn_tx0,
-        });
 
         let pool_reactors = Arc::new(PoolState {
             idle_rx: Mutex::new(idle_rx1),
@@ -190,36 +176,29 @@ impl WebThreadPool {
             spawn: spawn_tx3,
         });
 
-        let pool0 = pool_management.clone();
         let pool1 = pool_reactors.clone();
         let pool2 = pool_stateful.clone();
         let pool3 = pool_dedicated.clone();
 
         // The management thread will spawn other threads - this thread is safe from
         // being blocked by other thrads
-        pool_management.expand(Message::Run(Box::new(move || {
-            Box::pin(async move {
-                loop {
-                    select! {
-                        spawn = spawn_rx0.recv() => {
-                            if let Some(spawn) = spawn { pool0.expand(spawn); } else { break; }
-                        }
-                        spawn = spawn_rx1.recv() => {
-                            if let Some(spawn) = spawn { pool1.expand(spawn); } else { break; }
-                        }
-                        spawn = spawn_rx2.recv() => {
-                            if let Some(spawn) = spawn { pool2.expand(spawn); } else { break; }
-                        }
-                        spawn = spawn_rx3.recv() => {
-                            if let Some(spawn) = spawn { pool3.expand(spawn); } else { break; }
-                        }
+        wasm_bindgen_futures::spawn_local(async move {
+            loop {
+                select! {
+                    spawn = spawn_rx1.recv() => {
+                        if let Some(spawn) = spawn { pool1.expand(spawn); } else { break; }
+                    }
+                    spawn = spawn_rx2.recv() => {
+                        if let Some(spawn) = spawn { pool2.expand(spawn); } else { break; }
+                    }
+                    spawn = spawn_rx3.recv() => {
+                        if let Some(spawn) = spawn { pool3.expand(spawn); } else { break; }
                     }
                 }
-            })
-        })));
+            }
+        });
 
         let pool = WebThreadPool {
-            pool_management,
             pool_reactors,
             pool_stateful,
             pool_dedicated,
@@ -253,18 +232,47 @@ impl WebThreadPool {
 }
 
 impl PoolState {
-    fn spawn(self: &Arc<Self>, msg: Message) {
-        let thread = {
-            let mut idle_rx = self.idle_rx.lock().unwrap();
-            idle_rx.try_recv().ok()
-        };
-
-        if let Some(thread) = thread {
-            thread.consume(msg);
-            return;
+    fn spawn(self: &Arc<Self>, mut msg: Message) {
+        for _ in 0..10 {
+            let guard = {
+                self.idle_rx
+                    .try_lock()
+                    .ok()
+                    .map(|mut idle_rx| idle_rx.try_recv().ok())
+            };
+            if let Some(thread) = guard {
+                if let Some(thread) = thread {
+                    thread.consume(msg);
+                    return;
+                }
+                break;
+            }
+            std::thread::yield_now();
         }
 
-        let _ = self.spawn.blocking_send(msg);
+        for _ in 0..100 {
+            match self.spawn.try_send(msg) {
+                Ok(_) => {
+                    return;
+                }
+                Err(mpsc::error::TrySendError::Closed(_)) => {
+                    return;
+                }
+                Err(mpsc::error::TrySendError::Full(m)) => {
+                    msg = m;
+                }
+            }
+            std::thread::yield_now();
+        }
+
+        if crate::common::is_worker() {
+            let _ = self.spawn.blocking_send(msg);
+        } else {
+            let spawn = self.spawn.clone();
+            wasm_bindgen_futures::spawn_local(async move {
+                let _ = spawn.send(msg).await;
+            });
+        }
     }
 
     fn expand(self: &Arc<Self>, init: Message) {
