@@ -242,20 +242,38 @@ impl WasmBusThread {
         // Create a call handle
         let handle = self.generate_handle();
 
-        // Wait for the polling to finish
-        if self.wait_for_poll() == false {
-            let (_, rx) = mpsc::channel(1);
-            return (rx, handle);
-        }
-
-        // Send the work to the thread
+        // Build the call that will be sent
         let (tx, rx) = mpsc::channel(1);
-        let _ = self.work_tx.blocking_send(WasmBusThreadWork::Call {
+        let mut msg = WasmBusThreadWork::Call {
             topic,
             parent,
             handle: handle.clone(),
             data,
             tx,
+        };
+
+        // If we are already polling then try and send it instantly
+        if *self.polling.borrow() == true {
+            match self.work_tx.try_send(msg) {
+                Ok(_) => {
+                    return (rx, handle);
+                },
+                Err(mpsc::error::TrySendError::Closed(a)) => {
+                    msg = a;
+                },
+                Err(mpsc::error::TrySendError::Full(a)) => {
+                    msg = a;
+                }
+            }
+        }
+
+        // Otherwise we need to do it asynchronously
+        let work_tx = self.work_tx.clone();
+        let polling = self.polling.clone();
+        self.system.fork_shared(move || async move {
+            if async_wait_for_poll(polling).await {
+                let _ = work_tx.send(msg).await;
+            }
         });
 
         // Return the receiver
@@ -315,16 +333,17 @@ impl WasmBusThread {
     }
 
     pub async fn async_wait_for_poll(&mut self) -> bool {
-        while *self.polling.borrow() == false {
-            let mut polling = self.polling.clone();
-            while *polling.borrow() == false {
-                if let Err(_) = polling.changed().await {
-                    return false;
-                }
-            }
-        }
-        return true;
+        async_wait_for_poll(self.polling.clone()).await
     }
+}
+
+async fn async_wait_for_poll(mut polling: watch::Receiver<bool>) -> bool {
+    while *polling.borrow() == false {
+        if let Err(_) = polling.changed().await {
+            return false;
+        }
+    }
+    return true;
 }
 
 pub struct AsyncWasmBusResultRaw {
