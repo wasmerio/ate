@@ -39,7 +39,11 @@ pub(crate) mod raw {
         topic_ptr: u32,
         topic_len: u32,
     ) {
-        let parent: Option<CallHandle> = if parent != u32::MAX { Some(parent.into()) } else { None };
+        let parent: Option<CallHandle> = if parent != u32::MAX {
+            Some(parent.into())
+        } else {
+            None
+        };
         let handle: CallHandle = handle.into();
         let topic_ptr: WasmPtr<u8, Array> = WasmPtr::new(topic_ptr as u32);
         unsafe { super::wasm_bus_callback(thread, parent, handle, topic_ptr, topic_len as usize) }
@@ -72,7 +76,11 @@ pub(crate) mod raw {
         request_ptr: u32,
         request_len: u32,
     ) -> u32 {
-        let parent: Option<CallHandle> = if parent != u32::MAX { Some(parent.into()) } else { None };
+        let parent: Option<CallHandle> = if parent != u32::MAX {
+            Some(parent.into())
+        } else {
+            None
+        };
         let handle: CallHandle = handle.into();
         let wapm_ptr: WasmPtr<u8, Array> = WasmPtr::new(wapm_ptr as u32);
         let topic_ptr: WasmPtr<u8, Array> = WasmPtr::new(topic_ptr as u32);
@@ -165,7 +173,9 @@ unsafe fn wasm_bus_callback(
     topic_ptr: WasmPtr<u8, Array>,
     topic_len: usize,
 ) {
-    let topic = topic_ptr.get_utf8_str(thread.memory(), topic_len as u32).unwrap();
+    let topic = topic_ptr
+        .get_utf8_str(thread.memory(), topic_len as u32)
+        .unwrap();
     debug!(
         "wasm-bus::recv (parent={:?}, handle={}, topic={})",
         parent, handle.id, topic
@@ -274,7 +284,9 @@ unsafe fn wasm_bus_poll(thread: &WasmBusThread) {
 // Tells the operating system that this program is ready to respond
 // to calls on a particular topic name.
 unsafe fn wasm_bus_listen(thread: &WasmBusThread, topic_ptr: WasmPtr<u8, Array>, topic_len: usize) {
-    let topic = topic_ptr.get_utf8_str(thread.memory(), topic_len as u32).unwrap();
+    let topic = topic_ptr
+        .get_utf8_str(thread.memory(), topic_len as u32)
+        .unwrap();
     debug!("wasm-bus::listen (topic={})", topic);
 
     let mut inner = thread.inner.unwrap();
@@ -332,8 +344,12 @@ unsafe fn wasm_bus_call(
     request_ptr: WasmPtr<u8, Array>,
     request_len: usize,
 ) -> u32 {
-    let wapm = wapm_ptr.get_utf8_str(thread.memory(), wapm_len as u32).unwrap();
-    let topic = topic_ptr.get_utf8_str(thread.memory(), topic_len as u32).unwrap();
+    let wapm = wapm_ptr
+        .get_utf8_str(thread.memory(), wapm_len as u32)
+        .unwrap();
+    let topic = topic_ptr
+        .get_utf8_str(thread.memory(), topic_len as u32)
+        .unwrap();
     if let Some(parent) = parent {
         debug!(
             "wasm-bus::call (parent={}, handle={}, wapm={}, topic={}, request={} bytes)",
@@ -367,7 +383,9 @@ unsafe fn wasm_bus_call(
         .remove(&handle)
         .map(|a| {
             a.into_iter()
-                .map(|(topic, handle)| (topic, WasmBusCallback::new(thread, handle.into()).unwrap()))
+                .map(|(topic, handle)| {
+                    (topic, WasmBusCallback::new(thread, handle.into()).unwrap())
+                })
                 .collect()
         })
         .unwrap_or_default();

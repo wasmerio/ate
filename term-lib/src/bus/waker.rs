@@ -1,11 +1,11 @@
+use crate::api::System;
 use cooked_waker::*;
 use std::sync::atomic::*;
 use tokio::sync::mpsc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use crate::api::System;
 
-use crate::{bus::WasmBusThreadWork, api::SystemAbiExt};
+use crate::{api::SystemAbiExt, bus::WasmBusThreadWork};
 
 #[derive(Debug)]
 pub(crate) struct ThreadWaker {
@@ -16,9 +16,7 @@ pub(crate) struct ThreadWaker {
 }
 
 impl ThreadWaker {
-    pub fn new(
-        work_tx: mpsc::Sender<WasmBusThreadWork>,
-    ) -> ThreadWaker {
+    pub fn new(work_tx: mpsc::Sender<WasmBusThreadWork>) -> ThreadWaker {
         ThreadWaker {
             system: System::default(),
             count: AtomicUsize::default(),
@@ -39,7 +37,7 @@ impl ThreadWaker {
             let retry = match self.work_tx.try_send(WasmBusThreadWork::Wake) {
                 Ok(_) => None,
                 Err(mpsc::error::TrySendError::Closed(a)) => Some(a),
-                Err(mpsc::error::TrySendError::Full(a)) => Some(a)
+                Err(mpsc::error::TrySendError::Full(a)) => Some(a),
             };
             if let Some(retry) = retry {
                 let work_tx = self.work_tx.clone();
@@ -51,7 +49,8 @@ impl ThreadWaker {
     }
 
     pub fn woken(&self) {
-        self.last_poll.store(self.count.load(Ordering::SeqCst), Ordering::SeqCst);
+        self.last_poll
+            .store(self.count.load(Ordering::SeqCst), Ordering::SeqCst);
     }
 }
 

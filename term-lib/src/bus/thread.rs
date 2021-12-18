@@ -115,12 +115,8 @@ pub struct WasmBusThreadHandle {
 }
 
 impl WasmBusThreadHandle {
-    pub fn new(
-        handle: CallHandle,
-    ) -> WasmBusThreadHandle {
-        WasmBusThreadHandle {
-            handle,
-        }
+    pub fn new(handle: CallHandle) -> WasmBusThreadHandle {
+        WasmBusThreadHandle { handle }
     }
 
     pub fn handle(&self) -> CallHandle {
@@ -183,8 +179,7 @@ pub struct WasmBusThread {
     #[wasmer(export(name = "wasm_bus_malloc"))]
     wasm_bus_malloc: LazyInit<NativeFunc<u32, u32>>,
     #[wasmer(export(name = "wasm_bus_start"))]
-    wasm_bus_start:
-        LazyInit<NativeFunc<(u32, u32, u32, u32, u32, u32), ()>>,
+    wasm_bus_start: LazyInit<NativeFunc<(u32, u32, u32, u32, u32, u32), ()>>,
     #[wasmer(export(name = "wasm_bus_finish"))]
     wasm_bus_finish: LazyInit<NativeFunc<(u32, u32, u32), ()>>,
     #[wasmer(export(name = "wasm_bus_error"))]

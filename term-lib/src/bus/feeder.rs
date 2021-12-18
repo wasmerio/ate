@@ -66,7 +66,9 @@ impl WasmBusCallback {
             .uint8view_with_byte_offset_and_length(buf, buf_len)
             .copy_from(&data[..]);
 
-        self.native_finish.call(self.handle.id, buf, buf_len).unwrap();
+        self.native_finish
+            .call(self.handle.id, buf, buf_len)
+            .unwrap();
     }
 
     pub fn feed_bytes_or_error(&self, data: Result<Vec<u8>, CallError>) {
