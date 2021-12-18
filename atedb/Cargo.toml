@@ -34,7 +34,7 @@ fastrand = "^1"
 ctrlc-async = { version = "^3" }
 libc = { version = "^0.2", optional = true }
 enum_dispatch = { version = "^0.3" }
-clap = "^3.0.0-beta.5"
+clap = { version = "^3.0.0-rc.7", features = [ "derive" ] }
 ascii_tree = "0.1.1"
 shellexpand = "^2"
 cached = "^0.23"

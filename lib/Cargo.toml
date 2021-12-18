@@ -91,4 +91,4 @@ wasm-bus = { version = "^0.3", path = "../wasm-bus" }
 ctor = "0.1.*"
 rust_decimal = "1.10.*"
 names = "0.11.*"
-clap = "^3.0.0-beta.5"
+clap = { version = "^3.0.0-rc.7", features = [ "derive" ] }
