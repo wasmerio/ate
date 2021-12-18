@@ -199,7 +199,7 @@ fn filter_mounts<'a, 'b>(
         if test_path.ends_with("/") == false {
             test_path.push_str("/");
         }
-        
+
         if path.starts_with(test_path.as_str()) || path.starts_with(&test_path[1..]) {
             let path = if mount.path.ends_with("/") {
                 &path[mount.path.len() - 1..]
