@@ -257,10 +257,10 @@ impl WasmBusThread {
             match self.work_tx.try_send(msg) {
                 Ok(_) => {
                     return (rx, handle);
-                },
+                }
                 Err(mpsc::error::TrySendError::Closed(a)) => {
                     msg = a;
-                },
+                }
                 Err(mpsc::error::TrySendError::Full(a)) => {
                     msg = a;
                 }
