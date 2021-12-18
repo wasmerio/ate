@@ -241,96 +241,97 @@ impl Console {
             .await;
 
         // Spawn the process and attach it to the job
-        let mut process = {
-            let ctx = SpawnContext::new(
-                cmd.clone(),
-                env,
-                job.clone(),
-                job.stdin.clone(),
-                self.stdout.fd.clone(),
-                self.stderr.clone(),
-                false,
-                job.working_dir.clone(),
-                Vec::new(),
-                root,
-            );
-            self.exec.eval(ctx)
-        };
+        let ctx = SpawnContext::new(
+            cmd.clone(),
+            env,
+            job.clone(),
+            job.stdin.clone(),
+            self.stdout.fd.clone(),
+            self.stderr.clone(),
+            false,
+            job.working_dir.clone(),
+            Vec::new(),
+            root,
+        );
 
         // Spawn a background thread that will process the result
         // of the process that we just started
+        let exec = self.exec.clone();
         let system = System::default();
         let state = self.state.clone();
-        system.fork_local(async move {
-            // Wait for the process to finish
-            let rx = process.recv().await;
-            drop(process);
+        system.fork_dedicated(move || {
+            let mut process = exec.eval(ctx);
+            async move {
+                // Wait for the process to finish
+                let rx = process.recv().await;
+                drop(process);
 
-            // Switch back to console mode
-            tty.reset_line().await;
-            tty.reset_paragraph().await;
-            tty.enter_mode(TtyMode::Console, &reactor).await;
-            let record_history = if let Some(history) = tty.get_selected_history().await {
-                history != cmd
-            } else {
-                true
-            };
-            tty.reset_history_cursor().await;
+                // Switch back to console mode
+                tty.reset_line().await;
+                tty.reset_paragraph().await;
+                tty.enter_mode(TtyMode::Console, &reactor).await;
+                let record_history = if let Some(history) = tty.get_selected_history().await {
+                    history != cmd
+                } else {
+                    true
+                };
+                tty.reset_history_cursor().await;
 
-            // Process the result
-            let mut multiline_input = false;
-            match rx {
-                Some(EvalPlan::Executed {
-                    code,
-                    mut ctx,
-                    show_result,
-                }) => {
-                    debug!("eval executed (code={})", code);
-                    let should_line_feed = {
-                        let mut state = state.lock().unwrap();
-                        state.rootfs.mounts.append(&mut ctx.new_mounts);
-                        state.last_return = code;
-                        if let Some(path) = ctx.new_pwd {
-                            state.path = path;
+                // Process the result
+                let mut multiline_input = false;
+                match rx {
+                    Some(EvalPlan::Executed {
+                        code,
+                        mut ctx,
+                        show_result,
+                    }) => {
+                        debug!("eval executed (code={})", code);
+                        let should_line_feed = {
+                            let mut state = state.lock().unwrap();
+                            state.rootfs.mounts.append(&mut ctx.new_mounts);
+                            state.last_return = code;
+                            if let Some(path) = ctx.new_pwd {
+                                state.path = path;
+                            }
+                            state.env = ctx.env;
+                            state.unfinished_line
+                        };
+                        if record_history {
+                            tty.record_history(cmd).await;
                         }
-                        state.env = ctx.env;
-                        state.unfinished_line
-                    };
-                    if record_history {
-                        tty.record_history(cmd).await;
+                        if code != 0 && show_result {
+                            let mut chars = String::new();
+                            chars += err::exit_code_to_message(code);
+                            chars += "\r\n";
+                            tty.draw(chars.as_str()).await;
+                        } else if should_line_feed {
+                            tty.draw("\r\n").await;
+                        }
                     }
-                    if code != 0 && show_result {
-                        let mut chars = String::new();
-                        chars += err::exit_code_to_message(code);
-                        chars += "\r\n";
-                        tty.draw(chars.as_str()).await;
-                    } else if should_line_feed {
-                        tty.draw("\r\n").await;
+                    Some(EvalPlan::InternalError) => {
+                        debug!("eval internal error");
+                        tty.draw("term: internal error\r\n").await;
+                    }
+                    Some(EvalPlan::MoreInput) => {
+                        debug!("eval more input");
+                        multiline_input = true;
+                        tty.add(cmd.as_str()).await;
+                    }
+                    Some(EvalPlan::Invalid) => {
+                        debug!("eval invalid");
+                        tty.draw("term: invalid command\r\n").await;
+                    }
+                    None => {
+                        debug!("eval recv erro");
+                        tty.draw(format!("term: command failed\r\n").as_str()).await;
                     }
                 }
-                Some(EvalPlan::InternalError) => {
-                    debug!("eval internal error");
-                    tty.draw("term: internal error\r\n").await;
-                }
-                Some(EvalPlan::MoreInput) => {
-                    debug!("eval more input");
-                    multiline_input = true;
-                    tty.add(cmd.as_str()).await;
-                }
-                Some(EvalPlan::Invalid) => {
-                    debug!("eval invalid");
-                    tty.draw("term: invalid command\r\n").await;
-                }
-                None => {
-                    debug!("eval recv erro");
-                    tty.draw(format!("term: command failed\r\n").as_str()).await;
-                }
-            }
 
-            // Now draw the prompt ready for the next
-            tty.reset_line().await;
-            Console::update_prompt(multiline_input, &state, &tty).await;
-            tty.draw_prompt().await;
+                // Now draw the prompt ready for the next
+                tty.reset_line().await;
+                Console::update_prompt(multiline_input, &state, &tty).await;
+                tty.draw_prompt().await;
+            }
         });
     }
 
