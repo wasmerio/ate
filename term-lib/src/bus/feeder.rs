@@ -3,25 +3,24 @@ use std::sync::Arc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
+use wasm_bus::abi::CallHandle;
 
 use super::*;
-use crate::wasmer::Array;
 use crate::wasmer::Memory;
 use crate::wasmer::NativeFunc;
-use crate::wasmer::WasmPtr;
 
 #[derive(Clone)]
 pub struct WasmBusCallback {
     memory: Memory,
-    native_finish: NativeFunc<(u32, WasmPtr<u8, Array>, u32), ()>,
-    native_malloc: NativeFunc<u32, WasmPtr<u8, Array>>,
+    native_finish: NativeFunc<(u32, u32, u32), ()>,
+    native_malloc: NativeFunc<u32, u32>,
     native_error: NativeFunc<(u32, u32), ()>,
     waker: Arc<ThreadWaker>,
-    handle: u32,
+    handle: CallHandle,
 }
 
 impl WasmBusCallback {
-    pub fn new(thread: &WasmBusThread, handle: u32) -> Result<WasmBusCallback, CallError> {
+    pub fn new(thread: &WasmBusThread, handle: CallHandle) -> Result<WasmBusCallback, CallError> {
         let memory = thread.memory().clone();
         let native_data = thread.wasm_bus_finish_ref();
         let native_malloc = thread.wasm_bus_malloc_ref();
@@ -56,7 +55,7 @@ impl WasmBusCallback {
     pub fn feed_bytes(&self, data: Vec<u8>) {
         trace!(
             "wasm-bus::call-reply (handle={}, response={} bytes)",
-            self.handle,
+            self.handle.id,
             data.len()
         );
 
@@ -64,10 +63,10 @@ impl WasmBusCallback {
         let buf = self.native_malloc.call(buf_len).unwrap();
 
         self.memory
-            .uint8view_with_byte_offset_and_length(buf.offset(), buf_len)
+            .uint8view_with_byte_offset_and_length(buf, buf_len)
             .copy_from(&data[..]);
 
-        self.native_finish.call(self.handle, buf, buf_len).unwrap();
+        self.native_finish.call(self.handle.id, buf, buf_len).unwrap();
     }
 
     pub fn feed_bytes_or_error(&self, data: Result<Vec<u8>, CallError>) {
@@ -80,9 +79,9 @@ impl WasmBusCallback {
     pub fn error(&self, err: CallError) {
         trace!(
             "wasm-bus::call-reply (handle={}, error={})",
-            self.handle,
+            self.handle.id,
             err
         );
-        self.native_error.call(self.handle, err.into()).unwrap();
+        self.native_error.call(self.handle.id, err.into()).unwrap();
     }
 }

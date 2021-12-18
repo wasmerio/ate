@@ -7,7 +7,7 @@ pub fn drop(_handle: CallHandle) {
     panic!("unsupported on this platform");
 }
 
-pub fn rand() -> u32 {
+pub fn handle() -> CallHandle {
     panic!("unsupported on this platform");
 }
 

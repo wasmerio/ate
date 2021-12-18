@@ -1,10 +1,8 @@
-use crate::wasmer::Array;
 use crate::wasmer::ImportObject;
 use crate::wasmer::LazyInit;
 use crate::wasmer::Memory;
 use crate::wasmer::Module;
 use crate::wasmer::NativeFunc;
-use crate::wasmer::WasmPtr;
 use crate::wasmer::WasmerEnv;
 use crate::wasmer_wasi::WasiThread;
 use async_trait::async_trait;
@@ -33,7 +31,6 @@ use crate::common::*;
 pub struct WasmBusThreadPool {
     threads: RwLock<HashMap<u32, WasmBusThread>>,
     process_factory: ProcessExecFactory,
-    work_register: Arc<RwLock<HashSet<CallHandle>>>,
 }
 
 impl WasmBusThreadPool {
@@ -41,7 +38,6 @@ impl WasmBusThreadPool {
         Arc::new(WasmBusThreadPool {
             threads: RwLock::new(HashMap::default()),
             process_factory,
-            work_register: Arc::new(RwLock::new(HashSet::default())),
         })
     }
 
@@ -116,29 +112,19 @@ impl WasmBusThreadPool {
 #[derive(Debug, Clone)]
 pub struct WasmBusThreadHandle {
     pub handle: CallHandle,
-    pub work_register: Arc<RwLock<HashSet<CallHandle>>>,
 }
 
 impl WasmBusThreadHandle {
     pub fn new(
         handle: CallHandle,
-        work_register: &Arc<RwLock<HashSet<CallHandle>>>,
     ) -> WasmBusThreadHandle {
         WasmBusThreadHandle {
             handle,
-            work_register: Arc::clone(work_register),
         }
     }
 
     pub fn handle(&self) -> CallHandle {
         self.handle
-    }
-}
-
-impl Drop for WasmBusThreadHandle {
-    fn drop(&mut self) {
-        let mut work_register = self.work_register.write().unwrap();
-        work_register.remove(&self.handle);
     }
 }
 
@@ -155,10 +141,10 @@ pub(crate) enum WasmBusThreadWork {
 }
 
 pub(super) struct WasmBusThreadInner {
-    pub(super) invocations: HashMap<u32, Pin<Box<dyn Future<Output = ()> + Send + 'static>>>,
-    pub(super) calls: HashMap<u32, mpsc::Sender<Result<Vec<u8>, CallError>>>,
+    pub(super) invocations: HashMap<CallHandle, Pin<Box<dyn Future<Output = ()> + Send + 'static>>>,
+    pub(super) calls: HashMap<CallHandle, mpsc::Sender<Result<Vec<u8>, CallError>>>,
     pub(super) polling: watch::Sender<bool>,
-    pub(super) callbacks: HashMap<u32, HashMap<String, u32>>,
+    pub(super) callbacks: HashMap<CallHandle, HashMap<String, CallHandle>>,
     pub(super) listens: HashSet<String>,
     pub(super) factory: BusFactory,
     #[allow(dead_code)]
@@ -193,14 +179,14 @@ pub struct WasmBusThread {
     memory: LazyInit<Memory>,
 
     #[wasmer(export(name = "wasm_bus_free"))]
-    wasm_bus_free: LazyInit<NativeFunc<(WasmPtr<u8, Array>, u32), ()>>,
+    wasm_bus_free: LazyInit<NativeFunc<(u32, u32), ()>>,
     #[wasmer(export(name = "wasm_bus_malloc"))]
-    wasm_bus_malloc: LazyInit<NativeFunc<u32, WasmPtr<u8, Array>>>,
+    wasm_bus_malloc: LazyInit<NativeFunc<u32, u32>>,
     #[wasmer(export(name = "wasm_bus_start"))]
     wasm_bus_start:
-        LazyInit<NativeFunc<(u32, u32, WasmPtr<u8, Array>, u32, WasmPtr<u8, Array>, u32), ()>>,
+        LazyInit<NativeFunc<(u32, u32, u32, u32, u32, u32), ()>>,
     #[wasmer(export(name = "wasm_bus_finish"))]
-    wasm_bus_finish: LazyInit<NativeFunc<(u32, WasmPtr<u8, Array>, u32), ()>>,
+    wasm_bus_finish: LazyInit<NativeFunc<(u32, u32, u32), ()>>,
     #[wasmer(export(name = "wasm_bus_error"))]
     wasm_bus_error: LazyInit<NativeFunc<(u32, u32), ()>>,
 }
@@ -218,15 +204,8 @@ impl WasmBusThread {
     }
 
     fn generate_handle(&self) -> WasmBusThreadHandle {
-        let mut work_register = self.pool.work_register.write().unwrap();
-        loop {
-            let handle: CallHandle = fastrand::u32(..).into();
-            if work_register.contains(&handle) == false {
-                work_register.insert(handle);
-                drop(work_register);
-                return WasmBusThreadHandle::new(handle, &self.pool.work_register);
-            }
-        }
+        let handle: CallHandle = fastrand::u32(..).into();
+        return WasmBusThreadHandle::new(handle);
     }
 
     /// Issues work on the BUS

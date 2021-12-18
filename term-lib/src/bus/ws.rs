@@ -54,19 +54,15 @@ pub fn web_socket(
 
         {
             let tx_state_inner = tx_state_inner.clone();
-            let on_state_change_waker = on_state_change_waker.clone();
             ws_sys.set_onopen(Box::new(move || {
                 let _ = tx_state_inner.blocking_send(SocketState::Opened);
-                on_state_change_waker.wake();
             }));
         }
 
         {
             let tx_state_inner = tx_state_inner.clone();
-            let on_state_change_waker = on_state_change_waker.clone();
             ws_sys.set_onclose(Box::new(move || {
                 let _ = tx_state_inner.blocking_send(SocketState::Closed);
-                on_state_change_waker.wake();
             }));
         }
 
@@ -77,15 +73,18 @@ pub fn web_socket(
                 if let Err(err) = tx_recv.blocking_send(data) {
                     trace!("websocket bytes silently dropped - {}", err);
                 }
-                on_received_waker.wake();
             }));
         }
 
         // Wait for the socket ot open or for something bad to happen
-        if let Some(state) = rx_state_inner.recv().await {
-            let _ = tx_state.send(state.clone()).await;
-            if state != SocketState::Opened {
-                return;
+        {
+            let on_state_change_waker = on_state_change_waker.clone();
+            if let Some(state) = rx_state_inner.recv().await {
+                let _ = tx_state.send(state.clone()).await;
+                on_state_change_waker.wake();
+                if state != SocketState::Opened {
+                    return;
+                }
             }
         }
 
@@ -97,16 +96,16 @@ pub fn web_socket(
                     return;
                 }
                 state = rx_state_inner.recv() => {
+                    on_state_change_waker.wake();
                     if let Some(state) = &state {
                         let _ = tx_state.send(state.clone()).await;
-                        on_state_change_waker.wake();
                     }
                     if state != Some(SocketState::Opened) {
-                        on_state_change_waker.wake();
                         return;
                     }
                 }
                 request = rx_send.recv() => {
+                    on_received_waker.wake();
                     if let Some(request) = request {
                         let data = request.data;
                         let data_len = data.len();

@@ -167,9 +167,7 @@ impl BusEngine {
         wapm: Cow<'static, str>,
         topic: Cow<'static, str>,
     ) -> Call {
-        let mut handle = CallHandle {
-            id: crate::abi::syscall::rand(),
-        };
+        let mut handle: CallHandle = crate::abi::syscall::handle().into();
         let mut call = Call {
             handle,
             parent,
@@ -180,9 +178,7 @@ impl BusEngine {
         };
 
         loop {
-            handle = CallHandle {
-                id: crate::abi::syscall::rand(),
-            };
+            handle = crate::abi::syscall::handle().into();
             call.handle = handle;
 
             {
@@ -247,18 +243,14 @@ impl BusEngine {
         F: FnMut(Vec<u8>) -> Result<Vec<u8>, CallError>,
         F: Send + 'static,
     {
-        let handle = CallHandle {
-            id: crate::abi::syscall::rand(),
-        };
+        let mut handle: CallHandle = crate::abi::syscall::handle().into();
         let mut recv = Finish {
             handle: handle,
             callback: Arc::new(Mutex::new(Box::new(callback))),
         };
 
         loop {
-            let handle = CallHandle {
-                id: crate::abi::syscall::rand(),
-            };
+            handle = crate::abi::syscall::handle().into();
             recv.handle = handle;
 
             {

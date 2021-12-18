@@ -105,16 +105,19 @@ mod raw {
 
     #[link(wasm_import_module = "wasm-bus")]
     extern "C" {
-        // Returns a handle 32-bit number which is used while generating
+        // Returns a handle 64-bit number which is used while generating
         // handles for calls and receive hooks
-        pub(crate) fn rand() -> u32;
+        pub(crate) fn handle() -> u32;
+
+        // Wakes the thread the next time it does a poll
+        pub(crate) fn wake();
 
         // Indicates that a fault has occured while processing a call
         pub(crate) fn fault(handle: u32, error: u32);
 
         // Returns the response of a listen invokation to a program
         // from the operating system
-        pub(crate) fn reply(handle: u32, response: i32, response_len: i32);
+        pub(crate) fn reply(handle: u32, response: u32, response_len: u32);
 
         // Drops a handle used by calls or callbacks
         pub(crate) fn drop(handle: u32);
@@ -126,21 +129,21 @@ mod raw {
         pub(crate) fn call(
             parent: u32,
             handle: u32,
-            wapm: i32,
-            wapm_len: i32,
-            topic: i32,
-            topic_len: i32,
-            request: i32,
-            request_len: i32,
+            wapm: u32,
+            wapm_len: u32,
+            topic: u32,
+            topic_len: u32,
+            request: u32,
+            request_len: u32,
         ) -> u32;
 
         // Incidates that a call that will be made should invoke a callback
         // back to this process under the designated handle.
-        pub(crate) fn callback(parent: u32, handle: u32, topic: i32, topic_len: i32);
+        pub(crate) fn callback(parent: u32, handle: u32, topic: u32, topic_len: u32);
 
         // Tells the operating system that this program is ready to respond
         // to calls on a particular topic name.
-        pub(crate) fn listen(topic: i32, topic_len: i32);
+        pub(crate) fn listen(topic: u32, topic_len: u32);
 
         // Polls the operating system for messages which will be returned via
         // the 'wasm_bus_start' function call.
@@ -155,8 +158,12 @@ pub fn drop(handle: CallHandle) {
     unsafe { raw::drop(handle.id) }
 }
 
-pub fn rand() -> u32 {
-    unsafe { raw::rand() }
+pub fn handle() -> CallHandle {
+    unsafe { raw::handle().into() }
+}
+
+pub fn wake() {
+    unsafe { raw::wake() }
 }
 
 pub fn fault(handle: CallHandle, error: u32) {
@@ -173,7 +180,7 @@ pub fn listen(topic: &str) {
     unsafe {
         let topic_len = topic.len();
         let topic = topic.as_ptr();
-        raw::listen(topic as i32, topic_len as i32)
+        raw::listen(topic as u32, topic_len as u32)
     }
 }
 
@@ -181,7 +188,7 @@ pub fn reply(handle: CallHandle, response: &[u8]) {
     unsafe {
         let response_len = response.len();
         let response = response.as_ptr();
-        raw::reply(handle.id, response as i32, response_len as i32);
+        raw::reply(handle.id, response as u32, response_len as u32);
     }
 }
 
@@ -203,12 +210,12 @@ pub fn call(
         raw::call(
             parent,
             handle.id,
-            wapm as i32,
-            wapm_len as i32,
-            topic as i32,
-            topic_len as i32,
-            request as i32,
-            request_len as i32,
+            wapm as u32,
+            wapm_len as u32,
+            topic as u32,
+            topic_len as u32,
+            request as u32,
+            request_len as u32,
         )
     };
 
@@ -221,7 +228,7 @@ pub fn callback(parent: CallHandle, handle: CallHandle, topic: &str) {
     unsafe {
         let topic_len = topic.len();
         let topic = topic.as_ptr();
-        raw::callback(parent.id, handle.id, topic as i32, topic_len as i32)
+        raw::callback(parent.id, handle.id, topic as u32, topic_len as u32)
     }
 }
 

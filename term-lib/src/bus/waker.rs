@@ -3,11 +3,13 @@ use std::sync::atomic::*;
 use tokio::sync::mpsc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
+use crate::api::System;
 
-use crate::bus::WasmBusThreadWork;
+use crate::{bus::WasmBusThreadWork, api::SystemAbiExt};
 
 #[derive(Debug)]
 pub(crate) struct ThreadWaker {
+    system: System,
     count: AtomicUsize,
     last_poll: AtomicUsize,
     work_tx: mpsc::Sender<WasmBusThreadWork>,
@@ -18,6 +20,7 @@ impl ThreadWaker {
         work_tx: mpsc::Sender<WasmBusThreadWork>,
     ) -> ThreadWaker {
         ThreadWaker {
+            system: System::default(),
             count: AtomicUsize::default(),
             last_poll: AtomicUsize::default(),
             work_tx,
@@ -30,9 +33,20 @@ impl ThreadWaker {
     }
 
     pub fn wake(&self) {
+        let last = self.last_poll.load(Ordering::SeqCst);
         let prev = self.count.fetch_add(1, Ordering::SeqCst);
-        if self.last_poll.load(Ordering::SeqCst) == prev {
-            let _ = self.work_tx.blocking_send(WasmBusThreadWork::Wake);
+        if last == prev {
+            let retry = match self.work_tx.try_send(WasmBusThreadWork::Wake) {
+                Ok(_) => None,
+                Err(mpsc::error::TrySendError::Closed(a)) => Some(a),
+                Err(mpsc::error::TrySendError::Full(a)) => Some(a)
+            };
+            if let Some(retry) = retry {
+                let work_tx = self.work_tx.clone();
+                self.system.fork_shared(move || async move {
+                    let _ = work_tx.send(retry).await;
+                });
+            }
         }
     }
 
@@ -43,6 +57,6 @@ impl ThreadWaker {
 
 impl WakeRef for ThreadWaker {
     fn wake_by_ref(&self) {
-        let _prev = self.count.fetch_add(1, Ordering::SeqCst);
+        self.wake();
     }
 }

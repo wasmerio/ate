@@ -22,7 +22,7 @@ type ListenCallback = Box<
 
 #[derive(Clone, Default)]
 pub struct Runtime {
-    waker: Arc<CounterWaker>,
+    waker: Arc<RuntimeWaker>,
     tasks: Arc<Mutex<Vec<Pin<Box<dyn Future<Output = ()> + Send + 'static>>>>>,
     listening: Arc<Mutex<HashMap<String, ListenCallback>>>,
 }
