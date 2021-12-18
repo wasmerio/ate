@@ -100,7 +100,12 @@ pub(super) fn mount(
 
         sub_process.main.async_wait_for_poll().await;
 
-        let fs = match FuseFileSystem::new(sub_process, target.as_str()) {
+        let _ = stdio
+            .stdout
+            .write(format!("Executing the mount\r\n").as_bytes())
+            .await;
+
+        let fs = match FuseFileSystem::new(sub_process, target.as_str()).await {
             Ok(a) => a,
             Err(err) => {
                 let _ = stdio

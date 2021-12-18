@@ -38,10 +38,12 @@ pub struct FuseFileSystem {
 }
 
 impl FuseFileSystem {
-    pub fn new(process: SubProcess, target: &str) -> Result<FuseFileSystem, CallError> {
+    pub async fn new(process: SubProcess, target: &str) -> Result<FuseFileSystem, CallError> {
         let task: AsyncWasmBusResult<()> = process.main.call(backend::Mount {
             name: target.to_string(),
         })?;
+
+        let _ = task.call::<(), _>(backend::Init {})?.join().await?;
 
         Ok(FuseFileSystem {
             system: System::default(),

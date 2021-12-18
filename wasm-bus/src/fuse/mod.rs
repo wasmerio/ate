@@ -22,11 +22,14 @@ pub struct FileSystem {
 }
 
 impl FileSystem {
-    pub fn mount(wapm: &str, name: &str) -> FileSystem {
+    pub async fn mount(wapm: &str, name: &str) -> FileSystem {
         let mount = backend::Mount {
             name: name.to_string(),
         };
         let task = call(wapm.to_string().into(), mount).invoke();
+
+        let _ = task.call(backend::Init {}).invoke().join::<()>().await;
+
         FileSystem { task }
     }
 

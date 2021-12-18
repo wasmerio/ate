@@ -246,7 +246,9 @@ impl PoolState {
             if let Ok(mut guard) = self.idle_rx.try_lock() {
                 if let Ok(thread) = guard.try_recv() {
                     match thread.try_consume(msg) {
-                        Ok(_) => { return; },
+                        Ok(_) => {
+                            return;
+                        }
                         Err((thread, a)) => {
                             let _ = self.idle_tx.try_send(thread);
                             msg = a;

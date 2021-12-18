@@ -57,6 +57,7 @@ rust_decimal = "^1"
 num-traits = { version = "^0.2" }
 wild = "^2"
 wasm-bus = { version = "^0.3", path = "../wasm-bus", features = [ "backend" ] }
+pbr = "^1"
 
 [target.'cfg(not(target_os = "wasi"))'.dependencies]
 tokio = { version = "^1", features = [ "rt", "io-util", "macros", "sync", "time", "fs" ], default_features = false }

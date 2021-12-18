@@ -9,8 +9,8 @@ use crate::eval::eval;
 use crate::eval::EvalContext;
 use crate::eval::EvalPlan;
 use crate::eval::ExecResponse;
-use crate::stdio::*;
 use crate::pipe::*;
+use crate::stdio::*;
 
 pub(super) fn wax(
     args: &[String],
@@ -36,10 +36,8 @@ pub(super) fn wax(
     let wax = ctx.bins.wax.clone();
     let mut ctx = ctx.clone();
     return Box::pin(async move {
-
         // If the process is not yet installed then install it
         if wax.lock().unwrap().contains(&cmd) == false {
-
             let mut tty = ctx.stdio.tty.fd();
 
             let (stdin_fd, _) = pipe_in(ReceiverMode::Stream, false);
@@ -57,7 +55,9 @@ pub(super) fn wax(
                 wax.lock().unwrap().insert(cmd.clone());
             } else {
                 debug!("wax install failed");
-                let _ = tty.write("wax: failed to install command\r\n".as_bytes()).await;
+                let _ = tty
+                    .write("wax: failed to install command\r\n".as_bytes())
+                    .await;
                 return ExecResponse::Immediate(err::ERR_EINVAL).into();
             }
         }

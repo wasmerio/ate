@@ -209,3 +209,6 @@ pub struct DirEntry {
 pub struct Dir {
     pub data: Vec<DirEntry>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Init {}

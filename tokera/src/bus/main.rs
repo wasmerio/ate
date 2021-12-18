@@ -7,6 +7,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 use tokio::sync::mpsc;
+use tokio::sync::watch;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::backend::fuse as backend;
@@ -49,6 +50,18 @@ pub async fn main_opts_bus(
 
     // Register all the functions
     listen(move |handle: CallHandle, mount: Mount| {
+        // We add a hook so that callers can wait on the mount to initialize
+        let (tx_init, rx_init) = watch::channel(false);
+        respond_to(handle, move |_handle, _init: Init| {
+            debug!("bus::read-init");
+            let mut rx_init = rx_init.clone();
+            async move {
+                while *rx_init.borrow() == false {
+                    let _ = rx_init.changed().await;
+                }
+            }
+        });
+
         // Derive the group from the mount address
         let mut group = None;
         if let Some((group_str, _)) = mount.name.split_once("/") {
@@ -517,7 +530,6 @@ pub async fn main_opts_bus(
                                                     *offset
                                                 };
 
-                                                error!("ARRRRR!");
                                                 file.spec
                                                     .write(offset, &write.data[..])
                                                     .await
@@ -601,6 +613,7 @@ pub async fn main_opts_bus(
 
             // We are now running
             info!("successfully mounted {}", mount.name);
+            let _ = tx_init.send(true);
             let _ = rx_unmount.recv().await;
         }
     });
