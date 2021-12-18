@@ -72,12 +72,14 @@ impl FileSystem for UnionFileSystem {
     }
     fn create_dir(&self, path: &Path) -> Result<()> {
         debug!("create_dir: path={}", path.display());
+
         if self.read_dir_internal(path).is_ok() {
             //return Err(FsError::AlreadyExists);
             return Ok(());
         }
-        let mut ret_error = FsError::EntityNotFound;
+
         let path = path.to_string_lossy();
+        let mut ret_error = FsError::EntityNotFound;
         for (path, mount) in filter_mounts(&self.mounts, path.as_ref()) {
             match mount.fs.create_dir(Path::new(path)) {
                 Ok(ret) => {
@@ -193,7 +195,12 @@ fn filter_mounts<'a, 'b>(
     let mut biggest_path = 0usize;
     let mut ret = Vec::new();
     for mount in mounts.iter().rev() {
-        if path.starts_with(mount.path.as_str()) || path.starts_with(&mount.path[1..]) {
+        let mut test_path = mount.path.clone();
+        if test_path.ends_with("/") == false {
+            test_path.push_str("/");
+        }
+        
+        if path.starts_with(test_path.as_str()) || path.starts_with(&test_path[1..]) {
             let path = if mount.path.ends_with("/") {
                 &path[mount.path.len() - 1..]
             } else {
