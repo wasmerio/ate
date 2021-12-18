@@ -1,7 +1,6 @@
 use cooked_waker::*;
 use std::sync::atomic::*;
 use tokio::sync::mpsc;
-use tokio::sync::watch;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
@@ -10,18 +9,17 @@ use crate::bus::WasmBusThreadWork;
 #[derive(Debug)]
 pub(crate) struct ThreadWaker {
     count: AtomicUsize,
-    polling: watch::Receiver<bool>,
+    last_poll: AtomicUsize,
     work_tx: mpsc::Sender<WasmBusThreadWork>,
 }
 
 impl ThreadWaker {
     pub fn new(
         work_tx: mpsc::Sender<WasmBusThreadWork>,
-        polling: watch::Receiver<bool>,
     ) -> ThreadWaker {
         ThreadWaker {
             count: AtomicUsize::default(),
-            polling,
+            last_poll: AtomicUsize::default(),
             work_tx,
         }
     }
@@ -32,10 +30,14 @@ impl ThreadWaker {
     }
 
     pub fn wake(&self) {
-        let _prev = self.count.fetch_add(1, Ordering::SeqCst);
-        if *self.polling.borrow() == true {
+        let prev = self.count.fetch_add(1, Ordering::SeqCst);
+        if self.last_poll.load(Ordering::SeqCst) == prev {
             let _ = self.work_tx.blocking_send(WasmBusThreadWork::Wake);
         }
+    }
+
+    pub fn woken(&self) {
+        self.last_poll.store(self.count.load(Ordering::SeqCst), Ordering::SeqCst);
     }
 }
 

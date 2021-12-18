@@ -169,15 +169,19 @@ unsafe fn wasm_bus_callback(
 unsafe fn wasm_bus_poll(thread: &WasmBusThread) {
     trace!("wasm-bus::poll");
 
+    // If we are polling then let anyone waiting for it know
+    if *thread.inner.unwrap().polling.borrow() == false {
+        let _ = thread.inner.unwrap().polling.send(true);
+    }
+
     // If the poll is woken then return
     if crate::bus::syscalls::raw::wasm_bus_tick(thread) == true {
         return;
     }
 
     // Lets wait for some work!
-    let _ = thread.inner.unwrap().polling.send(true);
     let work = thread.inner.unwrap().work_rx.blocking_recv();
-    let _ = thread.inner.unwrap().polling.send(false);
+    thread.waker.woken();
     match work {
         Some(WasmBusThreadWork::Call {
             topic,

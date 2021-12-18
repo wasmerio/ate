@@ -91,7 +91,7 @@ impl WasmBusThreadPool {
         };
 
         let ret = WasmBusThread {
-            waker: Arc::new(ThreadWaker::new(work_tx.clone(), polling_rx.clone())),
+            waker: Arc::new(ThreadWaker::new(work_tx.clone())),
             thread_id: thread.thread_id(),
             system: System::default(),
             pool: Arc::clone(self),

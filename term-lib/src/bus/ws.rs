@@ -93,13 +93,16 @@ pub fn web_socket(
         loop {
             select! {
                 _ = rx_keepalive.recv() => {
+                    on_state_change_waker.wake();
                     return;
                 }
                 state = rx_state_inner.recv() => {
                     if let Some(state) = &state {
                         let _ = tx_state.send(state.clone()).await;
+                        on_state_change_waker.wake();
                     }
                     if state != Some(SocketState::Opened) {
+                        on_state_change_waker.wake();
                         return;
                     }
                 }
