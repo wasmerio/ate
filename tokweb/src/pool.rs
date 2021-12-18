@@ -78,8 +78,17 @@ struct IdleThread {
 }
 
 impl IdleThread {
+    #[allow(dead_code)]
     fn consume(self, msg: Message) {
         let _ = self.work.blocking_send(msg);
+    }
+
+    fn try_consume(self, msg: Message) -> Result<(), (IdleThread, Message)> {
+        match self.work.try_send(msg) {
+            Ok(_) => Ok(()),
+            Err(mpsc::error::TrySendError::Closed(a)) => Err((self, a)),
+            Err(mpsc::error::TrySendError::Full(a)) => Err((self, a)),
+        }
     }
 }
 
@@ -234,16 +243,15 @@ impl WebThreadPool {
 impl PoolState {
     fn spawn(self: &Arc<Self>, mut msg: Message) {
         for _ in 0..10 {
-            let guard = {
-                self.idle_rx
-                    .try_lock()
-                    .ok()
-                    .map(|mut idle_rx| idle_rx.try_recv().ok())
-            };
-            if let Some(thread) = guard {
-                if let Some(thread) = thread {
-                    thread.consume(msg);
-                    return;
+            if let Ok(mut guard) = self.idle_rx.try_lock() {
+                if let Ok(thread) = guard.try_recv() {
+                    match thread.try_consume(msg) {
+                        Ok(_) => { return; },
+                        Err((thread, a)) => {
+                            let _ = self.idle_tx.try_send(thread);
+                            msg = a;
+                        }
+                    }
                 }
                 break;
             }

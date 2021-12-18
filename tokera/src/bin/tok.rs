@@ -235,6 +235,13 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
         SubCommand::Token(..) => false,
         #[cfg(feature = "bus")]
         SubCommand::Bus(..) => false,
+        SubCommand::User(a) => {
+            match a.action {
+                UserAction::Create(..) => false,
+                UserAction::Recover(..) => false,
+                _ => true
+            }
+        }
         _ => true,
     };
 
