@@ -4,14 +4,10 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::Mutex;
-use term_lib::api::*;
 use tokio::sync::mpsc;
 use tokio::sync::RwLock;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use wasm_bindgen::JsCast;
-use web_sys::HtmlCanvasElement;
-use xterm_js_rs::Terminal;
 
 use crate::tty::TtyMode;
 
@@ -25,24 +21,21 @@ use super::fd::*;
 use super::fs::*;
 use super::job::*;
 use super::pipe::*;
-use super::pool::WebThreadPool as Pool;
 use super::reactor::*;
 use super::state::*;
 use super::stdio::*;
 use super::stdout::*;
 use super::tty::*;
+use crate::api::*;
 use crate::wasmer_vfs::FileSystem;
 
 pub struct Console {
-    terminal: Terminal,
-    front_buffer: HtmlCanvasElement,
     location: url::Url,
     user_agent: String,
     is_mobile: bool,
     state: Arc<Mutex<ConsoleState>>,
     bins: BinFactory,
     tty: Tty,
-    pool: Pool,
     reactor: Arc<RwLock<Reactor>>,
     stdout: Stdout,
     stderr: Fd,
@@ -50,13 +43,7 @@ pub struct Console {
 }
 
 impl Console {
-    pub fn new(
-        terminal: Terminal,
-        front_buffer: HtmlCanvasElement,
-        location: String,
-        user_agent: String,
-        pool: Pool,
-    ) -> Console {
+    pub fn new(location: String, user_agent: String) -> Console {
         let reactor = Reactor::new();
 
         let state = Arc::new(Mutex::new(ConsoleState::new(super::fs::create_root_fs())));
@@ -71,14 +58,14 @@ impl Console {
         // Stdout and Stderr
         {
             let state = state.clone();
-            let terminal: Terminal = terminal.clone().dyn_into().unwrap();
             system.fork_local(async move {
                 while let Some(data) = tty_rx.recv().await {
                     let text = String::from_utf8_lossy(&data[..])[..].replace("\n", "\r\n");
-                    terminal.write(text.as_str());
+                    let is_unfinished = is_cleared_line(&text) == false;
+                    system.print(text).await;
 
                     let mut state = state.lock().unwrap();
-                    state.unfinished_line = is_cleared_line(&text) == false;
+                    state.unfinished_line = is_unfinished;
                 }
             });
         }
@@ -91,7 +78,7 @@ impl Console {
                 while txt.ends_with("\n") || txt.ends_with("\r") {
                     txt = &txt[..(txt.len() - 1)];
                 }
-                console::log(txt);
+                system.log(txt.to_string()).await;
             }
         });
 
@@ -111,8 +98,6 @@ impl Console {
         );
 
         Console {
-            terminal,
-            front_buffer,
             location,
             is_mobile,
             user_agent,
@@ -122,14 +107,11 @@ impl Console {
             stderr,
             tty,
             reactor,
-            pool,
             exec: exec_factory,
         }
     }
 
     pub async fn init(&mut self) {
-        crate::glue::show_terminal();
-
         let mut location_file = self
             .state
             .lock()
@@ -165,9 +147,9 @@ impl Console {
             init_file.write_all(run_command.as_bytes()).unwrap();
         }
 
-        let cols = self.terminal.get_cols();
-        let rows = self.terminal.get_rows();
-        self.tty.set_bounds(cols, rows).await;
+        let system = System::default();
+        let rect = system.console_rect().await;
+        self.tty.set_bounds(rect.cols, rect.rows).await;
 
         Console::update_prompt(false, &self.state, &self.tty).await;
 
@@ -349,7 +331,7 @@ impl Console {
     pub async fn on_ctrl_l(&mut self) {
         self.tty.reset_line().await;
         self.tty.draw_prompt().await;
-        self.terminal.clear();
+        System::default().cls().await;
     }
 
     pub async fn on_tab(&mut self, _job: Option<Job>) {
@@ -399,9 +381,8 @@ impl Console {
     }
 
     pub async fn on_resize(&mut self) {
-        let cols = self.terminal.get_cols();
-        let rows = self.terminal.get_rows();
-        self.tty.set_bounds(cols, rows).await;
+        let rect = System::default().console_rect().await;
+        self.tty.set_bounds(rect.cols, rect.rows).await;
     }
 
     pub async fn on_parse(&mut self, data: &str, job: Option<Job>) {

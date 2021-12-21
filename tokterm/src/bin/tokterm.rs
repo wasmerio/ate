@@ -1,5 +1,7 @@
 #![allow(unused_imports)]
 use clap::Parser;
+use term_lib::api::*;
+use tokterm::console::Console;
 use tracing::{debug, error, info, warn};
 
 #[allow(dead_code)]
@@ -14,10 +16,23 @@ struct Opts {
     pub debug: bool,
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let opts = Opts::parse();
     tokterm::utils::log_init(opts.verbose, opts.debug);
+
+    // Set the system
+    let sys = tokterm::system::SysSystem::new();
+    term_lib::api::set_system_abi(sys.clone());
+    let system = System::default();
+
+    // Run the console
+    system.fork_dedicated(move || async move {
+        let mut console = Console::new();
+        console.run().await;
+    });
+
+    // Block on the main system thread pool
+    sys.run();
 
     // We are done
     Ok(())

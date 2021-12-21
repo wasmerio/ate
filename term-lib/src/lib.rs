@@ -7,6 +7,7 @@ pub mod fs;
 pub mod bin_factory;
 pub mod cconst;
 pub mod common;
+pub mod console;
 pub mod environment;
 pub mod err;
 pub mod fd;

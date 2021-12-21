@@ -9,6 +9,11 @@ use tokio::sync::mpsc;
 use super::*;
 use wasm_bus::backend::reqwest::Response as ReqwestResponse;
 
+pub struct ConsoleRect {
+    pub cols: u32,
+    pub rows: u32,
+}
+
 // This ABI implements a number of low level operating system
 // functions that this terminal depends upon
 #[async_trait]
@@ -49,6 +54,18 @@ where
 
     /// Puts the current thread to sleep for a fixed number of milliseconds
     fn sleep(&self, ms: i32) -> AsyncResult<()>;
+
+    /// Writes output to the console
+    async fn print(&self, text: String);
+
+    /// Writes output to the log
+    async fn log(&self, text: String);
+
+    /// Gets the number of columns and rows in the terminal
+    async fn console_rect(&self) -> ConsoleRect;
+
+    /// Clears the terminal
+    async fn cls(&self);
 
     /// Fetches a data file from the local context of the process
     fn fetch_file(&self, path: &str) -> AsyncResult<Result<Vec<u8>, i32>>;

@@ -12,18 +12,26 @@ use tracing::{debug, error, info, trace, warn};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::*;
 
+use super::common::*;
 use super::pool::WebThreadPool;
 use super::ws::WebSocket;
 use term_lib::api::*;
 use wasm_bus::backend::reqwest::Response as ReqwestResponse;
 
-pub struct WebSystem {
+pub(crate) enum TerminalCommand {
+    Print(String),
+    ConsoleRect(mpsc::Sender<ConsoleRect>),
+    Cls,
+}
+
+pub(crate) struct WebSystem {
     pool: WebThreadPool,
+    term_tx: mpsc::Sender<TerminalCommand>,
 }
 
 impl WebSystem {
-    pub fn new(pool: WebThreadPool) -> WebSystem {
-        WebSystem { pool }
+    pub(crate) fn new(pool: WebThreadPool, term_tx: mpsc::Sender<TerminalCommand>) -> WebSystem {
+        WebSystem { pool, term_tx }
     }
 }
 
@@ -72,6 +80,27 @@ impl SystemAbi for WebSystem {
             })
         }));
         AsyncResult::new(rx)
+    }
+
+    async fn print(&self, text: String) {
+        let _ = self.term_tx.send(TerminalCommand::Print(text)).await;
+    }
+
+    async fn log(&self, text: String) {
+        console::log(text.as_str());
+    }
+
+    async fn console_rect(&self) -> ConsoleRect {
+        let (ret_tx, mut ret_rx) = mpsc::channel(1);
+        let _ = self
+            .term_tx
+            .send(TerminalCommand::ConsoleRect(ret_tx))
+            .await;
+        ret_rx.recv().await.unwrap()
+    }
+
+    async fn cls(&self) {
+        let _ = self.term_tx.send(TerminalCommand::Cls).await;
     }
 
     fn fetch_file(&self, path: &str) -> AsyncResult<Result<Vec<u8>, i32>> {

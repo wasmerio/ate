@@ -1,6 +1,5 @@
 use cooked_waker::*;
 use once_cell::sync::Lazy;
-use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -10,21 +9,13 @@ use std::task::Poll;
 use std::task::Waker;
 
 use super::*;
-use crate::abi::CallError;
 
 pub(crate) static RUNTIME: Lazy<Runtime> = Lazy::new(|| Runtime::default());
-
-type ListenCallback = Box<
-    dyn Fn(u32, Vec<u8>) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, CallError>>>>
-        + Send
-        + 'static,
->;
 
 #[derive(Clone, Default)]
 pub struct Runtime {
     waker: Arc<RuntimeWaker>,
     tasks: Arc<Mutex<Vec<Pin<Box<dyn Future<Output = ()> + Send + 'static>>>>>,
-    listening: Arc<Mutex<HashMap<String, ListenCallback>>>,
 }
 
 impl Runtime {

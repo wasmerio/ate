@@ -243,8 +243,12 @@ pub async fn exec_process(
             .spawn_stateful(move |mut thread_local| async move {
                 let mut thread_local = thread_local.borrow_mut();
 
+                // TODO: This caching of the modules was disabled as there is a bug within
+                //       wasmer Module and JsValue that causes a panic in certain race conditions
                 // Load or compile the module (they are cached in therad local storage)
-                let mut module = thread_local.modules.get_mut(&data_hash);
+                //let mut module = thread_local.modules.get_mut(&data_hash);
+                let mut module = None;
+
                 if module.is_none() {
                     if stderr.is_tty() {
                         let _ = stderr.write("Compiling...".as_bytes()).await;
@@ -255,6 +259,7 @@ pub async fn exec_process(
                     }
 
                     // Cache miss - compile the module
+                    info!("compiling {}", cmd);
                     let store = Store::default();
                     let compiled_module = match Module::new(&store, &data[..]) {
                         Ok(a) => a,
@@ -281,7 +286,7 @@ pub async fn exec_process(
                         .insert(data_hash.clone(), compiled_module);
                     module = thread_local.modules.get_mut(&data_hash);
                 }
-                let module = module.unwrap();
+                let mut module = module.unwrap().clone();
 
                 // Build the list of arguments
                 let args = args.iter().skip(1).map(|a| a.as_str()).collect::<Vec<_>>();

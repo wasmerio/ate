@@ -1,6 +1,7 @@
 use chrono::prelude::*;
 use term_lib::api::*;
 use term_lib::common::MAX_MPSC;
+use term_lib::console::Console;
 use tokio::sync::mpsc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
@@ -17,10 +18,10 @@ use xterm_js_rs::addons::webgl::WebglAddon;
 use xterm_js_rs::Theme;
 use xterm_js_rs::{LogLevel, OnKeyEvent, Terminal, TerminalOptions};
 
+use crate::system::TerminalCommand;
 use crate::system::WebSystem;
 
 use super::common::*;
-use super::console::Console;
 use super::pool::*;
 
 #[macro_export]
@@ -71,16 +72,11 @@ pub fn start() -> Result<(), JsValue> {
             .with_theme(&Theme::new()),
     );
 
-    let pool = WebThreadPool::new_with_max_threads().unwrap();
-    let system = WebSystem::new(pool.clone());
-    term_lib::api::set_system_abi(system);
-    let system = System::default();
-
     let window = web_sys::window().unwrap();
     let location = window.location().href().unwrap();
 
     let user_agent = USER_AGENT.clone();
-    let is_mobile = crate::common::is_mobile(&user_agent);
+    let is_mobile = term_lib::common::is_mobile(&user_agent);
     debug!("user_agent: {}", user_agent);
 
     let elem = window
@@ -90,6 +86,36 @@ pub fn start() -> Result<(), JsValue> {
         .unwrap();
 
     terminal.open(elem.clone().dyn_into()?);
+
+    let (term_tx, mut term_rx) = mpsc::channel(MAX_MPSC);
+    {
+        let terminal: Terminal = terminal.clone().dyn_into().unwrap();
+        wasm_bindgen_futures::spawn_local(async move {
+            while let Some(cmd) = term_rx.recv().await {
+                match cmd {
+                    TerminalCommand::Print(text) => {
+                        terminal.write(text.as_str());
+                    }
+                    TerminalCommand::ConsoleRect(tx) => {
+                        let _ = tx
+                            .send(ConsoleRect {
+                                cols: terminal.get_cols(),
+                                rows: terminal.get_rows(),
+                            })
+                            .await;
+                    }
+                    TerminalCommand::Cls => {
+                        terminal.clear();
+                    }
+                }
+            }
+        });
+    }
+
+    let pool = WebThreadPool::new_with_max_threads().unwrap();
+    let system = WebSystem::new(pool.clone(), term_tx);
+    term_lib::api::set_system_abi(system);
+    let system = System::default();
 
     let front_buffer = window
         .document()
@@ -101,13 +127,7 @@ pub fn start() -> Result<(), JsValue> {
         .map_err(|_| ())
         .unwrap();
 
-    let mut console = Console::new(
-        terminal.clone().dyn_into().unwrap(),
-        front_buffer.clone().dyn_into().unwrap(),
-        location,
-        user_agent,
-        pool,
-    );
+    let mut console = Console::new(location, user_agent);
     let tty = console.tty().clone();
 
     let (tx, mut rx) = mpsc::channel(MAX_MPSC);
@@ -190,6 +210,8 @@ pub fn start() -> Result<(), JsValue> {
 
     system.fork_local(async move {
         console.init().await;
+
+        crate::glue::show_terminal();
 
         let mut last = None;
         while let Some(event) = rx.recv().await {
