@@ -12,7 +12,7 @@ const MINIMUM_ROWS = 1;
 // First: Expose a function to start a web worker. This function must
 // not be inlined into the Rust lib, as otherwise bundlers could not
 // bundle it -- huh.
-export function termFit(terminal: Terminal, front: HTMLCanvasElement): void {
+export function termFit(terminal, front) {
   if (!terminal) {
     return undefined;
   }
@@ -22,7 +22,8 @@ export function termFit(terminal: Terminal, front: HTMLCanvasElement): void {
   }
 
   // TODO: Remove reliance on private API
-  const core = (terminal as any)._core;
+  //const core = (terminal as any)._core;
+  let core = terminal._core;
 
   if (
     core._renderService.dimensions.actualCellWidth === 0 ||
@@ -64,12 +65,12 @@ export function termFit(terminal: Terminal, front: HTMLCanvasElement): void {
       )
     ),
   };
-  console.log(front);
+
   // Also update the front buffer
-  front.width = document.body.clientWidth;
-  front.height = document.body.clientHeight;
-  front.style.width = document.body.clientWidth + "px";
-  front.style.height = document.body.clientHeight + "px";
+  front.width = availableWidth;
+  front.height = availableHeight;
+  front.style.width = availableWidth + "px";
+  front.style.height = availableHeight + "px";
 
   // Force a full render
   if (terminal.rows !== dims.rows || terminal.cols !== dims.cols) {

@@ -10,6 +10,7 @@ use tokio::sync::RwLock;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bindgen::JsCast;
+use wasm_bindgen::prelude::*;
 use web_sys::HtmlCanvasElement;
 use xterm_js_rs::Terminal;
 
@@ -33,6 +34,7 @@ use super::stdout::*;
 use super::tty::*;
 use crate::wasmer_vfs::FileSystem;
 
+#[wasm_bindgen]
 pub struct Console {
     terminal: Terminal,
     front_buffer: HtmlCanvasElement,
@@ -47,6 +49,13 @@ pub struct Console {
     stdout: Stdout,
     stderr: Fd,
     exec: EvalFactory,
+}
+
+#[wasm_bindgen]
+impl Console {
+    pub fn writeData(&mut self, mut data: String) {
+
+    }
 }
 
 impl Console {
@@ -127,7 +136,7 @@ impl Console {
         }
     }
 
-    pub async fn init(&mut self) {
+    pub async fn init(&mut self, init_command: Option<String>) {
         crate::glue::show_terminal();
 
         let mut location_file = self
@@ -144,14 +153,7 @@ impl Console {
             .write_all(self.location.as_str().as_bytes())
             .unwrap();
 
-        let run_command = self
-            .location
-            .query_pairs()
-            .filter(|(key, _)| key == "run-command" || key == "init")
-            .next()
-            .map(|(_, val)| val.to_string());
-
-        if let Some(run_command) = &run_command {
+        if let Some(init_command) = &init_command {
             let mut init_file = self
                 .state
                 .lock()
@@ -162,7 +164,7 @@ impl Console {
                 .write(true)
                 .open(Path::new("/bin/init"))
                 .unwrap();
-            init_file.write_all(run_command.as_bytes()).unwrap();
+            init_file.write_all(init_command.as_bytes()).unwrap();
         }
 
         let cols = self.terminal.get_cols();
@@ -172,7 +174,7 @@ impl Console {
         Console::update_prompt(false, &self.state, &self.tty).await;
 
         self.tty.draw_welcome().await;
-        if run_command.is_some() {
+        if init_command.is_some() {
             self.on_data("source /bin/init".to_string()).await;
             self.on_enter().await;
         } else {

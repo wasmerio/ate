@@ -38,18 +38,36 @@ pub fn main() {
 #[derive(Debug)]
 pub enum InputEvent {
     Key(KeyboardEvent),
+    Command(String),
     Data(String),
 }
 
 #[wasm_bindgen]
-pub fn start(terminal_element: web_sys::Element, front_buffer: HtmlCanvasElement) -> Result<(), JsValue> {
+pub struct ConsoleInput {
+    tx: mpsc::Sender<InputEvent>
+}
+
+#[wasm_bindgen]
+impl ConsoleInput {
+    #[wasm_bindgen]
+    pub fn send_command(&self, data: String) {
+        self.tx.blocking_send(InputEvent::Command(data)).unwrap();
+    }
+
+    #[wasm_bindgen]
+    pub fn send_data(&self, data: String) {
+        self.tx.blocking_send(InputEvent::Data(data)).unwrap();
+    }
+}
+
+#[wasm_bindgen]
+pub fn start(terminal_element: web_sys::Element, front_buffer: HtmlCanvasElement, init_command: Option<String>) -> Result<ConsoleInput, JsValue> {
     #[wasm_bindgen]
     extern "C" {
         #[wasm_bindgen(js_namespace = navigator, js_name = userAgent)]
         static USER_AGENT: String;
     }
 
-    //ate::log_init(0i32, false);
     tracing_wasm::set_as_global_default_with_config(
         tracing_wasm::WASMLayerConfigBuilder::new()
             .set_report_logs_in_timings(false)
@@ -183,7 +201,7 @@ pub fn start(terminal_element: web_sys::Element, front_buffer: HtmlCanvasElement
     terminal.focus();
 
     system.fork_local(async move {
-        console.init().await;
+        console.init(init_command).await;
 
         let mut last = None;
         while let Some(event) = rx.recv().await {
@@ -198,6 +216,10 @@ pub fn start(terminal_element: web_sys::Element, front_buffer: HtmlCanvasElement
                             event.meta_key(),
                         )
                         .await;
+                }
+                InputEvent::Command(data) => {
+                    console.on_data(data).await;
+                    console.on_enter().await
                 }
                 InputEvent::Data(data) => {
                     // Due to a nasty bug in xterm.js on Android mobile it sends the keys you press
@@ -220,12 +242,14 @@ pub fn start(terminal_element: web_sys::Element, front_buffer: HtmlCanvasElement
         }
     });
 
-    Ok(())
+    Ok(ConsoleInput {
+        tx: tx
+    })
 }
 
 #[wasm_bindgen(module = "/src/js/fit.ts")]
 extern "C" {
-    #[wasm_bindgen(js_name = "termFit")]
+#[wasm_bindgen(js_name = "termFit")]
     fn term_fit(terminal: Terminal, front: HtmlCanvasElement);
 }
 
