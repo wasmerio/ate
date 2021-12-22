@@ -4,6 +4,7 @@ use std::cell::RefCell;
 use std::convert::TryFrom;
 use std::future::Future;
 use std::io::{self, Write};
+use std::ops::Deref;
 use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -19,7 +20,6 @@ use tokio::sync::mpsc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::backend::reqwest::Response as ReqwestResponse;
-use std::ops::Deref;
 
 static PUBLIC_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/public");
 
@@ -53,7 +53,9 @@ impl SystemAbi for SysSystem {
     /// This task must not block the execution or it could cause a deadlock
     fn task_shared(
         &self,
-        task: Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = ()> + Send + 'static>> + Send + 'static>,
+        task: Box<
+            dyn FnOnce() -> Pin<Box<dyn Future<Output = ()> + Send + 'static>> + Send + 'static,
+        >,
     ) {
         self.runtime.spawn(async move {
             let fut = task();
@@ -133,13 +135,10 @@ impl SystemAbi for SysSystem {
         if let Some((w, h)) = term_size::dimensions() {
             ConsoleRect {
                 cols: w as u32,
-                rows: h as u32
+                rows: h as u32,
             }
         } else {
-            ConsoleRect {
-                cols: 80,
-                rows: 25,
-            }
+            ConsoleRect { cols: 80, rows: 25 }
         }
     }
 

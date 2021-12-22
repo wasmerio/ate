@@ -39,7 +39,9 @@ impl WebSystem {
 impl SystemAbi for WebSystem {
     fn task_shared(
         &self,
-        task: Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = ()> + Send + 'static>> + Send + 'static>,
+        task: Box<
+            dyn FnOnce() -> Pin<Box<dyn Future<Output = ()> + Send + 'static>> + Send + 'static,
+        >,
     ) {
         self.pool.spawn_shared(Box::new(move || {
             Box::pin(async move {
@@ -79,7 +81,7 @@ impl SystemAbi for WebSystem {
             Box::pin(async move {
                 let promise = sleep(ms);
                 let js_fut = JsFuture::from(promise);
-    
+
                 let _ = js_fut.await;
                 let _ = tx.send(()).await;
             })

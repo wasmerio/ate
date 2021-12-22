@@ -25,7 +25,9 @@ where
     /// This task must not block the execution or it could cause a deadlock
     fn task_shared(
         &self,
-        task: Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = ()> + Send + 'static>> + Send + 'static>,
+        task: Box<
+            dyn FnOnce() -> Pin<Box<dyn Future<Output = ()> + Send + 'static>> + Send + 'static,
+        >,
     );
 
     /// Starts an asynchronous task will will run on a dedicated thread
