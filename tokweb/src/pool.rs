@@ -59,8 +59,8 @@ enum Message {
 impl Debug for Message {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Message::Run(_) => write!(f, "run-shared"),
-            Message::RunWithThreadLocal(_) => write!(f, "run-dedicated"),
+            Message::Run(_) => write!(f, "run"),
+            Message::RunWithThreadLocal(_) => write!(f, "run-with-thread-local"),
         }
     }
 }

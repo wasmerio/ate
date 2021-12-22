@@ -1,7 +1,7 @@
 #![allow(unused_imports)]
 use clap::Parser;
 use term_lib::api::*;
-use tokterm::console::Console;
+use term_lib::console::Console;
 use tracing::{debug, error, info, warn};
 
 #[allow(dead_code)]
@@ -27,8 +27,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Run the console
     system.fork_dedicated(move || async move {
-        let mut console = Console::new();
-        console.run().await;
+        let location = "wss://localhost/".to_string();
+        let user_agent = "noagent".to_string();
+        let mut console = Console::new(location, user_agent);
+        console.init().await;
     });
 
     // Block on the main system thread pool

@@ -29,14 +29,14 @@ use crate::api::*;
 use crate::common::*;
 
 pub struct WasmBusThreadPool {
-    threads: RwLock<HashMap<u32, WasmBusThread>>,
+    threads: Arc<RwLock<HashMap<u32, WasmBusThread>>>,
     process_factory: ProcessExecFactory,
 }
 
 impl WasmBusThreadPool {
     pub fn new(process_factory: ProcessExecFactory) -> Arc<WasmBusThreadPool> {
         Arc::new(WasmBusThreadPool {
-            threads: RwLock::new(HashMap::default()),
+            threads: Arc::new(RwLock::new(HashMap::default())),
             process_factory,
         })
     }
@@ -52,9 +52,18 @@ impl WasmBusThreadPool {
     }
 
     pub fn wake_all(&self) {
-        let threads = self.threads.read().unwrap();
-        for thread in threads.values() {
-            let _ = thread.waker.wake();
+        if let Ok(threads) = self.threads.try_read() {
+            for thread in threads.values() {
+                let _ = thread.waker.wake();
+            }
+        } else {
+            let threads = self.threads.clone();
+            System::default().fork_shared(move || async move {
+                let threads = threads.read().unwrap();
+                for thread in threads.values() {
+                    let _ = thread.waker.wake();
+                }
+            })
         }
     }
 

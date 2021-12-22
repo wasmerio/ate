@@ -39,9 +39,14 @@ impl WebSystem {
 impl SystemAbi for WebSystem {
     fn task_shared(
         &self,
-        task: Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
+        task: Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = ()> + Send + 'static>> + Send + 'static>,
     ) {
-        self.pool.spawn_shared(task);
+        self.pool.spawn_shared(Box::new(move || {
+            Box::pin(async move {
+                let fut = task();
+                fut.await;
+            })
+        }));
     }
 
     fn task_stateful(
@@ -70,11 +75,11 @@ impl SystemAbi for WebSystem {
 
     fn sleep(&self, ms: i32) -> AsyncResult<()> {
         let (tx, rx) = mpsc::channel(1);
-        self.task_shared(Box::new(move || {
+        self.pool.spawn_shared(Box::new(move || {
             Box::pin(async move {
                 let promise = sleep(ms);
                 let js_fut = JsFuture::from(promise);
-
+    
                 let _ = js_fut.await;
                 let _ = tx.send(()).await;
             })
@@ -108,7 +113,7 @@ impl SystemAbi for WebSystem {
         let headers = vec![("Accept".to_string(), "application/wasm".to_string())];
 
         let (tx, rx) = mpsc::channel(1);
-        self.task_shared(Box::new(move || {
+        self.pool.spawn_shared(Box::new(move || {
             Box::pin(async move {
                 let ret = crate::common::fetch_data(url.as_str(), "GET", headers, None).await;
                 let _ = tx.send(ret).await;
@@ -128,7 +133,7 @@ impl SystemAbi for WebSystem {
         let method = method.to_string();
 
         let (tx, rx) = mpsc::channel(1);
-        self.task_shared(Box::new(move || {
+        self.pool.spawn_shared(Box::new(move || {
             Box::pin(async move {
                 let resp = match crate::common::fetch(url.as_str(), method.as_str(), headers, data)
                     .await

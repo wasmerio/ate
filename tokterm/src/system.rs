@@ -19,6 +19,7 @@ use tokio::sync::mpsc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::backend::reqwest::Response as ReqwestResponse;
+use std::ops::Deref;
 
 static PUBLIC_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/public");
 
@@ -52,11 +53,11 @@ impl SystemAbi for SysSystem {
     /// This task must not block the execution or it could cause a deadlock
     fn task_shared(
         &self,
-        task: Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
+        task: Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = ()> + Send + 'static>> + Send + 'static>,
     ) {
         self.runtime.spawn(async move {
             let fut = task();
-            tokio::task::spawn_local(fut);
+            fut.await
         });
     }
 
@@ -71,11 +72,13 @@ impl SystemAbi for SysSystem {
                 + 'static,
         >,
     ) {
+        let rt = self.runtime.clone();
         self.runtime.spawn_blocking(move || {
             THREAD_LOCAL.with(|local| {
                 let fut = task(local.clone());
-                let runtime = Builder::new_current_thread().enable_all().build().unwrap();
-                runtime.block_on(async move { fut.await })
+                let set = tokio::task::LocalSet::new();
+                set.block_on(rt.deref(), fut);
+                rt.block_on(set);
             });
         });
     }
@@ -87,10 +90,12 @@ impl SystemAbi for SysSystem {
         &self,
         task: Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
     ) {
+        let rt = self.runtime.clone();
         self.runtime.spawn_blocking(move || {
             let fut = task();
-            let runtime = Builder::new_current_thread().enable_all().build().unwrap();
-            runtime.block_on(fut)
+            let set = tokio::task::LocalSet::new();
+            set.block_on(rt.deref(), fut);
+            rt.block_on(set);
         });
     }
 
@@ -115,7 +120,32 @@ impl SystemAbi for SysSystem {
     }
 
     async fn print(&self, text: String) {
-        io::stdout_locked().write_all(text.as_bytes());
+        let _ = io::stdout().lock().write_all(text.as_bytes());
+    }
+
+    /// Writes output to the log
+    async fn log(&self, text: String) {
+        let _ = io::stderr().lock().write_all(text.as_bytes());
+    }
+
+    /// Gets the number of columns and rows in the terminal
+    async fn console_rect(&self) -> ConsoleRect {
+        if let Some((w, h)) = term_size::dimensions() {
+            ConsoleRect {
+                cols: w as u32,
+                rows: h as u32
+            }
+        } else {
+            ConsoleRect {
+                cols: 80,
+                rows: 25,
+            }
+        }
+    }
+
+    /// Clears the terminal
+    async fn cls(&self) {
+        print!("{}[2J", 27 as char);
     }
 
     /// Fetches a data file from the local context of the process

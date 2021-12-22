@@ -25,7 +25,7 @@ where
     /// This task must not block the execution or it could cause a deadlock
     fn task_shared(
         &self,
-        task: Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
+        task: Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = ()> + Send + 'static>> + Send + 'static>,
     );
 
     /// Starts an asynchronous task will will run on a dedicated thread
@@ -93,7 +93,7 @@ pub trait SystemAbiExt {
     where
         F: FnOnce() -> Fut,
         F: Send + 'static,
-        Fut: Future + 'static,
+        Fut: Future + Send + 'static,
         Fut::Output: Send;
 
     /// Starts an asynchronous task will will run on a dedicated thread
@@ -127,7 +127,8 @@ pub trait SystemAbiExt {
     where
         F: FnOnce() -> Fut,
         F: Send + 'static,
-        Fut: Future + 'static;
+        Fut: Future + Send + 'static,
+        Fut::Output: Send;
 
     /// Starts an asynchronous task will will run on a dedicated thread
     /// pulled from the worker pool that has a stateful thread local variable
@@ -163,7 +164,7 @@ impl SystemAbiExt for dyn SystemAbi {
     where
         F: FnOnce() -> Fut,
         F: Send + 'static,
-        Fut: Future + 'static,
+        Fut: Future + Send + 'static,
         Fut::Output: Send,
     {
         let (tx_result, rx_result) = mpsc::channel(1);
@@ -215,9 +216,10 @@ impl SystemAbiExt for dyn SystemAbi {
 
     fn fork_shared<F, Fut>(&self, task: F)
     where
-        F: FnOnce() -> Fut + 'static,
+        F: FnOnce() -> Fut + Send + 'static,
         F: Send + 'static,
-        Fut: Future + 'static,
+        Fut: Future + Send + 'static,
+        Fut::Output: Send,
     {
         self.task_shared(Box::new(move || {
             let task = task();
