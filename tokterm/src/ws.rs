@@ -1,37 +1,34 @@
-use futures::SinkExt;
-use futures::stream::SplitStream;
+use async_trait::async_trait;
 use futures::stream::SplitSink;
-use term_lib::api::WebSocketAbi;
-use term_lib::api::System;
-use term_lib::api::SystemAbiExt;
-use futures_util::{StreamExt};
-use tokio::net::TcpStream;
-use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
-use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
+use futures::stream::SplitStream;
+use futures::SinkExt;
+use futures_util::StreamExt;
 use std::sync::Arc;
 use std::sync::Mutex;
-use async_trait::async_trait;
+use term_lib::api::System;
+use term_lib::api::SystemAbiExt;
+use term_lib::api::WebSocketAbi;
+use tokio::net::TcpStream;
+use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
+use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
-pub struct SysWebSocket
-{
+pub struct SysWebSocket {
     system: System,
     sink: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
     stream: Option<SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>>,
     on_close: Arc<Mutex<Option<Box<dyn Fn() + Send + 'static>>>>,
 }
 
-impl SysWebSocket
-{
-    pub async fn new(url: &str) -> SysWebSocket
-    {
+impl SysWebSocket {
+    pub async fn new(url: &str) -> SysWebSocket {
         let url = url::Url::parse(url).unwrap();
 
         let (ws_stream, _) = connect_async(url).await.expect("Failed to connect");
         let (sink, stream) = ws_stream.split();
-        
+
         SysWebSocket {
             system: System::default(),
             sink,
@@ -42,9 +39,7 @@ impl SysWebSocket
 }
 
 #[async_trait]
-impl WebSocketAbi
-for SysWebSocket
-{
+impl WebSocketAbi for SysWebSocket {
     fn set_onopen(&mut self, mut callback: Box<dyn FnMut()>) {
         // We instantly notify that we are open
         callback();

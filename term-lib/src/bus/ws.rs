@@ -252,7 +252,7 @@ impl Session for WebSocketSession {
             };
 
             let data_len = request.data.len();
-            
+
             let again = match self.tx_send.try_send(request) {
                 Ok(_) => None,
                 Err(mpsc::error::TrySendError::Closed(a)) => Some(a),
@@ -262,10 +262,10 @@ impl Session for WebSocketSession {
                 Box::new(DelayedSend {
                     data_len,
                     msg: Some(request),
-                    tx: self.tx_send.clone()
+                    tx: self.tx_send.clone(),
                 })
             } else {
-                ResultInvokable::new(SendResult::Success(data_len))    
+                ResultInvokable::new(SendResult::Success(data_len))
             }
         } else {
             ErrornousInvokable::new(CallError::InvalidTopic)
@@ -285,6 +285,8 @@ impl Invokable for DelayedSend {
         if let Some(msg) = self.msg.take() {
             let _ = self.tx.send(msg).await;
         }
-        ResultInvokable::new(SendResult::Success(self.data_len)).process().await
+        ResultInvokable::new(SendResult::Success(self.data_len))
+            .process()
+            .await
     }
 }

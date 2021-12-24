@@ -9,9 +9,9 @@ pub trait WebSocketAbi {
 
     fn set_onmessage(&mut self, callback: Box<dyn Fn(Vec<u8>) + Send + 'static>);
 
-    #[cfg(feature="async_ws")]
+    #[cfg(feature = "async_ws")]
     async fn send(&mut self, data: Vec<u8>) -> Result<(), String>;
 
-    #[cfg(not(feature="async_ws"))]
+    #[cfg(not(feature = "async_ws"))]
     fn send(&mut self, data: Vec<u8>) -> Result<(), String>;
 }

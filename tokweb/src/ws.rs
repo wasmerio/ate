@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use std::ops::*;
 use std::sync::Arc;
 use term_lib::api::*;
@@ -6,7 +7,6 @@ use tracing::{debug, error, info, trace, warn};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{MessageEvent, WebSocket as WebSocketSys};
-use async_trait::async_trait;
 
 #[derive(Clone)]
 
@@ -24,8 +24,7 @@ impl WebSocket {
 }
 
 #[async_trait]
-impl WebSocketAbi
-for WebSocket {
+impl WebSocketAbi for WebSocket {
     fn set_onopen(&mut self, mut callback: Box<dyn FnMut()>) {
         let callback = Closure::wrap(Box::new(move |_e: web_sys::ProgressEvent| {
             callback.deref_mut()();

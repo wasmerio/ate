@@ -262,6 +262,6 @@ impl SystemAbi for SysSystem {
     }
 
     async fn web_socket(&self, url: &str) -> Result<Box<dyn WebSocketAbi>, String> {
-        return Ok(Box::new(SysWebSocket::new(url).await))
+        return Ok(Box::new(SysWebSocket::new(url).await));
     }
 }
