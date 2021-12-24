@@ -35,10 +35,18 @@ use crate::reactor::*;
 use crate::state::*;
 use crate::stdio::*;
 use crate::wasmer::{ChainableNamedResolver, Instance, Module, Store};
+#[cfg(feature = "wasmer-compiler-cranelift")]
+use crate::wasmer_compiler_cranelift::Cranelift;
+#[cfg(feature = "wasmer-compiler-llvm")]
+use crate::wasmer_compiler_llvm::LLVM;
+#[cfg(feature = "wasmer-compiler-singlepass")]
+use crate::wasmer_compiler_singlepass::Singlepass;
 use crate::wasmer_vfs::FileSystem;
 use crate::wasmer_vfs::FsError;
 use crate::wasmer_wasi::Stdin;
 use crate::wasmer_wasi::{Stdout, WasiError, WasiState};
+#[cfg(feature = "wasmer-compiler")]
+use {crate::wasmer::Universal, crate::wasmer_compiler::CompilerConfig};
 
 pub enum ExecResponse {
     Immediate(i32),
@@ -112,6 +120,10 @@ pub async fn exec_process(
             return on_early_exit(None, err::ERR_ENOENT).await;
         }
     };
+
+    // If compile caching is enabled the load the module
+    #[cfg(feature = "cached_compiling")]
+    let mut module = { ctx.bins.get_compiled_module(&data_hash).await };
 
     // Create the filesystem
     let (fs, union) = {
@@ -209,6 +221,7 @@ pub async fn exec_process(
     // Create the process factory that used by this process to create sub-processes
     let sub_process_factory = ProcessExecFactory::new(
         ctx.reactor.clone(),
+        ctx.compiler,
         ctx.exec_factory.clone(),
         stdio.stdin.downgrade(),
         stdio.stdout.downgrade(),
@@ -229,7 +242,10 @@ pub async fn exec_process(
 
     // Spawn the process on a background thread
     let mut stderr = ctx.stdio.stderr.clone();
+    #[cfg(feature = "cached_compiling")]
+    let bins = ctx.bins.clone();
     let reactor = ctx.reactor.clone();
+    let compiler = ctx.compiler;
     let cmd = cmd.clone();
     let args = args.clone();
     let chroot = if chroot {
@@ -247,6 +263,7 @@ pub async fn exec_process(
                 //       wasmer Module and JsValue that causes a panic in certain race conditions
                 // Load or compile the module (they are cached in therad local storage)
                 //let mut module = thread_local.modules.get_mut(&data_hash);
+                #[cfg(not(feature = "cached_compiling"))]
                 let mut module = None;
 
                 if module.is_none() {
@@ -258,8 +275,29 @@ pub async fn exec_process(
                             .await;
                     }
 
+                    // Choose the right compiler
+                    let store = match compiler {
+                        #[cfg(feature = "cranelift")]
+                        Compiler::Cranelift => {
+                            let compiler = Cranelift::default();
+                            Store::new(&Universal::new(compiler).engine())
+                        }
+                        #[cfg(feature = "llvm")]
+                        Compiler::LLVM => {
+                            let compiler = LLVM::default();
+                            Store::new(&Universal::new(compiler).engine())
+                        }
+                        #[cfg(feature = "singlepass")]
+                        Compiler::Singlepass => {
+                            let compiler = Singlepass::default();
+                            Store::new(&Universal::new(compiler).engine())
+                        }
+                        _ => Store::default(),
+                    };
+
                     // Cache miss - compile the module
                     info!("compiling {}", cmd);
+
                     let store = Store::default();
                     let compiled_module = match Module::new(&store, &data[..]) {
                         Ok(a) => a,
@@ -281,12 +319,17 @@ pub async fn exec_process(
                         compiled_module.name().unwrap_or_else(|| cmd.as_str())
                     );
 
+                    #[cfg(feature = "cached_compiling")]
+                    bins.set_compiled_module(data_hash.clone(), compiled_module.clone())
+                        .await;
+
                     thread_local
                         .modules
                         .insert(data_hash.clone(), compiled_module);
-                    module = thread_local.modules.get_mut(&data_hash);
+
+                    module = thread_local.modules.get(&data_hash).map(|m| m.clone());
                 }
-                let mut module = module.unwrap().clone();
+                let mut module = module.unwrap();
 
                 // Build the list of arguments
                 let args = args.iter().skip(1).map(|a| a.as_str()).collect::<Vec<_>>();
@@ -335,6 +378,7 @@ pub async fn exec_process(
                     wasi_env.on_yield(move |thread| {
                         let forced_exit = forced_exit.load(Ordering::Acquire);
                         if forced_exit != 0 {
+                            #[allow(deprecated)]
                             wasmer::RuntimeError::raise(Box::new(wasmer_wasi::WasiError::Exit(
                                 forced_exit as u32,
                             )));

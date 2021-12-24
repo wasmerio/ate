@@ -58,6 +58,7 @@ pub(super) fn mount(
 
     let factory = ProcessExecFactory::new(
         ctx.reactor.clone(),
+        ctx.compiler,
         ctx.exec_factory.clone(),
         stdio.stdin.downgrade(),
         stdio.stdout.downgrade(),

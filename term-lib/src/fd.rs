@@ -200,6 +200,7 @@ impl Write for Fd {
                 // Check for a forced exit
                 let forced_exit = self.forced_exit.load(Ordering::Acquire);
                 if forced_exit != 0 {
+                    #[allow(deprecated)]
                     wasmer::RuntimeError::raise(Box::new(wasmer_wasi::WasiError::Exit(
                         forced_exit,
                     )));
@@ -238,6 +239,7 @@ impl Read for Fd {
                     // Otherwise lets get some more data
                     match receiver.rx.try_recv() {
                         Ok(data) => {
+                            //error!("on_stdin {}", data.iter().map(|byte| format!("\\u{{{:04X}}}", byte).to_owned()).collect::<Vec<String>>().join(""));
                             receiver.buffer.extend_from_slice(&data[..]);
                             if receiver.mode == ReceiverMode::Message(false) {
                                 receiver.mode = ReceiverMode::Message(true);
@@ -258,6 +260,7 @@ impl Read for Fd {
                 // Check for a forced exit
                 let forced_exit = self.forced_exit.load(Ordering::Acquire);
                 if forced_exit != 0 {
+                    #[allow(deprecated)]
                     wasmer::RuntimeError::raise(Box::new(wasmer_wasi::WasiError::Exit(
                         forced_exit,
                     )));
@@ -271,6 +274,7 @@ impl Read for Fd {
                 std::thread::park_timeout(std::time::Duration::from_millis(5));
             }
         } else {
+            error!("stdin broken_pipe");
             return Err(std::io::ErrorKind::BrokenPipe.into());
         }
     }

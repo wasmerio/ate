@@ -13,16 +13,28 @@ readme = "../README.md"
 [features]
 default = [ "sys" ]
 js = [ "wasmer/js-default", "wasmer-wasi/js-default" ]
-sys = [ "wasmer/sys-default", "wasmer-wasi/sys-default", "tokio/rt-multi-thread" ]
+sys = [ "wasmer/sys-default", "wasmer-wasi/sys", "wasmer-wasi/logging", "tokio/rt-multi-thread" ]
+llvm = [ "wasmer-compiler-llvm", "wasmer-compiler" ]
+cranelift = [ "wasmer-compiler-cranelift", "wasmer-compiler" ]
+singlepass = [ "wasmer-compiler-singlepass", "wasmer-compiler" ]
+cached_compiling = [ ]
 
 [dependencies]
 grammar = { version = "^0.1", package = "tok-grammar" }
-wasmer = { version = "^2", git = "https://github.com/john-sharratt/wasmer.git", default-features = false, features = [ "wat"] }
-wasmer-wasi = { version = "^2", git = "https://github.com/john-sharratt/wasmer.git", default-features = false }
-wasmer-vfs = { version = "^2", git = "https://github.com/john-sharratt/wasmer.git", default-features = false, features = ["mem-fs"] }
-#wasmer = { version = "^2", path = "../../wasmer/lib/api", default-features = false, features = [ "wat"] }
-#wasmer-wasi = { version = "^2", path = "../../wasmer/lib/wasi", default-features = false }
-#wasmer-vfs = { version = "^2", path = "../../wasmer/lib/vfs", default-features = false, features = ["mem-fs"] }
+#wasmer = { version = "^2", git = "https://github.com/john-sharratt/wasmer.git", default-features = false, features = [ "wat"] }
+#wasmer-wasi = { version = "^2", git = "https://github.com/john-sharratt/wasmer.git", default-features = false }
+#wasmer-vfs = { version = "^2", git = "https://github.com/john-sharratt/wasmer.git", default-features = false, features = ["mem-fs"] }
+#wasmer-compiler-cranelift = { version = "^2", git = "https://github.com/john-sharratt/wasmer.git", optional = true }
+#wasmer-compiler-llvm = { version = "^2", git = "https://github.com/john-sharratt/wasmer.git", optional = true }
+#wasmer-compiler-singlepass = { version = "^2", git = "https://github.com/john-sharratt/wasmer.git", optional = true }
+#wasmer-compiler = { version = "^2", git = "https://github.com/john-sharratt/wasmer.git" }
+wasmer = { version = "^2", path = "../../wasmer/lib/api", default-features = false, features = [ "wat"] }
+wasmer-wasi = { version = "^2", path = "../../wasmer/lib/wasi", default-features = false, features = [ "mem-fs" ] }
+wasmer-vfs = { version = "^2", path = "../../wasmer/lib/vfs", default-features = false, features = ["mem-fs"] }
+wasmer-compiler-cranelift = { version = "^2", path = "../../wasmer/lib/compiler-cranelift", optional = true }
+wasmer-compiler-llvm = { version = "^2", path = "../../wasmer/lib/compiler-llvm", optional = true }
+wasmer-compiler-singlepass = { version = "^2", path = "../../wasmer/lib/compiler-singlepass", optional = true }
+wasmer-compiler = { version = "^2", path = "../../wasmer/lib/compiler", optional = true }
 chrono = { version = "^0.4" }
 tracing = { version = "^0.1" }
 tracing-futures = { version = "^0.2" }

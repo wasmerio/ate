@@ -127,7 +127,7 @@ pub fn start() -> Result<(), JsValue> {
         .map_err(|_| ())
         .unwrap();
 
-    let mut console = Console::new(location, user_agent);
+    let mut console = Console::new(location, user_agent, term_lib::eval::Compiler::Default);
     let tty = console.tty().clone();
 
     let (tx, mut rx) = mpsc::channel(MAX_MPSC);

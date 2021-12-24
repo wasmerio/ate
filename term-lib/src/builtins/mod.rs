@@ -1,5 +1,6 @@
 mod about;
 mod cd;
+mod exit;
 mod export;
 mod help;
 mod mount;
@@ -12,6 +13,7 @@ mod wax;
 
 use about::*;
 use cd::*;
+use exit::*;
 use export::*;
 use help::*;
 use mount::*;
@@ -66,6 +68,8 @@ impl Builtins {
         b.insert("reset", reset);
         b.insert("mount", mount);
         b.insert("wax", wax);
+        b.insert("exit", exit);
+        b.insert("quit", exit);
         b
     }
 

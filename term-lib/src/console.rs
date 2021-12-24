@@ -40,10 +40,11 @@ pub struct Console {
     stdout: Stdout,
     stderr: Fd,
     exec: EvalFactory,
+    compiler: Compiler,
 }
 
 impl Console {
-    pub fn new(location: String, user_agent: String) -> Console {
+    pub fn new(location: String, user_agent: String, compiler: Compiler) -> Console {
         let reactor = Reactor::new();
 
         let state = Arc::new(Mutex::new(ConsoleState::new(super::fs::create_root_fs())));
@@ -108,6 +109,7 @@ impl Console {
             tty,
             reactor,
             exec: exec_factory,
+            compiler,
         }
     }
 
@@ -178,6 +180,7 @@ impl Console {
             cmd += "\n";
             self.tty.reset_line().await;
             self.tty.reset_paragraph().await;
+            //error!("on_stdin {}", cmd.as_bytes().iter().map(|byte| format!("\\u{{{:04X}}}", byte).to_owned()).collect::<Vec<String>>().join(""));
             let _ = job.stdin_tx.send(cmd.into_bytes()).await;
             return;
         }
@@ -234,6 +237,7 @@ impl Console {
             job.working_dir.clone(),
             Vec::new(),
             root,
+            self.compiler,
         );
 
         // Spawn a background thread that will process the result
@@ -388,7 +392,7 @@ impl Console {
     pub async fn on_parse(&mut self, data: &str, job: Option<Job>) {
         //error!("on_parse {}", data.as_bytes().iter().map(|byte| format!("\\u{{{:04X}}}", byte).to_owned()).collect::<Vec<String>>().join(""));
         match data {
-            "\r" => {
+            "\r" | "\u{000A}" => {
                 self.on_enter().await;
             }
             "\u{0003}" => {
@@ -477,7 +481,7 @@ impl Console {
                 // When we are sending unbuffered keys the return key is turned into a newline so that its compatible
                 // with things like the rpassword crate which simple reads a line of input with a line feed terminator
                 // from TTY.
-                } else if data == "\r" {
+                } else if data == "\r" || data == "\u{000A}" {
                     data = "\n".to_string();
                     let _ = job.stdin_tx.send(data.into_bytes()).await;
 

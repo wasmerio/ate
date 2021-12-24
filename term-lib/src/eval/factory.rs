@@ -20,6 +20,7 @@ pub struct SpawnContext {
     pub working_dir: String,
     pub pre_open: Vec<String>,
     pub root: UnionFileSystem,
+    pub compiler: Compiler,
 }
 
 impl SpawnContext {
@@ -34,6 +35,7 @@ impl SpawnContext {
         working_dir: String,
         pre_open: Vec<String>,
         root: UnionFileSystem,
+        compiler: Compiler,
     ) -> SpawnContext {
         SpawnContext {
             cmd,
@@ -46,6 +48,7 @@ impl SpawnContext {
             working_dir,
             pre_open,
             root,
+            compiler,
         }
     }
 }
@@ -112,6 +115,7 @@ impl EvalFactory {
             new_mounts: Vec::new(),
             exec_factory: self.clone(),
             job: ctx.job,
+            compiler: ctx.compiler,
         };
 
         ctx

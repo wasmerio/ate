@@ -36,6 +36,7 @@ struct ProcessExecCreate {
 #[derivative(Debug)]
 pub struct ProcessExecFactory {
     system: System,
+    compiler: Compiler,
     #[derivative(Debug = "ignore")]
     reactor: Arc<RwLock<Reactor>>,
     #[derivative(Debug = "ignore")]
@@ -60,6 +61,7 @@ pub struct LaunchContext {
 impl ProcessExecFactory {
     pub fn new(
         reactor: Arc<RwLock<Reactor>>,
+        compiler: Compiler,
         exec_factory: EvalFactory,
         inherit_stdin: WeakFd,
         inherit_stdout: WeakFd,
@@ -70,6 +72,7 @@ impl ProcessExecFactory {
         ProcessExecFactory {
             system,
             reactor,
+            compiler,
             exec_factory,
             inherit_stdin,
             inherit_stdout,
@@ -102,6 +105,7 @@ impl ProcessExecFactory {
         // Push all the cloned variables into a background thread so
         // that it does not hurt anything
         let reactor = self.reactor.clone();
+        let compiler = self.compiler;
         let inherit_stdin = self.inherit_stdin.upgrade();
         let inherit_stdout = self.inherit_stdout.upgrade();
         let inherit_stderr = self.inherit_stderr.upgrade();
@@ -186,6 +190,7 @@ impl ProcessExecFactory {
                     .unwrap_or("/".to_string()),
                 pre_open,
                 job.root.clone(),
+                compiler,
             );
             let eval = exec_factory.create_context(spawn);
 

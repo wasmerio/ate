@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 #![allow(unused)]
+#[cfg(feature = "cached_compiling")]
+use crate::wasmer::Module;
 use bytes::Bytes;
 use derivative::*;
 use serde::*;
@@ -59,6 +61,8 @@ pub struct BinFactory {
     pub wax: Arc<Mutex<HashSet<String>>>,
     pub alias: Arc<RwLock<HashMap<String, Option<AliasConfig>>>>,
     pub cache: Arc<RwLock<HashMap<String, Option<BinaryPackage>>>>,
+    #[cfg(feature = "cached_compiling")]
+    pub compiled_module: Arc<RwLock<HashMap<String, Option<Module>>>>,
 }
 
 impl BinFactory {
@@ -67,6 +71,8 @@ impl BinFactory {
             wax: Arc::new(Mutex::new(HashSet::new())),
             alias: Arc::new(RwLock::new(HashMap::new())),
             cache: Arc::new(RwLock::new(HashMap::new())),
+            #[cfg(feature = "cached_compiling")]
+            compiled_module: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -122,6 +128,18 @@ impl BinFactory {
             stderr.write_clear_line().await;
         }
         return None;
+    }
+
+    #[cfg(feature = "cached_compiling")]
+    pub async fn get_compiled_module(&self, data_hash: &String) -> Option<Module> {
+        let cache = self.compiled_module.read().await;
+        cache.get(data_hash).map(|a| a.clone()).flatten()
+    }
+
+    #[cfg(feature = "cached_compiling")]
+    pub async fn set_compiled_module(&self, data_hash: String, compiled_module: Module) {
+        let mut cache = self.compiled_module.write().await;
+        cache.insert(data_hash, Some(compiled_module));
     }
 
     pub async fn alias(&self, name: &str, mut stderr: Fd) -> Option<AliasConfig> {

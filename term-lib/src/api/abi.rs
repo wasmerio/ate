@@ -69,6 +69,9 @@ where
     /// Clears the terminal
     async fn cls(&self);
 
+    /// Tell the process to exit (if it can)
+    fn exit(&self);
+
     /// Fetches a data file from the local context of the process
     fn fetch_file(&self, path: &str) -> AsyncResult<Result<Vec<u8>, i32>>;
 

@@ -17,6 +17,7 @@ use term_lib::err;
 use tokio::runtime::Builder;
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
+use tokio::sync::watch;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::backend::reqwest::Response as ReqwestResponse;
@@ -27,23 +28,25 @@ thread_local!(static THREAD_LOCAL: Rc<RefCell<ThreadLocal>> = Rc::new(RefCell::n
 
 #[derive(Debug, Clone)]
 pub struct SysSystem {
+    exit_tx: Arc<watch::Sender<bool>>,
     runtime: Arc<Runtime>,
 }
 
 impl SysSystem {
-    pub fn new() -> SysSystem {
+    pub fn new(exit: watch::Sender<bool>) -> SysSystem {
         let runtime = Builder::new_multi_thread().enable_all().build().unwrap();
 
         SysSystem {
+            exit_tx: Arc::new(exit),
             runtime: Arc::new(runtime),
         }
     }
 
-    pub fn run(&self) {
-        let (_wait_forever_tx, mut wait_forever_rx) = mpsc::channel::<()>(1);
+    pub fn block_on<F: Future>(&self, future: F) -> F::Output {
         self.runtime.block_on(async move {
-            let _ = wait_forever_rx.recv().await;
-        });
+            let set = tokio::task::LocalSet::new();
+            set.run_until(future).await
+        })
     }
 }
 
@@ -77,9 +80,12 @@ impl SystemAbi for SysSystem {
         let rt = self.runtime.clone();
         self.runtime.spawn_blocking(move || {
             THREAD_LOCAL.with(|local| {
-                let fut = task(local.clone());
+                let local = local.clone();
                 let set = tokio::task::LocalSet::new();
-                set.block_on(rt.deref(), fut);
+                set.block_on(rt.deref(), async move {
+                    let fut = task(local);
+                    fut.await;
+                });
                 rt.block_on(set);
             });
         });
@@ -94,9 +100,11 @@ impl SystemAbi for SysSystem {
     ) {
         let rt = self.runtime.clone();
         self.runtime.spawn_blocking(move || {
-            let fut = task();
             let set = tokio::task::LocalSet::new();
-            set.block_on(rt.deref(), fut);
+            set.block_on(rt.deref(), async move {
+                let fut = task();
+                fut.await;
+            });
             rt.block_on(set);
         });
     }
@@ -122,12 +130,18 @@ impl SystemAbi for SysSystem {
     }
 
     async fn print(&self, text: String) {
-        let _ = io::stdout().lock().write_all(text.as_bytes());
+        use raw_tty::GuardMode;
+        let mut stdout = io::stdout().guard_mode().unwrap();
+        write!(&mut *stdout, "{}", text).unwrap();
+        stdout.flush().unwrap();
     }
 
     /// Writes output to the log
     async fn log(&self, text: String) {
-        let _ = io::stderr().lock().write_all(text.as_bytes());
+        use raw_tty::GuardMode;
+        let mut stderr = io::stderr().guard_mode().unwrap();
+        write!(&mut *stderr, "{}\r\n", text).unwrap();
+        stderr.flush().unwrap();
     }
 
     /// Gets the number of columns and rows in the terminal
@@ -147,9 +161,17 @@ impl SystemAbi for SysSystem {
         print!("{}[2J", 27 as char);
     }
 
+    fn exit(&self) {
+        let _ = self.exit_tx.send(true);
+    }
+
     /// Fetches a data file from the local context of the process
     fn fetch_file(&self, path: &str) -> AsyncResult<Result<Vec<u8>, i32>> {
-        let path = path.to_string();
+        let mut path = path.to_string();
+        if path.starts_with("/") {
+            path = path[1..].to_string();
+        };
+
         let (tx_done, rx_done) = mpsc::channel(1);
         self.task_dedicated(Box::new(move || {
             Box::pin(async move {

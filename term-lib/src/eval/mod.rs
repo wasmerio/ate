@@ -55,6 +55,43 @@ pub enum EvalPlan {
     InternalError,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum Compiler {
+    Default,
+    #[cfg(feature = "singlepass")]
+    Singlepass,
+    #[cfg(feature = "llvm")]
+    LLVM,
+    #[cfg(feature = "cranelift")]
+    Cranelift,
+}
+
+impl std::str::FromStr for Compiler {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "default" => Ok(Compiler::Default),
+            #[cfg(feature = "singlepass")]
+            "singlepass" => Ok(Compiler::Singlepass),
+            #[cfg(feature = "cranelift")]
+            "cranelift" => Ok(Compiler::Cranelift),
+            #[cfg(feature = "llvm")]
+            "llvm" => Ok(Compiler::LLVM),
+            _ => {
+                let mut msg = "valid values are 'default'".to_string();
+                #[cfg(feature = "singlepass")]
+                msg.push_str(", 'singlepass'");
+                #[cfg(feature = "llvm")]
+                msg.push_str(", 'llvm'");
+                #[cfg(feature = "cranelift")]
+                msg.push_str(", 'cranelift'");
+                Err(msg)
+            }
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct EvalContext {
     pub system: System,
@@ -72,6 +109,7 @@ pub struct EvalContext {
     pub new_mounts: Vec<MountPoint>,
     pub exec_factory: EvalFactory,
     pub job: Job,
+    pub compiler: Compiler,
 }
 
 pub(crate) fn eval(mut ctx: EvalContext) -> mpsc::Receiver<EvalPlan> {

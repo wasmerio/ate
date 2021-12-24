@@ -25,5 +25,13 @@ pub mod wasi;
 pub use grammar;
 pub use grammar::ast;
 pub use wasmer;
+#[cfg(feature = "wasmer-compiler")]
+pub use wasmer_compiler;
+#[cfg(feature = "wasmer-compiler-cranelift")]
+pub use wasmer_compiler_cranelift;
+#[cfg(feature = "wasmer-compiler-llvm")]
+pub use wasmer_compiler_llvm;
+#[cfg(feature = "wasmer-compiler-singlepass")]
+pub use wasmer_compiler_singlepass;
 pub use wasmer_vfs;
 pub use wasmer_wasi;

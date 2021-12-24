@@ -110,6 +110,10 @@ impl SystemAbi for WebSystem {
         let _ = self.term_tx.send(TerminalCommand::Cls).await;
     }
 
+    fn exit(&self) {
+        // Web terminals can not exit as they have nowhere to go!
+    }
+
     fn fetch_file(&self, path: &str) -> AsyncResult<Result<Vec<u8>, i32>> {
         let url = path.to_string();
         let headers = vec![("Accept".to_string(), "application/wasm".to_string())];

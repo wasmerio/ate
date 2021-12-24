@@ -14,9 +14,11 @@ readme = "../README.md"
 default = []
 
 [dependencies]
-term-lib = { version = "^0.1", path = "../term-lib" }
-tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
-#tracing = { version = "^0.1", features = [ "log", "release_max_level_debug" ] }
+term-lib = { version = "^0.1", path = "../term-lib", features = [ "singlepass", "cranelift", "cached_compiling" ] }
+#tracing = { version = "^0.1", features = [ "log", "release_max_level_warn" ] }
+#log = { version = "^0.4", features = [ "release_max_level_warn" ] }
+tracing = { version = "^0.1", features = [ "log", "release_max_level_trace" ] }
+log = { version = "^0.4", features = [ "release_max_level_trace" ] }
 tracing-futures = { version = "^0.2" }
 tracing-subscriber = { version = "^0.2" }
 tracing-wasm = { version = "^0.2" }
@@ -38,3 +40,11 @@ wild = "^2"
 reqwest = { version = "0.11", features = ["json"] }
 include_dir = "0.7.2"
 term_size = "0.3.2"
+raw_tty = "0.1.0"
+
+[target.'cfg(unix)'.dependencies]
+termios = "0.3"
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features = ["std", "winnt", "fileapi", "processenv", "winbase", "handleapi", "consoleapi", "minwindef", "wincon"] }
