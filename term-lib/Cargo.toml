@@ -18,6 +18,7 @@ llvm = [ "wasmer-compiler-llvm", "wasmer-compiler" ]
 cranelift = [ "wasmer-compiler-cranelift", "wasmer-compiler" ]
 singlepass = [ "wasmer-compiler-singlepass", "wasmer-compiler" ]
 cached_compiling = [ ]
+async_ws = [ ]
 
 [dependencies]
 grammar = { version = "^0.1", package = "tok-grammar" }

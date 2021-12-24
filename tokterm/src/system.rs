@@ -22,6 +22,8 @@ use tokio::sync::watch;
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::backend::reqwest::Response as ReqwestResponse;
 
+use crate::ws::SysWebSocket;
+
 static PUBLIC_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/public");
 
 thread_local!(static THREAD_LOCAL: Rc<RefCell<ThreadLocal>> = Rc::new(RefCell::new(ThreadLocal::default())));
@@ -259,7 +261,7 @@ impl SystemAbi for SysSystem {
         AsyncResult::new(rx_done)
     }
 
-    fn web_socket(&self, _url: &str) -> Result<Arc<dyn WebSocketAbi>, String> {
-        return Err("not implemented".to_string());
+    async fn web_socket(&self, url: &str) -> Result<Box<dyn WebSocketAbi>, String> {
+        return Ok(Box::new(SysWebSocket::new(url).await))
     }
 }

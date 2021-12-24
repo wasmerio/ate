@@ -39,7 +39,7 @@ pub fn web_socket(
     // is an asynchronous IO primative
     system.spawn_dedicated(move || async move {
         // Open the web socket
-        let ws_sys = match system.web_socket(connect.url.as_str()) {
+        let mut ws_sys = match system.web_socket(connect.url.as_str()).await {
             Ok(a) => a,
             Err(err) => {
                 debug!("failed to create web socket ({}): {}", connect.url, err);
@@ -55,14 +55,34 @@ pub fn web_socket(
         {
             let tx_state_inner = tx_state_inner.clone();
             ws_sys.set_onopen(Box::new(move || {
-                let _ = tx_state_inner.blocking_send(SocketState::Opened);
+                let again = match tx_state_inner.try_send(SocketState::Opened) {
+                    Ok(_) => None,
+                    Err(mpsc::error::TrySendError::Closed(a)) => Some(a),
+                    Err(mpsc::error::TrySendError::Full(a)) => Some(a),
+                };
+                if let Some(data) = again {
+                    let tx_state_inner = tx_state_inner.clone();
+                    system.fork_shared(move || async move {
+                        let _ = tx_state_inner.send(data).await;
+                    });
+                }
             }));
         }
 
         {
             let tx_state_inner = tx_state_inner.clone();
             ws_sys.set_onclose(Box::new(move || {
-                let _ = tx_state_inner.blocking_send(SocketState::Closed);
+                let again = match tx_state_inner.try_send(SocketState::Closed) {
+                    Ok(_) => None,
+                    Err(mpsc::error::TrySendError::Closed(a)) => Some(a),
+                    Err(mpsc::error::TrySendError::Full(a)) => Some(a),
+                };
+                if let Some(data) = again {
+                    let tx_state_inner = tx_state_inner.clone();
+                    system.fork_shared(move || async move {
+                        let _ = tx_state_inner.send(data).await;
+                    });
+                }
             }));
         }
 
@@ -70,8 +90,18 @@ pub fn web_socket(
             let tx_recv = tx_recv.clone();
             ws_sys.set_onmessage(Box::new(move |data| {
                 debug!("websocket recv {} bytes", data.len());
-                if let Err(err) = tx_recv.blocking_send(data) {
-                    trace!("websocket bytes silently dropped - {}", err);
+                let again = match tx_recv.try_send(data) {
+                    Ok(_) => None,
+                    Err(mpsc::error::TrySendError::Closed(a)) => Some(a),
+                    Err(mpsc::error::TrySendError::Full(a)) => Some(a),
+                };
+                if let Some(data) = again {
+                    let tx_recv = tx_recv.clone();
+                    system.fork_shared(move || async move {
+                        if let Err(err) = tx_recv.send(data).await {
+                            trace!("websocket bytes silently dropped - {}", err);
+                        }
+                    });
                 }
             }));
         }
@@ -109,7 +139,13 @@ pub fn web_socket(
                     if let Some(request) = request {
                         let data = request.data;
                         let data_len = data.len();
-                        if let Err(err) = ws_sys.send(data) {
+
+                        #[cfg(feature="async_ws")]
+                        let ret = ws_sys.send(data).await;
+                        #[cfg(not(feature="async_ws"))]
+                        let ret = ws_sys.send(data);
+
+                        if let Err(err) = ret {
                             debug!("error sending message: {}", err);
                         } else {
                             trace!("websocket sent {} bytes", data_len);
@@ -214,12 +250,41 @@ impl Session for WebSocketSession {
                     return ErrornousInvokable::new(err);
                 }
             };
+
             let data_len = request.data.len();
-            let tx_send = self.tx_send.clone();
-            let _ = tx_send.blocking_send(request);
-            ResultInvokable::new(SendResult::Success(data_len))
+            
+            let again = match self.tx_send.try_send(request) {
+                Ok(_) => None,
+                Err(mpsc::error::TrySendError::Closed(a)) => Some(a),
+                Err(mpsc::error::TrySendError::Full(a)) => Some(a),
+            };
+            if let Some(request) = again {
+                Box::new(DelayedSend {
+                    data_len,
+                    msg: Some(request),
+                    tx: self.tx_send.clone()
+                })
+            } else {
+                ResultInvokable::new(SendResult::Success(data_len))    
+            }
         } else {
             ErrornousInvokable::new(CallError::InvalidTopic)
         }
+    }
+}
+
+struct DelayedSend {
+    data_len: usize,
+    msg: Option<Send>,
+    tx: mpsc::Sender<Send>,
+}
+
+#[async_trait]
+impl Invokable for DelayedSend {
+    async fn process(&mut self) -> Result<Vec<u8>, CallError> {
+        if let Some(msg) = self.msg.take() {
+            let _ = self.tx.send(msg).await;
+        }
+        ResultInvokable::new(SendResult::Success(self.data_len)).process().await
     }
 }

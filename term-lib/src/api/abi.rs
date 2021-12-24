@@ -3,7 +3,6 @@ use std::cell::RefCell;
 use std::future::Future;
 use std::pin::Pin;
 use std::rc::Rc;
-use std::sync::Arc;
 use tokio::sync::mpsc;
 
 use super::*;
@@ -84,7 +83,7 @@ where
         data: Option<Vec<u8>>,
     ) -> AsyncResult<Result<ReqwestResponse, i32>>;
 
-    fn web_socket(&self, url: &str) -> Result<Arc<dyn WebSocketAbi>, String>;
+    async fn web_socket(&self, url: &str) -> Result<Box<dyn WebSocketAbi>, String>;
 }
 
 // System call extensions that provide generics

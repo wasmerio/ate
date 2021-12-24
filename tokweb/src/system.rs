@@ -4,7 +4,6 @@ use std::cell::RefCell;
 use std::future::Future;
 use std::pin::Pin;
 use std::rc::Rc;
-use std::sync::Arc;
 use term_lib::api::abi::SystemAbi;
 use tokio::sync::mpsc;
 #[allow(unused_imports, dead_code)]
@@ -186,7 +185,7 @@ impl SystemAbi for WebSystem {
         AsyncResult::new(rx)
     }
 
-    fn web_socket(&self, url: &str) -> Result<Arc<dyn WebSocketAbi>, String> {
+    async fn web_socket(&self, url: &str) -> Result<Box<dyn WebSocketAbi>, String> {
         WebSocket::new(url)
     }
 }
