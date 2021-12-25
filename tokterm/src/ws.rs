@@ -53,11 +53,10 @@ impl WebSocketAbi for SysWebSocket {
     fn set_onmessage(&mut self, callback: Box<dyn Fn(Vec<u8>) + Send + 'static>) {
         if let Some(mut stream) = self.stream.take() {
             let on_close = self.on_close.clone();
-            self.system.spawn_shared(move || async move {
+            self.system.fork_shared(move || async move {
                 while let Some(msg) = stream.next().await {
                     match msg {
                         Ok(Message::Binary(msg)) => {
-                            //error!("MSG-RECV {}", msg.len());
                             callback(msg);
                         }
                         a => {
@@ -74,10 +73,10 @@ impl WebSocketAbi for SysWebSocket {
     }
 
     async fn send(&mut self, data: Vec<u8>) -> Result<(), String> {
-        //error!("MSG-SEND {}", data.len());
         self.sink
-            .feed(Message::binary(data))
+            .send(Message::binary(data))
             .await
-            .map_err(|err| err.to_string())
+            .map_err(|err| err.to_string())?;
+        Ok(())
     }
 }
