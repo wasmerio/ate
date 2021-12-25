@@ -135,6 +135,21 @@ impl Console {
             .next()
             .map(|(_, val)| val.to_string());
 
+        let whitelabel = self
+            .location
+            .query_pairs()
+            .any(|(key, _)| key == "wl");
+
+        if let Some(prompt) = self
+            .location
+            .query_pairs()
+            .filter(|(key, _)| key == "prompt")
+            .next()
+            .map(|(_, val)| val.to_string())
+        {
+            self.state.lock().unwrap().user = prompt;
+        }
+
         if let Some(run_command) = &run_command {
             let mut init_file = self
                 .state
@@ -155,7 +170,10 @@ impl Console {
 
         Console::update_prompt(false, &self.state, &self.tty).await;
 
-        self.tty.draw_welcome().await;
+        if whitelabel == false {
+            self.tty.draw_welcome().await;
+        }
+
         if run_command.is_some() {
             self.on_data("source /bin/init".to_string()).await;
             self.on_enter().await;
