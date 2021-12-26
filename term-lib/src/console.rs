@@ -135,10 +135,7 @@ impl Console {
             .next()
             .map(|(_, val)| val.to_string());
 
-        let whitelabel = self
-            .location
-            .query_pairs()
-            .any(|(key, _)| key == "wl");
+        let whitelabel = self.location.query_pairs().any(|(key, _)| key == "wl");
 
         if let Some(prompt) = self
             .location
@@ -274,11 +271,6 @@ impl Console {
                 tty.reset_line().await;
                 tty.reset_paragraph().await;
                 tty.enter_mode(TtyMode::Console, &reactor).await;
-                let record_history = if let Some(history) = tty.get_selected_history().await {
-                    history != cmd
-                } else {
-                    true
-                };
                 tty.reset_history_cursor().await;
 
                 // Process the result
@@ -300,9 +292,9 @@ impl Console {
                             state.env = ctx.env;
                             state.unfinished_line
                         };
-                        if record_history {
-                            tty.record_history(cmd).await;
-                        }
+
+                        tty.record_history(cmd).await;
+
                         if code != 0 && show_result {
                             let mut chars = String::new();
                             chars += err::exit_code_to_message(code);

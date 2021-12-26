@@ -146,6 +146,7 @@ impl Tty {
 
         let mut inner = self.inner_async.lock().await;
         debug!("add-history: {}", cmd);
+        inner.history.retain(|c| c.ne(&cmd));
         inner.history.push(cmd);
     }
 
