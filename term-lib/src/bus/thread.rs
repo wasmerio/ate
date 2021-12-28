@@ -274,7 +274,11 @@ impl WasmBusThread {
         AsyncWasmBusResultRaw::new(rx, handle)
     }
 
-    pub fn call<RES, REQ>(&self, request: REQ) -> Result<AsyncWasmBusResult<RES>, CallError>
+    pub fn call<RES, REQ>(
+        &self,
+        format: SerializationFormat,
+        request: REQ,
+    ) -> Result<AsyncWasmBusResult<RES>, CallError>
     where
         REQ: Serialize,
         RES: de::DeserializeOwned,
@@ -289,7 +293,7 @@ impl WasmBusThread {
         };
 
         let (rx, handle) = self.call_internal(None, topic.to_string(), data);
-        Ok(AsyncWasmBusResult::new(self, rx, handle))
+        Ok(AsyncWasmBusResult::new(self, rx, handle, format))
     }
 
     pub fn wait_for_poll(&self) -> bool {
@@ -368,6 +372,7 @@ where
 {
     pub(crate) thread: WasmBusThread,
     pub(crate) handle: WasmBusThreadHandle,
+    pub(crate) format: SerializationFormat,
     pub(crate) rx: mpsc::Receiver<Result<Vec<u8>, CallError>>,
     _marker: PhantomData<T>,
 }
@@ -380,10 +385,12 @@ where
         thread: &WasmBusThread,
         rx: mpsc::Receiver<Result<Vec<u8>, CallError>>,
         handle: WasmBusThreadHandle,
+        format: SerializationFormat,
     ) -> Self {
         Self {
             thread: thread.clone(),
             handle,
+            format,
             rx,
             _marker: PhantomData,
         }
@@ -394,17 +401,29 @@ where
             .rx
             .blocking_recv()
             .ok_or_else(|| CallError::Aborted)??;
-        match bincode::deserialize::<T>(&data[..]) {
-            Ok(a) => Ok(a),
-            Err(_err) => Err(CallError::SerializationFailed),
+        match self.format {
+            SerializationFormat::Bincode => match bincode::deserialize::<T>(&data[..]) {
+                Ok(a) => Ok(a),
+                Err(_err) => Err(CallError::SerializationFailed),
+            },
+            SerializationFormat::Json => match serde_json::from_slice::<T>(&data[..]) {
+                Ok(a) => Ok(a),
+                Err(_err) => Err(CallError::SerializationFailed),
+            },
         }
     }
 
     pub async fn join(mut self) -> Result<T, CallError> {
         let data = self.rx.recv().await.ok_or_else(|| CallError::Aborted)??;
-        match bincode::deserialize::<T>(&data[..]) {
-            Ok(a) => Ok(a),
-            Err(_err) => Err(CallError::SerializationFailed),
+        match self.format {
+            SerializationFormat::Bincode => match bincode::deserialize::<T>(&data[..]) {
+                Ok(a) => Ok(a),
+                Err(_err) => Err(CallError::SerializationFailed),
+            },
+            SerializationFormat::Json => match serde_json::from_slice::<T>(&data[..]) {
+                Ok(a) => Ok(a),
+                Err(_err) => Err(CallError::SerializationFailed),
+            },
         }
     }
 
@@ -413,25 +432,46 @@ where
         REQ: Serialize,
         RES: de::DeserializeOwned,
     {
+        self.call_with_format(self.format.clone(), request)
+    }
+
+    pub fn call_with_format<RES, REQ>(
+        &self,
+        format: SerializationFormat,
+        request: REQ,
+    ) -> Result<AsyncWasmBusResult<RES>, CallError>
+    where
+        REQ: Serialize,
+        RES: de::DeserializeOwned,
+    {
         // Serialize
         let topic = type_name::<REQ>();
-        let data = match bincode::serialize(&request) {
-            Ok(a) => a,
-            Err(_err) => {
-                return Err(CallError::SerializationFailed);
-            }
+        let data = match format {
+            SerializationFormat::Bincode => match bincode::serialize(&request) {
+                Ok(a) => a,
+                Err(_err) => {
+                    return Err(CallError::SerializationFailed);
+                }
+            },
+            SerializationFormat::Json => match serde_json::to_vec(&request) {
+                Ok(a) => a,
+                Err(_err) => {
+                    return Err(CallError::SerializationFailed);
+                }
+            },
         };
 
         let (rx, handle) =
             self.thread
                 .call_internal(Some(self.handle.handle()), topic.to_string(), data);
-        Ok(AsyncWasmBusResult::new(&self.thread, rx, handle))
+        Ok(AsyncWasmBusResult::new(&self.thread, rx, handle, format))
     }
 
     pub fn session(self) -> AsyncWasmBusSession {
         AsyncWasmBusSession {
             thread: self.thread,
             handle: self.handle,
+            format: self.format.clone(),
         }
     }
 }
@@ -440,13 +480,19 @@ where
 pub struct AsyncWasmBusSession {
     pub(crate) thread: WasmBusThread,
     pub(crate) handle: WasmBusThreadHandle,
+    pub(crate) format: SerializationFormat,
 }
 
 impl AsyncWasmBusSession {
-    pub fn new(thread: &WasmBusThread, handle: WasmBusThreadHandle) -> Self {
+    pub fn new(
+        thread: &WasmBusThread,
+        handle: WasmBusThreadHandle,
+        format: SerializationFormat,
+    ) -> Self {
         Self {
             thread: thread.clone(),
             handle,
+            format,
         }
     }
 
@@ -457,16 +503,29 @@ impl AsyncWasmBusSession {
     {
         // Serialize
         let topic = type_name::<REQ>();
-        let data = match bincode::serialize(&request) {
-            Ok(a) => a,
-            Err(_err) => {
-                return Err(CallError::SerializationFailed);
-            }
+        let data = match self.format {
+            SerializationFormat::Bincode => match bincode::serialize(&request) {
+                Ok(a) => a,
+                Err(_err) => {
+                    return Err(CallError::SerializationFailed);
+                }
+            },
+            SerializationFormat::Json => match serde_json::to_vec(&request) {
+                Ok(a) => a,
+                Err(_err) => {
+                    return Err(CallError::SerializationFailed);
+                }
+            },
         };
 
         let (rx, handle) =
             self.thread
                 .call_internal(Some(self.handle.handle()), topic.to_string(), data);
-        Ok(AsyncWasmBusResult::new(&self.thread, rx, handle))
+        Ok(AsyncWasmBusResult::new(
+            &self.thread,
+            rx,
+            handle,
+            self.format.clone(),
+        ))
     }
 }

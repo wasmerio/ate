@@ -1,4 +1,5 @@
-use cooked_waker::*;
+use cooked_waker::IntoWaker;
+use cooked_waker::Wake;
 use once_cell::sync::Lazy;
 use std::future::Future;
 use std::pin::Pin;

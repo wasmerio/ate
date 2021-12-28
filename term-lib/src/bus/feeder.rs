@@ -4,6 +4,7 @@ use std::sync::Arc;
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
 use wasm_bus::abi::CallHandle;
+use wasm_bus::abi::SerializationFormat;
 
 use super::*;
 use crate::wasmer::Memory;
@@ -45,11 +46,11 @@ impl WasmBusCallback {
         self.waker.clone()
     }
 
-    pub fn feed<T>(&self, data: T)
+    pub fn feed<T>(&self, format: SerializationFormat, data: T)
     where
         T: Serialize,
     {
-        self.feed_bytes_or_error(super::encode_response(&data));
+        self.feed_bytes_or_error(super::encode_response(format, &data));
     }
 
     pub fn feed_bytes(&self, data: Vec<u8>) {

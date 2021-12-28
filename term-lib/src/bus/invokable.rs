@@ -3,6 +3,7 @@ use serde::*;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
+use wasm_bus::abi::SerializationFormat;
 
 use super::*;
 use crate::api::AsyncResult;
@@ -47,6 +48,7 @@ where
     T: Serialize + Send,
 {
     value: T,
+    format: SerializationFormat,
 }
 
 impl<T> ResultInvokable<T>
@@ -54,8 +56,8 @@ where
     Self: Send + 'static,
     T: Serialize + Send,
 {
-    pub fn new(value: T) -> Box<dyn Invokable> {
-        Box::new(ResultInvokable { value })
+    pub fn new(format: SerializationFormat, value: T) -> Box<dyn Invokable> {
+        Box::new(ResultInvokable { value, format })
     }
 }
 
@@ -66,7 +68,7 @@ where
     T: Serialize + Send,
 {
     async fn process(&mut self) -> Result<Vec<u8>, CallError> {
-        Ok(encode_response(&self.value)?)
+        Ok(encode_response(self.format, &self.value)?)
     }
 }
 
@@ -78,6 +80,6 @@ where
 {
     async fn process(&mut self) -> Result<Vec<u8>, CallError> {
         let result = self.rx.recv().await.ok_or_else(|| CallError::Aborted)?;
-        Ok(encode_response(&result)?)
+        Ok(encode_response(self.format, &result)?)
     }
 }

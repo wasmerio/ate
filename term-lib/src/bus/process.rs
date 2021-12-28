@@ -11,7 +11,9 @@ use tokio::sync::RwLock;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
-use wasm_bus::backend::process::*;
+use wasm_bus::abi::SerializationFormat;
+use wasm_bus_process::api;
+use wasm_bus_process::prelude::*;
 
 use super::*;
 use crate::api::*;
@@ -27,9 +29,10 @@ pub struct EvalCreated {
 }
 
 struct ProcessExecCreate {
-    request: Spawn,
+    request: api::PoolSpawnRequest,
     on_stdout: Option<WasmBusCallback>,
     on_stderr: Option<WasmBusCallback>,
+    on_exit: Option<WasmBusCallback>,
 }
 
 #[derive(Derivative, Clone)]
@@ -56,6 +59,7 @@ pub struct LaunchContext {
     stderr_rx: Option<mpsc::Receiver<Vec<u8>>>,
     on_stdout: Option<WasmBusCallback>,
     on_stderr: Option<WasmBusCallback>,
+    on_exit: Option<WasmBusCallback>,
 }
 
 impl ProcessExecFactory {
@@ -83,7 +87,7 @@ impl ProcessExecFactory {
 
     pub async fn launch<T, F>(
         &self,
-        request: Spawn,
+        request: api::PoolSpawnRequest,
         mut client_callbacks: HashMap<String, WasmBusCallback>,
         funct: F,
     ) -> Result<T, CallError>
@@ -93,13 +97,18 @@ impl ProcessExecFactory {
         T: Send,
     {
         // Grab the callbacks and build the requiest
-        let on_stdout = client_callbacks.remove(&type_name::<DataStdout>().to_string());
-        let on_stderr = client_callbacks.remove(&type_name::<DataStderr>().to_string());
+        let on_stdout =
+            client_callbacks.remove(&type_name::<api::PoolSpawnStdoutCallback>().to_string());
+        let on_stderr =
+            client_callbacks.remove(&type_name::<api::PoolSpawnStderrCallback>().to_string());
+        let on_exit =
+            client_callbacks.remove(&type_name::<api::PoolSpawnExitCallback>().to_string());
 
         let create = ProcessExecCreate {
             request,
             on_stdout,
             on_stderr,
+            on_exit,
         };
 
         // Push all the cloned variables into a background thread so
@@ -112,16 +121,17 @@ impl ProcessExecFactory {
         let inherit_log = self.inherit_log.upgrade();
         let exec_factory = self.exec_factory.clone();
         let result = self.system.spawn_dedicated(move || async move {
-            let path = create.request.path;
-            let args = create.request.args;
-            let chroot = create.request.chroot;
-            let working_dir = create.request.working_dir;
-            let stdin_mode = create.request.stdin_mode;
-            let stdout_mode = create.request.stdout_mode;
-            let stderr_mode = create.request.stderr_mode;
-            let pre_open = create.request.pre_open;
+            let path = create.request.spawn.path;
+            let args = create.request.spawn.args;
+            let chroot = create.request.spawn.chroot;
+            let working_dir = create.request.spawn.working_dir;
+            let stdin_mode = create.request.spawn.stdin_mode;
+            let stdout_mode = create.request.spawn.stdout_mode;
+            let stderr_mode = create.request.spawn.stderr_mode;
+            let pre_open = create.request.spawn.pre_open;
             let on_stdout = create.on_stdout;
             let on_stderr = create.on_stderr;
+            let on_exit = create.on_exit;
 
             // Get the current job (if there is none then fail)
             let job = {
@@ -204,6 +214,7 @@ impl ProcessExecFactory {
                 stderr_rx,
                 on_stdout,
                 on_stderr,
+                on_exit,
             };
 
             // Start the process
@@ -224,7 +235,7 @@ impl ProcessExecFactory {
 
     pub async fn eval(
         &self,
-        request: Spawn,
+        request: api::PoolSpawnRequest,
         client_callbacks: HashMap<String, WasmBusCallback>,
     ) -> Result<EvalCreated, CallError> {
         self.launch(request, client_callbacks, |ctx: LaunchContext| {
@@ -238,6 +249,7 @@ impl ProcessExecFactory {
                         eval_rx: Some(eval_rx),
                         on_stdout: ctx.on_stdout,
                         on_stderr: ctx.on_stderr,
+                        on_exit: ctx.on_exit,
                     },
                     session: ProcessExecSession {
                         stdin: ctx.stdin_tx,
@@ -250,7 +262,7 @@ impl ProcessExecFactory {
 
     pub async fn create(
         &self,
-        request: Spawn,
+        request: api::PoolSpawnRequest,
         client_callbacks: HashMap<String, WasmBusCallback>,
     ) -> Result<(Process, AsyncResult<i32>, Arc<WasmBusThreadPool>), CallError> {
         self.launch(request, client_callbacks, |mut ctx: LaunchContext| {
@@ -285,17 +297,24 @@ pub struct ProcessExecInvokable {
     eval_rx: Option<mpsc::Receiver<EvalPlan>>,
     on_stdout: Option<WasmBusCallback>,
     on_stderr: Option<WasmBusCallback>,
+    on_exit: Option<WasmBusCallback>,
 }
 
 #[async_trait]
 impl Invokable for ProcessExecInvokable {
     async fn process(&mut self) -> Result<Vec<u8>, CallError> {
+        let format = SerializationFormat::Bincode;
+
         // Get the eval_rx (this will mean it is destroyed when this
         // function returns)
         let mut eval_rx = match self.eval_rx.take() {
             Some(a) => a,
             None => {
-                return encode_eval_response(Some(EvalPlan::InternalError));
+                let res = encode_eval_response(format, Some(EvalPlan::InternalError))?;
+                if let Some(on_exit) = self.on_exit.take() {
+                    on_exit.feed(format, res.clone());
+                }
+                return Ok(res);
             }
         };
 
@@ -306,33 +325,41 @@ impl Invokable for ProcessExecInvokable {
                     tokio::select! {
                         data = stdout_rx.recv() => {
                             if let (Some(data), Some(on_data)) = (data, self.on_stdout.as_mut()) {
-                                on_data.feed(DataStdout(data));
+                                on_data.feed(format, api::PoolSpawnStdoutCallback(data));
                             } else {
                                 self.stdout.take();
                             }
                         }
                         data = stderr_rx.recv() => {
                             if let (Some(data), Some(on_data)) = (data, self.on_stderr.as_mut()) {
-                                on_data.feed(DataStderr(data));
+                                on_data.feed(format, api::PoolSpawnStderrCallback(data));
                             } else {
                                 self.stderr.take();
                             }
                         }
                         res = eval_rx.recv() => {
-                            return encode_eval_response(res);
+                            let res = encode_eval_response(format, res)?;
+                            if let Some(on_exit) = self.on_exit.take() {
+                                on_exit.feed(format, res.clone());
+                            }
+                            return Ok(res);
                         }
                     }
                 } else {
                     tokio::select! {
                         data = stdout_rx.recv() => {
                             if let (Some(data), Some(on_data)) = (data, self.on_stdout.as_mut()) {
-                                on_data.feed(DataStdout(data));
+                                on_data.feed(format, api::PoolSpawnStdoutCallback(data));
                             } else {
                                 self.stdout.take();
                             }
                         }
                         res = eval_rx.recv() => {
-                            return encode_eval_response(res);
+                            let res = encode_eval_response(format, res)?;
+                            if let Some(on_exit) = self.on_exit.take() {
+                                on_exit.feed(format, res.clone());
+                            }
+                            return Ok(res);
                         }
                     }
                 }
@@ -341,19 +368,27 @@ impl Invokable for ProcessExecInvokable {
                     tokio::select! {
                         data = stderr_rx.recv() => {
                             if let (Some(data), Some(on_data)) = (data, self.on_stderr.as_mut()) {
-                                on_data.feed(DataStderr(data));
+                                on_data.feed(format, api::PoolSpawnStderrCallback(data));
                             } else {
                                 self.stderr.take();
                             }
                         }
                         res = eval_rx.recv() => {
-                            return encode_eval_response(res);
+                            let res = encode_eval_response(format, res)?;
+                            if let Some(on_exit) = self.on_exit.take() {
+                                on_exit.feed(format, res.clone());
+                            }
+                            return Ok(res);
                         }
                     }
                 } else {
                     tokio::select! {
                         res = eval_rx.recv() => {
-                            return encode_eval_response(res);
+                            let res = encode_eval_response(format, res)?;
+                            if let Some(on_exit) = self.on_exit.take() {
+                                on_exit.feed(format, res.clone());
+                            }
+                            return Ok(res);
                         }
                     }
                 }
@@ -362,22 +397,20 @@ impl Invokable for ProcessExecInvokable {
     }
 }
 
-fn encode_eval_response(res: Option<EvalPlan>) -> Result<Vec<u8>, CallError> {
-    Ok(encode_response(&match res {
-        Some(EvalPlan::Executed { code, .. }) => ProcessExited { exit_code: code },
-        Some(EvalPlan::InternalError) => ProcessExited {
-            exit_code: err::ERR_ENOEXEC,
+fn encode_eval_response(
+    format: SerializationFormat,
+    res: Option<EvalPlan>,
+) -> Result<Vec<u8>, CallError> {
+    Ok(encode_response(
+        format,
+        &match res {
+            Some(EvalPlan::Executed { code, .. }) => api::PoolSpawnExitCallback(code),
+            Some(EvalPlan::InternalError) => api::PoolSpawnExitCallback(err::ERR_ENOEXEC),
+            Some(EvalPlan::Invalid) => api::PoolSpawnExitCallback(err::ERR_EINVAL),
+            Some(EvalPlan::MoreInput) => api::PoolSpawnExitCallback(err::ERR_EINVAL),
+            None => api::PoolSpawnExitCallback(err::ERR_EPIPE),
         },
-        Some(EvalPlan::Invalid) => ProcessExited {
-            exit_code: err::ERR_EINVAL,
-        },
-        Some(EvalPlan::MoreInput) => ProcessExited {
-            exit_code: err::ERR_EINVAL,
-        },
-        None => ProcessExited {
-            exit_code: err::ERR_EPIPE,
-        },
-    })?)
+    )?)
 }
 
 #[derive(Clone)]
@@ -387,26 +420,29 @@ pub struct ProcessExecSession {
 
 impl Session for ProcessExecSession {
     fn call(&mut self, topic: &str, request: Vec<u8>) -> Box<dyn Invokable + 'static> {
-        if topic == type_name::<OutOfBand>() {
-            let request: OutOfBand = match decode_request(request.as_ref()) {
-                Ok(a) => a,
-                Err(err) => {
-                    return ErrornousInvokable::new(err);
-                }
-            };
-            match request {
-                OutOfBand::DataStdin(data) => {
-                    if let Some(stdin) = self.stdin.as_ref() {
-                        let tx_send = stdin.clone();
-                        let _ = tx_send.blocking_send(data);
+        if topic == type_name::<api::ProcessStdinRequest>() {
+            let request: api::ProcessStdinRequest =
+                match decode_request(SerializationFormat::Bincode, request.as_ref()) {
+                    Ok(a) => a,
+                    Err(err) => {
+                        return ErrornousInvokable::new(err);
                     }
-                }
-                OutOfBand::CloseStdin => {
-                    self.stdin.take();
-                }
-                _ => {}
+                };
+            if let Some(stdin) = self.stdin.as_ref() {
+                let tx_send = stdin.clone();
+                let _ = tx_send.blocking_send(request.data);
             }
-            ResultInvokable::new(())
+            ResultInvokable::new(SerializationFormat::Bincode, ())
+        } else if topic == type_name::<api::ProcessCloseStdinRequest>() {
+            let _request: api::ProcessCloseStdinRequest =
+                match decode_request(SerializationFormat::Bincode, request.as_ref()) {
+                    Ok(a) => a,
+                    Err(err) => {
+                        return ErrornousInvokable::new(err);
+                    }
+                };
+            self.stdin.take();
+            ResultInvokable::new(SerializationFormat::Bincode, ())
         } else {
             ErrornousInvokable::new(CallError::InvalidTopic)
         }

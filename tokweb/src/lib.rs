@@ -9,5 +9,4 @@ use term_lib::err;
 use term_lib::fd;
 use term_lib::tty;
 
-pub use glue::main;
 pub use glue::start;

@@ -9,7 +9,8 @@ use std::path::Path;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
-use wasm_bus::backend::fuse as backend;
+use wasm_bus::abi::SerializationFormat;
+use wasm_bus_fuse::api as backend;
 use wasmer_vfs::DirEntry;
 use wasmer_vfs::FileOpener;
 use wasmer_vfs::FileSystem;
@@ -39,11 +40,17 @@ pub struct FuseFileSystem {
 
 impl FuseFileSystem {
     pub async fn new(process: SubProcess, target: &str) -> Result<FuseFileSystem, CallError> {
-        let task: AsyncWasmBusResult<()> = process.main.call(backend::Mount {
-            name: target.to_string(),
-        })?;
+        let task: AsyncWasmBusResult<()> = process.main.call(
+            SerializationFormat::Json,
+            backend::FuseMountRequest {
+                name: target.to_string(),
+            },
+        )?;
 
-        let _ = task.call::<(), _>(backend::Init {})?.join().await?;
+        let _ = task
+            .call::<(), _>(backend::FileSystemInitRequest {})?
+            .join()
+            .await?;
 
         Ok(FuseFileSystem {
             system: System::default(),
@@ -60,7 +67,7 @@ impl FileSystem for FuseFileSystem {
 
         let dir = self
             .task
-            .call::<Result<_, backend::FsError>, _>(backend::ReadDir {
+            .call::<Result<_, backend::FsError>, _>(backend::FileSystemReadDirRequest {
                 path: path.to_string_lossy().to_string(),
             })
             .map_err(|_| FsError::IOError)?
@@ -75,9 +82,11 @@ impl FileSystem for FuseFileSystem {
 
         let _meta = self
             .task
-            .call::<Result<backend::Metadata, backend::FsError>, _>(backend::CreateDir {
-                path: path.to_string_lossy().to_string(),
-            })
+            .call::<Result<backend::Metadata, backend::FsError>, _>(
+                backend::FileSystemCreateDirRequest {
+                    path: path.to_string_lossy().to_string(),
+                },
+            )
             .map_err(|_| FsError::IOError)?
             .block_on()
             .map_err(|_| FsError::IOError)?
@@ -89,7 +98,7 @@ impl FileSystem for FuseFileSystem {
         debug!("remove_dir: path={}", path.display());
 
         self.task
-            .call::<Result<_, backend::FsError>, _>(backend::RemoveDir {
+            .call::<Result<_, backend::FsError>, _>(backend::FileSystemRemoveDirRequest {
                 path: path.to_string_lossy().to_string(),
             })
             .map_err(|_| FsError::IOError)?
@@ -102,7 +111,7 @@ impl FileSystem for FuseFileSystem {
         debug!("rename: from={}, to={}", from.display(), to.display());
 
         self.task
-            .call::<Result<_, backend::FsError>, _>(backend::Rename {
+            .call::<Result<_, backend::FsError>, _>(backend::FileSystemRenameRequest {
                 from: from.to_string_lossy().to_string(),
                 to: to.to_string_lossy().to_string(),
             })
@@ -117,7 +126,7 @@ impl FileSystem for FuseFileSystem {
 
         let metadata = self
             .task
-            .call::<Result<_, backend::FsError>, _>(backend::ReadMetadata {
+            .call::<Result<_, backend::FsError>, _>(backend::FileSystemReadMetadataRequest {
                 path: path.to_string_lossy().to_string(),
             })
             .map_err(|_| FsError::IOError)?
@@ -132,7 +141,7 @@ impl FileSystem for FuseFileSystem {
 
         let metadata = self
             .task
-            .call::<Result<_, backend::FsError>, _>(backend::ReadSymlinkMetadata {
+            .call::<Result<_, backend::FsError>, _>(backend::FileSystemReadSymlinkMetadataRequest {
                 path: path.to_string_lossy().to_string(),
             })
             .map_err(|_| FsError::IOError)?
@@ -146,7 +155,7 @@ impl FileSystem for FuseFileSystem {
         debug!("remove_file: path={}", path.display());
 
         self.task
-            .call::<Result<_, backend::FsError>, _>(backend::RemoveFile {
+            .call::<Result<_, backend::FsError>, _>(backend::FileSystemRemoveFileRequest {
                 path: path.to_string_lossy().to_string(),
             })
             .map_err(|_| FsError::IOError)?
@@ -182,28 +191,37 @@ impl FileOpener for FuseFileOpener {
         let task = self
             .fs
             .task
-            .call::<Result<(), backend::FsError>, _>(backend::NewOpen {
-                read: conf.read(),
-                write: conf.write(),
-                create_new: conf.create_new(),
-                create: conf.create(),
-                append: conf.append(),
-                truncate: conf.truncate(),
+            .call::<Result<(), backend::FsError>, _>(backend::FileSystemOpenRequest {
+                options: backend::OpenOptions {
+                    read: conf.read(),
+                    write: conf.write(),
+                    create_new: conf.create_new(),
+                    create: conf.create(),
+                    append: conf.append(),
+                    truncate: conf.truncate(),
+                },
+                path: path.to_string_lossy().to_string(),
             })
             .map_err(|_| FsError::IOError)?;
 
         let meta = task
-            .call::<Result<_, backend::FsError>, _>(backend::Open {
-                path: path.to_string_lossy().to_string(),
-            })
+            .call::<Result<_, backend::FsError>, _>(backend::OpenedFileMetaRequest {})
             .map_err(|_| FsError::IOError)?
             .block_on()
             .map_err(|_| FsError::IOError)?
             .map_err(conv_fs_error)?;
 
+        let io = task
+            .call_with_format::<Result<(), backend::FsError>, _>(
+                SerializationFormat::Bincode,
+                backend::OpenedFileIoRequest {},
+            )
+            .map_err(|_| FsError::IOError)?;
+
         return Ok(Box::new(FuseVirtualFile {
             fs: self.fs.clone(),
             task,
+            io,
             meta,
         }));
     }
@@ -215,6 +233,8 @@ pub struct FuseVirtualFile {
     fs: FuseFileSystem,
     #[derivative(Debug = "ignore")]
     task: AsyncWasmBusResult<Result<(), backend::FsError>>,
+    #[derivative(Debug = "ignore")]
+    io: AsyncWasmBusResult<Result<(), backend::FsError>>,
     meta: backend::Metadata,
 }
 
@@ -222,20 +242,21 @@ impl Drop for FuseVirtualFile {
     fn drop(&mut self) {
         let _ = self
             .task
-            .call::<Result<(), backend::FsError>, _>(backend::Close {});
+            .call::<Result<(), backend::FsError>, _>(backend::OpenedFileCloseRequest {});
     }
 }
 
 impl Seek for FuseVirtualFile {
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         let seek = match pos {
-            SeekFrom::Current(a) => backend::Seek::Current(a),
-            SeekFrom::End(a) => backend::Seek::End(a),
-            SeekFrom::Start(a) => backend::Seek::Start(a),
+            SeekFrom::Current(a) => backend::SeekFrom::Current(a),
+            SeekFrom::End(a) => backend::SeekFrom::End(a),
+            SeekFrom::Start(a) => backend::SeekFrom::Start(a),
         };
+        let seek = backend::FileIoSeekRequest { from: seek };
 
         let ret: io::Result<_> = self
-            .task
+            .io
             .call::<Result<_, backend::FsError>, _>(seek)
             .map_err(|err| err.into_io_error())?
             .block_on()
@@ -248,8 +269,10 @@ impl Seek for FuseVirtualFile {
 impl Write for FuseVirtualFile {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let ret: io::Result<_> = self
-            .task
-            .call::<Result<_, backend::FsError>, _>(backend::Write { data: buf.to_vec() })
+            .io
+            .call::<Result<_, backend::FsError>, _>(backend::FileIoWriteRequest {
+                data: buf.to_vec(),
+            })
             .map_err(|err| err.into_io_error())?
             .block_on()
             .map_err(|err| err.into_io_error())?
@@ -259,8 +282,8 @@ impl Write for FuseVirtualFile {
 
     fn flush(&mut self) -> io::Result<()> {
         let ret: io::Result<_> = self
-            .task
-            .call::<Result<_, backend::FsError>, _>(backend::Flush {})
+            .io
+            .call::<Result<_, backend::FsError>, _>(backend::FileIoFlushRequest {})
             .map_err(|err| err.into_io_error())?
             .block_on()
             .map_err(|err| err.into_io_error())?
@@ -272,8 +295,8 @@ impl Write for FuseVirtualFile {
 impl Read for FuseVirtualFile {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let data: io::Result<Vec<u8>> = self
-            .task
-            .call::<Result<_, backend::FsError>, _>(backend::Read {
+            .io
+            .call::<Result<_, backend::FsError>, _>(backend::FileIoReadRequest {
                 len: buf.len() as u64,
             })
             .map_err(|err| err.into_io_error())?
@@ -312,7 +335,9 @@ impl VirtualFile for FuseVirtualFile {
     fn set_len(&mut self, new_size: u64) -> Result<(), FsError> {
         let result: Result<(), FsError> = self
             .task
-            .call::<Result<_, backend::FsError>, _>(backend::SetLength { len: new_size })
+            .call::<Result<_, backend::FsError>, _>(backend::OpenedFileSetLenRequest {
+                len: new_size,
+            })
             .map_err(|_| FsError::IOError)?
             .block_on()
             .map_err(|_| FsError::IOError)?
@@ -325,7 +350,7 @@ impl VirtualFile for FuseVirtualFile {
 
     fn unlink(&mut self) -> Result<(), FsError> {
         self.task
-            .call::<Result<_, backend::FsError>, _>(backend::Unlink {})
+            .call::<Result<_, backend::FsError>, _>(backend::OpenedFileUnlinkRequest {})
             .map_err(|_| FsError::IOError)?
             .block_on()
             .map_err(|_| FsError::IOError)?

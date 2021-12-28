@@ -166,6 +166,8 @@ impl BusEngine {
         parent: Option<CallHandle>,
         wapm: Cow<'static, str>,
         topic: Cow<'static, str>,
+        format: SerializationFormat,
+        session: Option<String>,
     ) -> Call {
         let mut handle: CallHandle = crate::abi::syscall::handle().into();
         let mut call = Call {
@@ -173,6 +175,8 @@ impl BusEngine {
             parent,
             wapm,
             topic,
+            format,
+            session,
             state: Arc::new(Mutex::new(CallState { result: None })),
             callbacks: Arc::new(Mutex::new(Vec::new())),
         };
@@ -200,12 +204,14 @@ impl BusEngine {
         _parent: Option<CallHandle>,
         _wapm: Cow<'static, str>,
         _topic: Cow<'static, str>,
+        _format: SerializationFormat,
+        _session: Option<String>,
     ) -> Call {
         panic!("call not supported on this platform");
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub fn callback<RES, REQ, F>(mut callback: F) -> Finish
+    pub fn callback<RES, REQ, F>(format: SerializationFormat, mut callback: F) -> Finish
     where
         REQ: de::DeserializeOwned + Send + Sync + 'static,
         RES: Serialize + Send + Sync + 'static,
@@ -213,13 +219,21 @@ impl BusEngine {
         F: Send + 'static,
     {
         let callback = move |req: Vec<u8>| {
-            let req = bincode::deserialize::<REQ>(req.as_ref())
-                .map_err(|_err| CallError::DeserializationFailed)?;
+            let req = match format {
+                SerializationFormat::Bincode => bincode::deserialize::<REQ>(req.as_ref())
+                    .map_err(|_err| CallError::DeserializationFailed)?,
+                SerializationFormat::Json => serde_json::from_slice::<REQ>(req.as_ref())
+                    .map_err(|_err| CallError::DeserializationFailed)?,
+            };
 
             let res = callback(req)?;
 
-            let res =
-                bincode::serialize::<RES>(&res).map_err(|_err| CallError::SerializationFailed)?;
+            let res = match format {
+                SerializationFormat::Bincode => bincode::serialize::<RES>(&res)
+                    .map_err(|_err| CallError::SerializationFailed)?,
+                SerializationFormat::Json => serde_json::to_vec::<RES>(&res)
+                    .map_err(|_err| CallError::SerializationFailed)?,
+            };
 
             Ok(res)
         };
@@ -227,7 +241,7 @@ impl BusEngine {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn callback<RES, REQ, F>(_callback: F) -> Finish
+    pub fn callback<RES, REQ, F>(_format: SerializationFormat, _callback: F) -> Finish
     where
         REQ: de::DeserializeOwned + Send + Sync + 'static,
         RES: Serialize + Send + Sync + 'static,

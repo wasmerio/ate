@@ -3,7 +3,7 @@ use std::collections::HashMap;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
-use wasm_bus::backend;
+use wasm_bus::abi::SerializationFormat;
 
 use crate::api::System;
 
@@ -31,24 +31,27 @@ impl StandardBus {
         client_callbacks: &HashMap<String, WasmBusCallback>,
     ) -> Result<(Box<dyn Invokable>, Option<Box<dyn Session>>), CallError> {
         match (wapm, topic) {
-            ("os", topic) if topic == type_name::<backend::ws::Connect>() => {
-                let request = decode_request(request.as_ref())?;
+            ("os", topic)
+                if topic == type_name::<wasm_bus_ws::api::SocketBuilderConnectRequest>() =>
+            {
+                let request = decode_request(SerializationFormat::Bincode, request.as_ref())?;
 
                 let (invoker, session) = ws::web_socket(request, client_callbacks.clone())?;
                 Ok((Box::new(invoker), Some(Box::new(session))))
             }
-            ("os", topic) if topic == type_name::<backend::time::Sleep>() => {
-                let request = decode_request(request.as_ref())?;
-                let invoker = time::sleep(self.system, request);
+            ("os", topic) if topic == type_name::<wasm_bus_time::api::TimeSleepRequest>() => {
+                let request: wasm_bus_time::api::TimeSleepRequest =
+                    decode_request(SerializationFormat::Json, request.as_ref())?;
+                let invoker = time::sleep(self.system, request.duration_ms);
                 Ok((Box::new(invoker), None))
             }
-            ("os", topic) if topic == type_name::<backend::reqwest::Request>() => {
-                let request = decode_request(request.as_ref())?;
+            ("os", topic) if topic == type_name::<wasm_bus_reqwest::api::ReqwestMakeRequest>() => {
+                let request = decode_request(SerializationFormat::Bincode, request.as_ref())?;
                 let invoker = reqwest::reqwest(self.system, request);
                 Ok((Box::new(invoker), None))
             }
-            ("os", topic) if topic == type_name::<backend::process::Spawn>() => {
-                let request = decode_request(request.as_ref())?;
+            ("os", topic) if topic == type_name::<wasm_bus_process::api::PoolSpawnRequest>() => {
+                let request = decode_request(SerializationFormat::Bincode, request.as_ref())?;
 
                 let created = self
                     .process_factory

@@ -15,11 +15,11 @@ use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 #[cfg(target_arch = "wasm32")]
-use wasm_bus::ws::RecvHalf as WasmRecvHalf;
+use wasm_bus_ws::prelude::RecvHalf as WasmRecvHalf;
 #[cfg(target_arch = "wasm32")]
-use wasm_bus::ws::SendHalf as WasmSendHalf;
+use wasm_bus_ws::prelude::SendHalf as WasmSendHalf;
 #[cfg(target_arch = "wasm32")]
-use wasm_bus::ws::WebSocket as WasmWebSocket;
+use wasm_bus_ws::prelude::WebSocket as WasmWebSocket;
 
 use crate::comms::PacketData;
 use crate::crypto::EncryptKey;

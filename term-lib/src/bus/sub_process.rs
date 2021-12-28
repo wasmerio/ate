@@ -5,7 +5,8 @@ use std::sync::Mutex;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
-use wasm_bus::backend::process::*;
+use wasm_bus_process::api;
+use wasm_bus_process::prelude::*;
 
 use crate::api::AsyncResult;
 use crate::api::System;
@@ -49,15 +50,17 @@ impl SubProcessFactory {
 
         // None was found so go ahead and start a new process
         let empty_client_callbacks = HashMap::default();
-        let spawn = Spawn {
-            path: wapm.clone(),
-            args: vec![wapm.to_string(), "bus".to_string()],
-            chroot: false,
-            working_dir: None,
-            stdin_mode: stdio_mode,
-            stdout_mode: stdio_mode,
-            stderr_mode: stdio_mode,
-            pre_open: Vec::new(),
+        let spawn = api::PoolSpawnRequest {
+            spawn: api::Spawn {
+                path: wapm.clone(),
+                args: vec![wapm.to_string(), "bus".to_string()],
+                chroot: false,
+                working_dir: None,
+                stdin_mode: stdio_mode,
+                stdout_mode: stdio_mode,
+                stderr_mode: stdio_mode,
+                pre_open: Vec::new(),
+            },
         };
         let (process, process_result, thread_pool) = self
             .inner

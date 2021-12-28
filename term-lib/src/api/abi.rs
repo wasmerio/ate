@@ -4,13 +4,23 @@ use std::future::Future;
 use std::pin::Pin;
 use std::rc::Rc;
 use tokio::sync::mpsc;
+use wasm_bus::abi::SerializationFormat;
 
 use super::*;
-use wasm_bus::backend::reqwest::Response as ReqwestResponse;
 
 pub struct ConsoleRect {
     pub cols: u32,
     pub rows: u32,
+}
+
+pub struct ReqwestResponse {
+    pub pos: usize,
+    pub data: Option<Vec<u8>>,
+    pub ok: bool,
+    pub redirected: bool,
+    pub status: u16,
+    pub status_text: String,
+    pub headers: Vec<(String, String)>,
 }
 
 // This ABI implements a number of low level operating system
@@ -54,7 +64,7 @@ where
     fn task_local(&self, task: Pin<Box<dyn Future<Output = ()> + 'static>>);
 
     /// Puts the current thread to sleep for a fixed number of milliseconds
-    fn sleep(&self, ms: i32) -> AsyncResult<()>;
+    fn sleep(&self, ms: u128) -> AsyncResult<()>;
 
     /// Writes output to the console
     async fn print(&self, text: String);
@@ -179,7 +189,7 @@ impl SystemAbiExt for dyn SystemAbi {
                 let _ = tx_result.send(ret).await;
             })
         }));
-        AsyncResult::new(rx_result)
+        AsyncResult::new(SerializationFormat::Bincode, rx_result)
     }
 
     fn spawn_stateful<F, Fut>(&self, task: F) -> AsyncResult<Fut::Output>
@@ -197,7 +207,7 @@ impl SystemAbiExt for dyn SystemAbi {
                 let _ = tx_result.send(ret).await;
             })
         }));
-        AsyncResult::new(rx_result)
+        AsyncResult::new(SerializationFormat::Bincode, rx_result)
     }
 
     fn spawn_dedicated<F, Fut>(&self, task: F) -> AsyncResult<Fut::Output>
@@ -215,7 +225,7 @@ impl SystemAbiExt for dyn SystemAbi {
                 let _ = tx_result.send(ret).await;
             })
         }));
-        AsyncResult::new(rx_result)
+        AsyncResult::new(SerializationFormat::Bincode, rx_result)
     }
 
     fn fork_shared<F, Fut>(&self, task: F)

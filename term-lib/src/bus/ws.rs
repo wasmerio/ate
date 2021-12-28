@@ -7,20 +7,23 @@ use tokio::sync::mpsc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
-use wasm_bus::backend::ws::*;
+use wasm_bus::abi::SerializationFormat;
+use wasm_bus_ws::api;
 
 use super::*;
 use crate::api::*;
 
 pub fn web_socket(
-    connect: Connect,
+    connect: api::SocketBuilderConnectRequest,
     mut client_callbacks: HashMap<String, WasmBusCallback>,
 ) -> Result<(WebSocketInvoker, WebSocketSession), CallError> {
     let system = System::default();
 
     // Build all the callbacks
-    let on_state_change = client_callbacks.remove(&type_name::<SocketState>().to_string());
-    let on_received = client_callbacks.remove(&type_name::<Received>().to_string());
+    let on_state_change = client_callbacks
+        .remove(&type_name::<api::SocketBuilderConnectStateChangeCallback>().to_string());
+    let on_received = client_callbacks
+        .remove(&type_name::<api::SocketBuilderConnectReceiveCallback>().to_string());
     if on_state_change.is_none() || on_received.is_none() {
         return Err(CallError::MissingCallbacks);
     }
@@ -32,8 +35,8 @@ pub fn web_socket(
     // Construct the channels
     let (tx_keepalive, mut rx_keepalive) = mpsc::channel(1);
     let (tx_recv, rx_recv) = mpsc::channel(MAX_MPSC);
-    let (tx_state, rx_state) = mpsc::channel::<SocketState>(MAX_MPSC);
-    let (tx_send, mut rx_send) = mpsc::channel::<Send>(MAX_MPSC);
+    let (tx_state, rx_state) = mpsc::channel::<api::SocketState>(MAX_MPSC);
+    let (tx_send, mut rx_send) = mpsc::channel::<Vec<u8>>(MAX_MPSC);
 
     // The web socket will be started in a background thread as it
     // is an asynchronous IO primative
@@ -43,19 +46,19 @@ pub fn web_socket(
             Ok(a) => a,
             Err(err) => {
                 debug!("failed to create web socket ({}): {}", connect.url, err);
-                let _ = tx_state.send(SocketState::Failed).await;
+                let _ = tx_state.send(api::SocketState::Failed).await;
                 return;
             }
         };
 
         // The inner state is used to chain then states so the web socket
         // properly starts and exits when it should
-        let (tx_state_inner, mut rx_state_inner) = mpsc::channel::<SocketState>(MAX_MPSC);
+        let (tx_state_inner, mut rx_state_inner) = mpsc::channel::<api::SocketState>(MAX_MPSC);
 
         {
             let tx_state_inner = tx_state_inner.clone();
             ws_sys.set_onopen(Box::new(move || {
-                let again = match tx_state_inner.try_send(SocketState::Opened) {
+                let again = match tx_state_inner.try_send(api::SocketState::Opened) {
                     Ok(_) => None,
                     Err(mpsc::error::TrySendError::Closed(a)) => Some(a),
                     Err(mpsc::error::TrySendError::Full(a)) => Some(a),
@@ -72,7 +75,7 @@ pub fn web_socket(
         {
             let tx_state_inner = tx_state_inner.clone();
             ws_sys.set_onclose(Box::new(move || {
-                let again = match tx_state_inner.try_send(SocketState::Closed) {
+                let again = match tx_state_inner.try_send(api::SocketState::Closed) {
                     Ok(_) => None,
                     Err(mpsc::error::TrySendError::Closed(a)) => Some(a),
                     Err(mpsc::error::TrySendError::Full(a)) => Some(a),
@@ -112,7 +115,7 @@ pub fn web_socket(
             if let Some(state) = rx_state_inner.recv().await {
                 let _ = tx_state.send(state.clone()).await;
                 on_state_change_waker.wake();
-                if state != SocketState::Opened {
+                if state != api::SocketState::Opened {
                     return;
                 }
             }
@@ -130,14 +133,13 @@ pub fn web_socket(
                     if let Some(state) = &state {
                         let _ = tx_state.send(state.clone()).await;
                     }
-                    if state != Some(SocketState::Opened) {
+                    if state != Some(api::SocketState::Opened) {
                         return;
                     }
                 }
                 request = rx_send.recv() => {
                     on_received_waker.wake();
-                    if let Some(request) = request {
-                        let data = request.data;
+                    if let Some(data) = request {
                         let data_len = data.len();
 
                         #[cfg(feature="async_ws")]
@@ -173,7 +175,7 @@ pub fn web_socket(
 pub struct WebSocket {
     #[allow(dead_code)]
     tx_keepalive: mpsc::Sender<()>,
-    rx_state: mpsc::Receiver<SocketState>,
+    rx_state: mpsc::Receiver<api::SocketState>,
     rx_recv: mpsc::Receiver<Vec<u8>>,
     on_state_change: WasmBusCallback,
     on_received: WasmBusCallback,
@@ -185,13 +187,13 @@ impl WebSocket {
             select! {
                 state = self.rx_state.recv() => {
                     if let Some(state) = &state {
-                        self.on_state_change.feed(state.clone());
+                        self.on_state_change.feed(SerializationFormat::Bincode, api::SocketBuilderConnectStateChangeCallback(state.clone()));
                     }
                     match state {
-                        Some(SocketState::Opened) => {
+                        Some(api::SocketState::Opened) => {
                             debug!("confirmed websocket successfully opened");
                         }
-                        Some(SocketState::Closed) => {
+                        Some(api::SocketState::Closed) => {
                             debug!("confirmed websocket closed before it opened");
                             return;
                         }
@@ -207,10 +209,7 @@ impl WebSocket {
                 }
                 data = self.rx_recv.recv() => {
                     if let Some(data) = data {
-                        let received = Received {
-                            data
-                        };
-                        self.on_received.feed(received);
+                        self.on_received.feed(SerializationFormat::Bincode, api::SocketBuilderConnectReceiveCallback(data));
                     } else {
                         break;
                     }
@@ -230,7 +229,7 @@ impl Invokable for WebSocketInvoker {
         let ws = self.ws.take();
         if let Some(ws) = ws {
             let ret = ws.run().await;
-            Ok(encode_response(&ret)?)
+            Ok(encode_response(SerializationFormat::Bincode, &ret)?)
         } else {
             Err(CallError::Unknown)
         }
@@ -238,34 +237,38 @@ impl Invokable for WebSocketInvoker {
 }
 
 pub struct WebSocketSession {
-    tx_send: mpsc::Sender<Send>,
+    tx_send: mpsc::Sender<Vec<u8>>,
 }
 
 impl Session for WebSocketSession {
     fn call(&mut self, topic: &str, request: Vec<u8>) -> Box<dyn Invokable + 'static> {
-        if topic == type_name::<Send>() {
-            let request: Send = match decode_request(request.as_ref()) {
-                Ok(a) => a,
+        if topic == type_name::<api::WebSocketSendRequest>() {
+            let data = match decode_request::<api::WebSocketSendRequest>(
+                SerializationFormat::Bincode,
+                request.as_ref(),
+            ) {
+                Ok(a) => a.data,
                 Err(err) => {
                     return ErrornousInvokable::new(err);
                 }
             };
+            let data_len = data.len();
 
-            let data_len = request.data.len();
-
-            let again = match self.tx_send.try_send(request) {
+            let again = match self.tx_send.try_send(data) {
                 Ok(_) => None,
                 Err(mpsc::error::TrySendError::Closed(a)) => Some(a),
                 Err(mpsc::error::TrySendError::Full(a)) => Some(a),
             };
-            if let Some(request) = again {
+            if let Some(data) = again {
                 Box::new(DelayedSend {
-                    data_len,
-                    msg: Some(request),
+                    data: Some(data),
                     tx: self.tx_send.clone(),
                 })
             } else {
-                ResultInvokable::new(SendResult::Success(data_len))
+                ResultInvokable::new(
+                    SerializationFormat::Bincode,
+                    api::SendResult::Success(data_len),
+                )
             }
         } else {
             ErrornousInvokable::new(CallError::InvalidTopic)
@@ -274,18 +277,19 @@ impl Session for WebSocketSession {
 }
 
 struct DelayedSend {
-    data_len: usize,
-    msg: Option<Send>,
-    tx: mpsc::Sender<Send>,
+    data: Option<Vec<u8>>,
+    tx: mpsc::Sender<Vec<u8>>,
 }
 
 #[async_trait]
 impl Invokable for DelayedSend {
     async fn process(&mut self) -> Result<Vec<u8>, CallError> {
-        if let Some(msg) = self.msg.take() {
-            let _ = self.tx.send(msg).await;
+        let mut size = 0usize;
+        if let Some(data) = self.data.take() {
+            size = data.len();
+            let _ = self.tx.send(data).await;
         }
-        ResultInvokable::new(SendResult::Success(self.data_len))
+        ResultInvokable::new(SerializationFormat::Bincode, api::SendResult::Success(size))
             .process()
             .await
     }

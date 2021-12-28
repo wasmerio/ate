@@ -251,13 +251,13 @@ pub fn start() -> Result<(), JsValue> {
     Ok(())
 }
 
-#[wasm_bindgen(module = "/src/js/fit.ts")]
+#[wasm_bindgen(module = "/js/fit.ts")]
 extern "C" {
     #[wasm_bindgen(js_name = "termFit")]
     fn term_fit(terminal: Terminal, front: HtmlCanvasElement);
 }
 
-#[wasm_bindgen(module = "/src/js/gl.js")]
+#[wasm_bindgen(module = "/js/gl.js")]
 extern "C" {
     #[wasm_bindgen(js_name = "showTerminal")]
     pub fn show_terminal();

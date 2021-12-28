@@ -1,4 +1,4 @@
-use cooked_waker::*;
+use cooked_waker::WakeRef;
 use std::sync::atomic::*;
 
 #[derive(Debug, Default)]

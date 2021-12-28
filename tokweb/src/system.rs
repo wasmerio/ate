@@ -15,7 +15,6 @@ use super::common::*;
 use super::pool::WebThreadPool;
 use super::ws::WebSocket;
 use term_lib::api::*;
-use wasm_bus::backend::reqwest::Response as ReqwestResponse;
 
 pub(crate) enum TerminalCommand {
     Print(String),
@@ -74,7 +73,8 @@ impl SystemAbi for WebSystem {
         });
     }
 
-    fn sleep(&self, ms: i32) -> AsyncResult<()> {
+    fn sleep(&self, ms: u128) -> AsyncResult<()> {
+        let ms = ms as i32;
         let (tx, rx) = mpsc::channel(1);
         self.pool.spawn_shared(Box::new(move || {
             Box::pin(async move {
@@ -85,7 +85,7 @@ impl SystemAbi for WebSystem {
                 let _ = tx.send(()).await;
             })
         }));
-        AsyncResult::new(rx)
+        AsyncResult::new(SerializationFormat::Json, rx)
     }
 
     async fn print(&self, text: String) {
@@ -124,7 +124,7 @@ impl SystemAbi for WebSystem {
                 let _ = tx.send(ret).await;
             })
         }));
-        AsyncResult::new(rx)
+        AsyncResult::new(SerializationFormat::Bincode, rx)
     }
 
     fn reqwest(
@@ -182,7 +182,7 @@ impl SystemAbi for WebSystem {
                 let _ = tx.send(Ok(resp)).await;
             })
         }));
-        AsyncResult::new(rx)
+        AsyncResult::new(SerializationFormat::Bincode, rx)
     }
 
     async fn web_socket(&self, url: &str) -> Result<Box<dyn WebSocketAbi>, String> {
@@ -190,7 +190,7 @@ impl SystemAbi for WebSystem {
     }
 }
 
-#[wasm_bindgen(module = "/public/worker.js")]
+#[wasm_bindgen(module = "/js/time.js")]
 extern "C" {
     #[wasm_bindgen(js_name = "sleep")]
     fn sleep(ms: i32) -> Promise;

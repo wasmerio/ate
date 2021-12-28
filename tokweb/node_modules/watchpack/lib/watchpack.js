@@ -10,16 +10,14 @@ const EventEmitter = require("events").EventEmitter;
 const globToRegExp = require("glob-to-regexp");
 const watchEventSource = require("./watchEventSource");
 
-let EXISTANCE_ONLY_TIME_ENTRY; // lazy required
-
 const EMPTY_ARRAY = [];
 const EMPTY_OPTIONS = {};
 
 function addWatchersToSet(watchers, set) {
-	for (const w of watchers) {
-		if (w !== true && !set.has(w.directoryWatcher)) {
+	for (const ww of watchers) {
+		const w = ww.watcher;
+		if (!set.has(w.directoryWatcher)) {
 			set.add(w.directoryWatcher);
-			addWatchersToSet(w.directoryWatcher.directories.values(), set);
 		}
 	}
 }
@@ -31,24 +29,28 @@ const stringToRegexp = ignored => {
 	return matchingStart;
 };
 
-const ignoredToRegexp = ignored => {
+const ignoredToFunction = ignored => {
 	if (Array.isArray(ignored)) {
-		return new RegExp(ignored.map(i => stringToRegexp(i)).join("|"));
+		const regexp = new RegExp(ignored.map(i => stringToRegexp(i)).join("|"));
+		return x => regexp.test(x.replace(/\\/g, "/"));
 	} else if (typeof ignored === "string") {
-		return new RegExp(stringToRegexp(ignored));
+		const regexp = new RegExp(stringToRegexp(ignored));
+		return x => regexp.test(x.replace(/\\/g, "/"));
 	} else if (ignored instanceof RegExp) {
+		return x => ignored.test(x.replace(/\\/g, "/"));
+	} else if (ignored instanceof Function) {
 		return ignored;
 	} else if (ignored) {
 		throw new Error(`Invalid option for 'ignored': ${ignored}`);
 	} else {
-		return undefined;
+		return () => false;
 	}
 };
 
 const normalizeOptions = options => {
 	return {
 		followSymlinks: !!options.followSymlinks,
-		ignored: ignoredToRegexp(options.ignored),
+		ignored: ignoredToFunction(options.ignored),
 		poll: options.poll
 	};
 };
@@ -61,6 +63,83 @@ const cachedNormalizeOptions = options => {
 	normalizeCache.set(options, normalized);
 	return normalized;
 };
+
+class WatchpackFileWatcher {
+	constructor(watchpack, watcher, files) {
+		this.files = Array.isArray(files) ? files : [files];
+		this.watcher = watcher;
+		watcher.on("initial-missing", type => {
+			for (const file of this.files) {
+				if (!watchpack._missing.has(file))
+					watchpack._onRemove(file, file, type);
+			}
+		});
+		watcher.on("change", (mtime, type) => {
+			for (const file of this.files) {
+				watchpack._onChange(file, mtime, file, type);
+			}
+		});
+		watcher.on("remove", type => {
+			for (const file of this.files) {
+				watchpack._onRemove(file, file, type);
+			}
+		});
+	}
+
+	update(files) {
+		if (!Array.isArray(files)) {
+			if (this.files.length !== 1) {
+				this.files = [files];
+			} else if (this.files[0] !== files) {
+				this.files[0] = files;
+			}
+		} else {
+			this.files = files;
+		}
+	}
+
+	close() {
+		this.watcher.close();
+	}
+}
+
+class WatchpackDirectoryWatcher {
+	constructor(watchpack, watcher, directories) {
+		this.directories = Array.isArray(directories) ? directories : [directories];
+		this.watcher = watcher;
+		watcher.on("initial-missing", type => {
+			for (const item of this.directories) {
+				watchpack._onRemove(item, item, type);
+			}
+		});
+		watcher.on("change", (file, mtime, type) => {
+			for (const item of this.directories) {
+				watchpack._onChange(item, mtime, file, type);
+			}
+		});
+		watcher.on("remove", type => {
+			for (const item of this.directories) {
+				watchpack._onRemove(item, item, type);
+			}
+		});
+	}
+
+	update(directories) {
+		if (!Array.isArray(directories)) {
+			if (this.directories.length !== 1) {
+				this.directories = [directories];
+			} else if (this.directories[0] !== directories) {
+				this.directories[0] = directories;
+			}
+		} else {
+			this.directories = directories;
+		}
+	}
+
+	close() {
+		this.watcher.close();
+	}
+}
 
 class Watchpack extends EventEmitter {
 	constructor(options) {
@@ -75,6 +154,7 @@ class Watchpack extends EventEmitter {
 		this.watcherManager = getWatcherManager(this.watcherOptions);
 		this.fileWatchers = new Map();
 		this.directoryWatchers = new Map();
+		this._missing = new Set();
 		this.startTime = undefined;
 		this.paused = false;
 		this.aggregatedChanges = new Set();
@@ -99,18 +179,18 @@ class Watchpack extends EventEmitter {
 			startTime = arg3;
 		}
 		this.paused = false;
-		const oldFileWatchers = this.fileWatchers;
-		const oldDirectoryWatchers = this.directoryWatchers;
+		const fileWatchers = this.fileWatchers;
+		const directoryWatchers = this.directoryWatchers;
 		const ignored = this.watcherOptions.ignored;
-		const filter = ignored
-			? path => !ignored.test(path.replace(/\\/g, "/"))
-			: () => true;
+		const filter = path => !ignored(path);
 		const addToMap = (map, key, item) => {
 			const list = map.get(key);
 			if (list === undefined) {
-				map.set(key, [item]);
-			} else {
+				map.set(key, item);
+			} else if (Array.isArray(list)) {
 				list.push(item);
+			} else {
+				map.set(key, [list, item]);
 			}
 		};
 		const fileWatchersNeeded = new Map();
@@ -170,59 +250,26 @@ class Watchpack extends EventEmitter {
 				}
 			}
 		}
-		const newFileWatchers = new Map();
-		const newDirectoryWatchers = new Map();
-		const setupFileWatcher = (watcher, key, files) => {
-			watcher.on("initial-missing", type => {
-				for (const file of files) {
-					if (!missingFiles.has(file)) this._onRemove(file, file, type);
-				}
-			});
-			watcher.on("change", (mtime, type) => {
-				for (const file of files) {
-					this._onChange(file, mtime, file, type);
-				}
-			});
-			watcher.on("remove", type => {
-				for (const file of files) {
-					this._onRemove(file, file, type);
-				}
-			});
-			newFileWatchers.set(key, watcher);
-		};
-		const setupDirectoryWatcher = (watcher, key, directories) => {
-			watcher.on("initial-missing", type => {
-				for (const item of directories) {
-					this._onRemove(item, item, type);
-				}
-			});
-			watcher.on("change", (file, mtime, type) => {
-				for (const item of directories) {
-					this._onChange(item, mtime, file, type);
-				}
-			});
-			watcher.on("remove", type => {
-				for (const item of directories) {
-					this._onRemove(item, item, type);
-				}
-			});
-			newDirectoryWatchers.set(key, watcher);
-		};
 		// Close unneeded old watchers
-		const fileWatchersToClose = [];
-		const directoryWatchersToClose = [];
-		for (const [key, w] of oldFileWatchers) {
-			if (!fileWatchersNeeded.has(key)) {
+		// and update existing watchers
+		for (const [key, w] of fileWatchers) {
+			const needed = fileWatchersNeeded.get(key);
+			if (needed === undefined) {
 				w.close();
+				fileWatchers.delete(key);
 			} else {
-				fileWatchersToClose.push(w);
+				w.update(needed);
+				fileWatchersNeeded.delete(key);
 			}
 		}
-		for (const [key, w] of oldDirectoryWatchers) {
-			if (!directoryWatchersNeeded.has(key)) {
+		for (const [key, w] of directoryWatchers) {
+			const needed = directoryWatchersNeeded.get(key);
+			if (needed === undefined) {
 				w.close();
+				directoryWatchers.delete(key);
 			} else {
-				directoryWatchersToClose.push(w);
+				w.update(needed);
+				directoryWatchersNeeded.delete(key);
 			}
 		}
 		// Create new watchers and install handlers on these watchers
@@ -230,22 +277,20 @@ class Watchpack extends EventEmitter {
 			for (const [key, files] of fileWatchersNeeded) {
 				const watcher = this.watcherManager.watchFile(key, startTime);
 				if (watcher) {
-					setupFileWatcher(watcher, key, files);
+					fileWatchers.set(key, new WatchpackFileWatcher(this, watcher, files));
 				}
 			}
 			for (const [key, directories] of directoryWatchersNeeded) {
 				const watcher = this.watcherManager.watchDirectory(key, startTime);
 				if (watcher) {
-					setupDirectoryWatcher(watcher, key, directories);
+					directoryWatchers.set(
+						key,
+						new WatchpackDirectoryWatcher(this, watcher, directories)
+					);
 				}
 			}
 		});
-		// Close old watchers
-		for (const w of fileWatchersToClose) w.close();
-		for (const w of directoryWatchersToClose) w.close();
-		// Store watchers
-		this.fileWatchers = newFileWatchers;
-		this.directoryWatchers = newDirectoryWatchers;
+		this._missing = missingFiles;
 		this.startTime = startTime;
 	}
 
@@ -276,30 +321,19 @@ class Watchpack extends EventEmitter {
 	}
 
 	getTimeInfoEntries() {
-		if (EXISTANCE_ONLY_TIME_ENTRY === undefined) {
-			EXISTANCE_ONLY_TIME_ENTRY = require("./DirectoryWatcher")
-				.EXISTANCE_ONLY_TIME_ENTRY;
-		}
-		const directoryWatchers = new Set();
-		addWatchersToSet(this.fileWatchers.values(), directoryWatchers);
-		addWatchersToSet(this.directoryWatchers.values(), directoryWatchers);
 		const map = new Map();
-		for (const w of directoryWatchers) {
-			const times = w.getTimeInfoEntries();
-			for (const [path, entry] of times) {
-				if (map.has(path)) {
-					if (entry === EXISTANCE_ONLY_TIME_ENTRY) continue;
-					const value = map.get(path);
-					if (value === entry) continue;
-					if (value !== EXISTANCE_ONLY_TIME_ENTRY) {
-						map.set(path, Object.assign({}, value, entry));
-						continue;
-					}
-				}
-				map.set(path, entry);
-			}
-		}
+		this.collectTimeInfoEntries(map, map);
 		return map;
+	}
+
+	collectTimeInfoEntries(fileTimestamps, directoryTimestamps) {
+		const allWatchers = new Set();
+		addWatchersToSet(this.fileWatchers.values(), allWatchers);
+		addWatchersToSet(this.directoryWatchers.values(), allWatchers);
+		const safeTime = { value: 0 };
+		for (const w of allWatchers) {
+			w.collectTimeInfoEntries(fileTimestamps, directoryTimestamps, safeTime);
+		}
 	}
 
 	getAggregated() {

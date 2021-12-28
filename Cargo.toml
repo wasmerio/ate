@@ -7,10 +7,17 @@ members = [
     "auth",
     "files",
     "wasm-bus",
+    "wasm-bus-types",
+    "wasm-bus-macros",
+    "wasm-bus-fuse",
+    "wasm-bus-reqwest",
+    "wasm-bus-ws",
+    "wasm-bus-process",
+    "wasm-bus-time",
     "term-lib",
     "tokterm",
     "tokweb",
-    "grammar"
+    "grammar",
 ]
 
 [profile.release]

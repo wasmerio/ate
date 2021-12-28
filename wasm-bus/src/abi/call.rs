@@ -33,6 +33,8 @@ pub struct CallState {
 pub struct Call {
     pub(crate) wapm: Cow<'static, str>,
     pub(crate) topic: Cow<'static, str>,
+    pub(crate) format: SerializationFormat,
+    pub(crate) session: Option<String>,
     pub(crate) handle: CallHandle,
     pub(crate) parent: Option<CallHandle>,
     #[derivative(Debug = "ignore")]
@@ -85,13 +87,13 @@ impl CallBuilder {
 impl CallBuilder {
     /// Upon receiving a particular message from the service that is
     /// invoked this callback will take some action
-    pub fn callback<C, F>(&mut self, callback: F) -> &mut Self
+    pub fn callback<C, F>(mut self, format: SerializationFormat, callback: F) -> Self
     where
         C: Serialize + de::DeserializeOwned + Send + Sync + 'static,
         F: FnMut(C),
         F: Send + 'static,
     {
-        self.call.as_mut().unwrap().callback(callback);
+        self.call.as_mut().unwrap().callback(format, callback);
         self
     }
 
@@ -136,11 +138,16 @@ impl Call {
     /// Creates another call relative to this call
     /// This can be useful for creating contextual objects using thread calls
     /// and then passing data or commands back and forth to it
-    pub fn call<T>(&self, req: T) -> CallBuilder
+    pub fn call<T>(
+        &self,
+        format: SerializationFormat,
+        session: Option<String>,
+        req: T,
+    ) -> CallBuilder
     where
         T: Serialize,
     {
-        super::call_internal(Some(self.handle), self.wapm.clone(), req)
+        super::call_internal(Some(self.handle), self.wapm.clone(), format, session, req)
     }
 
     /// Upon receiving a particular message from the service that is
@@ -148,7 +155,7 @@ impl Call {
     ///
     /// Note: This must be called before the invoke or things will go wrong
     /// hence there is a builder that invokes this in the right order
-    fn callback<C, F>(&mut self, mut callback: F) -> &mut Self
+    fn callback<C, F>(&mut self, format: SerializationFormat, mut callback: F) -> &mut Self
     where
         C: Serialize + de::DeserializeOwned + Send + Sync + 'static,
         F: FnMut(C),
@@ -158,7 +165,7 @@ impl Call {
             callback(req);
             Ok(())
         };
-        let recv = super::callback_internal(self.handle, callback);
+        let recv = super::callback_internal(self.handle, format, callback);
         self.callbacks.lock().unwrap().push(recv);
         self
     }
@@ -222,8 +229,12 @@ where
 
         match response {
             Some(Ok(res)) => {
-                let res = bincode::deserialize::<T>(res.as_ref())
-                    .map_err(|_err| CallError::DeserializationFailed);
+                let res = match self.call.format {
+                    SerializationFormat::Bincode => bincode::deserialize::<T>(res.as_ref())
+                        .map_err(|_err| CallError::DeserializationFailed),
+                    SerializationFormat::Json => serde_json::from_slice(res.as_ref())
+                        .map_err(|_err| CallError::DeserializationFailed),
+                };
                 match res {
                     Ok(data) => Ok(Some(data)),
                     Err(err) => Err(err),
@@ -249,8 +260,12 @@ where
 
         match response {
             Some(Ok(response)) => {
-                let res = bincode::deserialize::<T>(response.as_ref())
-                    .map_err(|_err| CallError::DeserializationFailed);
+                let res = match self.call.format {
+                    SerializationFormat::Bincode => bincode::deserialize::<T>(response.as_ref())
+                        .map_err(|_err| CallError::DeserializationFailed),
+                    SerializationFormat::Json => serde_json::from_slice(response.as_ref())
+                        .map_err(|_err| CallError::DeserializationFailed),
+                };
                 match res {
                     Ok(data) => Poll::Ready(Ok(data)),
                     Err(err) => Poll::Ready(Err(err)),

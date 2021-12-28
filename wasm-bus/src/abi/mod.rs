@@ -32,34 +32,53 @@ pub use reply::*;
 #[cfg(feature = "rt")]
 pub use respond_to::*;
 
-pub fn call<T>(wapm: Cow<'static, str>, request: T) -> CallBuilder
+pub use wasm_bus_types::*;
+
+pub fn call<T>(
+    wapm: Cow<'static, str>,
+    format: SerializationFormat,
+    session: Option<String>,
+    request: T,
+) -> CallBuilder
 where
     T: Serialize,
 {
-    call_internal(None, wapm, request)
+    call_internal(None, wapm, format, session, request)
 }
 
 pub(crate) fn call_internal<T>(
     parent: Option<CallHandle>,
     wapm: Cow<'static, str>,
+    format: SerializationFormat,
+    session: Option<String>,
     request: T,
 ) -> CallBuilder
 where
     T: Serialize,
 {
     let topic = type_name::<T>();
-    let call = crate::engine::BusEngine::call(parent, wapm, topic.into());
+    let call = crate::engine::BusEngine::call(parent, wapm, topic.into(), format, session);
 
-    let req = match bincode::serialize(&request) {
-        Ok(req) => Data::Success(req),
-        Err(_err) => Data::Error(CallError::SerializationFailed),
+    let req = match format {
+        SerializationFormat::Bincode => match bincode::serialize(&request) {
+            Ok(req) => Data::Success(req),
+            Err(_err) => Data::Error(CallError::SerializationFailed),
+        },
+        SerializationFormat::Json => match serde_json::to_vec(&request) {
+            Ok(req) => Data::Success(req),
+            Err(_err) => Data::Error(CallError::SerializationFailed),
+        },
     };
 
     CallBuilder::new(call, req)
 }
 
 #[cfg(target_arch = "wasm32")]
-pub(crate) fn callback_internal<RES, REQ, F>(parent: CallHandle, callback: F) -> Finish
+pub(crate) fn callback_internal<RES, REQ, F>(
+    parent: CallHandle,
+    format: SerializationFormat,
+    callback: F,
+) -> Finish
 where
     REQ: de::DeserializeOwned + Send + Sync + 'static,
     RES: Serialize + Send + Sync + 'static,
@@ -67,7 +86,7 @@ where
     F: Send + 'static,
 {
     let topic = type_name::<REQ>();
-    let recv = crate::engine::BusEngine::callback(callback);
+    let recv = crate::engine::BusEngine::callback(format, callback);
     let handle = recv.handle;
 
     syscall::callback(parent, handle, topic);
@@ -75,7 +94,11 @@ where
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub(crate) fn callback_internal<RES, REQ, F>(_parent: CallHandle, _callback: F) -> Finish
+pub(crate) fn callback_internal<RES, REQ, F>(
+    _parent: CallHandle,
+    _format: SerializationFormat,
+    _callback: F,
+) -> Finish
 where
     REQ: de::DeserializeOwned + Send + Sync + 'static,
     RES: Serialize + Send + Sync + 'static,
@@ -86,20 +109,28 @@ where
 }
 
 #[cfg(all(target_arch = "wasm32"))]
-pub(self) fn reply<RES>(handle: CallHandle, response: RES)
+pub(self) fn reply<RES>(handle: CallHandle, format: SerializationFormat, response: RES)
 where
     RES: Serialize,
 {
-    match bincode::serialize(&response) {
-        Ok(res) => {
-            syscall::reply(handle, &res[..]);
-        }
-        Err(_err) => syscall::fault(handle, CallError::SerializationFailed as u32),
+    match format {
+        SerializationFormat::Bincode => match bincode::serialize(&response) {
+            Ok(res) => {
+                syscall::reply(handle, &res[..]);
+            }
+            Err(_err) => syscall::fault(handle, CallError::SerializationFailed as u32),
+        },
+        SerializationFormat::Json => match serde_json::to_vec(&response) {
+            Ok(res) => {
+                syscall::reply(handle, &res[..]);
+            }
+            Err(_err) => syscall::fault(handle, CallError::SerializationFailed as u32),
+        },
     };
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub(self) fn reply<RES>(_handle: CallHandle, _response: RES)
+pub(self) fn reply<RES>(_handle: CallHandle, _format: SerializationFormat, _response: RES)
 where
     RES: Serialize,
 {

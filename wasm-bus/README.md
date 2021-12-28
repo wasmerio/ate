@@ -15,6 +15,7 @@ Functionality supported by this BUS includes
 - Spawning sub-processes
 - Thread sleeping and timeouts
 - Asynchronous Runtime Engine
+- Client side invocation of WASM modules
 
 # TODO
 
@@ -22,7 +23,6 @@ Functionality supported by this BUS includes
 - Multi-threaded Runtime Engine
 - Universal Logging
 - Server side invocation of WASM modules
-- Client side invocation of WASM modules
 
 # Backend Implementations
 

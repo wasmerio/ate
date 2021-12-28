@@ -4,7 +4,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use wasm_bus::backend::process::StdioMode;
+use wasm_bus_process::prelude::StdioMode;
 use wasmer_vfs::FileSystem;
 
 use super::CommandResult;

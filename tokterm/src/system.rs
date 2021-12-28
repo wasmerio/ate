@@ -11,6 +11,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use term_lib::api::abi::*;
 use term_lib::api::AsyncResult;
+use term_lib::api::SerializationFormat;
 use term_lib::api::ThreadLocal;
 use term_lib::api::WebSocketAbi;
 use term_lib::err;
@@ -20,7 +21,6 @@ use tokio::sync::mpsc;
 use tokio::sync::watch;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use wasm_bus::backend::reqwest::Response as ReqwestResponse;
 
 use crate::ws::SysWebSocket;
 
@@ -120,7 +120,7 @@ impl SystemAbi for SysSystem {
     }
 
     /// Puts the current thread to sleep for a fixed number of milliseconds
-    fn sleep(&self, ms: i32) -> AsyncResult<()> {
+    fn sleep(&self, ms: u128) -> AsyncResult<()> {
         let (tx_done, rx_done) = mpsc::channel(1);
         self.task_shared(Box::new(move || {
             Box::pin(async move {
@@ -128,7 +128,7 @@ impl SystemAbi for SysSystem {
                 let _ = tx_done.send(()).await;
             })
         }));
-        AsyncResult::new(rx_done)
+        AsyncResult::new(SerializationFormat::Json, rx_done)
     }
 
     async fn print(&self, text: String) {
@@ -183,7 +183,7 @@ impl SystemAbi for SysSystem {
                 let _ = tx_done.send(ret).await;
             })
         }));
-        AsyncResult::new(rx_done)
+        AsyncResult::new(SerializationFormat::Bincode, rx_done)
     }
 
     /// Performs a HTTP or HTTPS request to a destination URL
@@ -258,7 +258,7 @@ impl SystemAbi for SysSystem {
                 let _ = tx_done.send(ret).await;
             })
         }));
-        AsyncResult::new(rx_done)
+        AsyncResult::new(SerializationFormat::Bincode, rx_done)
     }
 
     async fn web_socket(&self, url: &str) -> Result<Box<dyn WebSocketAbi>, String> {

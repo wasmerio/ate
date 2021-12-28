@@ -6,7 +6,7 @@ use std::sync::Mutex;
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
 use wasm_bus::abi::CallHandle;
-use wasm_bus::backend::process::StdioMode;
+use wasm_bus_process::api::StdioMode;
 
 use super::*;
 

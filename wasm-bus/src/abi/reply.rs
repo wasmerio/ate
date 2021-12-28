@@ -12,6 +12,7 @@ where
     RES: Serialize,
 {
     handle: CallHandle,
+    format: SerializationFormat,
     request: REQ,
     _marker2: PhantomData<RES>,
 }
@@ -26,7 +27,7 @@ where
     }
 
     pub fn reply(self, response: RES) {
-        super::reply(self.handle, response)
+        super::reply(self.handle, self.format, response)
     }
 }
 

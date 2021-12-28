@@ -8,4 +8,5 @@ pub use abi::*;
 pub use result::*;
 pub use system::*;
 pub use threadlocal::*;
+pub use wasm_bus::abi::SerializationFormat;
 pub use ws::*;
