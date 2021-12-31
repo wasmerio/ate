@@ -46,7 +46,7 @@ use crate::api::StdioMode;
 /// [`wait`]: Child::wait
 #[derive(Debug)]
 pub struct Child {
-    context: Option<api::Process>,
+    context: Option<api::ProcessClient>,
     exited: Arc<AtomicI32>,
     id: u32,
 
@@ -119,38 +119,35 @@ impl Child {
             pre_open: pre_open.clone(),
         };
 
-        let on_stdout = move |data: Vec<u8>| {
+        let on_stdout = Box::new(move |data: Vec<u8>| {
             if let Some(tx) = stdout_tx.as_ref() {
                 let _ = tx.send(data);
             }
-        };
+        });
 
-        let on_stderr = move |data: Vec<u8>| {
+        let on_stderr = Box::new(move |data: Vec<u8>| {
             if let Some(tx) = stderr_tx.as_ref() {
                 let _ = tx.send(data);
             }
-        };
+        });
 
         let exited = Arc::new(AtomicI32::new(i32::MAX));
         let on_exit = {
             let exited = exited.clone();
-            move |code| {
+            Box::new(move |code| {
                 exited.store(code, Ordering::Release);
-            }
+            })
         };
 
         let context = if let Some(session) = session {
-            api::Pool::spawn_with_session(
-                WAPM_NAME,
-                session.as_str(),
-                spawn,
-                on_stdout,
-                on_stderr,
-                on_exit,
-            )
+            api::PoolClient::new_with_session(WAPM_NAME, session.as_str())
+                .blocking_spawn(spawn, on_stdout, on_stderr, on_exit)
         } else {
-            api::Pool::spawn(WAPM_NAME, spawn, on_stdout, on_stderr, on_exit)
-        };
+            api::PoolClient::new(WAPM_NAME).blocking_spawn(spawn, on_stdout, on_stderr, on_exit)
+        }
+        .map_err(|err| err.into_io_error())?
+        .as_client()
+        .unwrap();
 
         let stdin = if stdin_mode == StdioMode::Piped {
             let stdin = ChildStdin::new(context.clone());
@@ -197,11 +194,7 @@ impl Child {
     /// [`Other`]: io::ErrorKind::Other
     pub fn kill(&mut self) -> io::Result<()> {
         if let Some(context) = self.context.as_ref() {
-            context
-                .kill()
-                .join()
-                .wait()
-                .map_err(|err| err.into_io_error())?
+            context.blocking_kill().map_err(|err| err.into_io_error())?
         }
         Ok(())
     }
@@ -253,9 +246,7 @@ impl Child {
     #[allow(unused_mut)] // this is so that the API's are compatible with std:process
     pub fn wait(&mut self) -> io::Result<ExitStatus> {
         if let Some(context) = self.context.take() {
-            context
-                .join()
-                .wait()
+            wasm_bus::task::block_on(context)
                 .map_err(|_| wasm_bus::abi::CallError::Aborted.into_io_error())?;
         }
         Ok(ExitStatus {
@@ -328,7 +319,7 @@ impl Child {
 
     pub fn join(mut self) -> ChildJoin {
         let result = if let Some(context) = self.context.take() {
-            Some(context.join())
+            Some(context)
         } else {
             None
         };
@@ -340,7 +331,7 @@ impl Child {
 }
 
 pub struct ChildJoin {
-    result: Option<wasm_bus::abi::CallJoin<()>>,
+    result: Option<api::ProcessClient>,
     exited: Arc<AtomicI32>,
 }
 

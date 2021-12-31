@@ -65,6 +65,28 @@ pub(crate) mod raw {
         let response_ptr: WasmPtr<u8, Array> = WasmPtr::new(response_ptr as u32);
         unsafe { super::wasm_bus_reply(thread, handle, response_ptr, response_len as usize) }
     }
+    pub fn wasm_bus_reply_callback(
+        thread: &WasmBusThread,
+        handle: u32,
+        topic_ptr: u32,
+        topic_len: u32,
+        response_ptr: u32,
+        response_len: u32,
+    ) {
+        let handle: CallHandle = handle.into();
+        let topic_ptr: WasmPtr<u8, Array> = WasmPtr::new(topic_ptr as u32);
+        let response_ptr: WasmPtr<u8, Array> = WasmPtr::new(response_ptr as u32);
+        unsafe {
+            super::wasm_bus_reply_callback(
+                thread,
+                handle,
+                topic_ptr,
+                topic_len as usize,
+                response_ptr,
+                response_len as usize,
+            )
+        }
+    }
     pub fn wasm_bus_call(
         thread: &WasmBusThread,
         parent: u32,
@@ -326,6 +348,47 @@ unsafe fn wasm_bus_reply(
     // Grab the sender we will relay this response to
     if let Some(work) = thread.inner.unwrap().calls.remove(&handle) {
         let _ = work.blocking_send(Ok(response));
+    }
+}
+
+// Returns the response of a listen callback
+unsafe fn wasm_bus_reply_callback(
+    thread: &WasmBusThread,
+    handle: CallHandle,
+    topic_ptr: WasmPtr<u8, Array>,
+    topic_len: usize,
+    response_ptr: WasmPtr<u8, Array>,
+    response_len: usize,
+) {
+    let topic = topic_ptr
+        .get_utf8_str(thread.memory(), topic_len as u32)
+        .unwrap();
+    debug!(
+        "wasm-bus::reply_callback (handle={}, topic={}, response={} bytes)",
+        handle.id, topic, response_len
+    );
+
+    // Grab the data we are sending back
+    let response = thread
+        .memory()
+        .uint8view_with_byte_offset_and_length(response_ptr.offset(), response_len as u32)
+        .to_vec();
+
+    // Grab the callback this related to
+    let callback = thread
+        .inner
+        .unwrap()
+        .callbacks
+        .get(&handle)
+        .map(|handle| handle.get(&topic))
+        .flatten()
+        .map(|handle| WasmBusCallback::new(thread, handle.clone()).unwrap());
+
+    // Grab the sender we will relay this response to
+    if let Some(callback) = callback {
+        callback.feed_bytes(response);
+    } else {
+        debug!("callback is lost (topic={})", topic);
     }
 }
 

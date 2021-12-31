@@ -8,6 +8,7 @@ mod listen;
 mod reply;
 #[cfg(feature = "rt")]
 mod respond_to;
+mod session;
 #[cfg(feature = "syscalls")]
 pub(crate) mod syscall;
 #[cfg(not(feature = "syscalls"))]
@@ -31,6 +32,7 @@ pub use listen::*;
 pub use reply::*;
 #[cfg(feature = "rt")]
 pub use respond_to::*;
+pub use session::*;
 
 pub use wasm_bus_types::*;
 
@@ -131,6 +133,36 @@ where
 
 #[cfg(not(target_arch = "wasm32"))]
 pub(self) fn reply<RES>(_handle: CallHandle, _format: SerializationFormat, _response: RES)
+where
+    RES: Serialize,
+{
+    panic!("reply not supported on this platform");
+}
+
+#[cfg(all(target_arch = "wasm32"))]
+pub fn reply_callback<RES>(handle: CallHandle, format: SerializationFormat, response: RES)
+where
+    RES: Serialize,
+{
+    let topic = type_name::<RES>();
+    match format {
+        SerializationFormat::Bincode => match bincode::serialize(&response) {
+            Ok(res) => {
+                syscall::reply(handle, &res[..]);
+            }
+            Err(_err) => syscall::fault(handle, CallError::SerializationFailed as u32),
+        },
+        SerializationFormat::Json => match serde_json::to_vec(&response) {
+            Ok(res) => {
+                syscall::reply_callback(handle, topic, &res[..]);
+            }
+            Err(_err) => syscall::fault(handle, CallError::SerializationFailed as u32),
+        },
+    };
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn reply_callback<RES>(_handle: CallHandle, _format: SerializationFormat, _response: RES)
 where
     RES: Serialize,
 {

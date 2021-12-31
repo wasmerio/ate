@@ -13,8 +13,11 @@ extern crate proc_macro;
 
 mod args;
 mod convert;
+mod method_inputs;
+mod method_output;
 mod parse;
 mod receiver;
+mod return_trait;
 
 use crate::args::Args;
 use crate::convert::convert;

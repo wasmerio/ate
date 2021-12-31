@@ -3,7 +3,8 @@ use wasm_bus::macros::*;
 
 #[wasm_bus(format = "bincode")]
 pub trait Reqwest {
-    fn make(
+    async fn make(
+        &self,
         url: String,
         method: String,
         headers: Vec<(String, String)>,

@@ -36,7 +36,7 @@ where
     RES: Serialize,
     F: Fn(CallHandle, REQ) -> Fut,
     F: Send + Sync + 'static,
-    Fut: Future<Output = RES> + Send + 'static,
+    Fut: Future<Output = Result<RES, CallError>> + Send + 'static,
 {
     let topic = type_name::<REQ>();
     BusEngine::listen_internal(topic.to_string(), move |handle, req| {
@@ -58,7 +58,7 @@ where
         let res = callback(handle, req);
 
         Ok(async move {
-            let res = res.await;
+            let res = res.await?;
             let res = match format {
                 SerializationFormat::Bincode => {
                     bincode::serialize(&res).map_err(|_| CallError::SerializationFailed)?
@@ -78,7 +78,7 @@ where
     RES: Serialize,
     F: Fn(CallHandle, REQ) -> Fut,
     F: Send + Sync + 'static,
-    Fut: Future<Output = RES> + Send + 'static,
+    Fut: Future<Output = Result<RES, CallError>> + Send + 'static,
 {
     let topic = type_name::<REQ>();
     BusEngine::respond_to_internal(topic.to_string(), parent, move |handle, req| {
@@ -100,7 +100,7 @@ where
         let res = callback(handle, req);
 
         Ok(async move {
-            let res = res.await;
+            let res = res.await?;
             let res = match format {
                 SerializationFormat::Bincode => {
                     bincode::serialize(&res).map_err(|_| CallError::SerializationFailed)?

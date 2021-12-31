@@ -16,6 +16,7 @@ pub enum CallError {
     InvalidTopic = 9,
     MissingCallbacks = 10,
     Unsupported = 11,
+    BadRequest = 12,
     Unknown = u32::MAX,
 }
 
@@ -34,6 +35,7 @@ impl From<u32> for CallError {
             9 => CallError::InvalidTopic,
             10 => CallError::MissingCallbacks,
             11 => CallError::Unsupported,
+            12 => CallError::BadRequest,
             _ => CallError::Unknown,
         }
     }
@@ -54,6 +56,7 @@ impl Into<u32> for CallError {
             CallError::InvalidTopic => 9,
             CallError::MissingCallbacks => 10,
             CallError::Unsupported => 11,
+            CallError::BadRequest => 12,
             CallError::Unknown => u32::MAX,
         }
     }
@@ -105,6 +108,10 @@ impl fmt::Display for CallError {
             CallError::Unsupported => {
                 write!(f, "this operation is not supported on this platform.")
             }
+            CallError::BadRequest => write!(
+                f,
+                "invalid input was supplied in the call resulting in a bad request."
+            ),
             CallError::Unknown => write!(f, "unknown error."),
         }
     }

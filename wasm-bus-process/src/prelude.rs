@@ -8,3 +8,4 @@ pub use crate::process::ExitStatus;
 pub use crate::process::Output;
 pub use crate::process::Stdio;
 pub use wasm_bus;
+pub use wasm_bus::abi::CallError;

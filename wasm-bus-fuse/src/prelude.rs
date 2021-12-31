@@ -5,3 +5,4 @@ pub use crate::fuse::OpenOptions;
 pub use crate::fuse::OpenOptionsConfig;
 pub use crate::fuse::VirtualFile;
 pub use wasm_bus;
+pub use wasm_bus::abi::CallError;

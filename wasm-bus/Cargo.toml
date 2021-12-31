@@ -26,5 +26,6 @@ once_cell = "^1"
 derivative = { version = "^2" }
 tracing = { version = "^0.1", features = [ "log" ] }
 cooked-waker = { version = "^5", optional = true }
+tokio = { version = "^1", features = [ "sync", "macros" ], default_features = false }
 wasm-bus-macros = { version = "0.1", path = "../wasm-bus-macros", optional = true }
 wasm-bus-types = { version = "0.1", path = "../wasm-bus-types" }

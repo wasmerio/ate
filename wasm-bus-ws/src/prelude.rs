@@ -3,3 +3,4 @@ pub use crate::ws::SendHalf;
 pub use crate::ws::SocketBuilder;
 pub use crate::ws::WebSocket;
 pub use wasm_bus;
+pub use wasm_bus::abi::CallError;

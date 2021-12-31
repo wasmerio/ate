@@ -15,7 +15,7 @@ default = [ "client", "server" ]
 client_web = [ "ate/client_web" ]
 client = [ "enable_full", "ate/client" ]
 server = [ "enable_full", "ctrlc-async", "ate/server", "ate/enable_mt" ]
-bus = [ "ate-files" ]
+bus = []
 enable_full = [ "enable_tcp" ]
 enable_tcp = [ "enable_ntp", "enable_dns" ]
 enable_dns = []
@@ -24,7 +24,7 @@ enable_ntp = []
 [dependencies]
 ate = { version = "^1", path = "../lib", default_features = false }
 ate-auth = { version = "^1", path = "../auth", default_features = false }
-ate-files = { version = "^1", path = "../files", default_features = false, optional = true }
+ate-files = { version = "^1", path = "../files", default_features = false }
 error-chain = { version = "^0.12", default_features = false }
 serde = { version = "^1", features = ["derive"] }
 serde_json = "^1"
@@ -57,6 +57,10 @@ rust_decimal = "^1"
 num-traits = { version = "^0.2" }
 wild = "^2"
 pbr = "^1"
+derivative = { version = "^2" }
+wasm-bus = { version = "0.4", path = "../wasm-bus" }
+wasm-bus-fuse = { version = "0.1", path = "../wasm-bus-fuse" }
+wasm-bus-ws = { version = "0.1", path = "../wasm-bus-ws" }
 
 [target.'cfg(not(target_os = "wasi"))'.dependencies]
 tokio = { version = "^1", features = [ "rt", "io-util", "macros", "sync", "time", "fs" ], default_features = false }
@@ -66,6 +70,3 @@ tokio = { version = "^1", features = [ "macros", "sync" ], default_features = fa
 backtrace = "^0.3"
 wasi = { version = "^0.10" }
 wasm-timer = { version = "^0.2" }
-wasm-bus = { version = "0.4", path = "../wasm-bus" }
-wasm-bus-fuse = { version = "0.1", path = "../wasm-bus-fuse" }
-wasm-bus-ws = { version = "0.1", path = "../wasm-bus-ws" }

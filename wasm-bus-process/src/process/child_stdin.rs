@@ -2,15 +2,15 @@ use std::io;
 use std::io::Write;
 
 use super::*;
-use crate::api::Process;
+use crate::api;
 
 #[derive(Debug)]
 pub struct ChildStdin {
-    pub(super) context: Process,
+    pub(super) context: api::ProcessClient,
 }
 
 impl ChildStdin {
-    pub fn new(context: Process) -> ChildStdin {
+    pub fn new(context: api::ProcessClient) -> ChildStdin {
         ChildStdin { context }
     }
 }
@@ -19,18 +19,14 @@ impl Write for ChildStdin {
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
         Ok(self
             .context
-            .stdin(buf.to_vec())
-            .join()
-            .wait()
+            .blocking_stdin(buf.to_vec())
             .map_err(|err| err.into_io_error())?)
     }
 
     fn flush(&mut self) -> io::Result<()> {
         Ok(self
             .context
-            .flush()
-            .join()
-            .wait()
+            .blocking_flush()
             .map_err(|err| err.into_io_error())?)
     }
 }

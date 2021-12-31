@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 use std::io;
 use std::path::Path;
+use std::sync::Arc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
@@ -11,22 +12,28 @@ pub use crate::api::FsError;
 pub use crate::api::FsResult;
 pub use crate::api::Metadata;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct FileSystem {
-    fs: api::FileSystem,
+    fs: Arc<dyn api::FileSystem>,
 }
 
 impl FileSystem {
-    pub async fn mount(wapm: &str, name: &str) -> FileSystem {
-        let fs = api::Fuse::mount(wapm, name.to_string());
-        let _ = fs.init().join().await;
-        FileSystem { fs }
+    pub async fn mount(wapm: &str, name: &str) -> FsResult<FileSystem> {
+        let fs = api::FuseClient::new(wapm)
+            .mount(name.to_string())
+            .await
+            .map_err(|_| FsError::IOError)?;
+        let _ = fs.init().await;
+        Ok(FileSystem { fs })
     }
 
-    pub async fn mount_with_session(wapm: &str, session: &str, name: &str) -> FileSystem {
-        let fs = api::Fuse::mount_with_session(wapm, session, name.to_string());
-        let _ = fs.init().join().await;
-        FileSystem { fs }
+    pub async fn mount_with_session(wapm: &str, session: &str, name: &str) -> FsResult<FileSystem> {
+        let fs = api::FuseClient::new_with_session(wapm, session)
+            .mount(name.to_string())
+            .await
+            .map_err(|_| FsError::IOError)?;
+        let _ = fs.init().await;
+        Ok(FileSystem { fs })
     }
 
     async fn read_dir(&self, path: &Path) -> FsResult<Dir> {
@@ -34,7 +41,6 @@ impl FileSystem {
 
         self.fs
             .read_dir(path.to_string_lossy().to_string())
-            .join()
             .await
             .map_err(|_| FsError::IOError)?
     }
@@ -44,7 +50,6 @@ impl FileSystem {
 
         self.fs
             .create_dir(path.to_string_lossy().to_string())
-            .join()
             .await
             .map_err(|_| FsError::IOError)?
     }
@@ -54,7 +59,6 @@ impl FileSystem {
 
         self.fs
             .remove_dir(path.to_string_lossy().to_string())
-            .join()
             .await
             .map_err(|_| FsError::IOError)?
     }
@@ -67,7 +71,6 @@ impl FileSystem {
                 from.to_string_lossy().to_string(),
                 to.to_string_lossy().to_string(),
             )
-            .join()
             .await
             .map_err(|_| FsError::IOError)?
     }
@@ -77,7 +80,6 @@ impl FileSystem {
 
         self.fs
             .read_metadata(path.to_string_lossy().to_string())
-            .join()
             .await
             .map_err(|_| FsError::IOError)?
     }
@@ -87,7 +89,6 @@ impl FileSystem {
 
         self.fs
             .read_symlink_metadata(path.to_string_lossy().to_string())
-            .join()
             .await
             .map_err(|_| FsError::IOError)?
     }
@@ -97,7 +98,6 @@ impl FileSystem {
 
         self.fs
             .remove_file(path.to_string_lossy().to_string())
-            .join()
             .await
             .map_err(|_| FsError::IOError)?
     }
@@ -174,22 +174,27 @@ impl OpenOptions {
     pub async fn open(&mut self, path: &Path) -> FsResult<VirtualFile> {
         debug!("open: path={}", path.display());
 
-        let fd = self.fs.fs.open(
-            path.to_string_lossy().to_string(),
-            api::OpenOptions {
-                read: self.conf.read,
-                write: self.conf.write,
-                create_new: self.conf.create_new,
-                create: self.conf.create,
-                append: self.conf.append,
-                truncate: self.conf.truncate,
-            },
-        );
+        let fd = self
+            .fs
+            .fs
+            .open(
+                path.to_string_lossy().to_string(),
+                api::OpenOptions {
+                    read: self.conf.read,
+                    write: self.conf.write,
+                    create_new: self.conf.create_new,
+                    create: self.conf.create,
+                    append: self.conf.append,
+                    truncate: self.conf.truncate,
+                },
+            )
+            .await
+            .map_err(|_| FsError::IOError)?;
 
-        let meta = fd.meta().join().await.map_err(|_| FsError::IOError)??;
+        let meta = fd.meta().await.map_err(|_| FsError::IOError)??;
 
         Ok(VirtualFile {
-            io: fd.io(),
+            io: fd.io().await.map_err(|_| FsError::IOError)?,
             fs: self.fs.clone(),
             fd,
             meta,
@@ -199,15 +204,9 @@ impl OpenOptions {
 
 pub struct VirtualFile {
     fs: FileSystem,
-    fd: api::OpenedFile,
-    io: api::FileIO,
+    fd: Arc<dyn api::OpenedFile>,
+    io: Arc<dyn api::FileIO>,
     meta: Metadata,
-}
-
-impl Drop for VirtualFile {
-    fn drop(&mut self) {
-        let _ = self.fd.close();
-    }
 }
 
 impl io::Seek for VirtualFile {
@@ -219,9 +218,7 @@ impl io::Seek for VirtualFile {
         };
 
         self.io
-            .seek(seek)
-            .join()
-            .wait()
+            .blocking_seek(seek)
             .map_err(|err| err.into_io_error())?
             .map_err(|err| err.into())
     }
@@ -230,9 +227,7 @@ impl io::Seek for VirtualFile {
 impl io::Write for VirtualFile {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.io
-            .write(buf.to_vec())
-            .join()
-            .wait()
+            .blocking_write(buf.to_vec())
             .map_err(|err| err.into_io_error())?
             .map_err(|err| err.into())
             .map(|a| a as usize)
@@ -240,9 +235,7 @@ impl io::Write for VirtualFile {
 
     fn flush(&mut self) -> io::Result<()> {
         self.io
-            .flush()
-            .join()
-            .wait()
+            .blocking_flush()
             .map_err(|err| err.into_io_error())?
             .map_err(|err| err.into())
     }
@@ -252,9 +245,7 @@ impl io::Read for VirtualFile {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let data: Result<_, io::Error> = self
             .io
-            .read(buf.len() as u64)
-            .join()
-            .wait()
+            .blocking_read(buf.len() as u64)
             .map_err(|err| err.into_io_error())?
             .map_err(|err| err.into());
 
@@ -290,7 +281,6 @@ impl VirtualFile {
         let result: FsResult<()> = self
             .fd
             .set_len(new_size)
-            .join()
             .await
             .map_err(|_| FsError::IOError)?;
         result?;
@@ -300,10 +290,6 @@ impl VirtualFile {
     }
 
     async fn unlink(&mut self) -> FsResult<()> {
-        self.fd
-            .unlink()
-            .join()
-            .await
-            .map_err(|_| FsError::IOError)?
+        self.fd.unlink().await.map_err(|_| FsError::IOError)?
     }
 }

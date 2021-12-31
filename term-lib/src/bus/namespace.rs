@@ -16,6 +16,7 @@ pub(super) fn generate_import_object_wasm_bus(store: &Store, env: WasmBusThread)
             "poll" => Function::new_native_with_env(store, env.clone(), raw::wasm_bus_poll),
             "listen" => Function::new_native_with_env(store, env.clone(), raw::wasm_bus_listen),
             "reply" => Function::new_native_with_env(store, env.clone(), raw::wasm_bus_reply),
+            "reply_callback" => Function::new_native_with_env(store, env.clone(), raw::wasm_bus_reply_callback),
             "call" => Function::new_native_with_env(store, env.clone(), raw::wasm_bus_call),
             "callback" => Function::new_native_with_env(store, env.clone(), raw::wasm_bus_callback),
             "thread_id" => Function::new_native_with_env(store, env.clone(), raw::wasm_bus_thread_id),

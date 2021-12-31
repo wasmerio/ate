@@ -65,6 +65,18 @@ impl Call {
     pub fn id(&self) -> u32 {
         self.handle.id
     }
+
+    pub fn handle(&self) -> CallHandle {
+        self.handle.clone()
+    }
+
+    pub fn wapm(&self) -> &str {
+        self.wapm.as_ref()
+    }
+
+    pub fn session(&self) -> Option<&str> {
+        self.session.as_ref().map(|a| a.as_str())
+    }
 }
 
 #[derive(Derivative)]
@@ -138,16 +150,17 @@ impl Call {
     /// Creates another call relative to this call
     /// This can be useful for creating contextual objects using thread calls
     /// and then passing data or commands back and forth to it
-    pub fn call<T>(
-        &self,
-        format: SerializationFormat,
-        session: Option<String>,
-        req: T,
-    ) -> CallBuilder
+    pub fn call<T>(&self, format: SerializationFormat, req: T) -> CallBuilder
     where
         T: Serialize,
     {
-        super::call_internal(Some(self.handle), self.wapm.clone(), format, session, req)
+        super::call_internal(
+            Some(self.handle),
+            self.wapm.clone(),
+            format,
+            self.session.clone(),
+            req,
+        )
     }
 
     /// Upon receiving a particular message from the service that is

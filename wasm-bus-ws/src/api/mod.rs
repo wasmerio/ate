@@ -1,18 +1,20 @@
 use serde::*;
+use std::sync::Arc;
 use wasm_bus::macros::*;
 
 #[wasm_bus(format = "bincode")]
 pub trait SocketBuilder {
-    fn connect(
+    async fn connect(
+        &self,
         url: String,
-        state_change: dyn Fn(SocketState),
-        receive: dyn Fn(Vec<u8>),
-    ) -> dyn WebSocket;
+        state_change: impl Fn(SocketState),
+        receive: impl Fn(Vec<u8>),
+    ) -> Arc<dyn WebSocket>;
 }
 
 #[wasm_bus(format = "bincode")]
 pub trait WebSocket {
-    fn send(&self, data: Vec<u8>) -> SendResult;
+    async fn send(&self, data: Vec<u8>) -> SendResult;
 }
 
 #[allow(dead_code)]

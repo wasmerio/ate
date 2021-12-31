@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::io::Write;
 
 use super::*;
-use crate::api::Reqwest;
+use crate::api::ReqwestClient;
 use crate::api::Response;
 use wasm_bus::abi::call;
 
@@ -48,8 +48,7 @@ impl RequestBuilder {
     pub fn send(self) -> Result<Response, std::io::Error> {
         let url = self.url.to_string();
 
-        let task = Reqwest::make(
-            WAPM_NAME,
+        let task = ReqwestClient::new(WAPM_NAME).blocking_make(
             url,
             self.method.to_string(),
             self.headers
@@ -63,7 +62,7 @@ impl RequestBuilder {
                 .next(),
         );
 
-        let res = task.join().wait().map_err(|err| err.into_io_error())?;
+        let res = task.map_err(|err| err.into_io_error())?;
         let res = res.map_err(|err| {
             std::io::Error::new(
                 std::io::ErrorKind::Other,

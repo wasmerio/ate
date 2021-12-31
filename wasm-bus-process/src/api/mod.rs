@@ -1,23 +1,25 @@
 use serde::*;
+use std::sync::Arc;
 use wasm_bus::macros::*;
 
 #[wasm_bus(format = "bincode")]
 pub trait Pool {
-    fn spawn(
+    async fn spawn(
+        &self,
         spawn: Spawn,
-        stdout: dyn Fn(Vec<u8>),
-        stderr: dyn Fn(Vec<u8>),
-        exit: dyn Fn(i32),
-    ) -> dyn Process;
+        stdout: impl Fn(Vec<u8>),
+        stderr: impl Fn(Vec<u8>),
+        exit: impl Fn(i32),
+    ) -> Arc<dyn Process>;
 }
 
 #[wasm_bus(format = "bincode")]
 pub trait Process {
-    fn stdin(&self, data: Vec<u8>) -> usize;
-    fn close_stdin(&self);
-    fn kill(&self);
-    fn work(&self);
-    fn flush(&self);
+    async fn stdin(&self, data: Vec<u8>) -> usize;
+    async fn close_stdin(&self);
+    async fn kill(&self);
+    async fn work(&self);
+    async fn flush(&self);
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

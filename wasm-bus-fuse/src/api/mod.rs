@@ -1,41 +1,40 @@
 use serde::*;
 use std::io;
+use std::sync::Arc;
 use wasm_bus::macros::*;
 
 #[wasm_bus(format = "json")]
 pub trait Fuse {
-    fn mount(name: String) -> dyn FileSystem;
+    async fn mount(&self, name: String) -> Arc<dyn FileSystem>;
 }
 
 #[wasm_bus(format = "json")]
 pub trait FileSystem {
-    fn init(&self);
-    fn unmount(&self) -> FsResult<()>;
-    fn read_dir(&self, path: String) -> FsResult<Dir>;
-    fn create_dir(&self, path: String) -> FsResult<Metadata>;
-    fn remove_dir(&self, path: String) -> FsResult<()>;
-    fn rename(&self, from: String, to: String) -> FsResult<()>;
-    fn remove_file(&self, path: String) -> FsResult<()>;
-    fn read_metadata(&self, path: String) -> FsResult<Metadata>;
-    fn read_symlink_metadata(&self, path: String) -> FsResult<Metadata>;
-    fn open(&self, path: String, options: OpenOptions) -> dyn OpenedFile;
+    async fn init(&self) -> FsResult<()>;
+    async fn read_dir(&self, path: String) -> FsResult<Dir>;
+    async fn create_dir(&self, path: String) -> FsResult<Metadata>;
+    async fn remove_dir(&self, path: String) -> FsResult<()>;
+    async fn rename(&self, from: String, to: String) -> FsResult<()>;
+    async fn remove_file(&self, path: String) -> FsResult<()>;
+    async fn read_metadata(&self, path: String) -> FsResult<Metadata>;
+    async fn read_symlink_metadata(&self, path: String) -> FsResult<Metadata>;
+    async fn open(&self, path: String, options: OpenOptions) -> Arc<dyn OpenedFile>;
 }
 
 #[wasm_bus(format = "json")]
 pub trait OpenedFile {
-    fn meta(&self) -> FsResult<Metadata>;
-    fn close(&self) -> FsResult<()>;
-    fn unlink(&self) -> FsResult<()>;
-    fn set_len(&self, len: u64) -> FsResult<()>;
-    fn io(&self) -> dyn FileIO;
+    async fn meta(&self) -> FsResult<Metadata>;
+    async fn unlink(&self) -> FsResult<()>;
+    async fn set_len(&self, len: u64) -> FsResult<()>;
+    async fn io(&self) -> Arc<dyn FileIO>;
 }
 
 #[wasm_bus(format = "bincode")]
 pub trait FileIO {
-    fn seek(&self, from: SeekFrom) -> FsResult<u64>;
-    fn flush(&self) -> FsResult<()>;
-    fn write(&self, data: Vec<u8>) -> FsResult<u64>;
-    fn read(&self, len: u64) -> FsResult<Vec<u8>>;
+    async fn seek(&self, from: SeekFrom) -> FsResult<u64>;
+    async fn flush(&self) -> FsResult<()>;
+    async fn write(&self, data: Vec<u8>) -> FsResult<u64>;
+    async fn read(&self, len: u64) -> FsResult<Vec<u8>>;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

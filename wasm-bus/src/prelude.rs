@@ -12,3 +12,4 @@ pub use wasm_bus_macros::*;
 
 pub use crate::abi::CallError;
 pub use crate::abi::CallHandle;
+pub use crate::abi::WasmBusSession;

@@ -19,3 +19,4 @@ tracing = { version = "^0.1", features = [ "log" ] }
 serde = { version = "^1", features = ["derive"] }
 bytes = "1"
 tokio = { version = "^1", features = [ "sync", "macros" ], default_features = false }
+async-trait = "^0.1"

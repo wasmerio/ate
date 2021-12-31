@@ -1,6 +1,7 @@
 use std::io;
 use std::io::Read;
 use std::io::Write;
+use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::sync::watch;
 #[allow(unused_imports, dead_code)]
@@ -12,7 +13,7 @@ use wasm_bus::abi::*;
 
 #[derive(Debug)]
 pub struct WebSocket {
-    pub(super) task: crate::api::WebSocket,
+    pub(super) client: Arc<dyn crate::api::WebSocket>,
     pub(super) rx: mpsc::Receiver<Vec<u8>>,
     pub(super) state: watch::Receiver<SocketState>,
 }
@@ -21,7 +22,7 @@ impl WebSocket {
     pub fn split(self) -> (SendHalf, RecvHalf) {
         (
             SendHalf {
-                task: self.task,
+                client: self.client,
                 state: self.state,
             },
             RecvHalf { rx: self.rx },
@@ -31,7 +32,7 @@ impl WebSocket {
 
 #[derive(Debug, Clone)]
 pub struct SendHalf {
-    task: crate::api::WebSocket,
+    client: Arc<dyn crate::api::WebSocket>,
     state: watch::Receiver<SocketState>,
 }
 
@@ -54,9 +55,8 @@ impl SendHalf {
                 "connection is not open",
             ));
         }
-        self.task
+        self.client
             .send(data)
-            .join()
             .await
             .map_err(|err| err.into_io_error())
             .map(|ret| match ret {
@@ -72,10 +72,8 @@ impl SendHalf {
                 "connection is not open",
             ));
         }
-        self.task
-            .send(data)
-            .join()
-            .wait()
+        self.client
+            .blocking_send(data)
             .map_err(|err| err.into_io_error())
             .map(|ret| match ret {
                 SendResult::Success(a) => Ok(a),

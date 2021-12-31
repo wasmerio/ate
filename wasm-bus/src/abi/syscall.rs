@@ -119,6 +119,16 @@ mod raw {
         // from the operating system
         pub(crate) fn reply(handle: u32, response: u32, response_len: u32);
 
+        // Call thats made when a sub-process is making a callback of
+        // a particular type
+        pub(crate) fn reply_callback(
+            handle: u32,
+            topic: u32,
+            topic_len: u32,
+            request: u32,
+            request_len: u32,
+        );
+
         // Drops a handle used by calls or callbacks
         pub(crate) fn drop(handle: u32);
 
@@ -189,6 +199,22 @@ pub fn reply(handle: CallHandle, response: &[u8]) {
         let response_len = response.len();
         let response = response.as_ptr();
         raw::reply(handle.id, response as u32, response_len as u32);
+    }
+}
+
+pub fn reply_callback(handle: CallHandle, topic: &str, response: &[u8]) {
+    unsafe {
+        let topic_len = topic.len();
+        let topic = topic.as_ptr();
+        let response_len = response.len();
+        let response = response.as_ptr();
+        raw::reply_callback(
+            handle.id,
+            topic as u32,
+            topic_len as u32,
+            response as u32,
+            response_len as u32,
+        );
     }
 }
 

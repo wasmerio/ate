@@ -135,7 +135,8 @@ fn init_wasi() {
         let ws = wasm_bus_ws::prelude::SocketBuilder::new(
             url::Url::from_str("wss://tokera.com").unwrap(),
         )
-        .open();
+        .blocking_open()
+        .unwrap();
         Some(ate::comms::Stream::WasmWebSocket(ws))
     }));
 }
