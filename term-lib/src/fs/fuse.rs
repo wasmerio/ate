@@ -238,14 +238,6 @@ pub struct FuseVirtualFile {
     meta: backend::Metadata,
 }
 
-impl Drop for FuseVirtualFile {
-    fn drop(&mut self) {
-        let _ = self
-            .task
-            .call::<Result<(), backend::FsError>, _>(backend::OpenedFileCloseRequest {});
-    }
-}
-
 impl Seek for FuseVirtualFile {
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         let seek = match pos {

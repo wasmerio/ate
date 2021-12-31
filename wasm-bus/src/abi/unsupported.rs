@@ -27,6 +27,10 @@ pub fn reply(_handle: CallHandle, _response: &[u8]) {
     panic!("unsupported on this platform");
 }
 
+pub fn reply_callback(_handle: CallHandle, _topic: &str, _response: &[u8]) {
+    panic!("unsupported on this platform");
+}
+
 pub fn call(
     _parent: Option<CallHandle>,
     _handle: CallHandle,

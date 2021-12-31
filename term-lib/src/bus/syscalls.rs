@@ -362,7 +362,8 @@ unsafe fn wasm_bus_reply_callback(
 ) {
     let topic = topic_ptr
         .get_utf8_str(thread.memory(), topic_len as u32)
-        .unwrap();
+        .unwrap()
+        .to_string();
     debug!(
         "wasm-bus::reply_callback (handle={}, topic={}, response={} bytes)",
         handle.id, topic, response_len

@@ -148,7 +148,7 @@ where
     match format {
         SerializationFormat::Bincode => match bincode::serialize(&response) {
             Ok(res) => {
-                syscall::reply(handle, &res[..]);
+                syscall::reply_callback(handle, topic, &res[..]);
             }
             Err(_err) => syscall::fault(handle, CallError::SerializationFailed as u32),
         },
