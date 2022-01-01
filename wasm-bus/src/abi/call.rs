@@ -70,8 +70,8 @@ impl Call {
         self.handle.clone()
     }
 
-    pub fn wapm(&self) -> &str {
-        self.wapm.as_ref()
+    pub fn wapm(&self) -> Cow<'static, str> {
+        self.wapm.clone()
     }
 
     pub fn session(&self) -> Option<&str> {
@@ -154,7 +154,7 @@ impl Call {
     where
         T: Serialize,
     {
-        super::call_internal(
+        super::call_ext(
             Some(self.handle),
             self.wapm.clone(),
             format,

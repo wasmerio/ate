@@ -111,6 +111,7 @@ impl WasmBusThreadPool {
             wasm_bus_start: LazyInit::new(),
             wasm_bus_finish: LazyInit::new(),
             wasm_bus_error: LazyInit::new(),
+            wasm_bus_drop: LazyInit::new(),
         };
 
         threads.insert(thread_id, ret.clone());
@@ -143,6 +144,9 @@ pub(crate) enum WasmBusThreadWork {
         data: Vec<u8>,
         tx: mpsc::Sender<Result<Vec<u8>, CallError>>,
     },
+    Drop {
+        handle: CallHandle,
+    }
 }
 
 pub(super) struct WasmBusThreadInner {
@@ -193,6 +197,8 @@ pub struct WasmBusThread {
     wasm_bus_finish: LazyInit<NativeFunc<(u32, u32, u32), ()>>,
     #[wasmer(export(name = "wasm_bus_error"))]
     wasm_bus_error: LazyInit<NativeFunc<(u32, u32), ()>>,
+    #[wasmer(export(name = "wasm_bus_drop"))]
+    wasm_bus_drop: LazyInit<NativeFunc<u32, ()>>,
 }
 
 impl WasmBusThread {
@@ -225,21 +231,25 @@ impl WasmBusThread {
         // Create a call handle
         let handle = self.generate_handle();
 
-        // Build the call that will be sent
+        // Build the call and send it
         let (tx, rx) = mpsc::channel(1);
-        let mut msg = WasmBusThreadWork::Call {
+        self.send_internal(WasmBusThreadWork::Call {
             topic,
             parent,
             handle: handle.clone(),
             data,
             tx,
-        };
+        });
+        (rx, handle)
+    }
 
+    fn send_internal(&self, mut msg: WasmBusThreadWork)
+    {
         // If we are already polling then try and send it instantly
         if *self.polling.borrow() == true {
             match self.work_tx.try_send(msg) {
                 Ok(_) => {
-                    return (rx, handle);
+                    return;
                 }
                 Err(mpsc::error::TrySendError::Closed(a)) => {
                     msg = a;
@@ -258,9 +268,6 @@ impl WasmBusThread {
                 let _ = work_tx.send(msg).await;
             }
         });
-
-        // Return the receiver
-        (rx, handle)
     }
 
     /// Issues work on the BUS
@@ -322,6 +329,12 @@ impl WasmBusThread {
     pub async fn async_wait_for_poll(&mut self) -> bool {
         async_wait_for_poll(self.polling.clone()).await
     }
+
+    pub fn drop_call(&mut self, handle: CallHandle) {
+        self.send_internal(WasmBusThreadWork::Drop {
+            handle
+        });
+    }
 }
 
 async fn async_wait_for_poll(mut polling: watch::Receiver<bool>) -> bool {
@@ -361,8 +374,8 @@ impl AsyncWasmBusResultRaw {
 
 #[async_trait]
 impl Invokable for AsyncWasmBusResultRaw {
-    async fn process(&mut self) -> Result<Vec<u8>, CallError> {
-        self.rx.recv().await.ok_or_else(|| CallError::Aborted)?
+    async fn process(&mut self) -> Result<InvokeResult, CallError> {
+        self.rx.recv().await.ok_or_else(|| CallError::Aborted)?.map(|a| InvokeResult::Response(a))
     }
 }
 
@@ -527,5 +540,13 @@ impl AsyncWasmBusSession {
             handle,
             self.format.clone(),
         ))
+    }
+}
+
+impl Drop
+for AsyncWasmBusSession
+{
+    fn drop(&mut self) {
+        self.thread.drop_call(self.handle.handle());
     }
 }

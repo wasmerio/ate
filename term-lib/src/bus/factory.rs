@@ -82,7 +82,7 @@ impl Invokable for BusStartInvokable
 where
     Self: Send + 'static,
 {
-    async fn process(&mut self) -> Result<Vec<u8>, CallError> {
+    async fn process(&mut self) -> Result<InvokeResult, CallError> {
         // Get the client callbacks
         let client_callbacks = self.client_callbacks.clone();
 

@@ -181,11 +181,11 @@ async fn mesh_connect_prepare(
             // If we have a factory then use it
             #[allow(unused_mut)]
             let mut stream = {
-                let mut factory = crate::mesh::GLOBAL_COMM_FACTORY.lock().unwrap();
+                let mut factory = crate::mesh::GLOBAL_COMM_FACTORY.lock().await;
                 if let Some(factory) = factory.as_mut() {
                     let create_client = Arc::clone(&factory);
                     drop(factory);
-                    create_client(addr.clone())
+                    create_client(addr.clone()).await
                 } else {
                     None
                 }

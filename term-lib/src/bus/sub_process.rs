@@ -161,3 +161,9 @@ impl Session for SubProcessSession {
         Box::new(invoker)
     }
 }
+
+impl Drop for SubProcessSession {
+    fn drop(&mut self) {
+        self.thread.drop_call(self.handle.handle());
+    }
+}

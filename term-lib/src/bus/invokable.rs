@@ -7,15 +7,24 @@ use wasm_bus::abi::SerializationFormat;
 
 use super::*;
 use crate::api::AsyncResult;
+use std::future::Future;
+use std::pin::Pin;
+
+pub enum InvokeResult
+{
+    Response(Vec<u8>),
+    ResponseThenWork(Vec<u8>, Pin<Box<dyn Future<Output=()> + Send + 'static>>),
+}
 
 #[async_trait]
 pub trait Invokable
 where
     Self: Send,
 {
-    async fn process(&mut self) -> Result<Vec<u8>, CallError>;
+    async fn process(&mut self) -> Result<InvokeResult, CallError>;
 }
 
+#[async_trait]
 pub trait Session
 where
     Self: Send,
@@ -37,7 +46,7 @@ impl ErrornousInvokable {
 
 #[async_trait]
 impl Invokable for ErrornousInvokable {
-    async fn process(&mut self) -> Result<Vec<u8>, CallError> {
+    async fn process(&mut self) -> Result<InvokeResult, CallError> {
         Err(self.err)
     }
 }
@@ -67,8 +76,8 @@ where
     Self: Send + 'static,
     T: Serialize + Send,
 {
-    async fn process(&mut self) -> Result<Vec<u8>, CallError> {
-        Ok(encode_response(self.format, &self.value)?)
+    async fn process(&mut self) -> Result<InvokeResult, CallError> {
+        Ok(InvokeResult::Response(encode_response(self.format, &self.value)?))
     }
 }
 
@@ -78,8 +87,8 @@ where
     Self: Send + 'static,
     T: Serialize + Send,
 {
-    async fn process(&mut self) -> Result<Vec<u8>, CallError> {
+    async fn process(&mut self) -> Result<InvokeResult, CallError> {
         let result = self.rx.recv().await.ok_or_else(|| CallError::Aborted)?;
-        Ok(encode_response(self.format, &result)?)
+        Ok(InvokeResult::Response(encode_response(self.format, &result)?))
     }
 }

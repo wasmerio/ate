@@ -152,6 +152,8 @@ pub fn web_socket(
                         } else {
                             trace!("websocket sent {} bytes", data_len);
                         }
+                    } else {
+                        return;
                     }
                 }
             }
@@ -225,11 +227,14 @@ pub struct WebSocketInvoker {
 
 #[async_trait]
 impl Invokable for WebSocketInvoker {
-    async fn process(&mut self) -> Result<Vec<u8>, CallError> {
+    async fn process(&mut self) -> Result<InvokeResult, CallError> {
         let ws = self.ws.take();
         if let Some(ws) = ws {
-            let ret = ws.run().await;
-            Ok(encode_response(SerializationFormat::Bincode, &ret)?)
+            let fut = Box::pin(ws.run());
+            Ok(InvokeResult::ResponseThenWork (
+                encode_response(SerializationFormat::Bincode, &())?,
+                fut
+            ))
         } else {
             Err(CallError::Unknown)
         }
@@ -283,7 +288,7 @@ struct DelayedSend {
 
 #[async_trait]
 impl Invokable for DelayedSend {
-    async fn process(&mut self) -> Result<Vec<u8>, CallError> {
+    async fn process(&mut self) -> Result<InvokeResult, CallError> {
         let mut size = 0usize;
         if let Some(data) = self.data.take() {
             size = data.len();

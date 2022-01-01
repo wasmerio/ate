@@ -6,6 +6,7 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
+use std::sync::Mutex;
 
 use super::*;
 use crate::api;
@@ -119,15 +120,17 @@ impl Child {
             pre_open: pre_open.clone(),
         };
 
+        let stdout_tx = stdout_tx.map(|a| Mutex::new(a));
         let on_stdout = Box::new(move |data: Vec<u8>| {
             if let Some(tx) = stdout_tx.as_ref() {
-                let _ = tx.send(data);
+                let _ = tx.lock().unwrap().send(data);
             }
         });
 
+        let stderr_tx = stderr_tx.map(|a| Mutex::new(a));
         let on_stderr = Box::new(move |data: Vec<u8>| {
             if let Some(tx) = stderr_tx.as_ref() {
-                let _ = tx.send(data);
+                let _ = tx.lock().unwrap().send(data);
             }
         });
 
@@ -143,7 +146,8 @@ impl Child {
             api::PoolClient::new_with_session(WAPM_NAME, session.as_str())
                 .blocking_spawn(spawn, on_stdout, on_stderr, on_exit)
         } else {
-            api::PoolClient::new(WAPM_NAME).blocking_spawn(spawn, on_stdout, on_stderr, on_exit)
+            api::PoolClient::new(WAPM_NAME)
+                .blocking_spawn(spawn, on_stdout, on_stderr, on_exit)
         }
         .map_err(|err| err.into_io_error())?
         .as_client()

@@ -293,6 +293,11 @@ unsafe fn wasm_bus_poll(thread: &WasmBusThread) {
                 )
                 .unwrap();
         }
+        Some(WasmBusThreadWork::Drop { handle }) => {
+            if let Some(native_drop) = thread.wasm_bus_drop_ref() {
+                native_drop.call(handle.id).unwrap();
+            }
+        }
         Some(WasmBusThreadWork::Wake) => {
             debug!("polling loop awoken");
             crate::bus::syscalls::raw::wasm_bus_tick(thread);
@@ -470,12 +475,21 @@ unsafe fn wasm_bus_call(
         let thread = thread.clone();
         async move {
             let response = invoke.process().await;
+            match response {
+                Ok(InvokeResult::Response(response)) => {
+                    data_feeder.feed_bytes_or_error(Ok(response));
+                },
+                Ok(InvokeResult::ResponseThenWork(response, work)) => {
+                    data_feeder.feed_bytes_or_error(Ok(response));
+                    work.await;
+                },
+                Err(err) => data_feeder.feed_bytes_or_error(Err(err)),
+            }
             thread
                 .inner
                 .unwrap()
                 .factory
                 .close(CallHandle::from(handle));
-            data_feeder.feed_bytes_or_error(response);
         }
     };
 

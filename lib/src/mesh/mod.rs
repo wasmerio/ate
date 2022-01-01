@@ -32,6 +32,8 @@ use std::{
 };
 use tokio::sync::mpsc;
 use tokio::sync::{Mutex, RwLock};
+use std::future::Future;
+use std::pin::Pin;
 
 use super::chain::*;
 use super::chain::*;
@@ -174,13 +176,13 @@ pub(crate) static GLOBAL_CERTIFICATES: Lazy<StdRwLock<Vec<AteHash>>> =
     Lazy::new(|| StdRwLock::new(Vec::new()));
 
 pub(crate) static GLOBAL_COMM_FACTORY: Lazy<
-    StdMutex<Option<Arc<dyn Fn(MeshConnectAddr) -> Option<Stream> + Send + Sync + 'static>>>,
-> = Lazy::new(|| StdMutex::new(None));
+    Mutex<Option<Arc<dyn Fn(MeshConnectAddr) -> Pin<Box<dyn Future<Output=Option<Stream>> + Send + Sync + 'static>> + Send + Sync + 'static>>>,
+> = Lazy::new(|| Mutex::new(None));
 
 pub fn add_global_certificate(cert: &AteHash) {
     GLOBAL_CERTIFICATES.write().unwrap().push(cert.clone());
 }
 
-pub fn set_comm_factory(funct: impl Fn(MeshConnectAddr) -> Option<Stream> + Send + Sync + 'static) {
-    GLOBAL_COMM_FACTORY.lock().unwrap().replace(Arc::new(funct));
+pub async fn set_comm_factory(funct: impl Fn(MeshConnectAddr) -> Pin<Box<dyn Future<Output=Option<Stream>> + Send + Sync + 'static>> + Send + Sync + 'static) {
+    GLOBAL_COMM_FACTORY.lock().await.replace(Arc::new(funct));
 }

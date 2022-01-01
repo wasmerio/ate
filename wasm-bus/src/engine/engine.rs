@@ -291,7 +291,7 @@ impl BusEngine {
 
     #[cfg(feature = "rt")]
     #[cfg(target_arch = "wasm32")]
-    pub(crate) fn listen_internal<F, Fut>(topic: String, callback: F)
+    pub(crate) fn listen_internal<F, Fut>(format: SerializationFormat, topic: String, callback: F)
     where
         F: Fn(CallHandle, Vec<u8>) -> Result<Fut, CallError>,
         F: Send + Sync + 'static,
@@ -302,7 +302,7 @@ impl BusEngine {
             let mut state = BusEngine::write();
             state.listening.insert(
                 topic.clone(),
-                ListenService::new(Arc::new(move |handle, req| {
+                ListenService::new(format, Arc::new(move |handle, req| {
                     let res = callback(handle, req);
                     Box::pin(async move { Ok(res?.await?) })
                 })),
@@ -314,7 +314,7 @@ impl BusEngine {
 
     #[cfg(feature = "rt")]
     #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) fn listen_internal<F, Fut>(_topic: String, _callback: F)
+    pub(crate) fn listen_internal<F, Fut>(_format: SerializationFormat, _topic: String, _callback: F)
     where
         F: Fn(CallHandle, Vec<u8>) -> Result<Fut, CallError>,
         F: Send + Sync + 'static,
@@ -326,7 +326,7 @@ impl BusEngine {
 
     #[cfg(feature = "rt")]
     #[cfg(target_arch = "wasm32")]
-    pub(crate) fn respond_to_internal<F, Fut>(topic: String, parent: CallHandle, callback: F)
+    pub(crate) fn respond_to_internal<F, Fut>(format: SerializationFormat, topic: String, parent: CallHandle, callback: F)
     where
         F: Fn(CallHandle, Vec<u8>) -> Result<Fut, CallError>,
         F: Send + Sync + 'static,
@@ -338,7 +338,7 @@ impl BusEngine {
             if state.respond_to.contains_key(&topic) == false {
                 state
                     .respond_to
-                    .insert(topic.clone(), RespondToService::default());
+                    .insert(topic.clone(), RespondToService::new(format));
                 crate::abi::syscall::listen(topic.as_str());
             }
             let respond_to = state.respond_to.get_mut(&topic).unwrap();
@@ -354,7 +354,7 @@ impl BusEngine {
 
     #[cfg(feature = "rt")]
     #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) fn respond_to_internal<F, Fut>(_topic: String, _parent: CallHandle, _callback: F)
+    pub(crate) fn respond_to_internal<F, Fut>(_format: SerializationFormat, _topic: String, _parent: CallHandle, _callback: F)
     where
         F: Fn(CallHandle, Vec<u8>) -> Result<Fut, CallError>,
         F: Send + Sync + 'static,

@@ -45,10 +45,10 @@ pub fn call<T>(
 where
     T: Serialize,
 {
-    call_internal(None, wapm, format, session, request)
+    call_ext(None, wapm, format, session, request)
 }
 
-pub(crate) fn call_internal<T>(
+pub fn call_ext<T>(
     parent: Option<CallHandle>,
     wapm: Cow<'static, str>,
     format: SerializationFormat,

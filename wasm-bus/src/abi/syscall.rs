@@ -103,6 +103,17 @@ mod raw {
         crate::task::wake();
     }
 
+    // Invoked by the operating system when a call has been terminated by the caller
+    #[no_mangle]
+    pub extern "C" fn wasm_bus_drop(handle: u32) {
+        trace!("wasm_bus_err (handle={})", handle);
+        let handle: CallHandle = handle.into();
+        crate::engine::BusEngine::remove(&handle);
+
+        #[cfg(feature = "rt")]
+        crate::task::wake();
+    }
+
     #[link(wasm_import_module = "wasm-bus")]
     extern "C" {
         // Returns a handle 64-bit number which is used while generating
@@ -114,7 +125,7 @@ mod raw {
 
         // Indicates that a fault has occured while processing a call
         pub(crate) fn fault(handle: u32, error: u32);
-
+        
         // Returns the response of a listen invokation to a program
         // from the operating system
         pub(crate) fn reply(handle: u32, response: u32, response_len: u32);

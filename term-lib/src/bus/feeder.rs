@@ -53,6 +53,17 @@ impl WasmBusCallback {
         self.feed_bytes_or_error(super::encode_response(format, &data));
     }
 
+    pub fn feed_or_error<T>(&self, format: SerializationFormat, data: Result<T, CallError>)
+    where
+        T: Serialize,
+    {
+        let data = match data.map(|a| super::encode_response(format, &a)) {
+            Ok(a) => a,
+            Err(err) => Err(err),
+        };
+        self.feed_bytes_or_error(data);
+    }
+
     pub fn feed_bytes(&self, data: Vec<u8>) {
         trace!(
             "wasm-bus::call-reply (handle={}, response={} bytes)",

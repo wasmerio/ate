@@ -39,7 +39,7 @@ where
     Fut: Future<Output = Result<RES, CallError>> + Send + 'static,
 {
     let topic = type_name::<REQ>();
-    BusEngine::listen_internal(topic.to_string(), move |handle, req| {
+    BusEngine::listen_internal(format, topic.to_string(), move |handle, req| {
         let req = match format {
             SerializationFormat::Bincode => match bincode::deserialize(&req[..]) {
                 Ok(a) => a,
@@ -81,7 +81,7 @@ where
     Fut: Future<Output = Result<RES, CallError>> + Send + 'static,
 {
     let topic = type_name::<REQ>();
-    BusEngine::respond_to_internal(topic.to_string(), parent, move |handle, req| {
+    BusEngine::respond_to_internal(format, topic.to_string(), parent, move |handle, req| {
         let req = match format {
             SerializationFormat::Bincode => match bincode::deserialize(&req[..]) {
                 Ok(a) => a,

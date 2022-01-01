@@ -244,12 +244,15 @@ impl ProcessExecFactory {
 
                 Ok(EvalCreated {
                     invoker: ProcessExecInvokable {
-                        stdout: ctx.stdout_rx,
-                        stderr: ctx.stderr_rx,
-                        eval_rx: Some(eval_rx),
-                        on_stdout: ctx.on_stdout,
-                        on_stderr: ctx.on_stderr,
-                        on_exit: ctx.on_exit,
+                        exec: Some(ProcessExec {
+                            format: SerializationFormat::Bincode,
+                            stdout: ctx.stdout_rx,
+                            stderr: ctx.stderr_rx,
+                            eval_rx,
+                            on_stdout: ctx.on_stdout,
+                            on_stderr: ctx.on_stderr,
+                            on_exit: ctx.on_exit
+                        }),
                     },
                     session: ProcessExecSession {
                         stdin: ctx.stdin_tx,
@@ -291,33 +294,18 @@ impl ProcessExecFactory {
     }
 }
 
-pub struct ProcessExecInvokable {
+pub struct ProcessExec {
+    format: SerializationFormat,
     stdout: Option<mpsc::Receiver<Vec<u8>>>,
     stderr: Option<mpsc::Receiver<Vec<u8>>>,
-    eval_rx: Option<mpsc::Receiver<EvalPlan>>,
+    eval_rx: mpsc::Receiver<EvalPlan>,
     on_stdout: Option<WasmBusCallback>,
     on_stderr: Option<WasmBusCallback>,
     on_exit: Option<WasmBusCallback>,
 }
 
-#[async_trait]
-impl Invokable for ProcessExecInvokable {
-    async fn process(&mut self) -> Result<Vec<u8>, CallError> {
-        let format = SerializationFormat::Bincode;
-
-        // Get the eval_rx (this will mean it is destroyed when this
-        // function returns)
-        let mut eval_rx = match self.eval_rx.take() {
-            Some(a) => a,
-            None => {
-                let res = encode_eval_response(format, Some(EvalPlan::InternalError))?;
-                if let Some(on_exit) = self.on_exit.take() {
-                    on_exit.feed(format, res.clone());
-                }
-                return Ok(res);
-            }
-        };
-
+impl ProcessExec {
+    pub async fn run(mut self) {
         // Now process all the STDIO concurrently
         loop {
             if let Some(stdout_rx) = self.stdout.as_mut() {
@@ -325,41 +313,41 @@ impl Invokable for ProcessExecInvokable {
                     tokio::select! {
                         data = stdout_rx.recv() => {
                             if let (Some(data), Some(on_data)) = (data, self.on_stdout.as_mut()) {
-                                on_data.feed(format, api::PoolSpawnStdoutCallback(data));
+                                on_data.feed(self.format, api::PoolSpawnStdoutCallback(data));
                             } else {
                                 self.stdout.take();
                             }
                         }
                         data = stderr_rx.recv() => {
                             if let (Some(data), Some(on_data)) = (data, self.on_stderr.as_mut()) {
-                                on_data.feed(format, api::PoolSpawnStderrCallback(data));
+                                on_data.feed(self.format, api::PoolSpawnStderrCallback(data));
                             } else {
                                 self.stderr.take();
                             }
                         }
-                        res = eval_rx.recv() => {
-                            let res = encode_eval_response(format, res)?;
+                        res = self.eval_rx.recv() => {
+                            let res = encode_eval_response(self.format, res);
                             if let Some(on_exit) = self.on_exit.take() {
-                                on_exit.feed(format, res.clone());
+                                on_exit.feed_bytes_or_error(res);
                             }
-                            return Ok(res);
+                            return;
                         }
                     }
                 } else {
                     tokio::select! {
                         data = stdout_rx.recv() => {
                             if let (Some(data), Some(on_data)) = (data, self.on_stdout.as_mut()) {
-                                on_data.feed(format, api::PoolSpawnStdoutCallback(data));
+                                on_data.feed(self.format, api::PoolSpawnStdoutCallback(data));
                             } else {
                                 self.stdout.take();
                             }
                         }
-                        res = eval_rx.recv() => {
-                            let res = encode_eval_response(format, res)?;
+                        res = self.eval_rx.recv() => {
+                            let res = encode_eval_response(self.format, res);
                             if let Some(on_exit) = self.on_exit.take() {
-                                on_exit.feed(format, res.clone());
+                                on_exit.feed_bytes_or_error(res);
                             }
-                            return Ok(res);
+                            return;
                         }
                     }
                 }
@@ -368,31 +356,51 @@ impl Invokable for ProcessExecInvokable {
                     tokio::select! {
                         data = stderr_rx.recv() => {
                             if let (Some(data), Some(on_data)) = (data, self.on_stderr.as_mut()) {
-                                on_data.feed(format, api::PoolSpawnStderrCallback(data));
+                                on_data.feed(self.format, api::PoolSpawnStderrCallback(data));
                             } else {
                                 self.stderr.take();
                             }
                         }
-                        res = eval_rx.recv() => {
-                            let res = encode_eval_response(format, res)?;
+                        res = self.eval_rx.recv() => {
+                            let res = encode_eval_response(self.format, res);
                             if let Some(on_exit) = self.on_exit.take() {
-                                on_exit.feed(format, res.clone());
+                                on_exit.feed_bytes_or_error(res);
                             }
-                            return Ok(res);
+                            return;
                         }
                     }
                 } else {
                     tokio::select! {
-                        res = eval_rx.recv() => {
-                            let res = encode_eval_response(format, res)?;
+                        res = self.eval_rx.recv() => {
+                            let res = encode_eval_response(self.format, res);
                             if let Some(on_exit) = self.on_exit.take() {
-                                on_exit.feed(format, res.clone());
+                                on_exit.feed_bytes_or_error(res);
                             }
-                            return Ok(res);
+                            return;
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+pub struct ProcessExecInvokable {
+    exec: Option<ProcessExec>,
+}
+
+#[async_trait]
+impl Invokable for ProcessExecInvokable {
+    async fn process(&mut self) -> Result<InvokeResult, CallError> {
+        let exec = self.exec.take();
+        if let Some(exec) = exec {
+            let fut = Box::pin(exec.run());
+            Ok(InvokeResult::ResponseThenWork (
+                encode_response(SerializationFormat::Bincode, &())?,
+                fut
+            ))
+        } else {
+            Err(CallError::Unknown)
         }
     }
 }

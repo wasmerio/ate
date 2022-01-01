@@ -114,7 +114,7 @@ fn name(binary_path: &Path) -> &str {
 }
 
 #[cfg(target_os = "wasi")]
-fn init_wasi() {
+async fn init_wasi() {
     std::panic::set_hook(Box::new(|panic_info| {
         if let Some(location) = panic_info.location() {
             println!(
@@ -130,15 +130,18 @@ fn init_wasi() {
 
     // Add the main Tokera certificate and connect via a emulated file
     add_global_certificate(&AteHash::from_hex_string("9c960f3ba2ece59881be0b45f39ef989").unwrap());
-    set_comm_factory(Box::new(move |_| {
-        tracing::trace!("opening wasm_bus::web_socket");
-        let ws = wasm_bus_ws::prelude::SocketBuilder::new(
-            url::Url::from_str("wss://tokera.com").unwrap(),
-        )
-        .blocking_open()
-        .unwrap();
-        Some(ate::comms::Stream::WasmWebSocket(ws))
-    }));
+    set_comm_factory(move |_| {
+        Box::pin(async move {
+            tracing::trace!("opening wasm_bus::web_socket");
+            let ws = wasm_bus_ws::prelude::SocketBuilder::new(
+                url::Url::from_str("wss://tokera.com").unwrap(),
+            )
+            .open()
+            .await
+            .unwrap();
+            Some(ate::comms::Stream::WasmWebSocket(ws))
+        })
+    }).await;
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -155,7 +158,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize the logging and panic hook
     #[cfg(target_os = "wasi")]
-    init_wasi();
+    init_wasi().await;
 
     // Allow for symbolic links to the main binary
     let args = wild::args_os().collect::<Vec<_>>();
