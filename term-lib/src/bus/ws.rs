@@ -110,17 +110,24 @@ pub fn web_socket(
         }
 
         // Wait for the socket ot open or for something bad to happen
-        {
-            let on_state_change_waker = on_state_change_waker.clone();
-            if let Some(state) = rx_state_inner.recv().await {
-                let _ = tx_state.send(state.clone()).await;
-                on_state_change_waker.wake();
-                if state != api::SocketState::Opened {
+        loop {
+            select! {
+                _ = rx_keepalive.recv() => {
+                    on_state_change_waker.wake();
                     return;
+                }
+                state = rx_state_inner.recv() => {
+                    if let Some(state) = state {
+                        let _ = tx_state.send(state.clone()).await;
+                        on_state_change_waker.wake();
+                        if state != api::SocketState::Opened {
+                            return;
+                        }
+                        break;
+                    }
                 }
             }
         }
-
         // The main loop does all the processing
         loop {
             select! {
@@ -218,6 +225,15 @@ impl WebSocket {
                 }
             }
         }
+    }
+}
+
+impl Drop for WebSocket {
+    fn drop(&mut self) {
+        self.on_state_change.feed(
+            SerializationFormat::Bincode,
+            api::SocketBuilderConnectStateChangeCallback(api::SocketState::Closed),
+        );
     }
 }
 

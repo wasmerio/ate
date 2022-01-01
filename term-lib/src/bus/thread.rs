@@ -388,6 +388,7 @@ where
     pub(crate) handle: WasmBusThreadHandle,
     pub(crate) format: SerializationFormat,
     pub(crate) rx: mpsc::Receiver<Result<Vec<u8>, CallError>>,
+    should_drop: bool,
     _marker: PhantomData<T>,
 }
 
@@ -406,15 +407,21 @@ where
             handle,
             format,
             rx,
+            should_drop: true,
             _marker: PhantomData,
         }
     }
 
     pub fn block_on(mut self) -> Result<T, CallError> {
+        self.block_on_internal()
+    }
+
+    fn block_on_internal(&mut self) -> Result<T, CallError> {
         let data = self
             .rx
             .blocking_recv()
             .ok_or_else(|| CallError::Aborted)??;
+        self.should_drop = false;
         match self.format {
             SerializationFormat::Bincode => match bincode::deserialize::<T>(&data[..]) {
                 Ok(a) => Ok(a),
@@ -428,7 +435,12 @@ where
     }
 
     pub async fn join(mut self) -> Result<T, CallError> {
+        self.join_internal().await
+    }
+
+    async fn join_internal(&mut self) -> Result<T, CallError> {
         let data = self.rx.recv().await.ok_or_else(|| CallError::Aborted)??;
+        self.should_drop = false;
         match self.format {
             SerializationFormat::Bincode => match bincode::deserialize::<T>(&data[..]) {
                 Ok(a) => Ok(a),
@@ -438,6 +450,58 @@ where
                 Ok(a) => Ok(a),
                 Err(_err) => Err(CallError::SerializationFailed),
             },
+        }
+    }
+
+    pub async fn detach(mut self) -> Result<AsyncWasmBusSession, CallError> {
+        self.should_drop = false;
+        let _ = self.join_internal().await?;
+        Ok(AsyncWasmBusSession {
+            thread: self.thread.clone(),
+            handle: self.handle.clone(),
+            format: self.format.clone(),
+        })
+    }
+
+    pub fn blocking_detach(mut self) -> Result<AsyncWasmBusSession, CallError> {
+        self.should_drop = false;
+        let _ = self.block_on_internal()?;
+        Ok(AsyncWasmBusSession {
+            thread: self.thread.clone(),
+            handle: self.handle.clone(),
+            format: self.format.clone(),
+        })
+    }
+}
+
+impl<T> Drop for AsyncWasmBusResult<T>
+where
+    T: de::DeserializeOwned,
+{
+    fn drop(&mut self) {
+        if self.should_drop == true {
+            self.thread.drop_call(self.handle.handle());
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct AsyncWasmBusSession {
+    pub(crate) thread: WasmBusThread,
+    pub(crate) handle: WasmBusThreadHandle,
+    pub(crate) format: SerializationFormat,
+}
+
+impl AsyncWasmBusSession {
+    pub fn new(
+        thread: &WasmBusThread,
+        handle: WasmBusThreadHandle,
+        format: SerializationFormat,
+    ) -> Self {
+        Self {
+            thread: thread.clone(),
+            handle,
+            format,
         }
     }
 
@@ -479,68 +543,6 @@ where
             self.thread
                 .call_internal(Some(self.handle.handle()), topic.to_string(), data);
         Ok(AsyncWasmBusResult::new(&self.thread, rx, handle, format))
-    }
-
-    pub fn session(self) -> AsyncWasmBusSession {
-        AsyncWasmBusSession {
-            thread: self.thread,
-            handle: self.handle,
-            format: self.format.clone(),
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct AsyncWasmBusSession {
-    pub(crate) thread: WasmBusThread,
-    pub(crate) handle: WasmBusThreadHandle,
-    pub(crate) format: SerializationFormat,
-}
-
-impl AsyncWasmBusSession {
-    pub fn new(
-        thread: &WasmBusThread,
-        handle: WasmBusThreadHandle,
-        format: SerializationFormat,
-    ) -> Self {
-        Self {
-            thread: thread.clone(),
-            handle,
-            format,
-        }
-    }
-
-    pub fn call<RES, REQ>(&self, request: REQ) -> Result<AsyncWasmBusResult<RES>, CallError>
-    where
-        REQ: Serialize,
-        RES: de::DeserializeOwned,
-    {
-        // Serialize
-        let topic = type_name::<REQ>();
-        let data = match self.format {
-            SerializationFormat::Bincode => match bincode::serialize(&request) {
-                Ok(a) => a,
-                Err(_err) => {
-                    return Err(CallError::SerializationFailed);
-                }
-            },
-            SerializationFormat::Json => match serde_json::to_vec(&request) {
-                Ok(a) => a,
-                Err(_err) => {
-                    return Err(CallError::SerializationFailed);
-                }
-            },
-        };
-
-        let (rx, handle) =
-            self.thread
-                .call_internal(Some(self.handle.handle()), topic.to_string(), data);
-        Ok(AsyncWasmBusResult::new(
-            &self.thread,
-            rx,
-            handle,
-            self.format.clone(),
-        ))
     }
 }
 

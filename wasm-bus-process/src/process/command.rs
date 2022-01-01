@@ -339,22 +339,7 @@ impl Command {
         self
     }
 
-    /// Executes the command as a child process, returning a handle to it.
-    ///
-    /// By default, stdin, stdout and stderr are inherited from the parent.
-    ///
-    /// # Examples
-    ///
-    /// Basic usage:
-    ///
-    /// ```no_run
-    /// use wasi_net::Command;
-    ///
-    /// Command::new("ls")
-    ///         .spawn()
-    ///         .expect("ls command failed to start");
-    /// ```
-    pub fn spawn(&self) -> io::Result<Child> {
+    async fn prep(&self) -> io::Result<Child> {
         let stdin = self
             .stdin
             .as_ref()
@@ -372,7 +357,46 @@ impl Command {
             .unwrap_or(Stdio::inherit());
         let preopen = self.pre_open.clone();
         let session = self.session.clone();
-        Child::new(self, session, stdin.mode, stdout.mode, stderr.mode, preopen)
+        Child::new(self, session, stdin.mode, stdout.mode, stderr.mode, preopen).await
+    }
+
+    /// Executes the command as a child process, returning a handle to it.
+    ///
+    /// By default, stdin, stdout and stderr are inherited from the parent.
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```no_run
+    /// use wasi_net::Command;
+    ///
+    /// Command::new("ls")
+    ///         .spawn()
+    ///         .expect("ls command failed to start");
+    /// ```
+    pub fn spawn(&self) -> io::Result<Child> {
+        wasm_bus::task::block_on(self.prep())
+    }
+
+    /// Executes the command as a child process to completion asynchronously
+    ///
+    /// By default, stdin, stdout and stderr are inherited from the parent.
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```no_run
+    /// use wasi_net::Command;
+    ///
+    /// Command::new("ls")
+    ///         .execute()
+    ///         .await
+    ///         .expect("ls command failed to start");
+    /// ```
+    pub async fn execute(&self) -> io::Result<ExitStatus> {
+        Ok(self.prep().await?.join().await?)
     }
 
     /// Executes the command as a child process, waiting for it to finish and

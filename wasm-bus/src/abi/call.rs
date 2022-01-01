@@ -40,6 +40,7 @@ pub struct Call {
     #[derivative(Debug = "ignore")]
     pub(crate) state: Arc<Mutex<CallState>>,
     pub(crate) callbacks: Arc<Mutex<Vec<Finish>>>,
+    pub(crate) should_drop: bool,
 }
 
 impl CallOps for Call {
@@ -56,8 +57,10 @@ impl CallOps for Call {
 
 impl Drop for Call {
     fn drop(&mut self) {
-        super::drop(self.handle);
-        crate::engine::BusEngine::remove(&self.handle);
+        if self.should_drop {
+            super::drop(self.handle);
+            crate::engine::BusEngine::remove(&self.handle);
+        }
     }
 }
 
@@ -189,6 +192,39 @@ impl Call {
         T: de::DeserializeOwned,
     {
         CallJoin::new(self)
+    }
+
+    // Completes the call but leaves the resources present
+    // for the duration of the life of 'DetachedCall'
+    pub async fn detach<T>(mut self) -> Result<DetachedCall<T>, CallError>
+    where
+        T: de::DeserializeOwned,
+    {
+        let handle = self.handle.clone();
+        self.should_drop = false;
+        let result = self.join::<T>().await?;
+        Ok(DetachedCall { handle, result })
+    }
+}
+
+#[derive(Debug)]
+pub struct DetachedCall<T> {
+    handle: CallHandle,
+    result: T,
+}
+
+impl<T> Drop for DetachedCall<T> {
+    fn drop(&mut self) {
+        super::drop(self.handle);
+        crate::engine::BusEngine::remove(&self.handle);
+    }
+}
+
+impl<T> Deref for DetachedCall<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.result
     }
 }
 

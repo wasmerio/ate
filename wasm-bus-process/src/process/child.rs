@@ -1,12 +1,10 @@
 use std::future::Future;
 use std::io::{self, Read};
 use std::pin::Pin;
-use std::sync::atomic::AtomicI32;
-use std::sync::atomic::Ordering;
-use std::sync::Arc;
 use std::sync::Mutex;
 use std::task::Context;
 use std::task::Poll;
+use tokio::sync::watch;
 
 use super::*;
 use crate::api;
@@ -48,7 +46,7 @@ use crate::api::StdioMode;
 #[derive(Debug)]
 pub struct Child {
     context: Option<api::ProcessClient>,
-    exited: Arc<AtomicI32>,
+    exited: watch::Receiver<Option<i32>>,
     id: u32,
 
     /// The handle for writing to the child's standard input (stdin), if it has
@@ -87,7 +85,7 @@ pub struct Child {
 
 impl Child {
     // Starts the child process
-    pub(super) fn new(
+    pub(super) async fn new(
         cmd: &Command,
         session: Option<String>,
         stdin_mode: StdioMode,
@@ -134,23 +132,24 @@ impl Child {
             }
         });
 
-        let exited = Arc::new(AtomicI32::new(i32::MAX));
+        let (exited_tx, exited_rx) = watch::channel(None);
         let on_exit = {
-            let exited = exited.clone();
             Box::new(move |code| {
-                exited.store(code, Ordering::Release);
+                let _ = exited_tx.send(Some(code));
             })
         };
 
-        let context = if let Some(session) = session {
+        let pool = if let Some(session) = session {
             api::PoolClient::new_with_session(WAPM_NAME, session.as_str())
-                .blocking_spawn(spawn, on_stdout, on_stderr, on_exit)
         } else {
-            api::PoolClient::new(WAPM_NAME).blocking_spawn(spawn, on_stdout, on_stderr, on_exit)
-        }
-        .map_err(|err| err.into_io_error())?
-        .as_client()
-        .unwrap();
+            api::PoolClient::new(WAPM_NAME)
+        };
+        let context = pool
+            .spawn(spawn, on_stdout, on_stderr, on_exit)
+            .await
+            .map_err(|err| err.into_io_error())?
+            .as_client()
+            .unwrap();
 
         let stdin = if stdin_mode == StdioMode::Piped {
             let stdin = ChildStdin::new(context.clone());
@@ -162,7 +161,7 @@ impl Child {
         Ok(Child {
             id: context.id(),
             context: Some(context),
-            exited,
+            exited: exited_rx,
             stdin,
             stdout,
             stderr,
@@ -248,16 +247,9 @@ impl Child {
     /// ```
     #[allow(unused_mut)] // this is so that the API's are compatible with std:process
     pub fn wait(&mut self) -> io::Result<ExitStatus> {
-        if let Some(context) = self.context.take() {
-            wasm_bus::task::block_on(context)
-                .map_err(|_| wasm_bus::abi::CallError::Aborted.into_io_error())?;
-        }
-        Ok(ExitStatus {
-            code: match self.exited.load(Ordering::Acquire) {
-                i32::MAX => None,
-                a => Some(a),
-            },
-        })
+        let _ = wasm_bus::task::block_on(self.exited.changed());
+        let code = self.exited.borrow().clone();
+        Ok(ExitStatus { code })
     }
 
     /// Simultaneously waits for the child to exit and collect all remaining
@@ -320,22 +312,23 @@ impl Child {
         })
     }
 
-    pub fn join(mut self) -> ChildJoin {
-        let result = if let Some(context) = self.context.take() {
-            Some(context)
-        } else {
-            None
+    pub fn join(&mut self) -> ChildJoin {
+        let exit_wait = {
+            let mut exited = self.exited.clone();
+            Box::pin(async move {
+                let _ = exited.changed().await;
+            })
         };
         ChildJoin {
-            result,
             exited: self.exited.clone(),
+            exit_wait,
         }
     }
 }
 
 pub struct ChildJoin {
-    result: Option<api::ProcessClient>,
-    exited: Arc<AtomicI32>,
+    exited: watch::Receiver<Option<i32>>,
+    exit_wait: Pin<Box<dyn Future<Output = ()>>>,
 }
 
 impl ChildJoin {
@@ -374,22 +367,14 @@ impl ChildJoin {
     /// }
     /// ```
     pub fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
-        self.result
-            .as_mut()
-            .ok_or(wasm_bus::abi::CallError::Aborted.into_io_error())?
-            .try_wait()
-            .map_err(|err| err.into_io_error())
-            .map(|a| {
-                if a.is_some() {
-                    let code = match self.exited.load(Ordering::Acquire) {
-                        i32::MAX => None,
-                        a => Some(a),
-                    };
-                    Some(ExitStatus { code })
-                } else {
-                    None
-                }
-            })
+        let waker = dummy_waker::dummy_waker();
+        let mut cx = Context::from_waker(&waker);
+        let exit_wait = self.exit_wait.as_mut();
+        if let Poll::Ready(_) = exit_wait.poll(&mut cx) {
+            let code = self.exited.borrow().clone();
+            return Ok(Some(ExitStatus { code }));
+        }
+        Ok(None)
     }
 }
 
@@ -398,23 +383,14 @@ impl Future for ChildJoin {
     type Output = io::Result<ExitStatus>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match self.result.as_mut() {
-            Some(result) => {
-                let result = Pin::new(result);
-                match result.poll(cx) {
-                    Poll::Ready(Ok(_)) => {
-                        let code = match self.exited.load(Ordering::Acquire) {
-                            i32::MAX => None,
-                            a => Some(a),
-                        };
-                        let a = ExitStatus { code };
-                        Poll::Ready(Ok(a))
-                    }
-                    Poll::Ready(Err(err)) => Poll::Ready(Err(err.into_io_error())),
-                    Poll::Pending => Poll::Pending,
-                }
+        let exit_wait = self.exit_wait.as_mut();
+        match exit_wait.poll(cx) {
+            Poll::Ready(_) => {
+                let code = self.exited.borrow().clone();
+                let a = ExitStatus { code };
+                Poll::Ready(Ok(a))
             }
-            None => Poll::Ready(Err(wasm_bus::abi::CallError::Aborted.into_io_error())),
+            Poll::Pending => Poll::Pending,
         }
     }
 }

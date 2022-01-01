@@ -179,6 +179,7 @@ impl BusEngine {
             session,
             state: Arc::new(Mutex::new(CallState { result: None })),
             callbacks: Arc::new(Mutex::new(Vec::new())),
+            should_drop: true,
         };
 
         loop {

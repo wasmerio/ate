@@ -333,9 +333,10 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                                     request)
                                 #( #method_callbacks )*
                                 .invoke();
-                                let ret = Arc::new(#ret_client::attach(task.wapm(), task.session().map(|a| a.to_string()), task.handle()));
-                                let _: () = task.join().await?;
-                                Ok(ret)
+                                let mut ret = #ret_client::attach_phase1(task.wapm(), task.session().map(|a| a.to_string()), task.handle());
+                                let detached_call = task.detach::<()>().await?;
+                                ret.attach_phase2(detached_call);
+                                Ok(Arc::new(ret))
                             }
                         });
                         blocking_methods.push(quote! {
@@ -518,6 +519,7 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                         parent: Option<wasm_bus::abi::CallHandle>,
                         task: Option<wasm_bus::abi::Call>,
                         join: Option<wasm_bus::abi::CallJoin<()>>,
+                        detached_call: Option<std::sync::Arc<wasm_bus::abi::DetachedCall<()>>>,
                     }
 
                     impl #trait_client_ident {
@@ -528,6 +530,7 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                                 parent: None,
                                 task: None,
                                 join: None,
+                                detached_call: None,
                             }
                         }
 
@@ -538,17 +541,23 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                                 parent: None,
                                 task: None,
                                 join: None,
+                                detached_call: None,
                             }
                         }
 
-                        pub fn attach(wapm: std::borrow::Cow<'static, str>, session: Option<String>, parent: wasm_bus::abi::CallHandle) -> Self {
+                        pub fn attach_phase1(wapm: std::borrow::Cow<'static, str>, session: Option<String>, parent: wasm_bus::abi::CallHandle) -> Self {
                             Self {
                                 wapm,
                                 session,
                                 parent: Some(parent),
                                 task: None,
                                 join: None,
+                                detached_call: None,
                             }
+                        }
+
+                        pub fn attach_phase2(&mut self, detached_call: wasm_bus::abi::DetachedCall<()>) {
+                            self.detached_call.replace(std::sync::Arc::new(detached_call));
                         }
 
                         pub fn id(&self) -> u32 {

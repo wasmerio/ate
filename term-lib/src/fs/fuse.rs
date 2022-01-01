@@ -8,7 +8,6 @@ use std::io::Write;
 use std::path::Path;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use wasm_bus::abi::CallError;
 use wasm_bus::abi::SerializationFormat;
 use wasm_bus_fuse::api as backend;
 use wasmer_vfs::DirEntry;
@@ -23,7 +22,6 @@ use wasmer_vfs::ReadDir;
 use wasmer_vfs::VirtualFile;
 
 use crate::api::*;
-use crate::bus::AsyncWasmBusResult;
 use crate::bus::AsyncWasmBusSession;
 use crate::bus::SubProcess;
 
@@ -39,24 +37,33 @@ pub struct FuseFileSystem {
 }
 
 impl FuseFileSystem {
-    pub async fn new(process: SubProcess, target: &str) -> Result<FuseFileSystem, CallError> {
-        let task: AsyncWasmBusResult<()> = process.main.call(
-            SerializationFormat::Json,
-            backend::FuseMountRequest {
-                name: target.to_string(),
-            },
-        )?;
+    pub async fn new(process: SubProcess, target: &str) -> Result<FuseFileSystem, FsError> {
+        let task = process
+            .main
+            .call::<(), _>(
+                SerializationFormat::Json,
+                backend::FuseMountRequest {
+                    name: target.to_string(),
+                },
+            )
+            .map_err(|_| FsError::IOError)?
+            .detach()
+            .await
+            .map_err(|_| FsError::IOError)?;
 
         let _ = task
-            .call::<(), _>(backend::FileSystemInitRequest {})?
+            .call::<Result<(), backend::FsError>, _>(backend::FileSystemInitRequest {})
+            .map_err(|_| FsError::IOError)?
             .join()
-            .await?;
+            .await
+            .map_err(|_| FsError::IOError)?
+            .map_err(conv_fs_error)?;
 
         Ok(FuseFileSystem {
             system: System::default(),
             sub: process,
             target: target.to_string(),
-            task: task.session(),
+            task,
         })
     }
 }
@@ -202,6 +209,8 @@ impl FileOpener for FuseFileOpener {
                 },
                 path: path.to_string_lossy().to_string(),
             })
+            .map_err(|_| FsError::IOError)?
+            .blocking_detach()
             .map_err(|_| FsError::IOError)?;
 
         let meta = task
@@ -216,6 +225,8 @@ impl FileOpener for FuseFileOpener {
                 SerializationFormat::Bincode,
                 backend::OpenedFileIoRequest {},
             )
+            .map_err(|_| FsError::IOError)?
+            .blocking_detach()
             .map_err(|_| FsError::IOError)?;
 
         return Ok(Box::new(FuseVirtualFile {
@@ -232,9 +243,9 @@ impl FileOpener for FuseFileOpener {
 pub struct FuseVirtualFile {
     fs: FuseFileSystem,
     #[derivative(Debug = "ignore")]
-    task: AsyncWasmBusResult<Result<(), backend::FsError>>,
+    task: AsyncWasmBusSession,
     #[derivative(Debug = "ignore")]
-    io: AsyncWasmBusResult<Result<(), backend::FsError>>,
+    io: AsyncWasmBusSession,
     meta: backend::Metadata,
 }
 
