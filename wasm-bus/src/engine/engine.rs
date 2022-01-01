@@ -302,10 +302,13 @@ impl BusEngine {
             let mut state = BusEngine::write();
             state.listening.insert(
                 topic.clone(),
-                ListenService::new(format, Arc::new(move |handle, req| {
-                    let res = callback(handle, req);
-                    Box::pin(async move { Ok(res?.await?) })
-                })),
+                ListenService::new(
+                    format,
+                    Arc::new(move |handle, req| {
+                        let res = callback(handle, req);
+                        Box::pin(async move { Ok(res?.await?) })
+                    }),
+                ),
             );
         }
 
@@ -314,8 +317,11 @@ impl BusEngine {
 
     #[cfg(feature = "rt")]
     #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) fn listen_internal<F, Fut>(_format: SerializationFormat, _topic: String, _callback: F)
-    where
+    pub(crate) fn listen_internal<F, Fut>(
+        _format: SerializationFormat,
+        _topic: String,
+        _callback: F,
+    ) where
         F: Fn(CallHandle, Vec<u8>) -> Result<Fut, CallError>,
         F: Send + Sync + 'static,
         Fut: Future<Output = Result<Vec<u8>, CallError>>,
@@ -326,8 +332,12 @@ impl BusEngine {
 
     #[cfg(feature = "rt")]
     #[cfg(target_arch = "wasm32")]
-    pub(crate) fn respond_to_internal<F, Fut>(format: SerializationFormat, topic: String, parent: CallHandle, callback: F)
-    where
+    pub(crate) fn respond_to_internal<F, Fut>(
+        format: SerializationFormat,
+        topic: String,
+        parent: CallHandle,
+        callback: F,
+    ) where
         F: Fn(CallHandle, Vec<u8>) -> Result<Fut, CallError>,
         F: Send + Sync + 'static,
         Fut: Future<Output = Result<Vec<u8>, CallError>>,
@@ -354,8 +364,12 @@ impl BusEngine {
 
     #[cfg(feature = "rt")]
     #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) fn respond_to_internal<F, Fut>(_format: SerializationFormat, _topic: String, _parent: CallHandle, _callback: F)
-    where
+    pub(crate) fn respond_to_internal<F, Fut>(
+        _format: SerializationFormat,
+        _topic: String,
+        _parent: CallHandle,
+        _callback: F,
+    ) where
         F: Fn(CallHandle, Vec<u8>) -> Result<Fut, CallError>,
         F: Send + Sync + 'static,
         Fut: Future<Output = Result<Vec<u8>, CallError>>,

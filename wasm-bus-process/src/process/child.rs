@@ -4,9 +4,9 @@ use std::pin::Pin;
 use std::sync::atomic::AtomicI32;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::task::Context;
 use std::task::Poll;
-use std::sync::Mutex;
 
 use super::*;
 use crate::api;
@@ -146,8 +146,7 @@ impl Child {
             api::PoolClient::new_with_session(WAPM_NAME, session.as_str())
                 .blocking_spawn(spawn, on_stdout, on_stderr, on_exit)
         } else {
-            api::PoolClient::new(WAPM_NAME)
-                .blocking_spawn(spawn, on_stdout, on_stderr, on_exit)
+            api::PoolClient::new(WAPM_NAME).blocking_spawn(spawn, on_stdout, on_stderr, on_exit)
         }
         .map_err(|err| err.into_io_error())?
         .as_client()

@@ -478,11 +478,11 @@ unsafe fn wasm_bus_call(
             match response {
                 Ok(InvokeResult::Response(response)) => {
                     data_feeder.feed_bytes_or_error(Ok(response));
-                },
+                }
                 Ok(InvokeResult::ResponseThenWork(response, work)) => {
                     data_feeder.feed_bytes_or_error(Ok(response));
                     work.await;
-                },
+                }
                 Err(err) => data_feeder.feed_bytes_or_error(Err(err)),
             }
             thread

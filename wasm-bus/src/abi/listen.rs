@@ -1,10 +1,10 @@
 use derivative::*;
-use wasm_bus_types::SerializationFormat;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
+use wasm_bus_types::SerializationFormat;
 
 use crate::abi::CallError;
 use crate::abi::CallHandle;
@@ -57,7 +57,7 @@ impl ListenService {
                     // to manually close the handle themselves)
                     let res = match format {
                         SerializationFormat::Bincode => bincode::serialize(&()).unwrap(),
-                        SerializationFormat::Json => serde_json::to_vec(&()).unwrap()
+                        SerializationFormat::Json => serde_json::to_vec(&()).unwrap(),
                     };
                     crate::abi::syscall::reply(handle, &res[..]);
                     return;

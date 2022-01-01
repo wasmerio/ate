@@ -10,10 +10,9 @@ use crate::api::AsyncResult;
 use std::future::Future;
 use std::pin::Pin;
 
-pub enum InvokeResult
-{
+pub enum InvokeResult {
     Response(Vec<u8>),
-    ResponseThenWork(Vec<u8>, Pin<Box<dyn Future<Output=()> + Send + 'static>>),
+    ResponseThenWork(Vec<u8>, Pin<Box<dyn Future<Output = ()> + Send + 'static>>),
 }
 
 #[async_trait]
@@ -77,7 +76,10 @@ where
     T: Serialize + Send,
 {
     async fn process(&mut self) -> Result<InvokeResult, CallError> {
-        Ok(InvokeResult::Response(encode_response(self.format, &self.value)?))
+        Ok(InvokeResult::Response(encode_response(
+            self.format,
+            &self.value,
+        )?))
     }
 }
 
@@ -89,6 +91,9 @@ where
 {
     async fn process(&mut self) -> Result<InvokeResult, CallError> {
         let result = self.rx.recv().await.ok_or_else(|| CallError::Aborted)?;
-        Ok(InvokeResult::Response(encode_response(self.format, &result)?))
+        Ok(InvokeResult::Response(encode_response(
+            self.format,
+            &result,
+        )?))
     }
 }

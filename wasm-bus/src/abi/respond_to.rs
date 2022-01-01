@@ -36,10 +36,11 @@ pub struct RespondToService {
 }
 
 impl RespondToService {
-    pub fn new(
-        format: SerializationFormat,
-    ) -> RespondToService {
-        RespondToService { format, callbacks: Default::default() }
+    pub fn new(format: SerializationFormat) -> RespondToService {
+        RespondToService {
+            format,
+            callbacks: Default::default(),
+        }
     }
 
     pub fn add(
@@ -93,7 +94,7 @@ impl RespondToService {
                     // to manually close the handle themselves)
                     let res = match format {
                         SerializationFormat::Bincode => bincode::serialize(&()).unwrap(),
-                        SerializationFormat::Json => serde_json::to_vec(&()).unwrap()
+                        SerializationFormat::Json => serde_json::to_vec(&()).unwrap(),
                     };
                     crate::abi::syscall::reply(handle, &res[..]);
                     return;

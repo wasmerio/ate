@@ -231,9 +231,9 @@ impl Invokable for WebSocketInvoker {
         let ws = self.ws.take();
         if let Some(ws) = ws {
             let fut = Box::pin(ws.run());
-            Ok(InvokeResult::ResponseThenWork (
+            Ok(InvokeResult::ResponseThenWork(
                 encode_response(SerializationFormat::Bincode, &())?,
-                fut
+                fut,
             ))
         } else {
             Err(CallError::Unknown)

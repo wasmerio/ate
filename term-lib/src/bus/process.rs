@@ -251,7 +251,7 @@ impl ProcessExecFactory {
                             eval_rx,
                             on_stdout: ctx.on_stdout,
                             on_stderr: ctx.on_stderr,
-                            on_exit: ctx.on_exit
+                            on_exit: ctx.on_exit,
                         }),
                     },
                     session: ProcessExecSession {
@@ -395,9 +395,9 @@ impl Invokable for ProcessExecInvokable {
         let exec = self.exec.take();
         if let Some(exec) = exec {
             let fut = Box::pin(exec.run());
-            Ok(InvokeResult::ResponseThenWork (
+            Ok(InvokeResult::ResponseThenWork(
                 encode_response(SerializationFormat::Bincode, &())?,
-                fut
+                fut,
             ))
         } else {
             Err(CallError::Unknown)

@@ -125,7 +125,7 @@ mod raw {
 
         // Indicates that a fault has occured while processing a call
         pub(crate) fn fault(handle: u32, error: u32);
-        
+
         // Returns the response of a listen invokation to a program
         // from the operating system
         pub(crate) fn reply(handle: u32, response: u32, response_len: u32);

@@ -22,6 +22,8 @@ use bytes::Bytes;
 use fxhash::FxHashMap;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Mutex as StdMutex;
 use std::sync::RwLock as StdRwLock;
 use std::sync::Weak;
@@ -32,8 +34,6 @@ use std::{
 };
 use tokio::sync::mpsc;
 use tokio::sync::{Mutex, RwLock};
-use std::future::Future;
-use std::pin::Pin;
 
 use super::chain::*;
 use super::chain::*;
@@ -176,13 +176,30 @@ pub(crate) static GLOBAL_CERTIFICATES: Lazy<StdRwLock<Vec<AteHash>>> =
     Lazy::new(|| StdRwLock::new(Vec::new()));
 
 pub(crate) static GLOBAL_COMM_FACTORY: Lazy<
-    Mutex<Option<Arc<dyn Fn(MeshConnectAddr) -> Pin<Box<dyn Future<Output=Option<Stream>> + Send + Sync + 'static>> + Send + Sync + 'static>>>,
+    Mutex<
+        Option<
+            Arc<
+                dyn Fn(
+                        MeshConnectAddr,
+                    )
+                        -> Pin<Box<dyn Future<Output = Option<Stream>> + Send + Sync + 'static>>
+                    + Send
+                    + Sync
+                    + 'static,
+            >,
+        >,
+    >,
 > = Lazy::new(|| Mutex::new(None));
 
 pub fn add_global_certificate(cert: &AteHash) {
     GLOBAL_CERTIFICATES.write().unwrap().push(cert.clone());
 }
 
-pub async fn set_comm_factory(funct: impl Fn(MeshConnectAddr) -> Pin<Box<dyn Future<Output=Option<Stream>> + Send + Sync + 'static>> + Send + Sync + 'static) {
+pub async fn set_comm_factory(
+    funct: impl Fn(MeshConnectAddr) -> Pin<Box<dyn Future<Output = Option<Stream>> + Send + Sync + 'static>>
+        + Send
+        + Sync
+        + 'static,
+) {
     GLOBAL_COMM_FACTORY.lock().await.replace(Arc::new(funct));
 }

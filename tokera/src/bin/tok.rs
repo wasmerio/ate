@@ -141,7 +141,8 @@ async fn init_wasi() {
             .unwrap();
             Some(ate::comms::Stream::WasmWebSocket(ws))
         })
-    }).await;
+    })
+    .await;
 }
 
 #[cfg(target_arch = "wasm32")]

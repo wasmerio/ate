@@ -146,7 +146,7 @@ pub(crate) enum WasmBusThreadWork {
     },
     Drop {
         handle: CallHandle,
-    }
+    },
 }
 
 pub(super) struct WasmBusThreadInner {
@@ -243,8 +243,7 @@ impl WasmBusThread {
         (rx, handle)
     }
 
-    fn send_internal(&self, mut msg: WasmBusThreadWork)
-    {
+    fn send_internal(&self, mut msg: WasmBusThreadWork) {
         // If we are already polling then try and send it instantly
         if *self.polling.borrow() == true {
             match self.work_tx.try_send(msg) {
@@ -331,9 +330,7 @@ impl WasmBusThread {
     }
 
     pub fn drop_call(&mut self, handle: CallHandle) {
-        self.send_internal(WasmBusThreadWork::Drop {
-            handle
-        });
+        self.send_internal(WasmBusThreadWork::Drop { handle });
     }
 }
 
@@ -375,7 +372,11 @@ impl AsyncWasmBusResultRaw {
 #[async_trait]
 impl Invokable for AsyncWasmBusResultRaw {
     async fn process(&mut self) -> Result<InvokeResult, CallError> {
-        self.rx.recv().await.ok_or_else(|| CallError::Aborted)?.map(|a| InvokeResult::Response(a))
+        self.rx
+            .recv()
+            .await
+            .ok_or_else(|| CallError::Aborted)?
+            .map(|a| InvokeResult::Response(a))
     }
 }
 
@@ -543,9 +544,7 @@ impl AsyncWasmBusSession {
     }
 }
 
-impl Drop
-for AsyncWasmBusSession
-{
+impl Drop for AsyncWasmBusSession {
     fn drop(&mut self) {
         self.thread.drop_call(self.handle.handle());
     }

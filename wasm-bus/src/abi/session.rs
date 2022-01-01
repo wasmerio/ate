@@ -8,9 +8,7 @@ pub struct WasmBusSession {
 
 impl WasmBusSession {
     pub fn new(handle: CallHandle) -> WasmBusSession {
-        WasmBusSession {
-            handle,
-        }
+        WasmBusSession { handle }
     }
 
     pub fn handle(&self) -> CallHandle {
