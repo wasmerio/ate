@@ -220,6 +220,7 @@ pub async fn exec_process(
 
     // Create the process factory that used by this process to create sub-processes
     let sub_process_factory = ProcessExecFactory::new(
+        ctx.abi.clone(),
         ctx.reactor.clone(),
         ctx.compiler,
         ctx.exec_factory.clone(),

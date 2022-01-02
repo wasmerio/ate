@@ -1,7 +1,9 @@
 use crate::api::System;
 use cooked_waker::*;
 use std::sync::atomic::*;
-use tokio::sync::mpsc;
+use std::sync::mpsc;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
@@ -12,7 +14,7 @@ pub(crate) struct ThreadWaker {
     system: System,
     count: AtomicUsize,
     last_poll: AtomicUsize,
-    work_tx: mpsc::Sender<WasmBusThreadWork>,
+    work_tx: Arc<Mutex<mpsc::Sender<WasmBusThreadWork>>>,
 }
 
 impl ThreadWaker {
@@ -21,7 +23,7 @@ impl ThreadWaker {
             system: System::default(),
             count: AtomicUsize::default(),
             last_poll: AtomicUsize::default(),
-            work_tx,
+            work_tx: Arc::new(Mutex::new(work_tx)),
         }
     }
 
@@ -34,15 +36,13 @@ impl ThreadWaker {
         let last = self.last_poll.load(Ordering::SeqCst);
         let prev = self.count.fetch_add(1, Ordering::SeqCst);
         if last == prev {
-            let retry = match self.work_tx.try_send(WasmBusThreadWork::Wake) {
-                Ok(_) => None,
-                Err(mpsc::error::TrySendError::Closed(a)) => Some(a),
-                Err(mpsc::error::TrySendError::Full(a)) => Some(a),
-            };
-            if let Some(retry) = retry {
+            if let Ok(guard) = self.work_tx.try_lock() {
+                let _ = guard.send(WasmBusThreadWork::Wake);
+            } else {
                 let work_tx = self.work_tx.clone();
                 self.system.fork_shared(move || async move {
-                    let _ = work_tx.send(retry).await;
+                    let guard = work_tx.lock().await;
+                    let _ = guard.send(WasmBusThreadWork::Wake);
                 });
             }
         }

@@ -227,7 +227,7 @@ unsafe fn wasm_bus_poll(thread: &WasmBusThread) {
     }
 
     // Lets wait for some work!
-    let work = thread.inner.unwrap().work_rx.blocking_recv();
+    let work = thread.inner.unwrap().work_rx.recv().ok();
     thread.waker.woken();
     match work {
         Some(WasmBusThreadWork::Call {
@@ -322,12 +322,24 @@ unsafe fn wasm_bus_listen(thread: &WasmBusThread, topic_ptr: WasmPtr<u8, Array>,
 
 // Indicates that a fault has occured while processing a call
 unsafe fn wasm_bus_fault(thread: &WasmBusThread, handle: CallHandle, error: u32) {
+    use tokio::sync::mpsc::error::TrySendError;
+
     debug!("wasm-bus::error (handle={}, error={})", handle.id, error);
 
     // Grab the sender we will relay this response to
     let error: CallError = error.into();
     if let Some(work) = thread.inner.unwrap().calls.remove(&handle) {
-        let _ = work.blocking_send(Err(error));
+        if let Err(err) = work.try_send(Err(error)) {
+            let response = match err {
+                TrySendError::Closed(a) => a,
+                TrySendError::Full(a) => a,
+            };
+            thread.system.task_shared(Box::new(move || {
+                Box::pin(async move {
+                    let _ = work.send(response).await;
+                })
+            }));
+        }
     }
 }
 
@@ -339,6 +351,8 @@ unsafe fn wasm_bus_reply(
     response_ptr: WasmPtr<u8, Array>,
     response_len: usize,
 ) {
+    use tokio::sync::mpsc::error::TrySendError;
+
     debug!(
         "wasm-bus::reply (handle={}, response={} bytes)",
         handle.id, response_len
@@ -352,7 +366,17 @@ unsafe fn wasm_bus_reply(
 
     // Grab the sender we will relay this response to
     if let Some(work) = thread.inner.unwrap().calls.remove(&handle) {
-        let _ = work.blocking_send(Ok(response));
+        if let Err(err) = work.try_send(Ok(response)) {
+            let response = match err {
+                TrySendError::Closed(a) => a,
+                TrySendError::Full(a) => a,
+            };
+            thread.system.task_shared(Box::new(move || {
+                Box::pin(async move {
+                    let _ = work.send(response).await;
+                })
+            }));
+        }
     }
 }
 

@@ -1,9 +1,9 @@
+use derivative::*;
 use proc_macro2::Span;
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::parse::{Parse, ParseStream};
 use syn::*;
-use derivative::*;
 
 use super::return_trait::*;
 

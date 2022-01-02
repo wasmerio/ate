@@ -1,6 +1,6 @@
+use derivative::*;
 use syn::parse::{Parse, ParseStream};
 use syn::*;
-use derivative::*;
 
 #[derive(Derivative, Clone)]
 #[derivative(Debug)]

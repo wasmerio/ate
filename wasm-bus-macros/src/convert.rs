@@ -550,14 +550,13 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                             let wapm = task.wapm();
                             let session = task.session().map(|a| a.to_string());
                             
-                            let mut ret = Self {
+                            Self {
                                 wapm,
                                 session,
                                 parent: Some(std::sync::Arc::new(task)),
                                 task: None,
                                 join: None,
-                            };
-                            return ret;
+                            }
                         }
 
                         pub fn id(&self) -> u32 {

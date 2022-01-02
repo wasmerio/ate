@@ -38,6 +38,8 @@ struct ProcessExecCreate {
 #[derive(Derivative, Clone)]
 #[derivative(Debug)]
 pub struct ProcessExecFactory {
+    #[derivative(Debug = "ignore")]
+    abi: Arc<dyn ConsoleAbi>,
     system: System,
     compiler: Compiler,
     #[derivative(Debug = "ignore")]
@@ -64,6 +66,7 @@ pub struct LaunchContext {
 
 impl ProcessExecFactory {
     pub fn new(
+        abi: Arc<dyn ConsoleAbi>,
         reactor: Arc<RwLock<Reactor>>,
         compiler: Compiler,
         exec_factory: EvalFactory,
@@ -74,6 +77,7 @@ impl ProcessExecFactory {
     ) -> ProcessExecFactory {
         let system = System::default();
         ProcessExecFactory {
+            abi,
             system,
             reactor,
             compiler,
@@ -113,6 +117,7 @@ impl ProcessExecFactory {
 
         // Push all the cloned variables into a background thread so
         // that it does not hurt anything
+        let abi = self.abi.clone();
         let reactor = self.reactor.clone();
         let compiler = self.compiler;
         let inherit_stdin = self.inherit_stdin.upgrade();
@@ -187,6 +192,7 @@ impl ProcessExecFactory {
 
             // Create the eval context
             let spawn = SpawnContext::new(
+                abi,
                 cmd,
                 job.env.deref().clone(),
                 job.clone(),

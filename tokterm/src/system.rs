@@ -131,42 +131,6 @@ impl SystemAbi for SysSystem {
         AsyncResult::new(SerializationFormat::Json, rx_done)
     }
 
-    async fn print(&self, text: String) {
-        use raw_tty::GuardMode;
-        let mut stdout = io::stdout().guard_mode().unwrap();
-        write!(&mut *stdout, "{}", text).unwrap();
-        stdout.flush().unwrap();
-    }
-
-    /// Writes output to the log
-    async fn log(&self, text: String) {
-        use raw_tty::GuardMode;
-        let mut stderr = io::stderr().guard_mode().unwrap();
-        write!(&mut *stderr, "{}\r\n", text).unwrap();
-        stderr.flush().unwrap();
-    }
-
-    /// Gets the number of columns and rows in the terminal
-    async fn console_rect(&self) -> ConsoleRect {
-        if let Some((w, h)) = term_size::dimensions() {
-            ConsoleRect {
-                cols: w as u32,
-                rows: h as u32,
-            }
-        } else {
-            ConsoleRect { cols: 80, rows: 25 }
-        }
-    }
-
-    /// Clears the terminal
-    async fn cls(&self) {
-        print!("{}[2J", 27 as char);
-    }
-
-    fn exit(&self) {
-        let _ = self.exit_tx.send(true);
-    }
-
     /// Fetches a data file from the local context of the process
     fn fetch_file(&self, path: &str) -> AsyncResult<Result<Vec<u8>, i32>> {
         let mut path = path.to_string();
@@ -263,5 +227,51 @@ impl SystemAbi for SysSystem {
 
     async fn web_socket(&self, url: &str) -> Result<Box<dyn WebSocketAbi>, String> {
         return Ok(Box::new(SysWebSocket::new(url).await));
+    }
+}
+
+#[async_trait]
+impl ConsoleAbi for SysSystem {
+    async fn stdout(&self, data: Vec<u8>) {
+        use raw_tty::GuardMode;
+        let mut stdout = io::stdout().guard_mode().unwrap();
+        stdout.write_all(&data[..]).unwrap();
+        stdout.flush().unwrap();
+    }
+
+    async fn stderr(&self, data: Vec<u8>) {
+        use raw_tty::GuardMode;
+        let mut stderr = io::stderr().guard_mode().unwrap();
+        stderr.write_all(&data[..]).unwrap();
+        stderr.flush().unwrap();
+    }
+
+    /// Writes output to the log
+    async fn log(&self, text: String) {
+        use raw_tty::GuardMode;
+        let mut stderr = io::stderr().guard_mode().unwrap();
+        write!(&mut *stderr, "{}\r\n", text).unwrap();
+        stderr.flush().unwrap();
+    }
+
+    /// Gets the number of columns and rows in the terminal
+    async fn console_rect(&self) -> ConsoleRect {
+        if let Some((w, h)) = term_size::dimensions() {
+            ConsoleRect {
+                cols: w as u32,
+                rows: h as u32,
+            }
+        } else {
+            ConsoleRect { cols: 80, rows: 25 }
+        }
+    }
+
+    /// Clears the terminal
+    async fn cls(&self) {
+        print!("{}[2J", 27 as char);
+    }
+
+    async fn exit(&self) {
+        let _ = self.exit_tx.send(true);
     }
 }

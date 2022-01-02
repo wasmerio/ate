@@ -41,16 +41,22 @@ pub struct Console {
     stderr: Fd,
     exec: EvalFactory,
     compiler: Compiler,
+    abi: Arc<dyn ConsoleAbi>,
 }
 
 impl Console {
-    pub fn new(location: String, user_agent: String, compiler: Compiler) -> Console {
+    pub fn new(
+        location: String,
+        user_agent: String,
+        compiler: Compiler,
+        abi: Arc<dyn ConsoleAbi>,
+    ) -> Console {
         let reactor = Reactor::new();
 
         let state = Arc::new(Mutex::new(ConsoleState::new(super::fs::create_root_fs())));
-        let (stdout, mut tty_rx) = pipe_out(true);
+        let (stdout, mut stdout_rx) = pipe_out(true);
+        let (stderr, mut stderr_rx) = pipe_out(true);
         let (log, mut log_rx) = pipe_out(false);
-        let stderr = stdout.clone();
         let stdout = Stdout::new(stdout);
 
         let system = System::default();
@@ -58,12 +64,27 @@ impl Console {
 
         // Stdout and Stderr
         {
+            let abi = abi.clone();
             let state = state.clone();
             system.fork_local(async move {
-                while let Some(data) = tty_rx.recv().await {
+                while let Some(data) = stdout_rx.recv().await {
                     let text = String::from_utf8_lossy(&data[..])[..].replace("\n", "\r\n");
                     let is_unfinished = is_cleared_line(&text) == false;
-                    system.print(text).await;
+                    abi.stdout(text.as_bytes().to_vec()).await;
+
+                    let mut state = state.lock().unwrap();
+                    state.unfinished_line = is_unfinished;
+                }
+            });
+        }
+        {
+            let abi = abi.clone();
+            let state = state.clone();
+            system.fork_local(async move {
+                while let Some(data) = stderr_rx.recv().await {
+                    let text = String::from_utf8_lossy(&data[..])[..].replace("\n", "\r\n");
+                    let is_unfinished = is_cleared_line(&text) == false;
+                    abi.stderr(text.as_bytes().to_vec()).await;
 
                     let mut state = state.lock().unwrap();
                     state.unfinished_line = is_unfinished;
@@ -72,16 +93,19 @@ impl Console {
         }
 
         // Log
-        system.fork_local(async move {
-            while let Some(data) = log_rx.recv().await {
-                let txt = String::from_utf8_lossy(&data[..]);
-                let mut txt = txt.as_ref();
-                while txt.ends_with("\n") || txt.ends_with("\r") {
-                    txt = &txt[..(txt.len() - 1)];
+        {
+            let abi = abi.clone();
+            system.fork_local(async move {
+                while let Some(data) = log_rx.recv().await {
+                    let txt = String::from_utf8_lossy(&data[..]);
+                    let mut txt = txt.as_ref();
+                    while txt.ends_with("\n") || txt.ends_with("\r") {
+                        txt = &txt[..(txt.len() - 1)];
+                    }
+                    abi.log(txt.to_string()).await;
                 }
-                system.log(txt.to_string()).await;
-            }
-        });
+            });
+        }
 
         let location = url::Url::parse(&location).unwrap();
 
@@ -110,6 +134,7 @@ impl Console {
             reactor,
             exec: exec_factory,
             compiler,
+            abi,
         }
     }
 
@@ -161,8 +186,7 @@ impl Console {
             init_file.write_all(run_command.as_bytes()).unwrap();
         }
 
-        let system = System::default();
-        let rect = system.console_rect().await;
+        let rect = self.abi.console_rect().await;
         self.tty.set_bounds(rect.cols, rect.rows).await;
 
         Console::update_prompt(false, &self.state, &self.tty).await;
@@ -242,6 +266,7 @@ impl Console {
 
         // Spawn the process and attach it to the job
         let ctx = SpawnContext::new(
+            self.abi.clone(),
             cmd.clone(),
             env,
             job.clone(),
@@ -345,7 +370,7 @@ impl Console {
     pub async fn on_ctrl_l(&mut self) {
         self.tty.reset_line().await;
         self.tty.draw_prompt().await;
-        System::default().cls().await;
+        self.abi.cls().await;
     }
 
     pub async fn on_tab(&mut self, _job: Option<Job>) {
@@ -395,7 +420,7 @@ impl Console {
     }
 
     pub async fn on_resize(&mut self) {
-        let rect = System::default().console_rect().await;
+        let rect = self.abi.console_rect().await;
         self.tty.set_bounds(rect.cols, rect.rows).await;
     }
 

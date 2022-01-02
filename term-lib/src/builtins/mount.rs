@@ -57,6 +57,7 @@ pub(super) fn mount(
     }
 
     let factory = ProcessExecFactory::new(
+        ctx.abi.clone(),
         ctx.reactor.clone(),
         ctx.compiler,
         ctx.exec_factory.clone(),

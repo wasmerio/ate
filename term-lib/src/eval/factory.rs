@@ -10,6 +10,7 @@ use crate::stdout::*;
 use crate::tty::*;
 
 pub struct SpawnContext {
+    pub abi: Arc<dyn ConsoleAbi>,
     pub cmd: String,
     pub env: Environment,
     pub job: Job,
@@ -25,6 +26,7 @@ pub struct SpawnContext {
 
 impl SpawnContext {
     pub fn new(
+        abi: Arc<dyn ConsoleAbi>,
         cmd: String,
         env: Environment,
         job: Job,
@@ -38,6 +40,7 @@ impl SpawnContext {
         compiler: Compiler,
     ) -> SpawnContext {
         SpawnContext {
+            abi,
             cmd,
             env,
             job,
@@ -101,6 +104,7 @@ impl EvalFactory {
         // Create the evaluation context
         let ctx = crate::eval::EvalContext {
             system: System::default(),
+            abi: ctx.abi.clone(),
             env: ctx.env,
             bins: self.state.bins.clone(),
             last_return: 0i32,

@@ -19,6 +19,7 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::sync::mpsc;
 use tokio::sync::watch;
+use tokio::sync::Mutex as AsyncMutex;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::*;
@@ -26,7 +27,6 @@ use wasm_bus::abi::*;
 use super::*;
 
 use crate::api::*;
-use crate::common::*;
 
 pub struct WasmBusThreadPool {
     threads: Arc<RwLock<HashMap<u32, WasmBusThread>>>,
@@ -83,7 +83,7 @@ impl WasmBusThreadPool {
             return thread.clone();
         }
 
-        let (work_tx, work_rx) = mpsc::channel(MAX_MPSC);
+        let (work_tx, work_rx) = std::sync::mpsc::channel();
         let (polling_tx, polling_rx) = watch::channel(false);
         let inner = WasmBusThreadInner {
             invocations: HashMap::default(),
@@ -104,7 +104,7 @@ impl WasmBusThreadPool {
             inner: Arc::new(WasmBusThreadProtected {
                 inside: RefCell::new(inner),
             }),
-            work_tx,
+            work_tx: Arc::new(AsyncMutex::new(work_tx)),
             memory: thread.memory_clone(),
             wasm_bus_free: LazyInit::new(),
             wasm_bus_malloc: LazyInit::new(),
@@ -157,7 +157,7 @@ pub(super) struct WasmBusThreadInner {
     pub(super) listens: HashSet<String>,
     pub(super) factory: BusFactory,
     #[allow(dead_code)]
-    pub(crate) work_rx: mpsc::Receiver<WasmBusThreadWork>,
+    pub(crate) work_rx: std::sync::mpsc::Receiver<WasmBusThreadWork>,
 }
 
 /// Caution! this class is used to access the protected area of the wasm bus thread
@@ -183,7 +183,7 @@ pub struct WasmBusThread {
     pub pool: Arc<WasmBusThreadPool>,
     pub polling: watch::Receiver<bool>,
     pub(crate) inner: Arc<WasmBusThreadProtected>,
-    pub(crate) work_tx: mpsc::Sender<WasmBusThreadWork>,
+    pub(crate) work_tx: Arc<AsyncMutex<std::sync::mpsc::Sender<WasmBusThreadWork>>>,
     #[wasmer(export)]
     memory: LazyInit<Memory>,
 
@@ -243,19 +243,12 @@ impl WasmBusThread {
         (rx, handle)
     }
 
-    fn send_internal(&self, mut msg: WasmBusThreadWork) {
+    fn send_internal(&self, msg: WasmBusThreadWork) {
         // If we are already polling then try and send it instantly
         if *self.polling.borrow() == true {
-            match self.work_tx.try_send(msg) {
-                Ok(_) => {
-                    return;
-                }
-                Err(mpsc::error::TrySendError::Closed(a)) => {
-                    msg = a;
-                }
-                Err(mpsc::error::TrySendError::Full(a)) => {
-                    msg = a;
-                }
+            if let Ok(guard) = self.work_tx.try_lock() {
+                guard.send(msg).unwrap();
+                return;
             }
         }
 
@@ -264,7 +257,7 @@ impl WasmBusThread {
         let polling = self.polling.clone();
         self.system.fork_shared(move || async move {
             if async_wait_for_poll(polling).await {
-                let _ = work_tx.send(msg).await;
+                let _ = work_tx.lock().await.send(msg);
             }
         });
     }
@@ -432,24 +425,48 @@ where
         }
     }
 
+    pub fn block_on_safe(mut self) -> Result<T, CallError>
+    where
+        T: Send + 'static,
+    {
+        let format = self.format;
+        let (block_on_tx, block_on_rx) = std::sync::mpsc::channel();
+        let sys = System::default();
+
+        sys.fork_shared(move || async move {
+            if let Some(data) = self.rx.recv().await {
+                self.should_drop = false;
+                let _ = block_on_tx.send(data);
+            }
+        });
+
+        let data = block_on_rx.recv().map_err(|_| CallError::Aborted)??;
+        Self::block_on_process(format, data)
+    }
+
     pub fn block_on(mut self) -> Result<T, CallError> {
         self.block_on_internal()
     }
 
     fn block_on_internal(&mut self) -> Result<T, CallError> {
+        let format = self.format;
         let data = self
             .rx
             .blocking_recv()
             .ok_or_else(|| CallError::Aborted)??;
         self.should_drop = false;
-        match self.format {
+        Self::block_on_process(format, data)
+    }
+
+    fn block_on_process(format: SerializationFormat, data: Vec<u8>) -> Result<T, CallError> {
+        match format {
             SerializationFormat::Bincode => match bincode::deserialize::<T>(&data[..]) {
                 Ok(a) => Ok(a),
                 Err(err) => {
                     debug!(
                         "failed to deserialize the response object (type={}, format={}) - {}",
                         type_name::<T>(),
-                        self.format,
+                        format,
                         err
                     );
                     Err(CallError::SerializationFailed)
@@ -461,7 +478,7 @@ where
                     debug!(
                         "failed to deserialize the response object (type={}, format={}) - {}",
                         type_name::<T>(),
-                        self.format,
+                        format,
                         err
                     );
                     Err(CallError::SerializationFailed)
@@ -523,6 +540,20 @@ where
             self.handle.clone(),
             self.format.clone(),
         ))
+    }
+
+    pub fn blocking_detach_safe(mut self) -> Result<AsyncWasmBusSession, CallError>
+    where
+        T: Send + 'static,
+    {
+        self.should_drop = false;
+        let thread = self.thread.clone();
+        let handle = self.handle.clone();
+        let format = self.format.clone();
+
+        let _ = self.block_on_safe()?;
+
+        Ok(AsyncWasmBusSession::new(&thread, handle, format))
     }
 }
 

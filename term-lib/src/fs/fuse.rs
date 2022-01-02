@@ -102,7 +102,7 @@ impl FileSystem for FuseFileSystem {
                 path: path.to_string_lossy().to_string(),
             })
             .map_err(|_| FsError::IOError)?
-            .block_on()
+            .block_on_safe()
             .map_err(|_| FsError::IOError)?;
 
         Ok(conv_dir(dir.map_err(conv_fs_error)?))
@@ -119,7 +119,7 @@ impl FileSystem for FuseFileSystem {
                 },
             )
             .map_err(|_| FsError::IOError)?
-            .block_on()
+            .block_on_safe()
             .map_err(|_| FsError::IOError)?
             .map_err(conv_fs_error)?;
         Ok(())
@@ -133,7 +133,7 @@ impl FileSystem for FuseFileSystem {
                 path: path.to_string_lossy().to_string(),
             })
             .map_err(|_| FsError::IOError)?
-            .block_on()
+            .block_on_safe()
             .map_err(|_| FsError::IOError)?
             .map_err(conv_fs_error)
     }
@@ -147,7 +147,7 @@ impl FileSystem for FuseFileSystem {
                 to: to.to_string_lossy().to_string(),
             })
             .map_err(|_| FsError::IOError)?
-            .block_on()
+            .block_on_safe()
             .map_err(|_| FsError::IOError)?
             .map_err(conv_fs_error)
     }
@@ -161,7 +161,7 @@ impl FileSystem for FuseFileSystem {
                 path: path.to_string_lossy().to_string(),
             })
             .map_err(|_| FsError::IOError)?
-            .block_on()
+            .block_on_safe()
             .map_err(|_| FsError::IOError)?;
 
         Ok(conv_metadata(metadata.map_err(conv_fs_error)?))
@@ -176,7 +176,7 @@ impl FileSystem for FuseFileSystem {
                 path: path.to_string_lossy().to_string(),
             })
             .map_err(|_| FsError::IOError)?
-            .block_on()
+            .block_on_safe()
             .map_err(|_| FsError::IOError)?;
 
         Ok(conv_metadata(metadata.map_err(conv_fs_error)?))
@@ -190,7 +190,7 @@ impl FileSystem for FuseFileSystem {
                 path: path.to_string_lossy().to_string(),
             })
             .map_err(|_| FsError::IOError)?
-            .block_on()
+            .block_on_safe()
             .map_err(|_| FsError::IOError)?
             .map_err(conv_fs_error)
     }
@@ -237,7 +237,7 @@ impl FileOpener for FuseFileOpener {
                 debug!("fuse_file_system::open() - open call failed - {}", err);
                 FsError::IOError
             })?
-            .blocking_detach()
+            .blocking_detach_safe()
             .map_err(|err| {
                 debug!(
                     "fuse_file_system::open() - detached open call failed - {}",
@@ -252,7 +252,7 @@ impl FileOpener for FuseFileOpener {
                 debug!("fuse_file_system::open() - open meta call failed - {}", err);
                 FsError::IOError
             })?
-            .block_on()
+            .block_on_safe()
             .map_err(|err| {
                 debug!(
                     "fuse_file_system::open() - detached open meta call failed - {}",
@@ -274,7 +274,7 @@ impl FileOpener for FuseFileOpener {
                 error!("fuse_file_system::open() - open io call failed - {}", err);
                 FsError::IOError
             })?
-            .blocking_detach()
+            .blocking_detach_safe()
             .map_err(|err| {
                 error!(
                     "fuse_file_system::open() - detached open io call failed - {}",
@@ -316,7 +316,7 @@ impl Seek for FuseVirtualFile {
             .io
             .call_with_format::<Result<_, backend::FsError>, _>(SerializationFormat::Bincode, seek)
             .map_err(|err| err.into_io_error())?
-            .block_on()
+            .block_on_safe()
             .map_err(|err| err.into_io_error())?
             .map_err(|err| err.into());
         Ok(ret?)
@@ -332,7 +332,7 @@ impl Write for FuseVirtualFile {
                 backend::FileIoWriteRequest { data: buf.to_vec() },
             )
             .map_err(|err| err.into_io_error())?
-            .block_on()
+            .block_on_safe()
             .map_err(|err| err.into_io_error())?
             .map_err(|err| err.into());
         Ok(ret?)
@@ -346,7 +346,7 @@ impl Write for FuseVirtualFile {
                 backend::FileIoFlushRequest {},
             )
             .map_err(|err| err.into_io_error())?
-            .block_on()
+            .block_on_safe()
             .map_err(|err| err.into_io_error())?
             .map_err(|err| err.into());
         Ok(ret?)
@@ -364,7 +364,7 @@ impl Read for FuseVirtualFile {
                 },
             )
             .map_err(|err| err.into_io_error())?
-            .block_on()
+            .block_on_safe()
             .map_err(|err| err.into_io_error())?
             .map_err(|err| err.into());
         let data = data?;
@@ -403,7 +403,7 @@ impl VirtualFile for FuseVirtualFile {
                 len: new_size,
             })
             .map_err(|_| FsError::IOError)?
-            .block_on()
+            .block_on_safe()
             .map_err(|_| FsError::IOError)?
             .map_err(conv_fs_error);
         result?;
@@ -416,7 +416,7 @@ impl VirtualFile for FuseVirtualFile {
         self.task
             .call::<Result<_, backend::FsError>, _>(backend::OpenedFileUnlinkRequest {})
             .map_err(|_| FsError::IOError)?
-            .block_on()
+            .block_on_safe()
             .map_err(|_| FsError::IOError)?
             .map_err(conv_fs_error)
     }

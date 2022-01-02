@@ -1,4 +1,5 @@
 use chrono::prelude::*;
+use std::sync::Arc;
 use term_lib::api::*;
 use term_lib::common::MAX_MPSC;
 use term_lib::console::Console;
@@ -19,6 +20,7 @@ use xterm_js_rs::Theme;
 use xterm_js_rs::{LogLevel, OnKeyEvent, Terminal, TerminalOptions};
 
 use crate::system::TerminalCommand;
+use crate::system::WebConsole;
 use crate::system::WebSystem;
 
 use super::common::*;
@@ -113,8 +115,9 @@ pub fn start() -> Result<(), JsValue> {
     }
 
     let pool = WebThreadPool::new_with_max_threads().unwrap();
-    let system = WebSystem::new(pool.clone(), term_tx);
-    term_lib::api::set_system_abi(system);
+    let web_system = WebSystem::new(pool.clone());
+    let web_console = WebConsole::new(term_tx);
+    term_lib::api::set_system_abi(web_system);
     let system = System::default();
 
     let front_buffer = window
@@ -127,7 +130,12 @@ pub fn start() -> Result<(), JsValue> {
         .map_err(|_| ())
         .unwrap();
 
-    let mut console = Console::new(location, user_agent, term_lib::eval::Compiler::Default);
+    let mut console = Console::new(
+        location,
+        user_agent,
+        term_lib::eval::Compiler::Default,
+        Arc::new(web_console),
+    );
     let tty = console.tty().clone();
 
     let (tx, mut rx) = mpsc::channel(MAX_MPSC);

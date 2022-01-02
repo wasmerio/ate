@@ -24,12 +24,11 @@ pub(crate) enum TerminalCommand {
 
 pub(crate) struct WebSystem {
     pool: WebThreadPool,
-    term_tx: mpsc::Sender<TerminalCommand>,
 }
 
 impl WebSystem {
-    pub(crate) fn new(pool: WebThreadPool, term_tx: mpsc::Sender<TerminalCommand>) -> WebSystem {
-        WebSystem { pool, term_tx }
+    pub(crate) fn new(pool: WebThreadPool) -> WebSystem {
+        WebSystem { pool }
     }
 }
 
@@ -86,31 +85,6 @@ impl SystemAbi for WebSystem {
             })
         }));
         AsyncResult::new(SerializationFormat::Json, rx)
-    }
-
-    async fn print(&self, text: String) {
-        let _ = self.term_tx.send(TerminalCommand::Print(text)).await;
-    }
-
-    async fn log(&self, text: String) {
-        console::log(text.as_str());
-    }
-
-    async fn console_rect(&self) -> ConsoleRect {
-        let (ret_tx, mut ret_rx) = mpsc::channel(1);
-        let _ = self
-            .term_tx
-            .send(TerminalCommand::ConsoleRect(ret_tx))
-            .await;
-        ret_rx.recv().await.unwrap()
-    }
-
-    async fn cls(&self) {
-        let _ = self.term_tx.send(TerminalCommand::Cls).await;
-    }
-
-    fn exit(&self) {
-        // Web terminals can not exit as they have nowhere to go!
     }
 
     fn fetch_file(&self, path: &str) -> AsyncResult<Result<Vec<u8>, i32>> {
@@ -187,6 +161,52 @@ impl SystemAbi for WebSystem {
 
     async fn web_socket(&self, url: &str) -> Result<Box<dyn WebSocketAbi>, String> {
         WebSocket::new(url)
+    }
+}
+
+pub(crate) struct WebConsole {
+    term_tx: mpsc::Sender<TerminalCommand>,
+}
+
+impl WebConsole {
+    pub(crate) fn new(term_tx: mpsc::Sender<TerminalCommand>) -> WebConsole {
+        WebConsole { term_tx }
+    }
+}
+
+#[async_trait]
+impl ConsoleAbi for WebConsole {
+    async fn stdout(&self, data: Vec<u8>) {
+        if let Ok(text) = String::from_utf8(data) {
+            let _ = self.term_tx.send(TerminalCommand::Print(text)).await;
+        }
+    }
+
+    async fn stderr(&self, data: Vec<u8>) {
+        if let Ok(text) = String::from_utf8(data) {
+            let _ = self.term_tx.send(TerminalCommand::Print(text)).await;
+        }
+    }
+
+    async fn log(&self, text: String) {
+        console::log(text.as_str());
+    }
+
+    async fn console_rect(&self) -> ConsoleRect {
+        let (ret_tx, mut ret_rx) = mpsc::channel(1);
+        let _ = self
+            .term_tx
+            .send(TerminalCommand::ConsoleRect(ret_tx))
+            .await;
+        ret_rx.recv().await.unwrap()
+    }
+
+    async fn cls(&self) {
+        let _ = self.term_tx.send(TerminalCommand::Cls).await;
+    }
+
+    async fn exit(&self) {
+        // Web terminals can not exit as they have nowhere to go!
     }
 }
 

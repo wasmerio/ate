@@ -49,6 +49,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Set the system
     let (tx_exit, mut rx_exit) = watch::channel(false);
     let sys = tokterm::system::SysSystem::new(tx_exit);
+    let con = Arc::new(sys.clone());
     term_lib::api::set_system_abi(sys.clone());
     let system = System::default();
 
@@ -71,7 +72,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     sys.block_on(async move {
         let location = "wss://localhost/".to_string();
         let user_agent = "noagent".to_string();
-        let mut console = Console::new(location, user_agent, compiler);
+        let mut console = Console::new(location, user_agent, compiler, con);
         console.init().await;
 
         // Process data until the console closes

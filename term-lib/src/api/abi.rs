@@ -8,6 +8,7 @@ use wasm_bus::abi::SerializationFormat;
 
 use super::*;
 
+#[derive(Debug, Clone)]
 pub struct ConsoleRect {
     pub cols: u32,
     pub rows: u32,
@@ -21,6 +22,32 @@ pub struct ReqwestResponse {
     pub status: u16,
     pub status_text: String,
     pub headers: Vec<(String, String)>,
+}
+
+// This ABI implements a set of emulated operating system
+// functions that are specific to a console session
+#[async_trait]
+pub trait ConsoleAbi
+where
+    Self: Send + Sync,
+{
+    /// Writes output to the console
+    async fn stdout(&self, data: Vec<u8>);
+
+    /// Writes output to the console
+    async fn stderr(&self, data: Vec<u8>);
+
+    /// Writes output to the log
+    async fn log(&self, text: String);
+
+    /// Gets the number of columns and rows in the terminal
+    async fn console_rect(&self) -> ConsoleRect;
+
+    /// Clears the terminal
+    async fn cls(&self);
+
+    /// Tell the process to exit (if it can)
+    async fn exit(&self);
 }
 
 // This ABI implements a number of low level operating system
@@ -65,21 +92,6 @@ where
 
     /// Puts the current thread to sleep for a fixed number of milliseconds
     fn sleep(&self, ms: u128) -> AsyncResult<()>;
-
-    /// Writes output to the console
-    async fn print(&self, text: String);
-
-    /// Writes output to the log
-    async fn log(&self, text: String);
-
-    /// Gets the number of columns and rows in the terminal
-    async fn console_rect(&self) -> ConsoleRect;
-
-    /// Clears the terminal
-    async fn cls(&self);
-
-    /// Tell the process to exit (if it can)
-    fn exit(&self);
 
     /// Fetches a data file from the local context of the process
     fn fetch_file(&self, path: &str) -> AsyncResult<Result<Vec<u8>, i32>>;

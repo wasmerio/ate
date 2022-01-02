@@ -95,6 +95,7 @@ impl std::str::FromStr for Compiler {
 #[derive(Clone)]
 pub struct EvalContext {
     pub system: System,
+    pub abi: Arc<dyn ConsoleAbi>,
     pub env: Environment,
     pub bins: BinFactory,
     pub last_return: i32,

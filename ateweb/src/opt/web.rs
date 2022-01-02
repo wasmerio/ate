@@ -8,7 +8,7 @@ use clap::Parser;
 /// Runs a web server that will serve content from a Tokera file system
 #[derive(Parser)]
 pub struct OptsWeb {
-    /// IP address that the datachain server will isten on
+    /// IP address that the web server will isten on
     #[clap(short, long, default_value = "::")]
     pub listen: IpAddr,
     /// Port that the server will listen on for HTTP requests

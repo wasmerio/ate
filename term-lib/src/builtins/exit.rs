@@ -11,6 +11,9 @@ pub(super) fn exit(
     ctx: &mut EvalContext,
     _stdio: Stdio,
 ) -> Pin<Box<dyn Future<Output = CommandResult>>> {
-    ctx.system.exit();
-    Box::pin(async move { ExecResponse::Immediate(0).into() })
+    let abi = ctx.abi.clone();
+    Box::pin(async move {
+        abi.exit().await;
+        ExecResponse::Immediate(0).into()
+    })
 }
