@@ -12,6 +12,8 @@ use std::task::{Context, Waker};
 use std::{collections::HashMap, collections::HashSet, sync::Mutex};
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
+#[allow(unused_imports, dead_code)]
+use std::any::type_name;
 
 use crate::abi::*;
 
@@ -102,11 +104,30 @@ impl BusEngine {
             if let Some(call) = state.calls.get(&handle) {
                 let call = Arc::clone(call);
                 drop(state);
+                trace!(
+                    "wasm_bus_finish (handle={}, response={} bytes, wapm={}, topic={})",
+                    handle.id,
+                    response.len(),
+                    call.wapm(),
+                    call.topic()
+                );
                 call.data(response);
             } else if let Some(callback) = state.callbacks.get(&handle) {
                 let callback = Arc::clone(callback);
                 drop(state);
+                trace!(
+                    "wasm_bus_finish (handle={}, response={} bytes, topic={})",
+                    handle.id,
+                    response.len(),
+                    callback.topic()
+                );
                 let _ = callback.process(response);
+            } else {
+                trace!(
+                    "wasm_bus_finish (handle={}, response={} bytes, orphaned)",
+                    handle.id,
+                    response.len()
+                );
             }
         };
 
@@ -119,10 +140,14 @@ impl BusEngine {
 
     pub fn error(handle: CallHandle, err: CallError) {
         {
-            let mut state = BusEngine::write();
-            if let Some(call) = state.calls.remove(&handle) {
+            let state = BusEngine::read();
+            if let Some(call) = state.calls.get(&handle) {
+                let call = Arc::clone(call);
                 drop(state);
+                trace!("wasm_bus_err (handle={}, error={}, wapm={}, topic={})", handle.id, err, call.wapm(), call.topic());
                 call.error(err);
+            } else {
+                trace!("wasm_bus_err (handle={}, error={}, orphaned)", handle.id, err);
             }
         }
 
@@ -141,19 +166,30 @@ impl BusEngine {
         wakers.insert(handle.clone(), waker);
     }
 
-    pub fn remove(handle: &CallHandle) {
-        if let Some(mut state) = BusEngine::try_write() {
-            #[cfg(feature = "rt")]
-            for respond_to in state.respond_to.values_mut() {
-                respond_to.remove(handle);
-            }
-            state.handles.remove(handle);
-            if let Some(delayed_remove) = state.calls.remove(handle) {
-                drop(state);
-                drop(delayed_remove);
-            } else if let Some(delayed_remove) = state.callbacks.remove(handle) {
-                drop(state);
-                drop(delayed_remove);
+    pub fn remove(handle: &CallHandle, reason: &'static str) {
+        {
+            let mut delayed_drop1 = Vec::new();
+            let mut delayed_drop2 = Vec::new();
+            let mut delayed_drop3 = Vec::new();
+
+            {
+                let mut state = BusEngine::write();            
+                #[cfg(feature = "rt")]
+                state.handles.remove(handle);
+                if let Some(drop_me) = state.calls.remove(handle) {
+                    trace!("wasm_bus_drop (handle={}, reason='{}', wapm={}, topic={})", handle.id, reason, drop_me.wapm(), drop_me.topic());
+                    delayed_drop2.push(drop_me);
+                } else if let Some(drop_me) = state.callbacks.remove(handle) {
+                    trace!("wasm_bus_drop (handle={}, reason='{}', topic={})", handle.id, reason, drop_me.topic());
+                    delayed_drop3.push(drop_me);
+                } else {
+                    trace!("wasm_bus_drop (handle={}, reason='{}', orphaned)", handle.id, reason);
+                }
+                for respond_to in state.respond_to.values_mut() {
+                    if let Some(drop_me) = respond_to.remove(handle) {
+                        delayed_drop1.push(drop_me);
+                    }
+                }
             }
         }
 
@@ -169,17 +205,22 @@ impl BusEngine {
         format: SerializationFormat,
         session: Option<String>,
     ) -> Call {
+        use std::sync::atomic::AtomicBool;
+
         let mut handle: CallHandle = crate::abi::syscall::handle().into();
         let mut call = Call {
+            state: Arc::new(Mutex::new(CallState {
+                result: None,
+                callbacks: Vec::new(),
+                
+            })),
             handle,
             parent,
             wapm,
             topic,
             format,
             session,
-            state: Arc::new(Mutex::new(CallState { result: None })),
-            callbacks: Arc::new(Mutex::new(Vec::new())),
-            should_drop: true,
+            drop_on_data: Arc::new(AtomicBool::new(true))
         };
 
         loop {
@@ -219,6 +260,7 @@ impl BusEngine {
         F: FnMut(REQ) -> Result<RES, CallError>,
         F: Send + 'static,
     {
+        let topic = type_name::<REQ>();
         let callback = move |req: Vec<u8>| {
             let req = match format {
                 SerializationFormat::Bincode => bincode::deserialize::<REQ>(req.as_ref())
@@ -238,7 +280,7 @@ impl BusEngine {
 
             Ok(res)
         };
-        BusEngine::register(callback)
+        BusEngine::register(topic.into(), callback)
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -253,7 +295,7 @@ impl BusEngine {
     }
 
     #[cfg(target_arch = "wasm32")]
-    fn register<F>(callback: F) -> Finish
+    fn register<F>(topic: Cow<'static, str>, callback: F) -> Finish
     where
         F: FnMut(Vec<u8>) -> Result<Vec<u8>, CallError>,
         F: Send + 'static,
@@ -261,6 +303,7 @@ impl BusEngine {
         let mut handle: CallHandle = crate::abi::syscall::handle().into();
         let mut recv = Finish {
             handle: handle,
+            topic: topic.clone(),
             callback: Arc::new(Mutex::new(Box::new(callback))),
         };
 
@@ -283,7 +326,7 @@ impl BusEngine {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn register<F>(_callback: F) -> Finish
+    fn register<F>(_topic: Cow<'static, str>, _callback: F) -> Finish
     where
         F: FnMut(Vec<u8>) -> Result<(), CallError>,
     {
@@ -292,7 +335,7 @@ impl BusEngine {
 
     #[cfg(feature = "rt")]
     #[cfg(target_arch = "wasm32")]
-    pub(crate) fn listen_internal<F, Fut>(format: SerializationFormat, topic: String, callback: F)
+    pub(crate) fn listen_internal<F, Fut>(format: SerializationFormat, topic: String, callback: F, persistent: bool)
     where
         F: Fn(CallHandle, Vec<u8>) -> Result<Fut, CallError>,
         F: Send + Sync + 'static,
@@ -309,6 +352,7 @@ impl BusEngine {
                         let res = callback(handle, req);
                         Box::pin(async move { Ok(res?.await?) })
                     }),
+                    persistent,
                 ),
             );
         }
@@ -322,6 +366,7 @@ impl BusEngine {
         _format: SerializationFormat,
         _topic: String,
         _callback: F,
+        _persistent: bool,
     ) where
         F: Fn(CallHandle, Vec<u8>) -> Result<Fut, CallError>,
         F: Send + Sync + 'static,
@@ -338,6 +383,7 @@ impl BusEngine {
         topic: String,
         parent: CallHandle,
         callback: F,
+        persistent: bool,
     ) where
         F: Fn(CallHandle, Vec<u8>) -> Result<Fut, CallError>,
         F: Send + Sync + 'static,
@@ -349,7 +395,7 @@ impl BusEngine {
             if state.respond_to.contains_key(&topic) == false {
                 state
                     .respond_to
-                    .insert(topic.clone(), RespondToService::new(format));
+                    .insert(topic.clone(), RespondToService::new(format, persistent));
                 crate::abi::syscall::listen(topic.as_str());
             }
             let respond_to = state.respond_to.get_mut(&topic).unwrap();
@@ -370,6 +416,7 @@ impl BusEngine {
         _topic: String,
         _parent: CallHandle,
         _callback: F,
+        _persistent: bool,
     ) where
         F: Fn(CallHandle, Vec<u8>) -> Result<Fut, CallError>,
         F: Send + Sync + 'static,

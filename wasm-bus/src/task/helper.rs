@@ -1,6 +1,8 @@
 use serde::*;
 use std::any::type_name;
 use std::future::Future;
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, trace, warn};
 
 use crate::abi::CallError;
 use crate::abi::CallHandle;
@@ -30,7 +32,7 @@ pub fn serve() {
     RUNTIME.serve();
 }
 
-pub fn listen<RES, REQ, F, Fut>(format: SerializationFormat, callback: F)
+pub fn listen<RES, REQ, F, Fut>(format: SerializationFormat, callback: F, persistent: bool)
 where
     REQ: de::DeserializeOwned,
     RES: Serialize,
@@ -43,13 +45,15 @@ where
         let req = match format {
             SerializationFormat::Bincode => match bincode::deserialize(&req[..]) {
                 Ok(a) => a,
-                Err(_) => {
+                Err(err) => {
+                    debug!("failed to deserialize the request object (type={}, format={}) - {}", type_name::<REQ>(), format, err);
                     return Err(CallError::DeserializationFailed);
                 }
             },
             SerializationFormat::Json => match serde_json::from_slice(&req[..]) {
                 Ok(a) => a,
-                Err(_) => {
+                Err(err) => {
+                    debug!("failed to deserialize the request object (type={}, format={}) - {}", type_name::<REQ>(), format, err);
                     return Err(CallError::DeserializationFailed);
                 }
             },
@@ -61,18 +65,24 @@ where
             let res = res.await?;
             let res = match format {
                 SerializationFormat::Bincode => {
-                    bincode::serialize(&res).map_err(|_| CallError::SerializationFailed)?
+                    bincode::serialize(&res).map_err(|err| {
+                        debug!("failed to serialize the response object (type={}, format={}) - {}", type_name::<RES>(), format, err);
+                        CallError::SerializationFailed
+                    })?
                 }
                 SerializationFormat::Json => {
-                    serde_json::to_vec(&res).map_err(|_| CallError::SerializationFailed)?
+                    serde_json::to_vec(&res).map_err(|err| {
+                        debug!("failed to serialize the response object (type={}, format={}) - {}", type_name::<RES>(), format, err);
+                        CallError::SerializationFailed
+                    })?
                 }
             };
             Ok(res)
         })
-    });
+    }, persistent);
 }
 
-pub fn respond_to<RES, REQ, F, Fut>(parent: CallHandle, format: SerializationFormat, callback: F)
+pub fn respond_to<RES, REQ, F, Fut>(parent: CallHandle, format: SerializationFormat, callback: F, persistent: bool)
 where
     REQ: de::DeserializeOwned,
     RES: Serialize,
@@ -85,13 +95,15 @@ where
         let req = match format {
             SerializationFormat::Bincode => match bincode::deserialize(&req[..]) {
                 Ok(a) => a,
-                Err(_) => {
+                Err(err) => {
+                    debug!("failed to deserialize the request object (type={}, format={}) - {}", type_name::<REQ>(), format, err);
                     return Err(CallError::DeserializationFailed);
                 }
             },
             SerializationFormat::Json => match serde_json::from_slice(&req[..]) {
                 Ok(a) => a,
-                Err(_) => {
+                Err(err) => {
+                    debug!("failed to deserialize the request object (type={}, format={}) - {}", type_name::<REQ>(), format, err);
                     return Err(CallError::DeserializationFailed);
                 }
             },
@@ -103,13 +115,19 @@ where
             let res = res.await?;
             let res = match format {
                 SerializationFormat::Bincode => {
-                    bincode::serialize(&res).map_err(|_| CallError::SerializationFailed)?
+                    bincode::serialize(&res).map_err(|err| {
+                        debug!("failed to serialize the response object (type={}, format={}) - {}", type_name::<RES>(), format, err);
+                        CallError::SerializationFailed
+                    })?
                 }
                 SerializationFormat::Json => {
-                    serde_json::to_vec(&res).map_err(|_| CallError::SerializationFailed)?
+                    serde_json::to_vec(&res).map_err(|err| {
+                        debug!("failed to serialize the response object (type={}, format={}) - {}", type_name::<RES>(), format, err);
+                        CallError::SerializationFailed
+                    })?
                 }
             };
             Ok(res)
         })
-    });
+    }, persistent);
 }

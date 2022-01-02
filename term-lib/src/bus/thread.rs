@@ -291,10 +291,20 @@ impl WasmBusThread {
     {
         // Serialize
         let topic = type_name::<REQ>();
-        let data = match bincode::serialize(&request) {
-            Ok(a) => a,
-            Err(_err) => {
-                return Err(CallError::SerializationFailed);
+        let data = match format {
+            SerializationFormat::Bincode => match bincode::serialize(&request) {
+                Ok(a) => a,
+                Err(err) => {
+                    debug!("failed to serialize the request object (type={}, format={}) - {}", type_name::<REQ>(), format, err);
+                    return Err(CallError::SerializationFailed);
+                }
+            },
+            SerializationFormat::Json => match serde_json::to_vec(&request) {
+                Ok(a) => a,
+                Err(err) => {
+                    debug!("failed to serialize the request object (type={}, format={}) - {}", type_name::<REQ>(), format, err);
+                    return Err(CallError::SerializationFailed);
+                }
             }
         };
 
@@ -425,11 +435,17 @@ where
         match self.format {
             SerializationFormat::Bincode => match bincode::deserialize::<T>(&data[..]) {
                 Ok(a) => Ok(a),
-                Err(_err) => Err(CallError::SerializationFailed),
+                Err(err) => {
+                    debug!("failed to deserialize the response object (type={}, format={}) - {}", type_name::<T>(), self.format, err);
+                    Err(CallError::SerializationFailed)
+                },
             },
             SerializationFormat::Json => match serde_json::from_slice::<T>(&data[..]) {
                 Ok(a) => Ok(a),
-                Err(_err) => Err(CallError::SerializationFailed),
+                Err(err) => {
+                    debug!("failed to deserialize the response object (type={}, format={}) - {}", type_name::<T>(), self.format, err);
+                    Err(CallError::SerializationFailed)
+                },
             },
         }
     }
@@ -444,11 +460,17 @@ where
         match self.format {
             SerializationFormat::Bincode => match bincode::deserialize::<T>(&data[..]) {
                 Ok(a) => Ok(a),
-                Err(_err) => Err(CallError::SerializationFailed),
+                Err(err) => {
+                    debug!("failed to deserialize the response object (type={}, format={}) - {}", type_name::<T>(), self.format, err);
+                    Err(CallError::SerializationFailed)
+                },
             },
             SerializationFormat::Json => match serde_json::from_slice::<T>(&data[..]) {
                 Ok(a) => Ok(a),
-                Err(_err) => Err(CallError::SerializationFailed),
+                Err(err) => {
+                    debug!("failed to deserialize the response object (type={}, format={}) - {}", type_name::<T>(), self.format, err);
+                    Err(CallError::SerializationFailed)
+                },
             },
         }
     }
@@ -456,21 +478,21 @@ where
     pub async fn detach(mut self) -> Result<AsyncWasmBusSession, CallError> {
         self.should_drop = false;
         let _ = self.join_internal().await?;
-        Ok(AsyncWasmBusSession {
-            thread: self.thread.clone(),
-            handle: self.handle.clone(),
-            format: self.format.clone(),
-        })
+        Ok(AsyncWasmBusSession::new(
+            &self.thread,
+            self.handle.clone(),
+            self.format.clone(),
+        ))
     }
 
     pub fn blocking_detach(mut self) -> Result<AsyncWasmBusSession, CallError> {
         self.should_drop = false;
         let _ = self.block_on_internal()?;
-        Ok(AsyncWasmBusSession {
-            thread: self.thread.clone(),
-            handle: self.handle.clone(),
-            format: self.format.clone(),
-        })
+        Ok(AsyncWasmBusSession::new(
+            &self.thread,
+            self.handle.clone(),
+            self.format.clone(),
+        ))
     }
 }
 
@@ -485,11 +507,23 @@ where
     }
 }
 
+pub struct WasmBusSessionMarker
+{
+    thread: WasmBusThread,
+    handle: CallHandle,
+}
+
+impl Drop for WasmBusSessionMarker {
+    fn drop(&mut self) {
+        self.thread.drop_call(self.handle);
+    }
+}
+
 #[derive(Clone)]
 pub struct AsyncWasmBusSession {
-    pub(crate) thread: WasmBusThread,
     pub(crate) handle: WasmBusThreadHandle,
     pub(crate) format: SerializationFormat,
+    pub(crate) marker: Arc<WasmBusSessionMarker>,
 }
 
 impl AsyncWasmBusSession {
@@ -499,9 +533,12 @@ impl AsyncWasmBusSession {
         format: SerializationFormat,
     ) -> Self {
         Self {
-            thread: thread.clone(),
+            marker: Arc::new(WasmBusSessionMarker {
+                thread: thread.clone(),
+                handle: handle.handle(),
+            }),
             handle,
-            format,
+            format,            
         }
     }
 
@@ -527,27 +564,23 @@ impl AsyncWasmBusSession {
         let data = match format {
             SerializationFormat::Bincode => match bincode::serialize(&request) {
                 Ok(a) => a,
-                Err(_err) => {
+                Err(err) => {
+                    debug!("failed to serialize the request object (type={}, format={}) - {}", type_name::<REQ>(), format, err);
                     return Err(CallError::SerializationFailed);
                 }
             },
             SerializationFormat::Json => match serde_json::to_vec(&request) {
                 Ok(a) => a,
-                Err(_err) => {
+                Err(err) => {
+                    debug!("failed to serialize the request object (type={}, format={}) - {}", type_name::<REQ>(), format, err);
                     return Err(CallError::SerializationFailed);
                 }
             },
         };
 
         let (rx, handle) =
-            self.thread
+            self.marker.thread
                 .call_internal(Some(self.handle.handle()), topic.to_string(), data);
-        Ok(AsyncWasmBusResult::new(&self.thread, rx, handle, format))
-    }
-}
-
-impl Drop for AsyncWasmBusSession {
-    fn drop(&mut self) {
-        self.thread.drop_call(self.handle.handle());
+        Ok(AsyncWasmBusResult::new(&self.marker.thread, rx, handle, format))
     }
 }

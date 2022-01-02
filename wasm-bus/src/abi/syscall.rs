@@ -77,11 +77,6 @@ mod raw {
     // This call includes the data that was returned
     #[no_mangle]
     pub extern "C" fn wasm_bus_finish(handle: u32, data: u32, data_len: u32) {
-        trace!(
-            "wasm_bus_finish (handle={}, response={} bytes)",
-            handle,
-            data_len
-        );
         unsafe {
             let response =
                 Vec::from_raw_parts(data as *mut u8, data_len as usize, data_len as usize);
@@ -96,7 +91,6 @@ mod raw {
     // Invoked by the operating system when the call this program made has failed
     #[no_mangle]
     pub extern "C" fn wasm_bus_error(handle: u32, error: u32) {
-        trace!("wasm_bus_err (handle={}, error={})", handle, error);
         crate::engine::BusEngine::error(handle.into(), error.into());
 
         #[cfg(feature = "rt")]
@@ -106,9 +100,8 @@ mod raw {
     // Invoked by the operating system when a call has been terminated by the caller
     #[no_mangle]
     pub extern "C" fn wasm_bus_drop(handle: u32) {
-        trace!("wasm_bus_err (handle={})", handle);
         let handle: CallHandle = handle.into();
-        crate::engine::BusEngine::remove(&handle);
+        crate::engine::BusEngine::remove(&handle, "os_notification");
 
         #[cfg(feature = "rt")]
         crate::task::wake();

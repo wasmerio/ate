@@ -46,18 +46,33 @@ impl FuseFileSystem {
                     name: target.to_string(),
                 },
             )
-            .map_err(|_| FsError::IOError)?
+            .map_err(|err| {
+                debug!("fuse_file_system::new() - mount call failed - {}", err);
+                FsError::IOError
+            })?
             .detach()
             .await
-            .map_err(|_| FsError::IOError)?;
+            .map_err(|err| {
+                debug!("fuse_file_system::new() - detached mount call failed - {}", err);
+                FsError::IOError
+            })?;
 
         let _ = task
             .call::<Result<(), backend::FsError>, _>(backend::FileSystemInitRequest {})
-            .map_err(|_| FsError::IOError)?
+            .map_err(|err| {
+                debug!("fuse_file_system::new() - mount init call failed - {}", err);
+                FsError::IOError
+            })?
             .join()
             .await
-            .map_err(|_| FsError::IOError)?
-            .map_err(conv_fs_error)?;
+            .map_err(|err| {
+                debug!("fuse_file_system::new() - detached mount init call failed - {}", err);
+                FsError::IOError
+            })?
+            .map_err(|err| {
+                debug!("fuse_file_system::new() - detached mount init call failed - {}", err);
+                conv_fs_error(err)
+            })?;
 
         Ok(FuseFileSystem {
             system: System::default(),
@@ -198,7 +213,7 @@ impl FileOpener for FuseFileOpener {
         let task = self
             .fs
             .task
-            .call::<Result<(), backend::FsError>, _>(backend::FileSystemOpenRequest {
+            .call::<(), _>(backend::FileSystemOpenRequest {
                 options: backend::OpenOptions {
                     read: conf.read(),
                     write: conf.write(),
@@ -209,26 +224,46 @@ impl FileOpener for FuseFileOpener {
                 },
                 path: path.to_string_lossy().to_string(),
             })
-            .map_err(|_| FsError::IOError)?
+            .map_err(|err| {
+                debug!("fuse_file_system::open() - open call failed - {}", err);
+                FsError::IOError
+            })?
             .blocking_detach()
-            .map_err(|_| FsError::IOError)?;
+            .map_err(|err| {
+                debug!("fuse_file_system::open() - detached open call failed - {}", err);
+                FsError::IOError
+            })?;
 
         let meta = task
             .call::<Result<_, backend::FsError>, _>(backend::OpenedFileMetaRequest {})
-            .map_err(|_| FsError::IOError)?
+            .map_err(|err| {
+                debug!("fuse_file_system::open() - open meta call failed - {}", err);
+                FsError::IOError
+            })?
             .block_on()
-            .map_err(|_| FsError::IOError)?
-            .map_err(conv_fs_error)?;
+            .map_err(|err| {
+                debug!("fuse_file_system::open() - detached open meta call failed - {}", err);
+                FsError::IOError
+            })?
+            .map_err(|err| {
+                debug!("fuse_file_system::open() - detached open meta call failed - {}", err);
+                conv_fs_error(err)
+            })?;
 
         let io = task
-            .call_with_format::<Result<(), backend::FsError>, _>(
-                SerializationFormat::Bincode,
+            .call::<(), _>(
                 backend::OpenedFileIoRequest {},
             )
-            .map_err(|_| FsError::IOError)?
+            .map_err(|err| {
+                error!("fuse_file_system::open() - open io call failed - {}", err);
+                FsError::IOError
+            })?
             .blocking_detach()
-            .map_err(|_| FsError::IOError)?;
-
+            .map_err(|err| {
+                error!("fuse_file_system::open() - detached open io call failed - {}", err);
+                FsError::IOError
+            })?;
+        
         return Ok(Box::new(FuseVirtualFile {
             fs: self.fs.clone(),
             task,
@@ -260,7 +295,9 @@ impl Seek for FuseVirtualFile {
 
         let ret: io::Result<_> = self
             .io
-            .call::<Result<_, backend::FsError>, _>(seek)
+            .call_with_format::<Result<_, backend::FsError>, _>(
+                SerializationFormat::Bincode,
+                seek)
             .map_err(|err| err.into_io_error())?
             .block_on()
             .map_err(|err| err.into_io_error())?
@@ -273,9 +310,11 @@ impl Write for FuseVirtualFile {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let ret: io::Result<_> = self
             .io
-            .call::<Result<_, backend::FsError>, _>(backend::FileIoWriteRequest {
-                data: buf.to_vec(),
-            })
+            .call_with_format::<Result<_, backend::FsError>, _>(
+                SerializationFormat::Bincode,
+                backend::FileIoWriteRequest {
+                    data: buf.to_vec(),
+                })
             .map_err(|err| err.into_io_error())?
             .block_on()
             .map_err(|err| err.into_io_error())?
@@ -286,7 +325,9 @@ impl Write for FuseVirtualFile {
     fn flush(&mut self) -> io::Result<()> {
         let ret: io::Result<_> = self
             .io
-            .call::<Result<_, backend::FsError>, _>(backend::FileIoFlushRequest {})
+            .call_with_format::<Result<_, backend::FsError>, _>(
+                SerializationFormat::Bincode,
+                backend::FileIoFlushRequest {})
             .map_err(|err| err.into_io_error())?
             .block_on()
             .map_err(|err| err.into_io_error())?
@@ -299,9 +340,11 @@ impl Read for FuseVirtualFile {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let data: io::Result<Vec<u8>> = self
             .io
-            .call::<Result<_, backend::FsError>, _>(backend::FileIoReadRequest {
-                len: buf.len() as u64,
-            })
+            .call_with_format::<Result<_, backend::FsError>, _>(
+                SerializationFormat::Bincode,
+                backend::FileIoReadRequest {
+                    len: buf.len() as u64,
+                })
             .map_err(|err| err.into_io_error())?
             .block_on()
             .map_err(|err| err.into_io_error())?

@@ -16,16 +16,16 @@ impl WasmBusSession {
     }
 
     pub fn close(mut self) {
-        self.close_internal();
+        self.close_internal("session closed by user");
     }
 
-    fn close_internal(&mut self) {
-        crate::engine::BusEngine::remove(&self.handle);
+    fn close_internal(&mut self, reason: &'static str) {
+        crate::engine::BusEngine::remove(&self.handle, reason);
     }
 }
 
 impl Drop for WasmBusSession {
     fn drop(&mut self) {
-        self.close_internal();
+        self.close_internal("session was dropped");
     }
 }

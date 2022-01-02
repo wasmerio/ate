@@ -256,9 +256,10 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                                             #( #method_callback_handlers )*
                                             let svc = wasm_me.#method_ident(#field_idents_plus).await?;
                                             #svc::attach(svc, wasm_handle);
-                                            std::result::Result::<(), _>::Err(wasm_bus::abi::CallError::Fork)
+                                            Ok(())
                                         }
                                     },
+                                    true
                                 );
                             }
                         });
@@ -283,6 +284,7 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                                             wasm_me.#method_ident(#field_idents_plus).await
                                         }
                                     },
+                                    false,
                                 );
                             }
                         });
@@ -305,9 +307,10 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                                             #( #method_callback_handlers )*
                                             let svc = wasm_me.#method_ident(#field_idents_plus).await?;
                                             #svc::attach(svc, wasm_handle);
-                                            std::result::Result::<(), _>::Err(wasm_bus::abi::CallError::Fork)
+                                            Ok(())
                                         }
-                                    }
+                                    },
+                                    true
                                 );
                             }
                         });
@@ -326,17 +329,16 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                                     #field_idents
                                 };
                                 let task = wasm_bus::abi::call_ext(
-                                    self.parent.clone(),
-                                    self.wapm.clone(),
-                                    #format,
-                                    self.session.clone(),
-                                    request)
-                                #( #method_callbacks )*
-                                .invoke();
-                                let mut ret = #ret_client::attach_phase1(task.wapm(), task.session().map(|a| a.to_string()), task.handle());
-                                let detached_call = task.detach::<()>().await?;
-                                ret.attach_phase2(detached_call);
-                                Ok(Arc::new(ret))
+                                        self.parent.as_ref().map(|a| a.handle()),
+                                        self.wapm.clone(),
+                                        #format,
+                                        self.session.clone(),
+                                        request
+                                    )
+                                    #( #method_callbacks )*
+                                    .detach()
+                                    .await?;
+                                Ok(Arc::new(#ret_client::attach(task)))
                             }
                         });
                         blocking_methods.push(quote! {
@@ -377,7 +379,8 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                                             #( #method_callback_handlers )*
                                             wasm_me.#method_ident(#field_idents_plus).await
                                         }
-                                    }
+                                    },
+                                    false
                                 );
                             }
                         });
@@ -395,15 +398,16 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                                     #field_idents
                                 };
                                 wasm_bus::abi::call_ext(
-                                    self.parent.clone(),
-                                    self.wapm.clone(),
-                                    #format,
-                                    self.session.clone(),
-                                    request)
-                                #( #method_callbacks )*
-                                .invoke()
-                                .join()
-                                .await
+                                        self.parent.as_ref().map(|a| a.handle()),
+                                        self.wapm.clone(),
+                                        #format,
+                                        self.session.clone(),
+                                        request
+                                    )
+                                    #( #method_callbacks )*
+                                    .invoke()
+                                    .join()
+                                    .await
                             }
                         });
                         blocking_methods.push(quote! {
@@ -516,10 +520,9 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                     {
                         wapm: std::borrow::Cow<'static, str>,
                         session: Option<String>,
-                        parent: Option<wasm_bus::abi::CallHandle>,
+                        parent: Option<std::sync::Arc<wasm_bus::abi::DetachedCall<()>>>,
                         task: Option<wasm_bus::abi::Call>,
                         join: Option<wasm_bus::abi::CallJoin<()>>,
-                        detached_call: Option<std::sync::Arc<wasm_bus::abi::DetachedCall<()>>>,
                     }
 
                     impl #trait_client_ident {
@@ -530,7 +533,6 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                                 parent: None,
                                 task: None,
                                 join: None,
-                                detached_call: None,
                             }
                         }
 
@@ -541,36 +543,32 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                                 parent: None,
                                 task: None,
                                 join: None,
-                                detached_call: None,
                             }
                         }
 
-                        pub fn attach_phase1(wapm: std::borrow::Cow<'static, str>, session: Option<String>, parent: wasm_bus::abi::CallHandle) -> Self {
-                            Self {
+                        pub fn attach(task: wasm_bus::abi::DetachedCall<()>) -> Self {
+                            let wapm = task.wapm();
+                            let session = task.session().map(|a| a.to_string());
+                            
+                            let mut ret = Self {
                                 wapm,
                                 session,
-                                parent: Some(parent),
+                                parent: Some(std::sync::Arc::new(task)),
                                 task: None,
                                 join: None,
-                                detached_call: None,
-                            }
-                        }
-
-                        pub fn attach_phase2(&mut self, detached_call: wasm_bus::abi::DetachedCall<()>) {
-                            self.detached_call.replace(std::sync::Arc::new(detached_call));
+                            };
+                            return ret;
                         }
 
                         pub fn id(&self) -> u32 {
-                            self.task.as_ref().map(|a| a.id()).unwrap_or(
-                                self.parent.map(|a| a.id).unwrap_or(0u32)
-                            )
+                            self.task.as_ref().map(|a| a.id()).unwrap_or(0u32)
                         }
 
                         pub fn handle(&self) -> Option<wasm_bus::abi::CallHandle> {
                             if let Some(handle) = self.task.as_ref().map(|a| a.handle()) {
                                 return Some(handle);
                             }
-                            self.parent.clone()
+                            None
                         }
                         
                         pub fn wait(self) -> Result<(), wasm_bus::abi::CallError> {

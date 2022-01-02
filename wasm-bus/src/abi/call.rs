@@ -7,6 +7,7 @@ use std::ops::*;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::atomic::*;
 use std::task::Context;
 use std::task::Poll;
 #[allow(unused_imports, dead_code)]
@@ -21,10 +22,16 @@ where
     fn data(&self, data: Vec<u8>);
 
     fn error(&self, error: CallError);
+
+    fn wapm(&self) -> &str;
+    
+    fn topic(&self) -> &str;
 }
 
+#[derive(Debug)]
 pub struct CallState {
     pub(crate) result: Option<Result<Vec<u8>, CallError>>,
+    pub(crate) callbacks: Vec<Finish>,
 }
 
 #[derive(Derivative, Clone)]
@@ -37,30 +44,37 @@ pub struct Call {
     pub(crate) session: Option<String>,
     pub(crate) handle: CallHandle,
     pub(crate) parent: Option<CallHandle>,
-    #[derivative(Debug = "ignore")]
     pub(crate) state: Arc<Mutex<CallState>>,
-    pub(crate) callbacks: Arc<Mutex<Vec<Finish>>>,
-    pub(crate) should_drop: bool,
+    pub(crate) drop_on_data: Arc<AtomicBool>,
 }
 
 impl CallOps for Call {
     fn data(&self, data: Vec<u8>) {
-        let mut state = self.state.lock().unwrap();
-        state.result = Some(Ok(data));
+        {
+            let mut state = self.state.lock().unwrap();
+            state.result = Some(Ok(data));
+        }
+        if self.drop_on_data.compare_exchange(true, false, Ordering::Release, Ordering::Relaxed).is_ok() {
+            super::drop(self.handle);
+            crate::engine::BusEngine::remove(&self.handle, "call finished (data received)");
+        }
     }
 
     fn error(&self, error: CallError) {
-        let mut state = self.state.lock().unwrap();
-        state.result = Some(Err(error));
-    }
-}
-
-impl Drop for Call {
-    fn drop(&mut self) {
-        if self.should_drop {
-            super::drop(self.handle);
-            crate::engine::BusEngine::remove(&self.handle);
+        {
+            let mut state = self.state.lock().unwrap();
+            state.result = Some(Err(error));
         }
+        super::drop(self.handle);
+        crate::engine::BusEngine::remove(&self.handle, "call has failed");
+    }
+
+    fn wapm(&self) -> &str {
+        self.wapm.as_ref()
+    }
+    
+    fn topic(&self) -> &str {
+        self.topic.as_ref()
     }
 }
 
@@ -112,10 +126,40 @@ impl CallBuilder {
         self
     }
 
+    // Completes the call but leaves the resources present
+    // for the duration of the life of 'DetachedCall'
+    pub async fn detach<T>(mut self) -> Result<DetachedCall<T>, CallError>
+    where
+        T: de::DeserializeOwned,
+    {
+        let call = self.call.take().unwrap();
+        call.drop_on_data.store(false, Ordering::Release);
+        self.invoke_internal(&call);
+
+        let handle = call.handle.clone();
+        let wapm = call.wapm.clone();
+        let session = call.session.clone();
+
+        let result = call.join::<T>().await?;
+
+        Ok(DetachedCall {
+            handle,
+            result,
+            wapm,
+            session,
+        })
+    }
+
     /// Invokes the call with the specified callbacks
     #[cfg(target_arch = "wasm32")]
     pub fn invoke(mut self) -> Call {
         let call = self.call.take().unwrap();
+        self.invoke_internal(&call);
+        call
+    }
+
+    fn invoke_internal(&self, call: &Call)
+    {
         match &self.request {
             Data::Success(req) => {
                 crate::abi::syscall::call(
@@ -130,8 +174,6 @@ impl CallBuilder {
                 crate::engine::BusEngine::error(call.handle, err.clone());
             }
         }
-
-        call
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -144,7 +186,7 @@ impl Drop for CallBuilder {
     fn drop(&mut self) {
         if let Some(call) = self.call.take() {
             super::drop(call.handle);
-            crate::engine::BusEngine::remove(&call.handle);
+            crate::engine::BusEngine::remove(&call.handle, "call building was dropped");
         }
     }
 }
@@ -171,7 +213,7 @@ impl Call {
     ///
     /// Note: This must be called before the invoke or things will go wrong
     /// hence there is a builder that invokes this in the right order
-    fn callback<C, F>(&mut self, format: SerializationFormat, mut callback: F) -> &mut Self
+    fn callback<C, F>(&self, format: SerializationFormat, mut callback: F) -> &Self
     where
         C: Serialize + de::DeserializeOwned + Send + Sync + 'static,
         F: FnMut(C),
@@ -182,7 +224,8 @@ impl Call {
             Ok(())
         };
         let recv = super::callback_internal(self.handle, format, callback);
-        self.callbacks.lock().unwrap().push(recv);
+        let mut state = self.state.lock().unwrap();
+        state.callbacks.push(recv);
         self
     }
 
@@ -193,30 +236,35 @@ impl Call {
     {
         CallJoin::new(self)
     }
-
-    // Completes the call but leaves the resources present
-    // for the duration of the life of 'DetachedCall'
-    pub async fn detach<T>(mut self) -> Result<DetachedCall<T>, CallError>
-    where
-        T: de::DeserializeOwned,
-    {
-        let handle = self.handle.clone();
-        self.should_drop = false;
-        let result = self.join::<T>().await?;
-        Ok(DetachedCall { handle, result })
-    }
 }
 
 #[derive(Debug)]
 pub struct DetachedCall<T> {
     handle: CallHandle,
     result: T,
+    wapm: Cow<'static, str>,
+    session: Option<String>,
+}
+
+impl<T> DetachedCall<T> {
+    pub fn wapm(&self) -> Cow<'static, str> {
+        self.wapm.clone()
+    }
+
+    pub fn session(&self) -> Option<&str> {
+        self.session.as_ref().map(|a| a.as_str())
+    }
+
+    pub fn handle(&self) -> CallHandle
+    {
+        self.handle.clone()
+    }
 }
 
 impl<T> Drop for DetachedCall<T> {
     fn drop(&mut self) {
         super::drop(self.handle);
-        crate::engine::BusEngine::remove(&self.handle);
+        crate::engine::BusEngine::remove(&self.handle, "detached call was dropped");
     }
 }
 

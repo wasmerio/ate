@@ -17,7 +17,6 @@ pub enum CallError {
     MissingCallbacks = 10,
     Unsupported = 11,
     BadRequest = 12,
-    Fork = 13,
     InternalFailure = 14,
     Unknown = u32::MAX,
 }
@@ -38,7 +37,6 @@ impl From<u32> for CallError {
             10 => CallError::MissingCallbacks,
             11 => CallError::Unsupported,
             12 => CallError::BadRequest,
-            13 => CallError::Fork,
             14 => CallError::InternalFailure,
             _ => CallError::Unknown,
         }
@@ -61,7 +59,6 @@ impl Into<u32> for CallError {
             CallError::MissingCallbacks => 10,
             CallError::Unsupported => 11,
             CallError::BadRequest => 12,
-            CallError::Fork => 13,
             CallError::InternalFailure => 14,
             CallError::Unknown => u32::MAX,
         }
@@ -118,7 +115,6 @@ impl fmt::Display for CallError {
                 f,
                 "invalid input was supplied in the call resulting in a bad request."
             ),
-            CallError::Fork => write!(f, "the call has been forked"),
             CallError::InternalFailure => write!(f, "an internal failure has occured"),
             CallError::Unknown => write!(f, "unknown error."),
         }

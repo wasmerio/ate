@@ -114,6 +114,39 @@ pub enum FsError {
     UnknownError,
 }
 
+impl std::fmt::Display
+for FsError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FsError::BaseNotDirectory => write!(f, "base is not a directory"),
+            FsError::NotAFile => write!(f, "not a file"),
+            FsError::InvalidFd => write!(f, "invalid file descriptor"),
+            FsError::AlreadyExists => write!(f, "alreadt existed"),
+            FsError::Lock => write!(f, "lock failed"),
+            FsError::IOError => write!(f, "fs io error"),
+            FsError::AddressInUse => write!(f, "address in use"),
+            FsError::AddressNotAvailable => write!(f, "address not available"),
+            FsError::BrokenPipe => write!(f, "pipe is broken"),
+            FsError::ConnectionAborted => write!(f, "connection aborted"),
+            FsError::ConnectionRefused => write!(f, "connection refused"),
+            FsError::ConnectionReset => write!(f, "connection reset"),
+            FsError::Interrupted => write!(f, "interrupted"),
+            FsError::InvalidData => write!(f, "invalid data"),
+            FsError::InvalidInput => write!(f, "invalid input"),
+            FsError::NotConnected => write!(f, "not connected"),
+            FsError::EntityNotFound => write!(f, "entity not found"),
+            FsError::NoDevice => write!(f, "no device"),
+            FsError::PermissionDenied => write!(f, "permission denied"),
+            FsError::TimedOut => write!(f, "timeout has elapsed"),
+            FsError::UnexpectedEof => write!(f, "unexpected eof of file"),
+            FsError::WouldBlock => write!(f, "call would block"),
+            FsError::WriteZero => write!(f, "write zero"),
+            FsError::DirectoryNotEmpty => write!(f, "directory is not empty"),
+            FsError::UnknownError => write!(f, "unknown error"),
+        }
+    }
+}
+
 impl From<io::Error> for FsError {
     fn from(io_error: io::Error) -> Self {
         match io_error.kind() {
