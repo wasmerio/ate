@@ -3,6 +3,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::parse::{Parse, ParseStream};
 use syn::*;
+use derivative::*;
 
 use super::return_trait::*;
 
@@ -83,8 +84,10 @@ impl Parse for MethodOutput {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Derivative, Clone)]
+#[derivative(Debug)]
 pub struct ReturnMessage {
+    #[derivative(Debug = "ignore")]
     pub path: Path,
 }
 

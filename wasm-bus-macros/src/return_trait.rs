@@ -1,10 +1,14 @@
 use syn::parse::{Parse, ParseStream};
 use syn::*;
+use derivative::*;
 
-#[derive(Debug, Clone)]
+#[derive(Derivative, Clone)]
+#[derivative(Debug)]
 pub struct ReturnTrait {
+    #[derivative(Debug = "ignore")]
     pub path: Path,
     pub ident: Ident,
+    #[derivative(Debug = "ignore")]
     pub ty: Type,
     pub client_name: String,
     pub client_ident: Ident,

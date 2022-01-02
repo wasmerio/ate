@@ -18,3 +18,4 @@ quote = "^1.0"
 syn = { version = "^1.0", features = [ "full", "visit-mut", "parsing", "printing" ] }
 convert_case = "^0.5"
 wasm-bus-types = { version = "0.1", path = "../wasm-bus-types" }
+derivative = { version = "^2" }
