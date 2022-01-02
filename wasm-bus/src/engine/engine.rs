@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 use once_cell::sync::Lazy;
 use serde::*;
+#[allow(unused_imports, dead_code)]
+use std::any::type_name;
 use std::borrow::Cow;
 #[allow(unused_imports)]
 use std::future::Future;
@@ -12,8 +14,6 @@ use std::task::{Context, Waker};
 use std::{collections::HashMap, collections::HashSet, sync::Mutex};
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-#[allow(unused_imports, dead_code)]
-use std::any::type_name;
 
 use crate::abi::*;
 
@@ -144,10 +144,20 @@ impl BusEngine {
             if let Some(call) = state.calls.get(&handle) {
                 let call = Arc::clone(call);
                 drop(state);
-                trace!("wasm_bus_err (handle={}, error={}, wapm={}, topic={})", handle.id, err, call.wapm(), call.topic());
+                trace!(
+                    "wasm_bus_err (handle={}, error={}, wapm={}, topic={})",
+                    handle.id,
+                    err,
+                    call.wapm(),
+                    call.topic()
+                );
                 call.error(err);
             } else {
-                trace!("wasm_bus_err (handle={}, error={}, orphaned)", handle.id, err);
+                trace!(
+                    "wasm_bus_err (handle={}, error={}, orphaned)",
+                    handle.id,
+                    err
+                );
             }
         }
 
@@ -173,17 +183,32 @@ impl BusEngine {
             let mut delayed_drop3 = Vec::new();
 
             {
-                let mut state = BusEngine::write();            
+                let mut state = BusEngine::write();
                 #[cfg(feature = "rt")]
                 state.handles.remove(handle);
                 if let Some(drop_me) = state.calls.remove(handle) {
-                    trace!("wasm_bus_drop (handle={}, reason='{}', wapm={}, topic={})", handle.id, reason, drop_me.wapm(), drop_me.topic());
+                    trace!(
+                        "wasm_bus_drop (handle={}, reason='{}', wapm={}, topic={})",
+                        handle.id,
+                        reason,
+                        drop_me.wapm(),
+                        drop_me.topic()
+                    );
                     delayed_drop2.push(drop_me);
                 } else if let Some(drop_me) = state.callbacks.remove(handle) {
-                    trace!("wasm_bus_drop (handle={}, reason='{}', topic={})", handle.id, reason, drop_me.topic());
+                    trace!(
+                        "wasm_bus_drop (handle={}, reason='{}', topic={})",
+                        handle.id,
+                        reason,
+                        drop_me.topic()
+                    );
                     delayed_drop3.push(drop_me);
                 } else {
-                    trace!("wasm_bus_drop (handle={}, reason='{}', orphaned)", handle.id, reason);
+                    trace!(
+                        "wasm_bus_drop (handle={}, reason='{}', orphaned)",
+                        handle.id,
+                        reason
+                    );
                 }
                 for respond_to in state.respond_to.values_mut() {
                     if let Some(drop_me) = respond_to.remove(handle) {
@@ -212,7 +237,6 @@ impl BusEngine {
             state: Arc::new(Mutex::new(CallState {
                 result: None,
                 callbacks: Vec::new(),
-                
             })),
             handle,
             parent,
@@ -220,7 +244,7 @@ impl BusEngine {
             topic,
             format,
             session,
-            drop_on_data: Arc::new(AtomicBool::new(true))
+            drop_on_data: Arc::new(AtomicBool::new(true)),
         };
 
         loop {
@@ -335,8 +359,12 @@ impl BusEngine {
 
     #[cfg(feature = "rt")]
     #[cfg(target_arch = "wasm32")]
-    pub(crate) fn listen_internal<F, Fut>(format: SerializationFormat, topic: String, callback: F, persistent: bool)
-    where
+    pub(crate) fn listen_internal<F, Fut>(
+        format: SerializationFormat,
+        topic: String,
+        callback: F,
+        persistent: bool,
+    ) where
         F: Fn(CallHandle, Vec<u8>) -> Result<Fut, CallError>,
         F: Send + Sync + 'static,
         Fut: Future<Output = Result<Vec<u8>, CallError>>,

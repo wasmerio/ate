@@ -5,9 +5,9 @@ use std::future::Future;
 use std::marker::PhantomData;
 use std::ops::*;
 use std::pin::Pin;
+use std::sync::atomic::*;
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::sync::atomic::*;
 use std::task::Context;
 use std::task::Poll;
 #[allow(unused_imports, dead_code)]
@@ -24,7 +24,7 @@ where
     fn error(&self, error: CallError);
 
     fn wapm(&self) -> &str;
-    
+
     fn topic(&self) -> &str;
 }
 
@@ -54,7 +54,11 @@ impl CallOps for Call {
             let mut state = self.state.lock().unwrap();
             state.result = Some(Ok(data));
         }
-        if self.drop_on_data.compare_exchange(true, false, Ordering::Release, Ordering::Relaxed).is_ok() {
+        if self
+            .drop_on_data
+            .compare_exchange(true, false, Ordering::Release, Ordering::Relaxed)
+            .is_ok()
+        {
             super::drop(self.handle);
             crate::engine::BusEngine::remove(&self.handle, "call finished (data received)");
         }
@@ -72,7 +76,7 @@ impl CallOps for Call {
     fn wapm(&self) -> &str {
         self.wapm.as_ref()
     }
-    
+
     fn topic(&self) -> &str {
         self.topic.as_ref()
     }
@@ -158,8 +162,7 @@ impl CallBuilder {
         call
     }
 
-    fn invoke_internal(&self, call: &Call)
-    {
+    fn invoke_internal(&self, call: &Call) {
         match &self.request {
             Data::Success(req) => {
                 crate::abi::syscall::call(
@@ -255,8 +258,7 @@ impl<T> DetachedCall<T> {
         self.session.as_ref().map(|a| a.as_str())
     }
 
-    pub fn handle(&self) -> CallHandle
-    {
+    pub fn handle(&self) -> CallHandle {
         self.handle.clone()
     }
 }

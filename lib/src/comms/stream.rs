@@ -326,7 +326,6 @@ impl Stream {
 }
 
 impl StreamTx {
-    #[must_use = "all network communication metrics must be accounted for"]
     #[allow(unused_variables)]
     pub async fn write_8bit(
         &mut self,
@@ -379,7 +378,6 @@ impl StreamTx {
         Ok(total_sent)
     }
 
-    #[must_use = "all network communication metrics must be accounted for"]
     #[allow(unused_variables)]
     pub async fn write_16bit(
         &mut self,
@@ -432,7 +430,6 @@ impl StreamTx {
         Ok(total_sent)
     }
 
-    #[must_use = "all network communication metrics must be accounted for"]
     #[allow(unused_variables)]
     pub async fn write_32bit(
         &mut self,
@@ -565,7 +562,6 @@ impl StreamTx {
         }
     }
 
-    #[must_use = "all network communication metrics must be accounted for"]
     pub(crate) async fn send(
         &mut self,
         wire_encryption: &Option<EncryptKey>,
@@ -602,7 +598,6 @@ impl StreamTxChannel {
         }
     }
 
-    #[must_use = "all network communication metrics must be accounted for"]
     pub(crate) async fn send(&mut self, pck: PacketData) -> Result<u64, tokio::io::Error> {
         self.tx.send(&self.wire_encryption, pck).await
     }

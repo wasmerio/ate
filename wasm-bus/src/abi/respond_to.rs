@@ -13,13 +13,9 @@ use crate::abi::CallHandle;
 use crate::task::spawn;
 
 type CallbackHandler = Arc<
-dyn Fn(
-        CallHandle,
-        Vec<u8>,
-    )
-        -> Pin<Box<dyn Future<Output = Result<Vec<u8>, CallError>> + Send>>
-    + Send
-    + Sync,
+    dyn Fn(CallHandle, Vec<u8>) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, CallError>> + Send>>
+        + Send
+        + Sync,
 >;
 
 #[derive(Derivative, Clone)]
@@ -27,8 +23,7 @@ dyn Fn(
 pub struct RespondToService {
     pub(crate) format: SerializationFormat,
     #[derivative(Debug = "ignore")]
-    pub(crate) callbacks: Arc<
-        Mutex<HashMap<CallHandle, CallbackHandler>>>,
+    pub(crate) callbacks: Arc<Mutex<HashMap<CallHandle, CallbackHandler>>>,
     pub(crate) persistent: bool,
 }
 

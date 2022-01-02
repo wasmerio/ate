@@ -38,9 +38,13 @@ impl ListenService {
                 + Send
                 + Sync,
         >,
-        persistent: bool
+        persistent: bool,
     ) -> ListenService {
-        ListenService { format, callback, persistent }
+        ListenService {
+            format,
+            callback,
+            persistent,
+        }
     }
 
     pub fn process(&self, handle: CallHandle, request: Vec<u8>) {

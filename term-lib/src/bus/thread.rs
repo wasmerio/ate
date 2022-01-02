@@ -295,17 +295,27 @@ impl WasmBusThread {
             SerializationFormat::Bincode => match bincode::serialize(&request) {
                 Ok(a) => a,
                 Err(err) => {
-                    debug!("failed to serialize the request object (type={}, format={}) - {}", type_name::<REQ>(), format, err);
+                    debug!(
+                        "failed to serialize the request object (type={}, format={}) - {}",
+                        type_name::<REQ>(),
+                        format,
+                        err
+                    );
                     return Err(CallError::SerializationFailed);
                 }
             },
             SerializationFormat::Json => match serde_json::to_vec(&request) {
                 Ok(a) => a,
                 Err(err) => {
-                    debug!("failed to serialize the request object (type={}, format={}) - {}", type_name::<REQ>(), format, err);
+                    debug!(
+                        "failed to serialize the request object (type={}, format={}) - {}",
+                        type_name::<REQ>(),
+                        format,
+                        err
+                    );
                     return Err(CallError::SerializationFailed);
                 }
-            }
+            },
         };
 
         let (rx, handle) = self.call_internal(None, topic.to_string(), data);
@@ -436,16 +446,26 @@ where
             SerializationFormat::Bincode => match bincode::deserialize::<T>(&data[..]) {
                 Ok(a) => Ok(a),
                 Err(err) => {
-                    debug!("failed to deserialize the response object (type={}, format={}) - {}", type_name::<T>(), self.format, err);
+                    debug!(
+                        "failed to deserialize the response object (type={}, format={}) - {}",
+                        type_name::<T>(),
+                        self.format,
+                        err
+                    );
                     Err(CallError::SerializationFailed)
-                },
+                }
             },
             SerializationFormat::Json => match serde_json::from_slice::<T>(&data[..]) {
                 Ok(a) => Ok(a),
                 Err(err) => {
-                    debug!("failed to deserialize the response object (type={}, format={}) - {}", type_name::<T>(), self.format, err);
+                    debug!(
+                        "failed to deserialize the response object (type={}, format={}) - {}",
+                        type_name::<T>(),
+                        self.format,
+                        err
+                    );
                     Err(CallError::SerializationFailed)
-                },
+                }
             },
         }
     }
@@ -461,16 +481,26 @@ where
             SerializationFormat::Bincode => match bincode::deserialize::<T>(&data[..]) {
                 Ok(a) => Ok(a),
                 Err(err) => {
-                    debug!("failed to deserialize the response object (type={}, format={}) - {}", type_name::<T>(), self.format, err);
+                    debug!(
+                        "failed to deserialize the response object (type={}, format={}) - {}",
+                        type_name::<T>(),
+                        self.format,
+                        err
+                    );
                     Err(CallError::SerializationFailed)
-                },
+                }
             },
             SerializationFormat::Json => match serde_json::from_slice::<T>(&data[..]) {
                 Ok(a) => Ok(a),
                 Err(err) => {
-                    debug!("failed to deserialize the response object (type={}, format={}) - {}", type_name::<T>(), self.format, err);
+                    debug!(
+                        "failed to deserialize the response object (type={}, format={}) - {}",
+                        type_name::<T>(),
+                        self.format,
+                        err
+                    );
                     Err(CallError::SerializationFailed)
-                },
+                }
             },
         }
     }
@@ -507,8 +537,7 @@ where
     }
 }
 
-pub struct WasmBusSessionMarker
-{
+pub struct WasmBusSessionMarker {
     thread: WasmBusThread,
     handle: CallHandle,
 }
@@ -538,7 +567,7 @@ impl AsyncWasmBusSession {
                 handle: handle.handle(),
             }),
             handle,
-            format,            
+            format,
         }
     }
 
@@ -565,22 +594,38 @@ impl AsyncWasmBusSession {
             SerializationFormat::Bincode => match bincode::serialize(&request) {
                 Ok(a) => a,
                 Err(err) => {
-                    debug!("failed to serialize the request object (type={}, format={}) - {}", type_name::<REQ>(), format, err);
+                    debug!(
+                        "failed to serialize the request object (type={}, format={}) - {}",
+                        type_name::<REQ>(),
+                        format,
+                        err
+                    );
                     return Err(CallError::SerializationFailed);
                 }
             },
             SerializationFormat::Json => match serde_json::to_vec(&request) {
                 Ok(a) => a,
                 Err(err) => {
-                    debug!("failed to serialize the request object (type={}, format={}) - {}", type_name::<REQ>(), format, err);
+                    debug!(
+                        "failed to serialize the request object (type={}, format={}) - {}",
+                        type_name::<REQ>(),
+                        format,
+                        err
+                    );
                     return Err(CallError::SerializationFailed);
                 }
             },
         };
 
         let (rx, handle) =
-            self.marker.thread
+            self.marker
+                .thread
                 .call_internal(Some(self.handle.handle()), topic.to_string(), data);
-        Ok(AsyncWasmBusResult::new(&self.marker.thread, rx, handle, format))
+        Ok(AsyncWasmBusResult::new(
+            &self.marker.thread,
+            rx,
+            handle,
+            format,
+        ))
     }
 }

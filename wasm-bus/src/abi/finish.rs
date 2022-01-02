@@ -11,7 +11,7 @@ where
     Self: Send + Sync,
 {
     fn process(&self, data: Vec<u8>) -> Result<Vec<u8>, CallError>;
-    
+
     fn topic(&self) -> &str;
 }
 
@@ -30,7 +30,7 @@ impl FinishOps for Finish {
         let mut callback = self.callback.lock().unwrap();
         callback.as_mut()(data)
     }
-    
+
     fn topic(&self) -> &str {
         self.topic.as_ref()
     }

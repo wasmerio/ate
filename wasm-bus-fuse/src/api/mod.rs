@@ -114,8 +114,7 @@ pub enum FsError {
     UnknownError,
 }
 
-impl std::fmt::Display
-for FsError {
+impl std::fmt::Display for FsError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             FsError::BaseNotDirectory => write!(f, "base is not a directory"),
