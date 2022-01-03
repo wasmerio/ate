@@ -76,7 +76,7 @@ impl server::Handler for Handler {
         self.finished_auth(Auth::Accept)
     }
 
-    fn data(mut self, channel: ChannelId, data: &[u8], session: Session) -> Self::FutureUnit {
+    fn data(mut self, channel: ChannelId, data: &[u8], mut session: Session) -> Self::FutureUnit {
         info!(
             "data on channel {:?}: {:?}",
             channel,
