@@ -98,7 +98,7 @@ impl server::Handler for Handler {
     }
 
     #[allow(unused_variables)]
-    fn shell_request(mut self, channel: ChannelId, session: Session) -> Self::FutureUnit {
+    fn shell_request(mut self, channel: ChannelId, mut session: Session) -> Self::FutureUnit {
         info!("shell_request");
 
         Box::pin(async move {
