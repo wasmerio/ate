@@ -88,11 +88,11 @@ impl server::Handler for Handler {
         });
         Box::pin(async move {
             let data = data?;
-            session.flush();
+            let _ = session.flush();
             if let Some(console) = self.console.as_mut() {
                 console.on_data(data).await;
             }
-            session.flush();
+            let _ = session.flush();
             Ok((self, session))
         })
     }
