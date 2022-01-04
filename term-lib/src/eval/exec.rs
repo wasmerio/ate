@@ -295,10 +295,6 @@ pub async fn exec_process(
                 if module.is_none() {
                     if stderr.is_tty() {
                         let _ = stderr.write("Compiling...".as_bytes()).await;
-                    } else {
-                        let _ = stderr
-                            .write(format!("[console] compiling WASM module ({})", cmd).as_bytes())
-                            .await;
                     }
 
                     // Choose the right compiler

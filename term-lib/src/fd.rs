@@ -45,7 +45,7 @@ pub enum FdFlag {
 impl FdFlag {
     pub fn is_tty(&self) -> bool {
         match self {
-            FdFlag::Stdout | FdFlag::Stderr => true,
+            FdFlag::Stdout | FdFlag::Stderr | FdFlag::Tty => true,
             _ => false,
         }
     }
