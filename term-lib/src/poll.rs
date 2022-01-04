@@ -41,8 +41,15 @@ pub fn poll_fd(
         if fd.buffer.is_empty() == false {
             true
         } else if let Ok(msg) = fd.rx.try_recv() {
-            fd.cur_flag = msg.flag;
-            fd.buffer.extend_from_slice(&msg.data[..]);
+            match msg {
+                FdMsg::Data { data, flag } => {
+                    fd.cur_flag = flag;
+                    fd.buffer.extend_from_slice(&data[..]);
+                }
+                FdMsg::Flush { tx } => {
+                    let _ = tx.try_send(());
+                }
+            }            
             true
         } else {
             false

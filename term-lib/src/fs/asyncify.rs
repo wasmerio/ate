@@ -303,6 +303,14 @@ impl AsyncifyVirtualFile {
         .await
     }
 
+    pub async fn flush(&mut self) -> Result<()> {
+        self.asyncify(move |file| {
+            file.flush()?;
+            Ok(())
+        })
+        .await
+    }
+
     pub async fn read_to_end(&mut self) -> Result<Vec<u8>> {
         self.asyncify(move |file| {
             let mut ret = Vec::new();

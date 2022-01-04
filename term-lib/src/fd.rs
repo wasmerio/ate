@@ -52,14 +52,32 @@ impl FdFlag {
 }
 
 #[derive(Debug, Clone)]
-pub struct FdMsg {
-    pub data: Vec<u8>,
-    pub flag: FdFlag,
+pub enum FdMsg {
+    Data {
+        data: Vec<u8>,
+        flag: FdFlag,
+    },
+    Flush {
+        tx: mpsc::Sender<()>,
+    }
 }
 
 impl FdMsg {
     pub fn new(data: Vec<u8>, flag: FdFlag) -> FdMsg {
-        FdMsg { data, flag }
+        FdMsg::Data { data, flag }
+    }
+    pub fn flush() -> (mpsc::Receiver<()>, FdMsg) {
+        let (tx, rx) = mpsc::channel(1);
+        let msg = FdMsg::Flush {
+            tx,
+        };
+        (rx, msg)
+    }
+    pub fn len(&self) -> usize {
+        match self {
+            FdMsg::Data { data, .. } => data.len(),
+            FdMsg::Flush { .. } => 0usize
+        }
     }
 }
 
@@ -181,6 +199,7 @@ impl Fd {
 
     pub(crate) async fn write_clear_line(&mut self) {
         let _ = self.write("\r\x1b[0K\r".as_bytes()).await;
+        let _ = self.flush_async().await;
     }
 
     pub fn poll(&mut self) -> PollResult {
@@ -188,6 +207,19 @@ impl Fd {
             self.receiver.as_mut(),
             self.sender.as_ref().map(|a| a.deref()),
         )
+    }
+
+    pub async fn flush_async(&mut self) -> io::Result<()> {
+        let (mut rx, msg) = FdMsg::flush();
+        if let Some(sender) = self.sender.as_mut() {
+            if let Err(_err) = sender.send(msg).await {
+                return Err(std::io::ErrorKind::BrokenPipe.into());
+            }
+        } else {
+            return Err(std::io::ErrorKind::BrokenPipe.into());
+        }
+        let _ = rx.recv().await;
+        Ok(())
     }
 
     pub async fn read_async(&mut self) -> io::Result<FdMsg> {
@@ -208,24 +240,20 @@ impl Fd {
                 .recv()
                 .await
                 .unwrap_or(FdMsg::new(Vec::new(), receiver.cur_flag));
-            receiver.cur_flag = msg.flag;
+            if let FdMsg::Data { flag, .. } = &msg {
+                receiver.cur_flag = flag.clone();
+            }
             Ok(msg)
         } else {
             Err(std::io::ErrorKind::BrokenPipe.into())
         }
     }
-}
 
-impl Seek for Fd {
-    fn seek(&mut self, _pos: SeekFrom) -> io::Result<u64> {
-        Err(io::Error::new(io::ErrorKind::Other, "can not seek pipes"))
-    }
-}
-impl Write for Fd {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+    fn blocking_send(&mut self, msg: FdMsg) -> io::Result<usize> {
         if let Some(sender) = self.sender.as_mut() {
-            let buf_len = buf.len();
-            let mut msg = Some(FdMsg::new(buf.to_vec(), self.flag));
+            let buf_len = msg.len();
+
+            let mut msg = Some(msg);
             loop {
                 // Try and send the data
                 match sender.try_send(msg.take().unwrap()) {
@@ -264,8 +292,41 @@ impl Write for Fd {
             return Err(std::io::ErrorKind::BrokenPipe.into());
         }
     }
+}
+
+impl Seek for Fd {
+    fn seek(&mut self, _pos: SeekFrom) -> io::Result<u64> {
+        Err(io::Error::new(io::ErrorKind::Other, "can not seek pipes"))
+    }
+}
+impl Write for Fd {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.blocking_send(FdMsg::new(buf.to_vec(), self.flag))
+    }
 
     fn flush(&mut self) -> io::Result<()> {
+        let (mut rx, msg) = FdMsg::flush();
+        self.blocking_send(msg)?;
+        loop {
+            if let Ok(_) = rx.try_recv() {
+                break;
+            }
+            if self.blocking.load(Ordering::Relaxed) == false {
+                return Err(std::io::ErrorKind::WouldBlock.into());
+            }
+            let forced_exit = self.forced_exit.load(Ordering::Acquire);
+            if forced_exit != 0 {
+                #[allow(deprecated)]
+                wasmer::RuntimeError::raise(Box::new(wasmer_wasi::WasiError::Exit(
+                    forced_exit,
+                )));
+            }
+            if self.closed.load(Ordering::Acquire) {
+                std::thread::yield_now();
+                return Ok(());
+            }
+            std::thread::park_timeout(std::time::Duration::from_millis(5));
+        }
         Ok(())
     }
 }
@@ -287,11 +348,13 @@ impl Read for Fd {
                     // Otherwise lets get some more data
                     match receiver.rx.try_recv() {
                         Ok(msg) => {
-                            //error!("on_stdin {}", data.iter().map(|byte| format!("\\u{{{:04X}}}", byte).to_owned()).collect::<Vec<String>>().join(""));
-                            receiver.cur_flag = msg.flag;
-                            receiver.buffer.extend_from_slice(&msg.data[..]);
-                            if receiver.mode == ReceiverMode::Message(false) {
-                                receiver.mode = ReceiverMode::Message(true);
+                            if let FdMsg::Data { data, flag } = msg {
+                                //error!("on_stdin {}", data.iter().map(|byte| format!("\\u{{{:04X}}}", byte).to_owned()).collect::<Vec<String>>().join(""));
+                                receiver.cur_flag = flag;
+                                receiver.buffer.extend_from_slice(&data[..]);
+                                if receiver.mode == ReceiverMode::Message(false) {
+                                    receiver.mode = ReceiverMode::Message(true);
+                                }
                             }
                         }
                         Err(mpsc::error::TryRecvError::Empty) => {}

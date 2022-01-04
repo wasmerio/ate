@@ -214,7 +214,15 @@ pub async fn exec_process(
                     }
                     if is_write {
                         while let Some(msg) = rx.recv().await {
-                            let _ = file.write_all(msg.data).await;
+                            match msg {
+                                FdMsg::Data { data, .. } => {
+                                    let _ = file.write_all(data).await;
+                                },
+                                FdMsg::Flush { tx } => {
+                                    file.flush().await;
+                                    let _ = tx.send(()).await;
+                                }
+                            }
                         }
                     }
                 });

@@ -319,14 +319,18 @@ impl ProcessExec {
                     tokio::select! {
                         msg = stdout_rx.recv() => {
                             if let (Some(msg), Some(on_data)) = (msg, self.on_stdout.as_mut()) {
-                                on_data.feed(self.format, api::PoolSpawnStdoutCallback(msg.data));
+                                if let FdMsg::Data { data, .. } = msg {
+                                    on_data.feed(self.format, api::PoolSpawnStdoutCallback(data));
+                                }
                             } else {
                                 self.stdout.take();
                             }
                         }
                         msg = stderr_rx.recv() => {
                             if let (Some(msg), Some(on_data)) = (msg, self.on_stderr.as_mut()) {
-                                on_data.feed(self.format, api::PoolSpawnStderrCallback(msg.data));
+                                if let FdMsg::Data { data, .. } = msg {
+                                    on_data.feed(self.format, api::PoolSpawnStderrCallback(data));
+                                }
                             } else {
                                 self.stderr.take();
                             }
@@ -343,7 +347,9 @@ impl ProcessExec {
                     tokio::select! {
                         msg = stdout_rx.recv() => {
                             if let (Some(msg), Some(on_data)) = (msg, self.on_stdout.as_mut()) {
-                                on_data.feed(self.format, api::PoolSpawnStdoutCallback(msg.data));
+                                if let FdMsg::Data { data, .. } = msg {
+                                    on_data.feed(self.format, api::PoolSpawnStdoutCallback(data));
+                                }
                             } else {
                                 self.stdout.take();
                             }
@@ -362,7 +368,9 @@ impl ProcessExec {
                     tokio::select! {
                         msg = stderr_rx.recv() => {
                             if let (Some(msg), Some(on_data)) = (msg, self.on_stderr.as_mut()) {
-                                on_data.feed(self.format, api::PoolSpawnStderrCallback(msg.data));
+                                if let FdMsg::Data { data, .. } = msg {
+                                    on_data.feed(self.format, api::PoolSpawnStderrCallback(data));
+                                }
                             } else {
                                 self.stderr.take();
                             }
