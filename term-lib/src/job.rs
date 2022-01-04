@@ -44,7 +44,7 @@ impl Clone for Job {
 
 impl Job {
     pub fn new(id: u32, working_dir: String, env: Environment, root: UnionFileSystem) -> Job {
-        let (stdin, stdin_tx) = pipe_in(ReceiverMode::Stream, FdFlag::Stdin);
+        let (stdin, stdin_tx) = pipe_in(ReceiverMode::Stream, FdFlag::Stdin(true));
         let (job_list_tx, job_list_rx) = mpsc::channel(MAX_MPSC);
         Job {
             id,

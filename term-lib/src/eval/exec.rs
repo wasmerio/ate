@@ -169,28 +169,28 @@ pub async fn exec_process(
                         -1 => {
                             if redirect.op.read() {
                                 let mut fd = fd.clone();
-                                flag = fd.set_flag(FdFlag::Stdin);
+                                flag = fd.set_flag(FdFlag::Stdin(false));
                                 stdio.stdin = fd;
                             }
                             if redirect.op.write() {
                                 let mut fd = fd.clone();
-                                flag = fd.set_flag(FdFlag::Stdout);
+                                flag = fd.set_flag(FdFlag::Stdout(false));
                                 stdio.stdout = fd;
                             }
                         }
                         0 => {
                             let mut fd = fd.clone();
-                            flag = fd.set_flag(FdFlag::Stdin);
+                            flag = fd.set_flag(FdFlag::Stdin(false));
                             stdio.stdin = fd
                         }
                         1 => {
                             let mut fd = fd.clone();
-                            flag = fd.set_flag(FdFlag::Stdout);
+                            flag = fd.set_flag(FdFlag::Stdout(false));
                             stdio.stdout = fd
                         }
                         2 => {
                             let mut fd = fd.clone();
-                            flag = fd.set_flag(FdFlag::Stderr);
+                            flag = fd.set_flag(FdFlag::Stderr(false));
                             stdio.stderr = fd
                         }
                         _ => {

@@ -41,7 +41,7 @@ pub(super) fn wax(
         if wax.lock().unwrap().contains(&cmd) == false {
             let mut tty = ctx.stdio.tty.fd();
 
-            let (stdin_fd, _) = pipe_in(ReceiverMode::Stream, FdFlag::Stdin);
+            let (stdin_fd, _) = pipe_in(ReceiverMode::Stream, FdFlag::Stdin(false));
             let mut ctx = ctx.clone();
             ctx.stdio.stdin = stdin_fd;
             ctx.stdio.stdout = tty.clone();

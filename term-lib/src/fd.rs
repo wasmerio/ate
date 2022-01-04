@@ -35,9 +35,9 @@ use crate::wasmer_wasi::{types as wasi_types, WasiFile, WasiFsError};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FdFlag {
     None,
-    Stdin,
-    Stdout,
-    Stderr,
+    Stdin(bool),  // bool indicates if the terminal is TTY
+    Stdout(bool), // bool indicates if the terminal is TTY
+    Stderr(bool), // bool indicates if the terminal is TTY
     Log,
     Tty,
 }
@@ -45,7 +45,10 @@ pub enum FdFlag {
 impl FdFlag {
     pub fn is_tty(&self) -> bool {
         match self {
-            FdFlag::Stdout | FdFlag::Stderr | FdFlag::Tty => true,
+            FdFlag::Stdin(tty) => tty.clone(),
+            FdFlag::Stdout(tty) => tty.clone(),
+            FdFlag::Stderr(tty) => tty.clone(),
+            FdFlag::Tty => true,
             _ => false,
         }
     }
@@ -298,26 +301,6 @@ impl Write for Fd {
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        let (mut rx, msg) = FdMsg::flush();
-        self.blocking_send(msg)?;
-        loop {
-            if let Ok(_) = rx.try_recv() {
-                break;
-            }
-            if self.blocking.load(Ordering::Relaxed) == false {
-                return Err(std::io::ErrorKind::WouldBlock.into());
-            }
-            let forced_exit = self.forced_exit.load(Ordering::Acquire);
-            if forced_exit != 0 {
-                #[allow(deprecated)]
-                wasmer::RuntimeError::raise(Box::new(wasmer_wasi::WasiError::Exit(forced_exit)));
-            }
-            if self.closed.load(Ordering::Acquire) {
-                std::thread::yield_now();
-                return Ok(());
-            }
-            std::thread::park_timeout(std::time::Duration::from_millis(5));
-        }
         Ok(())
     }
 }

@@ -161,9 +161,9 @@ impl ProcessExecFactory {
             }
 
             // Create all the stdio
-            let (stdin, stdin_tx) = pipe_in(ReceiverMode::Stream, FdFlag::Stdin);
-            let (stdout, stdout_rx) = pipe_out(FdFlag::Stdout);
-            let (stderr, stderr_rx) = pipe_out(FdFlag::Stderr);
+            let (stdin, stdin_tx) = pipe_in(ReceiverMode::Stream, FdFlag::Stdin(false));
+            let (stdout, stdout_rx) = pipe_out(FdFlag::Stdout(false));
+            let (stderr, stderr_rx) = pipe_out(FdFlag::Stderr(false));
 
             // Perform hooks back to the main stdio
             let (stdin, stdin_tx) = match stdin_mode {
@@ -452,7 +452,7 @@ impl Session for ProcessExecSession {
                 };
             if let Some(stdin) = self.stdin.as_ref() {
                 let tx_send = stdin.clone();
-                let _ = tx_send.blocking_send(FdMsg::new(request.data, FdFlag::Stdin));
+                let _ = tx_send.blocking_send(FdMsg::new(request.data, FdFlag::Stdin(false)));
             }
             ResultInvokable::new(SerializationFormat::Bincode, ())
         } else if topic == type_name::<api::ProcessCloseStdinRequest>() {
