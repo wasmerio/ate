@@ -169,7 +169,7 @@ impl BinFactory {
             .await
     }
 
-    pub async fn alias(&self, name: &str, mut stderr: Fd) -> Option<AliasConfig> {
+    pub async fn alias(&self, name: &str) -> Option<AliasConfig> {
         let mut name = name.to_string();
 
         // Fast path
@@ -180,24 +180,11 @@ impl BinFactory {
             }
         }
 
-        // Tell the console we are fetching
-        if stderr.is_tty() {
-            stderr.write_clear_line().await;
-            let _ = stderr.write("Probing...".as_bytes()).await;
-        } else {
-            let _ = stderr
-                .write(format!("[console] probing for alias of '{}'", name).as_bytes())
-                .await;
-        }
-
         // Slow path
         let mut cache = self.alias.write().await;
 
         // Check the cache
         if let Some(data) = cache.get(&name) {
-            if stderr.is_tty() {
-                stderr.write_clear_line().await;
-            }
             return data.clone();
         }
 
@@ -209,9 +196,6 @@ impl BinFactory {
                 Ok(alias) => {
                     info!("binary alias '{}' found for {}", alias.run, name);
                     cache.insert(name, Some(alias.clone()));
-                    if stderr.is_tty() {
-                        stderr.write_clear_line().await;
-                    }
                     return Some(alias);
                 }
                 Err(err) => {
@@ -222,9 +206,6 @@ impl BinFactory {
 
         // NAK
         cache.insert(name, None);
-        if stderr.is_tty() {
-            stderr.write_clear_line().await;
-        }
         return None;
     }
 }

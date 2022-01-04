@@ -88,7 +88,7 @@ pub async fn load_bin(
     }
 
     // Resolve some more alias possibilities using fetch commands (with cached results)
-    while let Some(next) = ctx.bins.alias(name.as_str(), stdio.stderr.clone()).await {
+    while let Some(next) = ctx.bins.alias(name.as_str()).await {
         if already.contains(&name) {
             break;
         }
