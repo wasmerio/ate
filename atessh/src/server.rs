@@ -1,15 +1,15 @@
+use ate::mesh::Registry;
+use ate_auth::prelude::*;
 use std::net::IpAddr;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
-use ate::mesh::Registry;
 use term_lib::api::ConsoleRect;
 use thrussh::server;
 use tokterm::term_lib;
 use tokterm::term_lib::bin_factory::CachedCompiledModules;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
-use ate_auth::prelude::*;
 
 use crate::key::SshServerKey;
 use crate::opt::OptsSsh;
@@ -28,8 +28,7 @@ pub struct Server {
 }
 
 impl Server {
-    pub async fn new(run: OptsSsh, server_key: SshServerKey) -> Self
-    {
+    pub async fn new(run: OptsSsh, server_key: SshServerKey) -> Self {
         // Create the registry that will be used to validate logins
         let registry = ate::mesh::Registry::new(&conf_cmd()).await.cement();
 
@@ -69,7 +68,7 @@ impl server::Server for Server {
             .map(|a| a.to_string())
             .unwrap_or_else(|| "[unknown]".to_string());
         info!("new connection from {}", peer_addr_str);
-        
+
         // Return the handler
         let mut wizard = SshWizard {
             step: SshWizardStep::Init,

@@ -56,8 +56,7 @@ impl Console {
         compiler: Compiler,
         abi: Arc<dyn ConsoleAbi>,
         wizard: Option<Box<dyn WizardAbi + Send + Sync + 'static>>,
-        #[cfg(feature = "cached_compiling")]
-        compiled_modules: Arc<CachedCompiledModules>,
+        #[cfg(feature = "cached_compiling")] compiled_modules: Arc<CachedCompiledModules>,
     ) -> Console {
         let reactor = Reactor::new();
 
@@ -120,7 +119,10 @@ impl Console {
         let is_mobile = is_mobile(&user_agent);
         let tty = Tty::new(stdout.clone(), is_mobile);
 
-        let bins = BinFactory::new(#[cfg(feature = "cached_compiling")] compiled_modules);
+        let bins = BinFactory::new(
+            #[cfg(feature = "cached_compiling")]
+            compiled_modules,
+        );
         let exec_factory = EvalFactory::new(
             bins.clone(),
             tty.clone(),
@@ -130,8 +132,7 @@ impl Console {
             log.clone(),
         );
 
-        let wizard = wizard
-            .map(|a| WizardExecutor::new(a));
+        let wizard = wizard.map(|a| WizardExecutor::new(a));
 
         Console {
             location,
@@ -175,7 +176,9 @@ impl Console {
             .next()
             .map(|(_, val)| val.to_string());
 
-        let no_welcome = self.location.query_pairs()
+        let no_welcome = self
+            .location
+            .query_pairs()
             .any(|(key, _)| key == "no_welcome" || key == "no-welcome");
 
         let token = self
@@ -185,7 +188,7 @@ impl Console {
             .next()
             .map(|(_, val)| val.to_string());
 
-        self.whitelabel =self.location.query_pairs().any(|(key, _)| key == "wl"); 
+        self.whitelabel = self.location.query_pairs().any(|(key, _)| key == "wl");
 
         if let Some(prompt) = self
             .location
@@ -216,7 +219,7 @@ impl Console {
 
         let rect = self.abi.console_rect().await;
         self.tty.set_bounds(rect.cols, rect.rows).await;
-        
+
         Console::update_prompt(false, &self.state, &self.tty).await;
 
         if self.wizard.is_some() {
@@ -232,10 +235,18 @@ impl Console {
         }
 
         if let Some(token) = self.bootstrap_token.take() {
-            self.on_enter_internal(format!("login --token {}", token)).await;
+            self.on_enter_internal(format!("login --token {}", token))
+                .await;
         }
 
-        if self.state.lock().unwrap().rootfs.metadata(&Path::new("/bin/init")).is_ok() {
+        if self
+            .state
+            .lock()
+            .unwrap()
+            .rootfs
+            .metadata(&Path::new("/bin/init"))
+            .is_ok()
+        {
             self.on_enter_internal("source /bin/init".to_string()).await;
         } else {
             self.tty.draw_prompt().await;
@@ -253,15 +264,13 @@ impl Console {
 
         if let Some(wizard) = self.wizard.as_mut() {
             match wizard.feed(&self.abi, cmd).await {
-                WizardExecutorAction::More {
-                    echo
-                } => {
+                WizardExecutorAction::More { echo } => {
                     self.tty.set_echo(echo).await;
                     return;
-                },
+                }
                 WizardExecutorAction::Done => {
                     drop(wizard);
-                    
+
                     if let Some(wizard) = self.wizard.take() {
                         if let Some(token) = wizard.token() {
                             self.bootstrap_token = Some(token);
@@ -270,7 +279,7 @@ impl Console {
 
                     self.start_shell().await;
                     return;
-                },
+                }
             }
         }
     }

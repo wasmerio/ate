@@ -85,8 +85,7 @@ pub struct BinFactory {
 
 impl BinFactory {
     pub fn new(
-        #[cfg(feature = "cached_compiling")]
-        compiled_modules: Arc<CachedCompiledModules>,
+        #[cfg(feature = "cached_compiling")] compiled_modules: Arc<CachedCompiledModules>,
     ) -> BinFactory {
         BinFactory {
             wax: Arc::new(Mutex::new(HashSet::new())),
@@ -158,7 +157,9 @@ impl BinFactory {
 
     #[cfg(feature = "cached_compiling")]
     pub async fn set_compiled_module(&self, data_hash: String, compiled_module: Module) {
-        self.compiled_modules.set_compiled_module(data_hash, compiled_module).await
+        self.compiled_modules
+            .set_compiled_module(data_hash, compiled_module)
+            .await
     }
 
     pub async fn alias(&self, name: &str, mut stderr: Fd) -> Option<AliasConfig> {

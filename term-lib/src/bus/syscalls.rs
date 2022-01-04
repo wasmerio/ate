@@ -263,7 +263,10 @@ unsafe fn wasm_bus_poll(thread: &WasmBusThread) {
             let topic_ptr = match native_malloc.call(topic_len) {
                 Ok(a) => a,
                 Err(err) => {
-                    warn!("wasm-bus::call - allocation failed (topic={}, len={}) - {}", topic, topic_len, err);
+                    warn!(
+                        "wasm-bus::call - allocation failed (topic={}, len={}) - {}",
+                        topic, topic_len, err
+                    );
                     let _ = tx.send(Err(CallError::MemoryAllocationFailed));
                     return;
                 }
@@ -277,7 +280,10 @@ unsafe fn wasm_bus_poll(thread: &WasmBusThread) {
             let request_ptr = match native_malloc.call(request_len) {
                 Ok(a) => a,
                 Err(err) => {
-                    warn!("wasm-bus::call - allocation failed (topic={}, len={}) - {}", topic, request_len, err);
+                    warn!(
+                        "wasm-bus::call - allocation failed (topic={}, len={}) - {}",
+                        topic, request_len, err
+                    );
                     let _ = tx.send(Err(CallError::MemoryAllocationFailed));
                     return;
                 }
@@ -295,17 +301,18 @@ unsafe fn wasm_bus_poll(thread: &WasmBusThread) {
             }
 
             // Attempt to make the call to the WAPM module
-            if let Err(err) = native_start
-                .call(
-                    parent,
-                    handle.id,
-                    topic_ptr,
-                    topic_len,
-                    request_ptr,
-                    request_len,
-                )
-            {
-                warn!("wasm-bus::call - invocation failed (topic={}) - {}", topic, err);
+            if let Err(err) = native_start.call(
+                parent,
+                handle.id,
+                topic_ptr,
+                topic_len,
+                request_ptr,
+                request_len,
+            ) {
+                warn!(
+                    "wasm-bus::call - invocation failed (topic={}) - {}",
+                    topic, err
+                );
                 let mut inner = thread.inner.lock();
                 if let Some(call) = inner.calls.remove(&handle) {
                     let _ = call.send(Err(CallError::BusInvocationFailed));
@@ -532,11 +539,7 @@ unsafe fn wasm_bus_call(
                 }
                 Err(err) => data_feeder.feed_bytes_or_error(Err(err)),
             }
-            thread
-                .inner
-                .lock()
-                .factory
-                .close(CallHandle::from(handle));
+            thread.inner.lock().factory.close(CallHandle::from(handle));
         }
     };
 

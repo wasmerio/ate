@@ -1,8 +1,8 @@
+use ate::mesh::Registry;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::Mutex;
-use ate::mesh::Registry;
 use term_lib::api::ConsoleRect;
 use term_lib::api::System;
 use term_lib::console::Console;
@@ -13,11 +13,11 @@ use thrussh::ChannelId;
 use thrussh_keys::key::ed25519;
 use thrussh_keys::key::PublicKey;
 use tokterm::term_lib;
+use tokterm::term_lib::api as term_api;
 use tokterm::term_lib::api::SystemAbiExt;
+use tokterm::term_lib::bin_factory::CachedCompiledModules;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
-use tokterm::term_lib::api as term_api;
-use tokterm::term_lib::bin_factory::CachedCompiledModules;
 
 use crate::wizard::SshWizard;
 
@@ -86,10 +86,8 @@ impl server::Handler for Handler {
 
         // Process it in the wizard
         let _response = match response {
-            Some(mut a) => {
-                Some(convert_response(&mut a))
-            },
-            None => None
+            Some(mut a) => Some(convert_response(&mut a)),
+            None => None,
         };
 
         // Unfortunately the SSH server isnt working properly so we accept
@@ -98,11 +96,7 @@ impl server::Handler for Handler {
     }
 
     fn data(mut self, channel: ChannelId, data: &[u8], session: Session) -> Self::FutureUnit {
-        debug!(
-            "data on channel {:?}: len={:?}",
-            channel,
-            data.len()
-        );
+        debug!("data on channel {:?}: len={:?}", channel, data.len());
         let data = String::from_utf8(data.to_vec()).map_err(|_| {
             let err: SshServerError = SshServerErrorKind::BadData.into();
             err
@@ -133,14 +127,22 @@ impl server::Handler for Handler {
             system
                 .spawn_dedicated(move || async move {
                     // Get the wizard
-                    let wizard = self.wizard.take()
-                        .map(|a| Box::new(a) as Box<dyn term_api::WizardAbi + Send + Sync + 'static>);
+                    let wizard = self.wizard.take().map(|a| {
+                        Box::new(a) as Box<dyn term_api::WizardAbi + Send + Sync + 'static>
+                    });
 
                     // Create the console
                     let location = "wss://tokera.sh/?no_welcome".to_string();
                     let user_agent = "noagent".to_string();
                     let compiled_modules = self.compiled_modules.clone();
-                    let mut console = Console::new(location, user_agent, self.compiler, handle, wizard, compiled_modules);
+                    let mut console = Console::new(
+                        location,
+                        user_agent,
+                        self.compiler,
+                        handle,
+                        wizard,
+                        compiled_modules,
+                    );
                     console.init().await;
                     self.console.replace(console);
 
@@ -183,8 +185,7 @@ fn clone_public_key(key: &PublicKey) -> PublicKey {
     }
 }
 
-fn convert_response<'a>(response: &mut thrussh::server::Response<'a>) -> Vec<String>
-{
+fn convert_response<'a>(response: &mut thrussh::server::Response<'a>) -> Vec<String> {
     let mut ret = Vec::new();
 
     for txt in response.map(|a| a.to_vec()).collect::<Vec<Vec<u8>>>() {

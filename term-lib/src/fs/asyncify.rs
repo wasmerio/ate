@@ -199,7 +199,10 @@ pub struct AsyncifyVirtualFile {
 }
 
 impl AsyncifyVirtualFile {
-    async fn asyncify<T>(&self, funct: impl FnOnce(&mut (dyn VirtualFile + Sync)) -> T + Send + 'static) -> T
+    async fn asyncify<T>(
+        &self,
+        funct: impl FnOnce(&mut (dyn VirtualFile + Sync)) -> T + Send + 'static,
+    ) -> T
     where
         T: Send,
     {
