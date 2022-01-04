@@ -109,13 +109,16 @@ impl BinFactory {
         }
 
         // Tell the console we are fetching
-        if stderr.is_tty() {
-            stderr.write_clear_line().await;
-            let _ = stderr.write("Fetching...".as_bytes()).await;
-        } else {
-            let _ = stderr
-                .write(format!("[console] fetching '{}' from site", name).as_bytes())
-                .await;
+        #[cfg(target_arch = "wasm32")]
+        {
+            if stderr.is_tty() {
+                stderr.write_clear_line().await;
+                let _ = stderr.write("Fetching...".as_bytes()).await;
+            } else {
+                let _ = stderr
+                    .write(format!("[console] fetching '{}' from site", name).as_bytes())
+                    .await;
+            }
         }
 
         // Slow path
@@ -123,6 +126,7 @@ impl BinFactory {
 
         // Check the cache
         if let Some(data) = cache.get(&name) {
+            #[cfg(target_arch = "wasm32")]
             if stderr.is_tty() {
                 stderr.write_clear_line().await;
             }
@@ -137,6 +141,7 @@ impl BinFactory {
         {
             let data = BinaryPackage::new(Bytes::from(data));
             cache.insert(name, Some(data.clone()));
+            #[cfg(target_arch = "wasm32")]
             if stderr.is_tty() {
                 stderr.write_clear_line().await;
             }
@@ -145,6 +150,7 @@ impl BinFactory {
 
         // NAK
         cache.insert(name, None);
+        #[cfg(target_arch = "wasm32")]
         if stderr.is_tty() {
             stderr.write_clear_line().await;
         }
