@@ -50,7 +50,7 @@ pub fn bidirectional(
             mode,
             cur_flag: flag,
         }))),
-        flag
+        flag,
     );
     (fd, tx_read, rx_write)
 }

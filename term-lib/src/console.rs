@@ -67,7 +67,7 @@ impl Console {
         let reactor = Reactor::new();
 
         let state = Arc::new(Mutex::new(ConsoleState::new(super::fs::create_root_fs())));
-        
+
         let (stdio, mut stdio_rx) = pipe_out(FdFlag::None);
         let mut stdout = stdio.clone();
         let mut stderr = stdio.clone();
@@ -88,17 +88,20 @@ impl Console {
                 while let Some(msg) = stdio_rx.recv().await {
                     match msg.flag {
                         FdFlag::Stdout | FdFlag::Stderr | FdFlag::Tty => {
-                            let text = String::from_utf8_lossy(&msg.data[..])[..].replace("\n", "\r\n");
+                            let text =
+                                String::from_utf8_lossy(&msg.data[..])[..].replace("\n", "\r\n");
                             match msg.flag {
-                                FdFlag::Stdout | FdFlag::Tty => abi.stdout(text.as_bytes().to_vec()).await,
+                                FdFlag::Stdout | FdFlag::Tty => {
+                                    abi.stdout(text.as_bytes().to_vec()).await
+                                }
                                 FdFlag::Stderr => abi.stderr(text.as_bytes().to_vec()).await,
-                                _ => { }
+                                _ => {}
                             };
 
                             let is_unfinished = is_cleared_line(&text) == false;
                             let mut state = state.lock().unwrap();
                             state.unfinished_line = is_unfinished;
-                        },
+                        }
                         FdFlag::Log => {
                             let txt = String::from_utf8_lossy(&msg.data[..]);
                             let mut txt = txt.as_ref();
@@ -106,10 +109,9 @@ impl Console {
                                 txt = &txt[..(txt.len() - 1)];
                             }
                             abi.log(txt.to_string()).await;
-                        },
-                        _ => { }
+                        }
+                        _ => {}
                     }
-                    
                 }
             });
         }
@@ -305,7 +307,10 @@ impl Console {
             self.tty.reset_line().await;
             self.tty.reset_paragraph().await;
             //error!("on_stdin {}", cmd.as_bytes().iter().map(|byte| format!("\\u{{{:04X}}}", byte).to_owned()).collect::<Vec<String>>().join(""));
-            let _ = job.stdin_tx.send(FdMsg::new(cmd.into_bytes(), FdFlag::Stdin)).await;
+            let _ = job
+                .stdin_tx
+                .send(FdMsg::new(cmd.into_bytes(), FdFlag::Stdin))
+                .await;
             return;
         }
 
@@ -612,11 +617,17 @@ impl Console {
                 // from TTY.
                 } else if data == "\r" || data == "\u{000A}" {
                     data = "\n".to_string();
-                    let _ = job.stdin_tx.send(FdMsg::new(data.into_bytes(), FdFlag::Stdin)).await;
+                    let _ = job
+                        .stdin_tx
+                        .send(FdMsg::new(data.into_bytes(), FdFlag::Stdin))
+                        .await;
 
                 // Otherwise we just feed the bytes into the STDIN for the process to handle
                 } else {
-                    let _ = job.stdin_tx.send(FdMsg::new(data.into_bytes(), FdFlag::Stdin)).await;
+                    let _ = job
+                        .stdin_tx
+                        .send(FdMsg::new(data.into_bytes(), FdFlag::Stdin))
+                        .await;
                 }
             }
             TtyMode::Null => {}

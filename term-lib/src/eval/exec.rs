@@ -182,17 +182,17 @@ pub async fn exec_process(
                             let mut fd = fd.clone();
                             flag = fd.set_flag(FdFlag::Stdin);
                             stdio.stdin = fd
-                        },
+                        }
                         1 => {
                             let mut fd = fd.clone();
                             flag = fd.set_flag(FdFlag::Stdout);
                             stdio.stdout = fd
-                        },
+                        }
                         2 => {
                             let mut fd = fd.clone();
                             flag = fd.set_flag(FdFlag::Stderr);
                             stdio.stderr = fd
-                        },
+                        }
                         _ => {
                             return on_early_exit(Some(format!("redirecting non-standard file descriptors is not yet supported")), err::ERR_EINVAL).await;
                         }

@@ -33,8 +33,7 @@ use crate::wasmer_vfs::{FileDescriptor, VirtualFile};
 use crate::wasmer_wasi::{types as wasi_types, WasiFile, WasiFsError};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum FdFlag
-{
+pub enum FdFlag {
     None,
     Stdin,
     Stdout,
@@ -47,24 +46,20 @@ impl FdFlag {
     pub fn is_tty(&self) -> bool {
         match self {
             FdFlag::Stdout | FdFlag::Stderr => true,
-            _ => false
+            _ => false,
         }
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct FdMsg
-{
+pub struct FdMsg {
     pub data: Vec<u8>,
     pub flag: FdFlag,
 }
 
 impl FdMsg {
     pub fn new(data: Vec<u8>, flag: FdFlag) -> FdMsg {
-        FdMsg {
-            data,
-            flag,
-        }
+        FdMsg { data, flag }
     }
 }
 
@@ -208,7 +203,11 @@ impl Fd {
                 receiver.mode = ReceiverMode::Message(false);
                 return Ok(FdMsg::new(Vec::new(), receiver.cur_flag));
             }
-            let msg = receiver.rx.recv().await.unwrap_or(FdMsg::new(Vec::new(), receiver.cur_flag));
+            let msg = receiver
+                .rx
+                .recv()
+                .await
+                .unwrap_or(FdMsg::new(Vec::new(), receiver.cur_flag));
             receiver.cur_flag = msg.flag;
             Ok(msg)
         } else {

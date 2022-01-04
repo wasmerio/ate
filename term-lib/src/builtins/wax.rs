@@ -9,9 +9,9 @@ use crate::eval::eval;
 use crate::eval::EvalContext;
 use crate::eval::EvalPlan;
 use crate::eval::ExecResponse;
+use crate::fd::FdFlag;
 use crate::pipe::*;
 use crate::stdio::*;
-use crate::fd::FdFlag;
 
 pub(super) fn wax(
     args: &[String],
