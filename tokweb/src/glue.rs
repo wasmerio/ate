@@ -135,6 +135,7 @@ pub fn start() -> Result<(), JsValue> {
         user_agent,
         term_lib::eval::Compiler::Default,
         Arc::new(web_console),
+        None,
     );
     let tty = console.tty().clone();
 

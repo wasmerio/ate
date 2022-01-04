@@ -80,6 +80,7 @@ pub struct BinFactory {
     pub wax: Arc<Mutex<HashSet<String>>>,
     pub alias: Arc<RwLock<HashMap<String, Option<AliasConfig>>>>,
     pub cache: Arc<RwLock<HashMap<String, Option<BinaryPackage>>>>,
+    #[cfg(feature = "cached_compiling")]
     pub compiled_modules: Arc<CachedCompiledModules>,
 }
 
