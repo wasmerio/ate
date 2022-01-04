@@ -26,6 +26,7 @@ use super::state::*;
 use super::stdio::*;
 use super::stdout::*;
 use super::tty::*;
+use super::wizard_executor::*;
 use crate::api::*;
 use crate::wasmer_vfs::FileSystem;
 
@@ -42,6 +43,10 @@ pub struct Console {
     exec: EvalFactory,
     compiler: Compiler,
     abi: Arc<dyn ConsoleAbi>,
+    wizard: Option<WizardExecutor>,
+    whitelabel: bool,
+    bootstrap_token: Option<String>,
+    no_welcome: bool,
 }
 
 impl Console {
@@ -50,6 +55,9 @@ impl Console {
         user_agent: String,
         compiler: Compiler,
         abi: Arc<dyn ConsoleAbi>,
+        wizard: Option<Box<dyn WizardAbi + Send + Sync + 'static>>,
+        #[cfg(feature = "cached_compiling")]
+        compiled_modules: Arc<CachedCompiledModules>,
     ) -> Console {
         let reactor = Reactor::new();
 
@@ -112,7 +120,7 @@ impl Console {
         let is_mobile = is_mobile(&user_agent);
         let tty = Tty::new(stdout.clone(), is_mobile);
 
-        let bins = BinFactory::new();
+        let bins = BinFactory::new(#[cfg(feature = "cached_compiling")] compiled_modules);
         let exec_factory = EvalFactory::new(
             bins.clone(),
             tty.clone(),
@@ -121,6 +129,9 @@ impl Console {
             stderr.clone(),
             log.clone(),
         );
+
+        let wizard = wizard
+            .map(|a| WizardExecutor::new(a));
 
         Console {
             location,
@@ -135,6 +146,10 @@ impl Console {
             exec: exec_factory,
             compiler,
             abi,
+            wizard,
+            whitelabel: false,
+            bootstrap_token: None,
+            no_welcome: false,
         }
     }
 
@@ -160,7 +175,17 @@ impl Console {
             .next()
             .map(|(_, val)| val.to_string());
 
-        let whitelabel = self.location.query_pairs().any(|(key, _)| key == "wl");
+        let no_welcome = self.location.query_pairs()
+            .any(|(key, _)| key == "no_welcome" || key == "no-welcome");
+
+        let token = self
+            .location
+            .query_pairs()
+            .filter(|(key, _)| key == "token")
+            .next()
+            .map(|(_, val)| val.to_string());
+
+        self.whitelabel =self.location.query_pairs().any(|(key, _)| key == "wl"); 
 
         if let Some(prompt) = self
             .location
@@ -186,18 +211,32 @@ impl Console {
             init_file.write_all(run_command.as_bytes()).unwrap();
         }
 
+        self.bootstrap_token = token;
+        self.no_welcome = no_welcome;
+
         let rect = self.abi.console_rect().await;
         self.tty.set_bounds(rect.cols, rect.rows).await;
-
+        
         Console::update_prompt(false, &self.state, &self.tty).await;
 
-        if whitelabel == false {
+        if self.wizard.is_some() {
+            self.on_wizard(None).await;
+        } else {
+            self.start_shell().await;
+        }
+    }
+
+    pub async fn start_shell(&mut self) {
+        if self.whitelabel == false && self.no_welcome == false {
             self.tty.draw_welcome().await;
         }
 
-        if run_command.is_some() {
-            self.on_data("source /bin/init".to_string()).await;
-            self.on_enter().await;
+        if let Some(token) = self.bootstrap_token.take() {
+            self.on_enter_internal(format!("login --token {}", token)).await;
+        }
+
+        if self.state.lock().unwrap().rootfs.metadata(&Path::new("/bin/init")).is_ok() {
+            self.on_enter_internal("source /bin/init".to_string()).await;
         } else {
             self.tty.draw_prompt().await;
         }
@@ -207,14 +246,51 @@ impl Console {
         &self.tty
     }
 
-    pub async fn on_enter(&mut self) {
-        let mode = self.tty.mode().await;
+    pub async fn on_wizard(&mut self, cmd: Option<String>) {
+        self.tty.reset_paragraph().await;
+        self.tty.reset_line().await;
+        self.tty.set_echo(true).await;
 
+        if let Some(wizard) = self.wizard.as_mut() {
+            match wizard.feed(&self.abi, cmd).await {
+                WizardExecutorAction::More {
+                    echo
+                } => {
+                    self.tty.set_echo(echo).await;
+                    return;
+                },
+                WizardExecutorAction::Done => {
+                    drop(wizard);
+                    
+                    if let Some(wizard) = self.wizard.take() {
+                        if let Some(token) = wizard.token() {
+                            self.bootstrap_token = Some(token);
+                        }
+                    }
+
+                    self.start_shell().await;
+                    return;
+                },
+            }
+        }
+    }
+
+    pub async fn on_enter(&mut self) {
         self.tty.set_cursor_to_end().await;
+        let cmd = self.tty.get_paragraph().await;
+
+        if self.wizard.is_some() {
+            self.on_wizard(Some(cmd)).await;
+            return;
+        }
+
         self.tty.draw("\r\n").await;
 
-        let mut cmd = self.tty.get_paragraph().await;
+        self.on_enter_internal(cmd).await
+    }
 
+    pub async fn on_enter_internal(&mut self, mut cmd: String) {
+        let mode = self.tty.mode().await;
         if let TtyMode::StdIn(job) = mode {
             cmd += "\n";
             self.tty.reset_line().await;
@@ -368,6 +444,10 @@ impl Console {
     }
 
     pub async fn on_ctrl_l(&mut self) {
+        if self.wizard.is_some() {
+            return;
+        }
+
         self.tty.reset_line().await;
         self.tty.draw_prompt().await;
         self.abi.cls().await;
@@ -394,6 +474,11 @@ impl Console {
     pub async fn on_f12(&mut self) {}
 
     pub async fn on_ctrl_c(&mut self, job: Option<Job>) {
+        if self.wizard.is_some() {
+            self.abi.exit().await;
+            return;
+        }
+
         if job.is_none() {
             self.tty.draw("\r\n").await;
         } else {
@@ -437,7 +522,7 @@ impl Console {
             "\u{007F}" => {
                 self.tty.backspace().await;
             }
-            "\u{0009}" => {
+            "\u{0009}" if self.wizard.is_none() => {
                 self.on_tab(job).await;
             }
             "\u{001B}\u{005B}\u{0044}" => {
@@ -452,12 +537,12 @@ impl Console {
             "\u{001B}\u{005B}\u{0046}" => {
                 self.tty.set_cursor_to_end().await;
             }
-            "\u{001B}\u{005B}\u{0041}" => {
+            "\u{001B}\u{005B}\u{0041}" if self.wizard.is_none() => {
                 if job.is_none() {
                     self.tty.cursor_up().await;
                 }
             }
-            "\u{001B}\u{005B}\u{0042}" => {
+            "\u{001B}\u{005B}\u{0042}" if self.wizard.is_none() => {
                 if job.is_none() {
                     self.tty.cursor_down().await;
                 }

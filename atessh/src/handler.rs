@@ -2,6 +2,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::Mutex;
+use ate::mesh::Registry;
 use term_lib::api::ConsoleRect;
 use term_lib::api::System;
 use term_lib::console::Console;
@@ -15,11 +16,16 @@ use tokterm::term_lib;
 use tokterm::term_lib::api::SystemAbiExt;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
+use tokterm::term_lib::api as term_api;
+use tokterm::term_lib::bin_factory::CachedCompiledModules;
+
+use crate::wizard::SshWizard;
 
 use super::console_handle::*;
 use super::error::*;
 
 pub struct Handler {
+    pub registry: Arc<Registry>,
     pub peer_addr: Option<std::net::SocketAddr>,
     pub peer_addr_str: String,
     pub user: Option<String>,
@@ -27,6 +33,8 @@ pub struct Handler {
     pub console: Option<Console>,
     pub compiler: term_lib::eval::Compiler,
     pub rect: Arc<Mutex<ConsoleRect>>,
+    pub wizard: Option<SshWizard>,
+    pub compiled_modules: Arc<CachedCompiledModules>,
 }
 
 impl server::Handler for Handler {
@@ -48,39 +56,52 @@ impl server::Handler for Handler {
         Box::pin(async move { Ok((self, session)) })
     }
 
-    fn auth_publickey(
-        mut self,
-        user: &str,
-        public_key: &thrussh_keys::key::PublicKey,
-    ) -> Self::FutureAuth {
-        info!("authenticated with pubkey");
-        self.user = Some(user.to_string());
-        self.client_pubkey = Some(clone_public_key(public_key));
-        self.finished_auth(Auth::Accept)
-    }
-
-    fn auth_none(mut self, user: &str) -> Self::FutureAuth {
-        info!("authenticated with none");
-        self.user = Some(user.to_string());
-        self.finished_auth(Auth::Accept)
-    }
-
     fn auth_keyboard_interactive(
         mut self,
         user: &str,
         _submethods: &str,
-        _response: Option<server::Response>,
+        response: Option<server::Response>,
     ) -> Self::FutureAuth {
-        info!("authenticated with keyboard interactive");
+        info!("authenticate with keyboard interactive (user={})", user);
         self.user = Some(user.to_string());
+
+        // Get the current wizard or fail
+        let wizard = match self.wizard.as_mut() {
+            Some(a) => a,
+            None => {
+                return self.finished_auth(Auth::Reject);
+            }
+        };
+
+        // Root is always rejected (as this is what bots attack on)
+        if user == "root" {
+            warn!("root attempt rejected from {}", self.peer_addr_str);
+            wizard.fail("root not supported - instead use 'ssh joe@blogs.com@tokera.sh'\r\n");
+        }
+
+        // Set the user if its not set
+        if wizard.state.email.is_none() {
+            wizard.state.email = Some(user.to_string());
+        }
+
+        // Process it in the wizard
+        let _response = match response {
+            Some(mut a) => {
+                Some(convert_response(&mut a))
+            },
+            None => None
+        };
+
+        // Unfortunately the SSH server isnt working properly so we accept
+        // the session into the shell and process it there instead
         self.finished_auth(Auth::Accept)
     }
 
     fn data(mut self, channel: ChannelId, data: &[u8], session: Session) -> Self::FutureUnit {
-        info!(
-            "data on channel {:?}: {:?}",
+        debug!(
+            "data on channel {:?}: len={:?}",
             channel,
-            std::str::from_utf8(data)
+            data.len()
         );
         let data = String::from_utf8(data.to_vec()).map_err(|_| {
             let err: SshServerError = SshServerErrorKind::BadData.into();
@@ -111,10 +132,15 @@ impl server::Handler for Handler {
             let system = System::default();
             system
                 .spawn_dedicated(move || async move {
+                    // Get the wizard
+                    let wizard = self.wizard.take()
+                        .map(|a| Box::new(a) as Box<dyn term_api::WizardAbi + Send + Sync + 'static>);
+
                     // Create the console
-                    let location = "wss://localhost/".to_string();
+                    let location = "wss://tokera.sh/?no_welcome".to_string();
                     let user_agent = "noagent".to_string();
-                    let mut console = Console::new(location, user_agent, self.compiler, handle);
+                    let compiled_modules = self.compiled_modules.clone();
+                    let mut console = Console::new(location, user_agent, self.compiler, handle, wizard, compiled_modules);
                     console.init().await;
                     self.console.replace(console);
 
@@ -150,8 +176,23 @@ impl Drop for Handler {
     }
 }
 
+#[allow(dead_code)]
 fn clone_public_key(key: &PublicKey) -> PublicKey {
     match key {
         PublicKey::Ed25519(a) => PublicKey::Ed25519(ed25519::PublicKey { key: a.key.clone() }),
     }
+}
+
+fn convert_response<'a>(response: &mut thrussh::server::Response<'a>) -> Vec<String>
+{
+    let mut ret = Vec::new();
+
+    for txt in response.map(|a| a.to_vec()).collect::<Vec<Vec<u8>>>() {
+        if let Ok(txt) = String::from_utf8(txt) {
+            ret.push(txt);
+        } else {
+            break;
+        }
+    }
+    ret
 }

@@ -129,7 +129,7 @@ pub(crate) mod raw {
 // Drops a handle used by calls or callbacks
 unsafe fn wasm_bus_drop(thread: &WasmBusThread, handle: CallHandle) {
     let handle: CallHandle = handle.into();
-    let mut inner = thread.inner.unwrap();
+    let mut inner = thread.inner.lock();
     inner.invocations.remove(&handle);
     inner.callbacks.remove(&handle);
     inner.factory.close(CallHandle::from(handle));
@@ -154,7 +154,7 @@ unsafe fn wasm_bus_tick(thread: &WasmBusThread) -> bool {
         // (we need to do this outside of the thread local lock as
         //  otherwise the re-entrance will panic the system)
         let invocations = {
-            let mut inner = thread.inner.unwrap();
+            let mut inner = thread.inner.lock();
             inner.invocations.drain().collect::<Vec<_>>()
         };
 
@@ -169,7 +169,7 @@ unsafe fn wasm_bus_tick(thread: &WasmBusThread) -> bool {
 
         // If there are any carry overs then re-add them
         if carry_over.is_empty() == false {
-            let mut inner = thread.inner.unwrap();
+            let mut inner = thread.inner.lock();
             for (key, invoke) in carry_over {
                 inner.invocations.insert(key, invoke);
             }
@@ -203,7 +203,7 @@ unsafe fn wasm_bus_callback(
         parent, handle.id, topic
     );
 
-    let mut inner = thread.inner.unwrap();
+    let mut inner = thread.inner.lock();
     if let Some(parent) = parent {
         let entry = inner.callbacks.entry(parent).or_default();
         entry.insert(topic.to_string(), handle);
@@ -217,8 +217,8 @@ unsafe fn wasm_bus_poll(thread: &WasmBusThread) {
     trace!("wasm-bus::poll");
 
     // If we are polling then let anyone waiting for it know
-    if *thread.inner.unwrap().polling.borrow() == false {
-        let _ = thread.inner.unwrap().polling.send(true);
+    if *thread.inner.lock().polling.borrow() == false {
+        let _ = thread.inner.lock().polling.send(true);
     }
 
     // If the poll is woken then return
@@ -227,7 +227,7 @@ unsafe fn wasm_bus_poll(thread: &WasmBusThread) {
     }
 
     // Lets wait for some work!
-    let work = thread.inner.unwrap().work_rx.recv().ok();
+    let work = thread.inner.lock().work_rx.recv().ok();
     thread.waker.woken();
     match work {
         Some(WasmBusThreadWork::Call {
@@ -244,10 +244,12 @@ unsafe fn wasm_bus_poll(thread: &WasmBusThread) {
                 let _ = tx.send(Err(CallError::IncorrectAbi));
                 return;
             }
+            let native_memory = native_memory.unwrap();
+            let native_malloc = native_malloc.unwrap();
+            let native_start = native_start.unwrap();
 
             // Check the listening is of the correct type
-            if thread.inner.unwrap().listens.contains(&topic) == false {
-                debug!("invalid topic - {}", topic);
+            if thread.inner.lock().listens.contains(&topic) == false {
                 let _ = tx.send(Err(CallError::InvalidTopic));
                 return;
             }
@@ -255,34 +257,45 @@ unsafe fn wasm_bus_poll(thread: &WasmBusThread) {
             // Determine the parent handle
             let parent = parent.map(|a| a.into()).unwrap_or(u32::MAX);
 
+            // Invoke the call
+            let topic_bytes = topic.as_bytes();
+            let topic_len = topic_bytes.len() as u32;
+            let topic_ptr = match native_malloc.call(topic_len) {
+                Ok(a) => a,
+                Err(err) => {
+                    warn!("wasm-bus::call - allocation failed (topic={}, len={}) - {}", topic, topic_len, err);
+                    let _ = tx.send(Err(CallError::MemoryAllocationFailed));
+                    return;
+                }
+            };
+            native_memory
+                .uint8view_with_byte_offset_and_length(topic_ptr, topic_len)
+                .copy_from(&topic_bytes[..]);
+
+            let request_bytes = &data[..];
+            let request_len = request_bytes.len() as u32;
+            let request_ptr = match native_malloc.call(request_len) {
+                Ok(a) => a,
+                Err(err) => {
+                    warn!("wasm-bus::call - allocation failed (topic={}, len={}) - {}", topic, request_len, err);
+                    let _ = tx.send(Err(CallError::MemoryAllocationFailed));
+                    return;
+                }
+            };
+            native_memory
+                .uint8view_with_byte_offset_and_length(request_ptr, request_len)
+                .copy_from(&request_bytes[..]);
+
             // Record the handler so that when the call completes it notifies the
             // one who put this work on the queue
             let handle = handle.handle();
             {
-                let mut inner = thread.inner.unwrap();
+                let mut inner = thread.inner.lock();
                 inner.calls.insert(handle, tx);
             }
 
-            // Invoke the call
-            let native_memory = native_memory.unwrap();
-            let native_malloc = native_malloc.unwrap();
-            let native_start = native_start.unwrap();
-
-            let topic = topic.as_bytes();
-            let topic_len = topic.len() as u32;
-            let topic_ptr = native_malloc.call(topic_len).unwrap();
-            native_memory
-                .uint8view_with_byte_offset_and_length(topic_ptr, topic_len)
-                .copy_from(&topic[..]);
-
-            let request = &data[..];
-            let request_len = request.len() as u32;
-            let request_ptr = native_malloc.call(request_len).unwrap();
-            native_memory
-                .uint8view_with_byte_offset_and_length(request_ptr, request_len)
-                .copy_from(&request[..]);
-
-            native_start
+            // Attempt to make the call to the WAPM module
+            if let Err(err) = native_start
                 .call(
                     parent,
                     handle.id,
@@ -291,11 +304,21 @@ unsafe fn wasm_bus_poll(thread: &WasmBusThread) {
                     request_ptr,
                     request_len,
                 )
-                .unwrap();
+            {
+                warn!("wasm-bus::call - invocation failed (topic={}) - {}", topic, err);
+                let mut inner = thread.inner.lock();
+                if let Some(call) = inner.calls.remove(&handle) {
+                    let _ = call.send(Err(CallError::BusInvocationFailed));
+                }
+                return;
+            }
         }
         Some(WasmBusThreadWork::Drop { handle }) => {
             if let Some(native_drop) = thread.wasm_bus_drop_ref() {
-                native_drop.call(handle.id).unwrap();
+                if let Err(err) = native_drop.call(handle.id) {
+                    warn!("wasm-bus::drop - runtime error - {}", err);
+                    return;
+                }
             }
         }
         Some(WasmBusThreadWork::Wake) => {
@@ -316,7 +339,7 @@ unsafe fn wasm_bus_listen(thread: &WasmBusThread, topic_ptr: WasmPtr<u8, Array>,
         .unwrap();
     debug!("wasm-bus::listen (topic={})", topic);
 
-    let mut inner = thread.inner.unwrap();
+    let mut inner = thread.inner.lock();
     inner.listens.insert(topic.to_string());
 }
 
@@ -328,7 +351,7 @@ unsafe fn wasm_bus_fault(thread: &WasmBusThread, handle: CallHandle, error: u32)
 
     // Grab the sender we will relay this response to
     let error: CallError = error.into();
-    if let Some(work) = thread.inner.unwrap().calls.remove(&handle) {
+    if let Some(work) = thread.inner.lock().calls.remove(&handle) {
         if let Err(err) = work.try_send(Err(error)) {
             let response = match err {
                 TrySendError::Closed(a) => a,
@@ -365,7 +388,7 @@ unsafe fn wasm_bus_reply(
         .to_vec();
 
     // Grab the sender we will relay this response to
-    if let Some(work) = thread.inner.unwrap().calls.remove(&handle) {
+    if let Some(work) = thread.inner.lock().calls.remove(&handle) {
         if let Err(err) = work.try_send(Ok(response)) {
             let response = match err {
                 TrySendError::Closed(a) => a,
@@ -407,7 +430,7 @@ unsafe fn wasm_bus_reply_callback(
     // Grab the callback this related to
     let callback = thread
         .inner
-        .unwrap()
+        .lock()
         .callbacks
         .get(&handle)
         .map(|handle| handle.get(&topic))
@@ -471,7 +494,7 @@ unsafe fn wasm_bus_call(
     // Grab all the client callbacks that have been registered
     let client_callbacks: HashMap<String, WasmBusCallback> = thread
         .inner
-        .unwrap()
+        .lock()
         .callbacks
         .remove(&handle)
         .map(|a| {
@@ -485,7 +508,7 @@ unsafe fn wasm_bus_call(
 
     // If its got a parent then we already have an active stream here so we need
     // to feed these results into that stream
-    let mut invoke = thread.inner.unwrap().factory.start(
+    let mut invoke = thread.inner.lock().factory.start(
         parent,
         handle.into(),
         wapm.to_string(),
@@ -511,7 +534,7 @@ unsafe fn wasm_bus_call(
             }
             thread
                 .inner
-                .unwrap()
+                .lock()
                 .factory
                 .close(CallHandle::from(handle));
         }
@@ -525,7 +548,7 @@ unsafe fn wasm_bus_call(
     let mut cx = Context::from_waker(&waker);
     let mut invoke = Box::pin(invoke);
     if let Poll::Pending = invoke.as_mut().poll(&mut cx) {
-        let mut inner = thread.inner.unwrap();
+        let mut inner = thread.inner.lock();
         inner.invocations.insert(handle, invoke);
     }
 

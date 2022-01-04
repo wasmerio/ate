@@ -56,23 +56,44 @@ pub struct AliasConfig {
     pub mappings: Vec<String>,
 }
 
+#[derive(Debug, Default)]
+#[cfg(feature = "cached_compiling")]
+pub struct CachedCompiledModules {
+    pub modules: RwLock<HashMap<String, Option<Module>>>,
+}
+
+#[cfg(feature = "cached_compiling")]
+impl CachedCompiledModules {
+    pub async fn get_compiled_module(&self, data_hash: &String) -> Option<Module> {
+        let cache = self.modules.read().await;
+        cache.get(data_hash).map(|a| a.clone()).flatten()
+    }
+
+    pub async fn set_compiled_module(&self, data_hash: String, compiled_module: Module) {
+        let mut cache = self.modules.write().await;
+        cache.insert(data_hash, Some(compiled_module));
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct BinFactory {
     pub wax: Arc<Mutex<HashSet<String>>>,
     pub alias: Arc<RwLock<HashMap<String, Option<AliasConfig>>>>,
     pub cache: Arc<RwLock<HashMap<String, Option<BinaryPackage>>>>,
-    #[cfg(feature = "cached_compiling")]
-    pub compiled_module: Arc<RwLock<HashMap<String, Option<Module>>>>,
+    pub compiled_modules: Arc<CachedCompiledModules>,
 }
 
 impl BinFactory {
-    pub fn new() -> BinFactory {
+    pub fn new(
+        #[cfg(feature = "cached_compiling")]
+        compiled_modules: Arc<CachedCompiledModules>,
+    ) -> BinFactory {
         BinFactory {
             wax: Arc::new(Mutex::new(HashSet::new())),
             alias: Arc::new(RwLock::new(HashMap::new())),
             cache: Arc::new(RwLock::new(HashMap::new())),
             #[cfg(feature = "cached_compiling")]
-            compiled_module: Arc::new(RwLock::new(HashMap::new())),
+            compiled_modules,
         }
     }
 
@@ -132,14 +153,12 @@ impl BinFactory {
 
     #[cfg(feature = "cached_compiling")]
     pub async fn get_compiled_module(&self, data_hash: &String) -> Option<Module> {
-        let cache = self.compiled_module.read().await;
-        cache.get(data_hash).map(|a| a.clone()).flatten()
+        self.compiled_modules.get_compiled_module(data_hash).await
     }
 
     #[cfg(feature = "cached_compiling")]
     pub async fn set_compiled_module(&self, data_hash: String, compiled_module: Module) {
-        let mut cache = self.compiled_module.write().await;
-        cache.insert(data_hash, Some(compiled_module));
+        self.compiled_modules.set_compiled_module(data_hash, compiled_module).await
     }
 
     pub async fn alias(&self, name: &str, mut stderr: Fd) -> Option<AliasConfig> {

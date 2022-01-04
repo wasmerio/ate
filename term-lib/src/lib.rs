@@ -20,6 +20,7 @@ pub mod stdio;
 pub mod stdout;
 pub mod tty;
 pub mod wasi;
+pub mod wizard_executor;
 
 // Re-exports
 pub use grammar;

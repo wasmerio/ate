@@ -1,5 +1,4 @@
 use clap::Parser;
-use std::time::Duration;
 use tokio::sync::watch;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
@@ -29,14 +28,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let server_key: SshServerKey = load_key(run.key_path.clone());
 
                 // Start the SSH server
-                let server = Server {
-                    listen: run.listen,
-                    port: run.port,
-                    server_key,
-                    connection_timeout: Duration::from_secs(600),
-                    auth_rejection_time: Duration::from_secs(0),
-                    compiler: run.compiler,
-                };
+                let server = Server::new(run, server_key).await;
                 server.listen().await?;
                 Ok(())
             })

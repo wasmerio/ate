@@ -222,7 +222,7 @@ pub struct UnionFileOpener {
 }
 
 impl FileOpener for UnionFileOpener {
-    fn open(&mut self, path: &Path, conf: &OpenOptionsConfig) -> Result<Box<dyn VirtualFile>> {
+    fn open(&mut self, path: &Path, conf: &OpenOptionsConfig) -> Result<Box<dyn VirtualFile + Sync>> {
         debug!("open: path={}", path.display());
         let mut ret_err = FsError::EntityNotFound;
         let path = path.to_string_lossy();

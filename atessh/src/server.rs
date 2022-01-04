@@ -2,13 +2,18 @@ use std::net::IpAddr;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
+use ate::mesh::Registry;
 use term_lib::api::ConsoleRect;
 use thrussh::server;
 use tokterm::term_lib;
+use tokterm::term_lib::bin_factory::CachedCompiledModules;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
+use ate_auth::prelude::*;
 
 use crate::key::SshServerKey;
+use crate::opt::OptsSsh;
+use crate::wizard::*;
 
 pub struct Server {
     pub listen: IpAddr,
@@ -17,9 +22,29 @@ pub struct Server {
     pub connection_timeout: Duration,
     pub auth_rejection_time: Duration,
     pub compiler: term_lib::eval::Compiler,
+    pub registry: Arc<Registry>,
+    pub auth: url::Url,
+    pub compiled_modules: Arc<CachedCompiledModules>,
 }
 
 impl Server {
+    pub async fn new(run: OptsSsh, server_key: SshServerKey) -> Self
+    {
+        // Create the registry that will be used to validate logins
+        let registry = ate::mesh::Registry::new(&conf_cmd()).await.cement();
+
+        Self {
+            listen: run.listen,
+            port: run.port,
+            server_key,
+            connection_timeout: Duration::from_secs(600),
+            auth_rejection_time: Duration::from_secs(0),
+            compiler: run.compiler,
+            registry,
+            auth: run.auth.clone(),
+            compiled_modules: Arc::new(CachedCompiledModules::default()),
+        }
+    }
     pub async fn listen(self) -> Result<(), Box<dyn std::error::Error>> {
         let mut config = thrussh::server::Config::default();
         config.connection_timeout = Some(self.connection_timeout.clone());
@@ -44,26 +69,26 @@ impl server::Server for Server {
             .map(|a| a.to_string())
             .unwrap_or_else(|| "[unknown]".to_string());
         info!("new connection from {}", peer_addr_str);
-
-        /*
-        // Keys will be send via this concurrency structure (and responses by the other)
-        let (tx_data, mut rx_data) = tokio::sync::mpsc::channel(term_lib::common::MAX_MPSC);
-        let (tx_stdout, mut rx_stdout) = tokio::sync::mpsc::channel(term_lib::common::MAX_MPSC);
-        let (tx_stderr, mut rx_stderr) = tokio::sync::mpsc::channel(term_lib::common::MAX_MPSC);
-        */
-
+        
         // Return the handler
+        let mut wizard = SshWizard {
+            step: SshWizardStep::Init,
+            state: SshWizardState::default(),
+            registry: self.registry.clone(),
+            auth: self.auth.clone(),
+        };
+        wizard.state.welcome = Some(super::cconst::CConst::SSH_WELCOME.to_string());
         Self::Handler {
-            //tx_data,
-            //rx_stdout,
-            //rx_stderr,
             rect: Arc::new(Mutex::new(ConsoleRect { cols: 80, rows: 25 })),
+            registry: self.registry.clone(),
             compiler: self.compiler,
             console: None,
             peer_addr,
             peer_addr_str,
             user: None,
             client_pubkey: None,
+            wizard: Some(wizard),
+            compiled_modules: self.compiled_modules.clone(),
         }
     }
 }

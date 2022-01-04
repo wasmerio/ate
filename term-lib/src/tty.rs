@@ -325,6 +325,10 @@ impl Tty {
         }
     }
 
+    pub async fn set_echo(&mut self, echo: bool) {
+        self.inner_async.lock().await.echo = echo;
+    }
+
     pub async fn add(&mut self, data: &str) {
         let echo = self.inner_async.lock().await.echo;
         if echo {

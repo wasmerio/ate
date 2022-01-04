@@ -18,6 +18,8 @@ pub enum CallError {
     Unsupported = 11,
     BadRequest = 12,
     InternalFailure = 14,
+    MemoryAllocationFailed = 16,
+    BusInvocationFailed = 17,
     Unknown = u32::MAX,
 }
 
@@ -38,6 +40,8 @@ impl From<u32> for CallError {
             11 => CallError::Unsupported,
             12 => CallError::BadRequest,
             14 => CallError::InternalFailure,
+            16 => CallError::MemoryAllocationFailed,
+            17 => CallError::BusInvocationFailed,
             _ => CallError::Unknown,
         }
     }
@@ -60,6 +64,8 @@ impl Into<u32> for CallError {
             CallError::Unsupported => 11,
             CallError::BadRequest => 12,
             CallError::InternalFailure => 14,
+            CallError::MemoryAllocationFailed => 16,
+            CallError::BusInvocationFailed => 17,
             CallError::Unknown => u32::MAX,
         }
     }
@@ -116,6 +122,8 @@ impl fmt::Display for CallError {
                 "invalid input was supplied in the call resulting in a bad request."
             ),
             CallError::InternalFailure => write!(f, "an internal failure has occured"),
+            CallError::MemoryAllocationFailed => write!(f, "memory allocation has failed"),
+            CallError::BusInvocationFailed => write!(f, "bus invocation has failed"),
             CallError::Unknown => write!(f, "unknown error."),
         }
     }

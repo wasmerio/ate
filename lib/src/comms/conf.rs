@@ -37,10 +37,13 @@ pub(crate) struct MeshConfig {
     pub listen_on: Vec<SocketAddr>,
     #[cfg(feature = "enable_server")]
     pub listen_cert: Option<PrivateEncryptKey>,
+    #[allow(dead_code)]
     #[cfg(feature = "enable_dns")]
     pub connect_to: Option<SocketAddr>,
+    #[allow(dead_code)]
     #[cfg(not(feature = "enable_dns"))]
     pub connect_to: Option<MeshAddress>,
+    #[allow(dead_code)]
     pub cfg_mesh: ConfMesh,
 }
 

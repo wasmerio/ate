@@ -195,11 +195,11 @@ impl AsyncifyFileOpener {
 
 pub struct AsyncifyVirtualFile {
     system: System,
-    file: Arc<Mutex<Box<dyn VirtualFile>>>,
+    file: Arc<Mutex<Box<dyn VirtualFile + Sync>>>,
 }
 
 impl AsyncifyVirtualFile {
-    async fn asyncify<T>(&self, funct: impl FnOnce(&mut dyn VirtualFile) -> T + Send + 'static) -> T
+    async fn asyncify<T>(&self, funct: impl FnOnce(&mut (dyn VirtualFile + Sync)) -> T + Send + 'static) -> T
     where
         T: Send,
     {

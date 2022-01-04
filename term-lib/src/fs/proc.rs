@@ -156,7 +156,7 @@ pub struct CoreFileOpener {
 }
 
 impl FileOpener for CoreFileOpener {
-    fn open(&mut self, path: &Path, conf: &OpenOptionsConfig) -> FsResult<Box<dyn VirtualFile>> {
+    fn open(&mut self, path: &Path, conf: &OpenOptionsConfig) -> FsResult<Box<dyn VirtualFile + Sync>> {
         debug!("open: path={}", path.display());
         let path = path.to_string_lossy();
         let path = path.as_ref();

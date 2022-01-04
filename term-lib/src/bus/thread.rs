@@ -167,7 +167,7 @@ pub(crate) struct WasmBusThreadProtected {
     inside: RefCell<WasmBusThreadInner>,
 }
 impl WasmBusThreadProtected {
-    pub(super) unsafe fn unwrap<'a>(&'a self) -> RefMut<'a, WasmBusThreadInner> {
+    pub(super) unsafe fn lock<'a>(&'a self) -> RefMut<'a, WasmBusThreadInner> {
         self.inside.borrow_mut()
     }
 }

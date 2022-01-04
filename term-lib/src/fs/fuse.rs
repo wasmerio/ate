@@ -216,7 +216,7 @@ impl FileOpener for FuseFileOpener {
         &mut self,
         path: &Path,
         conf: &OpenOptionsConfig,
-    ) -> Result<Box<dyn VirtualFile>, FsError> {
+    ) -> Result<Box<dyn VirtualFile + Sync>, FsError> {
         debug!("open: path={}", path.display());
 
         let task = self

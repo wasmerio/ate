@@ -32,3 +32,6 @@ bincode = "^1"
 tokterm = { version = "^0.1", path = "../tokterm" }
 async-trait = "^0.1"
 raw_tty = "0.1.0"
+regex = "^1"
+ate = { version = "^1", path = "../lib", default_features = false, features = [ "client" ] }
+ate-auth = { version = "^1", path = "../auth", default_features = false, features = [ "client" ] }
