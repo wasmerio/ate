@@ -49,7 +49,7 @@ pub fn poll_fd(
                 FdMsg::Flush { tx } => {
                     let _ = tx.try_send(());
                 }
-            }            
+            }
             true
         } else {
             false

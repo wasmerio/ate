@@ -217,7 +217,7 @@ pub async fn exec_process(
                             match msg {
                                 FdMsg::Data { data, .. } => {
                                     let _ = file.write_all(data).await;
-                                },
+                                }
                                 FdMsg::Flush { tx } => {
                                     file.flush().await;
                                     let _ = tx.send(()).await;

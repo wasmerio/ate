@@ -53,13 +53,8 @@ impl FdFlag {
 
 #[derive(Debug, Clone)]
 pub enum FdMsg {
-    Data {
-        data: Vec<u8>,
-        flag: FdFlag,
-    },
-    Flush {
-        tx: mpsc::Sender<()>,
-    }
+    Data { data: Vec<u8>, flag: FdFlag },
+    Flush { tx: mpsc::Sender<()> },
 }
 
 impl FdMsg {
@@ -68,15 +63,13 @@ impl FdMsg {
     }
     pub fn flush() -> (mpsc::Receiver<()>, FdMsg) {
         let (tx, rx) = mpsc::channel(1);
-        let msg = FdMsg::Flush {
-            tx,
-        };
+        let msg = FdMsg::Flush { tx };
         (rx, msg)
     }
     pub fn len(&self) -> usize {
         match self {
             FdMsg::Data { data, .. } => data.len(),
-            FdMsg::Flush { .. } => 0usize
+            FdMsg::Flush { .. } => 0usize,
         }
     }
 }
@@ -317,9 +310,7 @@ impl Write for Fd {
             let forced_exit = self.forced_exit.load(Ordering::Acquire);
             if forced_exit != 0 {
                 #[allow(deprecated)]
-                wasmer::RuntimeError::raise(Box::new(wasmer_wasi::WasiError::Exit(
-                    forced_exit,
-                )));
+                wasmer::RuntimeError::raise(Box::new(wasmer_wasi::WasiError::Exit(forced_exit)));
             }
             if self.closed.load(Ordering::Acquire) {
                 std::thread::yield_now();

@@ -87,37 +87,35 @@ impl Console {
             system.fork_local(async move {
                 while let Some(msg) = stdio_rx.recv().await {
                     match msg {
-                        FdMsg::Data { data, flag } => {
-                            match flag {
-                                FdFlag::Stdout | FdFlag::Stderr | FdFlag::Tty => {
-                                    let text =
-                                        String::from_utf8_lossy(&data[..])[..].replace("\n", "\r\n");
-                                    match flag {
-                                        FdFlag::Stdout | FdFlag::Tty => {
-                                            abi.stdout(text.as_bytes().to_vec()).await
-                                        }
-                                        FdFlag::Stderr => abi.stderr(text.as_bytes().to_vec()).await,
-                                        _ => {}
-                                    };
-        
-                                    let is_unfinished = is_cleared_line(&text) == false;
-                                    let mut state = state.lock().unwrap();
-                                    state.unfinished_line = is_unfinished;
-                                }
-                                FdFlag::Log => {
-                                    let txt = String::from_utf8_lossy(&data[..]);
-                                    let mut txt = txt.as_ref();
-                                    while txt.ends_with("\n") || txt.ends_with("\r") {
-                                        txt = &txt[..(txt.len() - 1)];
+                        FdMsg::Data { data, flag } => match flag {
+                            FdFlag::Stdout | FdFlag::Stderr | FdFlag::Tty => {
+                                let text =
+                                    String::from_utf8_lossy(&data[..])[..].replace("\n", "\r\n");
+                                match flag {
+                                    FdFlag::Stdout | FdFlag::Tty => {
+                                        abi.stdout(text.as_bytes().to_vec()).await
                                     }
-                                    abi.log(txt.to_string()).await;
-                                }
-                                _ => {}
+                                    FdFlag::Stderr => abi.stderr(text.as_bytes().to_vec()).await,
+                                    _ => {}
+                                };
+
+                                let is_unfinished = is_cleared_line(&text) == false;
+                                let mut state = state.lock().unwrap();
+                                state.unfinished_line = is_unfinished;
                             }
+                            FdFlag::Log => {
+                                let txt = String::from_utf8_lossy(&data[..]);
+                                let mut txt = txt.as_ref();
+                                while txt.ends_with("\n") || txt.ends_with("\r") {
+                                    txt = &txt[..(txt.len() - 1)];
+                                }
+                                abi.log(txt.to_string()).await;
+                            }
+                            _ => {}
                         },
                         FdMsg::Flush { tx } => {
                             let _ = tx.send(()).await;
-                        },
+                        }
                     }
                 }
             });
