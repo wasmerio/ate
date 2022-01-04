@@ -11,6 +11,7 @@ use crate::eval::EvalPlan;
 use crate::eval::ExecResponse;
 use crate::pipe::*;
 use crate::stdio::*;
+use crate::fd::FdFlag;
 
 pub(super) fn wax(
     args: &[String],
@@ -40,7 +41,7 @@ pub(super) fn wax(
         if wax.lock().unwrap().contains(&cmd) == false {
             let mut tty = ctx.stdio.tty.fd();
 
-            let (stdin_fd, _) = pipe_in(ReceiverMode::Stream, false);
+            let (stdin_fd, _) = pipe_in(ReceiverMode::Stream, FdFlag::Stdin);
             let mut ctx = ctx.clone();
             ctx.stdio.stdin = stdin_fd;
             ctx.stdio.stdout = tty.clone();

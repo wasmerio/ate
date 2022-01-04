@@ -67,7 +67,9 @@ pub struct Tty {
 }
 
 impl Tty {
-    pub fn new(stdout: Stdout, is_mobile: bool) -> Tty {
+    pub fn new(stdout: &Stdout, is_mobile: bool) -> Tty {
+        let mut stdout = stdout.clone();
+        stdout.set_flag(FdFlag::Tty);
         Tty {
             inner_async: Arc::new(AsyncMutex::new(TtyInnerAsync {
                 line: String::new(),

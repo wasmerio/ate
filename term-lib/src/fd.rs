@@ -32,24 +32,60 @@ use super::state::*;
 use crate::wasmer_vfs::{FileDescriptor, VirtualFile};
 use crate::wasmer_wasi::{types as wasi_types, WasiFile, WasiFsError};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum FdFlag
+{
+    None,
+    Stdin,
+    Stdout,
+    Stderr,
+    Log,
+    Tty,
+}
+
+impl FdFlag {
+    pub fn is_tty(&self) -> bool {
+        match self {
+            FdFlag::Stdout | FdFlag::Stderr => true,
+            _ => false
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct FdMsg
+{
+    pub data: Vec<u8>,
+    pub flag: FdFlag,
+}
+
+impl FdMsg {
+    pub fn new(data: Vec<u8>, flag: FdFlag) -> FdMsg {
+        FdMsg {
+            data,
+            flag,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Fd {
-    pub(crate) is_tty: bool,
+    pub(crate) flag: FdFlag,
     pub(crate) forced_exit: Arc<AtomicU32>,
     pub(crate) closed: Arc<AtomicBool>,
     pub(crate) blocking: Arc<AtomicBool>,
-    pub(crate) sender: Option<Arc<mpsc::Sender<Vec<u8>>>>,
+    pub(crate) sender: Option<Arc<mpsc::Sender<FdMsg>>>,
     pub(crate) receiver: Option<Arc<AsyncMutex<ReactorPipeReceiver>>>,
 }
 
 impl Fd {
     pub fn new(
-        tx: Option<mpsc::Sender<Vec<u8>>>,
+        tx: Option<mpsc::Sender<FdMsg>>,
         rx: Option<Arc<AsyncMutex<ReactorPipeReceiver>>>,
-        is_tty: bool,
+        flag: FdFlag,
     ) -> Fd {
         Fd {
-            is_tty,
+            flag,
             forced_exit: Arc::new(AtomicU32::new(0)),
             closed: Arc::new(AtomicBool::new(false)),
             blocking: Arc::new(AtomicBool::new(true)),
@@ -60,7 +96,7 @@ impl Fd {
 
     pub fn combine(fd1: &Fd, fd2: &Fd) -> Fd {
         let mut ret = Fd {
-            is_tty: fd1.is_tty || fd2.is_tty,
+            flag: fd1.flag,
             forced_exit: fd1.forced_exit.clone(),
             closed: fd1.closed.clone(),
             blocking: Arc::new(AtomicBool::new(fd1.blocking.load(Ordering::Relaxed))),
@@ -96,7 +132,16 @@ impl Fd {
     }
 
     pub fn is_tty(&self) -> bool {
-        self.is_tty
+        self.flag.is_tty()
+    }
+
+    pub fn flag(&self) -> FdFlag {
+        self.flag
+    }
+
+    pub fn set_flag(&mut self, flag: FdFlag) -> FdFlag {
+        self.flag = flag;
+        flag
     }
 
     pub fn is_closed(&self) -> bool {
@@ -115,7 +160,8 @@ impl Fd {
         if let Some(sender) = self.sender.as_mut() {
             let buf_len = buf.len();
             let buf = buf.to_vec();
-            if let Err(_err) = sender.send(buf).await {
+            let msg = FdMsg::new(buf, self.flag);
+            if let Err(_err) = sender.send(msg).await {
                 return Err(std::io::ErrorKind::BrokenPipe.into());
             }
             Ok(buf_len)
@@ -128,7 +174,8 @@ impl Fd {
         self.check_closed()?;
         if let Some(sender) = self.sender.as_mut() {
             let buf_len = buf.len();
-            if let Err(_err) = sender.send(buf).await {
+            let msg = FdMsg::new(buf, self.flag);
+            if let Err(_err) = sender.send(msg).await {
                 return Err(std::io::ErrorKind::BrokenPipe.into());
             }
             Ok(buf_len)
@@ -148,20 +195,22 @@ impl Fd {
         )
     }
 
-    pub async fn read_async(&mut self) -> io::Result<Vec<u8>> {
+    pub async fn read_async(&mut self) -> io::Result<FdMsg> {
         self.check_closed()?;
         if let Some(receiver) = self.receiver.as_mut() {
             let mut receiver = receiver.lock().await;
             if receiver.buffer.has_remaining() {
                 let mut buffer = BytesMut::new();
                 std::mem::swap(&mut receiver.buffer, &mut buffer);
-                return Ok(buffer.to_vec());
+                return Ok(FdMsg::new(buffer.to_vec(), receiver.cur_flag));
             }
             if receiver.mode == ReceiverMode::Message(true) {
                 receiver.mode = ReceiverMode::Message(false);
-                return Ok(Vec::new());
+                return Ok(FdMsg::new(Vec::new(), receiver.cur_flag));
             }
-            Ok(receiver.rx.recv().await.unwrap_or(Vec::new()))
+            let msg = receiver.rx.recv().await.unwrap_or(FdMsg::new(Vec::new(), receiver.cur_flag));
+            receiver.cur_flag = msg.flag;
+            Ok(msg)
         } else {
             Err(std::io::ErrorKind::BrokenPipe.into())
         }
@@ -177,15 +226,15 @@ impl Write for Fd {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         if let Some(sender) = self.sender.as_mut() {
             let buf_len = buf.len();
-            let mut buf = Some(buf.to_vec());
+            let mut msg = Some(FdMsg::new(buf.to_vec(), self.flag));
             loop {
                 // Try and send the data
-                match sender.try_send(buf.take().unwrap()) {
+                match sender.try_send(msg.take().unwrap()) {
                     Ok(_) => {
                         return Ok(buf_len);
                     }
-                    Err(TrySendError::Full(returned_buf)) => {
-                        buf = Some(returned_buf);
+                    Err(TrySendError::Full(returned_msg)) => {
+                        msg = Some(returned_msg);
                     }
                     Err(TrySendError::Closed(_)) => {
                         return Ok(0);
@@ -238,9 +287,10 @@ impl Read for Fd {
 
                     // Otherwise lets get some more data
                     match receiver.rx.try_recv() {
-                        Ok(data) => {
+                        Ok(msg) => {
                             //error!("on_stdin {}", data.iter().map(|byte| format!("\\u{{{:04X}}}", byte).to_owned()).collect::<Vec<String>>().join(""));
-                            receiver.buffer.extend_from_slice(&data[..]);
+                            receiver.cur_flag = msg.flag;
+                            receiver.buffer.extend_from_slice(&msg.data[..]);
                             if receiver.mode == ReceiverMode::Message(false) {
                                 receiver.mode = ReceiverMode::Message(true);
                             }
@@ -304,11 +354,11 @@ impl VirtualFile for Fd {
 
 #[derive(Debug, Clone)]
 pub struct WeakFd {
-    pub(crate) is_tty: bool,
+    pub(crate) flag: FdFlag,
     pub(crate) forced_exit: Weak<AtomicU32>,
     pub(crate) closed: Weak<AtomicBool>,
     pub(crate) blocking: Weak<AtomicBool>,
-    pub(crate) sender: Option<Weak<mpsc::Sender<Vec<u8>>>>,
+    pub(crate) sender: Option<Weak<mpsc::Sender<FdMsg>>>,
     pub(crate) receiver: Option<Weak<AsyncMutex<ReactorPipeReceiver>>>,
 }
 
@@ -340,7 +390,7 @@ impl WeakFd {
         let receiver = self.receiver.iter().filter_map(|a| a.upgrade()).next();
 
         Some(Fd {
-            is_tty: self.is_tty,
+            flag: self.flag,
             forced_exit,
             closed,
             blocking,
@@ -359,7 +409,7 @@ impl Fd {
         let receiver = self.receiver.iter().map(|a| Arc::downgrade(&a)).next();
 
         WeakFd {
-            is_tty: self.is_tty,
+            flag: self.flag,
             forced_exit,
             closed,
             blocking,

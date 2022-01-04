@@ -19,7 +19,7 @@ use super::stdio::*;
 pub struct Job {
     pub id: u32,
     pub stdin: Fd,
-    pub stdin_tx: mpsc::Sender<Vec<u8>>,
+    pub stdin_tx: mpsc::Sender<FdMsg>,
     pub job_list_tx: mpsc::Sender<Pid>,
     pub job_list_rx: Arc<Mutex<mpsc::Receiver<Pid>>>,
     pub working_dir: String,
@@ -44,7 +44,7 @@ impl Clone for Job {
 
 impl Job {
     pub fn new(id: u32, working_dir: String, env: Environment, root: UnionFileSystem) -> Job {
-        let (stdin, stdin_tx) = pipe_in(ReceiverMode::Stream, false);
+        let (stdin, stdin_tx) = pipe_in(ReceiverMode::Stream, FdFlag::Stdin);
         let (job_list_tx, job_list_rx) = mpsc::channel(MAX_MPSC);
         Job {
             id,

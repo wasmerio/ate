@@ -49,6 +49,12 @@ pub struct Console {
     no_welcome: bool,
 }
 
+pub enum StdioEvent {
+    Stdout(Vec<u8>),
+    Stderr(Vec<u8>),
+    Log(Vec<u8>),
+}
+
 impl Console {
     pub fn new(
         location: String,
@@ -61,55 +67,49 @@ impl Console {
         let reactor = Reactor::new();
 
         let state = Arc::new(Mutex::new(ConsoleState::new(super::fs::create_root_fs())));
-        let (stdout, mut stdout_rx) = pipe_out(true);
-        let (stderr, mut stderr_rx) = pipe_out(true);
-        let (log, mut log_rx) = pipe_out(false);
+        
+        let (stdio, mut stdio_rx) = pipe_out(FdFlag::None);
+        let mut stdout = stdio.clone();
+        let mut stderr = stdio.clone();
+        let mut log = stdio.clone();
+        stdout.set_flag(FdFlag::Stdout);
+        stderr.set_flag(FdFlag::Stderr);
+        log.set_flag(FdFlag::Log);
         let stdout = Stdout::new(stdout);
 
         let system = System::default();
         let reactor = Arc::new(RwLock::new(reactor));
 
-        // Stdout and Stderr
+        // Stdout, Stderr and Logging (this is serialized in order for a good reason!)
         {
             let abi = abi.clone();
             let state = state.clone();
             system.fork_local(async move {
-                while let Some(data) = stdout_rx.recv().await {
-                    let text = String::from_utf8_lossy(&data[..])[..].replace("\n", "\r\n");
-                    let is_unfinished = is_cleared_line(&text) == false;
-                    abi.stdout(text.as_bytes().to_vec()).await;
+                while let Some(msg) = stdio_rx.recv().await {
+                    match msg.flag {
+                        FdFlag::Stdout | FdFlag::Stderr | FdFlag::Tty => {
+                            let text = String::from_utf8_lossy(&msg.data[..])[..].replace("\n", "\r\n");
+                            match msg.flag {
+                                FdFlag::Stdout | FdFlag::Tty => abi.stdout(text.as_bytes().to_vec()).await,
+                                FdFlag::Stderr => abi.stderr(text.as_bytes().to_vec()).await,
+                                _ => { }
+                            };
 
-                    let mut state = state.lock().unwrap();
-                    state.unfinished_line = is_unfinished;
-                }
-            });
-        }
-        {
-            let abi = abi.clone();
-            let state = state.clone();
-            system.fork_local(async move {
-                while let Some(data) = stderr_rx.recv().await {
-                    let text = String::from_utf8_lossy(&data[..])[..].replace("\n", "\r\n");
-                    let is_unfinished = is_cleared_line(&text) == false;
-                    abi.stderr(text.as_bytes().to_vec()).await;
-
-                    let mut state = state.lock().unwrap();
-                    state.unfinished_line = is_unfinished;
-                }
-            });
-        }
-
-        // Log
-        {
-            let abi = abi.clone();
-            system.fork_local(async move {
-                while let Some(data) = log_rx.recv().await {
-                    let txt = String::from_utf8_lossy(&data[..]);
-                    let mut txt = txt.as_ref();
-                    while txt.ends_with("\n") || txt.ends_with("\r") {
-                        txt = &txt[..(txt.len() - 1)];
+                            let is_unfinished = is_cleared_line(&text) == false;
+                            let mut state = state.lock().unwrap();
+                            state.unfinished_line = is_unfinished;
+                        },
+                        FdFlag::Log => {
+                            let txt = String::from_utf8_lossy(&msg.data[..]);
+                            let mut txt = txt.as_ref();
+                            while txt.ends_with("\n") || txt.ends_with("\r") {
+                                txt = &txt[..(txt.len() - 1)];
+                            }
+                            abi.log(txt.to_string()).await;
+                        },
+                        _ => { }
                     }
-                    abi.log(txt.to_string()).await;
+                    
                 }
             });
         }
@@ -117,7 +117,7 @@ impl Console {
         let location = url::Url::parse(&location).unwrap();
 
         let is_mobile = is_mobile(&user_agent);
-        let tty = Tty::new(stdout.clone(), is_mobile);
+        let tty = Tty::new(&stdout, is_mobile);
 
         let bins = BinFactory::new(
             #[cfg(feature = "cached_compiling")]
@@ -305,7 +305,7 @@ impl Console {
             self.tty.reset_line().await;
             self.tty.reset_paragraph().await;
             //error!("on_stdin {}", cmd.as_bytes().iter().map(|byte| format!("\\u{{{:04X}}}", byte).to_owned()).collect::<Vec<String>>().join(""));
-            let _ = job.stdin_tx.send(cmd.into_bytes()).await;
+            let _ = job.stdin_tx.send(FdMsg::new(cmd.into_bytes(), FdFlag::Stdin)).await;
             return;
         }
 
@@ -612,11 +612,11 @@ impl Console {
                 // from TTY.
                 } else if data == "\r" || data == "\u{000A}" {
                     data = "\n".to_string();
-                    let _ = job.stdin_tx.send(data.into_bytes()).await;
+                    let _ = job.stdin_tx.send(FdMsg::new(data.into_bytes(), FdFlag::Stdin)).await;
 
                 // Otherwise we just feed the bytes into the STDIN for the process to handle
                 } else {
-                    let _ = job.stdin_tx.send(data.into_bytes()).await;
+                    let _ = job.stdin_tx.send(FdMsg::new(data.into_bytes(), FdFlag::Stdin)).await;
                 }
             }
             TtyMode::Null => {}

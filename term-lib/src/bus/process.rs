@@ -56,9 +56,9 @@ pub struct LaunchContext {
     eval: EvalContext,
     path: String,
     args: Vec<String>,
-    stdin_tx: Option<mpsc::Sender<Vec<u8>>>,
-    stdout_rx: Option<mpsc::Receiver<Vec<u8>>>,
-    stderr_rx: Option<mpsc::Receiver<Vec<u8>>>,
+    stdin_tx: Option<mpsc::Sender<FdMsg>>,
+    stdout_rx: Option<mpsc::Receiver<FdMsg>>,
+    stderr_rx: Option<mpsc::Receiver<FdMsg>>,
     on_stdout: Option<WasmBusCallback>,
     on_stderr: Option<WasmBusCallback>,
     on_exit: Option<WasmBusCallback>,
@@ -161,9 +161,9 @@ impl ProcessExecFactory {
             }
 
             // Create all the stdio
-            let (stdin, stdin_tx) = pipe_in(ReceiverMode::Stream, false);
-            let (stdout, stdout_rx) = pipe_out(false);
-            let (stderr, stderr_rx) = pipe_out(false);
+            let (stdin, stdin_tx) = pipe_in(ReceiverMode::Stream, FdFlag::Stdin);
+            let (stdout, stdout_rx) = pipe_out(FdFlag::Stdout);
+            let (stderr, stderr_rx) = pipe_out(FdFlag::Stderr);
 
             // Perform hooks back to the main stdio
             let (stdin, stdin_tx) = match stdin_mode {
@@ -302,8 +302,8 @@ impl ProcessExecFactory {
 
 pub struct ProcessExec {
     format: SerializationFormat,
-    stdout: Option<mpsc::Receiver<Vec<u8>>>,
-    stderr: Option<mpsc::Receiver<Vec<u8>>>,
+    stdout: Option<mpsc::Receiver<FdMsg>>,
+    stderr: Option<mpsc::Receiver<FdMsg>>,
     eval_rx: mpsc::Receiver<EvalPlan>,
     on_stdout: Option<WasmBusCallback>,
     on_stderr: Option<WasmBusCallback>,
@@ -317,16 +317,16 @@ impl ProcessExec {
             if let Some(stdout_rx) = self.stdout.as_mut() {
                 if let Some(stderr_rx) = self.stderr.as_mut() {
                     tokio::select! {
-                        data = stdout_rx.recv() => {
-                            if let (Some(data), Some(on_data)) = (data, self.on_stdout.as_mut()) {
-                                on_data.feed(self.format, api::PoolSpawnStdoutCallback(data));
+                        msg = stdout_rx.recv() => {
+                            if let (Some(msg), Some(on_data)) = (msg, self.on_stdout.as_mut()) {
+                                on_data.feed(self.format, api::PoolSpawnStdoutCallback(msg.data));
                             } else {
                                 self.stdout.take();
                             }
                         }
-                        data = stderr_rx.recv() => {
-                            if let (Some(data), Some(on_data)) = (data, self.on_stderr.as_mut()) {
-                                on_data.feed(self.format, api::PoolSpawnStderrCallback(data));
+                        msg = stderr_rx.recv() => {
+                            if let (Some(msg), Some(on_data)) = (msg, self.on_stderr.as_mut()) {
+                                on_data.feed(self.format, api::PoolSpawnStderrCallback(msg.data));
                             } else {
                                 self.stderr.take();
                             }
@@ -341,9 +341,9 @@ impl ProcessExec {
                     }
                 } else {
                     tokio::select! {
-                        data = stdout_rx.recv() => {
-                            if let (Some(data), Some(on_data)) = (data, self.on_stdout.as_mut()) {
-                                on_data.feed(self.format, api::PoolSpawnStdoutCallback(data));
+                        msg = stdout_rx.recv() => {
+                            if let (Some(msg), Some(on_data)) = (msg, self.on_stdout.as_mut()) {
+                                on_data.feed(self.format, api::PoolSpawnStdoutCallback(msg.data));
                             } else {
                                 self.stdout.take();
                             }
@@ -360,9 +360,9 @@ impl ProcessExec {
             } else {
                 if let Some(stderr_rx) = self.stderr.as_mut() {
                     tokio::select! {
-                        data = stderr_rx.recv() => {
-                            if let (Some(data), Some(on_data)) = (data, self.on_stderr.as_mut()) {
-                                on_data.feed(self.format, api::PoolSpawnStderrCallback(data));
+                        msg = stderr_rx.recv() => {
+                            if let (Some(msg), Some(on_data)) = (msg, self.on_stderr.as_mut()) {
+                                on_data.feed(self.format, api::PoolSpawnStderrCallback(msg.data));
                             } else {
                                 self.stderr.take();
                             }
@@ -429,7 +429,7 @@ fn encode_eval_response(
 
 #[derive(Clone)]
 pub struct ProcessExecSession {
-    stdin: Option<mpsc::Sender<Vec<u8>>>,
+    stdin: Option<mpsc::Sender<FdMsg>>,
 }
 
 impl Session for ProcessExecSession {
@@ -444,7 +444,7 @@ impl Session for ProcessExecSession {
                 };
             if let Some(stdin) = self.stdin.as_ref() {
                 let tx_send = stdin.clone();
-                let _ = tx_send.blocking_send(request.data);
+                let _ = tx_send.blocking_send(FdMsg::new(request.data, FdFlag::Stdin));
             }
             ResultInvokable::new(SerializationFormat::Bincode, ())
         } else if topic == type_name::<api::ProcessCloseStdinRequest>() {

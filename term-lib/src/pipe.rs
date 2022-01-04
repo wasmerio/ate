@@ -28,17 +28,18 @@ pub enum ReceiverMode {
 
 #[derive(Debug)]
 pub struct ReactorPipeReceiver {
-    pub(crate) rx: mpsc::Receiver<Vec<u8>>,
+    pub(crate) rx: mpsc::Receiver<FdMsg>,
     pub(crate) buffer: BytesMut,
     pub(crate) mode: ReceiverMode,
+    pub(crate) cur_flag: FdFlag,
 }
 
 pub fn bidirectional(
     buffer_size_tx: usize,
     buffer_size_rx: usize,
     mode: ReceiverMode,
-    is_tty: bool,
-) -> (Fd, mpsc::Sender<Vec<u8>>, mpsc::Receiver<Vec<u8>>) {
+    flag: FdFlag,
+) -> (Fd, mpsc::Sender<FdMsg>, mpsc::Receiver<FdMsg>) {
     let (tx_read, rx_read) = mpsc::channel(buffer_size_tx);
     let (tx_write, rx_write) = mpsc::channel(buffer_size_rx);
     let fd = Fd::new(
@@ -47,39 +48,41 @@ pub fn bidirectional(
             rx: rx_read,
             buffer: BytesMut::new(),
             mode,
+            cur_flag: flag,
         }))),
-        is_tty,
+        flag
     );
     (fd, tx_read, rx_write)
 }
 
 pub fn bidirectional_with_defaults(
-    is_tty: bool,
-) -> (Fd, mpsc::Sender<Vec<u8>>, mpsc::Receiver<Vec<u8>>) {
-    bidirectional(MAX_MPSC, MAX_MPSC, ReceiverMode::Stream, is_tty)
+    flag: FdFlag,
+) -> (Fd, mpsc::Sender<FdMsg>, mpsc::Receiver<FdMsg>) {
+    bidirectional(MAX_MPSC, MAX_MPSC, ReceiverMode::Stream, flag)
 }
 
-pub fn pipe_out(is_tty: bool) -> (Fd, mpsc::Receiver<Vec<u8>>) {
+pub fn pipe_out(flag: FdFlag) -> (Fd, mpsc::Receiver<FdMsg>) {
     let (tx, rx) = mpsc::channel(MAX_MPSC);
-    let fd = Fd::new(Some(tx), None, is_tty);
+    let fd = Fd::new(Some(tx), None, flag);
     (fd, rx)
 }
 
-pub fn pipe_in(mode: ReceiverMode, is_tty: bool) -> (Fd, mpsc::Sender<Vec<u8>>) {
+pub fn pipe_in(mode: ReceiverMode, flag: FdFlag) -> (Fd, mpsc::Sender<FdMsg>) {
     let (tx, rx) = mpsc::channel(MAX_MPSC);
     let rx = ReactorPipeReceiver {
         rx,
         buffer: BytesMut::new(),
         mode,
+        cur_flag: flag,
     };
-    let fd = Fd::new(None, Some(Arc::new(AsyncMutex::new(rx))), is_tty);
+    let fd = Fd::new(None, Some(Arc::new(AsyncMutex::new(rx))), flag);
     (fd, tx)
 }
 
-pub fn pipe(mode: ReceiverMode, is_tty: bool) -> (Fd, Fd) {
+pub fn pipe(mode: ReceiverMode, flag: FdFlag) -> (Fd, Fd) {
     let system = System::default();
-    let (fd_rx, tx2) = pipe_in(mode, is_tty);
-    let (fd_tx, mut rx2) = pipe_out(is_tty);
+    let (fd_rx, tx2) = pipe_in(mode, flag);
+    let (fd_tx, mut rx2) = pipe_out(flag);
     system.fork_shared(move || async move {
         while let Some(data) = rx2.recv().await {
             let _ = tx2.send(data).await;

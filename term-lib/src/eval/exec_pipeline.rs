@@ -45,7 +45,7 @@ pub(super) async fn exec_pipeline<'a>(
 
                     cur_stdin = next_stdin.clone();
                     if i + 1 < pipeline.commands.len() {
-                        let (w, r) = pipe(ReceiverMode::Stream, end_stdout.is_tty());
+                        let (w, r) = pipe(ReceiverMode::Stream, end_stdout.flag());
                         next_stdin = r;
                         cur_stdout = w;
                     } else {
@@ -59,6 +59,10 @@ pub(super) async fn exec_pipeline<'a>(
                         log: ctx.stdio.log.clone(),
                         tty: ctx.stdio.tty.clone(),
                     };
+                    stdio.stdin.set_flag(FdFlag::Stdin);
+                    stdio.stdout.set_flag(FdFlag::Stdout);
+                    stdio.stderr.set_flag(FdFlag::Stderr);
+                    stdio.log.set_flag(FdFlag::Log);
 
                     debug!("exec {}", parsed_cmd);
                     match exec::exec(

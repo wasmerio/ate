@@ -160,29 +160,46 @@ pub async fn exec_process(
         match file {
             Ok(mut file) => {
                 // Open a new file description
-                let (tx, mut rx) = {
-                    let (fd, tx, rx) = bidirectional_with_defaults(false);
+                let (tx, mut rx, flag) = {
+                    let (fd, tx, rx) = bidirectional_with_defaults(FdFlag::None);
 
                     // We now connect the newly opened file descriptor with the read file
+                    let mut flag = FdFlag::None;
                     match redirect.fd {
                         -1 => {
                             if redirect.op.read() {
-                                stdio.stdin = fd.clone();
+                                let mut fd = fd.clone();
+                                flag = fd.set_flag(FdFlag::Stdin);
+                                stdio.stdin = fd;
                             }
                             if redirect.op.write() {
+                                let mut fd = fd.clone();
+                                flag = fd.set_flag(FdFlag::Stdout);
                                 stdio.stdout = fd;
                             }
                         }
-                        0 => stdio.stdin = fd,
-                        1 => stdio.stdout = fd,
-                        2 => stdio.stderr = fd,
+                        0 => {
+                            let mut fd = fd.clone();
+                            flag = fd.set_flag(FdFlag::Stdin);
+                            stdio.stdin = fd
+                        },
+                        1 => {
+                            let mut fd = fd.clone();
+                            flag = fd.set_flag(FdFlag::Stdout);
+                            stdio.stdout = fd
+                        },
+                        2 => {
+                            let mut fd = fd.clone();
+                            flag = fd.set_flag(FdFlag::Stderr);
+                            stdio.stderr = fd
+                        },
                         _ => {
                             return on_early_exit(Some(format!("redirecting non-standard file descriptors is not yet supported")), err::ERR_EINVAL).await;
                         }
                     };
 
                     // Now we need to hook up the receiver and sender
-                    (tx, rx)
+                    (tx, rx, flag)
                 };
 
                 // Now hook up the sender and receiver on a shared task
@@ -192,12 +209,12 @@ pub async fn exec_process(
                 system.fork_shared(move || async move {
                     if is_read {
                         while let Ok(read) = file.read(4096).await {
-                            let _ = tx.send(read).await;
+                            let _ = tx.send(FdMsg::new(read, flag)).await;
                         }
                     }
                     if is_write {
-                        while let Some(data) = rx.recv().await {
-                            let _ = file.write_all(data).await;
+                        while let Some(msg) = rx.recv().await {
+                            let _ = file.write_all(msg.data).await;
                         }
                     }
                 });

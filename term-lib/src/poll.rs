@@ -22,7 +22,7 @@ pub struct PollResult {
 
 pub fn poll_fd(
     rx: Option<&mut Arc<AsyncMutex<ReactorPipeReceiver>>>,
-    tx: Option<&mpsc::Sender<Vec<u8>>>,
+    tx: Option<&mpsc::Sender<FdMsg>>,
 ) -> PollResult {
     let mut has_fd = false;
     let can_write = if let Some(fd) = tx {
@@ -38,8 +38,11 @@ pub fn poll_fd(
     let can_read = if let Some(fd) = rx {
         has_fd = true;
         let mut fd = fd.blocking_lock();
-        if let Ok(data) = fd.rx.try_recv() {
-            fd.buffer.extend_from_slice(&data[..]);
+        if fd.buffer.is_empty() == false {
+            true
+        } else if let Ok(msg) = fd.rx.try_recv() {
+            fd.cur_flag = msg.flag;
+            fd.buffer.extend_from_slice(&msg.data[..]);
             true
         } else {
             false
