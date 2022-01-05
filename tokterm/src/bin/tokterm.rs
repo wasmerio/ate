@@ -8,8 +8,8 @@ use term_lib::console::Console;
 use tokio::io;
 use tokio::select;
 use tokio::sync::watch;
-use tokterm::utils::*;
 use tokterm::term_lib::bin_factory::CachedCompiledModules;
+use tokterm::utils::*;
 use tracing::{debug, error, info, warn};
 #[cfg(unix)]
 use {

@@ -1,6 +1,6 @@
 use crate::wasmer_vfs::FileSystem;
-use std::path::Path;
 use include_dir::{include_dir, Dir};
+use std::path::Path;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
@@ -20,7 +20,7 @@ pub fn append_static_dir(fs: &mut UnionFileSystem, dir: &Dir) {
         if let Some(path) = dir.path().to_str() {
             let path = format!("/{}", path);
             let path = Path::new(path.as_str());
-            if fs.create_dir(path).is_ok() {            
+            if fs.create_dir(path).is_ok() {
                 append_static_dir(fs, dir);
             }
         }

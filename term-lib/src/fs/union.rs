@@ -198,7 +198,6 @@ fn filter_mounts<'a, 'b>(
     let mut biggest_path = 0usize;
     let mut ret = Vec::new();
     for mount in mounts.iter().rev() {
-        
         let mut test_mount_path1 = mount.path.clone();
         if test_mount_path1.ends_with("/") == false {
             test_mount_path1.push_str("/");
@@ -206,7 +205,7 @@ fn filter_mounts<'a, 'b>(
 
         let mut test_mount_path2 = mount.path.clone();
         if test_mount_path2.ends_with("/") == true {
-            test_mount_path2 = test_mount_path2[..(test_mount_path2.len()-1)].to_string();
+            test_mount_path2 = test_mount_path2[..(test_mount_path2.len() - 1)].to_string();
         }
 
         if target == test_mount_path1 || target == test_mount_path2 {

@@ -144,8 +144,7 @@ pub async fn exec_process(
     };
 
     // Perform all the redirects
-    for redirect in redirect.iter()
-    {
+    for redirect in redirect.iter() {
         // If its not an absolutely path then make it one
         let mut filename = redirect.filename.clone();
         if filename.starts_with("/") == false {
