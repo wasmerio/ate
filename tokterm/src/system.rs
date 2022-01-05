@@ -132,7 +132,7 @@ impl SystemAbi for SysSystem {
     }
 
     /// Fetches a data file from the local context of the process
-    fn fetch_file(&self, path: &str) -> AsyncResult<Result<Vec<u8>, i32>> {
+    fn fetch_file(&self, path: &str) -> AsyncResult<Result<Vec<u8>, u32>> {
         let mut path = path.to_string();
         if path.starts_with("/") {
             path = path[1..].to_string();
@@ -157,7 +157,7 @@ impl SystemAbi for SysSystem {
         method: &str,
         headers: Vec<(String, String)>,
         data: Option<Vec<u8>>,
-    ) -> AsyncResult<Result<ReqwestResponse, i32>> {
+    ) -> AsyncResult<Result<ReqwestResponse, u32>> {
         let method = method.to_string();
         let url = url.to_string();
 

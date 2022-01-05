@@ -4,6 +4,7 @@ use crate::wasmer::Memory;
 use crate::wasmer::Module;
 use crate::wasmer::NativeFunc;
 use crate::wasmer::WasmerEnv;
+use crate::wasmer_wasi::WasiError;
 use crate::wasmer_wasi::WasiThread;
 use async_trait::async_trait;
 use serde::*;
@@ -19,7 +20,6 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::sync::mpsc;
 use tokio::sync::watch;
-use tokio::sync::Mutex as AsyncMutex;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::*;
@@ -27,6 +27,7 @@ use wasm_bus::abi::*;
 use super::*;
 
 use crate::api::*;
+use crate::err;
 
 pub struct WasmBusThreadPool {
     threads: Arc<RwLock<HashMap<u32, WasmBusThread>>>,
@@ -83,16 +84,17 @@ impl WasmBusThreadPool {
             return thread.clone();
         }
 
-        let (work_tx, work_rx) = std::sync::mpsc::channel();
+        let (work_tx, work_rx) = mpsc::channel(crate::common::MAX_MPSC);
         let (polling_tx, polling_rx) = watch::channel(false);
         let inner = WasmBusThreadInner {
             invocations: HashMap::default(),
             calls: HashMap::default(),
-            polling: polling_tx,
             factory: BusFactory::new(self.process_factory.clone()),
             callbacks: HashMap::default(),
             listens: HashSet::default(),
-            work_rx,
+            polling: polling_tx,
+            work_rx: Some(work_rx),
+            poll_thread: None,
         };
 
         let ret = WasmBusThread {
@@ -104,12 +106,13 @@ impl WasmBusThreadPool {
             inner: Arc::new(WasmBusThreadProtected {
                 inside: RefCell::new(inner),
             }),
-            work_tx: Arc::new(AsyncMutex::new(work_tx)),
+            work_tx,
             memory: thread.memory_clone(),
             wasm_bus_free: LazyInit::new(),
             wasm_bus_malloc: LazyInit::new(),
             wasm_bus_start: LazyInit::new(),
             wasm_bus_finish: LazyInit::new(),
+            wasm_bus_wake: LazyInit::new(),
             wasm_bus_error: LazyInit::new(),
             wasm_bus_drop: LazyInit::new(),
         };
@@ -149,15 +152,18 @@ pub(crate) enum WasmBusThreadWork {
     },
 }
 
-pub(super) struct WasmBusThreadInner {
+pub(crate) struct WasmBusThreadInner {
     pub(super) invocations: HashMap<CallHandle, Pin<Box<dyn Future<Output = ()> + Send + 'static>>>,
     pub(super) calls: HashMap<CallHandle, mpsc::Sender<Result<Vec<u8>, CallError>>>,
-    pub(super) polling: watch::Sender<bool>,
     pub(super) callbacks: HashMap<CallHandle, HashMap<String, CallHandle>>,
     pub(super) listens: HashSet<String>,
     pub(super) factory: BusFactory,
     #[allow(dead_code)]
-    pub(crate) work_rx: std::sync::mpsc::Receiver<WasmBusThreadWork>,
+    pub(crate) polling: watch::Sender<bool>,
+    #[allow(dead_code)]
+    pub(crate) work_rx: Option<mpsc::Receiver<WasmBusThreadWork>>,
+    #[allow(dead_code)]
+    pub(crate) poll_thread: Option<Pin<Box<dyn Future<Output = u32> + Send + 'static>>>,
 }
 
 /// Caution! this class is used to access the protected area of the wasm bus thread
@@ -167,7 +173,7 @@ pub(crate) struct WasmBusThreadProtected {
     inside: RefCell<WasmBusThreadInner>,
 }
 impl WasmBusThreadProtected {
-    pub(super) unsafe fn lock<'a>(&'a self) -> RefMut<'a, WasmBusThreadInner> {
+    pub(crate) unsafe fn lock<'a>(&'a self) -> RefMut<'a, WasmBusThreadInner> {
         self.inside.borrow_mut()
     }
 }
@@ -183,7 +189,7 @@ pub struct WasmBusThread {
     pub pool: Arc<WasmBusThreadPool>,
     pub polling: watch::Receiver<bool>,
     pub(crate) inner: Arc<WasmBusThreadProtected>,
-    pub(crate) work_tx: Arc<AsyncMutex<std::sync::mpsc::Sender<WasmBusThreadWork>>>,
+    pub(crate) work_tx: mpsc::Sender<WasmBusThreadWork>,
     #[wasmer(export)]
     memory: LazyInit<Memory>,
 
@@ -195,6 +201,8 @@ pub struct WasmBusThread {
     wasm_bus_start: LazyInit<NativeFunc<(u32, u32, u32, u32, u32, u32), ()>>,
     #[wasmer(export(name = "wasm_bus_finish"))]
     wasm_bus_finish: LazyInit<NativeFunc<(u32, u32, u32), ()>>,
+    #[wasmer(export(name = "wasm_bus_wake"))]
+    wasm_bus_wake: LazyInit<NativeFunc<(), ()>>,
     #[wasmer(export(name = "wasm_bus_error"))]
     wasm_bus_error: LazyInit<NativeFunc<(u32, u32), ()>>,
     #[wasmer(export(name = "wasm_bus_drop"))]
@@ -243,13 +251,18 @@ impl WasmBusThread {
         (rx, handle)
     }
 
-    fn send_internal(&self, msg: WasmBusThreadWork) {
+    fn send_internal(&self, mut msg: WasmBusThreadWork) {
         // If we are already polling then try and send it instantly
         if *self.polling.borrow() == true {
-            if let Ok(guard) = self.work_tx.try_lock() {
-                guard.send(msg).unwrap();
-                return;
-            }
+            msg = match self.work_tx.try_send(msg) {
+                Ok(()) => {
+                    return;
+                }
+                Err(mpsc::error::TrySendError::Closed(_)) => {
+                    return;
+                }
+                Err(mpsc::error::TrySendError::Full(msg)) => msg,
+            };
         }
 
         // Otherwise we need to do it asynchronously
@@ -257,7 +270,7 @@ impl WasmBusThread {
         let polling = self.polling.clone();
         self.system.fork_shared(move || async move {
             if async_wait_for_poll(polling).await {
-                let _ = work_tx.lock().await.send(msg);
+                let _ = work_tx.send(msg).await;
             }
         });
     }
@@ -336,6 +349,150 @@ impl WasmBusThread {
         }
 
         return true;
+    }
+
+    pub(crate) async unsafe fn work(&self, work: WasmBusThreadWork) -> u32 {
+        // Upon receiving some work we will process it
+        match work {
+            WasmBusThreadWork::Call {
+                topic,
+                parent,
+                handle,
+                data,
+                tx,
+            } => {
+                let native_memory = self.memory_ref();
+                let native_malloc = self.wasm_bus_malloc_ref();
+                let native_start = self.wasm_bus_start_ref();
+                if native_memory.is_none() || native_malloc.is_none() || native_start.is_none() {
+                    let _ = tx.send(Err(CallError::IncorrectAbi));
+                    warn!("wasm-bus::call - ABI does not match");
+                    return err::ERR_PANIC;
+                }
+                let native_memory = native_memory.unwrap();
+                let native_malloc = native_malloc.unwrap();
+                let native_start = native_start.unwrap();
+
+                // Check the listening is of the correct type
+                let no_topic = {
+                    let inner = self.inner.lock();
+                    inner.listens.contains(&topic)
+                };
+                if no_topic == false {
+                    let _ = tx.send(Err(CallError::InvalidTopic));
+                    warn!("wasm-bus::call - invalid topic");
+                    return err::ERR_OK;
+                }
+
+                // Determine the parent handle
+                let parent = parent.map(|a| a.into()).unwrap_or(u32::MAX);
+
+                // Invoke the call
+                let topic_bytes = topic.as_bytes();
+                let topic_len = topic_bytes.len() as u32;
+                let topic_ptr = match native_malloc.call(topic_len) {
+                    Ok(a) => a,
+                    Err(err) => {
+                        warn!(
+                            "wasm-bus::call - allocation failed (topic={}, len={}) - {}",
+                            topic, topic_len, err
+                        );
+                        let _ = tx.send(Err(CallError::MemoryAllocationFailed));
+                        return err::ERR_OK;
+                    }
+                };
+                native_memory
+                    .uint8view_with_byte_offset_and_length(topic_ptr, topic_len)
+                    .copy_from(&topic_bytes[..]);
+
+                let request_bytes = &data[..];
+                let request_len = request_bytes.len() as u32;
+                let request_ptr = match native_malloc.call(request_len) {
+                    Ok(a) => a,
+                    Err(err) => {
+                        warn!(
+                            "wasm-bus::call - allocation failed (topic={}, len={}) - {}",
+                            topic, request_len, err
+                        );
+                        let _ = tx.send(Err(CallError::MemoryAllocationFailed));
+                        return err::ERR_OK;
+                    }
+                };
+                native_memory
+                    .uint8view_with_byte_offset_and_length(request_ptr, request_len)
+                    .copy_from(&request_bytes[..]);
+
+                // Record the handler so that when the call completes it notifies the
+                // one who put this work on the queue
+                let handle = handle.handle();
+                {
+                    let mut inner = self.inner.lock();
+                    inner.calls.insert(handle, tx);
+                }
+
+                // Attempt to make the call to the WAPM module
+                match native_start.call(
+                    parent,
+                    handle.id,
+                    topic_ptr,
+                    topic_len,
+                    request_ptr,
+                    request_len,
+                ) {
+                    Ok(_) => err::ERR_OK,
+                    Err(e) => {
+                        warn!(
+                            "wasm-bus::call - invocation failed (topic={}) - {}",
+                            topic, e
+                        );
+                        let call = {
+                            let mut inner = self.inner.lock();
+                            inner.calls.remove(&handle)
+                        };
+                        if let Some(call) = call {
+                            let _ = call.send(Err(CallError::BusInvocationFailed));
+                        }
+                        match e.downcast::<WasiError>() {
+                            Ok(WasiError::Exit(code)) => code,
+                            Ok(WasiError::UnknownWasiVersion) => crate::err::ERR_PANIC,
+                            Err(_) => err::ERR_PANIC,
+                        }
+                    }
+                }
+            }
+            WasmBusThreadWork::Drop { handle } => {
+                if let Some(native_drop) = self.wasm_bus_drop_ref() {
+                    if let Err(err) = native_drop.call(handle.id) {
+                        warn!("wasm-bus::drop - runtime error - {}", err);
+                    }
+                }
+                err::ERR_OK
+            }
+            WasmBusThreadWork::Wake => {
+                debug!("polling loop awoken");
+                let native_wake = self.wasm_bus_wake_ref();
+                if native_wake.is_none() {
+                    warn!("wasm-bus::call - ABI does not match");
+                    return err::ERR_PANIC;
+                }
+                let native_wake = native_wake.unwrap();
+
+                crate::bus::syscalls::raw::wasm_bus_tick(self);
+
+                // Attempt to make the call to the WAPM module
+                match native_wake.call() {
+                    Ok(_) => err::ERR_OK,
+                    Err(e) => {
+                        warn!("wasm-bus::call - wake failed - {}", e);
+                        match e.downcast::<WasiError>() {
+                            Ok(WasiError::Exit(code)) => code,
+                            Ok(WasiError::UnknownWasiVersion) => crate::err::ERR_PANIC,
+                            Err(_) => err::ERR_PANIC,
+                        }
+                    }
+                }
+            }
+        }
     }
 
     pub async fn async_wait_for_poll(&mut self) -> bool {

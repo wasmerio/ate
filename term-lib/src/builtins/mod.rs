@@ -36,7 +36,7 @@ pub type Command =
     fn(&[String], &mut EvalContext, Stdio) -> Pin<Box<dyn Future<Output = CommandResult>>>;
 
 pub struct CommandResult {
-    pub result: Result<ExecResponse, i32>,
+    pub result: Result<ExecResponse, u32>,
     pub ctx: Option<EvalContext>,
 }
 

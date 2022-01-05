@@ -1,5 +1,5 @@
-use std::num::NonZeroI32;
-use std::sync::atomic::AtomicI32;
+use std::num::NonZeroU32;
+use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 #[allow(unused_imports, dead_code)]
@@ -15,7 +15,7 @@ pub struct Process {
     pub(crate) system: System,
     pub(crate) pid: Pid,
     pub(crate) thread_pool: Arc<WasmBusThreadPool>,
-    pub(crate) forced_exit: Arc<AtomicI32>,
+    pub(crate) forced_exit: Arc<AtomicU32>,
 }
 
 impl std::fmt::Debug for Process {
@@ -36,7 +36,7 @@ impl Clone for Process {
 }
 
 impl Process {
-    pub fn terminate(&self, exit_code: NonZeroI32) {
+    pub fn terminate(&self, exit_code: NonZeroU32) {
         self.forced_exit.store(exit_code.get(), Ordering::Release);
         self.thread_pool.wake_all();
     }

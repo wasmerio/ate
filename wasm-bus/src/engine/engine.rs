@@ -70,8 +70,9 @@ impl BusEngine {
                 let mut state = BusEngine::write();
                 if state.handles.contains(&handle) == false {
                     state.handles.insert(handle);
+                    drop(state);
 
-                    respond_to.process(parent, handle, request);
+                    crate::task::block_on(respond_to.process(parent, handle, request));
                     return Ok(());
                 } else {
                     return Err(CallError::InvalidHandle);
@@ -86,8 +87,9 @@ impl BusEngine {
             let mut state = BusEngine::write();
             if state.handles.contains(&handle) == false {
                 state.handles.insert(handle);
+                drop(state);
 
-                listen.process(handle, request);
+                crate::task::block_on(listen.process(handle, request));
                 return Ok(());
             } else {
                 return Err(CallError::InvalidHandle);

@@ -210,7 +210,7 @@ impl BinFactory {
     }
 }
 
-fn fetch_file(path: &str) -> AsyncResult<Result<Vec<u8>, i32>> {
+fn fetch_file(path: &str) -> AsyncResult<Result<Vec<u8>, u32>> {
     let system = System::default();
     system.fetch_file(path)
 }

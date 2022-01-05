@@ -2,8 +2,8 @@
 #![allow(dead_code)]
 use bytes::{Buf, BytesMut};
 use std::collections::HashMap;
-use std::num::NonZeroI32;
-use std::sync::atomic::AtomicI32;
+use std::num::NonZeroU32;
+use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -56,8 +56,8 @@ impl Reactor {
     pub fn generate_pid(
         &mut self,
         thread_pool: Arc<WasmBusThreadPool>,
-        forced_exit: Arc<AtomicI32>,
-    ) -> Result<Pid, i32> {
+        forced_exit: Arc<AtomicU32>,
+    ) -> Result<Pid, u32> {
         for _ in 0..10000 {
             let pid = self.pid_seed;
             self.pid_seed += 1;
@@ -77,14 +77,14 @@ impl Reactor {
         Err(ERR_EMFILE)
     }
 
-    pub fn close_process(&mut self, pid: Pid, exit_code: i32) -> i32 {
+    pub fn close_process(&mut self, pid: Pid, exit_code: u32) -> u32 {
         if let Some(process) = self.pid.remove(&pid) {
             info!("process closed (pid={})", pid);
-            let exit_code = NonZeroI32::new(exit_code)
-                .unwrap_or_else(|| NonZeroI32::new(ERR_ECONNABORTED).unwrap());
+            let exit_code = NonZeroU32::new(exit_code)
+                .unwrap_or_else(|| NonZeroU32::new(ERR_ECONNABORTED).unwrap());
             process.terminate(exit_code);
         }
-        ERR_OK
+        ERR_OK as u32
     }
 
     pub fn generate_job(
@@ -92,7 +92,7 @@ impl Reactor {
         working_dir: String,
         env: Environment,
         root: UnionFileSystem,
-    ) -> Result<(u32, Job), i32> {
+    ) -> Result<(u32, Job), u32> {
         let mut job_seed = 1;
         for _ in 0..10000 {
             let id = job_seed;
@@ -106,7 +106,7 @@ impl Reactor {
         Err(ERR_EMFILE)
     }
 
-    pub fn close_job(&mut self, job: Job, exit_code: i32) {
+    pub fn close_job(&mut self, job: Job, exit_code: u32) {
         let job_id = job.id;
         if self.current_job == Some(job_id) {
             self.current_job.take();

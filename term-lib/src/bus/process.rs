@@ -96,7 +96,7 @@ impl ProcessExecFactory {
         funct: F,
     ) -> Result<T, CallError>
     where
-        F: Fn(LaunchContext) -> Pin<Box<dyn Future<Output = Result<T, i32>>>>,
+        F: Fn(LaunchContext) -> Pin<Box<dyn Future<Output = Result<T, u32>>>>,
         F: Send + 'static,
         T: Send,
     {
@@ -230,7 +230,7 @@ impl ProcessExecFactory {
         let ret = match result.join().await.ok_or_else(|| CallError::Aborted)? {
             Ok(created) => created,
             Err(err) => {
-                let err: i32 = err;
+                let err: u32 = err;
                 warn!("failed to created process - internal error - code={}", err);
                 return Err(CallError::Unknown);
             }
@@ -273,7 +273,7 @@ impl ProcessExecFactory {
         &self,
         request: api::PoolSpawnRequest,
         client_callbacks: HashMap<String, WasmBusCallback>,
-    ) -> Result<(Process, AsyncResult<i32>, Arc<WasmBusThreadPool>), CallError> {
+    ) -> Result<(Process, AsyncResult<u32>, Arc<WasmBusThreadPool>), CallError> {
         self.launch(request, client_callbacks, |mut ctx: LaunchContext| {
             Box::pin(async move {
                 let stdio = ctx.eval.stdio.clone();
@@ -426,11 +426,11 @@ fn encode_eval_response(
     Ok(encode_response(
         format,
         &match res {
-            Some(EvalPlan::Executed { code, .. }) => api::PoolSpawnExitCallback(code),
-            Some(EvalPlan::InternalError) => api::PoolSpawnExitCallback(err::ERR_ENOEXEC),
-            Some(EvalPlan::Invalid) => api::PoolSpawnExitCallback(err::ERR_EINVAL),
-            Some(EvalPlan::MoreInput) => api::PoolSpawnExitCallback(err::ERR_EINVAL),
-            None => api::PoolSpawnExitCallback(err::ERR_EPIPE),
+            Some(EvalPlan::Executed { code, .. }) => api::PoolSpawnExitCallback(code as i32),
+            Some(EvalPlan::InternalError) => api::PoolSpawnExitCallback(err::ERR_ENOEXEC as i32),
+            Some(EvalPlan::Invalid) => api::PoolSpawnExitCallback(err::ERR_EINVAL as i32),
+            Some(EvalPlan::MoreInput) => api::PoolSpawnExitCallback(err::ERR_EINVAL as i32),
+            None => api::PoolSpawnExitCallback(err::ERR_EPIPE as i32),
         },
     )?)
 }

@@ -87,7 +87,7 @@ impl SystemAbi for WebSystem {
         AsyncResult::new(SerializationFormat::Json, rx)
     }
 
-    fn fetch_file(&self, path: &str) -> AsyncResult<Result<Vec<u8>, i32>> {
+    fn fetch_file(&self, path: &str) -> AsyncResult<Result<Vec<u8>, u32>> {
         let url = path.to_string();
         let headers = vec![("Accept".to_string(), "application/wasm".to_string())];
 
@@ -107,7 +107,7 @@ impl SystemAbi for WebSystem {
         method: &str,
         headers: Vec<(String, String)>,
         data: Option<Vec<u8>>,
-    ) -> AsyncResult<Result<ReqwestResponse, i32>> {
+    ) -> AsyncResult<Result<ReqwestResponse, u32>> {
         let url = url.to_string();
         let method = method.to_string();
 

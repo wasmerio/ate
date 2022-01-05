@@ -8,7 +8,7 @@ use crate::api::*;
 pub fn reqwest(
     system: System,
     request: api::ReqwestMakeRequest,
-) -> AsyncResult<Result<api::Response, i32>> {
+) -> AsyncResult<Result<api::Response, u32>> {
     let url = request.url;
     let method = request.method;
     let headers = request.headers;
@@ -29,7 +29,7 @@ pub fn reqwest(
                     status_text: a.status_text,
                     headers: a.headers,
                 }),
-                Err(err) => Err(err),
+                Err(err) => Err(err as u32),
             }
         } else {
             Err(crate::err::ERR_ECONNABORTED)

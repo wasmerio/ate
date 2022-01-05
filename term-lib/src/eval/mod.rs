@@ -46,7 +46,7 @@ use super::stdio::*;
 
 pub enum EvalPlan {
     Executed {
-        code: i32,
+        code: u32,
         ctx: EvalContext,
         show_result: bool,
     },
@@ -98,7 +98,7 @@ pub struct EvalContext {
     pub abi: Arc<dyn ConsoleAbi>,
     pub env: Environment,
     pub bins: BinFactory,
-    pub last_return: i32,
+    pub last_return: u32,
     pub reactor: Arc<RwLock<Reactor>>,
     pub chroot: bool,
     pub working_dir: String,

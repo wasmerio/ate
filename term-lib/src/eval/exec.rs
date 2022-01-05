@@ -6,7 +6,7 @@ use sha2::digest::generic_array::sequence::Lengthen;
 use std::io::Read;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::AtomicI32;
+use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -49,8 +49,8 @@ use crate::wasmer_wasi::{Stdout, WasiError, WasiState};
 use {crate::wasmer::Universal, crate::wasmer_compiler::CompilerConfig};
 
 pub enum ExecResponse {
-    Immediate(i32),
-    Process(Process, AsyncResult<i32>),
+    Immediate(u32),
+    Process(Process, AsyncResult<u32>),
 }
 
 pub async fn exec(
@@ -62,7 +62,7 @@ pub async fn exec(
     show_result: &mut bool,
     mut stdio: Stdio,
     redirect: &Vec<Redirect>,
-) -> Result<ExecResponse, i32> {
+) -> Result<ExecResponse, u32> {
     // If there is a built in then use it
     if let Some(builtin) = builtins.get(cmd) {
         *show_result = true;
@@ -92,10 +92,10 @@ pub async fn exec_process(
     show_result: &mut bool,
     mut stdio: Stdio,
     redirect: &Vec<Redirect>,
-) -> Result<(Process, AsyncResult<i32>, Arc<WasmBusThreadPool>), i32> {
+) -> Result<(Process, AsyncResult<u32>, Arc<WasmBusThreadPool>), u32> {
     // Make an error message function
     let mut early_stderr = stdio.stderr.clone();
-    let on_early_exit = |msg: Option<String>, err: i32| async move {
+    let on_early_exit = |msg: Option<String>, err: u32| async move {
         *show_result = true;
         if let Some(msg) = msg {
             let _ = early_stderr.write(msg.as_bytes()).await;
@@ -261,7 +261,7 @@ pub async fn exec_process(
     let bus_thread_pool_ret = Arc::clone(&bus_thread_pool);
 
     // We listen for any forced exits using this channel
-    let forced_exit = Arc::new(AtomicI32::new(0));
+    let forced_exit = Arc::new(AtomicU32::new(0));
 
     // This wait point is so that the main thread is created before it returns
     let (checkpoint_tx, mut checkpoint_rx) = mpsc::channel(1);
@@ -351,6 +351,7 @@ pub async fn exec_process(
 
                     module = thread_local.modules.get(&data_hash).map(|m| m.clone());
                 }
+                drop(thread_local);
                 let mut module = module.unwrap();
 
                 // Build the list of arguments
@@ -400,15 +401,13 @@ pub async fn exec_process(
                     wasi_env.on_yield(move |thread| {
                         let forced_exit = forced_exit.load(Ordering::Acquire);
                         if forced_exit != 0 {
-                            #[allow(deprecated)]
-                            wasmer::RuntimeError::raise(Box::new(wasmer_wasi::WasiError::Exit(
-                                forced_exit as u32,
-                            )));
+                            return Err(WasiError::Exit(forced_exit));
                         }
                         let thread = bus_pool.get_or_create(thread);
                         unsafe {
                             crate::bus::syscalls::raw::wasm_bus_tick(&thread);
                         }
+                        Ok(())
                     });
                 }
 
@@ -458,11 +457,11 @@ pub async fn exec_process(
 
                 // If there is a start function
                 debug!("called main() on {}", cmd);
-                let ret = if let Some(start) = start {
+                let mut ret = if let Some(start) = start {
                     match start.call() {
                         Ok(a) => err::ERR_OK,
                         Err(e) => match e.downcast::<WasiError>() {
-                            Ok(WasiError::Exit(code)) => code as i32,
+                            Ok(WasiError::Exit(code)) => code,
                             Ok(WasiError::UnknownWasiVersion) => {
                                 let _ = stdio
                                     .stderr
@@ -483,6 +482,20 @@ pub async fn exec_process(
                         .await;
                     err::ERR_ENOEXEC
                 };
+
+                // If there is a polling worker that got registered then its time to consume
+                // it which will effectively bring up a reactor based WASM module
+                if ret == err::ERR_EINTR {
+                    let worker = unsafe {
+                        let mut inner = wasm_thread.inner.lock();
+                        inner.poll_thread.take()
+                    };
+                    if let Some(worker) = worker {
+                        ret = worker.await;
+                    }
+                }
+
+                // Ok we are done
                 info!("exited (name={}) with code {}", cmd, ret);
                 ret
             })

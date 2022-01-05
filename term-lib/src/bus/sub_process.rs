@@ -95,7 +95,7 @@ pub struct SubProcessInner {
 pub struct SubProcess {
     pub system: System,
     pub process: Process,
-    pub process_result: Arc<Mutex<AsyncResult<i32>>>,
+    pub process_result: Arc<Mutex<AsyncResult<u32>>>,
     pub inner: Arc<SubProcessInner>,
     pub threads: Arc<WasmBusThreadPool>,
     pub main: WasmBusThread,
@@ -105,7 +105,7 @@ impl SubProcess {
     pub fn new(
         wapm: &str,
         process: Process,
-        process_result: AsyncResult<i32>,
+        process_result: AsyncResult<u32>,
         threads: Arc<WasmBusThreadPool>,
         main: WasmBusThread,
     ) -> SubProcess {

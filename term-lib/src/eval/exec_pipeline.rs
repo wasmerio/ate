@@ -13,9 +13,9 @@ pub(super) async fn exec_pipeline<'a>(
     exec_sync: bool,
     show_result: &mut bool,
     pipeline: &'a ast::Pipeline<'a>,
-) -> i32 {
+) -> u32 {
     let mut child_list = Vec::new();
-    let mut final_return: Option<i32> = None;
+    let mut final_return: Option<u32> = None;
     {
         let mut next_stdin = ctx.stdio.stdin.clone();
         let mut cur_stdin = ctx.stdio.stdin.clone();

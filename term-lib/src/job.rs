@@ -58,7 +58,7 @@ impl Job {
         }
     }
 
-    pub fn terminate(&self, reactor: &mut Reactor, exit_code: i32) {
+    pub fn terminate(&self, reactor: &mut Reactor, exit_code: u32) {
         self.stdin.forced_exit(exit_code);
         let mut rx = self.job_list_rx.lock().unwrap();
         while let Ok(pid) = rx.try_recv() {

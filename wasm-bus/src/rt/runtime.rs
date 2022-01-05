@@ -66,7 +66,9 @@ impl Runtime {
         }
     }
 
-    pub fn serve(&self) {
+    /// Processes any pending tasks on the engine until it goes
+    /// to sleep. Returns the number of outstanding tasks
+    pub fn tick(&self) -> usize {
         let waker: Waker = self.waker.clone().into_waker();
         let mut cx = Context::from_waker(&waker);
 
@@ -76,6 +78,8 @@ impl Runtime {
             if let Ok(mut lock) = self.tasks.try_lock() {
                 carry_over.append(lock.as_mut());
             }
+
+            let remaining = carry_over.len();
             if carry_over.len() > 0 {
                 let tasks = carry_over.drain(..).collect::<Vec<_>>();
                 for mut task in tasks {
@@ -97,9 +101,18 @@ impl Runtime {
                 last_waker = cur_waker;
                 continue;
             }
-
-            crate::abi::syscall::poll();
+            return remaining;
         }
+    }
+
+    /// Tell the  current thread to start serving requests from
+    /// the WASM bus.
+    pub fn serve(&self) {
+        // Upon calling poll this thread will cease to execute
+        // but none of the scopes will end meaning everything
+        // up till now will leak
+        crate::abi::syscall::poll();
+        unreachable!();
     }
 
     pub fn wake(&self) {

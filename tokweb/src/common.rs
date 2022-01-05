@@ -129,7 +129,7 @@ pub async fn fetch(
     method: &str,
     headers: Vec<(String, String)>,
     data: Option<Vec<u8>>,
-) -> Result<Response, i32> {
+) -> Result<Response, u32> {
     let request = {
         let mut opts = RequestInit::new();
         opts.method(method);
@@ -185,11 +185,11 @@ pub async fn fetch_data(
     method: &str,
     headers: Vec<(String, String)>,
     data: Option<Vec<u8>>,
-) -> Result<Vec<u8>, i32> {
+) -> Result<Vec<u8>, u32> {
     Ok(get_response_data(fetch(url, method, headers, data).await?).await?)
 }
 
-pub async fn get_response_data(resp: Response) -> Result<Vec<u8>, i32> {
+pub async fn get_response_data(resp: Response) -> Result<Vec<u8>, u32> {
     let resp = { JsFuture::from(resp.array_buffer().unwrap()) };
 
     let arrbuff_value = resp.await.map_err(|_| err::ERR_ENOEXEC)?;

@@ -94,7 +94,7 @@ where
     fn sleep(&self, ms: u128) -> AsyncResult<()>;
 
     /// Fetches a data file from the local context of the process
-    fn fetch_file(&self, path: &str) -> AsyncResult<Result<Vec<u8>, i32>>;
+    fn fetch_file(&self, path: &str) -> AsyncResult<Result<Vec<u8>, u32>>;
 
     /// Performs a HTTP or HTTPS request to a destination URL
     fn reqwest(
@@ -103,7 +103,7 @@ where
         method: &str,
         headers: Vec<(String, String)>,
         data: Option<Vec<u8>>,
-    ) -> AsyncResult<Result<ReqwestResponse, i32>>;
+    ) -> AsyncResult<Result<ReqwestResponse, u32>>;
 
     async fn web_socket(&self, url: &str) -> Result<Box<dyn WebSocketAbi>, String>;
 }

@@ -132,8 +132,8 @@ impl Fd {
         self.blocking.store(blocking, Ordering::Relaxed);
     }
 
-    pub fn forced_exit(&self, exit_code: i32) {
-        self.forced_exit.store(exit_code as u32, Ordering::Release);
+    pub fn forced_exit(&self, exit_code: u32) {
+        self.forced_exit.store(exit_code, Ordering::Release);
     }
 
     pub fn close(&self) {
@@ -272,10 +272,13 @@ impl Fd {
                 // Check for a forced exit
                 let forced_exit = self.forced_exit.load(Ordering::Acquire);
                 if forced_exit != 0 {
+                    return Err(std::io::ErrorKind::Interrupted.into());
+                    /*
                     #[allow(deprecated)]
                     wasmer::RuntimeError::raise(Box::new(wasmer_wasi::WasiError::Exit(
                         forced_exit,
                     )));
+                    */
                 }
 
                 // Maybe we are closed - if not then yield and try again
@@ -346,10 +349,13 @@ impl Read for Fd {
                 // Check for a forced exit
                 let forced_exit = self.forced_exit.load(Ordering::Acquire);
                 if forced_exit != 0 {
+                    return Err(std::io::ErrorKind::Interrupted.into());
+                    /*
                     #[allow(deprecated)]
                     wasmer::RuntimeError::raise(Box::new(wasmer_wasi::WasiError::Exit(
                         forced_exit,
                     )));
+                    */
                 }
 
                 // Maybe we are closed - if not then yield and try again

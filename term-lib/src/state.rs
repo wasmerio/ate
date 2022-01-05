@@ -25,7 +25,7 @@ pub struct ConsoleState {
     pub path: String,
     pub user: String,
     pub env: Environment,
-    pub last_return: i32,
+    pub last_return: u32,
     pub unfinished_line: bool,
     pub rootfs: UnionFileSystem,
 }

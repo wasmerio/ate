@@ -107,7 +107,7 @@ impl EvalFactory {
             abi: ctx.abi.clone(),
             env: ctx.env,
             bins: self.state.bins.clone(),
-            last_return: 0i32,
+            last_return: 0,
             reactor: self.state.reactor.clone(),
             chroot: ctx.chroot,
             working_dir: ctx.working_dir,

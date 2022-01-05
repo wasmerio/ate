@@ -8,7 +8,6 @@ use wasm_bus_types::SerializationFormat;
 
 use crate::abi::CallError;
 use crate::abi::CallHandle;
-use crate::task::spawn;
 
 #[derive(Derivative, Clone)]
 #[derivative(Debug)]
@@ -47,23 +46,20 @@ impl ListenService {
         }
     }
 
-    pub fn process(&self, handle: CallHandle, request: Vec<u8>) {
-        let persistent = self.persistent;
+    pub async fn process(&self, handle: CallHandle, request: Vec<u8>) {
         let callback = Arc::clone(&self.callback);
-        spawn(async move {
-            let res = callback.as_ref()(handle, request);
-            match res.await {
-                Ok(a) => {
-                    crate::abi::syscall::reply(handle, &a[..]);
-                }
-                Err(err) => {
-                    let err: u32 = err.into();
-                    crate::abi::syscall::fault(handle, err as u32);
-                }
+        let res = callback.as_ref()(handle, request);
+        match res.await {
+            Ok(a) => {
+                crate::abi::syscall::reply(handle, &a[..]);
             }
-            if persistent == false {
-                crate::engine::BusEngine::remove(&handle, "request was processed (by listener)");
+            Err(err) => {
+                let err: u32 = err.into();
+                crate::abi::syscall::fault(handle, err);
             }
-        });
+        }
+        if self.persistent == false {
+            crate::engine::BusEngine::remove(&handle, "request was processed (by listener)");
+        }
     }
 }

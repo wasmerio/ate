@@ -32,6 +32,10 @@ pub fn serve() {
     RUNTIME.serve();
 }
 
+pub fn work_it() -> usize {
+    RUNTIME.tick()
+}
+
 pub fn listen<RES, REQ, F, Fut>(format: SerializationFormat, callback: F, persistent: bool)
 where
     REQ: de::DeserializeOwned,

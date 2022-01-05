@@ -67,10 +67,10 @@ mod raw {
             if let Err(err) = crate::engine::BusEngine::start(topic, parent, handle, request) {
                 fault(handle.into(), err as u32);
             }
-        }
 
-        #[cfg(feature = "rt")]
-        crate::task::wake();
+            #[cfg(feature = "rt")]
+            crate::task::work_it();
+        }
     }
 
     // Invoked by the operating system when a call has finished
@@ -85,7 +85,7 @@ mod raw {
         }
 
         #[cfg(feature = "rt")]
-        crate::task::wake();
+        crate::task::work_it();
     }
 
     // Invoked by the operating system when the call this program made has failed
@@ -94,7 +94,7 @@ mod raw {
         crate::engine::BusEngine::error(handle.into(), error.into());
 
         #[cfg(feature = "rt")]
-        crate::task::wake();
+        crate::task::work_it();
     }
 
     // Invoked by the operating system when a call has been terminated by the caller
@@ -104,7 +104,14 @@ mod raw {
         crate::engine::BusEngine::remove(&handle, "os_notification");
 
         #[cfg(feature = "rt")]
-        crate::task::wake();
+        crate::task::work_it();
+    }
+
+    // Invoked by the operating system when a call has been terminated by the caller
+    #[no_mangle]
+    pub extern "C" fn wasm_bus_wake() {
+        #[cfg(feature = "rt")]
+        crate::task::work_it();
     }
 
     #[link(wasm_import_module = "wasm-bus")]
