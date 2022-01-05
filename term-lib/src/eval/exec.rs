@@ -231,6 +231,7 @@ pub async fn exec_process(
                                 }
                             }
                         }
+                        file.flush().await;
                     }
                 });
             }
