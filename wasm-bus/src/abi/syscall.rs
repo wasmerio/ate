@@ -85,6 +85,8 @@ mod raw {
         }
 
         #[cfg(feature = "rt")]
+        crate::task::wake();
+        #[cfg(feature = "rt")]
         crate::task::work_it();
     }
 
@@ -93,6 +95,8 @@ mod raw {
     pub extern "C" fn wasm_bus_error(handle: u32, error: u32) {
         crate::engine::BusEngine::error(handle.into(), error.into());
 
+        #[cfg(feature = "rt")]
+        crate::task::wake();
         #[cfg(feature = "rt")]
         crate::task::work_it();
     }
@@ -104,12 +108,16 @@ mod raw {
         crate::engine::BusEngine::remove(&handle, "os_notification");
 
         #[cfg(feature = "rt")]
+        crate::task::wake();
+        #[cfg(feature = "rt")]
         crate::task::work_it();
     }
 
     // Invoked by the operating system when a call has been terminated by the caller
     #[no_mangle]
     pub extern "C" fn wasm_bus_wake() {
+        #[cfg(feature = "rt")]
+        crate::task::wake();
         #[cfg(feature = "rt")]
         crate::task::work_it();
     }

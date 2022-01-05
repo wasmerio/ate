@@ -144,7 +144,14 @@ pub async fn exec_process(
     };
 
     // Perform all the redirects
-    for redirect in redirect.iter() {
+    for redirect in redirect.iter()
+    {
+        // If its not an absolutely path then make it one
+        let mut filename = redirect.filename.clone();
+        if filename.starts_with("/") == false {
+            filename = format!("{}{}", ctx.working_dir, filename);
+        }
+
         // Attempt to open the file
         let file = fs
             .new_open_options()
@@ -155,7 +162,7 @@ pub async fn exec_process(
             .append(redirect.op.append())
             .read(redirect.op.read())
             .write(redirect.op.write())
-            .open(redirect.filename.clone())
+            .open(filename)
             .await;
         match file {
             Ok(mut file) => {
