@@ -241,7 +241,7 @@ impl Fd {
             }
             Ok(msg)
         } else {
-            Err(std::io::ErrorKind::BrokenPipe.into())
+            return Ok(FdMsg::new(Vec::new(), self.flag));
         }
     }
 
@@ -273,12 +273,6 @@ impl Fd {
                 let forced_exit = self.forced_exit.load(Ordering::Acquire);
                 if forced_exit != 0 {
                     return Err(std::io::ErrorKind::Interrupted.into());
-                    /*
-                    #[allow(deprecated)]
-                    wasmer::RuntimeError::raise(Box::new(wasmer_wasi::WasiError::Exit(
-                        forced_exit,
-                    )));
-                    */
                 }
 
                 // Maybe we are closed - if not then yield and try again
@@ -288,14 +282,14 @@ impl Fd {
                 std::thread::park_timeout(std::time::Duration::from_millis(5));
             }
         } else {
-            return Err(std::io::ErrorKind::BrokenPipe.into());
+            return Ok(0usize);
         }
     }
 }
 
 impl Seek for Fd {
     fn seek(&mut self, _pos: SeekFrom) -> io::Result<u64> {
-        Err(io::Error::new(io::ErrorKind::Other, "can not seek pipes"))
+        Ok(0u64)
     }
 }
 impl Write for Fd {
@@ -310,7 +304,6 @@ impl Write for Fd {
 
 impl Read for Fd {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        error!("read len={}", buf.len());
         if let Some(receiver) = self.receiver.as_mut() {
             loop {
                 // Make an attempt to read the data
@@ -351,12 +344,6 @@ impl Read for Fd {
                 let forced_exit = self.forced_exit.load(Ordering::Acquire);
                 if forced_exit != 0 {
                     return Err(std::io::ErrorKind::Interrupted.into());
-                    /*
-                    #[allow(deprecated)]
-                    wasmer::RuntimeError::raise(Box::new(wasmer_wasi::WasiError::Exit(
-                        forced_exit,
-                    )));
-                    */
                 }
 
                 // Maybe we are closed - if not then yield and try again
@@ -367,8 +354,7 @@ impl Read for Fd {
                 std::thread::park_timeout(std::time::Duration::from_millis(5));
             }
         } else {
-            error!("stdin broken_pipe");
-            return Err(std::io::ErrorKind::BrokenPipe.into());
+            return Ok(0usize);
         }
     }
 }
@@ -387,7 +373,7 @@ impl VirtualFile for Fd {
         0
     }
     fn set_len(&mut self, _new_size: wasi_types::__wasi_filesize_t) -> Result<(), WasiFsError> {
-        Err(WasiFsError::PermissionDenied)
+        Ok(())
     }
 
     fn unlink(&mut self) -> Result<(), WasiFsError> {
