@@ -31,7 +31,7 @@ impl FileIo {
 impl api::FileIOSimplified for FileIo {
     async fn seek(&self, from: api::SeekFrom) -> FsResult<u64> {
         let file = self.handle.as_ref();
-        let mut offset = self.offset.lock().unwrap();
+        let mut offset = { self.offset.lock().unwrap() };
         match from {
             api::SeekFrom::Current(a) if a > 0 => {
                 if let Some(a) = offset.checked_add(a.abs() as u64) {
@@ -88,22 +88,32 @@ impl api::FileIOSimplified for FileIo {
             *offset
         };
 
-        file.spec.write(offset, &data[..]).await.map_err(|err| {
+        let written = file.spec.write(offset, &data[..]).await.map_err(|err| {
             debug!("write failed - {}", err);
             FsError::IOError
-        })
+        })?;
+        {
+            let mut guard = self.offset.lock().unwrap();
+            *guard = offset + written;
+        }
+        Ok(written)
     }
 
     async fn read(&self, len: u64) -> FsResult<Vec<u8>> {
         let file = self.handle.as_ref();
-        let offset = self.offset.lock().unwrap().clone();
-        file.spec
+        let offset = { self.offset.lock().unwrap().clone() };
+        let ret = file.spec
             .read(offset, len)
             .await
             .map_err(|err| {
                 debug!("read failed - {}", err);
                 FsError::IOError
             })
-            .map(|a| a.to_vec())
+            .map(|a| a.to_vec())?;
+        {
+            let mut guard = self.offset.lock().unwrap();
+            *guard = offset + (ret.len() as u64);
+        }
+        Ok(ret)
     }
 }
