@@ -2,12 +2,14 @@
 use clap::Parser;
 use raw_tty::GuardMode;
 use std::io::Read;
+use std::sync::Arc;
 use term_lib::api::*;
 use term_lib::console::Console;
 use tokio::io;
 use tokio::select;
 use tokio::sync::watch;
 use tokterm::utils::*;
+use tokterm::term_lib::bin_factory::CachedCompiledModules;
 use tracing::{debug, error, info, warn};
 #[cfg(unix)]
 use {
@@ -67,12 +69,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
+    // Build the compiled modules
+    let compiled_modules = Arc::new(CachedCompiledModules::default());
+
     // Now we run the actual console under the runtime
     let compiler = opts.compiler;
     sys.block_on(async move {
         let location = "wss://localhost/".to_string();
         let user_agent = "noagent".to_string();
-        let mut console = Console::new(location, user_agent, compiler, con);
+        let mut console = Console::new(location, user_agent, compiler, con, None, compiled_modules);
         console.init().await;
 
         // Process data until the console closes

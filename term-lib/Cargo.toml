@@ -65,3 +65,4 @@ clap = { version = "^3.0.0-rc.7", features = [ "derive" ] }
 wild = "^2"
 cooked-waker = { version = "^5" }
 serde_yaml = { version = "^0.8" }
+include_dir = "0.7.2"

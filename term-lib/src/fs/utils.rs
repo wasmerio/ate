@@ -1,7 +1,12 @@
 use crate::wasmer_vfs::FileSystem;
 use std::path::Path;
+use include_dir::{include_dir, Dir};
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, trace, warn};
 
 use super::*;
+
+static BIN_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/bin");
 
 pub fn create_root_fs() -> UnionFileSystem {
     let mut mounts = UnionFileSystem::new();
@@ -11,6 +16,8 @@ pub fn create_root_fs() -> UnionFileSystem {
     mounts.create_dir(&Path::new("/etc")).unwrap();
     mounts.create_dir(&Path::new("/tmp")).unwrap();
     mounts.create_dir(&Path::new("/.private")).unwrap();
+
+    append_static_files(&mut mounts);
 
     let mut os_release = mounts
         .new_open_options()
@@ -33,4 +40,21 @@ HOME_URL="https://www.tokera.com/"#
         .unwrap();
 
     mounts
+}
+
+pub fn append_static_files(fs: &mut UnionFileSystem) {
+    for file in BIN_DIR.files() {
+        if let Some(path) = file.path().to_str() {
+            let target = format!("/bin/{}", path);
+            
+            let mut bin = fs
+                .new_open_options()
+                .create_new(true)
+                .write(true)
+                .open(target.as_str())
+                .unwrap();
+
+            bin.write_all(file.contents()).unwrap();
+        }
+    }
 }
