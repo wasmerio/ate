@@ -442,7 +442,7 @@ impl WasmBusThread {
                     Ok(_) => err::ERR_OK,
                     Err(e) => {
                         warn!(
-                            "wasm-bus::call - invocation failed (topic={}) - {}",
+                            "wasm-bus::call - invocation failed (topic={}) - {:?}",
                             topic, e
                         );
                         let call = {

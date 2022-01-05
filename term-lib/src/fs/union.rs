@@ -154,8 +154,8 @@ impl FileSystem for UnionFileSystem {
         debug!("symlink_metadata: path={}", path.display());
         let mut ret_error = FsError::EntityNotFound;
         let path = path.to_string_lossy();
-        for (path, mount) in filter_mounts(&self.mounts, path.as_ref()) {
-            match mount.fs.symlink_metadata(Path::new(path)) {
+        for (path_inner, mount) in filter_mounts(&self.mounts, path.as_ref()) {
+            match mount.fs.symlink_metadata(Path::new(path_inner)) {
                 Ok(ret) => {
                     return Ok(ret);
                 }
@@ -193,7 +193,7 @@ impl FileSystem for UnionFileSystem {
 
 fn filter_mounts<'a, 'b>(
     mounts: &'a Vec<MountPoint>,
-    mut path: &'b str,
+    mut target: &'b str,
 ) -> impl Iterator<Item = (&'b str, &'a MountPoint)> {
     let mut biggest_path = 0usize;
     let mut ret = Vec::new();
@@ -205,15 +205,17 @@ fn filter_mounts<'a, 'b>(
         }
 
         let mut test_mount_path2 = mount.path.clone();
-        if test_mount_path2.ends_with("/") == true && test_mount_path2.len() > 1 {
+        if test_mount_path2.ends_with("/") == true {
             test_mount_path2 = test_mount_path2[..(test_mount_path2.len()-1)].to_string();
         }
 
-        if path.starts_with(test_mount_path1.as_str()) || path == test_mount_path1 || path == test_mount_path2 {
-            let path = &path[mount.path.len() - 1..];
-            let path = if path.len() > 0 { path } else { "/" };
+        if target == test_mount_path1 || target == test_mount_path2 {
+            let path = "/";
             ret.push((path, mount));
-
+            biggest_path = biggest_path.max(mount.path.len());
+        } else if target.starts_with(test_mount_path1.as_str()) {
+            let path = &target[test_mount_path2.len()..];
+            ret.push((path, mount));
             biggest_path = biggest_path.max(mount.path.len());
         }
     }
