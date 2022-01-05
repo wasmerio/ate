@@ -184,9 +184,12 @@ pub struct TtyFile {
 
 impl TtyFile {
     pub fn new(stdio: &Stdio) -> TtyFile {
+        let mut fd = Fd::combine(&stdio.stdin, &stdio.stdout);
+        fd.set_flag(FdFlag::Tty);
+
         stdio.tty.set_buffering(false);
         TtyFile {
-            fd: Fd::combine(&stdio.stdin, &stdio.stdout),
+            fd,
             tty: stdio.tty.clone(),
         }
     }

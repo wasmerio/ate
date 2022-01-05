@@ -27,7 +27,10 @@ impl UnionFileSystem {
 
 impl UnionFileSystem {
     pub fn mount(&mut self, name: &str, path: &Path, fs: Box<dyn FileSystem>) {
-        let path = path.to_string_lossy().into_owned();
+        let mut path = path.to_string_lossy().into_owned();
+        if path.ends_with("/") == false {
+            path += "/";
+        }
         self.mounts.push(MountPoint {
             path,
             name: name.to_string(),
@@ -195,17 +198,19 @@ fn filter_mounts<'a, 'b>(
     let mut biggest_path = 0usize;
     let mut ret = Vec::new();
     for mount in mounts.iter().rev() {
-        let mut test_path = mount.path.clone();
-        if test_path.ends_with("/") == false {
-            test_path.push_str("/");
+        
+        let mut test_mount_path1 = mount.path.clone();
+        if test_mount_path1.ends_with("/") == false {
+            test_mount_path1.push_str("/");
         }
 
-        if path.starts_with(test_path.as_str()) || path.starts_with(&test_path[1..]) {
-            let path = if mount.path.ends_with("/") {
-                &path[mount.path.len() - 1..]
-            } else {
-                &path[mount.path.len()..]
-            };
+        let mut test_mount_path2 = mount.path.clone();
+        if test_mount_path2.ends_with("/") == true && test_mount_path2.len() > 1 {
+            test_mount_path2 = test_mount_path2[..(test_mount_path2.len()-1)].to_string();
+        }
+
+        if path.starts_with(test_mount_path1.as_str()) || path == test_mount_path1 || path == test_mount_path2 {
+            let path = &path[mount.path.len() - 1..];
             let path = if path.len() > 0 { path } else { "/" };
             ret.push((path, mount));
 

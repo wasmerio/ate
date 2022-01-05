@@ -310,6 +310,7 @@ impl Write for Fd {
 
 impl Read for Fd {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        error!("read len={}", buf.len());
         if let Some(receiver) = self.receiver.as_mut() {
             loop {
                 // Make an attempt to read the data
