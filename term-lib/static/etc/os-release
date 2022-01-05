@@ -1,0 +1,7 @@
+PRETTY_NAME="Tokera WebAssembly Shell 1"
+NAME="Tokera/Wasm"
+VERSION_ID="1"
+VERSION="1"
+VERSION_CODENAME=tok
+ID=debian
+HOME_URL="https://www.tokera.com/
