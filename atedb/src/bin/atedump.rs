@@ -83,7 +83,7 @@ async fn main() -> Result<(), AteError> {
     let key = ChainKey::new(opts.name);
 
     // Create a progress bar loader
-    let mut progress_loader = LoadProgress::default();
+    let mut progress_loader = LoadProgress::new(std::io::stderr());
     progress_loader.units = pbr::Units::Bytes;
     progress_loader.msg_done = "Reading events from file...".to_string();
 

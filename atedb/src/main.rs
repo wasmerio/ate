@@ -172,7 +172,7 @@ async fn main_solo(
     server.add_route(Box::new(flow), &cfg_ate).await?;
 
     // Wait for ctrl-c
-    eprintln!("Press ctrl-c to exit");
+    println!("Press ctrl-c to exit");
     let mut exit = ctrl_channel();
     while *exit.borrow() == false {
         exit.changed().await.unwrap();

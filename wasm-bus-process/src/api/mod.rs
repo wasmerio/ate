@@ -1,6 +1,7 @@
 use serde::*;
-use std::sync::Arc;
+use std::{sync::Arc, fmt::Display};
 use wasm_bus::macros::*;
+use std::fmt;
 
 #[wasm_bus(format = "bincode")]
 pub trait Pool {
@@ -40,4 +41,16 @@ pub enum StdioMode {
     Inherit,
     Null,
     Log,
+}
+
+impl Display
+for StdioMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            StdioMode::Piped => write!(f, "piped"),
+            StdioMode::Inherit => write!(f, "inherit"),
+            StdioMode::Null => write!(f, "null"),
+            StdioMode::Log => write!(f, "log"),
+        }
+    }
 }

@@ -24,6 +24,7 @@ use wasmer_vfs::VirtualFile;
 use crate::api::*;
 use crate::bus::AsyncWasmBusSession;
 use crate::bus::SubProcess;
+use crate::stdio::Stdio;
 
 #[derive(Derivative, Clone)]
 #[derivative(Debug)]
@@ -34,10 +35,11 @@ pub struct FuseFileSystem {
     target: String,
     #[derivative(Debug = "ignore")]
     task: AsyncWasmBusSession,
+    stdio: Stdio
 }
 
 impl FuseFileSystem {
-    pub async fn new(process: SubProcess, target: &str) -> Result<FuseFileSystem, FsError> {
+    pub async fn new(process: SubProcess, target: &str, mut stdio: Stdio) -> Result<FuseFileSystem, FsError> {
         let task = process
             .main
             .call::<(), _>(
@@ -59,6 +61,9 @@ impl FuseFileSystem {
                 );
                 FsError::IOError
             })?;
+
+        let _ = stdio.stdout.flush_async().await;
+        let _ = stdio.stdout.write(format!("\r").as_bytes()).await;
 
         let _ = task
             .call::<Result<(), backend::FsError>, _>(backend::FileSystemInitRequest {})
@@ -83,12 +88,15 @@ impl FuseFileSystem {
                 conv_fs_error(err)
             })?;
 
-        Ok(FuseFileSystem {
+        let ret = FuseFileSystem {
             system: System::default(),
             sub: process,
             target: target.to_string(),
             task,
-        })
+            stdio,
+        };
+
+        Ok(ret)
     }
 }
 

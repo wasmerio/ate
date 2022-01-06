@@ -36,7 +36,7 @@ wasmer-compiler = { version = "^2", git = "https://github.com/john-sharratt/wasm
 #wasmer-compiler-llvm = { version = "^2", path = "../../wasmer/lib/compiler-llvm", optional = true }
 #wasmer-compiler-singlepass = { version = "^2", path = "../../wasmer/lib/compiler-singlepass", optional = true }
 #wasmer-compiler = { version = "^2", path = "../../wasmer/lib/compiler", optional = true }
-chrono = { version = "^0.4" }
+chrono = { version = "^0.4", git = "https://github.com/john-sharratt/chrono.git" }
 tracing = { version = "^0.1" }
 tracing-futures = { version = "^0.2" }
 tracing-wasm = { version = "^0.2" }

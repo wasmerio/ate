@@ -36,3 +36,22 @@ fn conv_meta(file: ate_files::attr::FileAttr) -> api::Metadata {
         len: file.size,
     }
 }
+
+use ate_files::error::FileSystemError;
+fn conv_err(err: FileSystemError) -> api::FsError {
+    use ate_files::error::FileSystemErrorKind;
+
+    match err {
+        FileSystemError(FileSystemErrorKind::AlreadyExists, _) => api::FsError::AlreadyExists,
+        FileSystemError(FileSystemErrorKind::NotDirectory, _) => api::FsError::BaseNotDirectory,
+        FileSystemError(FileSystemErrorKind::IsDirectory, _) => api::FsError::InvalidInput,
+        FileSystemError(FileSystemErrorKind::DoesNotExist, _) => api::FsError::EntityNotFound,
+        FileSystemError(FileSystemErrorKind::NoAccess, _) => api::FsError::PermissionDenied,
+        FileSystemError(FileSystemErrorKind::PermissionDenied, _) => api::FsError::PermissionDenied,
+        FileSystemError(FileSystemErrorKind::ReadOnly, _) => api::FsError::PermissionDenied,
+        FileSystemError(FileSystemErrorKind::InvalidArguments, _) => api::FsError::InvalidInput,
+        FileSystemError(FileSystemErrorKind::NoEntry, _) => api::FsError::EntityNotFound,
+        FileSystemError(FileSystemErrorKind::NotImplemented, _) => api::FsError::NoDevice,
+        FileSystemError(_, _) => api::FsError::IOError,
+    }
+}

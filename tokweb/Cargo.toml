@@ -17,7 +17,7 @@ wasm-bindgen = { version = "0.2", features = [ "nightly", "serde-serialize" ] }
 wasm-bindgen-futures = "0.4"
 console_error_panic_hook = "^0.1"
 js-sys = "0.3"
-chrono = { version = "^0.4", features = [ "wasmbind" ] }
+chrono = { version = "^0.4", git = "https://github.com/john-sharratt/chrono.git", features = [ "wasmbind" ] }
 tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
 #tracing = { version = "^0.1", features = [ "log", "release_max_level_debug" ] }
 tracing-futures = { version = "^0.2" }

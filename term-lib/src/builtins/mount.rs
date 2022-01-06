@@ -84,7 +84,7 @@ pub(super) fn mount(
             .await;
 
         let factory = SubProcessFactory::new(factory);
-        let mut sub_process = match factory.get_or_create(wapm.as_str(), StdioMode::Log).await {
+        let mut sub_process = match factory.get_or_create(wapm.as_str(), StdioMode::Inherit, StdioMode::Log).await {
             Ok(a) => a,
             Err(_) => {
                 let _ = stdio
@@ -107,7 +107,7 @@ pub(super) fn mount(
             .write(format!("Executing the mount\r\n").as_bytes())
             .await;
 
-        let fs = match FuseFileSystem::new(sub_process, target.as_str()).await {
+        let fs = match FuseFileSystem::new(sub_process, target.as_str(), stdio.clone()).await {
             Ok(a) => a,
             Err(err) => {
                 let _ = stdio
@@ -119,8 +119,11 @@ pub(super) fn mount(
         };
 
         let _ = stdio
+            .stdout.flush_async().await;
+
+        let _ = stdio
             .stdout
-            .write(format!("Successfully mounted\r\n").as_bytes())
+            .write(format!("\rSuccessfully mounted\r\n").as_bytes())
             .await;
 
         let mut ret: CommandResult = ExecResponse::Immediate(0).into();

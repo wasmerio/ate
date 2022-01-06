@@ -1,11 +1,14 @@
 #![allow(unused_imports, dead_code)]
 use async_trait::async_trait;
 use ate::prelude::*;
+use ate::utils::LoadProgress;
+use ate::loader::DummyLoader;
 use ate_auth::prelude::*;
 use ate_files::codes::*;
 use ate_files::prelude::*;
 use derivative::*;
 use std::sync::Arc;
+use std::io::Write;
 use std::time::Duration;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
@@ -112,9 +115,14 @@ impl api::FuseSimplified for FuseServer {
 
         let remote = self.opts.remote.clone();
 
+        // Create a progress bar loader
+        let progress_local = DummyLoader::default();
+        let progress_remote = LoadProgress::new(std::io::stdout());
+        println!("Loading the chain-of-trust");
+
         // Load the chain
         let key = ChainKey::from(name.clone());
-        let chain = match self.registry.open(&remote, &key).await {
+        let chain = match self.registry.open_ext(&remote, &key, progress_local, progress_remote).await {
             Ok(a) => a,
             Err(err) => {
                 warn!("failed to open chain - {}", err);
@@ -133,6 +141,7 @@ impl api::FuseSimplified for FuseServer {
             )
             .await,
         );
+        let _ = std::io::stdout().flush();
 
         // Create the file system
         Ok(Arc::new(FileSystem::new(accessor, context)))

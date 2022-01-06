@@ -165,18 +165,7 @@ impl Fd {
     }
 
     pub async fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.check_closed()?;
-        if let Some(sender) = self.sender.as_mut() {
-            let buf_len = buf.len();
-            let buf = buf.to_vec();
-            let msg = FdMsg::new(buf, self.flag);
-            if let Err(_err) = sender.send(msg).await {
-                return Err(std::io::ErrorKind::BrokenPipe.into());
-            }
-            Ok(buf_len)
-        } else {
-            return Err(std::io::ErrorKind::BrokenPipe.into());
-        }
+        self.write_vec(buf.to_vec()).await
     }
 
     pub async fn write_vec(&mut self, buf: Vec<u8>) -> io::Result<usize> {

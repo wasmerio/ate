@@ -36,14 +36,16 @@ impl SubProcessFactory {
     pub async fn get_or_create(
         &self,
         wapm: &str,
-        stdio_mode: StdioMode,
+        stdout_mode: StdioMode,
+        stderr_mode: StdioMode,
     ) -> Result<SubProcess, CallError> {
         let wapm = wapm.to_string();
+        let key = format!("{}-{}-{}", wapm, stdout_mode, stderr_mode);
 
         // Check for any existing process of this name thats already running
         {
             let processes = self.inner.processes.lock().unwrap();
-            if let Some(process) = processes.get(&wapm) {
+            if let Some(process) = processes.get(&key) {
                 return Ok(process.clone());
             }
         }
@@ -56,9 +58,9 @@ impl SubProcessFactory {
                 args: vec![wapm.to_string(), "bus".to_string()],
                 chroot: false,
                 working_dir: None,
-                stdin_mode: stdio_mode,
-                stdout_mode: stdio_mode,
-                stderr_mode: stdio_mode,
+                stdin_mode: StdioMode::Null,
+                stdout_mode: stdout_mode,
+                stderr_mode: stderr_mode,
                 pre_open: Vec::new(),
             },
         };
@@ -81,7 +83,7 @@ impl SubProcessFactory {
         let process = SubProcess::new(wapm.as_str(), process, process_result, thread_pool, main);
         {
             let mut processes = self.inner.processes.lock().unwrap();
-            processes.insert(wapm, process.clone());
+            processes.insert(key, process.clone());
         }
         Ok(process)
     }

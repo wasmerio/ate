@@ -111,6 +111,7 @@ impl FileAccessor {
                 }
                 Err(err) => {
                     error!("{}", err);
+                    bail!(FileSystemErrorKind::InvalidArguments);
                 }
             }
         };

@@ -50,8 +50,8 @@ pub async fn main_opts_db(
     let registry = ate::mesh::Registry::new(&conf).await.temporal(true);
 
     // Create a progress bar loader
-    let progress_local = LoadProgress::default();
-    let progress_remote = LoadProgress::default();
+    let progress_local = LoadProgress::new(std::io::stderr());
+    let progress_remote = LoadProgress::new(std::io::stderr());
 
     // Load the chain
     let guard = registry
