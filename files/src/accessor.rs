@@ -454,6 +454,7 @@ impl FileAccessor {
             let new_key = {
                 if mode & 0o040 != 0 {
                     self.get_group_read_key(gid)
+                        .or_else(|| self.get_user_read_key(uid))
                 } else {
                     self.get_user_read_key(uid)
                 }
@@ -470,7 +471,7 @@ impl FileAccessor {
             } else if self.no_auth == false {
                 if mode & 0o040 != 0 {
                     error!(
-                        "Session does not have the required group ({}) read key embedded within it",
+                        "Session does not have the required group or user ({}) read key embedded within it",
                         gid
                     );
                 } else {
@@ -492,6 +493,7 @@ impl FileAccessor {
             let new_key = {
                 if mode & 0o020 != 0 {
                     self.get_group_write_key(gid)
+                        .or_else(|| self.get_user_write_key(uid))
                 } else {
                     self.get_user_write_key(uid)
                 }
@@ -500,7 +502,7 @@ impl FileAccessor {
                 auth.write = WriteOption::Specific(key.hash());
             } else if self.no_auth == false {
                 if mode & 0o020 != 0 {
-                    error!("Session does not have the required group ({}) write key embedded within it", gid);
+                    error!("Session does not have the required group or user ({}) write key embedded within it", gid);
                 } else {
                     error!(
                         "Session does not have the required user ({}) write key embedded within it",

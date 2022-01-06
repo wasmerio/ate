@@ -226,7 +226,6 @@ pub(crate) struct TxGroupSpecific {
 }
 
 impl TxGroupSpecific {
-    #[must_use = "all network communication metrics must be accounted for"]
     #[cfg(feature = "enable_server")]
     pub async fn send_reply(&mut self, pck: PacketData) -> Result<u64, CommsError> {
         let mut tx = self.me_tx.lock().await;
@@ -234,7 +233,6 @@ impl TxGroupSpecific {
         Ok(total_sent)
     }
 
-    #[must_use = "all network communication metrics must be accounted for"]
     #[cfg(feature = "enable_server")]
     pub async fn send_others(&mut self, pck: PacketData) -> Result<u64, CommsError> {
         let mut group = self.group.lock().await;
@@ -242,7 +240,6 @@ impl TxGroupSpecific {
         Ok(total_sent)
     }
 
-    #[must_use = "all network communication metrics must be accounted for"]
     #[cfg(feature = "enable_server")]
     pub async fn send_all(&mut self, pck: PacketData) -> Result<u64, CommsError> {
         let mut group = self.group.lock().await;
@@ -269,7 +266,6 @@ pub(crate) struct TxGroup {
 }
 
 impl TxGroup {
-    #[must_use = "all network communication metrics must be accounted for"]
     #[cfg(feature = "enable_server")]
     pub(crate) async fn send(
         &mut self,

@@ -73,11 +73,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let compiled_modules = Arc::new(CachedCompiledModules::default());
 
     // Now we run the actual console under the runtime
+    let con = con.clone();
     let compiler = opts.compiler;
     sys.block_on(async move {
         let location = "wss://localhost/".to_string();
         let user_agent = "noagent".to_string();
-        let mut console = Console::new(location, user_agent, compiler, con, None, compiled_modules);
+        let mut console = Console::new(location, user_agent, compiler, con.clone(), None, compiled_modules);
         console.init().await;
 
         // Process data until the console closes
@@ -96,7 +97,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         // Clear the screen
-        let _ = system.print("\r\n".to_string()).await;
+        let _ = con.stdout("\r\n".to_string().into_bytes()).await;
     });
 
     // We are done
