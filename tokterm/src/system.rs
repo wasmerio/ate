@@ -24,7 +24,7 @@ use tracing::{debug, error, info, trace, warn};
 
 use crate::ws::SysWebSocket;
 
-#[cfg(feature="embedded_files")]
+#[cfg(feature = "embedded_files")]
 static PUBLIC_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/public");
 
 thread_local!(static THREAD_LOCAL: Rc<RefCell<ThreadLocal>> = Rc::new(RefCell::new(ThreadLocal::default())));
@@ -148,9 +148,9 @@ impl SystemAbi for SysSystem {
         let (tx_done, rx_done) = mpsc::channel(1);
         self.task_dedicated(Box::new(move || {
             Box::pin(async move {
-                #[cfg(not(feature="embedded_files"))]
+                #[cfg(not(feature = "embedded_files"))]
                 let ret = Err(err::ERR_ENOENT);
-                #[cfg(feature="embedded_files")]
+                #[cfg(feature = "embedded_files")]
                 let ret = PUBLIC_DIR
                     .get_file(path.as_str())
                     .map_or(Err(err::ERR_ENOENT), |file| Ok(file.contents().to_vec()));

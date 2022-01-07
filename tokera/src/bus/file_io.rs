@@ -102,7 +102,8 @@ impl api::FileIOSimplified for FileIo {
     async fn read(&self, len: u64) -> FsResult<Vec<u8>> {
         let file = self.handle.as_ref();
         let offset = { self.offset.lock().unwrap().clone() };
-        let ret = file.spec
+        let ret = file
+            .spec
             .read(offset, len)
             .await
             .map_err(|err| {

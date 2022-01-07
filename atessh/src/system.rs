@@ -1,14 +1,14 @@
 use async_trait::async_trait;
 use ate_files::prelude::*;
+use std::cell::RefCell;
+use std::future::Future;
+use std::pin::Pin;
+use std::rc::Rc;
 use std::sync::Arc;
 use term_lib::api::*;
-use tokterm::term_lib;
 use term_lib::err;
-use std::pin::Pin;
-use std::future::Future;
-use std::rc::Rc;
-use std::cell::RefCell;
 use tokio::sync::mpsc;
+use tokterm::term_lib;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
@@ -17,8 +17,7 @@ pub struct System {
     pub native_files: Arc<FileAccessor>,
 }
 
-impl System
-{
+impl System {
     pub fn new(inner: Arc<dyn SystemAbi>, native_files: Arc<FileAccessor>) -> Self {
         Self {
             inner,
@@ -83,18 +82,21 @@ impl term_lib::api::SystemAbi for System {
         self.task_dedicated(Box::new(move || {
             let task = async move {
                 // Search for the file
-                let ctx = RequestContext {
-                    uid: 0,
-                    gid: 0,
-                };
+                let ctx = RequestContext { uid: 0, gid: 0 };
                 let flags = ate_files::codes::O_RDONLY as u32;
-                let file = native_files.search(&ctx, &path).await
+                let file = native_files
+                    .search(&ctx, &path)
+                    .await
                     .map_err(conv_err)?
                     .ok_or(err::ERR_ENOENT)?;
-                
-                let file = native_files.open(&ctx, file.ino, flags).await
+
+                let file = native_files
+                    .open(&ctx, file.ino, flags)
+                    .await
                     .map_err(conv_err)?;
-                let data = native_files.read_all(&ctx, file.inode, file.fh).await
+                let data = native_files
+                    .read_all(&ctx, file.inode, file.fh)
+                    .await
                     .map_err(conv_err)?;
                 Ok(data)
             };

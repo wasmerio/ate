@@ -1175,12 +1175,7 @@ impl FileAccessor {
         open.spec.read(offset, size as u64).await
     }
 
-    pub async fn read_all(
-        &self,
-        req: &RequestContext,
-        inode: u64,
-        fh: u64,) -> Result<Vec<u8>>
-    {
+    pub async fn read_all(&self, req: &RequestContext, inode: u64, fh: u64) -> Result<Vec<u8>> {
         let mut ret = Vec::new();
         loop {
             let offset = ret.len();
@@ -1192,7 +1187,7 @@ impl FileAccessor {
             }
             let mut read = read.to_vec();
             ret.append(&mut read);
-        }   
+        }
         Ok(ret)
     }
 

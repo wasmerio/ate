@@ -1,14 +1,14 @@
 #![allow(unused_imports, dead_code)]
 use async_trait::async_trait;
+use ate::loader::DummyLoader;
 use ate::prelude::*;
 use ate::utils::LoadProgress;
-use ate::loader::DummyLoader;
 use ate_auth::prelude::*;
 use ate_files::codes::*;
 use ate_files::prelude::*;
 use derivative::*;
-use std::sync::Arc;
 use std::io::Write;
+use std::sync::Arc;
 use std::time::Duration;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
@@ -122,7 +122,11 @@ impl api::FuseSimplified for FuseServer {
 
         // Load the chain
         let key = ChainKey::from(name.clone());
-        let chain = match self.registry.open_ext(&remote, &key, progress_local, progress_remote).await {
+        let chain = match self
+            .registry
+            .open_ext(&remote, &key, progress_local, progress_remote)
+            .await
+        {
             Ok(a) => a,
             Err(err) => {
                 warn!("failed to open chain - {}", err);

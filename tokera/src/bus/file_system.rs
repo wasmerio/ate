@@ -9,8 +9,8 @@ use tracing::{debug, error, info, trace, warn};
 use wasm_bus_fuse::api;
 use wasm_bus_fuse::prelude::*;
 
-use super::opened_file::*;
 use super::conv_err;
+use super::opened_file::*;
 
 #[derive(Derivative)]
 #[derivative(Debug)]
@@ -29,9 +29,7 @@ impl FileSystem {
 #[async_trait]
 impl api::FileSystemSimplified for FileSystem {
     async fn init(&self) -> FsResult<()> {
-        self.accessor
-            .init(&self.context).await
-            .map_err(conv_err)?;
+        self.accessor.init(&self.context).await.map_err(conv_err)?;
         Ok(())
     }
 
@@ -59,7 +57,7 @@ impl api::FileSystemSimplified for FileSystem {
                         .releasedir(&self.context, file.ino, fh.fh, 0)
                         .await;
                     FsResult::Ok(ret)
-                },
+                }
                 Err(err) => {
                     error!("read_dir failed - {}", err);
                     FsResult::Err(conv_err(err))
@@ -80,8 +78,7 @@ impl api::FileSystemSimplified for FileSystem {
             .search(&self.context, parent.to_string_lossy().as_ref())
             .await
         {
-            self
-                .accessor
+            self.accessor
                 .mkdir(
                     &self.context,
                     parent.ino,
@@ -95,7 +92,10 @@ impl api::FileSystemSimplified for FileSystem {
                 })
                 .map(super::conv_meta)
         } else {
-            error!("create_dir failed - parent not found ({})", parent.to_string_lossy());
+            error!(
+                "create_dir failed - parent not found ({})",
+                parent.to_string_lossy()
+            );
             Err(FsError::EntityNotFound)
         }
     }
@@ -115,7 +115,10 @@ impl api::FileSystemSimplified for FileSystem {
                 .await;
             Ok(())
         } else {
-            error!("remove_dir failed - parent not found ({})", parent.to_string_lossy());
+            error!(
+                "remove_dir failed - parent not found ({})",
+                parent.to_string_lossy()
+            );
             Err(FsError::EntityNotFound)
         }
     }
@@ -273,20 +276,26 @@ impl api::FileSystemSimplified for FileSystem {
                                         }
                                     }
                                 } else {
-                                    error!("open failed - parent not found ({})", parent.to_string_lossy());
+                                    error!(
+                                        "open failed - parent not found ({})",
+                                        parent.to_string_lossy()
+                                    );
                                     Err(FsError::EntityNotFound)
                                 }
                             }
                             Err(err) => {
-                                error!("open failed failed - invalid input ({})", path.to_string_lossy());
+                                error!(
+                                    "open failed failed - invalid input ({})",
+                                    path.to_string_lossy()
+                                );
                                 Err(err)
-                            },
+                            }
                         }
                     }
                     Err(err) => {
                         error!("open failed - invalid input ({})", path.to_string_lossy());
                         Err(err)
-                    },
+                    }
                 }
             } else {
                 error!("open failed - not found ({})", path);

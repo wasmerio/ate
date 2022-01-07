@@ -35,11 +35,15 @@ pub struct FuseFileSystem {
     target: String,
     #[derivative(Debug = "ignore")]
     task: AsyncWasmBusSession,
-    stdio: Stdio
+    stdio: Stdio,
 }
 
 impl FuseFileSystem {
-    pub async fn new(process: SubProcess, target: &str, mut stdio: Stdio) -> Result<FuseFileSystem, FsError> {
+    pub async fn new(
+        process: SubProcess,
+        target: &str,
+        mut stdio: Stdio,
+    ) -> Result<FuseFileSystem, FsError> {
         let task = process
             .main
             .call::<(), _>(

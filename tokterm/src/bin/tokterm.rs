@@ -78,7 +78,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     sys.block_on(async move {
         let location = "wss://localhost/".to_string();
         let user_agent = "noagent".to_string();
-        let mut console = Console::new(location, user_agent, compiler, con.clone(), None, compiled_modules);
+        let mut console = Console::new(
+            location,
+            user_agent,
+            compiler,
+            con.clone(),
+            None,
+            compiled_modules,
+        );
         console.init().await;
 
         // Process data until the console closes

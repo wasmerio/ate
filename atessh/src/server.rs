@@ -5,14 +5,14 @@ use std::net::IpAddr;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
-use tokio::sync::watch;
 use term_lib::api::ConsoleRect;
 use thrussh::server;
+use tokio::runtime::Runtime;
+use tokio::sync::watch;
 use tokterm::term_lib;
 use tokterm::term_lib::bin_factory::CachedCompiledModules;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
-use tokio::runtime::Runtime;
 
 use crate::key::SshServerKey;
 use crate::opt::OptsSsh;
@@ -33,8 +33,7 @@ pub struct Server {
 }
 
 impl Server {
-    pub async fn new(run: OptsSsh, server_key: SshServerKey, runtime: Arc<Runtime>) -> Self
-    {
+    pub async fn new(run: OptsSsh, server_key: SshServerKey, runtime: Arc<Runtime>) -> Self {
         // Create the registry that will be used to validate logins
         let registry = ate::mesh::Registry::new(&conf_cmd()).await.cement();
 
@@ -43,22 +42,31 @@ impl Server {
         // Note: These are the same files presenting to the web-site version of the terminal
         let native_files_key = ate::prelude::ChainKey::from(run.native_files);
         let native_files = registry.open(&run.db, &native_files_key).await.unwrap();
-        let native_files = Arc::new(FileAccessor::new(
-            native_files.as_arc(),
-            None,
-            AteSessionType::User(AteSessionUser::default()),
-            TransactionScope::Local,
-            TransactionScope::Local,
-            true,
-            false).await);
+        let native_files = Arc::new(
+            FileAccessor::new(
+                native_files.as_arc(),
+                None,
+                AteSessionType::User(AteSessionUser::default()),
+                TransactionScope::Local,
+                TransactionScope::Local,
+                true,
+                false,
+            )
+            .await,
+        );
 
         // Attempt to read the root from the native file system which will make sure that its
         // all nicely running
-        native_files.search(&RequestContext { uid: 0, gid: 0 }, "/").await.unwrap();
+        native_files
+            .search(&RequestContext { uid: 0, gid: 0 }, "/")
+            .await
+            .unwrap();
 
         // Set the system
         let (tx_exit, rx_exit) = watch::channel(false);
-        let sys = Arc::new(tokterm::system::SysSystem::new_with_runtime(tx_exit, runtime));
+        let sys = Arc::new(tokterm::system::SysSystem::new_with_runtime(
+            tx_exit, runtime,
+        ));
         let sys = crate::system::System::new(sys, native_files.clone());
         term_lib::api::set_system_abi(sys);
 

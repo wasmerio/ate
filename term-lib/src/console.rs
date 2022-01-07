@@ -250,7 +250,8 @@ impl Console {
             .metadata(&Path::new("/bin/init"))
             .is_ok()
         {
-            self.on_enter_internal("source /bin/init".to_string(), false).await;
+            self.on_enter_internal("source /bin/init".to_string(), false)
+                .await;
         } else {
             self.tty.draw_prompt().await;
         }

@@ -11,7 +11,9 @@ use crate::loader::LoadData;
 use crate::mesh::Loader;
 
 pub struct LoadProgress<T>
-where T: Write + Send + Sync {
+where
+    T: Write + Send + Sync,
+{
     pub msg_done: String,
     pub units: pbr::Units,
     pub bar: Option<ProgressBar<T>>,
@@ -19,21 +21,23 @@ where T: Write + Send + Sync {
 }
 
 impl<T> LoadProgress<T>
-where T: Write + Send + Sync {
+where
+    T: Write + Send + Sync,
+{
     pub fn new(writer: T) -> LoadProgress<T> {
         LoadProgress {
             msg_done: "Done".to_string(),
             units: pbr::Units::Default,
             bar: None,
-            writer: Some(writer)
+            writer: Some(writer),
         }
     }
 }
 
 #[async_trait]
-impl<T> Loader
-for LoadProgress<T>
-where T: Write + Send + Sync
+impl<T> Loader for LoadProgress<T>
+where
+    T: Write + Send + Sync,
 {
     fn human_message(&mut self, message: String) {
         if self.bar.is_some() {

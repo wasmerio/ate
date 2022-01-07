@@ -2,11 +2,11 @@ use std::future::Future;
 use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::time::Duration;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus_process::prelude::StdioMode;
 use wasmer_vfs::FileSystem;
-use std::time::Duration;
 
 use super::CommandResult;
 use crate::bus::ProcessExecFactory;
@@ -85,7 +85,10 @@ pub(super) fn mount(
             .await;
 
         let factory = SubProcessFactory::new(factory);
-        let mut sub_process = match factory.get_or_create(wapm.as_str(), StdioMode::Inherit, StdioMode::Log).await {
+        let mut sub_process = match factory
+            .get_or_create(wapm.as_str(), StdioMode::Inherit, StdioMode::Log)
+            .await
+        {
             Ok(a) => a,
             Err(_) => {
                 let _ = stdio
@@ -101,8 +104,13 @@ pub(super) fn mount(
             .write(format!("Waiting for poll\r\n").as_bytes())
             .await;
 
-        match tokio::time::timeout(Duration::from_secs(5), sub_process.main.async_wait_for_poll()).await {
-            Ok(ready) if ready == true => { },
+        match tokio::time::timeout(
+            Duration::from_secs(5),
+            sub_process.main.async_wait_for_poll(),
+        )
+        .await
+        {
+            Ok(ready) if ready == true => {}
             _ => {
                 let _ = stdio
                     .stderr
@@ -128,8 +136,7 @@ pub(super) fn mount(
             }
         };
 
-        let _ = stdio
-            .stdout.flush_async().await;
+        let _ = stdio.stdout.flush_async().await;
 
         let _ = stdio
             .stdout

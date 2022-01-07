@@ -6,8 +6,8 @@ use atessh::key::*;
 use atessh::opt::*;
 use atessh::server::Server;
 use atessh::utils::*;
-use tokio::runtime::Builder;
 use std::sync::Arc;
+use tokio::runtime::Builder;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let opts: Opts = Opts::parse();

@@ -168,18 +168,24 @@ impl ProcessExecFactory {
             // Perform hooks back to the main stdio
             let (stdin, stdin_tx) = match stdin_mode {
                 StdioMode::Null => (stdin, None),
-                StdioMode::Inherit if inherit_stdin.is_some() => (inherit_stdin.clone().unwrap(), None),
+                StdioMode::Inherit if inherit_stdin.is_some() => {
+                    (inherit_stdin.clone().unwrap(), None)
+                }
                 StdioMode::Inherit => (stdin, None),
                 StdioMode::Piped => (stdin, Some(stdin_tx)),
                 StdioMode::Log => (stdin, None),
             };
             let (stdout, stdout_rx) = match stdout_mode {
                 StdioMode::Null => (stdout, None),
-                StdioMode::Inherit if inherit_stdout.is_some() => (inherit_stdout.clone().unwrap(), None),
+                StdioMode::Inherit if inherit_stdout.is_some() => {
+                    (inherit_stdout.clone().unwrap(), None)
+                }
                 StdioMode::Inherit => (stdout, None),
                 StdioMode::Piped => (stdout, Some(stdout_rx)),
                 StdioMode::Log if inherit_log.is_some() => (inherit_log.clone().unwrap(), None),
-                StdioMode::Log if inherit_stdout.is_some() => (inherit_stdout.clone().unwrap(), None),
+                StdioMode::Log if inherit_stdout.is_some() => {
+                    (inherit_stdout.clone().unwrap(), None)
+                }
                 StdioMode::Log => (stdout, None),
             };
             let (stderr, stderr_rx) = match stderr_mode {
@@ -188,7 +194,9 @@ impl ProcessExecFactory {
                 StdioMode::Inherit => (stderr, None),
                 StdioMode::Piped => (stderr, Some(stderr_rx)),
                 StdioMode::Log if inherit_log.is_some() => (inherit_log.clone().unwrap(), None),
-                StdioMode::Log if inherit_stderr.is_some() => (inherit_stderr.clone().unwrap(), None),
+                StdioMode::Log if inherit_stderr.is_some() => {
+                    (inherit_stderr.clone().unwrap(), None)
+                }
                 StdioMode::Log => (stderr, None),
             };
 

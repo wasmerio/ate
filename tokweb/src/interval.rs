@@ -17,9 +17,7 @@ impl LeakyInterval {
     where
         F: FnMut(),
     {
-        let closure = {
-            Closure::wrap(Box::new(f) as Box<dyn FnMut()>)
-        };
+        let closure = { Closure::wrap(Box::new(f) as Box<dyn FnMut()>) };
         let millis = duration.as_millis() as u32;
 
         #[allow(unused_unsafe)]
