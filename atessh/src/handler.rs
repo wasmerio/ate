@@ -1,4 +1,5 @@
 use ate::mesh::Registry;
+use ate_files::prelude::*;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -26,6 +27,7 @@ use super::error::*;
 
 pub struct Handler {
     pub registry: Arc<Registry>,
+    pub native_files: Arc<FileAccessor>,
     pub peer_addr: Option<std::net::SocketAddr>,
     pub peer_addr_str: String,
     pub user: Option<String>,
@@ -120,6 +122,7 @@ impl server::Handler for Handler {
                 rect: self.rect.clone(),
                 channel: channel.clone(),
                 handle: session.handle(),
+                native_files: self.native_files.clone(),
             });
 
             // Spawn a dedicated thread and wait for it to do its thing

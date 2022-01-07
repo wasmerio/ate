@@ -36,6 +36,10 @@ cp -r -f tokweb/public/* target/release/www
 
 echo "Synchronizing the files"
 rsync target/release/www/ /mnt/tok --verbose --exclude '.conf' --checksum --recursive --whole-file --links --delete --human-readable
+chmod o+r /mnt/tok
+chmod o+x /mnt/tok
+chmod -R o+r /mnt/tok/bin
+chmod o+x /mnt/tok/bin
 
 echo "Sync the files"
 cd /mnt/tok

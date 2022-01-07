@@ -1,13 +1,13 @@
 use clap::Parser;
-use tokio::sync::watch;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use atessh::key::*;
 use atessh::opt::*;
 use atessh::server::Server;
-use atessh::term_lib;
 use atessh::utils::*;
+use tokio::runtime::Builder;
+use std::sync::Arc;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let opts: Opts = Opts::parse();
@@ -15,20 +15,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Enable the logging
     log_init(opts.verbose, opts.debug);
 
-    // Set the system
-    let (tx_exit, _rx_exit) = watch::channel(false);
-    let sys = tokterm::system::SysSystem::new(tx_exit);
-    term_lib::api::set_system_abi(sys.clone());
+    // Create the runtime
+    let runtime = Arc::new(Builder::new_multi_thread().enable_all().build().unwrap());
 
     // Process the command
     match opts.subcmd {
         SubCommand::Ssh(run) => {
-            sys.block_on(async move {
+            runtime.clone().block_on(async move {
                 // Load the SSH key
                 let server_key: SshServerKey = load_key(run.key_path.clone());
 
                 // Start the SSH server
-                let server = Server::new(run, server_key).await;
+                let server = Server::new(run, server_key, runtime).await;
                 server.listen().await?;
                 Ok(())
             })

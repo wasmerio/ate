@@ -20,6 +20,12 @@ pub struct OptsSsh {
     /// URL where the user is authenticated
     #[clap(short, long, default_value = "ws://tokera.com/auth")]
     pub auth: url::Url,
+    /// URL where the database files are stored
+    #[clap(long, default_value = "ws://tokera.com/db")]
+    pub db: url::Url,
+    /// Location where the native binary files are stored
+    #[clap(long, default_value = "tokera.sh/www")]
+    pub native_files: String,
     /// Determines which compiler to use
     #[clap(short, long, default_value = "default")]
     pub compiler: term_lib::eval::Compiler,
