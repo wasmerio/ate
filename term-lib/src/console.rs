@@ -238,7 +238,7 @@ impl Console {
         }
 
         if let Some(token) = self.bootstrap_token.take() {
-            self.on_enter_internal(format!("login --token {}", token))
+            self.on_enter_internal(format!("login --token {}", token), false)
                 .await;
         }
 
@@ -250,7 +250,7 @@ impl Console {
             .metadata(&Path::new("/bin/init"))
             .is_ok()
         {
-            self.on_enter_internal("source /bin/init".to_string()).await;
+            self.on_enter_internal("source /bin/init".to_string(), false).await;
         } else {
             self.tty.draw_prompt().await;
         }
@@ -298,10 +298,10 @@ impl Console {
 
         self.tty.draw("\r\n").await;
 
-        self.on_enter_internal(cmd).await
+        self.on_enter_internal(cmd, true).await
     }
 
-    pub async fn on_enter_internal(&mut self, mut cmd: String) {
+    pub async fn on_enter_internal(&mut self, mut cmd: String, record_history: bool) {
         let mode = self.tty.mode().await;
         if let TtyMode::StdIn(job) = mode {
             cmd += "\n";
@@ -409,7 +409,9 @@ impl Console {
                             state.unfinished_line
                         };
 
-                        tty.record_history(cmd).await;
+                        if record_history {
+                            tty.record_history(cmd).await;
+                        }
 
                         if code != 0 && show_result {
                             let mut chars = String::new();

@@ -28,7 +28,7 @@ ate = { version = "^1", path = "../lib", default_features = false }
 error-chain = { version = "^0.12", default_features = false }
 tokio = { version = "^1", features = [ "macros", "sync" ], default_features = false }
 serde = { version = "^1", features = ["derive"] }
-tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
+tracing = { version = "^0.1", features = [ "log" ] }
 tracing-futures = { version = "^0.2" }
 tracing-subscriber = { version = "^0.2" }
 futures = "^0.3"
@@ -37,7 +37,7 @@ async-trait = "^0.1"
 bytes = "^1"
 fxhash = "^0.2"
 fastrand = "^1"
-chrono = { version = "^0.4", features = ["serde"] }
+chrono = { version = "^0.4", git = "https://github.com/john-sharratt/chrono.git", features = ["serde"] }
 isocountry = "^0.3"
 url = "^2"
 rpassword-wasi = "^5"

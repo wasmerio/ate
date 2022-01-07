@@ -144,7 +144,15 @@ impl FileSystem for UnionFileSystem {
                     return Ok(ret);
                 }
                 Err(err) => {
-                    ret_error = err;
+                    // This fixes a bug when attempting to create the directory /usr when it does not exist
+                    // on the x86 version of memfs
+                    // TODO: patch wasmer_vfs and remove
+                    if let FsError::NotAFile = &err {
+                        ret_error = FsError::EntityNotFound;
+                    } else {
+                        debug!("metadata failed: (path={}) - {}", path, err);
+                        ret_error = err;
+                    }
                 }
             }
         }
@@ -160,7 +168,15 @@ impl FileSystem for UnionFileSystem {
                     return Ok(ret);
                 }
                 Err(err) => {
-                    ret_error = err;
+                    // This fixes a bug when attempting to create the directory /usr when it does not exist
+                    // on the x86 version of memfs
+                    // TODO: patch wasmer_vfs and remove
+                    if let FsError::NotAFile = &err {
+                        ret_error = FsError::EntityNotFound;
+                    } else {
+                        debug!("metadata failed: (path={}) - {}", path, err);
+                        ret_error = err;
+                    }
                 }
             }
         }
