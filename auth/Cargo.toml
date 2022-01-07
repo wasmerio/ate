@@ -1,6 +1,6 @@
 [package]
 name = "ate-auth"
-version = "1.7.2"
+version = "1.7.3"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 description = "Represents a standardized data model and API for authenticating an ATE chain-of-trust"
