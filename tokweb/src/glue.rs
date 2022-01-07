@@ -192,21 +192,23 @@ pub fn start() -> Result<(), JsValue> {
     {
         let front_buffer: HtmlCanvasElement = front_buffer.clone().dyn_into().unwrap();
         let terminal: Terminal = terminal.clone().dyn_into().unwrap();
-        let closure: Closure<dyn FnMut()> = Closure::new(move || {
-            let front_buffer: HtmlCanvasElement = front_buffer.clone().dyn_into().unwrap();
-            let terminal: Terminal = terminal.clone().dyn_into().unwrap();
-            term_fit(
-                terminal.clone().dyn_into().unwrap(),
-                front_buffer.clone().dyn_into().unwrap(),
-            );
+        let closure = {
+            Closure::wrap(Box::new(move || {
+                let front_buffer: HtmlCanvasElement = front_buffer.clone().dyn_into().unwrap();
+                let terminal: Terminal = terminal.clone().dyn_into().unwrap();
+                term_fit(
+                    terminal.clone().dyn_into().unwrap(),
+                    front_buffer.clone().dyn_into().unwrap(),
+                );
 
-            let tty = tty.clone();
-            system.fork_local(async move {
-                let cols = terminal.get_cols();
-                let rows = terminal.get_rows();
-                tty.set_bounds(cols, rows).await;
-            });
-        });
+                let tty = tty.clone();
+                system.fork_local(async move {
+                    let cols = terminal.get_cols();
+                    let rows = terminal.get_rows();
+                    tty.set_bounds(cols, rows).await;
+                });
+            }) as Box<dyn FnMut()>)
+        };
         window.add_event_listener_with_callback("resize", closure.as_ref().unchecked_ref())?;
         window.add_event_listener_with_callback(
             "orientationchange",
