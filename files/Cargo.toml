@@ -1,6 +1,6 @@
 [package]
 name = "ate-files"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 description = "Model and helper functions for access files stored in ATEs"
