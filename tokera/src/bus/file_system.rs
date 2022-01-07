@@ -298,7 +298,7 @@ impl api::FileSystemSimplified for FileSystem {
                     }
                 }
             } else {
-                error!("open failed - not found ({})", path);
+                info!("open failed - not found ({})", path);
                 Err(FsError::EntityNotFound)
             };
 
