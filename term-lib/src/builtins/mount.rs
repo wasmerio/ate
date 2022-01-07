@@ -6,6 +6,7 @@ use std::sync::Arc;
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus_process::prelude::StdioMode;
 use wasmer_vfs::FileSystem;
+use std::time::Duration;
 
 use super::CommandResult;
 use crate::bus::ProcessExecFactory;
@@ -100,7 +101,16 @@ pub(super) fn mount(
             .write(format!("Waiting for poll\r\n").as_bytes())
             .await;
 
-        sub_process.main.async_wait_for_poll().await;
+        match tokio::time::timeout(Duration::from_secs(5), sub_process.main.async_wait_for_poll()).await {
+            Ok(ready) if ready == true => { },
+            _ => {
+                let _ = stdio
+                    .stderr
+                    .write(format!("mount: wapm program failed to poll\r\n").as_bytes())
+                    .await;
+                return ExecResponse::Immediate(1).into();
+            }
+        };
 
         let _ = stdio
             .stdout
