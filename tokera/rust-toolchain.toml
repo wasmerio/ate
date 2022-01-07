@@ -1,6 +1,4 @@
 [toolchain]
-#channel = "beta"
-#channel = "nightly-2021-08-23"
-channel = "nightly"
+channel = "nightly-2022-01-07"
 components = [ "rustfmt", "rust-src", "clippy" ]
 profile = "minimal"
