@@ -1,0 +1,66 @@
+{
+    "name": "@types/express-serve-static-core",
+    "version": "4.17.27",
+    "description": "TypeScript definitions for Express",
+    "homepage": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/express-serve-static-core",
+    "license": "MIT",
+    "contributors": [
+        {
+            "name": "Boris Yankov",
+            "url": "https://github.com/borisyankov",
+            "githubUsername": "borisyankov"
+        },
+        {
+            "name": "Michał Lytek",
+            "url": "https://github.com/19majkel94",
+            "githubUsername": "19majkel94"
+        },
+        {
+            "name": "Satana Charuwichitratana",
+            "url": "https://github.com/micksatana",
+            "githubUsername": "micksatana"
+        },
+        {
+            "name": "Sami Jaber",
+            "url": "https://github.com/samijaber",
+            "githubUsername": "samijaber"
+        },
+        {
+            "name": "Jose Luis Leon",
+            "url": "https://github.com/JoseLion",
+            "githubUsername": "JoseLion"
+        },
+        {
+            "name": "David Stephens",
+            "url": "https://github.com/dwrss",
+            "githubUsername": "dwrss"
+        },
+        {
+            "name": "Shin Ando",
+            "url": "https://github.com/andoshin11",
+            "githubUsername": "andoshin11"
+        }
+    ],
+    "main": "",
+    "types": "index.d.ts",
+    "typesVersions": {
+        "<=4.0": {
+            "*": [
+                "ts4.0/*"
+            ]
+        }
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+        "directory": "types/express-serve-static-core"
+    },
+    "scripts": {},
+    "dependencies": {
+        "@types/node": "*",
+        "@types/qs": "*",
+        "@types/range-parser": "*"
+    },
+    "typesPublisherContentHash": "9dd0cf3cb51afc07203ed9ae63769824b5a7c2ecdcba7d08dbb702178ccf8907",
+    "typeScriptVersion": "3.8"
+}
