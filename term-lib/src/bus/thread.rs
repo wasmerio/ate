@@ -394,8 +394,8 @@ impl WasmBusThread {
                     Ok(a) => a,
                     Err(err) => {
                         warn!(
-                            "wasm-bus::call - allocation failed (topic={}, len={}) - {}",
-                            topic, topic_len, err
+                            "wasm-bus::call - allocation failed (topic={}, len={}) - {} - {}",
+                            topic, topic_len, err, err.message()
                         );
                         let _ = tx.send(Err(CallError::MemoryAllocationFailed));
                         return err::ERR_OK;
@@ -411,8 +411,8 @@ impl WasmBusThread {
                     Ok(a) => a,
                     Err(err) => {
                         warn!(
-                            "wasm-bus::call - allocation failed (topic={}, len={}) - {}",
-                            topic, request_len, err
+                            "wasm-bus::call - allocation failed (topic={}, len={}) - {} - {}",
+                            topic, request_len, err, err.message()
                         );
                         let _ = tx.send(Err(CallError::MemoryAllocationFailed));
                         return err::ERR_OK;
@@ -442,8 +442,8 @@ impl WasmBusThread {
                     Ok(_) => err::ERR_OK,
                     Err(e) => {
                         warn!(
-                            "wasm-bus::call - invocation failed (topic={}) - {:?}",
-                            topic, e
+                            "wasm-bus::call - invocation failed (topic={}) - {} - {}",
+                            topic, e, e.message()
                         );
                         let call = {
                             let mut inner = self.inner.lock();
@@ -463,7 +463,7 @@ impl WasmBusThread {
             WasmBusThreadWork::Drop { handle } => {
                 if let Some(native_drop) = self.wasm_bus_drop_ref() {
                     if let Err(err) = native_drop.call(handle.id) {
-                        warn!("wasm-bus::drop - runtime error - {}", err);
+                        warn!("wasm-bus::drop - runtime error - {} - {}", err, err.message());
                     }
                 }
                 err::ERR_OK

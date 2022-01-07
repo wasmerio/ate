@@ -76,6 +76,7 @@ pub(super) fn mount(
                 .stderr
                 .write(format!("mount: the mountpoint is invalid: {}\r\n", err).as_bytes())
                 .await;
+            stdio.stdout.flush_async().await;
             return ExecResponse::Immediate(1).into();
         }
 
@@ -83,6 +84,7 @@ pub(super) fn mount(
             .stdout
             .write(format!("Mounting {}@{} at {}\r\n", target, wapm, mountpoint).as_bytes())
             .await;
+        stdio.stdout.flush_async().await;
 
         let factory = SubProcessFactory::new(factory);
         let sub_process = match factory
@@ -95,6 +97,7 @@ pub(super) fn mount(
                     .stderr
                     .write(format!("mount: wapm program not found\r\n").as_bytes())
                     .await;
+                stdio.stdout.flush_async().await;
                 return ExecResponse::Immediate(1).into();
             }
         };
@@ -103,6 +106,7 @@ pub(super) fn mount(
             .stdout
             .write(format!("Waiting for poll\r\n").as_bytes())
             .await;
+        stdio.stdout.flush_async().await;
 
         match tokio::time::timeout(
             Duration::from_secs(5),
@@ -116,6 +120,7 @@ pub(super) fn mount(
                     .stderr
                     .write(format!("mount: wapm program failed to poll\r\n").as_bytes())
                     .await;
+                stdio.stdout.flush_async().await;
                 return ExecResponse::Immediate(1).into();
             }
         };
@@ -124,6 +129,7 @@ pub(super) fn mount(
             .stdout
             .write(format!("Executing the mount\r\n").as_bytes())
             .await;
+        stdio.stdout.flush_async().await;
 
         let fs = match FuseFileSystem::new(sub_process, target.as_str(), stdio.clone()).await {
             Ok(a) => a,
@@ -132,6 +138,7 @@ pub(super) fn mount(
                     .stderr
                     .write(format!("mount: mount call failed ({})\r\n", err).as_bytes())
                     .await;
+                stdio.stdout.flush_async().await;
                 return ExecResponse::Immediate(1).into();
             }
         };
@@ -142,6 +149,7 @@ pub(super) fn mount(
             .stdout
             .write(format!("\rSuccessfully mounted\r\n").as_bytes())
             .await;
+        stdio.stdout.flush_async().await;
 
         let mut ret: CommandResult = ExecResponse::Immediate(0).into();
         ctx.new_mounts.push(MountPoint {
