@@ -47,7 +47,7 @@ pub async fn load_bin(
                     }
                     mappings.extend(next.mappings.into_iter());
 
-                    info!("binary alias '{}' found for {}", next.run, name);
+                    debug!("binary alias '{}' found for {}", next.run, name);
                     name = next.run;
                 }
                 Err(err) => {

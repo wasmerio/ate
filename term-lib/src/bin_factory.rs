@@ -194,7 +194,7 @@ impl BinFactory {
             // Decode the file into a yaml configuration
             match serde_yaml::from_slice::<AliasConfig>(&data[..]) {
                 Ok(alias) => {
-                    info!("binary alias '{}' found for {}", alias.run, name);
+                    debug!("binary alias '{}' found for {}", alias.run, name);
                     cache.insert(name, Some(alias.clone()));
                     return Some(alias);
                 }

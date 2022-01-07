@@ -11,6 +11,4 @@ objcopy --strip-all target/release/atessh-debug target/release/atessh
 cp -f target/release/atessh /usr/bin
 
 systemctl stop atessh || true
-killall atessh || true
 systemctl start atessh
-

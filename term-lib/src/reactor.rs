@@ -79,7 +79,7 @@ impl Reactor {
 
     pub fn close_process(&mut self, pid: Pid, exit_code: u32) -> u32 {
         if let Some(process) = self.pid.remove(&pid) {
-            info!("process closed (pid={})", pid);
+            debug!("process closed (pid={})", pid);
             let exit_code = NonZeroU32::new(exit_code)
                 .unwrap_or_else(|| NonZeroU32::new(ERR_ECONNABORTED).unwrap());
             process.terminate(exit_code);
@@ -113,7 +113,7 @@ impl Reactor {
         }
         if let Some(job) = self.job.remove(&job_id) {
             job.terminate(self, exit_code);
-            info!("job closed: id={}", job.id);
+            debug!("job closed: id={}", job.id);
         } else {
             debug!("job already closed: id={}", job_id);
         }
