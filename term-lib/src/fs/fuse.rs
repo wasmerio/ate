@@ -5,6 +5,7 @@ use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::Write;
+use std::sync::Arc;
 use std::path::Path;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
@@ -31,7 +32,7 @@ use crate::stdio::Stdio;
 pub struct FuseFileSystem {
     system: System,
     #[derivative(Debug = "ignore")]
-    sub: SubProcess,
+    sub: Arc<SubProcess>,
     target: String,
     #[derivative(Debug = "ignore")]
     task: AsyncWasmBusSession,
@@ -40,7 +41,7 @@ pub struct FuseFileSystem {
 
 impl FuseFileSystem {
     pub async fn new(
-        process: SubProcess,
+        process: Arc<SubProcess>,
         target: &str,
         mut stdio: Stdio,
     ) -> Result<FuseFileSystem, FsError> {

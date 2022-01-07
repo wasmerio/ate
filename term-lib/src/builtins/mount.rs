@@ -85,7 +85,7 @@ pub(super) fn mount(
             .await;
 
         let factory = SubProcessFactory::new(factory);
-        let mut sub_process = match factory
+        let sub_process = match factory
             .get_or_create(wapm.as_str(), StdioMode::Inherit, StdioMode::Log)
             .await
         {

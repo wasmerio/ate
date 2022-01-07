@@ -495,11 +495,11 @@ impl WasmBusThread {
         }
     }
 
-    pub async fn async_wait_for_poll(&mut self) -> bool {
+    pub async fn async_wait_for_poll(&self) -> bool {
         async_wait_for_poll(self.polling.clone()).await
     }
 
-    pub fn drop_call(&mut self, handle: CallHandle) {
+    pub fn drop_call(&self, handle: CallHandle) {
         self.send_internal(WasmBusThreadWork::Drop { handle });
     }
 }

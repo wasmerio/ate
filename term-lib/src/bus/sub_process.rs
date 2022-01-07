@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::Weak;
 use std::sync::Mutex;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
@@ -16,7 +17,7 @@ use super::*;
 
 pub struct SubProcessFactoryInner {
     process_factory: ProcessExecFactory,
-    processes: Mutex<HashMap<String, SubProcess>>,
+    processes: Mutex<HashMap<String, Weak<SubProcess>>>,
 }
 
 #[derive(Clone)]
@@ -38,15 +39,15 @@ impl SubProcessFactory {
         wapm: &str,
         stdout_mode: StdioMode,
         stderr_mode: StdioMode,
-    ) -> Result<SubProcess, CallError> {
+    ) -> Result<Arc<SubProcess>, CallError> {
         let wapm = wapm.to_string();
         let key = format!("{}-{}-{}", wapm, stdout_mode, stderr_mode);
 
         // Check for any existing process of this name thats already running
         {
             let processes = self.inner.processes.lock().unwrap();
-            if let Some(process) = processes.get(&key) {
-                return Ok(process.clone());
+            if let Some(process) = processes.get(&key).iter().filter_map(|a| a.upgrade()).next() {
+                return Ok(process);
             }
         }
 
@@ -80,10 +81,10 @@ impl SubProcessFactory {
         };
 
         // Add it to the list of sub processes and return it
-        let process = SubProcess::new(wapm.as_str(), process, process_result, thread_pool, main);
+        let process = Arc::new(SubProcess::new(wapm.as_str(), process, process_result, thread_pool, main));
         {
             let mut processes = self.inner.processes.lock().unwrap();
-            processes.insert(key, process.clone());
+            processes.insert(key, Arc::downgrade(&process));
         }
         Ok(process)
     }
@@ -93,7 +94,6 @@ pub struct SubProcessInner {
     pub wapm: String,
 }
 
-#[derive(Clone)]
 pub struct SubProcess {
     pub system: System,
     pub process: Process,
@@ -124,7 +124,7 @@ impl SubProcess {
     }
 
     pub fn create(
-        &self,
+        self: &Arc<Self>,
         topic: &str,
         request: Vec<u8>,
         _client_callbacks: HashMap<String, WasmBusCallback>,
@@ -138,7 +138,8 @@ impl SubProcess {
 
         let topic = topic.to_string();
         let invoker = threads.call_raw(None, topic, request);
-        let session = SubProcessSession::new(threads.clone(), invoker.handle());
+        let sub_process = self.clone();
+        let session = SubProcessSession::new(threads.clone(), invoker.handle(), sub_process);
         Ok((Box::new(invoker), Some(Box::new(session))))
     }
 }
@@ -146,11 +147,12 @@ impl SubProcess {
 pub struct SubProcessSession {
     pub handle: WasmBusThreadHandle,
     pub thread: WasmBusThread,
+    pub sub_process: Arc<SubProcess>,
 }
 
 impl SubProcessSession {
-    pub fn new(thread: WasmBusThread, handle: WasmBusThreadHandle) -> SubProcessSession {
-        SubProcessSession { thread, handle }
+    pub fn new(thread: WasmBusThread, handle: WasmBusThreadHandle, sub_process: Arc<SubProcess>) -> SubProcessSession {
+        SubProcessSession { thread, handle, sub_process }
     }
 }
 
