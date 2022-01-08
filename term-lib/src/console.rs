@@ -113,8 +113,8 @@ impl Console {
                             let _ = tx.send(()).await;
                         }
                     }
-                    info!("main IO loop exited");
                 }
+                info!("main IO loop exited");
             });
         }
 
