@@ -52,7 +52,7 @@ once_cell = "^1"
 atty = { version = "^0.2", optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-chrono = { version = "^0.4", features = "serde" }
+chrono = { version = "^0.4", features = [ "serde" ] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-chrono = { version = "^0.4", git = "https://github.com/john-sharratt/chrono.git", features = "serde" }
+chrono = { version = "^0.4", git = "https://github.com/john-sharratt/chrono.git", features = [ "serde" ] }

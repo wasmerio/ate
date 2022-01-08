@@ -64,11 +64,11 @@ wasm-bus-fuse = { version = "0.1", path = "../wasm-bus-fuse" }
 wasm-bus-ws = { version = "0.1", path = "../wasm-bus-ws" }
 
 [target.'cfg(not(target_os = "wasi"))'.dependencies]
-chrono = { version = "^0.4", features = "serde" }
+chrono = { version = "^0.4", features = [ "serde" ] }
 tokio = { version = "^1", features = [ "rt", "io-util", "macros", "sync", "time", "fs" ], default_features = false }
 
 [target.'cfg(target_os = "wasi")'.dependencies]
-chrono = { version = "^0.4", git = "https://github.com/john-sharratt/chrono.git", features = "serde" }
+chrono = { version = "^0.4", git = "https://github.com/john-sharratt/chrono.git", features = [ "serde" ] }
 tokio = { version = "^1", features = [ "macros", "sync" ], default_features = false }
 backtrace = "^0.3"
 wasi = { version = "^0.10" }

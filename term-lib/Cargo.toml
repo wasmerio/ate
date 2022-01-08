@@ -67,7 +67,7 @@ serde_yaml = { version = "^0.8" }
 include_dir = "0.7.2"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-chrono = { version = "^0.4", features = "serde" }
+chrono = { version = "^0.4", features = [ "serde" ] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-chrono = { version = "^0.4", git = "https://github.com/john-sharratt/chrono.git", features = "serde" }
+chrono = { version = "^0.4", git = "https://github.com/john-sharratt/chrono.git", features = [ "serde" ] }

@@ -76,7 +76,7 @@ ctr = { version = "^0.8" }
 tokio = { version = "^1", features = [ "macros", "sync" ], default_features = false }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-chrono = { version = "^0.4", features = "serde" }
+chrono = { version = "^0.4", features = [ "serde" ] }
 pnet = { version = "^0.27", optional = true }
 tokio-tungstenite = { version = "^0.16", optional = true }
 hyper-tungstenite = { version = "^0.4", optional = true }
@@ -85,7 +85,7 @@ trust-dns-client = { version = "^0.20", features = ["dnssec"], optional = true }
 backtrace = { version = "^0.3" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-chrono = { version = "^0.4", git = "https://github.com/john-sharratt/chrono.git", features = "serde" }
+chrono = { version = "^0.4", git = "https://github.com/john-sharratt/chrono.git", features = [ "serde" ] }
 wasm-bus = { version = "0.4", path = "../wasm-bus" }
 wasm-bus-ws = { version = "0.1", path = "../wasm-bus-ws" }
 wasm-bus-time = { version = "0.1", path = "../wasm-bus-time" }
