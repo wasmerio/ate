@@ -133,11 +133,11 @@ impl Fd {
     }
 
     pub fn forced_exit(&self, exit_code: u32) {
-        self.forced_exit.store(exit_code, Ordering::Release);
+        //self.forced_exit.store(exit_code, Ordering::Release);
     }
 
     pub fn close(&self) {
-        self.closed.store(true, Ordering::Release);
+        //self.closed.store(true, Ordering::Release);
     }
 
     pub fn is_tty(&self) -> bool {
