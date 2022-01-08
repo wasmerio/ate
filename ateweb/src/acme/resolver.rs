@@ -291,7 +291,7 @@ impl AcmeResolver {
     ) -> Result<(CertifiedKey, String, String), OrderError> {
         let contacts = vec![format!("mailto:info@{}", domain)];
         let domains = vec![domain.to_string()];
-        let not_before = chrono_orig::Utc::now();
+        let not_before = chrono::Utc::now();
         let mut not_after = not_before.clone();
         if let Some(not_after_next) = not_before.checked_add_signed(duration) {
             not_after = not_after_next;

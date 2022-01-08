@@ -56,8 +56,7 @@ url = "^2"
 pbr = "^1"
 ttl_cache = "^0.5"
 x509-parser = "^0.12"
-chrono = { version = "^0.4", git = "https://github.com/john-sharratt/chrono.git" }
-chrono_orig = { version = "^0.4", package = "chrono" }
+chrono = { version = "^0.4" }
 tls-parser = { version = "^0.10" }
 pem = { version = "^0.8" }
 rcgen = { version = "^0.8" }
