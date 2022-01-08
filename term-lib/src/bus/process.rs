@@ -330,7 +330,7 @@ impl ProcessExec {
                         msg = stdout_rx.recv() => {
                             if let (Some(msg), Some(on_data)) = (msg, self.on_stdout.as_mut()) {
                                 if let FdMsg::Data { data, .. } = msg {
-                                    on_data.feed(self.format, api::PoolSpawnStdoutCallback(data)).await;
+                                    on_data.feed(self.format, api::PoolSpawnStdoutCallback(data));
                                 }
                             } else {
                                 self.stdout.take();
@@ -339,7 +339,7 @@ impl ProcessExec {
                         msg = stderr_rx.recv() => {
                             if let (Some(msg), Some(on_data)) = (msg, self.on_stderr.as_mut()) {
                                 if let FdMsg::Data { data, .. } = msg {
-                                    on_data.feed(self.format, api::PoolSpawnStderrCallback(data)).await;
+                                    on_data.feed(self.format, api::PoolSpawnStderrCallback(data));
                                 }
                             } else {
                                 self.stderr.take();
@@ -348,7 +348,7 @@ impl ProcessExec {
                         res = self.eval_rx.recv() => {
                             let res = encode_eval_response(self.format, res);
                             if let Some(on_exit) = self.on_exit.take() {
-                                on_exit.feed_bytes_or_error(res).await;
+                                on_exit.feed_bytes_or_error(res);
                             }
                             return;
                         }
@@ -358,7 +358,7 @@ impl ProcessExec {
                         msg = stdout_rx.recv() => {
                             if let (Some(msg), Some(on_data)) = (msg, self.on_stdout.as_mut()) {
                                 if let FdMsg::Data { data, .. } = msg {
-                                    on_data.feed(self.format, api::PoolSpawnStdoutCallback(data)).await;
+                                    on_data.feed(self.format, api::PoolSpawnStdoutCallback(data));
                                 }
                             } else {
                                 self.stdout.take();
@@ -367,7 +367,7 @@ impl ProcessExec {
                         res = self.eval_rx.recv() => {
                             let res = encode_eval_response(self.format, res);
                             if let Some(on_exit) = self.on_exit.take() {
-                                on_exit.feed_bytes_or_error(res).await;
+                                on_exit.feed_bytes_or_error(res);
                             }
                             return;
                         }
@@ -379,7 +379,7 @@ impl ProcessExec {
                         msg = stderr_rx.recv() => {
                             if let (Some(msg), Some(on_data)) = (msg, self.on_stderr.as_mut()) {
                                 if let FdMsg::Data { data, .. } = msg {
-                                    on_data.feed(self.format, api::PoolSpawnStderrCallback(data)).await;
+                                    on_data.feed(self.format, api::PoolSpawnStderrCallback(data));
                                 }
                             } else {
                                 self.stderr.take();
@@ -388,7 +388,7 @@ impl ProcessExec {
                         res = self.eval_rx.recv() => {
                             let res = encode_eval_response(self.format, res);
                             if let Some(on_exit) = self.on_exit.take() {
-                                on_exit.feed_bytes_or_error(res).await;
+                                on_exit.feed_bytes_or_error(res);
                             }
                             return;
                         }
@@ -398,7 +398,7 @@ impl ProcessExec {
                         res = self.eval_rx.recv() => {
                             let res = encode_eval_response(self.format, res);
                             if let Some(on_exit) = self.on_exit.take() {
-                                on_exit.feed_bytes_or_error(res).await;
+                                on_exit.feed_bytes_or_error(res);
                             }
                             return;
                         }

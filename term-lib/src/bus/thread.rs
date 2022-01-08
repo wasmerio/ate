@@ -243,15 +243,15 @@ impl WasmBusThread {
             tx,
         };
 
-        // Fork shared will try to send the data synchronously but if that
-        // fails it will put the work on a background thread
-        let work_tx = self.work_tx.clone();
-        let polling = self.polling.clone();
-        self.system.fork_shared_immediate(move || async move {
-            if async_wait_for_poll(polling).await {
+        // Try and send it instantly
+        if let Err(mpsc::error::TrySendError::Full(msg)) = self.work_tx.try_send(msg)
+        {
+            // We will have to send it asynchronously as the queue is full
+            let work_tx = self.work_tx.clone();
+            self.system.fork_shared(move || async move {
                 let _ = work_tx.send(msg).await;
-            }
-        });
+            });
+        }
         (rx, handle)
     }
 

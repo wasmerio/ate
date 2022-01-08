@@ -415,10 +415,7 @@ unsafe fn wasm_bus_reply_callback(
 
     // Grab the sender we will relay this response to
     if let Some(callback) = callback {
-        let sys = thread.system;
-        sys.fork_shared_immediate(move || async move {
-            callback.feed_bytes(response).await;
-        });
+        callback.feed_bytes(response);
     } else {
         debug!("callback is lost (topic={})", topic);
     }
@@ -507,13 +504,13 @@ unsafe fn wasm_bus_call(
             let response = invoke.process().await;
             match response {
                 Ok(InvokeResult::Response(response)) => {
-                    data_feeder.feed_bytes_or_error(Ok(response)).await;
+                    data_feeder.feed_bytes_or_error(Ok(response));
                 }
                 Ok(InvokeResult::ResponseThenWork(response, work)) => {
-                    data_feeder.feed_bytes_or_error(Ok(response)).await;
+                    data_feeder.feed_bytes_or_error(Ok(response));
                     work.await;
                 }
-                Err(err) => data_feeder.feed_bytes_or_error(Err(err)).await,
+                Err(err) => data_feeder.feed_bytes_or_error(Err(err)),
             }
             thread.inner.lock().factory.close(CallHandle::from(handle));
         }

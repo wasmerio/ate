@@ -56,34 +56,14 @@ pub fn web_socket(
         {
             let tx_state_inner = tx_state_inner.clone();
             ws_sys.set_onopen(Box::new(move || {
-                let again = match tx_state_inner.try_send(api::SocketState::Opened) {
-                    Ok(_) => None,
-                    Err(mpsc::error::TrySendError::Closed(a)) => Some(a),
-                    Err(mpsc::error::TrySendError::Full(a)) => Some(a),
-                };
-                if let Some(data) = again {
-                    let tx_state_inner = tx_state_inner.clone();
-                    system.fork_shared(move || async move {
-                        let _ = tx_state_inner.send(data).await;
-                    });
-                }
+                system.fork_send(&tx_state_inner, api::SocketState::Opened);
             }));
         }
 
         {
             let tx_state_inner = tx_state_inner.clone();
             ws_sys.set_onclose(Box::new(move || {
-                let again = match tx_state_inner.try_send(api::SocketState::Closed) {
-                    Ok(_) => None,
-                    Err(mpsc::error::TrySendError::Closed(a)) => Some(a),
-                    Err(mpsc::error::TrySendError::Full(a)) => Some(a),
-                };
-                if let Some(data) = again {
-                    let tx_state_inner = tx_state_inner.clone();
-                    system.fork_shared(move || async move {
-                        let _ = tx_state_inner.send(data).await;
-                    });
-                }
+                system.fork_send(&tx_state_inner, api::SocketState::Closed);
             }));
         }
 
@@ -91,19 +71,7 @@ pub fn web_socket(
             let tx_recv = tx_recv.clone();
             ws_sys.set_onmessage(Box::new(move |data| {
                 debug!("websocket recv {} bytes", data.len());
-                let again = match tx_recv.try_send(data) {
-                    Ok(_) => None,
-                    Err(mpsc::error::TrySendError::Closed(a)) => Some(a),
-                    Err(mpsc::error::TrySendError::Full(a)) => Some(a),
-                };
-                if let Some(data) = again {
-                    let tx_recv = tx_recv.clone();
-                    system.fork_shared(move || async move {
-                        if let Err(err) = tx_recv.send(data).await {
-                            trace!("websocket bytes silently dropped - {}", err);
-                        }
-                    });
-                }
+                system.fork_send(&tx_recv, data);
             }));
         }
 
@@ -189,7 +157,7 @@ impl WebSocket {
             select! {
                 state = self.rx_state.recv() => {
                     if let Some(state) = &state {
-                        self.on_state_change.feed(SerializationFormat::Bincode, api::SocketBuilderConnectStateChangeCallback(state.clone())).await;
+                        self.on_state_change.feed(SerializationFormat::Bincode, api::SocketBuilderConnectStateChangeCallback(state.clone()));
                     }
                     match state {
                         Some(api::SocketState::Opened) => {
@@ -211,7 +179,7 @@ impl WebSocket {
                 }
                 data = self.rx_recv.recv() => {
                     if let Some(data) = data {
-                        self.on_received.feed(SerializationFormat::Bincode, api::SocketBuilderConnectReceiveCallback(data)).await;
+                        self.on_received.feed(SerializationFormat::Bincode, api::SocketBuilderConnectReceiveCallback(data));
                     } else {
                         break;
                     }
@@ -223,14 +191,10 @@ impl WebSocket {
 
 impl Drop for WebSocket {
     fn drop(&mut self) {
-        let on_state_change = self.on_state_change.clone();
-        let sys = System::default();
-        sys.fork_shared(move || async move {
-            on_state_change.feed(
-                SerializationFormat::Bincode,
-                api::SocketBuilderConnectStateChangeCallback(api::SocketState::Closed),
-            ).await;
-        });        
+        self.on_state_change.feed(
+            SerializationFormat::Bincode,
+            api::SocketBuilderConnectStateChangeCallback(api::SocketState::Closed),
+        );        
     }
 }
 

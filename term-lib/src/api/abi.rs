@@ -167,6 +167,10 @@ pub trait SystemAbiExt {
         Fut: Future + Send + 'static,
         Fut::Output: Send;
 
+    /// Attempts to send the message instantly however if that does not
+    /// work it spawns a background thread and sends it there instead
+    fn fork_send<T: Send + 'static>(&self, sender: &mpsc::Sender<T>, msg: T);
+
     /// Starts an asynchronous task will will run on a dedicated thread
     /// pulled from the worker pool that has a stateful thread local variable
     /// It is ok for this task to block execution and any async futures within its scope
@@ -282,6 +286,16 @@ impl SystemAbiExt for dyn SystemAbi {
         });
         if let Poll::Pending = invoke.as_mut().poll(&mut cx) {
             self.task_shared(Box::new(move || invoke));
+        }
+    }
+
+    fn fork_send<T: Send + 'static>(&self, sender: &mpsc::Sender<T>, msg: T)
+    {
+        if let Err(mpsc::error::TrySendError::Full(msg)) = sender.try_send(msg) {
+            let sender = sender.clone();
+            self.task_shared(Box::new(move || Box::pin(async move {
+                sender.send(msg).await;
+            })));
         }
     }
 
