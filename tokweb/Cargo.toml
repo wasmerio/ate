@@ -11,7 +11,7 @@ repository = "https://github.com/john-sharratt/ate"
 readme = "../README.md"
 
 [dependencies]
-term-lib = { version = "^0.1", path = "../term-lib", default_features = false, features = [ "js" ] }
+term-lib = { version = "^0.2", path = "../term-lib", default_features = false, features = [ "js" ] }
 #wasm-bindgen = { version = "0.2", features = [ "nightly", "serde-serialize" ] }
 wasm-bindgen = { version = "0.2", features = [ "serde-serialize" ] }
 wasm-bindgen-futures = "0.4"

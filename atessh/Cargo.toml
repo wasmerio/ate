@@ -30,7 +30,7 @@ futures = "^0.3"
 shellexpand = "^2"
 serde = { version = "^1", features = ["derive"] }
 bincode = "^1"
-tokterm = { version = "^0.1", path = "../tokterm" }
+tokterm = { version = "^0.2", path = "../tokterm" }
 async-trait = "^0.1"
 raw_tty = "0.1.0"
 regex = "^1"
