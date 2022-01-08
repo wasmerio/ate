@@ -39,19 +39,13 @@ pub(super) fn mount(
         }
         a if a > 4 => {
             return Box::pin(async move {
-                let _ = stdio
-                    .stderr
-                    .write(format!("mount: too many arguments\r\n").as_bytes())
-                    .await;
+                print(format!("mount: too many arguments\r\n"), &mut stdio, true).await;
                 ExecResponse::Immediate(0).into()
             });
         }
         _ => {
             return Box::pin(async move {
-                let _ = stdio
-                    .stderr
-                    .write(Tty::MOUNT_USAGE.to_string().as_bytes())
-                    .await;
+                print(Tty::MOUNT_USAGE.to_string(), &mut stdio, true).await;
                 ExecResponse::Immediate(0).into()
             });
         }
@@ -72,19 +66,11 @@ pub(super) fn mount(
     return Box::pin(async move {
         let path_mountpoint = Path::new(mountpoint.as_str());
         if let Err(err) = ctx.root.read_dir(path_mountpoint) {
-            let _ = stdio
-                .stderr
-                .write(format!("mount: the mountpoint is invalid: {}\r\n", err).as_bytes())
-                .await;
-            stdio.stdout.flush_async().await;
+            print(format!("mount: the mountpoint is invalid: {}\r\n", err), &mut stdio, true).await;
             return ExecResponse::Immediate(1).into();
         }
 
-        let _ = stdio
-            .stdout
-            .write(format!("Mounting {}@{} at {}\r\n", target, wapm, mountpoint).as_bytes())
-            .await;
-        stdio.stdout.flush_async().await;
+        print(format!("Mounting {}@{} at {}\r\n", target, wapm, mountpoint), &mut stdio, false).await;
 
         let factory = SubProcessFactory::new(factory);
         let sub_process = match factory
@@ -93,20 +79,12 @@ pub(super) fn mount(
         {
             Ok(a) => a,
             Err(_) => {
-                let _ = stdio
-                    .stderr
-                    .write(format!("mount: wapm program not found\r\n").as_bytes())
-                    .await;
-                stdio.stdout.flush_async().await;
+                print(format!("mount: wapm program not found\r\n"), &mut stdio, true).await;
                 return ExecResponse::Immediate(1).into();
             }
         };
 
-        let _ = stdio
-            .stdout
-            .write(format!("Waiting for poll\r\n").as_bytes())
-            .await;
-        stdio.stdout.flush_async().await;
+        print(format!("Waiting for poll\r\n"), &mut stdio, false).await;
 
         match tokio::time::timeout(
             Duration::from_secs(5),
@@ -116,40 +94,23 @@ pub(super) fn mount(
         {
             Ok(ready) if ready == true => {}
             _ => {
-                let _ = stdio
-                    .stderr
-                    .write(format!("mount: wapm program failed to poll\r\n").as_bytes())
-                    .await;
-                stdio.stdout.flush_async().await;
+                print(format!("mount: wapm program failed to poll\r\n"), &mut stdio, true).await;
                 return ExecResponse::Immediate(1).into();
             }
         };
 
-        let _ = stdio
-            .stdout
-            .write(format!("Executing the mount\r\n").as_bytes())
-            .await;
-        stdio.stdout.flush_async().await;
+        print(format!("Executing the mount\r\n"), &mut stdio, false).await;
 
         let fs = match FuseFileSystem::new(sub_process, target.as_str(), stdio.clone()).await {
             Ok(a) => a,
             Err(err) => {
-                let _ = stdio
-                    .stderr
-                    .write(format!("mount: mount call failed ({})\r\n", err).as_bytes())
-                    .await;
-                stdio.stdout.flush_async().await;
+                print(format!("mount: mount call failed ({})\r\n", err), &mut stdio, true).await;
                 return ExecResponse::Immediate(1).into();
             }
         };
-
         let _ = stdio.stdout.flush_async().await;
 
-        let _ = stdio
-            .stdout
-            .write(format!("\rSuccessfully mounted\r\n").as_bytes())
-            .await;
-        stdio.stdout.flush_async().await;
+        print(format!("\rSuccessfully mounted\r\n"), &mut stdio, false).await;
 
         let mut ret: CommandResult = ExecResponse::Immediate(0).into();
         ctx.new_mounts.push(MountPoint {
@@ -160,4 +121,12 @@ pub(super) fn mount(
         ret.ctx = Some(ctx);
         ret
     });
+}
+
+async fn print(msg: String, stdio: &mut Stdio, is_err: bool) {
+    if is_err {
+        error!("{}", msg);
+    }
+    let _ = stdio.stdout.write(msg.as_bytes()).await;
+    let _ = stdio.stdout.flush_async().await;
 }

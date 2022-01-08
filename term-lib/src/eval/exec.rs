@@ -492,14 +492,12 @@ pub async fn exec_process(
 
                 // If there is a polling worker that got registered then its time to consume
                 // it which will effectively bring up a reactor based WASM module
-                if ret == err::ERR_EINTR {
-                    let worker = unsafe {
-                        let mut inner = wasm_thread.inner.lock();
-                        inner.poll_thread.take()
-                    };
-                    if let Some(worker) = worker {
-                        ret = worker.await;
-                    }
+                let worker = unsafe {
+                    let mut inner = wasm_thread.inner.lock();
+                    inner.poll_thread.take()
+                };
+                if let Some(worker) = worker {
+                    ret = worker.await;
                 }
 
                 // Ok we are done
