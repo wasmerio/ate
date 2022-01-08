@@ -85,9 +85,9 @@ trust-dns-client = { version = "^0.20", features = ["dnssec"], optional = true }
 backtrace = { version = "^0.3" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-bus = { version = "0.4", path = "../wasm-bus" }
-wasm-bus-ws = { version = "0.1", path = "../wasm-bus-ws" }
-wasm-bus-time = { version = "0.1", path = "../wasm-bus-time" }
+wasm-bus = { version = "0.5", path = "../wasm-bus" }
+wasm-bus-ws = { version = "0.2", path = "../wasm-bus-ws" }
+wasm-bus-time = { version = "0.2", path = "../wasm-bus-time" }
 
 [dev-dependencies]
 ctor = "0.1.*"
