@@ -134,11 +134,9 @@ impl Account {
     pub async fn new_order(
         &self,
         domains: Vec<String>,
-        not_before: chrono::DateTime<chrono::Utc>,
-        not_after: chrono::DateTime<chrono::Utc>,
     ) -> Result<(Order, String), AcmeError> {
-        let _not_before = not_before.to_rfc3339();
-        let _not_after = not_after.to_rfc3339();
+        //let _not_before = not_before.to_rfc3339();
+       // let _not_after = not_after.to_rfc3339();
         let domains: Vec<Identifier> = domains.into_iter().map(|d| Identifier::Dns(d)).collect();
         //let payload = format!("{{\"identifiers\":{},\"notBefore\":\"{}\",\"notAfter\":\"{}\"}}", serde_json::to_string(&domains)?, not_before, not_after);
         let payload = format!("{{\"identifiers\":{}}}", serde_json::to_string(&domains)?);

@@ -1,6 +1,6 @@
 [package]
 name = "ateweb"
-version = "1.0.2"
+version = "1.0.3"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 description = "High performance web server built on top of atefs"
@@ -57,6 +57,7 @@ pbr = "^1"
 ttl_cache = "^0.5"
 x509-parser = "^0.12"
 chrono = { version = "^0.4", git = "https://github.com/john-sharratt/chrono.git" }
+chrono_orig = { version = "^0.4", package = "chrono" }
 tls-parser = { version = "^0.10" }
 pem = { version = "^0.8" }
 rcgen = { version = "^0.8" }
