@@ -5,7 +5,6 @@ use std::pin::Pin;
 use std::rc::Rc;
 use tokio::sync::mpsc;
 use wasm_bus::abi::SerializationFormat;
-use std::task::{Poll, Context};
 
 use super::*;
 
@@ -157,16 +156,6 @@ pub trait SystemAbiExt {
         Fut: Future + Send + 'static,
         Fut::Output: Send;
 
-    /// Starts an asynchronous task that will run on a shared worker pool
-    /// This task must not block the execution or it could cause a deadlock
-    /// This is the fire-and-forget variet of spawning background work
-    fn fork_shared_immediate<F, Fut>(&self, task: F)
-    where
-        F: FnOnce() -> Fut,
-        F: Send + 'static,
-        Fut: Future + Send + 'static,
-        Fut::Output: Send;
-
     /// Attempts to send the message instantly however if that does not
     /// work it spawns a background thread and sends it there instead
     fn fork_send<T: Send + 'static>(&self, sender: &mpsc::Sender<T>, msg: T);
@@ -269,32 +258,12 @@ impl SystemAbiExt for dyn SystemAbi {
         self.task_shared(Box::new(move || invoke));
     }
 
-    fn fork_shared_immediate<F, Fut>(&self, task: F)
-    where
-        F: FnOnce() -> Fut + Send + 'static,
-        F: Send + 'static,
-        Fut: Future + Send + 'static,
-        Fut::Output: Send,
-    {
-        // We try to invoke the callback synchronously but if it
-        // does not complete in time then spawn a background thread
-        let waker = dummy_waker::dummy_waker();
-        let mut cx = Context::from_waker(&waker);
-        let mut invoke = Box::pin(async move {
-            let task = task();
-            let _ = task.await;
-        });
-        if let Poll::Pending = invoke.as_mut().poll(&mut cx) {
-            self.task_shared(Box::new(move || invoke));
-        }
-    }
-
     fn fork_send<T: Send + 'static>(&self, sender: &mpsc::Sender<T>, msg: T)
     {
         if let Err(mpsc::error::TrySendError::Full(msg)) = sender.try_send(msg) {
             let sender = sender.clone();
             self.task_shared(Box::new(move || Box::pin(async move {
-                sender.send(msg).await;
+                let _ = sender.send(msg).await;
             })));
         }
     }

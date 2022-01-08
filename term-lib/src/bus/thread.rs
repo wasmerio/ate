@@ -244,14 +244,7 @@ impl WasmBusThread {
         };
 
         // Try and send it instantly
-        if let Err(mpsc::error::TrySendError::Full(msg)) = self.work_tx.try_send(msg)
-        {
-            // We will have to send it asynchronously as the queue is full
-            let work_tx = self.work_tx.clone();
-            self.system.fork_shared(move || async move {
-                let _ = work_tx.send(msg).await;
-            });
-        }
+        self.system.fork_send(&self.work_tx, msg);
         (rx, handle)
     }
 
@@ -506,10 +499,7 @@ impl WasmBusThread {
     pub fn drop_call(&self, handle: CallHandle) {
         // Fork shared will try to send the data synchronously but if that
         // fails it will put the work on a background thread
-        let callback_tx = self.callback_tx.clone();
-        self.system.fork_shared_immediate(move || async move {
-            let _ = callback_tx.send(WasmBusThreadResult::Drop { handle }).await;
-        });
+        self.system.fork_send(&self.callback_tx, WasmBusThreadResult::Drop { handle });
     }
 }
 
