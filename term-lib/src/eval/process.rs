@@ -38,6 +38,5 @@ impl Clone for Process {
 impl Process {
     pub fn terminate(&self, exit_code: NonZeroU32) {
         self.forced_exit.store(exit_code.get(), Ordering::Release);
-        self.thread_pool.wake_all();
     }
 }

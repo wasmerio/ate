@@ -1,17 +1,13 @@
 use crate::wasmer::Array;
 use crate::wasmer::WasmPtr;
 use crate::wasmer_wasi::WasiError;
-use cooked_waker::*;
 use std::collections::HashMap;
-use std::future::Future;
-use std::task::Context;
-use std::task::Poll;
-use std::task::Waker;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
 use wasm_bus::abi::CallHandle;
 
+use crate::api::SystemAbiExt;
 use super::thread::WasmBusThread;
 use super::*;
 
@@ -22,12 +18,6 @@ pub(crate) mod raw {
     }
     pub fn wasm_bus_handle(thread: &WasmBusThread) -> u32 {
         unsafe { super::wasm_bus_handle(thread).into() }
-    }
-    pub fn wasm_bus_wake(thread: &WasmBusThread) {
-        unsafe { super::wasm_bus_wake(thread) }
-    }
-    pub fn wasm_bus_tick(thread: &WasmBusThread) -> bool {
-        unsafe { super::wasm_bus_tick(thread) }
     }
     pub fn wasm_bus_listen(thread: &WasmBusThread, topic_ptr: u32, topic_len: u32) {
         let topic_ptr: WasmPtr<u8, Array> = WasmPtr::new(topic_ptr as u32);
@@ -55,6 +45,9 @@ pub(crate) mod raw {
     }
     pub fn wasm_bus_poll(thread: &WasmBusThread) -> Result<(), WasiError> {
         unsafe { super::wasm_bus_poll(thread) }
+    }
+    pub fn wasm_bus_fork(thread: &WasmBusThread) -> Result<(), WasiError> {
+        unsafe { super::wasm_bus_fork(thread) }
     }
     pub fn wasm_bus_reply(
         thread: &WasmBusThread,
@@ -133,64 +126,15 @@ unsafe fn wasm_bus_drop(thread: &WasmBusThread, handle: CallHandle) {
 
     let mut delayed_drop1 = Vec::new();
     let mut delayed_drop2 = Vec::new();
-    let mut delayed_drop3 = Vec::new();
     {
         let mut inner = thread.inner.lock();
-        delayed_drop1.push(inner.invocations.remove(&handle));
-        delayed_drop2.push(inner.callbacks.remove(&handle));
-        delayed_drop3.push(inner.factory.close(CallHandle::from(handle)));
+        delayed_drop1.push(inner.callbacks.remove(&handle));
+        delayed_drop2.push(inner.factory.close(CallHandle::from(handle)));
     }
 }
 
 unsafe fn wasm_bus_handle(_thread: &WasmBusThread) -> CallHandle {
     fastrand::u32(..).into()
-}
-
-unsafe fn wasm_bus_wake(thread: &WasmBusThread) {
-    thread.waker.wake_by_ref();
-}
-
-unsafe fn wasm_bus_tick(thread: &WasmBusThread) -> bool {
-    // We enter a loop that the waker will keep running
-    let waker: Waker = thread.waker.clone().into_waker();
-    let mut cx = Context::from_waker(&waker);
-    let start_waker = thread.waker.get();
-    let mut last_waker = thread.waker.get();
-    loop {
-        // Take the invocations out of the idle list and process them
-        // (we need to do this outside of the thread local lock as
-        //  otherwise the re-entrance will panic the system)
-        let invocations = {
-            let mut inner = thread.inner.lock();
-            inner.invocations.drain().collect::<Vec<_>>()
-        };
-
-        // Run all the invocations and build a carry over list
-        let mut carry_over = Vec::new();
-        for (key, mut invocation) in invocations {
-            let pinned_invocation = invocation.as_mut();
-            if let Poll::Pending = pinned_invocation.poll(&mut cx) {
-                carry_over.push((key, invocation));
-            }
-        }
-
-        // If there are any carry overs then re-add them
-        if carry_over.is_empty() == false {
-            let mut inner = thread.inner.lock();
-            for (key, invoke) in carry_over {
-                inner.invocations.insert(key, invoke);
-            }
-        }
-
-        // Update the waker and continue (or if not woken then we are done)
-        let cur_waker = thread.waker.get();
-        if last_waker == cur_waker {
-            break;
-        }
-        last_waker = cur_waker;
-    }
-
-    return start_waker != last_waker;
 }
 
 // Incidates that a call that will be made should invoke a callback
@@ -218,10 +162,11 @@ unsafe fn wasm_bus_callback(
     }
 }
 
-// Polls the operating system for messages which will be returned via
-// the 'wasm_bus_start' function call.
-unsafe fn wasm_bus_poll(thread: &WasmBusThread) -> Result<(), WasiError> {
-    trace!("wasm-bus::poll");
+// Forks the current process and then continuously polls the operating system
+// for new work and/or messages which will be returned via the 'wasm_bus_start'
+// (and friends) function calls.
+unsafe fn wasm_bus_fork(thread: &WasmBusThread) -> Result<(), WasiError> {
+    trace!("wasm-bus::fork");
 
     // For the ability to poll for work we must take the receiver side of
     // a work queue - there is only one receiver so poll can only can
@@ -233,12 +178,12 @@ unsafe fn wasm_bus_poll(thread: &WasmBusThread) -> Result<(), WasiError> {
     if let Some(mut work_rx) = work_rx {
         // Register the polling thread so that it can be picked up by the
         // main WASM thread after it exits
-        debug!("wasm-bus::poll - registering the polling thread");
+        debug!("wasm-bus::fork - registering the polling thread");
         {
             let thread_inside = thread.clone();
             let worker = Box::pin(async move
             {
-                // Set the polling flag
+                // Set the polling flag and take the callback receiver
                 {
                     let inner = thread_inside.inner.lock();
                     let _ = inner.polling.send(true);
@@ -248,13 +193,56 @@ unsafe fn wasm_bus_poll(thread: &WasmBusThread) -> Result<(), WasiError> {
                 // gives access to the thread callbacks without allowing for situations
                 // of re-entrance
                 let mut ret = crate::err::ERR_OK;
-                while let Some(work) = work_rx.recv().await {
-                    ret = thread_inside.work(work).await;
-                    if ret != crate::err::ERR_OK {
-                        break;
+                loop {
+                    // We are going to borrow the callback receiver while we wait
+                    // for either new work or some response to something
+                    let mut callback_rx = match {
+                        let mut inner = thread_inside.inner.lock();
+                        inner.callback_rx.take()
+                    } {
+                        Some(a) => a,
+                        None => {
+                            error!("someone lost the callback receiver!");
+                            break;   
+                        }
+                    };
+
+                    // Either we are going to have some new work to do or we have
+                    // some callback data to give back to the process - when we
+                    // wake up we always put the callback receiver back where we
+                    // took it from so that other loops can pump the work
+                    tokio::select! {
+                        work = work_rx.recv() => {
+                            {
+                                let mut inner = thread_inside.inner.lock();
+                                inner.callback_rx.replace(callback_rx);
+                            };
+                            if let Some(work) = work {
+                                ret = thread_inside.work(work);
+                                if ret != crate::err::ERR_OK {
+                                    break;
+                                }
+                            } else {
+                                break;
+                            }
+                        }
+                        result = callback_rx.recv() => {
+                            {
+                                let mut inner = thread_inside.inner.lock();
+                                inner.callback_rx.replace(callback_rx);
+                            };
+                            if let Some(result) = result {
+                                ret = thread_inside.callback(result);
+                                if ret != crate::err::ERR_OK {
+                                    break;
+                                }
+                            } else {
+                                break;
+                            }
+                        }
                     }
                 }
-                debug!("wasm-bus::poll - worker has exited");
+                debug!("wasm-bus::fork - worker has exited");
 
                 // We return the worker queue as we no longer need it
                 let mut inner = thread_inside.inner.lock();
@@ -264,18 +252,50 @@ unsafe fn wasm_bus_poll(thread: &WasmBusThread) -> Result<(), WasiError> {
 
             thread.inner.lock().poll_thread.replace(worker);
         }
-        // Now we exit the main thread (without cleaning anything up
-        // by using a exit fault) - this will put us in a situation
-        // where we can re-enter at a later point (once work arrives)
-        info!("wasm-bus::poll - exiting from main");
+        // Now we exit the main thread (anything that is not a global
+        // variable will be lost)
+        info!("wasm-bus::fork - exiting from main");
         return Ok(())
     }
 
     // We have a duplicate poll call (either from within a poll call
     // or a second invocation of it. Given the reciever queue is
     // already consumed this would cause a deadlock or multithreading issues
-    warn!("wasm-bus::poll failed - poll queue already consumed");
+    warn!("wasm-bus::fork failed - fork queue already consumed");
     return Err(WasiError::Exit(crate::err::ERR_EDEADLK));
+}
+
+// Polls the operating system for any pending callback responses
+unsafe fn wasm_bus_poll(thread: &WasmBusThread) -> Result<(), WasiError> {
+    trace!("wasm-bus::poll");
+
+    // We are going to borrow the callback receiver while we wait
+    // for some responses to come back for something
+    let mut callback_rx = match {
+        let mut inner = thread.inner.lock();
+        inner.callback_rx.take()
+    } {
+        Some(a) => a,
+        None => {
+            error!("someone lost the callback receiver!");
+            return Err(WasiError::Exit(crate::err::ERR_EDEADLK));
+        }
+    };
+
+    // Block waiting for the work (when something happens immediately
+    // return the callback handler before we do anything else)
+    let result = callback_rx.blocking_recv();
+    {
+        let mut inner = thread.inner.lock();
+        inner.callback_rx.replace(callback_rx);
+    };
+
+    // Now process the result
+    if let Some(result) = result {
+        let _ = thread.callback(result);
+    }
+
+    Ok(())
 }
 
 // Tells the operating system that this program is ready to respond
@@ -395,7 +415,10 @@ unsafe fn wasm_bus_reply_callback(
 
     // Grab the sender we will relay this response to
     if let Some(callback) = callback {
-        callback.feed_bytes(response);
+        let sys = thread.system;
+        sys.fork_shared_immediate(move || async move {
+            callback.feed_bytes(response).await;
+        });
     } else {
         debug!("callback is lost (topic={})", topic);
     }
@@ -484,29 +507,22 @@ unsafe fn wasm_bus_call(
             let response = invoke.process().await;
             match response {
                 Ok(InvokeResult::Response(response)) => {
-                    data_feeder.feed_bytes_or_error(Ok(response));
+                    data_feeder.feed_bytes_or_error(Ok(response)).await;
                 }
                 Ok(InvokeResult::ResponseThenWork(response, work)) => {
-                    data_feeder.feed_bytes_or_error(Ok(response));
+                    data_feeder.feed_bytes_or_error(Ok(response)).await;
                     work.await;
                 }
-                Err(err) => data_feeder.feed_bytes_or_error(Err(err)),
+                Err(err) => data_feeder.feed_bytes_or_error(Err(err)).await,
             }
             thread.inner.lock().factory.close(CallHandle::from(handle));
         }
     };
 
-    // We try to invoke the callback synchronously but if it
-    // does not complete in time then we add it to the idle
-    // processing list which will pick it up again the next time
-    // the WASM process yields CPU execution.
-    let waker = dummy_waker::dummy_waker();
-    let mut cx = Context::from_waker(&waker);
-    let mut invoke = Box::pin(invoke);
-    if let Poll::Pending = invoke.as_mut().poll(&mut cx) {
-        let mut inner = thread.inner.lock();
-        inner.invocations.insert(handle, invoke);
-    }
+    // Process the response (this could complete instantly
+    // as fork_shared does a single poll before issuing it
+    // to a background thread)
+    thread.system.fork_shared(move || invoke);
 
     // Success
     CallError::Success.into()

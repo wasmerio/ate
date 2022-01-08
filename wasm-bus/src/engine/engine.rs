@@ -72,7 +72,9 @@ impl BusEngine {
                     state.handles.insert(handle);
                     drop(state);
 
-                    crate::task::block_on(respond_to.process(parent, handle, request));
+                    crate::task::spawn(async move {
+                        respond_to.process(parent, handle, request).await;
+                    });
                     return Ok(());
                 } else {
                     return Err(CallError::InvalidHandle);
@@ -89,7 +91,9 @@ impl BusEngine {
                 state.handles.insert(handle);
                 drop(state);
 
-                crate::task::block_on(listen.process(handle, request));
+                crate::task::spawn(async move {
+                    listen.process(handle, request).await;
+                });
                 return Ok(());
             } else {
                 return Err(CallError::InvalidHandle);

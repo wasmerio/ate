@@ -10,7 +10,6 @@ pub(crate) mod syscalls;
 mod thread;
 mod time;
 mod util;
-mod waker;
 mod ws;
 
 pub(crate) use factory::*;
@@ -22,4 +21,3 @@ use standard::*;
 pub(crate) use sub_process::*;
 pub(crate) use thread::*;
 use util::*;
-pub(crate) use waker::*;

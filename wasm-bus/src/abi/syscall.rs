@@ -56,6 +56,11 @@ mod raw {
             topic,
             request_len
         );
+
+        // The blocking guard is to prevent blocking as the loop that called
+        // this function is already blocking hence it would deadlock. 
+        let _blocking_guard = crate::task::blocking_guard();
+
         unsafe {
             let request = Vec::from_raw_parts(
                 request_ptr as *mut u8,
@@ -67,10 +72,13 @@ mod raw {
             if let Err(err) = crate::engine::BusEngine::start(topic, parent, handle, request) {
                 fault(handle.into(), err as u32);
             }
-
-            #[cfg(feature = "rt")]
-            crate::task::work_it();
         }
+
+        // This function is the one that actually processing the call but it will
+        // not nessasarily complete the call in one go - if it idles then thats
+        // because its waiting for something else from the wasm_bus hence we return
+        #[cfg(feature = "rt")]
+        crate::task::work_it();
     }
 
     // Invoked by the operating system when a call has finished
@@ -113,23 +121,11 @@ mod raw {
         crate::task::work_it();
     }
 
-    // Invoked by the operating system when a call has been terminated by the caller
-    #[no_mangle]
-    pub extern "C" fn wasm_bus_wake() {
-        #[cfg(feature = "rt")]
-        crate::task::wake();
-        #[cfg(feature = "rt")]
-        crate::task::work_it();
-    }
-
     #[link(wasm_import_module = "wasm-bus")]
     extern "C" {
         // Returns a handle 64-bit number which is used while generating
         // handles for calls and receive hooks
         pub(crate) fn handle() -> u32;
-
-        // Wakes the thread the next time it does a poll
-        pub(crate) fn wake();
 
         // Indicates that a fault has occured while processing a call
         pub(crate) fn fault(handle: u32, error: u32);
@@ -174,9 +170,13 @@ mod raw {
         // to calls on a particular topic name.
         pub(crate) fn listen(topic: u32, topic_len: u32);
 
-        // Polls the operating system for messages which will be returned via
-        // the 'wasm_bus_start' function call.
+        // Polls the operating system for result messages that are the completion
+        // events for the calls we made out to the wasm_bus
         pub(crate) fn poll();
+
+        // Forks the process (after the main thread exists) so that it can process
+        // any inbound work via 'wasm_bus_start' function call.
+        pub(crate) fn fork();
 
         // Returns a unqiue ID for the thread
         pub(crate) fn thread_id() -> u32;
@@ -191,10 +191,6 @@ pub fn handle() -> CallHandle {
     unsafe { raw::handle().into() }
 }
 
-pub fn wake() {
-    unsafe { raw::wake() }
-}
-
 pub fn fault(handle: CallHandle, error: u32) {
     unsafe {
         raw::fault(handle.id, error);
@@ -203,6 +199,10 @@ pub fn fault(handle: CallHandle, error: u32) {
 
 pub fn poll() {
     unsafe { raw::poll() }
+}
+
+pub fn fork() {
+    unsafe { raw::fork() }
 }
 
 pub fn listen(topic: &str) {

@@ -3,11 +3,13 @@ use std::any::type_name;
 use std::future::Future;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
+use std::ops::Deref;
 
 use crate::abi::CallError;
 use crate::abi::CallHandle;
 use crate::abi::SerializationFormat;
 use crate::engine::BusEngine;
+use crate::rt::RuntimeBlockingGuard;
 use crate::rt::RUNTIME;
 
 pub fn block_on<F>(task: F) -> F::Output
@@ -15,6 +17,10 @@ where
     F: Future,
 {
     RUNTIME.block_on(task)
+}
+
+pub fn blocking_guard() -> RuntimeBlockingGuard {
+    RuntimeBlockingGuard::new(RUNTIME.deref())
 }
 
 pub fn spawn<F>(task: F)

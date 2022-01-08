@@ -28,9 +28,7 @@ pub fn web_socket(
         return Err(CallError::MissingCallbacks);
     }
     let on_state_change = on_state_change.unwrap();
-    let on_state_change_waker = on_state_change.waker();
     let on_received = on_received.unwrap();
-    let on_received_waker = on_received.waker();
 
     // Construct the channels
     let (tx_keepalive, mut rx_keepalive) = mpsc::channel(1);
@@ -113,13 +111,11 @@ pub fn web_socket(
         loop {
             select! {
                 _ = rx_keepalive.recv() => {
-                    on_state_change_waker.wake();
                     return;
                 }
                 state = rx_state_inner.recv() => {
                     if let Some(state) = state {
                         let _ = tx_state.send(state.clone()).await;
-                        on_state_change_waker.wake();
                         if state != api::SocketState::Opened {
                             return;
                         }
@@ -132,11 +128,9 @@ pub fn web_socket(
         loop {
             select! {
                 _ = rx_keepalive.recv() => {
-                    on_state_change_waker.wake();
                     return;
                 }
                 state = rx_state_inner.recv() => {
-                    on_state_change_waker.wake();
                     if let Some(state) = &state {
                         let _ = tx_state.send(state.clone()).await;
                     }
@@ -145,7 +139,6 @@ pub fn web_socket(
                     }
                 }
                 request = rx_send.recv() => {
-                    on_received_waker.wake();
                     if let Some(data) = request {
                         let data_len = data.len();
 
@@ -196,7 +189,7 @@ impl WebSocket {
             select! {
                 state = self.rx_state.recv() => {
                     if let Some(state) = &state {
-                        self.on_state_change.feed(SerializationFormat::Bincode, api::SocketBuilderConnectStateChangeCallback(state.clone()));
+                        self.on_state_change.feed(SerializationFormat::Bincode, api::SocketBuilderConnectStateChangeCallback(state.clone())).await;
                     }
                     match state {
                         Some(api::SocketState::Opened) => {
@@ -218,7 +211,7 @@ impl WebSocket {
                 }
                 data = self.rx_recv.recv() => {
                     if let Some(data) = data {
-                        self.on_received.feed(SerializationFormat::Bincode, api::SocketBuilderConnectReceiveCallback(data));
+                        self.on_received.feed(SerializationFormat::Bincode, api::SocketBuilderConnectReceiveCallback(data)).await;
                     } else {
                         break;
                     }
@@ -230,10 +223,14 @@ impl WebSocket {
 
 impl Drop for WebSocket {
     fn drop(&mut self) {
-        self.on_state_change.feed(
-            SerializationFormat::Bincode,
-            api::SocketBuilderConnectStateChangeCallback(api::SocketState::Closed),
-        );
+        let on_state_change = self.on_state_change.clone();
+        let sys = System::default();
+        sys.fork_shared(move || async move {
+            on_state_change.feed(
+                SerializationFormat::Bincode,
+                api::SocketBuilderConnectStateChangeCallback(api::SocketState::Closed),
+            ).await;
+        });        
     }
 }
 

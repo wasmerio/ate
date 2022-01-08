@@ -410,10 +410,6 @@ pub async fn exec_process(
                         if forced_exit != 0 {
                             return Err(WasiError::Exit(forced_exit));
                         }
-                        let thread = bus_pool.get_or_create(thread);
-                        unsafe {
-                            crate::bus::syscalls::raw::wasm_bus_tick(&thread);
-                        }
                         Ok(())
                     });
                 }

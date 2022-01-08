@@ -26,17 +26,21 @@ impl WebSocket {
 #[async_trait]
 impl WebSocketAbi for WebSocket {
     fn set_onopen(&mut self, mut callback: Box<dyn FnMut()>) {
-        let callback = Closure::wrap(Box::new(move |_e: web_sys::ProgressEvent| {
-            callback.deref_mut()();
-        }) as Box<dyn FnMut(web_sys::ProgressEvent)>);
+        let callback = {
+            Closure::wrap(Box::new(move |_e: web_sys::ProgressEvent| {
+                callback.deref_mut()();
+            }) as Box<dyn FnMut(web_sys::ProgressEvent)>)
+        };
         self.sys.set_onopen(Some(callback.as_ref().unchecked_ref()));
         callback.forget();
     }
 
     fn set_onclose(&mut self, callback: Box<dyn Fn() + Send + 'static>) {
-        let callback = Closure::wrap(Box::new(move |_e: web_sys::ProgressEvent| {
-            callback.deref()();
-        }) as Box<dyn FnMut(web_sys::ProgressEvent)>);
+        let callback = {
+            Closure::wrap(Box::new(move |_e: web_sys::ProgressEvent| {
+                callback.deref()();
+            }) as Box<dyn FnMut(web_sys::ProgressEvent)>)
+        };
         self.sys
             .set_onclose(Some(callback.as_ref().unchecked_ref()));
         callback.forget();

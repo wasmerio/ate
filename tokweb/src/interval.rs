@@ -1,4 +1,6 @@
 use wasm_bindgen::prelude::*;
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, trace, warn};
 
 #[wasm_bindgen]
 extern "C" {
@@ -17,7 +19,9 @@ impl LeakyInterval {
     where
         F: FnMut(),
     {
-        let closure = { Closure::wrap(Box::new(f) as Box<dyn FnMut()>) };
+        let closure = {
+            Closure::wrap(Box::new(f) as Box<dyn FnMut()>)
+        };
         let millis = duration.as_millis() as u32;
 
         #[allow(unused_unsafe)]
