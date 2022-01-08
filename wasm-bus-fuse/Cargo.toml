@@ -1,6 +1,6 @@
 [package]
 name = "wasm-bus-fuse"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 description = "WebAssembly fuse bus interface"
