@@ -1,6 +1,6 @@
 [package]
 name = "term-lib"
-version = "0.1.1"
+version = "0.1.0"
 authors = ["John Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 publish = false
@@ -36,6 +36,7 @@ wasmer-compiler = { version = "^2", git = "https://github.com/john-sharratt/wasm
 #wasmer-compiler-llvm = { version = "^2", path = "../../wasmer/lib/compiler-llvm", optional = true }
 #wasmer-compiler-singlepass = { version = "^2", path = "../../wasmer/lib/compiler-singlepass", optional = true }
 #wasmer-compiler = { version = "^2", path = "../../wasmer/lib/compiler", optional = true }
+chrono = { version = "^0.4", git = "https://github.com/john-sharratt/chrono.git" }
 tracing = { version = "^0.1" }
 tracing-futures = { version = "^0.2" }
 tracing-wasm = { version = "^0.2" }
@@ -65,9 +66,3 @@ wild = "^2"
 cooked-waker = { version = "^5" }
 serde_yaml = { version = "^0.8" }
 include_dir = "0.7.2"
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-chrono = { version = "^0.4", features = [ "serde" ] }
-
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-chrono = { version = "^0.4", git = "https://github.com/john-sharratt/chrono.git", features = [ "serde" ] }

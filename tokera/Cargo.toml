@@ -1,6 +1,6 @@
 [package]
 name = "tokera"
-version = "1.0.1"
+version = "1.0.0"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 description = "Provides an interface into Tokera and its supporting services"
@@ -39,6 +39,7 @@ async-trait = "^0.1"
 bytes = "^1"
 fxhash = "^0.2"
 fastrand = "^1"
+chrono = { version = "^0.4", git = "https://github.com/john-sharratt/chrono.git", features = ["serde"] }
 url = "^2"
 rpassword-wasi = "^5"
 regex = "^1"
@@ -64,11 +65,9 @@ wasm-bus-fuse = { version = "0.1", path = "../wasm-bus-fuse" }
 wasm-bus-ws = { version = "0.1", path = "../wasm-bus-ws" }
 
 [target.'cfg(not(target_os = "wasi"))'.dependencies]
-chrono = { version = "^0.4", features = [ "serde" ] }
 tokio = { version = "^1", features = [ "rt", "io-util", "macros", "sync", "time", "fs" ], default_features = false }
 
 [target.'cfg(target_os = "wasi")'.dependencies]
-chrono = { version = "^0.4", git = "https://github.com/john-sharratt/chrono.git", features = [ "serde" ] }
 tokio = { version = "^1", features = [ "macros", "sync" ], default_features = false }
 backtrace = "^0.3"
 wasi = { version = "^0.10" }
