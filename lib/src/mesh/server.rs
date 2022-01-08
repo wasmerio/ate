@@ -865,9 +865,9 @@ async fn inbox_packet<'b>(
         let pck_data = pck.data;
         let pck = pck.packet;
 
-        let read_only = {
+        let delete_only = {
             let throttle = tx.throttle.lock().unwrap();
-            throttle.read_only
+            throttle.delete_only
         };
 
         match pck.msg {
@@ -890,17 +890,18 @@ async fn inbox_packet<'b>(
                 .await?;
             }
             Message::Events { commit, evts } => {
-                if read_only {
-                    debug!("event aborted - channel is currently read-only");
-                    tx.send_reply_msg(Message::ReadOnly).await?;
-                    return Ok(());
-                }
-
                 let num_deletes = evts
                     .iter()
                     .filter(|a| a.meta.get_tombstone().is_some())
                     .count();
                 let num_data = evts.iter().filter(|a| a.data.is_some()).count();
+                
+                if delete_only && num_data > 0 {
+                    debug!("event aborted - channel is currently read-only");
+                    tx.send_reply_msg(Message::ReadOnly).await?;
+                    return Ok(());
+                }
+
                 inbox_event(context, commit, evts, tx, pck_data)
                     .instrument(span!(
                         Level::DEBUG,

@@ -6,7 +6,7 @@ use serde::*;
 pub struct ThrottleTriggers {
     pub download_per_second: Option<u64>,
     pub upload_per_second: Option<u64>,
-    pub read_only_threshold: Option<u64>,
+    pub delete_only_threshold: Option<u64>,
 }
 
 /// The contract status determines if aggrements are being honoured
