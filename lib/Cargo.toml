@@ -1,6 +1,6 @@
 [package]
 name = "ate"
-version = "1.0.4"
+version = "1.0.5"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 description = "Distributed immutable data store with strong encryption and authentication"
