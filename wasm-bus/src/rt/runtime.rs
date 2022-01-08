@@ -112,7 +112,6 @@ impl Runtime {
         // but none of the scopes will end meaning everything
         // up till now will leak
         crate::abi::syscall::poll();
-        unreachable!();
     }
 
     pub fn wake(&self) {

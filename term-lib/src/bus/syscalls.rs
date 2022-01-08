@@ -236,7 +236,14 @@ unsafe fn wasm_bus_poll(thread: &WasmBusThread) -> Result<(), WasiError> {
         debug!("wasm-bus::poll - registering the polling thread");
         {
             let thread_inside = thread.clone();
-            let worker = Box::pin(async move {
+            let worker = Box::pin(async move
+            {
+                // Set the polling flag
+                {
+                    let mut inner = thread_inside.inner.lock();
+                    let _ = inner.polling.send(true);
+                }
+
                 // We pass the thread object into and out of the dedicated thread which
                 // gives access to the thread callbacks without allowing for situations
                 // of re-entrance
@@ -257,17 +264,11 @@ unsafe fn wasm_bus_poll(thread: &WasmBusThread) -> Result<(), WasiError> {
 
             thread.inner.lock().poll_thread.replace(worker);
         }
-
-        // Set the polling flag
-        {
-            let _ = thread.inner.lock().polling.send(true);
-        }
-
         // Now we exit the main thread (without cleaning anything up
         // by using a exit fault) - this will put us in a situation
         // where we can re-enter at a later point (once work arrives)
         info!("wasm-bus::poll - exiting from main");
-        return Err(WasiError::Exit(crate::err::ERR_EINTR));
+        return Ok(())
     }
 
     // We have a duplicate poll call (either from within a poll call
