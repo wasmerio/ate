@@ -127,6 +127,7 @@ async fn print(msg: String, stdio: &mut Stdio, is_err: bool) {
         let _ = stdio.stdout.write(msg.as_bytes()).await;
         let _ = stdio.stdout.flush_async().await;
     } else {
+        info!("{}", msg);
         let _ = stdio.stderr.write(msg.as_bytes()).await;
         let _ = stdio.stderr.flush_async().await;
     }
