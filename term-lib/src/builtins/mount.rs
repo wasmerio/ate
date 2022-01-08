@@ -2,7 +2,6 @@ use std::future::Future;
 use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::time::Duration;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus_process::prelude::StdioMode;
@@ -86,18 +85,17 @@ pub(super) fn mount(
 
         print(format!("Waiting for poll\r\n"), &mut stdio, false).await;
 
-        match tokio::time::timeout(
-            Duration::from_secs(5),
-            sub_process.main.async_wait_for_poll(),
-        )
-        .await
-        {
-            Ok(ready) if ready == true => {}
-            _ => {
-                print(format!("mount: wapm program failed to poll\r\n"), &mut stdio, true).await;
-                return ExecResponse::Immediate(1).into();
+        let mut ready = false;
+        tokio::select! {
+            _ = ctx.system.sleep(5000).join() => { },
+            r = sub_process.main.async_wait_for_poll() => {
+                ready = r;
             }
-        };
+        }
+        if ready == false {
+            print(format!("mount: wapm program failed to poll\r\n"), &mut stdio, true).await;
+            return ExecResponse::Immediate(1).into();
+        }
 
         print(format!("Executing the mount\r\n"), &mut stdio, false).await;
 

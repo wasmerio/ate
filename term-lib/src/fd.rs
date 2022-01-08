@@ -173,7 +173,7 @@ impl Fd {
         if let Some(sender) = self.sender.as_mut() {
             let buf_len = buf.len();
             let msg = FdMsg::new(buf, self.flag);
-            if let Err(err) = sender.send(msg).await {
+            if let Err(_err) = sender.send(msg).await {
                 return Err(std::io::ErrorKind::BrokenPipe.into());
             }
             Ok(buf_len)

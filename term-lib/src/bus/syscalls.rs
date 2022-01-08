@@ -240,7 +240,7 @@ unsafe fn wasm_bus_poll(thread: &WasmBusThread) -> Result<(), WasiError> {
             {
                 // Set the polling flag
                 {
-                    let mut inner = thread_inside.inner.lock();
+                    let inner = thread_inside.inner.lock();
                     let _ = inner.polling.send(true);
                 }
 
