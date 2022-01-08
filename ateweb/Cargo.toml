@@ -1,6 +1,6 @@
 [package]
 name = "ateweb"
-version = "1.0.3"
+version = "1.0.4"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 description = "High performance web server built on top of atefs"
@@ -56,7 +56,6 @@ url = "^2"
 pbr = "^1"
 ttl_cache = "^0.5"
 x509-parser = "^0.12"
-chrono = { version = "^0.4" }
 tls-parser = { version = "^0.10" }
 pem = { version = "^0.8" }
 rcgen = { version = "^0.8" }
@@ -64,3 +63,9 @@ base64 = { version = "^0.13" }
 jsonxf = { version = "^1" }
 ring = { version = "^0.16", features = ["std"] }
 libc = "^0.2"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+chrono = { version = "^0.4", features = "serde" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+chrono = { version = "^0.4", git = "https://github.com/john-sharratt/chrono.git", features = "serde" }

@@ -1,6 +1,6 @@
 [package]
 name = "ate-auth"
-version = "1.7.3"
+version = "1.7.4"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 description = "Represents a standardized data model and API for authenticating an ATE chain-of-trust"
@@ -37,7 +37,6 @@ async-trait = "^0.1"
 bytes = "^1"
 fxhash = "^0.2"
 fastrand = "^1"
-chrono = { version = "^0.4", git = "https://github.com/john-sharratt/chrono.git", features = ["serde"] }
 isocountry = "^0.3"
 url = "^2"
 rpassword-wasi = "^5"
@@ -51,3 +50,9 @@ ctrlc-async = "^3"
 bincode = "^1"
 once_cell = "^1"
 atty = { version = "^0.2", optional = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+chrono = { version = "^0.4", features = "serde" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+chrono = { version = "^0.4", git = "https://github.com/john-sharratt/chrono.git", features = "serde" }

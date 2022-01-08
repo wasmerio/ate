@@ -1,6 +1,6 @@
 [package]
 name = "tokweb"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["John Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 publish = false
@@ -17,7 +17,6 @@ wasm-bindgen = { version = "0.2", features = [ "nightly", "serde-serialize" ] }
 wasm-bindgen-futures = "0.4"
 console_error_panic_hook = "^0.1"
 js-sys = "0.3"
-chrono = { version = "^0.4", git = "https://github.com/john-sharratt/chrono.git", features = [ "wasmbind" ] }
 tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
 #tracing = { version = "^0.1", features = [ "log", "release_max_level_debug" ] }
 tracing-futures = { version = "^0.2" }
@@ -38,6 +37,12 @@ fastrand = "^1.5"
 bincode = "1"
 async-trait = "^0.1"
 dummy-waker = "^1"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+chrono = { version = "^0.4", features = "serde" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+chrono = { version = "^0.4", git = "https://github.com/john-sharratt/chrono.git", features = "serde" }
 
 [dependencies.parking_lot]
 version = "^0.11"
