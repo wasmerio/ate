@@ -58,34 +58,14 @@ pub fn web_socket(
         {
             let tx_state_inner = tx_state_inner.clone();
             ws_sys.set_onopen(Box::new(move || {
-                let again = match tx_state_inner.try_send(api::SocketState::Opened) {
-                    Ok(_) => None,
-                    Err(mpsc::error::TrySendError::Closed(a)) => Some(a),
-                    Err(mpsc::error::TrySendError::Full(a)) => Some(a),
-                };
-                if let Some(data) = again {
-                    let tx_state_inner = tx_state_inner.clone();
-                    system.fork_shared(move || async move {
-                        let _ = tx_state_inner.send(data).await;
-                    });
-                }
+                system.fork_send(&tx_state_inner, api::SocketState::Opened);
             }));
         }
 
         {
             let tx_state_inner = tx_state_inner.clone();
             ws_sys.set_onclose(Box::new(move || {
-                let again = match tx_state_inner.try_send(api::SocketState::Closed) {
-                    Ok(_) => None,
-                    Err(mpsc::error::TrySendError::Closed(a)) => Some(a),
-                    Err(mpsc::error::TrySendError::Full(a)) => Some(a),
-                };
-                if let Some(data) = again {
-                    let tx_state_inner = tx_state_inner.clone();
-                    system.fork_shared(move || async move {
-                        let _ = tx_state_inner.send(data).await;
-                    });
-                }
+                system.fork_send(&tx_state_inner, api::SocketState::Closed);
             }));
         }
 
@@ -93,19 +73,7 @@ pub fn web_socket(
             let tx_recv = tx_recv.clone();
             ws_sys.set_onmessage(Box::new(move |data| {
                 debug!("websocket recv {} bytes", data.len());
-                let again = match tx_recv.try_send(data) {
-                    Ok(_) => None,
-                    Err(mpsc::error::TrySendError::Closed(a)) => Some(a),
-                    Err(mpsc::error::TrySendError::Full(a)) => Some(a),
-                };
-                if let Some(data) = again {
-                    let tx_recv = tx_recv.clone();
-                    system.fork_shared(move || async move {
-                        if let Err(err) = tx_recv.send(data).await {
-                            trace!("websocket bytes silently dropped - {}", err);
-                        }
-                    });
-                }
+                system.fork_send(&tx_recv, data);
             }));
         }
 

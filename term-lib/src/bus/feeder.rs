@@ -21,25 +21,20 @@ pub struct WasmBusCallback {
 }
 
 impl WasmBusCallback {
-    pub fn new(thread: &WasmBusThread, handle: CallHandle) -> Result<WasmBusCallback, CallError> {
+    pub fn new(thread: &WasmBusThread, handle: CallHandle) -> WasmBusCallback {
         let memory = thread.memory().clone();
         let native_data = thread.wasm_bus_finish_ref();
         let native_malloc = thread.wasm_bus_malloc_ref();
         let native_error = thread.wasm_bus_error_ref();
 
-        if native_data.is_none() || native_malloc.is_none() || native_error.is_none() {
-            debug!("wasm-bus::feeder (incorrect abi)");
-            return Err(CallError::IncorrectAbi.into());
-        }
-
-        Ok(WasmBusCallback {
+        WasmBusCallback {
             memory,
             native_finish: native_data.unwrap().clone(),
             native_malloc: native_malloc.unwrap().clone(),
             native_error: native_error.unwrap().clone(),
             waker: thread.waker.clone(),
             handle,
-        })
+        }
     }
 
     pub(crate) fn waker(&self) -> Arc<ThreadWaker> {

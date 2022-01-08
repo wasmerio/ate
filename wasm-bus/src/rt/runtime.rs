@@ -8,15 +8,43 @@ use std::sync::Mutex;
 use std::task::Context;
 use std::task::Poll;
 use std::task::Waker;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use super::*;
 
 pub(crate) static RUNTIME: Lazy<Runtime> = Lazy::new(|| Runtime::default());
 
+// This guard is used to prevent double blocking which would
+// break the asynchronous event loop
+pub struct RuntimeBlockingGuard {
+    is_blocking: Arc<AtomicBool>
+}
+impl RuntimeBlockingGuard {
+    pub fn new(runtime: &Runtime) -> RuntimeBlockingGuard {
+        // If the blocking flag is set then we should not enter a main processing loop
+        // as we are already in one!
+        if runtime.is_blocking.compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire).is_ok() == false {
+            panic!("nesting block_on calls are not supported by wasm_bus");
+        }
+        RuntimeBlockingGuard {
+            is_blocking: runtime.is_blocking.clone(),
+        }
+    }
+}
+impl Drop
+for RuntimeBlockingGuard {
+    fn drop(&mut self) {
+        // We are no longer in a blocking state (as this loop is guarantee to exit
+        // and it won't perform any more polls)
+        self.is_blocking.store(false, Ordering::Release);
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct Runtime {
     waker: Arc<RuntimeWaker>,
     tasks: Arc<Mutex<Vec<Pin<Box<dyn Future<Output = ()> + Send + 'static>>>>>,
+    is_blocking: Arc<AtomicBool>,
 }
 
 impl Runtime {
@@ -24,6 +52,13 @@ impl Runtime {
     where
         F: Future,
     {
+        // The blocking guard prevents re-entrance on the blocking lock which would
+        // otherwise break the main event processing loop
+        let blocking_guard = RuntimeBlockingGuard::new(self);
+
+        // The waker is used to make sure that any asynchronous code that wakes up
+        // this main thread (likely because it sent something somewhere else) will
+        // repeat the main loop
         let waker: Waker = self.waker.clone().into_waker();
         let mut cx = Context::from_waker(&waker);
 
@@ -36,6 +71,16 @@ impl Runtime {
                     let mut lock = self.tasks.lock().unwrap();
                     lock.append(&mut carry_over);
                 }
+
+                // We are no longer in a blocking state (as this loop is guarantee to exit
+                // and it won't perform any more polls)
+                drop(blocking_guard);
+                
+                // We do another tick to make sure all the background thread work has
+                // gone into an idle state
+                self.tick();
+                
+                // Now return return the result of the function we blocked on
                 return ret;
             }
             if let Ok(mut lock) = self.tasks.try_lock() {
@@ -54,21 +99,30 @@ impl Runtime {
                     }
                 }
             }
-            loop {
-                std::thread::yield_now();
-
-                let new_counter = self.waker.get();
-                if counter != new_counter {
-                    counter = new_counter;
-                    break;
-                }
+            
+            // It could be the case that one of the threads we just executed has
+            // done something that means the main loop needs to run again. For instance
+            // if it passed a variable via a mpsc::send to an earlier executed thread.
+            // Hence if the waker is woken we always repeat the loop
+            let new_counter = self.waker.get();
+            if counter != new_counter {
+                counter = new_counter;
+                continue;
             }
+            
+            // Polling the wasm_bus will block execution until something
+            // comes in that changes the current state (e.g. a timer triggers or a packet)
+            crate::abi::syscall::poll();
         }
     }
 
     /// Processes any pending tasks on the engine until it goes
     /// to sleep. Returns the number of outstanding tasks
-    pub fn tick(&self) -> usize {
+    pub fn tick(&self) -> usize
+    {
+        // The waker is used to make sure that any asynchronous code that wakes up
+        // this main thread (likely because it sent something somewhere else) will
+        // repeat the main loop
         let waker: Waker = self.waker.clone().into_waker();
         let mut cx = Context::from_waker(&waker);
 
@@ -94,8 +148,10 @@ impl Runtime {
                 }
             }
 
-            std::thread::yield_now();
-
+            // It could be the case that one of the threads we just executed has
+            // done something that means the main loop needs to run again. For instance
+            // if it passed a variable via a mpsc::send to an earlier executed thread.
+            // Hence if the waker is woken we always repeat the loop
             let cur_waker = self.waker.get();
             if cur_waker != last_waker {
                 last_waker = cur_waker;
@@ -108,10 +164,13 @@ impl Runtime {
     /// Tell the  current thread to start serving requests from
     /// the WASM bus.
     pub fn serve(&self) {
-        // Upon calling poll this thread will cease to execute
-        // but none of the scopes will end meaning everything
-        // up till now will leak
-        crate::abi::syscall::poll();
+        // Upon calling fork then after the main function exits
+        // it will run a working thread that processes any inbound
+        // messages for the wasm_bus - it will also send all responses
+        // back when there are no calls coming back in thus there
+        // is no need for the main thread to stick around (even if
+        // it has some calls outstanding)
+        crate::abi::syscall::fork();
     }
 
     pub fn wake(&self) {

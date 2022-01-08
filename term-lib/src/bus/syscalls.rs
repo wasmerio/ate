@@ -23,12 +23,6 @@ pub(crate) mod raw {
     pub fn wasm_bus_handle(thread: &WasmBusThread) -> u32 {
         unsafe { super::wasm_bus_handle(thread).into() }
     }
-    pub fn wasm_bus_wake(thread: &WasmBusThread) {
-        unsafe { super::wasm_bus_wake(thread) }
-    }
-    pub fn wasm_bus_tick(thread: &WasmBusThread) -> bool {
-        unsafe { super::wasm_bus_tick(thread) }
-    }
     pub fn wasm_bus_listen(thread: &WasmBusThread, topic_ptr: u32, topic_len: u32) {
         let topic_ptr: WasmPtr<u8, Array> = WasmPtr::new(topic_ptr as u32);
         unsafe { super::wasm_bus_listen(thread, topic_ptr, topic_len as usize) }
@@ -55,6 +49,9 @@ pub(crate) mod raw {
     }
     pub fn wasm_bus_poll(thread: &WasmBusThread) -> Result<(), WasiError> {
         unsafe { super::wasm_bus_poll(thread) }
+    }
+    pub fn wasm_bus_fork(thread: &WasmBusThread) -> Result<(), WasiError> {
+        unsafe { super::wasm_bus_fork(thread) }
     }
     pub fn wasm_bus_reply(
         thread: &WasmBusThread,
@@ -146,10 +143,6 @@ unsafe fn wasm_bus_handle(_thread: &WasmBusThread) -> CallHandle {
     fastrand::u32(..).into()
 }
 
-unsafe fn wasm_bus_wake(thread: &WasmBusThread) {
-    thread.waker.wake_by_ref();
-}
-
 unsafe fn wasm_bus_tick(thread: &WasmBusThread) -> bool {
     // We enter a loop that the waker will keep running
     let waker: Waker = thread.waker.clone().into_waker();
@@ -218,10 +211,11 @@ unsafe fn wasm_bus_callback(
     }
 }
 
-// Polls the operating system for messages which will be returned via
-// the 'wasm_bus_start' function call.
-unsafe fn wasm_bus_poll(thread: &WasmBusThread) -> Result<(), WasiError> {
-    trace!("wasm-bus::poll");
+// Forks the current process and then continuously polls the operating system
+// for new work and/or messages which will be returned via the 'wasm_bus_start'
+// (and friends) function calls.
+unsafe fn wasm_bus_fork(thread: &WasmBusThread) -> Result<(), WasiError> {
+    trace!("wasm-bus::fork");
 
     // For the ability to poll for work we must take the receiver side of
     // a work queue - there is only one receiver so poll can only can
@@ -233,7 +227,7 @@ unsafe fn wasm_bus_poll(thread: &WasmBusThread) -> Result<(), WasiError> {
     if let Some(mut work_rx) = work_rx {
         // Register the polling thread so that it can be picked up by the
         // main WASM thread after it exits
-        debug!("wasm-bus::poll - registering the polling thread");
+        debug!("wasm-bus::fork - registering the polling thread");
         {
             let thread_inside = thread.clone();
             let worker = Box::pin(async move
@@ -248,13 +242,32 @@ unsafe fn wasm_bus_poll(thread: &WasmBusThread) -> Result<(), WasiError> {
                 // gives access to the thread callbacks without allowing for situations
                 // of re-entrance
                 let mut ret = crate::err::ERR_OK;
-                while let Some(work) = work_rx.recv().await {
-                    ret = thread_inside.work(work).await;
-                    if ret != crate::err::ERR_OK {
-                        break;
+                loop {
+                    // Grab the waiter and do some work (which could wake it
+                    // again of course)
+                    let waiter = thread_inside.waker.waiter();
+                    wasm_bus_tick(&thread_inside);
+
+                    // We wait for either another call to initiate or for the
+                    // waker to be woken
+                    tokio::select! {
+                        work = work_rx.recv() => {
+                            match work {
+                                Some(work) => {
+                                    ret = thread_inside.work(work).await;
+                                    if ret != crate::err::ERR_OK {
+                                        break;
+                                    }
+                                }
+                                None => {
+                                    break;
+                                }
+                            }
+                        },
+                        _ = waiter => { }
                     }
                 }
-                debug!("wasm-bus::poll - worker has exited");
+                debug!("wasm-bus::fork - worker has exited");
 
                 // We return the worker queue as we no longer need it
                 let mut inner = thread_inside.inner.lock();
@@ -263,19 +276,28 @@ unsafe fn wasm_bus_poll(thread: &WasmBusThread) -> Result<(), WasiError> {
             });
 
             thread.inner.lock().poll_thread.replace(worker);
-        }
-        // Now we exit the main thread (without cleaning anything up
-        // by using a exit fault) - this will put us in a situation
-        // where we can re-enter at a later point (once work arrives)
-        info!("wasm-bus::poll - exiting from main");
+        }        
+        // Now we exit the main thread (anything that is not a global
+        // variable will be lost)
+        info!("wasm-bus::fork - exiting from main");
         return Ok(())
     }
 
     // We have a duplicate poll call (either from within a poll call
     // or a second invocation of it. Given the reciever queue is
     // already consumed this would cause a deadlock or multithreading issues
-    warn!("wasm-bus::poll failed - poll queue already consumed");
+    warn!("wasm-bus::fork failed - fork queue already consumed");
     return Err(WasiError::Exit(crate::err::ERR_EDEADLK));
+}
+
+// Polls the operating system for any pending callback responses
+unsafe fn wasm_bus_poll(thread: &WasmBusThread) -> Result<(), WasiError> {
+    trace!("wasm-bus::poll");
+
+    let waiter = thread.waker.block_on();
+    wasm_bus_tick(thread);
+    waiter.wait();
+    Ok(())
 }
 
 // Tells the operating system that this program is ready to respond
@@ -390,7 +412,7 @@ unsafe fn wasm_bus_reply_callback(
             .get(&handle)
             .map(|handle| handle.get(&topic))
             .flatten()
-            .map(|handle| WasmBusCallback::new(thread, handle.clone()).unwrap())
+            .map(|handle| WasmBusCallback::new(thread, handle.clone()))
     };
 
     // Grab the sender we will relay this response to
@@ -440,12 +462,7 @@ unsafe fn wasm_bus_call(
         .to_vec();
 
     // Grab references to the ABI that will be used
-    let data_feeder = match WasmBusCallback::new(thread, handle.into()) {
-        Ok(a) => a,
-        Err(err) => {
-            return err.into();
-        }
-    };
+    let data_feeder = WasmBusCallback::new(thread, handle.into());
 
     // Grab all the client callbacks that have been registered
     let client_callbacks: HashMap<String, WasmBusCallback> = {
@@ -456,7 +473,7 @@ unsafe fn wasm_bus_call(
             .map(|a| {
                 a.into_iter()
                     .map(|(topic, handle)| {
-                        (topic, WasmBusCallback::new(thread, handle.into()).unwrap())
+                        (topic, WasmBusCallback::new(thread, handle.into()))
                     })
                     .collect()
             })

@@ -52,22 +52,6 @@ impl WasmBusThreadPool {
             .map(|a| a.clone())
     }
 
-    pub fn wake_all(&self) {
-        if let Ok(threads) = self.threads.try_read() {
-            for thread in threads.values() {
-                let _ = thread.waker.wake();
-            }
-        } else {
-            let threads = self.threads.clone();
-            System::default().fork_shared(move || async move {
-                let threads = threads.read().unwrap();
-                for thread in threads.values() {
-                    let _ = thread.waker.wake();
-                }
-            })
-        }
-    }
-
     pub fn get_or_create(self: &Arc<WasmBusThreadPool>, thread: &WasiThread) -> WasmBusThread {
         // fast path
         let thread_id = thread.thread_id();
@@ -86,6 +70,7 @@ impl WasmBusThreadPool {
 
         let (work_tx, work_rx) = mpsc::channel(crate::common::MAX_MPSC);
         let (polling_tx, polling_rx) = watch::channel(false);
+
         let inner = WasmBusThreadInner {
             invocations: HashMap::default(),
             calls: HashMap::default(),
@@ -98,7 +83,7 @@ impl WasmBusThreadPool {
         };
 
         let ret = WasmBusThread {
-            waker: Arc::new(ThreadWaker::new(work_tx.clone())),
+            waker: Arc::new(ThreadWaker::new()),
             thread_id: thread.thread_id(),
             system: System::default(),
             pool: Arc::clone(self),
@@ -112,7 +97,6 @@ impl WasmBusThreadPool {
             wasm_bus_malloc: LazyInit::new(),
             wasm_bus_start: LazyInit::new(),
             wasm_bus_finish: LazyInit::new(),
-            wasm_bus_wake: LazyInit::new(),
             wasm_bus_error: LazyInit::new(),
             wasm_bus_drop: LazyInit::new(),
         };
@@ -139,7 +123,6 @@ impl WasmBusThreadHandle {
 
 #[derive(Debug, Clone)]
 pub(crate) enum WasmBusThreadWork {
-    Wake,
     Call {
         topic: String,
         parent: Option<CallHandle>,
@@ -201,8 +184,6 @@ pub struct WasmBusThread {
     wasm_bus_start: LazyInit<NativeFunc<(u32, u32, u32, u32, u32, u32), ()>>,
     #[wasmer(export(name = "wasm_bus_finish"))]
     wasm_bus_finish: LazyInit<NativeFunc<(u32, u32, u32), ()>>,
-    #[wasmer(export(name = "wasm_bus_wake"))]
-    wasm_bus_wake: LazyInit<NativeFunc<(), ()>>,
     #[wasmer(export(name = "wasm_bus_error"))]
     wasm_bus_error: LazyInit<NativeFunc<(u32, u32), ()>>,
     #[wasmer(export(name = "wasm_bus_drop"))]
@@ -251,28 +232,8 @@ impl WasmBusThread {
         (rx, handle)
     }
 
-    fn send_internal(&self, mut msg: WasmBusThreadWork) {
-        // If we are already polling then try and send it instantly
-        if *self.polling.borrow() == true {
-            msg = match self.work_tx.try_send(msg) {
-                Ok(()) => {
-                    return;
-                }
-                Err(mpsc::error::TrySendError::Closed(_)) => {
-                    return;
-                }
-                Err(mpsc::error::TrySendError::Full(msg)) => msg,
-            };
-        }
-
-        // Otherwise we need to do it asynchronously
-        let work_tx = self.work_tx.clone();
-        let polling = self.polling.clone();
-        self.system.fork_shared(move || async move {
-            if async_wait_for_poll(polling).await {
-                let _ = work_tx.send(msg).await;
-            }
-        });
+    fn send_internal(&self, msg: WasmBusThreadWork) {
+        self.system.fork_send(&self.work_tx, msg);
     }
 
     /// Issues work on the BUS
@@ -467,30 +428,6 @@ impl WasmBusThread {
                     }
                 }
                 err::ERR_OK
-            }
-            WasmBusThreadWork::Wake => {
-                debug!("polling loop awoken");
-                let native_wake = self.wasm_bus_wake_ref();
-                if native_wake.is_none() {
-                    warn!("wasm-bus::call - ABI does not match");
-                    return err::ERR_PANIC;
-                }
-                let native_wake = native_wake.unwrap();
-
-                crate::bus::syscalls::raw::wasm_bus_tick(self);
-
-                // Attempt to make the call to the WAPM module
-                match native_wake.call() {
-                    Ok(_) => err::ERR_OK,
-                    Err(e) => {
-                        warn!("wasm-bus::call - wake failed - {}", e);
-                        match e.downcast::<WasiError>() {
-                            Ok(WasiError::Exit(code)) => code,
-                            Ok(WasiError::UnknownWasiVersion) => crate::err::ERR_PANIC,
-                            Err(_) => err::ERR_PANIC,
-                        }
-                    }
-                }
             }
         }
     }

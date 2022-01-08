@@ -19,6 +19,10 @@ pub fn poll() {
     panic!("unsupported on this platform");
 }
 
+pub fn fork() {
+    panic!("unsupported on this platform");
+}
+
 pub fn listen(_topic: &str) {
     panic!("unsupported on this platform");
 }
