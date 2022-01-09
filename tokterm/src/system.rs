@@ -263,6 +263,17 @@ impl ConsoleAbi for SysSystem {
             stderr.flush().unwrap();
         }
     }
+    
+    async fn flush(&self) {
+        use raw_tty::GuardMode;
+        let _guard = self.stdio_lock.lock().unwrap();
+        if let Ok(mut stdout) = io::stdout().guard_mode() {
+            stdout.flush().unwrap();
+        }
+        if let Ok(mut stderr) = io::stderr().guard_mode() {
+            stderr.flush().unwrap();
+        }
+    }
 
     /// Writes output to the log
     async fn log(&self, text: String) {

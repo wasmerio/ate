@@ -203,7 +203,7 @@ impl Fd {
         } else {
             return Err(std::io::ErrorKind::BrokenPipe.into());
         }
-        let _ = rx.recv().await;
+        rx.recv().await;
         Ok(())
     }
 
@@ -238,6 +238,7 @@ impl Fd {
         if let Some(sender) = self.sender.as_mut() {
             let buf_len = msg.len();
 
+            let mut wait_time = 0u64;
             let mut msg = Some(msg);
             loop {
                 // Try and send the data
@@ -268,10 +269,52 @@ impl Fd {
                 if self.closed.load(Ordering::Acquire) {
                     return Ok(0usize);
                 }
-                std::thread::park_timeout(std::time::Duration::from_millis(5));
+                
+                // Linearly increasing wait time
+                wait_time += 1;
+                let wait_time = u64::min(wait_time / 10, 20);
+                std::thread::park_timeout(std::time::Duration::from_millis(wait_time));
             }
         } else {
             return Ok(0usize);
+        }
+    }
+
+    fn blocking_recv<T>(&mut self, receiver: &mut mpsc::Receiver<T>) -> io::Result<Option<T>> {
+        let mut wait_time = 0u64;
+        loop {
+            // Try and receive the data
+            match receiver.try_recv() {
+                Ok(a) => {
+                    return Ok(Some(a));
+                }
+                Err(TryRecvError::Empty) => {
+                }
+                Err(TryRecvError::Disconnected) => {
+                    return Ok(None);
+                }
+            }
+
+            // If we are none blocking then we are done
+            if self.blocking.load(Ordering::Relaxed) == false {
+                return Err(std::io::ErrorKind::WouldBlock.into());
+            }
+
+            // Check for a forced exit
+            let forced_exit = self.forced_exit.load(Ordering::Acquire);
+            if forced_exit != 0 {
+                return Err(std::io::ErrorKind::Interrupted.into());
+            }
+
+            // Maybe we are closed - if not then yield and try again
+            if self.closed.load(Ordering::Acquire) {
+                return Ok(None);
+            }
+
+            // Linearly increasing wait time
+            wait_time += 1;
+            let wait_time = u64::min(wait_time / 10, 20);
+            std::thread::park_timeout(std::time::Duration::from_millis(wait_time));
         }
     }
 }
@@ -287,6 +330,9 @@ impl Write for Fd {
     }
 
     fn flush(&mut self) -> io::Result<()> {
+        let (mut rx, msg) = FdMsg::flush();
+        self.blocking_send(msg)?;
+        self.blocking_recv(&mut rx)?;
         Ok(())
     }
 }
@@ -294,6 +340,7 @@ impl Write for Fd {
 impl Read for Fd {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         if let Some(receiver) = self.receiver.as_mut() {
+            let mut wait_time = 0u64;
             loop {
                 // Make an attempt to read the data
                 if let Ok(mut receiver) = receiver.try_lock() {
@@ -340,7 +387,11 @@ impl Read for Fd {
                     std::thread::yield_now();
                     return Ok(0usize);
                 }
-                std::thread::park_timeout(std::time::Duration::from_millis(5));
+                
+                // Linearly increasing wait time
+                wait_time += 1;
+                let wait_time = u64::min(wait_time / 10, 20);
+                std::thread::park_timeout(std::time::Duration::from_millis(wait_time));
             }
         } else {
             return Ok(0usize);

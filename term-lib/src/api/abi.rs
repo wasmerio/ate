@@ -37,6 +37,9 @@ where
     /// Writes output to the console
     async fn stderr(&self, data: Vec<u8>);
 
+    /// Flushes the output to the console
+    async fn flush(&self);
+
     /// Writes output to the log
     async fn log(&self, text: String);
 

@@ -21,7 +21,7 @@ pub struct ConsoleHandle {
 
 #[async_trait]
 impl ConsoleAbi for ConsoleHandle {
-    /// Writes output to the console
+    /// Writes output to the SSH pipe
     async fn stdout(&self, data: Vec<u8>) {
         let channel = self.channel;
         let data = CryptoVec::from_slice(&data[..]);
@@ -29,12 +29,19 @@ impl ConsoleAbi for ConsoleHandle {
         let _ = handle.data(channel, data).await;
     }
 
-    /// Writes output to the console
+    /// Writes output to the SSH pipe
     async fn stderr(&self, data: Vec<u8>) {
         let channel = self.channel;
         let data = CryptoVec::from_slice(&data[..]);
         let mut handle = self.handle.clone();
         let _ = handle.extended_data(channel, 1, data).await;
+    }
+    
+    /// Flushes the data down the SSH pipe
+    async fn flush(&self) {
+        let channel = self.channel;
+        let mut handle = self.handle.clone();
+        let _ = handle.flush(channel).await;
     }
 
     /// Writes output to the log

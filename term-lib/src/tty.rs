@@ -443,4 +443,8 @@ impl Tty {
     pub async fn draw(&mut self, data: &str) {
         self.stdout.draw(data).await;
     }
+
+    pub async fn flush_async(&mut self) -> std::io::Result<()> {
+        self.stdout.flush_async().await
+    }
 }
