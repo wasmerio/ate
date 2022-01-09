@@ -40,6 +40,9 @@ where
     /// Writes output to the log
     async fn log(&self, text: String);
 
+    /// Writes output to the log
+    async fn flush(&self);
+
     /// Gets the number of columns and rows in the terminal
     async fn console_rect(&self) -> ConsoleRect;
 

@@ -22,7 +22,7 @@ tokio = { version = "^1", features = [ "rt", "io-util", "macros", "sync", "time"
 tracing = { version = "^0.1", features = [ "log", "release_max_level_debug" ] }
 tracing-futures = { version = "^0.2" }
 tracing-subscriber = { version = "^0.2" }
-thrussh = { version = "^0.33" }
+thrussh = { version = "^0.33", git = "https://github.com/john-sharratt/thrussh.git" }
 thrussh-keys = { version = "^0.21" }
 url = "^2"
 error-chain = { version = "^0.12", default_features = false }
