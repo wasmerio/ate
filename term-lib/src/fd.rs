@@ -274,6 +274,39 @@ impl Fd {
             return Ok(0usize);
         }
     }
+
+    fn blocking_recv<T>(&mut self, receiver: &mut mpsc::Receiver<T>) -> io::Result<Option<T>> {
+        loop {
+            // Try and receive the data
+            match receiver.try_recv() {
+                Ok(a) => {
+                    return Ok(Some(a));
+                }
+                Err(TryRecvError::Empty) => {
+                }
+                Err(TryRecvError::Disconnected) => {
+                    return Ok(None);
+                }
+            }
+
+            // If we are none blocking then we are done
+            if self.blocking.load(Ordering::Relaxed) == false {
+                return Err(std::io::ErrorKind::WouldBlock.into());
+            }
+
+            // Check for a forced exit
+            let forced_exit = self.forced_exit.load(Ordering::Acquire);
+            if forced_exit != 0 {
+                return Err(std::io::ErrorKind::Interrupted.into());
+            }
+
+            // Maybe we are closed - if not then yield and try again
+            if self.closed.load(Ordering::Acquire) {
+                return Ok(None);
+            }
+            std::thread::park_timeout(std::time::Duration::from_millis(5));
+        }
+    }
 }
 
 impl Seek for Fd {
@@ -288,8 +321,9 @@ impl Write for Fd {
 
     fn flush(&mut self) -> io::Result<()> {
         let (tx, mut rx) = mpsc::channel(1);
-        self.blocking_send(FdMsg::Flush { tx });
-        rx.blocking_recv();
+        if self.blocking_send(FdMsg::Flush { tx }).is_ok() {
+            let _ = self.blocking_recv(&mut rx)?;
+        }
         Ok(())
     }
 }
