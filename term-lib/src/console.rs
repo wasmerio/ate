@@ -388,9 +388,9 @@ impl Console {
                 drop(process);
 
                 // Flush all the pipes
-                stdout.flush_async().await;
-                stderr.flush_async().await;
-                tty.flush_async().await;
+                let _ = stdout.flush_async().await;
+                let _ = stderr.flush_async().await;
+                let _ = tty.flush_async().await;
 
                 // Switch back to console mode
                 tty.reset_line().await;
