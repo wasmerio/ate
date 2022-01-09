@@ -378,8 +378,8 @@ impl Console {
         let exec = self.exec.clone();
         let system = System::default();
         let state = self.state.clone();
-        let stdout = ctx.stdout.clone();
-        let stderr = ctx.stderr.clone();
+        let mut stdout = ctx.stdout.clone();
+        let mut stderr = ctx.stderr.clone();
         system.fork_dedicated(move || {
             let mut process = exec.eval(ctx);
             async move {
