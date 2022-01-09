@@ -73,7 +73,7 @@ pub(super) fn mount(
 
         let factory = SubProcessFactory::new(factory);
         let sub_process = match factory
-            .get_or_create(wapm.as_str(), StdioMode::Inherit, StdioMode::Log)
+            .get_or_create(wapm.as_str(), StdioMode::Log, StdioMode::Log)
             .await
         {
             Ok(a) => a,
