@@ -192,6 +192,9 @@ impl ConsoleAbi for WebConsole {
         console::log(text.as_str());
     }
 
+    async fn flush(&self) {
+    }
+
     async fn console_rect(&self) -> ConsoleRect {
         let (ret_tx, mut ret_rx) = mpsc::channel(1);
         let _ = self
