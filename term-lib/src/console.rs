@@ -378,6 +378,8 @@ impl Console {
         let exec = self.exec.clone();
         let system = System::default();
         let state = self.state.clone();
+        let stdout = ctx.stdout.clone();
+        let stderr = ctx.stderr.clone();
         system.fork_dedicated(move || {
             let mut process = exec.eval(ctx);
             async move {
@@ -386,8 +388,8 @@ impl Console {
                 drop(process);
 
                 // Flush all the pipes
-                ctx.stdout.flush_async().await;
-                ctx.stderr.flush_async().await;
+                stdout.flush_async().await;
+                stderr.flush_async().await;
                 tty.flush_async().await;
 
                 // Switch back to console mode
