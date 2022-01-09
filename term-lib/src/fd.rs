@@ -287,7 +287,7 @@ impl Write for Fd {
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        let (tx, rx) = mpsc::channel(1);
+        let (tx, mut rx) = mpsc::channel(1);
         self.blocking_send(FdMsg::Flush { tx });
         rx.blocking_recv();
         Ok(())
