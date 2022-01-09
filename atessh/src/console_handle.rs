@@ -34,7 +34,8 @@ impl ConsoleAbi for ConsoleHandle {
         let channel = self.channel;
         let data = CryptoVec::from_slice(&data[..]);
         let mut handle = self.handle.clone();
-        let _ = handle.extended_data(channel, 1, data).await;
+        //let _ = handle.extended_data(channel, 1, data).await;
+        let _ = handle.data(channel, data).await;
     }
 
     /// Writes output to the log
