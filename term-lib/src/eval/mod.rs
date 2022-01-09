@@ -22,6 +22,7 @@ pub use process::*;
 use std::sync::Arc;
 use std::sync::Mutex;
 use tokio::sync::mpsc;
+use tokio::sync::watch;
 use tokio::sync::oneshot;
 use tokio::sync::RwLock;
 #[allow(unused_imports, dead_code)]
@@ -44,15 +45,28 @@ use super::reactor::*;
 use super::state::*;
 use super::stdio::*;
 
-pub enum EvalPlan {
+pub enum EvalStatus {
     Executed {
         code: u32,
-        ctx: EvalContext,
         show_result: bool,
     },
     MoreInput,
     Invalid,
     InternalError,
+}
+
+pub struct EvalResult {
+    pub ctx: EvalContext,
+    pub status: EvalStatus,
+}
+
+impl EvalResult {
+    pub fn new(ctx: EvalContext, status: EvalStatus) -> EvalResult {
+        EvalResult {
+            ctx,
+            status,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -102,18 +116,16 @@ pub struct EvalContext {
     pub reactor: Arc<RwLock<Reactor>>,
     pub chroot: bool,
     pub working_dir: String,
-    pub new_pwd: Option<String>,
     pub pre_open: Vec<String>,
     pub input: String,
     pub stdio: Stdio,
     pub root: UnionFileSystem,
-    pub new_mounts: Vec<MountPoint>,
     pub exec_factory: EvalFactory,
     pub job: Job,
     pub compiler: Compiler,
 }
 
-pub(crate) fn eval(mut ctx: EvalContext) -> mpsc::Receiver<EvalPlan> {
+pub(crate) fn eval(mut ctx: EvalContext) -> mpsc::Receiver<EvalResult> {
     let system = ctx.system;
     let builtins = Builtins::new();
     let parser = grammar::programParser::new();
@@ -126,14 +138,14 @@ pub(crate) fn eval(mut ctx: EvalContext) -> mpsc::Receiver<EvalPlan> {
                 let mut show_result = false;
                 let mut ret = 0;
                 for cc in program.commands.complete_commands {
-                    ret = complete_command(&mut ctx, &builtins, &cc, &mut show_result).await;
-                    ctx.last_return = ret;
+                    let (c, r) = complete_command(ctx, &builtins, &cc, &mut show_result).await;
+                    ctx = c;
+                    ret = r;
                 }
-                tx.send(EvalPlan::Executed {
+                tx.send(EvalResult::new(ctx, EvalStatus::Executed {
                     code: ret,
-                    ctx,
                     show_result,
-                })
+                }))
                 .await;
             }
             Err(e) => match e {
@@ -141,16 +153,16 @@ pub(crate) fn eval(mut ctx: EvalContext) -> mpsc::Receiver<EvalPlan> {
                     token: _,
                     expected: _,
                 } => {
-                    tx.send(EvalPlan::MoreInput).await;
+                    tx.send(EvalResult::new(ctx, EvalStatus::MoreInput)).await;
                 }
                 grammar::ParseError::UnrecognizedEOF {
                     location: _,
                     expected: _,
                 } => {
-                    tx.send(EvalPlan::MoreInput).await;
+                    tx.send(EvalResult::new(ctx, EvalStatus::MoreInput)).await;
                 }
                 _ => {
-                    tx.send(EvalPlan::Invalid).await;
+                    tx.send(EvalResult::new(ctx, EvalStatus::Invalid)).await;
                 }
             },
         }

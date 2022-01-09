@@ -328,19 +328,11 @@ impl Console {
         }
 
         let reactor = self.reactor.clone();
-        let (env, path, root) = {
-            let mut state = self.state.lock().unwrap();
-            state.unfinished_line = false;
-            let env = state.env.clone();
-            let path = state.path.clone();
-            let root = state.rootfs.clone();
-            (env, path, root)
-        };
 
         // Generate the job and make it the active version
         let job = {
             let mut reactor = reactor.write().await;
-            let job = match reactor.generate_job(path.clone(), env.clone(), root.clone()) {
+            let job = match reactor.generate_job() {
                 Ok((_, job)) => job,
                 Err(_) => {
                     drop(reactor);
@@ -362,20 +354,23 @@ impl Console {
             .await;
 
         // Spawn the process and attach it to the job
-        let ctx = SpawnContext::new(
-            self.abi.clone(),
-            cmd.clone(),
-            env,
-            job.clone(),
-            job.stdin.clone(),
-            self.stdout.fd.clone(),
-            self.stderr.clone(),
-            false,
-            job.working_dir.clone(),
-            Vec::new(),
-            root,
-            self.compiler,
-        );
+        let ctx = {
+            let state = self.state.lock().unwrap();
+            SpawnContext::new(
+                self.abi.clone(),
+                cmd.clone(),
+                state.env.clone(),
+                job.clone(),
+                job.stdin.clone(),
+                self.stdout.fd.clone(),
+                self.stderr.clone(),
+                false,
+                state.path.clone(),
+                Vec::new(),
+                state.rootfs.clone(),
+                self.compiler,
+            )
+        };
 
         // Spawn a background thread that will process the result
         // of the process that we just started
@@ -404,54 +399,58 @@ impl Console {
 
                 // Process the result
                 let mut multiline_input = false;
-                match rx {
-                    Some(EvalPlan::Executed {
-                        code,
-                        mut ctx,
-                        show_result,
-                    }) => {
-                        debug!("eval executed (code={})", code);
-                        let should_line_feed = {
-                            let mut state = state.lock().unwrap();
-                            state.rootfs.mounts.append(&mut ctx.new_mounts);
-                            state.last_return = code;
-                            if let Some(path) = ctx.new_pwd {
-                                state.path = path;
+                if let Some(rx) = rx {
+                    match rx.status {
+                        EvalStatus::Executed {
+                            code,
+                            show_result,
+                        } => {
+                            debug!("eval executed (code={})", code);
+                            let should_line_feed = {
+                                let state = state.lock().unwrap();
+                                state.unfinished_line
+                            };
+
+                            if record_history {
+                                tty.record_history(cmd).await;
                             }
-                            state.env = ctx.env;
-                            state.unfinished_line
-                        };
 
-                        if record_history {
-                            tty.record_history(cmd).await;
+                            if code != 0 && show_result {
+                                let mut chars = String::new();
+                                chars += err::exit_code_to_message(code);
+                                chars += "\r\n";
+                                tty.draw(chars.as_str()).await;
+                            } else if should_line_feed {
+                                tty.draw("\r\n").await;
+                            }
                         }
+                        EvalStatus::InternalError => {
+                            debug!("eval internal error");
+                            tty.draw("term: internal error\r\n").await;
+                        }
+                        EvalStatus::MoreInput => {
+                            debug!("eval more input");
+                            multiline_input = true;
+                            tty.add(cmd.as_str()).await;
+                        }
+                        EvalStatus::Invalid => {
+                            debug!("eval invalid");
+                            tty.draw("term: invalid command\r\n").await;
+                        }
+                    }
 
-                        if code != 0 && show_result {
-                            let mut chars = String::new();
-                            chars += err::exit_code_to_message(code);
-                            chars += "\r\n";
-                            tty.draw(chars.as_str()).await;
-                        } else if should_line_feed {
-                            tty.draw("\r\n").await;
-                        }
+                    // Process any changes to the global state
+                    {
+                        let ctx: EvalContext = rx.ctx;
+                        let mut state = state.lock().unwrap();
+                        state.rootfs = ctx.root.sanitize();
+                        state.env = ctx.env;
+                        state.path = ctx.working_dir;
+                        state.last_return = ctx.last_return;
                     }
-                    Some(EvalPlan::InternalError) => {
-                        debug!("eval internal error");
-                        tty.draw("term: internal error\r\n").await;
-                    }
-                    Some(EvalPlan::MoreInput) => {
-                        debug!("eval more input");
-                        multiline_input = true;
-                        tty.add(cmd.as_str()).await;
-                    }
-                    Some(EvalPlan::Invalid) => {
-                        debug!("eval invalid");
-                        tty.draw("term: invalid command\r\n").await;
-                    }
-                    None => {
-                        debug!("eval recv erro");
-                        tty.draw(format!("term: command failed\r\n").as_str()).await;
-                    }
+                } else {
+                    debug!("eval recv erro");
+                    tty.draw(format!("term: command failed\r\n").as_str()).await;
                 }
 
                 // Now draw the prompt ready for the next

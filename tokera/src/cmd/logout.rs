@@ -1,4 +1,6 @@
 use ate::error::AteError;
+#[cfg(target_os = "wasi")]
+use wasm_bus_process::prelude::*;
 
 use crate::opt::*;
 
@@ -14,6 +16,20 @@ pub async fn main_opts_logout(
         let _ = std::fs::remove_file(old);
     }
     let _ = std::fs::remove_file(token_path.clone());
+
+    // If we are in WASM mode and there is a logout script then run it
+    #[cfg(target_os = "wasi")]
+    if std::path::Path::new("/etc/logout.sh").exists() == true {
+        if std::path::Path::new("/usr/etc/logout.sh").exists() == true {
+            Command::new(format!("source /usr/etc/logout.sh").as_str())
+                .execute()
+                .await?;
+        }
+
+        Command::new(format!("source /etc/logout.sh").as_str())
+            .execute()
+            .await?;
+    }
 
     Ok(())
 }

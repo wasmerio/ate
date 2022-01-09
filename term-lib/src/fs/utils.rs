@@ -10,7 +10,7 @@ static STATIC_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/static");
 
 pub fn create_root_fs() -> UnionFileSystem {
     let mut mounts = UnionFileSystem::new();
-    mounts.mount("root", Path::new("/"), Box::new(TmpFileSystem::default()));
+    mounts.mount("root", "/", false, Box::new(TmpFileSystem::default()));
     append_static_dir(&mut mounts, &STATIC_DIR);
     mounts
 }

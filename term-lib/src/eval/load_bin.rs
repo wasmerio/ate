@@ -17,7 +17,7 @@ use crate::stdio::*;
 use crate::wasmer_vfs::FileSystem;
 
 pub async fn load_bin(
-    ctx: &mut EvalContext,
+    ctx: &EvalContext,
     name: &String,
     stdio: &mut Stdio,
 ) -> Option<BinaryPackage> {
@@ -26,42 +26,65 @@ pub async fn load_bin(
     let mut mappings = Vec::new();
     let mut already = HashSet::<String>::default();
     let mut name = name.clone();
-    debug!("scanning for {}", format!("/bin/{}.alias", name));
-    while let Ok(mut file) = AsyncifyFileSystem::new(ctx.root.clone())
-        .new_open_options()
-        .await
-        .read(true)
-        .open(format!("/bin/{}.alias", name))
-        .await
+
+    // Enter a loop that will resolve aliases into real files
+    let mut alias_loop = true;
+    while alias_loop
     {
-        if already.contains(&name) {
-            break;
+        // Build the list of alias paths
+        let mut alias_checks = vec![
+            format!("/bin/{}.alias", name),
+            format!("/usr/bin/{}.alias", name)
+        ];
+        if name.starts_with("/") {
+            alias_checks.push(format!("{}.alias", name));
+        } else if name.starts_with("./") && name.len() > 2 {
+            alias_checks.push(format!("{}{}.alias", ctx.working_dir, &name[2..]));
         }
-        already.insert(name.clone());
-
-        if let Ok(d) = file.read_to_end().await {
-            match serde_yaml::from_slice::<AliasConfig>(&d[..]) {
-                Ok(mut next) => {
-                    if next.chroot {
-                        chroot = true;
-                    }
-                    mappings.extend(next.mappings.into_iter());
-
-                    debug!("binary alias '{}' found for {}", next.run, name);
-                    name = next.run;
-                }
-                Err(err) => {
-                    debug!("alias file corrupt: /bin/{}.alias - {}", name, err);
+        
+        // If an alias file exists then process it...otherwise break from the loop
+        alias_loop = false;
+        for alias_check in alias_checks {
+            debug!("scanning for {}", alias_check);
+            if let Ok(mut file) = AsyncifyFileSystem::new(ctx.root.clone())
+                .new_open_options()
+                .await
+                .read(true)
+                .open(alias_check)
+                .await
+            {
+                if already.contains(&name) {
                     break;
                 }
+                already.insert(name.clone());
+                
+                if let Ok(d) = file.read_to_end().await {
+                    match serde_yaml::from_slice::<AliasConfig>(&d[..]) {
+                        Ok(mut next) => {
+                            if next.chroot {
+                                chroot = true;
+                            }
+                            mappings.extend(next.mappings.into_iter());
+
+                            debug!("binary alias '{}' found for {}", next.run, name);
+                            name = next.run;
+                            alias_loop = true;
+                            break;
+                        }
+                        Err(err) => {
+                            debug!("alias file corrupt: /bin/{}.alias - {}", name, err);
+                        }
+                    }
+                }
             }
-        } else {
-            break;
         }
     }
 
     // Check if there is a file in the /bin and /wapm_packages/.bin folder
-    let mut file_checks = vec![format!("/bin/{}", name)];
+    let mut file_checks = vec![
+        format!("/bin/{}", name),
+        format!("/usr/bin/{}", name)
+    ];
     if name.starts_with("/") {
         file_checks.push(name.clone());
     } else if name.starts_with("./") && name.len() > 2 {

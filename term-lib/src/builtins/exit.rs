@@ -1,19 +1,17 @@
 use std::future::Future;
 use std::pin::Pin;
 
-use super::CommandResult;
 use crate::eval::EvalContext;
 use crate::eval::ExecResponse;
 use crate::stdio::*;
 
 pub(super) fn exit(
     _args: &[String],
-    ctx: &mut EvalContext,
+    ctx: EvalContext,
     _stdio: Stdio,
-) -> Pin<Box<dyn Future<Output = CommandResult>>> {
-    let abi = ctx.abi.clone();
+) -> Pin<Box<dyn Future<Output = ExecResponse>>> {
     Box::pin(async move {
-        abi.exit().await;
-        ExecResponse::Immediate(0).into()
+        ctx.abi.exit().await;
+        ExecResponse::Immediate(ctx, 0)
     })
 }

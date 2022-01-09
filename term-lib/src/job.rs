@@ -22,9 +22,6 @@ pub struct Job {
     pub stdin_tx: mpsc::Sender<FdMsg>,
     pub job_list_tx: mpsc::Sender<Pid>,
     pub job_list_rx: Arc<Mutex<mpsc::Receiver<Pid>>>,
-    pub working_dir: String,
-    pub env: Arc<Environment>,
-    pub root: UnionFileSystem,
 }
 
 impl Clone for Job {
@@ -35,15 +32,12 @@ impl Clone for Job {
             stdin_tx: self.stdin_tx.clone(),
             job_list_tx: self.job_list_tx.clone(),
             job_list_rx: self.job_list_rx.clone(),
-            working_dir: self.working_dir.clone(),
-            env: self.env.clone(),
-            root: self.root.clone(),
         }
     }
 }
 
 impl Job {
-    pub fn new(id: u32, working_dir: String, env: Environment, root: UnionFileSystem) -> Job {
+    pub fn new(id: u32) -> Job {
         let (stdin, stdin_tx) = pipe_in(ReceiverMode::Stream, FdFlag::Stdin(true));
         let (job_list_tx, job_list_rx) = mpsc::channel(MAX_MPSC);
         Job {
@@ -52,9 +46,6 @@ impl Job {
             stdin_tx,
             job_list_tx,
             job_list_rx: Arc::new(Mutex::new(job_list_rx)),
-            working_dir,
-            env: Arc::new(env),
-            root,
         }
     }
 

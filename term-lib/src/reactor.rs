@@ -89,16 +89,13 @@ impl Reactor {
 
     pub fn generate_job(
         &mut self,
-        working_dir: String,
-        env: Environment,
-        root: UnionFileSystem,
     ) -> Result<(u32, Job), u32> {
         let mut job_seed = 1;
         for _ in 0..10000 {
             let id = job_seed;
             job_seed += 1;
             if self.job.contains_key(&id) == false {
-                let job = Job::new(id, working_dir, env, root);
+                let job = Job::new(id);
                 self.job.insert(id, job.clone());
                 return Ok((id, job));
             }

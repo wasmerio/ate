@@ -110,6 +110,14 @@ impl Tty {
  Example: mount tok /www tokera.com/wasm
 "#;
 
+   pub const UMOUNT_USAGE: &'static str = r#"Usage:
+umount <mountpoint>
+
+<mounpoint>: Location where the file-system to be unmounted is currently mounted
+
+Example: umount /www
+"#;
+
     pub const ABOUT: &'static str = include_str!("txt/about.md");
     pub const ABOUT_TOKERA: &'static str = include_str!("txt/about_tokera.md");
     pub const ABOUT_WASMER: &'static str = include_str!("txt/about_wasmer.md");

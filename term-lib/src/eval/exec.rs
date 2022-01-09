@@ -49,12 +49,13 @@ use crate::wasmer_wasi::{Stdout, WasiError, WasiState};
 use {crate::wasmer::Universal, crate::wasmer_compiler::CompilerConfig};
 
 pub enum ExecResponse {
-    Immediate(u32),
-    Process(Process, AsyncResult<u32>),
+    Immediate(EvalContext, u32),
+    OrphanedImmediate(u32),
+    Process(Process, AsyncResult<(EvalContext, u32)>),
 }
 
 pub async fn exec(
-    ctx: &mut EvalContext,
+    ctx: EvalContext,
     builtins: &Builtins,
     cmd: &String,
     args: &Vec<String>,
@@ -66,16 +67,7 @@ pub async fn exec(
     // If there is a built in then use it
     if let Some(builtin) = builtins.get(cmd) {
         *show_result = true;
-        let mut ret = builtin(&args, ctx, stdio).await;
-        if let Some(mut new_ctx) = ret.ctx {
-            ctx.working_dir = new_ctx.working_dir;
-            ctx.new_pwd = new_ctx.new_pwd;
-            ctx.new_mounts.append(&mut new_ctx.new_mounts);
-        }
-        return Ok(match ret.result {
-            Ok(a) => a,
-            Err(err) => ExecResponse::Immediate(err),
-        });
+        return Ok(builtin(&args, ctx, stdio).await);
     }
 
     let (process, process_result, _) =
@@ -85,14 +77,14 @@ pub async fn exec(
 }
 
 pub async fn exec_process(
-    ctx: &mut EvalContext,
+    mut ctx: EvalContext,
     cmd: &String,
     args: &Vec<String>,
     env_vars: &Vec<String>,
     show_result: &mut bool,
     mut stdio: Stdio,
     redirect: &Vec<Redirect>,
-) -> Result<(Process, AsyncResult<u32>, Arc<WasmBusThreadPool>), u32> {
+) -> Result<(Process, AsyncResult<(EvalContext, u32)>, Arc<WasmBusThreadPool>), u32> {
     // Make an error message function
     let mut early_stderr = stdio.stderr.clone();
     let on_early_exit = |msg: Option<String>, err: u32| async move {
@@ -107,7 +99,7 @@ pub async fn exec_process(
     // file system will also change)
     let mut preopen = ctx.pre_open.clone();
     let mut chroot = ctx.chroot;
-    let (data_hash, data, fs_private) = match load_bin(ctx, cmd, &mut stdio).await {
+    let (data_hash, data, fs_private) = match load_bin(&ctx, cmd, &mut stdio).await {
         Some(a) => {
             if a.chroot {
                 chroot = true;
@@ -130,15 +122,15 @@ pub async fn exec_process(
         let root = ctx.root.clone();
         let stdio = stdio.clone();
 
-        let mut union = UnionFileSystem::new();
-        union.mount("root", Path::new("/"), Box::new(root));
+        let mut union = root.clone();
         union.mount(
             "proc",
-            Path::new("/dev"),
+            "/dev",
+            true,
             Box::new(ProcFileSystem::new(stdio)),
         );
-        union.mount("tmp", Path::new("/tmp"), Box::new(TmpFileSystem::default()));
-        union.mount("private", Path::new("/.private"), Box::new(fs_private));
+        union.mount("tmp", "/tmp", true, Box::new(TmpFileSystem::default()));
+        union.mount("private", "/.private", true, Box::new(fs_private));
 
         (AsyncifyFileSystem::new(union.clone()), union)
     };
@@ -243,23 +235,37 @@ pub async fn exec_process(
                     match err {
                         FsError::EntityNotFound => ERR_ENOENT,
                         _ => ERR_EIO,
-                    },
+                    }
                 )
                 .await;
             }
         }
     }
 
+    // Extract the bits we need from the eval context
+    // as we will move it soon
+    let sys = ctx.system;
+    let mut stderr = ctx.stdio.stderr.clone();
+    let bins = ctx.bins.clone();
+    let compiler = ctx.compiler;
+    let reactor = ctx.reactor.clone();
+    let chroot = if chroot {
+        Some(ctx.working_dir.clone())
+    } else {
+        None
+    };
+
     // Create the process factory that used by this process to create sub-processes
     let sub_process_factory = ProcessExecFactory::new(
         ctx.abi.clone(),
         ctx.reactor.clone(),
-        ctx.compiler,
+        compiler,
         ctx.exec_factory.clone(),
         stdio.stdin.downgrade(),
         stdio.stdout.downgrade(),
         stdio.stderr.downgrade(),
         stdio.log.downgrade(),
+        ctx
     );
 
     // The BUS pool is what gives this WASM process its syscall and operation system
@@ -274,232 +280,223 @@ pub async fn exec_process(
     let (checkpoint_tx, mut checkpoint_rx) = mpsc::channel(1);
 
     // Spawn the process on a background thread
-    let mut stderr = ctx.stdio.stderr.clone();
-    #[cfg(feature = "cached_compiling")]
-    let bins = ctx.bins.clone();
-    let reactor = ctx.reactor.clone();
-    let compiler = ctx.compiler;
     let cmd = cmd.clone();
     let args = args.clone();
-    let chroot = if chroot {
-        Some(ctx.working_dir.clone())
-    } else {
-        None
-    };
     let process_result = {
         let forced_exit = Arc::clone(&forced_exit);
-        ctx.system
-            .spawn_stateful(move |mut thread_local| async move {
-                let mut thread_local = thread_local.borrow_mut();
+        sys.spawn_stateful(move |mut thread_local| async move {
+            let mut thread_local = thread_local.borrow_mut();
 
-                // TODO: This caching of the modules was disabled as there is a bug within
-                //       wasmer Module and JsValue that causes a panic in certain race conditions
-                // Load or compile the module (they are cached in therad local storage)
-                //let mut module = thread_local.modules.get_mut(&data_hash);
-                #[cfg(not(feature = "cached_compiling"))]
-                let mut module = None;
+            // TODO: This caching of the modules was disabled as there is a bug within
+            //       wasmer Module and JsValue that causes a panic in certain race conditions
+            // Load or compile the module (they are cached in therad local storage)
+            //let mut module = thread_local.modules.get_mut(&data_hash);
+            #[cfg(not(feature = "cached_compiling"))]
+            let mut module = None;
 
-                if module.is_none() {
-                    if stderr.is_tty() {
-                        let _ = stderr.write("Compiling...".as_bytes()).await;
-                    }
-
-                    // Choose the right compiler
-                    let store = match compiler {
-                        #[cfg(feature = "cranelift")]
-                        Compiler::Cranelift => {
-                            let compiler = Cranelift::default();
-                            Store::new(&Universal::new(compiler).engine())
-                        }
-                        #[cfg(feature = "llvm")]
-                        Compiler::LLVM => {
-                            let compiler = LLVM::default();
-                            Store::new(&Universal::new(compiler).engine())
-                        }
-                        #[cfg(feature = "singlepass")]
-                        Compiler::Singlepass => {
-                            let compiler = Singlepass::default();
-                            Store::new(&Universal::new(compiler).engine())
-                        }
-                        _ => Store::default(),
-                    };
-
-                    // Cache miss - compile the module
-                    info!("compiling {}", cmd);
-
-                    let store = Store::default();
-                    let compiled_module = match Module::new(&store, &data[..]) {
-                        Ok(a) => a,
-                        Err(err) => {
-                            if stderr.is_tty() {
-                                stderr.write_clear_line().await;
-                            }
-                            let _ = stderr
-                                .write(format!("compile-error: {}\n", err).as_bytes())
-                                .await;
-                            return ERR_ENOEXEC;
-                        }
-                    };
-                    if stderr.is_tty() {
-                        stderr.write_clear_line().await;
-                    }
-                    info!(
-                        "compiled {}",
-                        compiled_module.name().unwrap_or_else(|| cmd.as_str())
-                    );
-
-                    #[cfg(feature = "cached_compiling")]
-                    bins.set_compiled_module(data_hash.clone(), compiled_module.clone())
-                        .await;
-
-                    thread_local
-                        .modules
-                        .insert(data_hash.clone(), compiled_module);
-
-                    module = thread_local.modules.get(&data_hash).map(|m| m.clone());
-                }
-                drop(thread_local);
-                let mut module = module.unwrap();
-
-                // Build the list of arguments
-                let args = args.iter().skip(1).map(|a| a.as_str()).collect::<Vec<_>>();
-
-                // Create the `WasiEnv`.
-                let mut wasi_env = WasiState::new(cmd.as_str());
-                let mut wasi_env = wasi_env
-                    .args(&args)
-                    .stdin(Box::new(stdio.stdin.clone()))
-                    .stdout(Box::new(stdio.stdout.clone()))
-                    .stderr(Box::new(stdio.stderr.clone()));
-
-                // Add the extra pre-opens
-                if preopen.len() > 0 {
-                    for pre_open in preopen {
-                        let res = if let Some((alias, po_dir)) = pre_open.split_once(":") {
-                            wasi_env.map_dir(alias, po_dir).is_ok()
-                        } else {
-                            wasi_env.preopen_dir(Path::new(pre_open.as_str())).is_ok()
-                        };
-                        if res == false {
-                            if stderr.is_tty() {
-                                stderr.write_clear_line().await;
-                            }
-                            let _ = stderr
-                                .write(format!("pre-open error (path={})\n", pre_open).as_bytes())
-                                .await;
-                            return ERR_ENOEXEC;
-                        }
-                    }
-
-                // Or we default and open the current directory
-                } else if let Some(chroot) = chroot {
-                    wasi_env
-                        .preopen_dir(Path::new(chroot.as_str()))
-                        .unwrap()
-                        .map_dir(".", Path::new(chroot.as_str()));
-                } else {
-                    wasi_env.preopen_dir(Path::new("/")).unwrap();
+            if module.is_none() {
+                if stderr.is_tty() {
+                    let _ = stderr.write("Compiling...".as_bytes()).await;
                 }
 
-                // Add the tick callback that will invoke the WASM bus background
-                // operations on the current thread
-                {
-                    let bus_pool = Arc::clone(&bus_thread_pool);
-                    wasi_env.on_yield(move |thread| {
-                        let forced_exit = forced_exit.load(Ordering::Acquire);
-                        if forced_exit != 0 {
-                            return Err(WasiError::Exit(forced_exit));
-                        }
-                        Ok(())
-                    });
-                }
+                // Choose the right compiler
+                let store = match compiler {
+                    #[cfg(feature = "cranelift")]
+                    Compiler::Cranelift => {
+                        let compiler = Cranelift::default();
+                        Store::new(&Universal::new(compiler).engine())
+                    }
+                    #[cfg(feature = "llvm")]
+                    Compiler::LLVM => {
+                        let compiler = LLVM::default();
+                        Store::new(&Universal::new(compiler).engine())
+                    }
+                    #[cfg(feature = "singlepass")]
+                    Compiler::Singlepass => {
+                        let compiler = Singlepass::default();
+                        Store::new(&Universal::new(compiler).engine())
+                    }
+                    _ => Store::default(),
+                };
 
-                // Finish off the WasiEnv
-                let mut wasi_env = match wasi_env.set_fs(Box::new(union)).finalize() {
+                // Cache miss - compile the module
+                info!("compiling {}", cmd);
+
+                let store = Store::default();
+                let compiled_module = match Module::new(&store, &data[..]) {
                     Ok(a) => a,
                     Err(err) => {
-                        drop(module);
                         if stderr.is_tty() {
                             stderr.write_clear_line().await;
                         }
                         let _ = stderr
-                            .write(format!("exec error: {}\n", err.to_string()).as_bytes())
+                            .write(format!("compile-error: {}\n", err).as_bytes())
                             .await;
-                        return ERR_ENOEXEC;
+                        let ctx = bus_thread_pool.take_context().unwrap();
+                        return (ctx, ERR_ENOEXEC);
                     }
                 };
-
-                // List all the exports
-                for ns in module.exports() {
-                    trace!("module::export - {}", ns.name());
+                if stderr.is_tty() {
+                    stderr.write_clear_line().await;
                 }
-                for ns in module.imports() {
-                    trace!("module::import - {}::{}", ns.module(), ns.name());
-                }
+                info!(
+                    "compiled {}",
+                    compiled_module.name().unwrap_or_else(|| cmd.as_str())
+                );
 
-                // Create the WASI thread
-                let mut wasi_thread = wasi_env.new_thread();
+                #[cfg(feature = "cached_compiling")]
+                bins.set_compiled_module(data_hash.clone(), compiled_module.clone())
+                    .await;
 
-                // Generate an `ImportObject`.
-                let wasi_import = wasi_thread.import_object(&module).unwrap();
-                let mut wasm_thread = bus_thread_pool.get_or_create(&wasi_thread);
-                let wasm_bus_import = wasm_thread.import_object(&module);
-                let import = wasi_import.chain_front(wasm_bus_import);
+                thread_local
+                    .modules
+                    .insert(data_hash.clone(), compiled_module);
 
-                // Let's instantiate the module with the imports.
-                let instance = Instance::new(&module, &import).unwrap();
-                
-                // Let's call the `_start` function, which is our `main` function in Rust.
-                let start = instance
-                    .exports
-                    .get_native_function::<(), ()>("_start")
-                    .ok();
+                module = thread_local.modules.get(&data_hash).map(|m| m.clone());
+            }
+            drop(thread_local);
+            let mut module = module.unwrap();
 
-                // We are ready for the checkpoint
-                checkpoint_tx.send(()).await;
+            // Build the list of arguments
+            let args = args.iter().skip(1).map(|a| a.as_str()).collect::<Vec<_>>();
 
-                // If there is a start function
-                debug!("called main() on {}", cmd);
-                let mut ret = if let Some(start) = start {
-                    match start.call() {
-                        Ok(a) => err::ERR_OK,
-                        Err(e) => match e.downcast::<WasiError>() {
-                            Ok(WasiError::Exit(code)) => code,
-                            Ok(WasiError::UnknownWasiVersion) => {
-                                let _ = stdio
-                                    .stderr
-                                    .write(
-                                        &format!("exec-failed: unknown wasi version\n").as_bytes()
-                                            [..],
-                                    )
-                                    .await;
-                                err::ERR_ENOEXEC
-                            }
-                            Err(err) => err::ERR_PANIC,
-                        },
+            // Create the `WasiEnv`.
+            let mut wasi_env = WasiState::new(cmd.as_str());
+            let mut wasi_env = wasi_env
+                .args(&args)
+                .stdin(Box::new(stdio.stdin.clone()))
+                .stdout(Box::new(stdio.stdout.clone()))
+                .stderr(Box::new(stdio.stderr.clone()));
+
+            // Add the extra pre-opens
+            if preopen.len() > 0 {
+                for pre_open in preopen {
+                    let res = if let Some((alias, po_dir)) = pre_open.split_once(":") {
+                        wasi_env.map_dir(alias, po_dir).is_ok()
+                    } else {
+                        wasi_env.preopen_dir(Path::new(pre_open.as_str())).is_ok()
+                    };
+                    if res == false {
+                        if stderr.is_tty() {
+                            stderr.write_clear_line().await;
+                        }
+                        let _ = stderr
+                            .write(format!("pre-open error (path={})\n", pre_open).as_bytes())
+                            .await;
+                        let ctx = bus_thread_pool.take_context().unwrap();
+                        return (ctx, ERR_ENOEXEC);
                     }
-                } else {
-                    let _ = stdio
-                        .stderr
-                        .write(&format!("exec-failed: missing _start function\n").as_bytes()[..])
+                }
+
+            // Or we default and open the current directory
+            } else if let Some(chroot) = chroot {
+                wasi_env
+                    .preopen_dir(Path::new(chroot.as_str()))
+                    .unwrap()
+                    .map_dir(".", Path::new(chroot.as_str()));
+            } else {
+                wasi_env.preopen_dir(Path::new("/")).unwrap();
+            }
+
+            // Add the tick callback that will invoke the WASM bus background
+            // operations on the current thread
+            {
+                let bus_pool = Arc::clone(&bus_thread_pool);
+                wasi_env.on_yield(move |thread| {
+                    let forced_exit = forced_exit.load(Ordering::Acquire);
+                    if forced_exit != 0 {
+                        return Err(WasiError::Exit(forced_exit));
+                    }
+                    Ok(())
+                });
+            }
+
+            // Finish off the WasiEnv
+            let mut wasi_env = match wasi_env.set_fs(Box::new(union)).finalize() {
+                Ok(a) => a,
+                Err(err) => {
+                    drop(module);
+                    if stderr.is_tty() {
+                        stderr.write_clear_line().await;
+                    }
+                    let _ = stderr
+                        .write(format!("exec error: {}\n", err.to_string()).as_bytes())
                         .await;
-                    err::ERR_ENOEXEC
-                };
-
-                // If there is a polling worker that got registered then its time to consume
-                // it which will effectively bring up a reactor based WASM module
-                let worker = unsafe {
-                    let mut inner = wasm_thread.inner.lock();
-                    inner.poll_thread.take()
-                };
-                if let Some(worker) = worker {
-                    ret = worker.await;
+                    let ctx = bus_thread_pool.take_context().unwrap();
+                    return (ctx, ERR_ENOEXEC);
                 }
+            };
 
-                // Ok we are done
-                info!("exited (name={}) with code {}", cmd, ret);
-                ret
-            })
+            // List all the exports
+            for ns in module.exports() {
+                trace!("module::export - {}", ns.name());
+            }
+            for ns in module.imports() {
+                trace!("module::import - {}::{}", ns.module(), ns.name());
+            }
+
+            // Create the WASI thread
+            let mut wasi_thread = wasi_env.new_thread();
+
+            // Generate an `ImportObject`.
+            let wasi_import = wasi_thread.import_object(&module).unwrap();
+            let mut wasm_thread = bus_thread_pool.get_or_create(&wasi_thread);
+            let wasm_bus_import = wasm_thread.import_object(&module);
+            let import = wasi_import.chain_front(wasm_bus_import);
+
+            // Let's instantiate the module with the imports.
+            let instance = Instance::new(&module, &import).unwrap();
+            
+            // Let's call the `_start` function, which is our `main` function in Rust.
+            let start = instance
+                .exports
+                .get_native_function::<(), ()>("_start")
+                .ok();
+
+            // We are ready for the checkpoint
+            checkpoint_tx.send(()).await;
+
+            // If there is a start function
+            debug!("called main() on {}", cmd);
+            let mut ret = if let Some(start) = start {
+                match start.call() {
+                    Ok(a) => err::ERR_OK,
+                    Err(e) => match e.downcast::<WasiError>() {
+                        Ok(WasiError::Exit(code)) => code,
+                        Ok(WasiError::UnknownWasiVersion) => {
+                            let _ = stderr
+                                .write(
+                                    &format!("exec-failed: unknown wasi version\n").as_bytes()
+                                        [..],
+                                )
+                                .await;
+                            err::ERR_ENOEXEC
+                        }
+                        Err(err) => err::ERR_PANIC,
+                    },
+                }
+            } else {
+                let _ = stderr
+                    .write(&format!("exec-failed: missing _start function\n").as_bytes()[..])
+                    .await;
+                err::ERR_ENOEXEC
+            };
+
+            // If there is a polling worker that got registered then its time to consume
+            // it which will effectively bring up a reactor based WASM module
+            let worker = unsafe {
+                let mut inner = wasm_thread.inner.lock();
+                inner.poll_thread.take()
+            };
+            if let Some(worker) = worker {
+                ret = worker.await;
+            }
+
+            // Ok we are done
+            info!("exited (name={}) with code {}", cmd, ret);
+            let ctx = bus_thread_pool.take_context().unwrap();
+            (ctx, ret)
+        })
     };
 
     // Wait for the checkpoint (either it triggers or it fails because its never reached
@@ -508,7 +505,7 @@ pub async fn exec_process(
 
     // Generate a PID for this process
     let (pid, process) = {
-        let mut guard = ctx.reactor.write().await;
+        let mut guard = reactor.write().await;
         let pid = guard.generate_pid(bus_thread_pool_ret.clone(), forced_exit)?;
         let process = match guard.get_process(pid) {
             Some(a) => a,
@@ -520,5 +517,5 @@ pub async fn exec_process(
     };
     debug!("process created (pid={})", pid);
 
-    Ok((process, process_result, bus_thread_pool_ret))
+    Ok(( process, process_result, bus_thread_pool_ret))
 }

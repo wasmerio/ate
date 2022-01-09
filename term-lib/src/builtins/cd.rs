@@ -2,7 +2,6 @@ use std::future::Future;
 use std::path::Path;
 use std::pin::Pin;
 
-use super::CommandResult;
 use crate::eval::EvalContext;
 use crate::eval::ExecResponse;
 use crate::fs::AsyncifyFileSystem;
@@ -10,22 +9,22 @@ use crate::stdio::*;
 
 pub(super) fn cd(
     args: &[String],
-    ctx: &mut EvalContext,
+    mut ctx: EvalContext,
     mut stdio: Stdio,
-) -> Pin<Box<dyn Future<Output = CommandResult>>> {
+) -> Pin<Box<dyn Future<Output = ExecResponse>>> {
     if args.len() > 2 {
         return Box::pin(async move {
             let _ = stdio
                 .stderr
                 .write(format!("cd: too many arguments\r\n").as_bytes())
                 .await;
-            ExecResponse::Immediate(0).into()
+            ExecResponse::Immediate(ctx, 0)
         });
     }
 
     let mut print_path = false;
     let mut dir = if args.len() == 1 {
-        home(ctx)
+        home(&ctx)
     } else if args[1] == "-" {
         if let Some(v) = ctx.env.get("OLDPWD") {
             print_path = true;
@@ -36,13 +35,13 @@ pub(super) fn cd(
                     .stderr
                     .write(format!("cd: -: OLDPWD not set\r\n").as_bytes())
                     .await;
-                ExecResponse::Immediate(0).into()
+                ExecResponse::Immediate(ctx, 0)
             });
         }
     } else {
         let mut dir = args[1].clone();
         if dir.starts_with("/") == false {
-            dir.insert_str(0, current(ctx).as_str());
+            dir.insert_str(0, current(&ctx).as_str());
         }
 
         canonicalize(dir.as_str())
@@ -52,7 +51,6 @@ pub(super) fn cd(
         dir += "/";
     }
 
-    let mut ctx = ctx.clone();
     Box::pin(async move {
         if AsyncifyFileSystem::new(ctx.root.clone())
             .read_dir(Path::new(dir.as_str()))
@@ -63,7 +61,7 @@ pub(super) fn cd(
                 .stderr
                 .write(format!("cd: {}: No such directory\r\n", dir).as_bytes())
                 .await;
-            return ExecResponse::Immediate(0).into();
+            return ExecResponse::Immediate(ctx, 0);
         }
 
         ctx.env.set_var("OLDPWD", current(&ctx));
@@ -73,9 +71,7 @@ pub(super) fn cd(
         if print_path {
             let _ = stdio.stdout.write(format!("{}\r\n", dir).as_bytes()).await;
         }
-        let mut ret: CommandResult = ExecResponse::Immediate(0).into();
-        ret.ctx = Some(ctx);
-        ret
+        ExecResponse::Immediate(ctx, 0)
     })
 }
 
@@ -119,5 +115,4 @@ fn current(ctx: &EvalContext) -> String {
 
 fn set_current(ctx: &mut EvalContext, path: &str) {
     ctx.working_dir = path.to_string();
-    ctx.new_pwd = Some(path.to_string());
 }

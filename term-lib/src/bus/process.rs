@@ -3,9 +3,9 @@ use derivative::*;
 use std::any::type_name;
 use std::collections::HashMap;
 use std::future::Future;
-use std::ops::Deref;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::sync::Mutex;
 use tokio::sync::mpsc;
 use tokio::sync::RwLock;
 #[allow(unused_imports, dead_code)]
@@ -50,6 +50,8 @@ pub struct ProcessExecFactory {
     pub(crate) inherit_stdout: WeakFd,
     pub(crate) inherit_stderr: WeakFd,
     pub(crate) inherit_log: WeakFd,
+    #[derivative(Debug = "ignore")]
+    pub(crate) ctx: Arc<Mutex<Option<EvalContext>>>,
 }
 
 pub struct LaunchContext {
@@ -74,6 +76,7 @@ impl ProcessExecFactory {
         inherit_stdout: WeakFd,
         inherit_stderr: WeakFd,
         inherit_log: WeakFd,
+        ctx: EvalContext,
     ) -> ProcessExecFactory {
         let system = System::default();
         ProcessExecFactory {
@@ -86,6 +89,7 @@ impl ProcessExecFactory {
             inherit_stdout,
             inherit_stderr,
             inherit_log,
+            ctx: Arc::new(Mutex::new(Some(ctx))),
         }
     }
 
@@ -118,6 +122,7 @@ impl ProcessExecFactory {
         // Push all the cloned variables into a background thread so
         // that it does not hurt anything
         let abi = self.abi.clone();
+        let ctx = self.ctx.clone();
         let reactor = self.reactor.clone();
         let compiler = self.compiler;
         let inherit_stdin = self.inherit_stdin.upgrade();
@@ -201,23 +206,33 @@ impl ProcessExecFactory {
             };
 
             // Create the eval context
-            let spawn = SpawnContext::new(
-                abi,
-                cmd,
-                job.env.deref().clone(),
-                job.clone(),
-                stdin,
-                stdout,
-                stderr,
-                chroot,
-                working_dir
-                    .as_ref()
-                    .map(|a| a.clone())
-                    .unwrap_or("/".to_string()),
-                pre_open,
-                job.root.clone(),
-                compiler,
-            );
+            let spawn = {
+                let guard = ctx.lock().unwrap();
+                let ctx = match guard.as_ref() {
+                    Some(a) => a,
+                    None => {
+                        error!("The eval context has been lost has sub-processes can not be started.");
+                        return Err(err::ERR_ENOEXEC);
+                    }
+                };
+                SpawnContext::new(
+                    abi,
+                    cmd,
+                    ctx.env.clone(),
+                    job.clone(),
+                    stdin,
+                    stdout,
+                    stderr,
+                    chroot,
+                    working_dir
+                        .as_ref()
+                        .map(|a| a.clone())
+                        .unwrap_or(ctx.working_dir.clone()),
+                    pre_open,
+                    ctx.root.clone(),
+                    compiler,
+                )
+            };
             let eval = exec_factory.create_context(spawn);
 
             // Build a context
@@ -254,9 +269,20 @@ impl ProcessExecFactory {
         request: api::PoolSpawnRequest,
         client_callbacks: HashMap<String, WasmBusCallback>,
     ) -> Result<EvalCreated, CallError> {
-        self.launch(request, client_callbacks, |ctx: LaunchContext| {
+        let dst = Arc::clone(&self.ctx);
+        self.launch(request, client_callbacks, move |ctx: LaunchContext| {
+            let dst = dst.clone();
             Box::pin(async move {
                 let eval_rx = crate::eval::eval(ctx.eval);
+
+                let on_ctx = Box::pin(move |src: EvalContext| {
+                    let mut guard = dst.lock().unwrap();
+                    if let Some(dst) = guard.as_mut() {
+                        dst.env = src.env;
+                        dst.root = src.root;
+                        dst.working_dir = src.working_dir;
+                    }
+                });
 
                 Ok(EvalCreated {
                     invoker: ProcessExecInvokable {
@@ -268,6 +294,7 @@ impl ProcessExecFactory {
                             on_stdout: ctx.on_stdout,
                             on_stderr: ctx.on_stderr,
                             on_exit: ctx.on_exit,
+                            on_ctx,
                         }),
                     },
                     session: ProcessExecSession {
@@ -283,8 +310,8 @@ impl ProcessExecFactory {
         &self,
         request: api::PoolSpawnRequest,
         client_callbacks: HashMap<String, WasmBusCallback>,
-    ) -> Result<(Process, AsyncResult<u32>, Arc<WasmBusThreadPool>), CallError> {
-        self.launch(request, client_callbacks, |mut ctx: LaunchContext| {
+    ) -> Result<(Process, AsyncResult<(EvalContext, u32)>, Arc<WasmBusThreadPool>), CallError> {
+        self.launch(request, client_callbacks, |ctx: LaunchContext| {
             Box::pin(async move {
                 let stdio = ctx.eval.stdio.clone();
                 let env = ctx.eval.env.clone().into_exported();
@@ -293,7 +320,7 @@ impl ProcessExecFactory {
                 let redirect = Vec::new();
 
                 let ret = exec_process(
-                    &mut ctx.eval,
+                    ctx.eval,
                     &ctx.path,
                     &ctx.args,
                     &env,
@@ -308,16 +335,22 @@ impl ProcessExecFactory {
         })
         .await
     }
+
+    pub fn take_context(&self) -> Option<EvalContext> {
+        let mut guard = self.ctx.lock().unwrap();
+        guard.take()
+    }
 }
 
 pub struct ProcessExec {
     format: SerializationFormat,
     stdout: Option<mpsc::Receiver<FdMsg>>,
     stderr: Option<mpsc::Receiver<FdMsg>>,
-    eval_rx: mpsc::Receiver<EvalPlan>,
+    eval_rx: mpsc::Receiver<EvalResult>,
     on_stdout: Option<WasmBusCallback>,
     on_stderr: Option<WasmBusCallback>,
     on_exit: Option<WasmBusCallback>,
+    on_ctx: Pin<Box<dyn Fn(EvalContext) + Send + 'static>>,
 }
 
 impl ProcessExec {
@@ -346,7 +379,7 @@ impl ProcessExec {
                             }
                         }
                         res = self.eval_rx.recv() => {
-                            let res = encode_eval_response(self.format, res);
+                            let res = encode_eval_response(self.format, self.on_ctx, res);
                             if let Some(on_exit) = self.on_exit.take() {
                                 on_exit.feed_bytes_or_error(res);
                             }
@@ -365,7 +398,7 @@ impl ProcessExec {
                             }
                         }
                         res = self.eval_rx.recv() => {
-                            let res = encode_eval_response(self.format, res);
+                            let res = encode_eval_response(self.format, self.on_ctx, res);
                             if let Some(on_exit) = self.on_exit.take() {
                                 on_exit.feed_bytes_or_error(res);
                             }
@@ -386,7 +419,7 @@ impl ProcessExec {
                             }
                         }
                         res = self.eval_rx.recv() => {
-                            let res = encode_eval_response(self.format, res);
+                            let res = encode_eval_response(self.format, self.on_ctx, res);
                             if let Some(on_exit) = self.on_exit.take() {
                                 on_exit.feed_bytes_or_error(res);
                             }
@@ -396,7 +429,7 @@ impl ProcessExec {
                 } else {
                     tokio::select! {
                         res = self.eval_rx.recv() => {
-                            let res = encode_eval_response(self.format, res);
+                            let res = encode_eval_response(self.format, self.on_ctx, res);
                             if let Some(on_exit) = self.on_exit.take() {
                                 on_exit.feed_bytes_or_error(res);
                             }
@@ -431,18 +464,32 @@ impl Invokable for ProcessExecInvokable {
 
 fn encode_eval_response(
     format: SerializationFormat,
-    res: Option<EvalPlan>,
+    on_ctx: Pin<Box<dyn Fn(EvalContext) + Send + 'static>>,
+    res: Option<EvalResult>,
 ) -> Result<Vec<u8>, CallError> {
-    Ok(encode_response(
-        format,
-        &match res {
-            Some(EvalPlan::Executed { code, .. }) => api::PoolSpawnExitCallback(code as i32),
-            Some(EvalPlan::InternalError) => api::PoolSpawnExitCallback(err::ERR_ENOEXEC as i32),
-            Some(EvalPlan::Invalid) => api::PoolSpawnExitCallback(err::ERR_EINVAL as i32),
-            Some(EvalPlan::MoreInput) => api::PoolSpawnExitCallback(err::ERR_EINVAL as i32),
-            None => api::PoolSpawnExitCallback(err::ERR_EPIPE as i32),
+    match res {
+        Some(res) => {
+            {
+                let on_ctx = on_ctx.as_ref();
+                on_ctx(res.ctx);
+            }
+            Ok(encode_response(
+                format,
+                &match res.status {
+                    EvalStatus::Executed { code, .. } => api::PoolSpawnExitCallback(code as i32),
+                    EvalStatus::InternalError => api::PoolSpawnExitCallback(err::ERR_ENOEXEC as i32),
+                    EvalStatus::Invalid => api::PoolSpawnExitCallback(err::ERR_EINVAL as i32),
+                    EvalStatus::MoreInput => api::PoolSpawnExitCallback(err::ERR_EINVAL as i32),
+                },
+            )?)
         },
-    )?)
+        None => {
+            Ok(encode_response(
+                format,
+                &api::PoolSpawnExitCallback(err::ERR_EINVAL as i32)
+            )?)
+        }
+    }
 }
 
 #[derive(Clone)]

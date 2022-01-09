@@ -13,6 +13,9 @@ use std::os::unix::fs::PermissionsExt;
 use ate_auth::cmd::*;
 use ate_auth::helper::*;
 
+#[cfg(target_os = "wasi")]
+use wasm_bus_process::prelude::*;
+
 use crate::opt::*;
 
 pub async fn main_opts_login(
@@ -36,6 +39,11 @@ pub async fn main_opts_login(
         };
         session_to_b64(session).unwrap()
     };
+
+    // Read the session
+    let session = b64_to_session(token.clone());
+    #[allow(unused)]
+    let identity = session.identity();
 
     // Remove any old paths
     if let Ok(old) = std::fs::canonicalize(token_path.clone()) {
@@ -76,6 +84,24 @@ pub async fn main_opts_login(
     // Update the token path so that it points to this temporary token
     #[cfg(unix)]
     symlink(save_path, token_path)?;
+
+    // If we are in WASM mode and there is a login script then run it
+    #[cfg(target_os = "wasi")]
+    if std::path::Path::new("/etc/login.sh").exists() == true {
+        Command::new(format!("export USER={}", identity).as_str())
+            .execute()
+            .await?;
+
+        Command::new(format!("source /etc/login.sh").as_str())
+            .execute()
+            .await?;
+
+        if std::path::Path::new("/usr/etc/login.sh").exists() == true {
+            Command::new(format!("source /usr/etc/login.sh").as_str())
+                .execute()
+                .await?;
+        }
+    }
 
     Ok(())
 }

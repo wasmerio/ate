@@ -2,6 +2,7 @@
 #![allow(unused)]
 use crate::wasmer_vfs::*;
 use std::borrow::Cow;
+use std::ops::Add;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 #[allow(unused_imports, dead_code)]
@@ -12,6 +13,7 @@ pub struct MountPoint {
     pub path: String,
     pub name: String,
     pub fs: Arc<Box<dyn FileSystem>>,
+    pub should_sanitize: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -26,8 +28,8 @@ impl UnionFileSystem {
 }
 
 impl UnionFileSystem {
-    pub fn mount(&mut self, name: &str, path: &Path, fs: Box<dyn FileSystem>) {
-        let mut path = path.to_string_lossy().into_owned();
+    pub fn mount(&mut self, name: &str, path: &str, should_sanitize: bool, fs: Box<dyn FileSystem>) {
+        let mut path = path.to_string();
         if path.ends_with("/") == false {
             path += "/";
         }
@@ -35,12 +37,25 @@ impl UnionFileSystem {
             path,
             name: name.to_string(),
             fs: Arc::new(fs),
+            should_sanitize,
         });
     }
 
-    pub fn unmount(&mut self, path: &Path) {
-        let path = path.to_string_lossy().into_owned();
-        self.mounts.retain(|mount| mount.path != path);
+    pub fn unmount(&mut self, path: &str) {
+        let path1 = path.to_string();
+        let mut path2 = path1.clone();
+        if path2.starts_with("/") == false {
+            path2.insert(0, '/');
+        }
+        let mut path3 = path2.clone();
+        if path3.ends_with("/") == false {
+            path3.push_str("/")
+        }
+        if path2.ends_with("/") {
+            path2 = (&path2[..(path2.len()-1)]).to_string();
+        }
+
+        self.mounts.retain(|mount| mount.path != path2 && mount.path != path3);
     }
 
     fn read_dir_internal(&self, path: &Path) -> Result<ReadDir> {
@@ -65,6 +80,11 @@ impl UnionFileSystem {
             Some(ret) => Ok(ReadDir::new(ret)),
             None => Err(FsError::EntityNotFound),
         }
+    }
+
+    pub fn sanitize(mut self) -> Self {
+        self.mounts.retain(|mount| mount.should_sanitize == false);
+        self
     }
 }
 

@@ -12,6 +12,7 @@ use wasm_bus_process::prelude::*;
 use crate::api::AsyncResult;
 use crate::api::System;
 use crate::eval::Process;
+use crate::eval::EvalContext;
 
 use super::*;
 
@@ -23,11 +24,13 @@ pub struct SubProcessFactoryInner {
 #[derive(Clone)]
 pub struct SubProcessFactory {
     inner: Arc<SubProcessFactoryInner>,
+    ctx: Arc<Mutex<Option<EvalContext>>>,
 }
 
 impl SubProcessFactory {
     pub fn new(process_factory: ProcessExecFactory) -> SubProcessFactory {
         SubProcessFactory {
+            ctx: process_factory.ctx.clone(),
             inner: Arc::new(SubProcessFactoryInner {
                 process_factory,
                 processes: Mutex::new(HashMap::default()),
@@ -81,7 +84,8 @@ impl SubProcessFactory {
         };
 
         // Add it to the list of sub processes and return it
-        let process = Arc::new(SubProcess::new(wapm.as_str(), process, process_result, thread_pool, main));
+        let ctx = self.ctx.clone();
+        let process = Arc::new(SubProcess::new(wapm.as_str(), process, process_result, thread_pool, ctx, main));
         {
             let mut processes = self.inner.processes.lock().unwrap();
             processes.insert(key, Arc::downgrade(&process));
@@ -97,18 +101,20 @@ pub struct SubProcessInner {
 pub struct SubProcess {
     pub system: System,
     pub process: Process,
-    pub process_result: Arc<Mutex<AsyncResult<u32>>>,
+    pub process_result: Arc<Mutex<AsyncResult<(EvalContext, u32)>>>,
     pub inner: Arc<SubProcessInner>,
     pub threads: Arc<WasmBusThreadPool>,
     pub main: WasmBusThread,
+    pub ctx: Arc<Mutex<Option<EvalContext>>>,
 }
 
 impl SubProcess {
     pub fn new(
         wapm: &str,
         process: Process,
-        process_result: AsyncResult<u32>,
+        process_result: AsyncResult<(EvalContext, u32)>,
         threads: Arc<WasmBusThreadPool>,
+        ctx: Arc<Mutex<Option<EvalContext>>>,
         main: WasmBusThread,
     ) -> SubProcess {
         SubProcess {
@@ -119,6 +125,7 @@ impl SubProcess {
                 wapm: wapm.to_string(),
             }),
             threads,
+            ctx,
             main,
         }
     }
@@ -139,6 +146,7 @@ impl SubProcess {
         let topic = topic.to_string();
         let invoker = threads.call_raw(None, topic, request);
         let sub_process = self.clone();
+
         let session = SubProcessSession::new(threads.clone(), invoker.handle(), sub_process);
         Ok((Box::new(invoker), Some(Box::new(session))))
     }

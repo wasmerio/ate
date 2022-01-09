@@ -3,11 +3,10 @@ use std::pin::Pin;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
-use super::CommandResult;
 use crate::err;
 use crate::eval::eval;
 use crate::eval::EvalContext;
-use crate::eval::EvalPlan;
+use crate::eval::EvalStatus;
 use crate::eval::ExecResponse;
 use crate::fd::FdFlag;
 use crate::pipe::*;
@@ -15,11 +14,13 @@ use crate::stdio::*;
 
 pub(super) fn wax(
     args: &[String],
-    ctx: &mut EvalContext,
+    mut ctx: EvalContext,
     stdio: Stdio,
-) -> Pin<Box<dyn Future<Output = CommandResult>>> {
+) -> Pin<Box<dyn Future<Output = ExecResponse>>> {
     if args.len() < 2 {
-        return Box::pin(async move { ExecResponse::Immediate(err::ERR_EINVAL).into() });
+        return Box::pin(async move {
+            ExecResponse::Immediate(ctx, err::ERR_EINVAL)
+        });
     }
 
     // Strip out the first argument
@@ -35,7 +36,6 @@ pub(super) fn wax(
 
     // Read the script
     let wax = ctx.bins.wax.clone();
-    let mut ctx = ctx.clone();
     return Box::pin(async move {
         // If the process is not yet installed then install it
         if wax.lock().unwrap().contains(&cmd) == false {
@@ -52,14 +52,14 @@ pub(super) fn wax(
             let result = process.recv().await;
             drop(process);
 
-            if let Some(EvalPlan::Executed { .. }) = result {
+            if let Some(EvalStatus::Executed { .. }) = result.map(|a| a.status) {
                 wax.lock().unwrap().insert(cmd.clone());
             } else {
                 debug!("wax install failed");
                 let _ = tty
                     .write("wax: failed to install command\r\n".as_bytes())
                     .await;
-                return ExecResponse::Immediate(err::ERR_EINVAL).into();
+                return ExecResponse::OrphanedImmediate(err::ERR_EINVAL);
             }
         }
 
@@ -74,12 +74,23 @@ pub(super) fn wax(
         let result = process.recv().await;
         drop(process);
 
-        match result {
-            Some(EvalPlan::Executed {
+        let result = match result {
+            Some(a) => a,
+            None => {
+                debug!("wax recv error");
+                let _ = stderr
+                    .write(format!("wax: command failed\r\n").as_bytes())
+                    .await;
+                return ExecResponse::OrphanedImmediate(err::ERR_EINTR);
+            }
+        };
+
+        let ctx = result.ctx;
+        match result.status {
+            EvalStatus::Executed {
                 code,
-                ctx,
                 show_result,
-            }) => {
+            } => {
                 debug!("wax executed (code={})", code);
                 if code != 0 && show_result {
                     let mut chars = String::new();
@@ -87,31 +98,22 @@ pub(super) fn wax(
                     chars += "\r\n";
                     let _ = stdout.write(chars.as_bytes()).await;
                 }
-                let mut ret: CommandResult = ExecResponse::Immediate(code).into();
-                ret.ctx = Some(ctx);
-                ret
+                ExecResponse::Immediate(ctx, code)
             }
-            Some(EvalPlan::InternalError) => {
+            EvalStatus::InternalError => {
                 debug!("wax internal error");
                 let _ = stderr.write("wax: internal error\r\n".as_bytes()).await;
-                ExecResponse::Immediate(err::ERR_EINTR).into()
+                ExecResponse::Immediate(ctx, err::ERR_EINTR)
             }
-            Some(EvalPlan::MoreInput) => {
+            EvalStatus::MoreInput => {
                 debug!("wax more input");
                 let _ = stderr.write("wax: incomplete command\r\n".as_bytes()).await;
-                ExecResponse::Immediate(err::ERR_EINVAL).into()
+                ExecResponse::Immediate(ctx, err::ERR_EINVAL)
             }
-            Some(EvalPlan::Invalid) => {
+            EvalStatus::Invalid => {
                 debug!("wax invalid");
                 let _ = stderr.write("wax: invalid command\r\n".as_bytes()).await;
-                ExecResponse::Immediate(err::ERR_EINVAL).into()
-            }
-            None => {
-                debug!("wax recv error");
-                let _ = stderr
-                    .write(format!("wax: command failed\r\n").as_bytes())
-                    .await;
-                ExecResponse::Immediate(err::ERR_EINTR).into()
+                ExecResponse::Immediate(ctx, err::ERR_EINVAL)
             }
         }
     });

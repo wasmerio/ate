@@ -26,6 +26,7 @@ use wasm_bus::abi::*;
 
 use super::*;
 
+use crate::eval::EvalContext;
 use crate::api::*;
 use crate::err;
 
@@ -103,6 +104,10 @@ impl WasmBusThreadPool {
 
         threads.insert(thread_id, ret.clone());
         ret
+    }
+
+    pub fn take_context(&self) -> Option<EvalContext> {
+        self.process_factory.take_context()
     }
 }
 

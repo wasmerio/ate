@@ -4,6 +4,7 @@ mod exit;
 mod export;
 mod help;
 mod mount;
+mod umount;
 mod pwd;
 mod readonly;
 mod reset;
@@ -17,6 +18,7 @@ use exit::*;
 use export::*;
 use help::*;
 use mount::*;
+use umount::*;
 use pwd::*;
 use readonly::*;
 use reset::*;
@@ -33,21 +35,7 @@ use super::eval::ExecResponse;
 use super::stdio::*;
 
 pub type Command =
-    fn(&[String], &mut EvalContext, Stdio) -> Pin<Box<dyn Future<Output = CommandResult>>>;
-
-pub struct CommandResult {
-    pub result: Result<ExecResponse, u32>,
-    pub ctx: Option<EvalContext>,
-}
-
-impl From<ExecResponse> for CommandResult {
-    fn from(val: ExecResponse) -> CommandResult {
-        CommandResult {
-            result: Ok(val),
-            ctx: None,
-        }
-    }
-}
+    fn(&[String], EvalContext, Stdio) -> Pin<Box<dyn Future<Output = ExecResponse>>>;
 
 #[derive(Default)]
 pub struct Builtins {
@@ -67,6 +55,8 @@ impl Builtins {
         b.insert("pwd", pwd);
         b.insert("reset", reset);
         b.insert("mount", mount);
+        b.insert("umount", umount);
+        b.insert("unmount", umount);
         b.insert("wax", wax);
         b.insert("exit", exit);
         b.insert("quit", exit);

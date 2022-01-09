@@ -72,3 +72,4 @@ tokio = { version = "^1", features = [ "macros", "sync" ], default_features = fa
 backtrace = "^0.3"
 wasi = { version = "^0.10" }
 wasm-timer = { version = "^0.2" }
+wasm-bus-process = { version = "^0.2", path = "../wasm-bus-process" }

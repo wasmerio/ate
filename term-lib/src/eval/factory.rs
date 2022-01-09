@@ -107,16 +107,14 @@ impl EvalFactory {
             abi: ctx.abi.clone(),
             env: ctx.env,
             bins: self.state.bins.clone(),
-            last_return: 0,
             reactor: self.state.reactor.clone(),
             chroot: ctx.chroot,
             working_dir: ctx.working_dir,
-            new_pwd: None,
+            last_return: 0u32,
             pre_open: ctx.pre_open,
             input: ctx.cmd,
             stdio,
             root: ctx.root,
-            new_mounts: Vec::new(),
             exec_factory: self.clone(),
             job: ctx.job,
             compiler: ctx.compiler,
@@ -125,7 +123,7 @@ impl EvalFactory {
         ctx
     }
 
-    pub fn eval(&self, ctx: SpawnContext) -> mpsc::Receiver<EvalPlan> {
+    pub fn eval(&self, ctx: SpawnContext) -> mpsc::Receiver<EvalResult> {
         crate::eval::eval(self.create_context(ctx))
     }
 }
