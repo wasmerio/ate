@@ -21,6 +21,7 @@ use tokio::sync::mpsc;
 use tokio::sync::watch;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
+use std::sync::Mutex;
 
 use crate::ws::SysWebSocket;
 
@@ -33,6 +34,7 @@ thread_local!(static THREAD_LOCAL: Rc<RefCell<ThreadLocal>> = Rc::new(RefCell::n
 pub struct SysSystem {
     exit_tx: Arc<watch::Sender<bool>>,
     runtime: Arc<Runtime>,
+    stdio_lock: Arc<Mutex<()>>,
 }
 
 impl SysSystem {
@@ -42,12 +44,14 @@ impl SysSystem {
         SysSystem {
             exit_tx: Arc::new(exit),
             runtime: Arc::new(runtime),
+            stdio_lock: Arc::new(Mutex::new(())),
         }
     }
     pub fn new_with_runtime(exit: watch::Sender<bool>, runtime: Arc<Runtime>) -> SysSystem {
         SysSystem {
             exit_tx: Arc::new(exit),
             runtime,
+            stdio_lock: Arc::new(Mutex::new(())),
         }
     }
 
@@ -244,24 +248,30 @@ impl SystemAbi for SysSystem {
 impl ConsoleAbi for SysSystem {
     async fn stdout(&self, data: Vec<u8>) {
         use raw_tty::GuardMode;
-        let mut stdout = io::stdout().guard_mode().unwrap();
-        stdout.write_all(&data[..]).unwrap();
-        stdout.flush().unwrap();
+        let _guard = self.stdio_lock.lock().unwrap();
+        if let Ok(mut stdout) = io::stdout().guard_mode() {
+            stdout.write_all(&data[..]).unwrap();
+            stdout.flush().unwrap();
+        }
     }
 
     async fn stderr(&self, data: Vec<u8>) {
         use raw_tty::GuardMode;
-        let mut stderr = io::stderr().guard_mode().unwrap();
-        stderr.write_all(&data[..]).unwrap();
-        stderr.flush().unwrap();
+        let _guard = self.stdio_lock.lock().unwrap();
+        if let Ok(mut stderr) = io::stderr().guard_mode() {
+            stderr.write_all(&data[..]).unwrap();
+            stderr.flush().unwrap();
+        }
     }
 
     /// Writes output to the log
     async fn log(&self, text: String) {
         use raw_tty::GuardMode;
-        let mut stderr = io::stderr().guard_mode().unwrap();
-        write!(&mut *stderr, "{}\r\n", text).unwrap();
-        stderr.flush().unwrap();
+        let _guard = self.stdio_lock.lock().unwrap();
+        if let Ok(mut stderr) = io::stderr().guard_mode() {
+            write!(&mut *stderr, "{}\r\n", text).unwrap();
+            stderr.flush().unwrap();
+        }
     }
 
     /// Gets the number of columns and rows in the terminal

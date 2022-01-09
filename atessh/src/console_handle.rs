@@ -16,6 +16,7 @@ pub struct ConsoleHandle {
     pub native_files: Arc<FileAccessor>,
     pub channel: ChannelId,
     pub handle: Handle,
+    pub stdio_lock: Arc<Mutex<()>>,
 }
 
 #[async_trait]
@@ -39,6 +40,7 @@ impl ConsoleAbi for ConsoleHandle {
     /// Writes output to the log
     async fn log(&self, text: String) {
         use raw_tty::GuardMode;
+        let _guard = self.stdio_lock.lock().unwrap();
         if let Ok(mut stderr) = io::stderr().guard_mode() {
             write!(&mut *stderr, "{}\r\n", text).unwrap();
             stderr.flush().unwrap();

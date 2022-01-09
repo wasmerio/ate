@@ -37,6 +37,7 @@ pub struct Handler {
     pub rect: Arc<Mutex<ConsoleRect>>,
     pub wizard: Option<SshWizard>,
     pub compiled_modules: Arc<CachedCompiledModules>,
+    pub stdio_lock: Arc<Mutex<()>>,
 }
 
 impl server::Handler for Handler {
@@ -123,6 +124,7 @@ impl server::Handler for Handler {
                 channel: channel.clone(),
                 handle: session.handle(),
                 native_files: self.native_files.clone(),
+                stdio_lock: self.stdio_lock.clone(),
             });
 
             // Spawn a dedicated thread and wait for it to do its thing
