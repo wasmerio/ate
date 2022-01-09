@@ -443,6 +443,12 @@ impl Console {
                     }
                 }
 
+                tty.draw("BLAH1\r\n").await;
+                tty.draw("BLAH1\r\n").await;
+                tty.draw("BLAH1\r\n").await;
+                tty.draw("BLAH1\r\n").await;
+                tty.draw("BLAH1\r\n").await;
+
                 // Now draw the prompt ready for the next
                 tty.reset_line().await;
                 Console::update_prompt(multiline_input, &state, &tty).await;
