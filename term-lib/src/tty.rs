@@ -438,11 +438,11 @@ impl Tty {
         chars += data;
         chars += Tty::TERM_CURSOR_RESTORE;
         self.stdout.draw(chars.as_str()).await;
-        self.stdout.flush().await;
+        let _  = self.stdout.flush_async().await;
     }
 
     pub async fn draw(&mut self, data: &str) {
         self.stdout.draw(data).await;
-        self.stdout.flush().await;
+        let _ = self.stdout.flush_async().await;
     }
 }
