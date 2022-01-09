@@ -39,8 +39,9 @@ impl ConsoleAbi for ConsoleHandle {
     /// Writes output to the log
     async fn log(&self, text: String) {
         use raw_tty::GuardMode;
-        let mut stderr = io::stderr().guard_mode().unwrap();
-        write!(&mut *stderr, "{}\r\n", text).unwrap();
+        if let Ok(mut stderr) = io::stderr().guard_mode().unwrap() {
+            write!(&mut *stderr, "{}\r\n", text).unwrap();
+        }
         stderr.flush().unwrap();
     }
 
