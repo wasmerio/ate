@@ -322,7 +322,11 @@ impl Write for Fd {
     fn flush(&mut self) -> io::Result<()> {
         let (tx, mut rx) = mpsc::channel(1);
         if self.blocking_send(FdMsg::Flush { tx }).is_ok() {
-            let _ = self.blocking_recv(&mut rx)?;
+            if self.blocking_recv(&mut rx).is_err() {
+                error!("AHHHHH2");
+            }
+        } else {
+            error!("AHHHHH1");
         }
         Ok(())
     }
