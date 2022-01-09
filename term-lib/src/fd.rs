@@ -328,6 +328,7 @@ impl Write for Fd {
         } else {
             error!("AHHHHH1");
         }
+        error!("AHHHHH0");
         Ok(())
     }
 }
