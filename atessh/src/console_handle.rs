@@ -50,6 +50,7 @@ impl ConsoleAbi for ConsoleHandle {
     async fn flush(&self) {
         let channel = self.channel;
         let mut handle = self.handle.clone();
+        let _ = handle.flush(channel).await;
     }
 
     /// Gets the number of columns and rows in the terminal
