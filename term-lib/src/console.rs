@@ -451,10 +451,15 @@ impl Console {
                 }
 
                 tty.draw("BLAH1\r\n").await;
+                error!("BLAH1");
                 tty.draw("BLAH1\r\n").await;
+                error!("BLAH1");
                 tty.draw("BLAH1\r\n").await;
+                error!("BLAH1");
                 tty.draw("BLAH1\r\n").await;
+                error!("BLAH1");
                 tty.draw("BLAH1\r\n").await;
+                error!("BLAH1");
 
                 // Now draw the prompt ready for the next
                 tty.reset_line().await;

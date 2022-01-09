@@ -238,6 +238,7 @@ impl Fd {
         if let Some(sender) = self.sender.as_mut() {
             let buf_len = msg.len();
 
+            let mut wait_time = 0u32;
             let mut msg = Some(msg);
             loop {
                 // Try and send the data
@@ -268,7 +269,11 @@ impl Fd {
                 if self.closed.load(Ordering::Acquire) {
                     return Ok(0usize);
                 }
-                std::thread::park_timeout(std::time::Duration::from_millis(5));
+            
+                // Increase the wait time
+                wait_time += 1;
+                let wait_time = u32::min(wait_time / 10, 20u32);
+                std::thread::park_timeout(std::time::Duration::from_millis(wait_time));
             }
         } else {
             return Ok(0usize);
@@ -276,6 +281,7 @@ impl Fd {
     }
 
     fn blocking_recv<T>(&mut self, receiver: &mut mpsc::Receiver<T>) -> io::Result<Option<T>> {
+        let mut wait_time = 0u32;
         loop {
             // Try and receive the data
             match receiver.try_recv() {
@@ -304,7 +310,11 @@ impl Fd {
             if self.closed.load(Ordering::Acquire) {
                 return Ok(None);
             }
-            std::thread::park_timeout(std::time::Duration::from_millis(5));
+
+            // Increase the wait time
+            wait_time += 1;
+            let wait_time = u32::min(wait_time / 10, 20u32);
+            std::thread::park_timeout(std::time::Duration::from_millis(wait_time));
         }
     }
 }
@@ -321,14 +331,8 @@ impl Write for Fd {
 
     fn flush(&mut self) -> io::Result<()> {
         let (tx, mut rx) = mpsc::channel(1);
-        if self.blocking_send(FdMsg::Flush { tx }).is_ok() {
-            if self.blocking_recv(&mut rx).is_err() {
-                error!("AHHHHH2");
-            }
-        } else {
-            error!("AHHHHH1");
-        }
-        error!("AHHHHH0");
+        self.blocking_send(FdMsg::Flush { tx })?;
+        self.blocking_recv(&mut rx)?;
         Ok(())
     }
 }
