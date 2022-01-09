@@ -447,6 +447,6 @@ impl Tty {
     }
 
     pub async fn flush_async(&mut self) -> std::io::Result<()> {
-        self.stdout.flush_async()
+        self.stdout.flush_async().await
     }
 }
