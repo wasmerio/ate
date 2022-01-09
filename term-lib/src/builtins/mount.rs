@@ -73,7 +73,7 @@ pub(super) fn mount(
 
         let factory = SubProcessFactory::new(factory);
         let sub_process = match factory
-            .get_or_create(wapm.as_str(), StdioMode::Log, StdioMode::Log)
+            .get_or_create(wapm.as_str(), StdioMode::Inherit, StdioMode::Log)
             .await
         {
             Ok(a) => a,
@@ -109,6 +109,13 @@ pub(super) fn mount(
         let _ = stdio.stdout.flush_async().await;
 
         print(format!("\rSuccessfully mounted\r\n"), &mut stdio, false).await;
+
+        print("BLAH2\r\n".to_string(), &mut stdio, false).await;
+        print("BLAH2\r\n".to_string(), &mut stdio, false).await;
+        print("BLAH2\r\n".to_string(), &mut stdio, false).await;
+        print("BLAH2\r\n".to_string(), &mut stdio, false).await;
+        print("BLAH2\r\n".to_string(), &mut stdio, false).await;
+        print("BLAH2\r\n".to_string(), &mut stdio, false).await;
 
         let mut ret: CommandResult = ExecResponse::Immediate(0).into();
         ctx.new_mounts.push(MountPoint {
