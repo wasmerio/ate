@@ -445,4 +445,8 @@ impl Tty {
         self.stdout.draw(data).await;
         let _ = self.stdout.flush_async().await;
     }
+
+    pub async fn flush_async(&mut self) {
+        let _ = self.stdout.flush_async().await;
+    }
 }

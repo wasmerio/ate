@@ -385,6 +385,11 @@ impl Console {
                 let rx = process.recv().await;
                 drop(process);
 
+                // Flush all the pipes
+                ctx.stdout.flush_async().await;
+                ctx.stderr.flush_async().await;
+                tty.flush_async().await;
+
                 // Switch back to console mode
                 tty.reset_line().await;
                 tty.reset_paragraph().await;
