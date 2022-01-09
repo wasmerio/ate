@@ -198,16 +198,12 @@ impl Fd {
         let (mut rx, msg) = FdMsg::flush();
         if let Some(sender) = self.sender.as_mut() {
             if let Err(_err) = sender.send(msg).await {
-                error!("BBBBBBBBB 1");
                 return Err(std::io::ErrorKind::BrokenPipe.into());
             }
         } else {
-            error!("BBBBBBBBB 2");
             return Err(std::io::ErrorKind::BrokenPipe.into());
         }
-        error!("BBBBBBBBB 3");
         rx.recv().await;
-        error!("BBBBBBBBB 4");
         Ok(())
     }
 

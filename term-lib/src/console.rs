@@ -86,6 +86,7 @@ impl Console {
             let state = state.clone();
             system.fork_local(async move {
                 while let Some(msg) = stdio_rx.recv().await {
+                    error!("STDIO - {:?}", msg);
                     match msg {
                         FdMsg::Data { data, flag } => match flag {
                             FdFlag::Log => {
