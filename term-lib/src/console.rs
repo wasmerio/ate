@@ -238,19 +238,23 @@ impl Console {
             self.tty.draw_welcome().await;
         }
 
-        if let Some(token) = self.bootstrap_token.take() {
-            self.on_enter_internal(format!("login --token {}", token), false)
-                .await;
-        }
-
-        if self
+        let has_init = self
             .state
             .lock()
             .unwrap()
             .rootfs
             .metadata(&Path::new("/bin/init"))
-            .is_ok()
-        {
+            .is_ok();
+
+        if let Some(token) = self.bootstrap_token.take() {
+            let cmd = if has_init {
+                format!("login --token {} && source /bin/init", token)
+            } else {
+                format!("login --token {}", token)
+            };
+            self.on_enter_internal(cmd, false)
+                .await;
+        } else if has_init {
             self.on_enter_internal("source /bin/init".to_string(), false)
                 .await;
         } else {
