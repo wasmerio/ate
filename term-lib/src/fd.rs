@@ -238,7 +238,7 @@ impl Fd {
         if let Some(sender) = self.sender.as_mut() {
             let buf_len = msg.len();
 
-            let mut wait_time = 0u32;
+            let mut wait_time = 0u64;
             let mut msg = Some(msg);
             loop {
                 // Try and send the data
@@ -272,7 +272,7 @@ impl Fd {
             
                 // Increase the wait time
                 wait_time += 1;
-                let wait_time = u32::min(wait_time / 10, 20u32);
+                let wait_time = u64::min(wait_time / 10, 20);
                 std::thread::park_timeout(std::time::Duration::from_millis(wait_time));
             }
         } else {
@@ -281,7 +281,7 @@ impl Fd {
     }
 
     fn blocking_recv<T>(&mut self, receiver: &mut mpsc::Receiver<T>) -> io::Result<Option<T>> {
-        let mut wait_time = 0u32;
+        let mut wait_time = 0u64;
         loop {
             // Try and receive the data
             match receiver.try_recv() {
@@ -313,7 +313,7 @@ impl Fd {
 
             // Increase the wait time
             wait_time += 1;
-            let wait_time = u32::min(wait_time / 10, 20u32);
+            let wait_time = u64::min(wait_time / 10, 20);
             std::thread::park_timeout(std::time::Duration::from_millis(wait_time));
         }
     }
