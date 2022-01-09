@@ -30,6 +30,7 @@ pub struct Server {
     pub auth: url::Url,
     pub compiled_modules: Arc<CachedCompiledModules>,
     pub exit_rx: watch::Receiver<bool>,
+    pub stdio_lock: Arc<Mutex<()>>,
 }
 
 impl Server {
@@ -83,6 +84,7 @@ impl Server {
             auth: run.auth.clone(),
             compiled_modules: Arc::new(CachedCompiledModules::default()),
             exit_rx: rx_exit,
+            stdio_lock: Arc::new(Mutex::new(())),
         }
     }
     pub async fn listen(self) -> Result<(), Box<dyn std::error::Error>> {
@@ -104,7 +106,7 @@ impl Server {
 impl server::Server for Server {
     type Handler = super::handler::Handler;
 
-    fn new(&mut self, peer_addr: Option<std::net::SocketAddr>) -> Self::Handler {
+    fn new(&mut self, peer_addr: Option<std::net::SocketAddr>) -> super::handler::Handler {
         let peer_addr_str = peer_addr
             .map(|a| a.to_string())
             .unwrap_or_else(|| "[unknown]".to_string());
@@ -118,7 +120,7 @@ impl server::Server for Server {
             auth: self.auth.clone(),
         };
         wizard.state.welcome = Some(super::cconst::CConst::SSH_WELCOME.to_string());
-        Self::Handler {
+        super::handler::Handler {
             rect: Arc::new(Mutex::new(ConsoleRect { cols: 80, rows: 25 })),
             registry: self.registry.clone(),
             native_files: self.native_files.clone(),
@@ -130,6 +132,7 @@ impl server::Server for Server {
             client_pubkey: None,
             wizard: Some(wizard),
             compiled_modules: self.compiled_modules.clone(),
+            stdio_lock: self.stdio_lock.clone(),
         }
     }
 }
