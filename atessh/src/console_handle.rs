@@ -41,8 +41,8 @@ impl ConsoleAbi for ConsoleHandle {
         use raw_tty::GuardMode;
         if let Ok(mut stderr) = io::stderr().guard_mode() {
             write!(&mut *stderr, "{}\r\n", text).unwrap();
+            stderr.flush().unwrap();
         }
-        stderr.flush().unwrap();
     }
 
     /// Gets the number of columns and rows in the terminal
