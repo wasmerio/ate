@@ -125,6 +125,7 @@ impl server::Handler for Handler {
                 handle: session.handle(),
                 native_files: self.native_files.clone(),
                 stdio_lock: self.stdio_lock.clone(),
+                enable_stderr: false,
             });
 
             // Spawn a dedicated thread and wait for it to do its thing

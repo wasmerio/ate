@@ -17,6 +17,7 @@ pub struct ConsoleHandle {
     pub channel: ChannelId,
     pub handle: Handle,
     pub stdio_lock: Arc<Mutex<()>>,
+    pub enable_stderr: bool,
 }
 
 #[async_trait]
@@ -34,7 +35,11 @@ impl ConsoleAbi for ConsoleHandle {
         let channel = self.channel;
         let data = CryptoVec::from_slice(&data[..]);
         let mut handle = self.handle.clone();
-        let _ = handle.extended_data(channel, 1, data).await;
+        if self.enable_stderr {
+            let _ = handle.extended_data(channel, 1, data).await;
+        } else {
+            let _ = handle.data(channel, data).await;
+        }
     }
     
     /// Flushes the data down the SSH pipe

@@ -57,7 +57,7 @@ pub(super) fn mount(
         ctx.exec_factory.clone(),
         stdio.stdin.downgrade(),
         stdio.stdout.downgrade(),
-        stdio.stdout.downgrade(),
+        stdio.stderr.downgrade(),
         stdio.log.downgrade(),
     );
 
