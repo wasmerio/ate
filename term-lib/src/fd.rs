@@ -198,12 +198,16 @@ impl Fd {
         let (mut rx, msg) = FdMsg::flush();
         if let Some(sender) = self.sender.as_mut() {
             if let Err(_err) = sender.send(msg).await {
+                error!("BBBBBBBBB 1");
                 return Err(std::io::ErrorKind::BrokenPipe.into());
             }
         } else {
+            error!("BBBBBBBBB 2");
             return Err(std::io::ErrorKind::BrokenPipe.into());
         }
-        let _ = rx.recv().await;
+        error!("BBBBBBBBB 3");
+        rx.recv().await;
+        error!("BBBBBBBBB 4");
         Ok(())
     }
 
@@ -330,8 +334,8 @@ impl Write for Fd {
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        let (tx, mut rx) = mpsc::channel(1);
-        self.blocking_send(FdMsg::Flush { tx })?;
+        let (mut rx, msg) = FdMsg::flush();
+        self.blocking_send(msg)?;
         self.blocking_recv(&mut rx)?;
         Ok(())
     }
@@ -340,6 +344,7 @@ impl Write for Fd {
 impl Read for Fd {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         if let Some(receiver) = self.receiver.as_mut() {
+            let mut wait_time = 0u64;
             loop {
                 // Make an attempt to read the data
                 if let Ok(mut receiver) = receiver.try_lock() {
@@ -383,10 +388,13 @@ impl Read for Fd {
 
                 // Maybe we are closed - if not then yield and try again
                 if self.closed.load(Ordering::Acquire) {
-                    std::thread::yield_now();
                     return Ok(0usize);
                 }
-                std::thread::park_timeout(std::time::Duration::from_millis(5));
+            
+                // Increase the wait time
+                wait_time += 1;
+                let wait_time = u64::min(wait_time / 10, 20);
+                std::thread::park_timeout(std::time::Duration::from_millis(wait_time));
             }
         } else {
             return Ok(0usize);
