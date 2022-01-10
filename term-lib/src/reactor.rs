@@ -15,6 +15,7 @@ use tracing::{debug, error, info, trace, warn};
 
 use super::api::*;
 use super::bus::WasmBusThreadPool;
+use super::bus::WasmCallerContext;
 use super::common::*;
 use super::environment::*;
 use super::err::*;
@@ -24,6 +25,7 @@ use super::fs::*;
 use super::job::*;
 use super::poll::*;
 use super::stdio::*;
+
 
 #[derive(Debug)]
 pub struct Reactor {
@@ -56,7 +58,7 @@ impl Reactor {
     pub fn generate_pid(
         &mut self,
         thread_pool: Arc<WasmBusThreadPool>,
-        forced_exit: Arc<AtomicU32>,
+        ctx: WasmCallerContext
     ) -> Result<Pid, u32> {
         for _ in 0..10000 {
             let pid = self.pid_seed;
@@ -68,7 +70,7 @@ impl Reactor {
                         system: self.system,
                         pid,
                         thread_pool,
-                        forced_exit,
+                        ctx,
                     },
                 );
                 return Ok(pid);
@@ -103,7 +105,7 @@ impl Reactor {
         Err(ERR_EMFILE)
     }
 
-    pub fn close_job(&mut self, job: Job, exit_code: u32) {
+    pub fn close_job(&mut self, job: Job, exit_code: NonZeroU32) {
         let job_id = job.id;
         if self.current_job == Some(job_id) {
             self.current_job.take();

@@ -294,7 +294,7 @@ impl Tty {
         let mut reactor = reactor.write().await;
         match last_mode {
             TtyMode::StdIn(job) => {
-                reactor.close_job(job, err::ERR_TERMINATED);
+                reactor.close_job(job, std::num::NonZeroU32::new(err::ERR_TERMINATED).unwrap());
             }
             _ => {}
         }

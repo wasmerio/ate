@@ -15,6 +15,7 @@ use std::{
     sync::Arc,
     task::{self, Context, Poll, Waker},
 };
+use std::num::NonZeroU32;
 use tokio::io::{self, AsyncRead, AsyncWrite, ReadBuf};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TryRecvError;
@@ -29,6 +30,7 @@ use super::pipe::*;
 use super::poll::*;
 use super::reactor::*;
 use super::state::*;
+use super::bus::WasmCallerContext;
 use crate::wasmer_vfs::{FileDescriptor, VirtualFile};
 use crate::wasmer_wasi::{types as wasi_types, WasiFile, WasiFsError};
 
@@ -80,7 +82,7 @@ impl FdMsg {
 #[derive(Debug, Clone)]
 pub struct Fd {
     pub(crate) flag: FdFlag,
-    pub(crate) forced_exit: Arc<AtomicU32>,
+    pub(crate) ctx: WasmCallerContext,
     pub(crate) closed: Arc<AtomicBool>,
     pub(crate) blocking: Arc<AtomicBool>,
     pub(crate) sender: Option<Arc<mpsc::Sender<FdMsg>>>,
@@ -95,7 +97,7 @@ impl Fd {
     ) -> Fd {
         Fd {
             flag,
-            forced_exit: Arc::new(AtomicU32::new(0)),
+            ctx: WasmCallerContext::default(),
             closed: Arc::new(AtomicBool::new(false)),
             blocking: Arc::new(AtomicBool::new(true)),
             sender: tx.map(|a| Arc::new(a)),
@@ -106,7 +108,7 @@ impl Fd {
     pub fn combine(fd1: &Fd, fd2: &Fd) -> Fd {
         let mut ret = Fd {
             flag: fd1.flag,
-            forced_exit: fd1.forced_exit.clone(),
+            ctx: fd1.ctx.clone(),
             closed: fd1.closed.clone(),
             blocking: Arc::new(AtomicBool::new(fd1.blocking.load(Ordering::Relaxed))),
             sender: None,
@@ -132,8 +134,8 @@ impl Fd {
         self.blocking.store(blocking, Ordering::Relaxed);
     }
 
-    pub fn forced_exit(&self, exit_code: u32) {
-        self.forced_exit.store(exit_code, Ordering::Release);
+    pub fn forced_exit(&self, exit_code: NonZeroU32) {
+        self.ctx.terminate(exit_code);
     }
 
     pub fn close(&self) {
@@ -260,8 +262,7 @@ impl Fd {
                 }
 
                 // Check for a forced exit
-                let forced_exit = self.forced_exit.load(Ordering::Acquire);
-                if forced_exit != 0 {
+                if self.ctx.should_terminate().is_some() {
                     return Err(std::io::ErrorKind::Interrupted.into());
                 }
 
@@ -281,7 +282,7 @@ impl Fd {
     }
 
     fn blocking_recv<T>(&mut self, receiver: &mut mpsc::Receiver<T>) -> io::Result<Option<T>> {
-        let mut wait_time = 0u64;
+        let mut tick_wait = 0u64;
         loop {
             // Try and receive the data
             match receiver.try_recv() {
@@ -301,8 +302,7 @@ impl Fd {
             }
 
             // Check for a forced exit
-            let forced_exit = self.forced_exit.load(Ordering::Acquire);
-            if forced_exit != 0 {
+            if self.ctx.should_terminate().is_some() {
                 return Err(std::io::ErrorKind::Interrupted.into());
             }
 
@@ -312,8 +312,8 @@ impl Fd {
             }
 
             // Linearly increasing wait time
-            wait_time += 1;
-            let wait_time = u64::min(wait_time / 10, 20);
+            tick_wait += 1;
+            let wait_time = u64::min(tick_wait / 10, 20);
             std::thread::park_timeout(std::time::Duration::from_millis(wait_time));
         }
     }
@@ -340,7 +340,7 @@ impl Write for Fd {
 impl Read for Fd {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         if let Some(receiver) = self.receiver.as_mut() {
-            let mut wait_time = 0u64;
+            let mut tick_wait = 0u64;
             loop {
                 // Make an attempt to read the data
                 if let Ok(mut receiver) = receiver.try_lock() {
@@ -377,8 +377,7 @@ impl Read for Fd {
                 }
 
                 // Check for a forced exit
-                let forced_exit = self.forced_exit.load(Ordering::Acquire);
-                if forced_exit != 0 {
+                if self.ctx.should_terminate().is_some() {
                     return Err(std::io::ErrorKind::Interrupted.into());
                 }
 
@@ -389,8 +388,8 @@ impl Read for Fd {
                 }
                 
                 // Linearly increasing wait time
-                wait_time += 1;
-                let wait_time = u64::min(wait_time / 10, 20);
+                tick_wait += 1;
+                let wait_time = u64::min(tick_wait / 10, 20);
                 std::thread::park_timeout(std::time::Duration::from_millis(wait_time));
             }
         } else {
@@ -424,7 +423,7 @@ impl VirtualFile for Fd {
 #[derive(Debug, Clone)]
 pub struct WeakFd {
     pub(crate) flag: FdFlag,
-    pub(crate) forced_exit: Weak<AtomicU32>,
+    pub(crate) ctx: WasmCallerContext,
     pub(crate) closed: Weak<AtomicBool>,
     pub(crate) blocking: Weak<AtomicBool>,
     pub(crate) sender: Option<Weak<mpsc::Sender<FdMsg>>>,
@@ -433,13 +432,6 @@ pub struct WeakFd {
 
 impl WeakFd {
     pub fn upgrade(&self) -> Option<Fd> {
-        let forced_exit = match self.forced_exit.upgrade() {
-            Some(a) => a,
-            None => {
-                return None;
-            }
-        };
-
         let closed = match self.closed.upgrade() {
             Some(a) => a,
             None => {
@@ -460,7 +452,7 @@ impl WeakFd {
 
         Some(Fd {
             flag: self.flag,
-            forced_exit,
+            ctx: self.ctx.clone(),
             closed,
             blocking,
             sender,
@@ -471,7 +463,6 @@ impl WeakFd {
 
 impl Fd {
     pub fn downgrade(&self) -> WeakFd {
-        let forced_exit = Arc::downgrade(&self.forced_exit);
         let closed = Arc::downgrade(&self.closed);
         let blocking = Arc::downgrade(&self.blocking);
         let sender = self.sender.iter().map(|a| Arc::downgrade(&a)).next();
@@ -479,7 +470,7 @@ impl Fd {
 
         WeakFd {
             flag: self.flag,
-            forced_exit,
+            ctx: self.ctx.clone(),
             closed,
             blocking,
             sender,

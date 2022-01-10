@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::atomic::AtomicU32;
 use tokio::sync::oneshot;
 use tokio::sync::RwLock;
 #[allow(unused_imports, dead_code)]
@@ -34,12 +35,13 @@ pub struct BinaryPackage {
 
 impl BinaryPackage {
     pub fn new(data: Bytes) -> BinaryPackage {
+        let forced_exit = Arc::new(AtomicU32::new(0));
         let hash = hash_of_binary(&data);
         BinaryPackage {
             data,
             hash,
             chroot: false,
-            fs: TmpFileSystem::default(),
+            fs: TmpFileSystem::new(),
             mappings: Vec::new(),
         }
     }

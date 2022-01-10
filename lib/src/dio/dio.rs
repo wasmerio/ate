@@ -549,7 +549,7 @@ impl Dio {
         TaskEngine::spawn(async move {
             loop {
                 let recv =
-                    crate::engine::timeout(std::time::Duration::from_secs(1), decache.recv()).await;
+                    crate::engine::timeout(std::time::Duration::from_secs(5), decache.recv()).await;
                 let dio = match Weak::upgrade(&dio) {
                     Some(a) => a,
                     None => {
@@ -564,14 +564,29 @@ impl Dio {
                 };
                 let recv = match recv {
                     Ok(a) => a,
-                    Err(_) => {
+                    Err(broadcast::error::RecvError::Closed) => {
                         break;
+                    }
+                    Err(broadcast::error::RecvError::Lagged(_)) => {
+                        continue;
                     }
                 };
 
                 let mut state = dio.state.lock().unwrap();
                 for key in recv {
                     state.cache_load.remove(&key);
+                }
+                loop {
+                    match decache.try_recv() {
+                        Ok(recv) => {
+                            for key in recv {
+                                state.cache_load.remove(&key);
+                            }  
+                        },
+                        Err(_) => {
+                            break;
+                        }
+                    }
                 }
             }
         });

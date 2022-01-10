@@ -33,13 +33,15 @@ use crate::err;
 pub struct WasmBusThreadPool {
     threads: Arc<RwLock<HashMap<u32, WasmBusThread>>>,
     process_factory: ProcessExecFactory,
+    ctx: WasmCallerContext,
 }
 
 impl WasmBusThreadPool {
-    pub fn new(process_factory: ProcessExecFactory) -> Arc<WasmBusThreadPool> {
+    pub fn new(process_factory: ProcessExecFactory, ctx: WasmCallerContext) -> Arc<WasmBusThreadPool> {
         Arc::new(WasmBusThreadPool {
             threads: Arc::new(RwLock::new(HashMap::default())),
             process_factory,
+            ctx,
         })
     }
 
@@ -93,6 +95,7 @@ impl WasmBusThreadPool {
                 inside: RefCell::new(inner),
             }),
             work_tx,
+            ctx: self.ctx.clone(),
             memory: thread.memory_clone(),
             wasm_bus_free: LazyInit::new(),
             wasm_bus_malloc: LazyInit::new(),
@@ -178,6 +181,7 @@ pub struct WasmBusThread {
     pub polling: watch::Receiver<bool>,
     pub(crate) inner: Arc<WasmBusThreadProtected>,
     pub(crate) work_tx: mpsc::Sender<WasmBusThreadWork>,
+    pub(crate) ctx: WasmCallerContext,
     #[wasmer(export)]
     memory: LazyInit<Memory>,
 
@@ -247,15 +251,17 @@ impl WasmBusThread {
         parent: Option<CallHandle>,
         topic: String,
         data: Vec<u8>,
+        ctx: WasmCallerContext,
     ) -> AsyncWasmBusResultRaw {
         let (rx, handle) = self.call_internal(parent, topic, data);
-        AsyncWasmBusResultRaw::new(rx, handle)
+        AsyncWasmBusResultRaw::new(rx, handle, ctx, self.ctx.clone())
     }
 
     pub fn call<RES, REQ>(
         &self,
         format: SerializationFormat,
         request: REQ,
+        ctx: WasmCallerContext,
     ) -> Result<AsyncWasmBusResult<RES>, CallError>
     where
         REQ: Serialize,
@@ -291,7 +297,7 @@ impl WasmBusThread {
         };
 
         let (rx, handle) = self.call_internal(None, topic.to_string(), data);
-        Ok(AsyncWasmBusResult::new(self, rx, handle, format))
+        Ok(AsyncWasmBusResult::new(self, rx, handle, format, ctx))
     }
 
     pub fn wait_for_poll(&self) -> bool {
@@ -458,14 +464,23 @@ async fn async_wait_for_poll(mut polling: watch::Receiver<bool>) -> bool {
 pub struct AsyncWasmBusResultRaw {
     pub(crate) rx: mpsc::Receiver<Result<Vec<u8>, CallError>>,
     pub(crate) handle: WasmBusThreadHandle,
+    pub(crate) ctx_src: WasmCallerContext,
+    pub(crate) ctx_dst: WasmCallerContext,
 }
 
 impl AsyncWasmBusResultRaw {
     pub fn new(
         rx: mpsc::Receiver<Result<Vec<u8>, CallError>>,
         handle: WasmBusThreadHandle,
+        ctx_src: WasmCallerContext,
+        ctx_dst: WasmCallerContext,
     ) -> Self {
-        Self { rx, handle }
+        Self {
+            rx,
+            handle,
+            ctx_src,
+            ctx_dst,
+        }
     }
 
     pub fn handle(&self) -> WasmBusThreadHandle {
@@ -473,11 +488,32 @@ impl AsyncWasmBusResultRaw {
     }
 
     pub fn block_on(mut self) -> Result<Vec<u8>, CallError> {
-        self.rx.blocking_recv().ok_or_else(|| CallError::Aborted)?
-    }
+        let mut tick_wait = 0u64;
+        loop {
+            // Attempt to get the data from the receiver pipe
+            match self.rx.try_recv() {
+                Ok(msg) => {
+                    return msg;
+                }
+                Err(mpsc::error::TryRecvError::Empty) => {}
+                Err(mpsc::error::TryRecvError::Disconnected) => {
+                    return Err(CallError::Aborted);
+                }
+            }
 
-    pub async fn join(mut self) -> Result<Vec<u8>, CallError> {
-        self.rx.recv().await.ok_or_else(|| CallError::Aborted)?
+            // Check for a forced exit
+            if self.ctx_src.should_terminate().is_some() {
+                return Err(CallError::Aborted);
+            }
+            if self.ctx_dst.should_terminate().is_some() {
+                return Err(CallError::Aborted);
+            }
+            
+            // Linearly increasing wait time
+            tick_wait += 1;
+            let wait_time = u64::min(tick_wait / 10, 20);
+            std::thread::park_timeout(std::time::Duration::from_millis(wait_time));
+        }
     }
 }
 
@@ -500,6 +536,7 @@ where
     pub(crate) handle: WasmBusThreadHandle,
     pub(crate) format: SerializationFormat,
     pub(crate) rx: mpsc::Receiver<Result<Vec<u8>, CallError>>,
+    pub(crate) ctx: WasmCallerContext,
     should_drop: bool,
     _marker: PhantomData<T>,
 }
@@ -513,6 +550,7 @@ where
         rx: mpsc::Receiver<Result<Vec<u8>, CallError>>,
         handle: WasmBusThreadHandle,
         format: SerializationFormat,
+        ctx: WasmCallerContext,
     ) -> Self {
         Self {
             thread: thread.clone(),
@@ -520,27 +558,9 @@ where
             format,
             rx,
             should_drop: true,
+            ctx,
             _marker: PhantomData,
         }
-    }
-
-    pub fn block_on_safe(mut self) -> Result<T, CallError>
-    where
-        T: Send + 'static,
-    {
-        let format = self.format;
-        let (block_on_tx, block_on_rx) = std::sync::mpsc::channel();
-        let sys = System::default();
-
-        sys.fork_shared(move || async move {
-            if let Some(data) = self.rx.recv().await {
-                self.should_drop = false;
-                let _ = block_on_tx.send(data);
-            }
-        });
-
-        let data = block_on_rx.recv().map_err(|_| CallError::Aborted)??;
-        Self::block_on_process(format, data)
     }
 
     pub fn block_on(mut self) -> Result<T, CallError> {
@@ -549,15 +569,37 @@ where
 
     fn block_on_internal(&mut self) -> Result<T, CallError> {
         let format = self.format;
-        let data = self
-            .rx
-            .blocking_recv()
-            .ok_or_else(|| CallError::Aborted)??;
-        self.should_drop = false;
-        Self::block_on_process(format, data)
+        let mut tick_wait = 0u64;
+        loop {
+            // Attempt to get the data from the receiver pipe
+            match self.rx.try_recv() {
+                Ok(msg) => {
+                    let data = msg?;
+                    self.should_drop = false;
+                    return Self::process_block_on_result(format, data);
+                }
+                Err(mpsc::error::TryRecvError::Empty) => {}
+                Err(mpsc::error::TryRecvError::Disconnected) => {
+                    return Err(CallError::Aborted);
+                }
+            }
+
+            // Check for a forced exit
+            if self.ctx.should_terminate().is_some() {
+                return Err(CallError::Aborted);
+            }
+            if self.thread.ctx.should_terminate().is_some() {
+                return Err(CallError::Aborted);
+            }
+            
+            // Linearly increasing wait time
+            tick_wait += 1;
+            let wait_time = u64::min(tick_wait / 10, 20);
+            std::thread::park_timeout(std::time::Duration::from_millis(wait_time));
+        }
     }
 
-    fn block_on_process(format: SerializationFormat, data: Vec<u8>) -> Result<T, CallError> {
+    fn process_block_on_result(format: SerializationFormat, data: Vec<u8>) -> Result<T, CallError> {
         match format {
             SerializationFormat::Bincode => match bincode::deserialize::<T>(&data[..]) {
                 Ok(a) => Ok(a),
@@ -640,20 +682,6 @@ where
             self.format.clone(),
         ))
     }
-
-    pub fn blocking_detach_safe(mut self) -> Result<AsyncWasmBusSession, CallError>
-    where
-        T: Send + 'static,
-    {
-        self.should_drop = false;
-        let thread = self.thread.clone();
-        let handle = self.handle.clone();
-        let format = self.format.clone();
-
-        let _ = self.block_on_safe()?;
-
-        Ok(AsyncWasmBusSession::new(&thread, handle, format))
-    }
 }
 
 impl<T> Drop for AsyncWasmBusResult<T>
@@ -701,18 +729,19 @@ impl AsyncWasmBusSession {
         }
     }
 
-    pub fn call<RES, REQ>(&self, request: REQ) -> Result<AsyncWasmBusResult<RES>, CallError>
+    pub fn call<RES, REQ>(&self, request: REQ, ctx: WasmCallerContext) -> Result<AsyncWasmBusResult<RES>, CallError>
     where
         REQ: Serialize,
         RES: de::DeserializeOwned,
     {
-        self.call_with_format(self.format.clone(), request)
+        self.call_with_format(self.format.clone(), request, ctx)
     }
 
     pub fn call_with_format<RES, REQ>(
         &self,
         format: SerializationFormat,
         request: REQ,
+        ctx: WasmCallerContext
     ) -> Result<AsyncWasmBusResult<RES>, CallError>
     where
         REQ: Serialize,
@@ -756,6 +785,7 @@ impl AsyncWasmBusSession {
             rx,
             handle,
             format,
+            ctx,
         ))
     }
 }

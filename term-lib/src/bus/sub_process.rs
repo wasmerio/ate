@@ -134,6 +134,7 @@ impl SubProcess {
         self: &Arc<Self>,
         topic: &str,
         request: Vec<u8>,
+        ctx: WasmCallerContext,
         _client_callbacks: HashMap<String, WasmBusCallback>,
     ) -> Result<(Box<dyn Invokable>, Option<Box<dyn Session>>), CallError> {
         let threads = match self.threads.first() {
@@ -144,10 +145,10 @@ impl SubProcess {
         };
 
         let topic = topic.to_string();
-        let invoker = threads.call_raw(None, topic, request);
+        let invoker = threads.call_raw(None, topic, request, ctx.clone());
         let sub_process = self.clone();
 
-        let session = SubProcessSession::new(threads.clone(), invoker.handle(), sub_process);
+        let session = SubProcessSession::new(threads.clone(), invoker.handle(), sub_process, ctx);
         Ok((Box::new(invoker), Some(Box::new(session))))
     }
 }
@@ -156,11 +157,17 @@ pub struct SubProcessSession {
     pub handle: WasmBusThreadHandle,
     pub thread: WasmBusThread,
     pub sub_process: Arc<SubProcess>,
+    pub ctx: WasmCallerContext
 }
 
 impl SubProcessSession {
-    pub fn new(thread: WasmBusThread, handle: WasmBusThreadHandle, sub_process: Arc<SubProcess>) -> SubProcessSession {
-        SubProcessSession { thread, handle, sub_process }
+    pub fn new(thread: WasmBusThread, handle: WasmBusThreadHandle, sub_process: Arc<SubProcess>, ctx: WasmCallerContext) -> SubProcessSession {
+        SubProcessSession {
+            thread,
+            handle,
+            sub_process,
+            ctx,
+        }
     }
 }
 
@@ -169,7 +176,7 @@ impl Session for SubProcessSession {
         let topic = topic.to_string();
         let invoker = self
             .thread
-            .call_raw(Some(self.handle.handle()), topic, request);
+            .call_raw(Some(self.handle.handle()), topic, request, self.ctx.clone());
         Box::new(invoker)
     }
 }

@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use std::result::Result as StdResult;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::atomic::AtomicU32;
 use tokio::sync::mpsc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
@@ -17,6 +18,8 @@ use crate::wasmer_vfs::*;
 use crate::wasmer_vfs::{FileDescriptor, VirtualFile};
 use crate::wasmer_wasi::{types as wasi_types, WasiFile, WasiFsError};
 
+use crate::bus::WasmCallerContext;
+use super::api::*;
 use crate::fd::*;
 use crate::stdio::*;
 use crate::tty::*;
@@ -67,7 +70,16 @@ impl ProcFileSystem {
     }
 }
 
-impl FileSystem for ProcFileSystem {
+impl MountedFileSystem
+for ProcFileSystem
+{
+    fn set_ctx(&self, ctx: &WasmCallerContext) {
+    }
+}
+
+impl FileSystem
+for ProcFileSystem
+{
     fn read_dir(&self, path: &Path) -> FsResult<ReadDir> {
         debug!("read_dir: path={}", path.display());
 

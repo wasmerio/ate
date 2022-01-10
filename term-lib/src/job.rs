@@ -2,6 +2,7 @@
 #![allow(dead_code)]
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::num::NonZeroU32;
 use tokio::sync::mpsc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
@@ -49,11 +50,11 @@ impl Job {
         }
     }
 
-    pub fn terminate(&self, reactor: &mut Reactor, exit_code: u32) {
+    pub fn terminate(&self, reactor: &mut Reactor, exit_code: NonZeroU32) {
         self.stdin.forced_exit(exit_code);
         let mut rx = self.job_list_rx.lock().unwrap();
         while let Ok(pid) = rx.try_recv() {
-            Reactor::close_process(reactor, pid, exit_code);
+            Reactor::close_process(reactor, pid, exit_code.into());
         }
         debug!("job terminated (id={})", self.id);
     }

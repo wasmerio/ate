@@ -99,7 +99,7 @@ pub async fn exec_process(
     // file system will also change)
     let mut preopen = ctx.pre_open.clone();
     let mut chroot = ctx.chroot;
-    let (data_hash, data, fs_private) = match load_bin(&ctx, cmd, &mut stdio).await {
+    let (data_hash, data, mut fs_private) = match load_bin(&ctx, cmd, &mut stdio).await {
         Some(a) => {
             if a.chroot {
                 chroot = true;
@@ -117,6 +117,10 @@ pub async fn exec_process(
     #[cfg(feature = "cached_compiling")]
     let mut module = { ctx.bins.get_compiled_module(&data_hash).await };
 
+    // We listen for any forced exits using this channel
+    let caller_ctx = WasmCallerContext::default();
+    fs_private.set_ctx(&caller_ctx);
+
     // Create the filesystem
     let (fs, union) = {
         let root = ctx.root.clone();
@@ -129,8 +133,10 @@ pub async fn exec_process(
             true,
             Box::new(ProcFileSystem::new(stdio)),
         );
-        union.mount("tmp", "/tmp", true, Box::new(TmpFileSystem::default()));
+        union.mount("tmp", "/tmp", true, Box::new(TmpFileSystem::new()));
         union.mount("private", "/.private", true, Box::new(fs_private));
+
+        union.set_ctx(&caller_ctx);
 
         (AsyncifyFileSystem::new(union.clone()), union)
     };
@@ -268,13 +274,12 @@ pub async fn exec_process(
         ctx
     );
 
+    let forced_exit = caller_ctx.get_forced_exit();
+
     // The BUS pool is what gives this WASM process its syscall and operation system
     // functions and services
-    let bus_thread_pool = WasmBusThreadPool::new(sub_process_factory);
+    let bus_thread_pool = WasmBusThreadPool::new(sub_process_factory, caller_ctx.clone());
     let bus_thread_pool_ret = Arc::clone(&bus_thread_pool);
-
-    // We listen for any forced exits using this channel
-    let forced_exit = Arc::new(AtomicU32::new(0));
 
     // This wait point is so that the main thread is created before it returns
     let (checkpoint_tx, mut checkpoint_rx) = mpsc::channel(1);
@@ -506,7 +511,7 @@ pub async fn exec_process(
     // Generate a PID for this process
     let (pid, process) = {
         let mut guard = reactor.write().await;
-        let pid = guard.generate_pid(bus_thread_pool_ret.clone(), forced_exit)?;
+        let pid = guard.generate_pid(bus_thread_pool_ret.clone(), caller_ctx)?;
         let process = match guard.get_process(pid) {
             Some(a) => a,
             None => {

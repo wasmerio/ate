@@ -526,7 +526,7 @@ impl Console {
             TtyMode::StdIn(job) => {
                 {
                     let mut reactor = self.reactor.write().await;
-                    reactor.close_job(job, err::ERR_TERMINATED);
+                    reactor.close_job(job, std::num::NonZeroU32::new(err::ERR_TERMINATED).unwrap());
                 }
                 self.tty.enter_mode(TtyMode::Null, &self.reactor).await;
             }

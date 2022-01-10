@@ -5,14 +5,18 @@ use std::borrow::Cow;
 use std::ops::Add;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::atomic::AtomicU32;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
+
+use crate::bus::WasmCallerContext;
+use super::api::MountedFileSystem;
 
 #[derive(Debug, Clone)]
 pub struct MountPoint {
     pub path: String,
     pub name: String,
-    pub fs: Arc<Box<dyn FileSystem>>,
+    pub fs: Arc<Box<dyn MountedFileSystem>>,
     pub should_sanitize: bool,
 }
 
@@ -28,7 +32,7 @@ impl UnionFileSystem {
 }
 
 impl UnionFileSystem {
-    pub fn mount(&mut self, name: &str, path: &str, should_sanitize: bool, fs: Box<dyn FileSystem>) {
+    pub fn mount(&mut self, name: &str, path: &str, should_sanitize: bool, fs: Box<dyn MountedFileSystem>) {
         let mut path = path.to_string();
         if path.ends_with("/") == false {
             path += "/";
@@ -88,7 +92,18 @@ impl UnionFileSystem {
     }
 }
 
-impl FileSystem for UnionFileSystem {
+impl MountedFileSystem
+for UnionFileSystem
+{
+    fn set_ctx(&self, ctx: &WasmCallerContext) {
+        for mount in self.mounts.iter() {
+            mount.fs.set_ctx(ctx);
+        }
+    }
+}
+
+impl FileSystem
+for UnionFileSystem {
     fn read_dir(&self, path: &Path) -> Result<ReadDir> {
         debug!("read_dir: path={}", path.display());
         self.read_dir_internal(path)

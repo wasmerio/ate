@@ -491,6 +491,7 @@ unsafe fn wasm_bus_call(
             topic.to_string(),
             request,
             client_callbacks,
+            thread.ctx.clone(),
         )
     };
 

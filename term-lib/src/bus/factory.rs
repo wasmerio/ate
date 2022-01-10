@@ -9,6 +9,7 @@ use wasm_bus::abi::CallHandle;
 use wasm_bus_process::api::StdioMode;
 
 use super::*;
+use crate::bus::WasmCallerContext;
 
 // A BUS factory is created for every running process and allows them
 // to spawn operating system commands and/or other sub processes
@@ -35,6 +36,7 @@ impl BusFactory {
         topic: String,
         request: Vec<u8>,
         client_callbacks: HashMap<String, WasmBusCallback>,
+        ctx: WasmCallerContext,
     ) -> Box<dyn Invokable> {
         // If it has a parent then we need to make the call relative to this parents session
         if let Some(parent) = parent {
@@ -54,6 +56,7 @@ impl BusFactory {
             topic,
             request: Some(request),
             client_callbacks,
+            ctx,
         })
     }
 
@@ -75,6 +78,7 @@ where
     topic: String,
     request: Option<Vec<u8>>,
     client_callbacks: HashMap<String, WasmBusCallback>,
+    ctx: WasmCallerContext,
 }
 
 #[async_trait]
@@ -126,7 +130,12 @@ where
             .await?;
 
         // Next we kick all the call itself into the process (with assocated callbacks)
-        let call = sub_process.create(self.topic.as_str(), request, client_callbacks)?;
+        let call = sub_process.create(
+            self.topic.as_str(),
+            request,
+            self.ctx.clone(),
+            client_callbacks
+        )?;
         let mut invoker = match call {
             (invoker, Some(session)) => {
                 let mut sessions = self.sessions.lock().unwrap();
