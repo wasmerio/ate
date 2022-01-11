@@ -59,6 +59,10 @@ impl StandardBus {
                     .await?;
                 Ok((Box::new(created.invoker), Some(Box::new(created.session))))
             }
+            ("os", topic) => {
+                error!("the os function ({}) is not supported", topic);
+                return Err(CallError::Unsupported);
+            }
             _ => Err(CallError::InvalidTopic),
         }
     }

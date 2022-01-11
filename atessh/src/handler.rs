@@ -155,7 +155,6 @@ impl server::Handler for Handler {
                     // We are ready to receive data
                     Ok((self, session))
                 })
-                .join()
                 .await
                 .unwrap()
         })

@@ -137,7 +137,6 @@ impl BinFactory {
 
         // First just try to find it
         if let Ok(data) = fetch_file(format!("/bin/{}.wasm", name).as_str())
-            .join()
             .await
             .unwrap()
         {
@@ -192,7 +191,7 @@ impl BinFactory {
 
         // Try and find it via a fetch
         let alias_path = format!("/bin/{}.alias", name);
-        if let Ok(data) = fetch_file(alias_path.as_str()).join().await.unwrap() {
+        if let Ok(data) = fetch_file(alias_path.as_str()).await.unwrap() {
             // Decode the file into a yaml configuration
             match serde_yaml::from_slice::<AliasConfig>(&data[..]) {
                 Ok(alias) => {

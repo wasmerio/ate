@@ -1,4 +1,70 @@
 ```
+MVP
+===
+
+Web Sites.
+
+- thin client that makes wss:// calls to sessions
+- thick client that runs a headless terminal
+- anything published on WAPM can be called via the wasm-bus
+- OpenGl is proxied for headless mode.
+- We can host your websites for free
+- Paid hosting grants you backup and throttle limits removed.
+
+Tokera.sh
+
+- /usr and /opt are mounted on login (other mounts are remembered)
+- wapm installs to /usr
+- accounts are free but rate limited.
+- all admin functions can be executed here.
+- chroot allows one to impersonate permissions for a group (domain) and see their mounts
+- 'ps' allows lets you see your running sessions
+- 'kill', 'stop', 'start', 'restart', 'backup' and restore are admin functions on sessions.
+- paid version allows for more than 100mb, backup and 'fast mounting' for all file systems.
+
+AteSSH
+
+- all the same functionality as tokera.sh.
+- higher performance processing if you pay
+- binding to a public key for login
+- ssh commands supported
+- scp supported
+- mounts are persisted
+
+Sessions
+
+- /usr and /opt are persisted
+- stays active for 60 seconds after woken
+- shuts down when all connections are terminated to the session
+- uses wasm-bus for communication
+- wasm-net allows client and server tcp
+- sessions can be attached to a network (mvp2)
+- ateweb will proxy any connections to wasm-net on specific domains.
+- allows for one or more docker containers to run beside the session allowing bidirectional file system and network access (mvp2)
+- persistent block devices (mvp2)
+- sessions are attached to wallets and this is how they are paid.
+
+Wapm
+
+- publish as many wasmbus-* libraries as possible to wapm
+- harvest from cargo.io and compile to wasm32-wasi
+- make a searchable api that web developers can use
+- try to get some generic databases in
+
+Hardware
+
+- Rent 5 bricks in each region
+- 1 server is a backup target
+- regions are us, europe, aus and uk
+- spread the chains across the 20 servers
+
+Wasmer and Tokera websites
+
+- convert them to use wasm-bus
+- unify the authentication and authorization
+- write lots of blogs!
+
+-----------------------------------------------------------------------------------------------------------
 
 1.0.1   WebAssembly in the browser
         + Modify authentication so that it uses a bearwr token thats exchangable to a time limited token

@@ -18,6 +18,8 @@ use std::marker::PhantomData;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::RwLock;
+use std::task::Context;
+use std::task::Poll;
 use tokio::sync::mpsc;
 use tokio::sync::watch;
 #[allow(unused_imports, dead_code)]
@@ -73,9 +75,11 @@ impl WasmBusThreadPool {
 
         let (work_tx, work_rx) = mpsc::channel(crate::common::MAX_MPSC);
         let (polling_tx, polling_rx) = watch::channel(false);
+        let (feed_tx, feed_rx) = mpsc::channel(crate::common::MAX_MPSC);
 
         let inner = WasmBusThreadInner {
             invocations: HashMap::default(),
+            feed_data: feed_rx,
             calls: HashMap::default(),
             factory: BusFactory::new(self.process_factory.clone()),
             callbacks: HashMap::default(),
@@ -86,7 +90,6 @@ impl WasmBusThreadPool {
         };
 
         let ret = WasmBusThread {
-            waker: Arc::new(ThreadWaker::new()),
             thread_id: thread.thread_id(),
             system: System::default(),
             pool: Arc::clone(self),
@@ -95,6 +98,7 @@ impl WasmBusThreadPool {
                 inside: RefCell::new(inner),
             }),
             work_tx,
+            feed_data: feed_tx,
             ctx: self.ctx.clone(),
             memory: thread.memory_clone(),
             wasm_bus_free: LazyInit::new(),
@@ -143,8 +147,15 @@ pub(crate) enum WasmBusThreadWork {
     },
 }
 
+pub(crate) struct WasmBusThreadInvocation {
+    pub _abort: mpsc::Sender<()>,
+    pub result: AsyncResult<Result<InvokeResult, CallError>>,
+    pub data_feeder: WasmBusCallback,
+}
+
 pub(crate) struct WasmBusThreadInner {
-    pub(super) invocations: HashMap<CallHandle, Pin<Box<dyn Future<Output = ()> + Send + 'static>>>,
+    pub(super) invocations: HashMap<CallHandle, WasmBusThreadInvocation>,
+    pub(super) feed_data: mpsc::Receiver<FeedData>,
     pub(super) calls: HashMap<CallHandle, mpsc::Sender<Result<Vec<u8>, CallError>>>,
     pub(super) callbacks: HashMap<CallHandle, HashMap<String, CallHandle>>,
     pub(super) listens: HashSet<String>,
@@ -176,27 +187,182 @@ unsafe impl Sync for WasmBusThreadProtected {}
 pub struct WasmBusThread {
     pub(crate) system: System,
     pub thread_id: u32,
-    pub(crate) waker: Arc<ThreadWaker>,
     pub pool: Arc<WasmBusThreadPool>,
     pub polling: watch::Receiver<bool>,
     pub(crate) inner: Arc<WasmBusThreadProtected>,
     pub(crate) work_tx: mpsc::Sender<WasmBusThreadWork>,
+    pub(super) feed_data: mpsc::Sender<FeedData>,
     pub(crate) ctx: WasmCallerContext,
-    #[wasmer(export)]
-    memory: LazyInit<Memory>,
 
+    #[wasmer(export)]
+    pub memory: LazyInit<Memory>,
     #[wasmer(export(name = "wasm_bus_free"))]
-    wasm_bus_free: LazyInit<NativeFunc<(u32, u32), ()>>,
+    pub wasm_bus_free: LazyInit<NativeFunc<(u32, u32), ()>>,
     #[wasmer(export(name = "wasm_bus_malloc"))]
-    wasm_bus_malloc: LazyInit<NativeFunc<u32, u32>>,
+    pub wasm_bus_malloc: LazyInit<NativeFunc<u32, u32>>,
     #[wasmer(export(name = "wasm_bus_start"))]
-    wasm_bus_start: LazyInit<NativeFunc<(u32, u32, u32, u32, u32, u32), ()>>,
+    pub wasm_bus_start: LazyInit<NativeFunc<(u32, u32, u32, u32, u32, u32), ()>>,
     #[wasmer(export(name = "wasm_bus_finish"))]
-    wasm_bus_finish: LazyInit<NativeFunc<(u32, u32, u32), ()>>,
+    pub wasm_bus_finish: LazyInit<NativeFunc<(u32, u32, u32), ()>>,
     #[wasmer(export(name = "wasm_bus_error"))]
-    wasm_bus_error: LazyInit<NativeFunc<(u32, u32), ()>>,
+    pub wasm_bus_error: LazyInit<NativeFunc<(u32, u32), ()>>,
     #[wasmer(export(name = "wasm_bus_drop"))]
-    wasm_bus_drop: LazyInit<NativeFunc<u32, ()>>,
+    pub wasm_bus_drop: LazyInit<NativeFunc<u32, ()>>,
+}
+
+impl Future
+for WasmBusThread
+{
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output>
+    {
+        let sessions;
+        let mut callbacks = Vec::new();
+        unsafe {
+            let mut to_remove = Vec::new();
+            
+            let mut inner = self.inner.lock();
+            for (handle, invocation) in inner.invocations.iter_mut() {
+                let mut rx = Pin::new(&mut invocation.result.rx);
+                match rx.poll_recv(cx) {
+                    Poll::Ready(Some(result)) => {
+                        callbacks.push((invocation.data_feeder.clone(), result));
+                        to_remove.push(handle.clone());
+                    }
+                    Poll::Ready(None) => {
+                        callbacks.push((invocation.data_feeder.clone(), Err(CallError::Aborted)));
+                        to_remove.push(handle.clone());
+                    }
+                    Poll::Pending => {
+                        continue;
+                    }
+                }
+            }
+            for handle in to_remove {
+                inner.invocations.remove(&handle);
+            }
+            sessions = inner.factory.sessions();
+        }
+
+        for (callback, result) in callbacks {
+            callback.process(result, &sessions);
+        }
+
+        let mut feed_data = Vec::new();
+        unsafe {
+            let mut inner = self.inner.lock();
+            while let Poll::Ready(Some(result)) = inner.feed_data.poll_recv(cx) {
+                feed_data.push(result);
+            }
+        }
+
+        self.feed_data(feed_data);
+
+        Poll::Pending
+    }
+}
+
+impl WasmBusThread
+{
+    pub fn process(&self) -> usize
+    {
+        let sessions;
+        let mut callbacks = Vec::new();
+        unsafe {
+            let mut to_remove = Vec::new();
+
+            let mut inner = self.inner.lock();
+            for (handle, invocation) in inner.invocations.iter_mut() {
+                match invocation.result.rx.try_recv() {
+                    Ok(result) => {
+                        callbacks.push((invocation.data_feeder.clone(), result));
+                        to_remove.push(handle.clone());
+                    }
+                    Err(mpsc::error::TryRecvError::Disconnected) => {
+                        callbacks.push((invocation.data_feeder.clone(), Err(CallError::Aborted)));
+                        to_remove.push(handle.clone());
+                    }
+                    Err(mpsc::error::TryRecvError::Empty) => {
+                        continue;
+                    }
+                }
+            }
+            for handle in to_remove {
+                inner.invocations.remove(&handle);
+            }
+            sessions = inner.factory.sessions();
+        }
+
+        let mut ret = 0usize;
+        for (callback, result) in callbacks {
+            callback.process(result, &sessions);
+            ret += 1;
+        }
+
+        let mut feed_data = Vec::new();
+        unsafe {
+            let mut inner = self.inner.lock();
+            while let Ok(result) = inner.feed_data.try_recv() {
+                feed_data.push(result);
+            }
+        }
+
+        ret += feed_data.len();
+        self.feed_data(feed_data);
+
+        ret
+    }
+
+    pub fn feed_data(&self, feeds: Vec<FeedData>)
+    {
+        if feeds.len() <= 0 {
+            return;
+        }
+
+        let native_memory = self.memory_ref();
+        let native_malloc = self.wasm_bus_malloc_ref();
+        let native_finish = self.wasm_bus_finish_ref();
+        let native_error = self.wasm_bus_error_ref();
+        if native_memory.is_none() || native_malloc.is_none() || native_finish.is_none() || native_error.is_none() {
+            warn!("wasm-bus::call - ABI does not match (finish)");
+            return;
+        }
+        let native_memory = native_memory.unwrap();
+        let native_malloc = native_malloc.unwrap();
+        let native_finish = native_finish.unwrap();
+        let native_error = native_error.unwrap();
+
+        for feed in feeds {
+            match feed {
+                FeedData::Finish { handle, data } => {
+                    trace!(
+                        "wasm-bus::call-reply (handle={}, response={} bytes)",
+                        handle.id,
+                        data.len()
+                    );
+                    let buf_len = data.len() as u32;
+                    let buf = native_malloc.call(buf_len).unwrap();
+
+                    native_memory
+                        .uint8view_with_byte_offset_and_length(buf, buf_len)
+                        .copy_from(&data[..]);
+
+                    native_finish
+                        .call(handle.id, buf, buf_len)
+                        .unwrap();
+                }
+                FeedData::Error { handle, err } => {
+                    trace!(
+                        "wasm-bus::call-reply (handle={}, error={})",
+                        handle.id,
+                        err
+                    );
+                    native_error.call(handle.id, err.into()).unwrap();
+                }
+            }
+        }
+    }
 }
 
 impl WasmBusThread {
@@ -338,7 +504,7 @@ impl WasmBusThread {
                 let native_start = self.wasm_bus_start_ref();
                 if native_memory.is_none() || native_malloc.is_none() || native_start.is_none() {
                     let _ = tx.send(Err(CallError::IncorrectAbi));
-                    warn!("wasm-bus::call - ABI does not match");
+                    warn!("wasm-bus::call - ABI does not match (start)");
                     return err::ERR_PANIC;
                 }
                 let native_memory = native_memory.unwrap();

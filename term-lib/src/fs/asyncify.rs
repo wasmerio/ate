@@ -28,7 +28,6 @@ impl AsyncifyFileSystem {
         let fs = self.fs.clone();
         self.system
             .spawn_dedicated(move || async move { funct(fs.deref()) })
-            .join()
             .await
             .unwrap()
     }
@@ -187,7 +186,6 @@ impl AsyncifyFileOpener {
                     file: Arc::new(Mutex::new(file)),
                 })
             })
-            .join()
             .await
             .unwrap()
     }
@@ -213,7 +211,6 @@ impl AsyncifyVirtualFile {
                 let file = file.deref_mut().deref_mut();
                 funct(file)
             })
-            .join()
             .await
             .unwrap()
     }

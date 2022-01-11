@@ -67,15 +67,20 @@ impl UnionFileSystem {
 
         let mut ret = None;
         for (path, mount) in filter_mounts(&self.mounts, path.as_ref()) {
-            if let Ok(dir) = mount.fs.read_dir(Path::new(path)) {
-                if ret.is_none() {
-                    ret = Some(Vec::new());
-                }
-                let ret = ret.as_mut().unwrap();
-                for sub in dir {
-                    if let Ok(sub) = sub {
-                        ret.push(sub);
+            match mount.fs.read_dir(Path::new(path)) {
+                Ok(dir) => {
+                    if ret.is_none() {
+                        ret = Some(Vec::new());
                     }
+                    let ret = ret.as_mut().unwrap();
+                    for sub in dir {
+                        if let Ok(sub) = sub {
+                            ret.push(sub);
+                        }
+                    }
+                }
+                Err(err) => {
+                    debug!("failed to read dir - {}", err);
                 }
             }
         }
@@ -88,6 +93,7 @@ impl UnionFileSystem {
 
     pub fn sanitize(mut self) -> Self {
         self.mounts.retain(|mount| mount.should_sanitize == false);
+        self.set_ctx(&WasmCallerContext::default());
         self
     }
 }

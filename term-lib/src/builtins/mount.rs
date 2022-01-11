@@ -94,7 +94,7 @@ pub(super) fn mount(
 
         let mut ready = false;
         tokio::select! {
-            _ = ctx.system.sleep(5000).join() => { },
+            _ = ctx.system.sleep(5000) => { },
             r = sub_process.main.async_wait_for_poll() => {
                 ready = r;
             }

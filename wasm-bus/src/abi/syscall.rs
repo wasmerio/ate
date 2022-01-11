@@ -78,6 +78,8 @@ mod raw {
         // not nessasarily complete the call in one go - if it idles then thats
         // because its waiting for something else from the wasm_bus hence we return
         #[cfg(feature = "rt")]
+        crate::task::wake();
+        #[cfg(feature = "rt")]
         crate::task::work_it();
     }
 

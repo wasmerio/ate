@@ -1,16 +1,13 @@
 use crate::wasmer::Array;
 use crate::wasmer::WasmPtr;
 use crate::wasmer_wasi::WasiError;
-use cooked_waker::*;
 use std::collections::HashMap;
-use std::future::Future;
-use std::task::Context;
-use std::task::Poll;
-use std::task::Waker;
+use tokio::sync::mpsc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
 use wasm_bus::abi::CallHandle;
+use crate::api::SystemAbiExt;
 
 use super::thread::WasmBusThread;
 use super::*;
@@ -143,49 +140,6 @@ unsafe fn wasm_bus_handle(_thread: &WasmBusThread) -> CallHandle {
     fastrand::u32(..).into()
 }
 
-unsafe fn wasm_bus_tick(thread: &WasmBusThread) -> bool {
-    // We enter a loop that the waker will keep running
-    let waker: Waker = thread.waker.clone().into_waker();
-    let mut cx = Context::from_waker(&waker);
-    let start_waker = thread.waker.get();
-    let mut last_waker = thread.waker.get();
-    loop {
-        // Take the invocations out of the idle list and process them
-        // (we need to do this outside of the thread local lock as
-        //  otherwise the re-entrance will panic the system)
-        let invocations = {
-            let mut inner = thread.inner.lock();
-            inner.invocations.drain().collect::<Vec<_>>()
-        };
-
-        // Run all the invocations and build a carry over list
-        let mut carry_over = Vec::new();
-        for (key, mut invocation) in invocations {
-            let pinned_invocation = invocation.as_mut();
-            if let Poll::Pending = pinned_invocation.poll(&mut cx) {
-                carry_over.push((key, invocation));
-            }
-        }
-
-        // If there are any carry overs then re-add them
-        if carry_over.is_empty() == false {
-            let mut inner = thread.inner.lock();
-            for (key, invoke) in carry_over {
-                inner.invocations.insert(key, invoke);
-            }
-        }
-
-        // Update the waker and continue (or if not woken then we are done)
-        let cur_waker = thread.waker.get();
-        if last_waker == cur_waker {
-            break;
-        }
-        last_waker = cur_waker;
-    }
-
-    return start_waker != last_waker;
-}
-
 // Incidates that a call that will be made should invoke a callback
 // back to this process under the designated handle.
 unsafe fn wasm_bus_callback(
@@ -218,7 +172,7 @@ unsafe fn wasm_bus_fork(thread: &WasmBusThread) -> Result<(), WasiError> {
     trace!("wasm-bus::fork");
 
     // For the ability to poll for work we must take the receiver side of
-    // a work queue - there is only one receiver so poll can only can
+    // a work queue - there is only one receiver so poll can only be
     // called once - this library will call back into the WASM module from there
     let work_rx = {
         let mut inner = thread.inner.lock();
@@ -240,31 +194,13 @@ unsafe fn wasm_bus_fork(thread: &WasmBusThread) -> Result<(), WasiError> {
 
                 // We pass the thread object into and out of the dedicated thread which
                 // gives access to the thread callbacks without allowing for situations
-                // of re-entrance
+                // of re-entrance (this half is the side inside the main
+                // wasm thread)
                 let mut ret = crate::err::ERR_OK;
-                loop {
-                    // Grab the waiter and do some work (which could wake it
-                    // again of course)
-                    let waiter = thread_inside.waker.waiter();
-                    wasm_bus_tick(&thread_inside);
-
-                    // We wait for either another call to initiate or for the
-                    // waker to be woken
-                    tokio::select! {
-                        work = work_rx.recv() => {
-                            match work {
-                                Some(work) => {
-                                    ret = thread_inside.work(work).await;
-                                    if ret != crate::err::ERR_OK {
-                                        break;
-                                    }
-                                }
-                                None => {
-                                    break;
-                                }
-                            }
-                        },
-                        _ = waiter => { }
+                while let Some(work) = work_rx.recv().await {
+                    ret = thread_inside.work(work).await;
+                    if ret != crate::err::ERR_OK {
+                        break;
                     }
                 }
                 debug!("wasm-bus::fork - worker has exited");
@@ -294,10 +230,24 @@ unsafe fn wasm_bus_fork(thread: &WasmBusThread) -> Result<(), WasiError> {
 unsafe fn wasm_bus_poll(thread: &WasmBusThread) -> Result<(), WasiError> {
     trace!("wasm-bus::poll");
 
-    let waiter = thread.waker.block_on();
-    wasm_bus_tick(thread);
-    waiter.wait();
+    let mut wait_time = 0u64;
+    loop {
+        if wasm_bus_tick(thread) > 0 {
+            break;
+        }
+        if let Some(exit_code) = thread.ctx.should_terminate() {
+            return Err(WasiError::Exit(exit_code));
+        }        
+        // Linearly increasing wait time
+        wait_time += 1;
+        let wait_time = u64::min(wait_time / 10, 20);
+        std::thread::park_timeout(std::time::Duration::from_millis(wait_time));
+    }
     Ok(())
+}
+
+unsafe fn wasm_bus_tick(thread: &WasmBusThread) -> usize {
+    thread.process()
 }
 
 // Tells the operating system that this program is ready to respond
@@ -480,8 +430,6 @@ unsafe fn wasm_bus_call(
             .unwrap_or_default()
     };
 
-    // If its got a parent then we already have an active stream here so we need
-    // to feed these results into that stream
     let mut invoke = {
         let mut inner = thread.inner.lock();
         inner.factory.start(
@@ -496,37 +444,31 @@ unsafe fn wasm_bus_call(
     };
 
     // Invoke the send operation
-    let invoke = {
+    let (abort_tx, mut abort_rx) = mpsc::channel(1);
+    let result = {
         let thread = thread.clone();
-        async move {
-            let response = invoke.process().await;
-            match response {
-                Ok(InvokeResult::Response(response)) => {
-                    data_feeder.feed_bytes_or_error(Ok(response));
+        thread.system.spawn_shared(move || async move {
+            tokio::select! {
+                response = invoke.process() => {
+                    response
                 }
-                Ok(InvokeResult::ResponseThenWork(response, work)) => {
-                    data_feeder.feed_bytes_or_error(Ok(response));
-                    work.await;
+                _ = abort_rx.recv() => {
+                    Err(CallError::Aborted)
                 }
-                Err(err) => data_feeder.feed_bytes_or_error(Err(err)),
             }
-            thread.inner.lock().factory.close(CallHandle::from(handle));
-        }
+        })
     };
 
-    // We try to invoke the callback synchronously but if it
-    // does not complete in time then we add it to the idle
-    // processing list which will pick it up again the next time
-    // the WASM process yields CPU execution.
-    let waker = dummy_waker::dummy_waker();
-    let mut cx = Context::from_waker(&waker);
-    let mut invoke = Box::pin(invoke);
-    if let Poll::Pending = invoke.as_mut().poll(&mut cx) {
-        let mut inner = thread.inner.lock();
-        inner.invocations.insert(handle, invoke);
-    }
+    // Turn it into a invocations object
+    let invoke = WasmBusThreadInvocation {
+        _abort: abort_tx,
+        result,
+        data_feeder,
+    };
 
-    // Success
+    // Record the invocations and return success
+    let mut inner = thread.inner.lock();
+    inner.invocations.insert(handle, invoke);
     CallError::Success.into()
 }
 

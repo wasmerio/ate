@@ -108,7 +108,6 @@ pub(super) async fn exec_pipeline<'a>(
     if exec_sync {
         for (child, child_result, is_last) in child_list.into_iter().rev() {
             let (c, result) = child_result
-                .join()
                 .await
                 .map(|(c, r)| (Some(c), r))
                 .unwrap_or_else(|| (None, err::ERR_ECONNABORTED));

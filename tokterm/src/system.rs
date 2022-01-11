@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+#[cfg(feature = "embedded_files")]
 use include_dir::{include_dir, Dir};
 use std::cell::RefCell;
 use std::convert::TryFrom;
@@ -143,6 +144,7 @@ impl SystemAbi for SysSystem {
     }
 
     /// Fetches a data file from the local context of the process
+    #[allow(unused)]
     fn fetch_file(&self, path: &str) -> AsyncResult<Result<Vec<u8>, u32>> {
         let mut path = path.to_string();
         if path.starts_with("/") {

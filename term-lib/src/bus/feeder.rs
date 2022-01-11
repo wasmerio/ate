@@ -1,44 +1,55 @@
 use serde::*;
-use std::sync::Arc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
 use wasm_bus::abi::CallHandle;
 use wasm_bus::abi::SerializationFormat;
+use tokio::sync::mpsc;
+use std::sync::Arc;
+use std::sync::Mutex;
+use std::collections::HashMap;
 
 use super::*;
-use crate::wasmer::Memory;
-use crate::wasmer::NativeFunc;
+use crate::api::System;
+use crate::api::SystemAbiExt;
 
 #[derive(Clone)]
 pub struct WasmBusCallback {
-    memory: Memory,
-    native_finish: NativeFunc<(u32, u32, u32), ()>,
-    native_malloc: NativeFunc<u32, u32>,
-    native_error: NativeFunc<(u32, u32), ()>,
-    waker: Arc<ThreadWaker>,
+    system: System,
+    tx: mpsc::Sender<FeedData>,
     handle: CallHandle,
 }
 
 impl WasmBusCallback {
     pub fn new(thread: &WasmBusThread, handle: CallHandle) -> WasmBusCallback {
-        let memory = thread.memory().clone();
-        let native_data = thread.wasm_bus_finish_ref();
-        let native_malloc = thread.wasm_bus_malloc_ref();
-        let native_error = thread.wasm_bus_error_ref();
-
         WasmBusCallback {
-            memory,
-            native_finish: native_data.unwrap().clone(),
-            native_malloc: native_malloc.unwrap().clone(),
-            native_error: native_error.unwrap().clone(),
-            waker: thread.waker.clone(),
+            system: thread.system,
+            tx: thread.feed_data.clone(),
             handle,
         }
     }
 
-    pub(crate) fn waker(&self) -> Arc<ThreadWaker> {
-        self.waker.clone()
+    pub fn process(&self, result: Result<InvokeResult, CallError>, sessions: &Arc<Mutex<HashMap<CallHandle, Box<dyn Session>>>>) {
+        match result {
+            Ok(InvokeResult::Response(response)) => {
+                self.feed_bytes_or_error(Ok(response));
+                sessions.lock().unwrap().remove(&self.handle);
+            }
+            Ok(InvokeResult::ResponseThenWork(response, work)) => {
+                self.feed_bytes_or_error(Ok(response));
+
+                let handle = self.handle.clone();
+                let sessions = sessions.clone();
+                System::default().task_shared(Box::new(move || Box::pin(async move {
+                    work.await;
+                    sessions.lock().unwrap().remove(&handle);
+                })));
+            }
+            Err(err) => {
+                self.feed_bytes_or_error(Err(err));
+                sessions.lock().unwrap().remove(&self.handle);
+            },
+        }
     }
 
     pub fn feed<T>(&self, format: SerializationFormat, data: T)
@@ -60,22 +71,10 @@ impl WasmBusCallback {
     }
 
     pub fn feed_bytes(&self, data: Vec<u8>) {
-        trace!(
-            "wasm-bus::call-reply (handle={}, response={} bytes)",
-            self.handle.id,
-            data.len()
-        );
-
-        let buf_len = data.len() as u32;
-        let buf = self.native_malloc.call(buf_len).unwrap();
-
-        self.memory
-            .uint8view_with_byte_offset_and_length(buf, buf_len)
-            .copy_from(&data[..]);
-
-        self.native_finish
-            .call(self.handle.id, buf, buf_len)
-            .unwrap();
+        self.system.fork_send(&self.tx, FeedData::Finish {
+            handle: self.handle.clone(),
+            data,
+        });
     }
 
     pub fn feed_bytes_or_error(&self, data: Result<Vec<u8>, CallError>) {
@@ -86,11 +85,22 @@ impl WasmBusCallback {
     }
 
     pub fn error(&self, err: CallError) {
-        trace!(
-            "wasm-bus::call-reply (handle={}, error={})",
-            self.handle.id,
-            err
-        );
-        self.native_error.call(self.handle.id, err.into()).unwrap();
+        self.system.fork_send(&self.tx, FeedData::Error {
+            handle: self.handle.clone(),
+            err,
+        });
+    }
+}
+
+#[derive(Debug)]
+pub enum FeedData
+{
+    Finish {
+        handle: CallHandle,
+        data: Vec<u8>,
+    },
+    Error {
+        handle: CallHandle,
+        err: CallError
     }
 }

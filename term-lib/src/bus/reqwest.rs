@@ -18,7 +18,7 @@ pub fn reqwest(
 
     let ret = system.reqwest(&url, &method, headers, data);
     system.spawn_shared(move || async move {
-        if let Some(a) = ret.join().await {
+        if let Some(a) = ret.await {
             match a {
                 Ok(a) => Ok(Response {
                     pos: a.pos,

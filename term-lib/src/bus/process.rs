@@ -252,11 +252,11 @@ impl ProcessExecFactory {
             Ok(funct(ctx).await?)
         });
 
-        let ret = match result.join().await.ok_or_else(|| CallError::Aborted)? {
+        let ret = match result.await.ok_or_else(|| CallError::Aborted)? {
             Ok(created) => created,
             Err(err) => {
                 let err: u32 = err;
-                warn!("failed to created process - internal error - code={}", err);
+                warn!("failed to create process - internal error - code={}", err);
                 return Err(CallError::Unknown);
             }
         };

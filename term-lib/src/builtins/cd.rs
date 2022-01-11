@@ -7,6 +7,9 @@ use crate::eval::ExecResponse;
 use crate::fs::AsyncifyFileSystem;
 use crate::stdio::*;
 
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, trace, warn};
+
 pub(super) fn cd(
     args: &[String],
     mut ctx: EvalContext,

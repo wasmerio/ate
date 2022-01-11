@@ -43,6 +43,9 @@ impl BusFactory {
             let mut sessions = self.sessions.lock().unwrap();
             if let Some(session) = sessions.get_mut(&parent) {
                 return session.call(topic.as_ref(), request);
+            } else {
+                // Session is orphaned
+                return ErrornousInvokable::new(CallError::InvalidHandle);
             }
         }
 
@@ -63,6 +66,10 @@ impl BusFactory {
     pub fn close(&mut self, handle: CallHandle) -> Option<Box<dyn Session>> {
         let mut sessions = self.sessions.lock().unwrap();
         sessions.remove(&handle)
+    }
+
+    pub fn sessions(&self) -> Arc<Mutex<HashMap<CallHandle, Box<dyn Session>>>> {
+        self.sessions.clone()
     }
 }
 

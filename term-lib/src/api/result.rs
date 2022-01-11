@@ -1,5 +1,9 @@
 use tokio::sync::mpsc;
 use wasm_bus::abi::SerializationFormat;
+use std::future::Future;
+use std::task::Context;
+use std::task::Poll;
+use std::pin::Pin;
 
 pub struct AsyncResult<T> {
     pub(crate) rx: mpsc::Receiver<T>,
@@ -14,8 +18,15 @@ impl<T> AsyncResult<T> {
     pub fn block_on(mut self) -> Option<T> {
         self.rx.blocking_recv()
     }
+}
 
-    pub async fn join(mut self) -> Option<T> {
-        self.rx.recv().await
+impl<T> Future
+for AsyncResult<T>
+{
+    type Output = Option<T>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output>
+    {
+        self.rx.poll_recv(cx)
     }
 }

@@ -4,6 +4,7 @@ use std::any::type_name;
 use std::collections::HashMap;
 use tokio::select;
 use tokio::sync::mpsc;
+use tokio::sync::broadcast;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
@@ -28,52 +29,51 @@ pub fn web_socket(
         return Err(CallError::MissingCallbacks);
     }
     let on_state_change = on_state_change.unwrap();
-    let on_state_change_waker = on_state_change.waker();
     let on_received = on_received.unwrap();
-    let on_received_waker = on_received.waker();
 
     // Construct the channels
     let (tx_keepalive, mut rx_keepalive) = mpsc::channel(1);
-    let (tx_recv, rx_recv) = mpsc::channel(MAX_MPSC);
-    let (tx_state, rx_state) = mpsc::channel::<api::SocketState>(MAX_MPSC);
+    let (tx_state, rx_state) = broadcast::channel::<api::SocketState>(10);
     let (tx_send, mut rx_send) = mpsc::channel::<Vec<u8>>(MAX_MPSC);
 
     // The web socket will be started in a background thread as it
     // is an asynchronous IO primative
     system.spawn_dedicated(move || async move {
+        let mut rx_state = tx_state.subscribe();
+
         // Open the web socket
         let mut ws_sys = match system.web_socket(connect.url.as_str()).await {
             Ok(a) => a,
             Err(err) => {
                 debug!("failed to create web socket ({}): {}", connect.url, err);
-                let _ = tx_state.send(api::SocketState::Failed).await;
+                let _ = tx_state.send(api::SocketState::Failed);
+                on_state_change.feed(SerializationFormat::Bincode, api::SocketBuilderConnectStateChangeCallback(api::SocketState::Failed));
                 return;
             }
         };
 
-        // The inner state is used to chain then states so the web socket
-        // properly starts and exits when it should
-        let (tx_state_inner, mut rx_state_inner) = mpsc::channel::<api::SocketState>(MAX_MPSC);
-
         {
-            let tx_state_inner = tx_state_inner.clone();
+            let tx_state = tx_state.clone();
+            let on_state_change = on_state_change.clone();
             ws_sys.set_onopen(Box::new(move || {
-                system.fork_send(&tx_state_inner, api::SocketState::Opened);
+                let _ = tx_state.send(api::SocketState::Opened);
+                on_state_change.feed(SerializationFormat::Bincode, api::SocketBuilderConnectStateChangeCallback(api::SocketState::Opened));
             }));
         }
 
         {
-            let tx_state_inner = tx_state_inner.clone();
+            let tx_state = tx_state.clone();
+            let on_state_change = on_state_change.clone();
             ws_sys.set_onclose(Box::new(move || {
-                system.fork_send(&tx_state_inner, api::SocketState::Closed);
+                let _ = tx_state.send(api::SocketState::Closed);
+                on_state_change.feed(SerializationFormat::Bincode, api::SocketBuilderConnectStateChangeCallback(api::SocketState::Closed));
             }));
         }
 
         {
-            let tx_recv = tx_recv.clone();
             ws_sys.set_onmessage(Box::new(move |data| {
                 debug!("websocket recv {} bytes", data.len());
-                system.fork_send(&tx_recv, data);
+                on_received.feed(SerializationFormat::Bincode, api::SocketBuilderConnectReceiveCallback(data));
             }));
         }
 
@@ -81,17 +81,19 @@ pub fn web_socket(
         loop {
             select! {
                 _ = rx_keepalive.recv() => {
-                    on_state_change_waker.wake();
                     return;
                 }
-                state = rx_state_inner.recv() => {
-                    if let Some(state) = state {
-                        let _ = tx_state.send(state.clone()).await;
-                        on_state_change_waker.wake();
-                        if state != api::SocketState::Opened {
+                state = rx_state.recv() => {
+                    match state {
+                        Ok(state) => {
+                            if state != api::SocketState::Opened {
+                                return;
+                            }
+                            break;
+                        }
+                        Err(_) => {
                             return;
                         }
-                        break;
                     }
                 }
             }
@@ -100,20 +102,14 @@ pub fn web_socket(
         loop {
             select! {
                 _ = rx_keepalive.recv() => {
-                    on_state_change_waker.wake();
-                    return;
+                    break;
                 }
-                state = rx_state_inner.recv() => {
-                    on_state_change_waker.wake();
-                    if let Some(state) = &state {
-                        let _ = tx_state.send(state.clone()).await;
-                    }
-                    if state != Some(api::SocketState::Opened) {
-                        return;
+                state = rx_state.recv() => {
+                    if state != Ok(api::SocketState::Opened) {
+                        break;
                     }
                 }
                 request = rx_send.recv() => {
-                    on_received_waker.wake();
                     if let Some(data) = request {
                         let data_len = data.len();
 
@@ -128,11 +124,16 @@ pub fn web_socket(
                             trace!("websocket sent {} bytes", data_len);
                         }
                     } else {
-                        return;
+                        break;
                     }
                 }
             }
         }
+
+        on_state_change.feed(
+            SerializationFormat::Bincode,
+            api::SocketBuilderConnectStateChangeCallback(api::SocketState::Closed),
+        );
     });
 
     // Return the invokers
@@ -140,9 +141,6 @@ pub fn web_socket(
         ws: Some(WebSocket {
             tx_keepalive,
             rx_state,
-            rx_recv,
-            on_state_change,
-            on_received,
         }),
     };
     let session = WebSocketSession { tx_send };
@@ -152,56 +150,31 @@ pub fn web_socket(
 pub struct WebSocket {
     #[allow(dead_code)]
     tx_keepalive: mpsc::Sender<()>,
-    rx_state: mpsc::Receiver<api::SocketState>,
-    rx_recv: mpsc::Receiver<Vec<u8>>,
-    on_state_change: WasmBusCallback,
-    on_received: WasmBusCallback,
+    rx_state: broadcast::Receiver<api::SocketState>,
 }
 
 impl WebSocket {
     pub async fn run(mut self) {
         loop {
-            select! {
-                state = self.rx_state.recv() => {
-                    if let Some(state) = &state {
-                        self.on_state_change.feed(SerializationFormat::Bincode, api::SocketBuilderConnectStateChangeCallback(state.clone()));
-                    }
-                    match state {
-                        Some(api::SocketState::Opened) => {
-                            debug!("confirmed websocket successfully opened");
-                        }
-                        Some(api::SocketState::Closed) => {
-                            debug!("confirmed websocket closed before it opened");
-                            return;
-                        }
-                        Some(_) => {
-                            debug!("confirmed websocket failed before it opened");
-                            return;
-                        }
-                        None => {
-                            debug!("confirmed websocket closed by client");
-                            return;
-                        }
-                    }
+            let state = self.rx_state.recv().await;
+            match state {
+                Ok(api::SocketState::Opened) => {
+                    debug!("confirmed websocket successfully opened");
                 }
-                data = self.rx_recv.recv() => {
-                    if let Some(data) = data {
-                        self.on_received.feed(SerializationFormat::Bincode, api::SocketBuilderConnectReceiveCallback(data));
-                    } else {
-                        break;
-                    }
+                Ok(api::SocketState::Closed) => {
+                    debug!("confirmed websocket closed before it opened");
+                    return;
+                }
+                Ok(_) => {
+                    debug!("confirmed websocket failed before it opened");
+                    return;
+                }
+                Err(_) => {
+                    debug!("confirmed websocket closed by client");
+                    return;
                 }
             }
         }
-    }
-}
-
-impl Drop for WebSocket {
-    fn drop(&mut self) {
-        self.on_state_change.feed(
-            SerializationFormat::Bincode,
-            api::SocketBuilderConnectStateChangeCallback(api::SocketState::Closed),
-        );
     }
 }
 
