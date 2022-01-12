@@ -187,9 +187,8 @@ impl ConsoleAbi for WebConsole {
             let _ = self.term_tx.send(TerminalCommand::Print(text)).await;
         }
     }
-    
-    async fn flush(&self) {
-    }
+
+    async fn flush(&self) {}
 
     async fn log(&self, text: String) {
         console::log(text.as_str());
