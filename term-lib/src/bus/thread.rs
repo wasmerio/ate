@@ -879,6 +879,7 @@ pub struct WasmBusSessionMarker {
 
 impl Drop for WasmBusSessionMarker {
     fn drop(&mut self) {
+        debug!("bus sesssion closed - handle={}", self.handle);
         self.thread.drop_call(self.handle);
     }
 }
@@ -904,6 +905,10 @@ impl AsyncWasmBusSession {
             handle,
             format,
         }
+    }
+
+    pub fn id(&self) -> CallHandle {
+        self.handle.handle
     }
 
     pub fn call<RES, REQ>(&self, request: REQ, ctx: WasmCallerContext) -> Result<AsyncWasmBusResult<RES>, CallError>

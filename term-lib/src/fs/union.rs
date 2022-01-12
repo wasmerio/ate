@@ -5,15 +5,76 @@ use std::borrow::Cow;
 use std::ops::Add;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::Weak;
 use std::sync::atomic::AtomicU32;
+use std::sync::Mutex;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
 use crate::bus::WasmCallerContext;
 use super::api::MountedFileSystem;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct MountPoint {
+    pub path: String,
+    pub name: String,
+    pub fs: Option<Arc<Box<dyn MountedFileSystem>>>,
+    pub weak_fs: Weak<Box<dyn MountedFileSystem>>,
+    pub temp_holding: Arc<Mutex<Option<Arc<Box<dyn MountedFileSystem>>>>>,
+    pub should_sanitize: bool,
+}
+
+impl Clone
+for MountPoint
+{
+    fn clone(&self) -> Self {
+        Self {
+            path: self.path.clone(),
+            name: self.name.clone(),
+            fs: None,
+            weak_fs: self.weak_fs.clone(),
+            temp_holding: self.temp_holding.clone(),
+            should_sanitize: self.should_sanitize,
+        }
+    }
+}
+
+impl MountPoint
+{
+    pub fn fs(&self) -> Option<Arc<Box<dyn MountedFileSystem>>>
+    {
+        match &self.fs {
+            Some(a) => Some(a.clone()),
+            None => self.weak_fs.upgrade(),
+        }
+    }
+
+    fn solidify(&mut self) {
+        if self.fs.is_none() {
+            self.fs = self.weak_fs.upgrade();
+        }
+        {
+            let mut guard = self.temp_holding.lock().unwrap();
+            guard.take();
+        }
+    }
+
+    fn strong(&self) -> Option<StrongMountPoint>
+    {
+        match self.fs() {
+            Some(fs) => Some(StrongMountPoint {
+                path: self.path.clone(),
+                name: self.name.clone(),
+                fs,
+                should_sanitize: self.should_sanitize,
+            }),
+            None => None
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct StrongMountPoint {
     pub path: String,
     pub name: String,
     pub fs: Arc<Box<dyn MountedFileSystem>>,
@@ -37,10 +98,13 @@ impl UnionFileSystem {
         if path.ends_with("/") == false {
             path += "/";
         }
+        let fs = Arc::new(fs);
         self.mounts.push(MountPoint {
             path,
             name: name.to_string(),
-            fs: Arc::new(fs),
+            fs: None,
+            weak_fs: Arc::downgrade(&fs),
+            temp_holding: Arc::new(Mutex::new(Some(fs.clone()))),
             should_sanitize,
         });
     }
@@ -92,6 +156,9 @@ impl UnionFileSystem {
     }
 
     pub fn sanitize(mut self) -> Self {
+        for mount in self.mounts.iter_mut() {
+            mount.solidify();
+        }
         self.mounts.retain(|mount| mount.should_sanitize == false);
         self.set_ctx(&WasmCallerContext::default());
         self
@@ -103,7 +170,9 @@ for UnionFileSystem
 {
     fn set_ctx(&self, ctx: &WasmCallerContext) {
         for mount in self.mounts.iter() {
-            mount.fs.set_ctx(ctx);
+            if let Some(mount) = mount.strong() {
+                mount.fs.set_ctx(ctx);
+            }
         }
     }
 }
@@ -251,7 +320,7 @@ for UnionFileSystem {
 fn filter_mounts<'a, 'b>(
     mounts: &'a Vec<MountPoint>,
     mut target: &'b str,
-) -> impl Iterator<Item = (&'b str, &'a MountPoint)> {
+) -> impl Iterator<Item = (&'b str, StrongMountPoint)> {
     let mut biggest_path = 0usize;
     let mut ret = Vec::new();
     for mount in mounts.iter().rev() {
@@ -266,13 +335,17 @@ fn filter_mounts<'a, 'b>(
         }
 
         if target == test_mount_path1 || target == test_mount_path2 {
-            let path = "/";
-            ret.push((path, mount));
-            biggest_path = biggest_path.max(mount.path.len());
+            if let Some(mount) = mount.strong() {
+                biggest_path = biggest_path.max(mount.path.len());
+                let path = "/";
+                ret.push((path, mount));
+            }
         } else if target.starts_with(test_mount_path1.as_str()) {
-            let path = &target[test_mount_path2.len()..];
-            ret.push((path, mount));
-            biggest_path = biggest_path.max(mount.path.len());
+            if let Some(mount) = mount.strong() {
+                biggest_path = biggest_path.max(mount.path.len());
+                let path = &target[test_mount_path2.len()..];
+                ret.push((path, mount));
+            }
         }
     }
     ret.retain(|(a, b)| b.path.len() >= biggest_path);
