@@ -49,10 +49,11 @@ impl SendHalf {
     }
 
     pub async fn send(&self, data: Vec<u8>) -> io::Result<usize> {
-        if self.wait_till_opened().await != SocketState::Opened {
+        let state = self.wait_till_opened().await;
+        if state != SocketState::Opened {
             return Err(io::Error::new(
                 io::ErrorKind::ConnectionReset,
-                "connection is not open",
+                format!("connection is not open (state={})", state).as_str(),
             ));
         }
         self.client

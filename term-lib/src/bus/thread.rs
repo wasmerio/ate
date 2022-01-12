@@ -242,9 +242,6 @@ for WasmBusThread
             sessions = inner.factory.sessions();
         }
 
-        for handle in to_remove {
-            unsafe { super::syscalls::wasm_bus_drop(self.deref(), handle); }
-        }
         for (callback, result) in callbacks {
             callback.process(result, &sessions);
         }
@@ -258,6 +255,10 @@ for WasmBusThread
         }
 
         self.feed_data(feed_data);
+
+        for handle in to_remove {
+            unsafe { super::syscalls::wasm_bus_drop(self.deref(), handle) };
+        }
 
         Poll::Pending
     }
@@ -289,9 +290,6 @@ impl WasmBusThread
             }
             sessions = inner.factory.sessions();
         }
-        for handle in to_remove {
-            unsafe { super::syscalls::wasm_bus_drop(self, handle); }
-        }
 
         let mut ret = 0usize;
         for (callback, result) in callbacks {
@@ -309,6 +307,10 @@ impl WasmBusThread
 
         ret += feed_data.len();
         self.feed_data(feed_data);
+
+        for handle in to_remove {
+            unsafe { super::syscalls::wasm_bus_drop(self, handle) };
+        }
 
         ret
     }
