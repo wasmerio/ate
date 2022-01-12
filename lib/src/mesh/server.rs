@@ -895,7 +895,7 @@ async fn inbox_packet<'b>(
                     .filter(|a| a.meta.get_tombstone().is_some())
                     .count();
                 let num_data = evts.iter().filter(|a| a.data.is_some()).count();
-                
+
                 if delete_only && num_data > 0 {
                     debug!("event aborted - channel is currently read-only");
                     tx.send_reply_msg(Message::ReadOnly).await?;

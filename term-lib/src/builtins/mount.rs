@@ -48,7 +48,12 @@ pub(super) fn mount(
                 if mounts.len() > 0 {
                     print("\r\nCurrent Mounts:\r\n".to_string(), &mut stdio, false).await;
                     for mount in mounts.iter() {
-                        print(format!("{}\twith\t{}\r\n", mount.path, mount.name), &mut stdio, false).await;
+                        print(
+                            format!("{}\twith\t{}\r\n", mount.path, mount.name),
+                            &mut stdio,
+                            false,
+                        )
+                        .await;
                     }
                 }
 
@@ -72,11 +77,21 @@ pub(super) fn mount(
     return Box::pin(async move {
         let path_mountpoint = Path::new(mountpoint.as_str());
         if let Err(err) = ctx.root.read_dir(path_mountpoint) {
-            print(format!("mount: the mountpoint is invalid: {}\r\n", err), &mut stdio, true).await;
+            print(
+                format!("mount: the mountpoint is invalid: {}\r\n", err),
+                &mut stdio,
+                true,
+            )
+            .await;
             return ExecResponse::Immediate(ctx, 1);
         }
 
-        print(format!("Mounting {}@{} at {}\r\n", target, wapm, mountpoint), &mut stdio, false).await;
+        print(
+            format!("Mounting {}@{} at {}\r\n", target, wapm, mountpoint),
+            &mut stdio,
+            false,
+        )
+        .await;
 
         let factory = SubProcessFactory::new(factory);
         let sub_process = match factory
@@ -85,7 +100,12 @@ pub(super) fn mount(
         {
             Ok(a) => a,
             Err(_) => {
-                print(format!("mount: wapm program not found\r\n"), &mut stdio, true).await;
+                print(
+                    format!("mount: wapm program not found\r\n"),
+                    &mut stdio,
+                    true,
+                )
+                .await;
                 return ExecResponse::Immediate(ctx, 1);
             }
         };
@@ -100,7 +120,12 @@ pub(super) fn mount(
             }
         }
         if ready == false {
-            print(format!("mount: wapm program failed to poll\r\n"), &mut stdio, true).await;
+            print(
+                format!("mount: wapm program failed to poll\r\n"),
+                &mut stdio,
+                true,
+            )
+            .await;
             return ExecResponse::Immediate(ctx, 1);
         }
 
@@ -109,7 +134,12 @@ pub(super) fn mount(
         let fs = match FuseFileSystem::new(sub_process, target.as_str(), stdio.clone()).await {
             Ok(a) => a,
             Err(err) => {
-                print(format!("mount: mount call failed ({})\r\n", err), &mut stdio, true).await;
+                print(
+                    format!("mount: mount call failed ({})\r\n", err),
+                    &mut stdio,
+                    true,
+                )
+                .await;
                 return ExecResponse::Immediate(ctx, 1);
             }
         };
@@ -121,7 +151,8 @@ pub(super) fn mount(
             format!("{}({})", wapm, target).as_str(),
             mountpoint.as_str(),
             false,
-            Box::new(fs));
+            Box::new(fs),
+        );
 
         ExecResponse::Immediate(ctx, 0)
     });

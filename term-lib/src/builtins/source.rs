@@ -1,9 +1,9 @@
+use std::collections::VecDeque;
 use std::future::Future;
 use std::path::Path;
 use std::pin::Pin;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use std::collections::VecDeque;
 
 use crate::err;
 use crate::eval::eval;
@@ -19,9 +19,7 @@ pub(super) fn source(
     mut stdio: Stdio,
 ) -> Pin<Box<dyn Future<Output = ExecResponse>>> {
     if args.len() != 2 {
-        return Box::pin(async move {
-            ExecResponse::Immediate(ctx, err::ERR_EINVAL)
-        });
+        return Box::pin(async move { ExecResponse::Immediate(ctx, err::ERR_EINVAL) });
     }
 
     // Read the script
@@ -75,16 +73,13 @@ pub(super) fn source(
                 let _ = stderr
                     .write(format!("exec: command failed\r\n").as_bytes())
                     .await;
-                return ExecResponse::OrphanedImmediate(err::ERR_EINTR)
+                return ExecResponse::OrphanedImmediate(err::ERR_EINTR);
             }
         };
 
         let ctx = result.ctx;
         match result.status {
-            EvalStatus::Executed {
-                code,
-                show_result,
-            } => {
+            EvalStatus::Executed { code, show_result } => {
                 debug!("exec executed (code={})", code);
                 if code != 0 && show_result {
                     let mut chars = String::new();
@@ -115,8 +110,7 @@ pub(super) fn source(
     });
 }
 
-fn process_script(script: String, ctx: &EvalContext) -> String
-{
+fn process_script(script: String, ctx: &EvalContext) -> String {
     // Currently the script engine requires a ";" on every line
     // TODO: make a more advanced script processor
     let script = script
@@ -129,22 +123,20 @@ fn process_script(script: String, ctx: &EvalContext) -> String
 
     // We also need to apply the environment variables
     let script = apply_env_vars(script, ctx);
-    
+
     script
 }
 
-fn apply_env_vars(script: String, ctx: &EvalContext) -> String
-{
+fn apply_env_vars(script: String, ctx: &EvalContext) -> String {
     // Replace all the environment variables with real values
     let mut script_parts = script.split("$").collect::<VecDeque<_>>();
-    
+
     let mut ret = String::new();
     if let Some(first) = script_parts.pop_front() {
-        ret.push_str(first);    
+        ret.push_str(first);
     }
 
-    for script_part in script_parts
-    {
+    for script_part in script_parts {
         // Find the end of the variable name
         // If it has a curly then just look for the next curcle
         let mut start = 0usize;
@@ -158,13 +150,16 @@ fn apply_env_vars(script: String, ctx: &EvalContext) -> String
                 end2 = e + 1;
             }
         } else {
-            let x: &[_] = &[' ', '\t', '.', ',', ';', ':', '\n', '\r', '\'', '"', '&', '*', '@', '!', '(', ')', '<', '>', '`', '/', '\\'];
+            let x: &[_] = &[
+                ' ', '\t', '.', ',', ';', ':', '\n', '\r', '\'', '"', '&', '*', '@', '!', '(', ')',
+                '<', '>', '`', '/', '\\',
+            ];
             if let Some(e) = script_part.find(x) {
                 end1 = e;
                 end2 = e;
             }
         }
-        
+
         // Replace the variable with data
         if start < end1 {
             let name = &script_part[start..end1];

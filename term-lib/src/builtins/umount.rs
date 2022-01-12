@@ -33,7 +33,7 @@ pub(super) fn umount(
     }
 
     return Box::pin(async move {
-        ctx.root.unmount(mountpoint.as_str());        
+        ctx.root.unmount(mountpoint.as_str());
         print(format!("Unmounted {}\r\n", mountpoint), &mut stdio, false).await;
         ExecResponse::Immediate(ctx, 0)
     });

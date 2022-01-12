@@ -262,13 +262,14 @@ impl SystemAbiExt for dyn SystemAbi {
         }));
     }
 
-    fn fork_send<T: Send + 'static>(&self, sender: &mpsc::Sender<T>, msg: T)
-    {
+    fn fork_send<T: Send + 'static>(&self, sender: &mpsc::Sender<T>, msg: T) {
         if let Err(mpsc::error::TrySendError::Full(msg)) = sender.try_send(msg) {
             let sender = sender.clone();
-            self.task_shared(Box::new(move || Box::pin(async move {
-                let _ = sender.send(msg).await;
-            })));
+            self.task_shared(Box::new(move || {
+                Box::pin(async move {
+                    let _ = sender.send(msg).await;
+                })
+            }));
         }
     }
 

@@ -4,15 +4,15 @@ use crate::wasmer_vfs::*;
 use std::borrow::Cow;
 use std::ops::Add;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use std::sync::Weak;
 use std::sync::atomic::AtomicU32;
+use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::Weak;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
-use crate::bus::WasmCallerContext;
 use super::api::MountedFileSystem;
+use crate::bus::WasmCallerContext;
 
 #[derive(Debug)]
 pub struct MountPoint {
@@ -24,9 +24,7 @@ pub struct MountPoint {
     pub should_sanitize: bool,
 }
 
-impl Clone
-for MountPoint
-{
+impl Clone for MountPoint {
     fn clone(&self) -> Self {
         Self {
             path: self.path.clone(),
@@ -39,10 +37,8 @@ for MountPoint
     }
 }
 
-impl MountPoint
-{
-    pub fn fs(&self) -> Option<Arc<Box<dyn MountedFileSystem>>>
-    {
+impl MountPoint {
+    pub fn fs(&self) -> Option<Arc<Box<dyn MountedFileSystem>>> {
         match &self.fs {
             Some(a) => Some(a.clone()),
             None => self.weak_fs.upgrade(),
@@ -59,8 +55,7 @@ impl MountPoint
         }
     }
 
-    fn strong(&self) -> Option<StrongMountPoint>
-    {
+    fn strong(&self) -> Option<StrongMountPoint> {
         match self.fs() {
             Some(fs) => Some(StrongMountPoint {
                 path: self.path.clone(),
@@ -68,7 +63,7 @@ impl MountPoint
                 fs,
                 should_sanitize: self.should_sanitize,
             }),
-            None => None
+            None => None,
         }
     }
 }
@@ -93,7 +88,13 @@ impl UnionFileSystem {
 }
 
 impl UnionFileSystem {
-    pub fn mount(&mut self, name: &str, path: &str, should_sanitize: bool, fs: Box<dyn MountedFileSystem>) {
+    pub fn mount(
+        &mut self,
+        name: &str,
+        path: &str,
+        should_sanitize: bool,
+        fs: Box<dyn MountedFileSystem>,
+    ) {
         let mut path = path.to_string();
         if path.ends_with("/") == false {
             path += "/";
@@ -120,10 +121,11 @@ impl UnionFileSystem {
             path3.push_str("/")
         }
         if path2.ends_with("/") {
-            path2 = (&path2[..(path2.len()-1)]).to_string();
+            path2 = (&path2[..(path2.len() - 1)]).to_string();
         }
 
-        self.mounts.retain(|mount| mount.path != path2 && mount.path != path3);
+        self.mounts
+            .retain(|mount| mount.path != path2 && mount.path != path3);
     }
 
     fn read_dir_internal(&self, path: &Path) -> Result<ReadDir> {
@@ -165,9 +167,7 @@ impl UnionFileSystem {
     }
 }
 
-impl MountedFileSystem
-for UnionFileSystem
-{
+impl MountedFileSystem for UnionFileSystem {
     fn set_ctx(&self, ctx: &WasmCallerContext) {
         for mount in self.mounts.iter() {
             if let Some(mount) = mount.strong() {
@@ -177,8 +177,7 @@ for UnionFileSystem
     }
 }
 
-impl FileSystem
-for UnionFileSystem {
+impl FileSystem for UnionFileSystem {
     fn read_dir(&self, path: &Path) -> Result<ReadDir> {
         debug!("read_dir: path={}", path.display());
         self.read_dir_internal(path)

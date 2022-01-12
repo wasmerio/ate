@@ -3,12 +3,12 @@ use cooked_waker::Wake;
 use once_cell::sync::Lazy;
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::task::Context;
 use std::task::Poll;
 use std::task::Waker;
-use std::sync::atomic::{AtomicBool, Ordering};
 
 use super::*;
 
@@ -17,13 +17,18 @@ pub(crate) static RUNTIME: Lazy<Runtime> = Lazy::new(|| Runtime::default());
 // This guard is used to prevent double blocking which would
 // break the asynchronous event loop
 pub struct RuntimeBlockingGuard {
-    is_blocking: Arc<AtomicBool>
+    is_blocking: Arc<AtomicBool>,
 }
 impl RuntimeBlockingGuard {
     pub fn new(runtime: &Runtime) -> RuntimeBlockingGuard {
         // If the blocking flag is set then we should not enter a main processing loop
         // as we are already in one!
-        if runtime.is_blocking.compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire).is_ok() == false {
+        if runtime
+            .is_blocking
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .is_ok()
+            == false
+        {
             panic!("nesting block_on calls are not supported by wasm_bus");
         }
         RuntimeBlockingGuard {
@@ -31,8 +36,7 @@ impl RuntimeBlockingGuard {
         }
     }
 }
-impl Drop
-for RuntimeBlockingGuard {
+impl Drop for RuntimeBlockingGuard {
     fn drop(&mut self) {
         // We are no longer in a blocking state (as this loop is guarantee to exit
         // and it won't perform any more polls)
@@ -75,11 +79,11 @@ impl Runtime {
                 // We are no longer in a blocking state (as this loop is guarantee to exit
                 // and it won't perform any more polls)
                 drop(blocking_guard);
-                
+
                 // We do another tick to make sure all the background thread work has
                 // gone into an idle state
                 self.tick();
-                
+
                 // Now return return the result of the function we blocked on
                 return ret;
             }
@@ -99,7 +103,7 @@ impl Runtime {
                     }
                 }
             }
-            
+
             // It could be the case that one of the threads we just executed has
             // done something that means the main loop needs to run again. For instance
             // if it passed a variable via a mpsc::send to an earlier executed thread.
@@ -109,7 +113,7 @@ impl Runtime {
                 counter = new_counter;
                 continue;
             }
-            
+
             // Polling the wasm_bus will block execution until something
             // comes in that changes the current state (e.g. a timer triggers or a packet)
             crate::abi::syscall::poll();
@@ -118,8 +122,7 @@ impl Runtime {
 
     /// Processes any pending tasks on the engine until it goes
     /// to sleep. Returns the number of outstanding tasks
-    pub fn tick(&self) -> usize
-    {
+    pub fn tick(&self) -> usize {
         // The waker is used to make sure that any asynchronous code that wakes up
         // this main thread (likely because it sent something somewhere else) will
         // repeat the main loop

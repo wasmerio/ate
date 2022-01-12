@@ -1,13 +1,13 @@
 use serde::*;
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::sync::Mutex;
+use tokio::sync::mpsc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
 use wasm_bus::abi::CallHandle;
 use wasm_bus::abi::SerializationFormat;
-use tokio::sync::mpsc;
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::collections::HashMap;
 
 use super::*;
 use crate::api::System;
@@ -29,7 +29,11 @@ impl WasmBusCallback {
         }
     }
 
-    pub fn process(&self, result: Result<InvokeResult, CallError>, sessions: &Arc<Mutex<HashMap<CallHandle, Box<dyn Session>>>>) {
+    pub fn process(
+        &self,
+        result: Result<InvokeResult, CallError>,
+        sessions: &Arc<Mutex<HashMap<CallHandle, Box<dyn Session>>>>,
+    ) {
         match result {
             Ok(InvokeResult::Response(response)) => {
                 self.feed_bytes_or_error(Ok(response));
@@ -40,15 +44,17 @@ impl WasmBusCallback {
 
                 let handle = self.handle.clone();
                 let sessions = sessions.clone();
-                System::default().task_shared(Box::new(move || Box::pin(async move {
-                    work.await;
-                    sessions.lock().unwrap().remove(&handle);
-                })));
+                System::default().task_shared(Box::new(move || {
+                    Box::pin(async move {
+                        work.await;
+                        sessions.lock().unwrap().remove(&handle);
+                    })
+                }));
             }
             Err(err) => {
                 self.feed_bytes_or_error(Err(err));
                 sessions.lock().unwrap().remove(&self.handle);
-            },
+            }
         }
     }
 
@@ -71,10 +77,13 @@ impl WasmBusCallback {
     }
 
     pub fn feed_bytes(&self, data: Vec<u8>) {
-        self.system.fork_send(&self.tx, FeedData::Finish {
-            handle: self.handle.clone(),
-            data,
-        });
+        self.system.fork_send(
+            &self.tx,
+            FeedData::Finish {
+                handle: self.handle.clone(),
+                data,
+            },
+        );
     }
 
     pub fn feed_bytes_or_error(&self, data: Result<Vec<u8>, CallError>) {
@@ -85,22 +94,18 @@ impl WasmBusCallback {
     }
 
     pub fn error(&self, err: CallError) {
-        self.system.fork_send(&self.tx, FeedData::Error {
-            handle: self.handle.clone(),
-            err,
-        });
+        self.system.fork_send(
+            &self.tx,
+            FeedData::Error {
+                handle: self.handle.clone(),
+                err,
+            },
+        );
     }
 }
 
 #[derive(Debug)]
-pub enum FeedData
-{
-    Finish {
-        handle: CallHandle,
-        data: Vec<u8>,
-    },
-    Error {
-        handle: CallHandle,
-        err: CallError
-    }
+pub enum FeedData {
+    Finish { handle: CallHandle, data: Vec<u8> },
+    Error { handle: CallHandle, err: CallError },
 }

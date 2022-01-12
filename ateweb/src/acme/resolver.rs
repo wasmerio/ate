@@ -314,9 +314,7 @@ impl AcmeResolver {
 
         debug!("new order for {:?}", domains);
         let mut wait = 0u32;
-        let (mut order, kid) = account
-            .new_order(domains.clone())
-            .await?;
+        let (mut order, kid) = account.new_order(domains.clone()).await?;
         loop {
             order = match order {
                 Order::Pending {

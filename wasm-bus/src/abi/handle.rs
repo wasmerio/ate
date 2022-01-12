@@ -18,9 +18,7 @@ impl Into<u32> for CallHandle {
     }
 }
 
-impl fmt::Display
-for CallHandle
-{
+impl fmt::Display for CallHandle {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "handle_id={}", self.id)
     }

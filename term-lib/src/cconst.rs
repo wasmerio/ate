@@ -110,7 +110,7 @@ impl Tty {
  Example: mount tok /www tokera.com/wasm
 "#;
 
-   pub const UMOUNT_USAGE: &'static str = r#"Usage:
+    pub const UMOUNT_USAGE: &'static str = r#"Usage:
 umount <mountpoint>
 
 <mounpoint>: Location where the file-system to be unmounted is currently mounted

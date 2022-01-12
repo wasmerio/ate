@@ -58,7 +58,7 @@ mod raw {
         );
 
         // The blocking guard is to prevent blocking as the loop that called
-        // this function is already blocking hence it would deadlock. 
+        // this function is already blocking hence it would deadlock.
         let _blocking_guard = crate::task::blocking_guard();
 
         unsafe {

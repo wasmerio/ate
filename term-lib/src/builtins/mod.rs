@@ -4,11 +4,11 @@ mod exit;
 mod export;
 mod help;
 mod mount;
-mod umount;
 mod pwd;
 mod readonly;
 mod reset;
 mod source;
+mod umount;
 mod unset;
 mod wax;
 
@@ -18,11 +18,11 @@ use exit::*;
 use export::*;
 use help::*;
 use mount::*;
-use umount::*;
 use pwd::*;
 use readonly::*;
 use reset::*;
 use source::*;
+use umount::*;
 use unset::*;
 use wax::*;
 
@@ -34,8 +34,7 @@ use super::eval::EvalContext;
 use super::eval::ExecResponse;
 use super::stdio::*;
 
-pub type Command =
-    fn(&[String], EvalContext, Stdio) -> Pin<Box<dyn Future<Output = ExecResponse>>>;
+pub type Command = fn(&[String], EvalContext, Stdio) -> Pin<Box<dyn Future<Output = ExecResponse>>>;
 
 #[derive(Default)]
 pub struct Builtins {

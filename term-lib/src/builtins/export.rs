@@ -41,7 +41,5 @@ pub(super) fn export(
         }
     }
 
-    Box::pin(async move {
-        ExecResponse::Immediate(ctx, 0)
-    })
+    Box::pin(async move { ExecResponse::Immediate(ctx, 0) })
 }

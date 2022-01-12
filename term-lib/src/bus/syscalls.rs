@@ -1,3 +1,4 @@
+use crate::api::SystemAbiExt;
 use crate::wasmer::Array;
 use crate::wasmer::WasmPtr;
 use crate::wasmer_wasi::WasiError;
@@ -7,7 +8,6 @@ use tokio::sync::mpsc;
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
 use wasm_bus::abi::CallHandle;
-use crate::api::SystemAbiExt;
 
 use super::thread::WasmBusThread;
 use super::*;
@@ -184,8 +184,7 @@ unsafe fn wasm_bus_fork(thread: &WasmBusThread) -> Result<(), WasiError> {
         debug!("wasm-bus::fork - registering the polling thread");
         {
             let thread_inside = thread.clone();
-            let worker = Box::pin(async move
-            {
+            let worker = Box::pin(async move {
                 // Set the polling flag
                 {
                     let inner = thread_inside.inner.lock();
@@ -212,11 +211,11 @@ unsafe fn wasm_bus_fork(thread: &WasmBusThread) -> Result<(), WasiError> {
             });
 
             thread.inner.lock().poll_thread.replace(worker);
-        }        
+        }
         // Now we exit the main thread (anything that is not a global
         // variable will be lost)
         info!("wasm-bus::fork - exiting from main");
-        return Ok(())
+        return Ok(());
     }
 
     // We have a duplicate poll call (either from within a poll call
@@ -237,7 +236,7 @@ unsafe fn wasm_bus_poll(thread: &WasmBusThread) -> Result<(), WasiError> {
         }
         if let Some(exit_code) = thread.ctx.should_terminate() {
             return Err(WasiError::Exit(exit_code));
-        }        
+        }
         // Linearly increasing wait time
         wait_time += 1;
         let wait_time = u64::min(wait_time / 10, 20);
@@ -422,9 +421,7 @@ unsafe fn wasm_bus_call(
             .remove(&handle)
             .map(|a| {
                 a.into_iter()
-                    .map(|(topic, handle)| {
-                        (topic, WasmBusCallback::new(thread, handle.into()))
-                    })
+                    .map(|(topic, handle)| (topic, WasmBusCallback::new(thread, handle.into())))
                     .collect()
             })
             .unwrap_or_default()

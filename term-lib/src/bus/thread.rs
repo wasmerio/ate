@@ -28,9 +28,9 @@ use wasm_bus::abi::*;
 
 use super::*;
 
-use crate::eval::EvalContext;
 use crate::api::*;
 use crate::err;
+use crate::eval::EvalContext;
 
 pub struct WasmBusThreadPool {
     threads: Arc<RwLock<HashMap<u32, WasmBusThread>>>,
@@ -39,7 +39,10 @@ pub struct WasmBusThreadPool {
 }
 
 impl WasmBusThreadPool {
-    pub fn new(process_factory: ProcessExecFactory, ctx: WasmCallerContext) -> Arc<WasmBusThreadPool> {
+    pub fn new(
+        process_factory: ProcessExecFactory,
+        ctx: WasmCallerContext,
+    ) -> Arc<WasmBusThreadPool> {
         Arc::new(WasmBusThreadPool {
             threads: Arc::new(RwLock::new(HashMap::default())),
             process_factory,
@@ -210,13 +213,10 @@ pub struct WasmBusThread {
     pub wasm_bus_drop: LazyInit<NativeFunc<u32, ()>>,
 }
 
-impl Future
-for WasmBusThread
-{
+impl Future for WasmBusThread {
     type Output = ();
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output>
-    {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let sessions;
         let mut to_remove = Vec::new();
         let mut callbacks = Vec::new();
@@ -268,10 +268,8 @@ for WasmBusThread
     }
 }
 
-impl WasmBusThread
-{
-    pub fn process(&self) -> usize
-    {
+impl WasmBusThread {
+    pub fn process(&self) -> usize {
         let sessions;
         let mut to_remove = Vec::new();
         let mut callbacks = Vec::new();
@@ -324,8 +322,7 @@ impl WasmBusThread
         ret
     }
 
-    pub fn feed_data(&self, feeds: Vec<FeedData>)
-    {
+    pub fn feed_data(&self, feeds: Vec<FeedData>) {
         if feeds.len() <= 0 {
             return;
         }
@@ -334,7 +331,11 @@ impl WasmBusThread
         let native_malloc = self.wasm_bus_malloc_ref();
         let native_finish = self.wasm_bus_finish_ref();
         let native_error = self.wasm_bus_error_ref();
-        if native_memory.is_none() || native_malloc.is_none() || native_finish.is_none() || native_error.is_none() {
+        if native_memory.is_none()
+            || native_malloc.is_none()
+            || native_finish.is_none()
+            || native_error.is_none()
+        {
             warn!("wasm-bus::call - ABI does not match (finish)");
             return;
         }
@@ -358,16 +359,10 @@ impl WasmBusThread
                         .uint8view_with_byte_offset_and_length(buf, buf_len)
                         .copy_from(&data[..]);
 
-                    native_finish
-                        .call(handle.id, buf, buf_len)
-                        .unwrap();
+                    native_finish.call(handle.id, buf, buf_len).unwrap();
                 }
                 FeedData::Error { handle, err } => {
-                    trace!(
-                        "wasm-bus::call-reply (handle={}, error={})",
-                        handle.id,
-                        err
-                    );
+                    trace!("wasm-bus::call-reply (handle={}, error={})", handle.id, err);
                     native_error.call(handle.id, err.into()).unwrap();
                 }
             }
@@ -543,7 +538,10 @@ impl WasmBusThread {
                     Err(err) => {
                         warn!(
                             "wasm-bus::call - allocation failed (topic={}, len={}) - {} - {}",
-                            topic, topic_len, err, err.message()
+                            topic,
+                            topic_len,
+                            err,
+                            err.message()
                         );
                         let _ = tx.send(Err(CallError::MemoryAllocationFailed));
                         return err::ERR_OK;
@@ -560,7 +558,10 @@ impl WasmBusThread {
                     Err(err) => {
                         warn!(
                             "wasm-bus::call - allocation failed (topic={}, len={}) - {} - {}",
-                            topic, request_len, err, err.message()
+                            topic,
+                            request_len,
+                            err,
+                            err.message()
                         );
                         let _ = tx.send(Err(CallError::MemoryAllocationFailed));
                         return err::ERR_OK;
@@ -591,7 +592,9 @@ impl WasmBusThread {
                     Err(e) => {
                         warn!(
                             "wasm-bus::call - invocation failed (topic={}) - {} - {}",
-                            topic, e, e.message()
+                            topic,
+                            e,
+                            e.message()
                         );
                         let call = {
                             let mut inner = self.inner.lock();
@@ -611,7 +614,11 @@ impl WasmBusThread {
             WasmBusThreadWork::Drop { handle } => {
                 if let Some(native_drop) = self.wasm_bus_drop_ref() {
                     if let Err(err) = native_drop.call(handle.id) {
-                        warn!("wasm-bus::drop - runtime error - {} - {}", err, err.message());
+                        warn!(
+                            "wasm-bus::drop - runtime error - {} - {}",
+                            err,
+                            err.message()
+                        );
                     }
                 }
                 super::syscalls::wasm_bus_drop(self, handle);
@@ -685,7 +692,7 @@ impl AsyncWasmBusResultRaw {
             if self.ctx_dst.should_terminate().is_some() {
                 return Err(CallError::Aborted);
             }
-            
+
             // Linearly increasing wait time
             tick_wait += 1;
             let wait_time = u64::min(tick_wait / 10, 20);
@@ -768,7 +775,7 @@ where
             if self.thread.ctx.should_terminate().is_some() {
                 return Err(CallError::Aborted);
             }
-            
+
             // Linearly increasing wait time
             tick_wait += 1;
             let wait_time = u64::min(tick_wait / 10, 20);
@@ -911,7 +918,11 @@ impl AsyncWasmBusSession {
         self.handle.handle
     }
 
-    pub fn call<RES, REQ>(&self, request: REQ, ctx: WasmCallerContext) -> Result<AsyncWasmBusResult<RES>, CallError>
+    pub fn call<RES, REQ>(
+        &self,
+        request: REQ,
+        ctx: WasmCallerContext,
+    ) -> Result<AsyncWasmBusResult<RES>, CallError>
     where
         REQ: Serialize,
         RES: de::DeserializeOwned,
@@ -923,7 +934,7 @@ impl AsyncWasmBusSession {
         &self,
         format: SerializationFormat,
         request: REQ,
-        ctx: WasmCallerContext
+        ctx: WasmCallerContext,
     ) -> Result<AsyncWasmBusResult<RES>, CallError>
     where
         REQ: Serialize,

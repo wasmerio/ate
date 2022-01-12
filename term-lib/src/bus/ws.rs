@@ -3,8 +3,8 @@ use async_trait::async_trait;
 use std::any::type_name;
 use std::collections::HashMap;
 use tokio::select;
-use tokio::sync::mpsc;
 use tokio::sync::broadcast;
+use tokio::sync::mpsc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
@@ -47,7 +47,10 @@ pub fn web_socket(
             Err(err) => {
                 debug!("failed to create web socket ({}): {}", connect.url, err);
                 let _ = tx_state.send(api::SocketState::Failed);
-                on_state_change.feed(SerializationFormat::Bincode, api::SocketBuilderConnectStateChangeCallback(api::SocketState::Failed));
+                on_state_change.feed(
+                    SerializationFormat::Bincode,
+                    api::SocketBuilderConnectStateChangeCallback(api::SocketState::Failed),
+                );
                 return;
             }
         };
@@ -57,7 +60,10 @@ pub fn web_socket(
             let on_state_change = on_state_change.clone();
             ws_sys.set_onopen(Box::new(move || {
                 let _ = tx_state.send(api::SocketState::Opened);
-                on_state_change.feed(SerializationFormat::Bincode, api::SocketBuilderConnectStateChangeCallback(api::SocketState::Opened));
+                on_state_change.feed(
+                    SerializationFormat::Bincode,
+                    api::SocketBuilderConnectStateChangeCallback(api::SocketState::Opened),
+                );
             }));
         }
 
@@ -66,14 +72,20 @@ pub fn web_socket(
             let on_state_change = on_state_change.clone();
             ws_sys.set_onclose(Box::new(move || {
                 let _ = tx_state.send(api::SocketState::Closed);
-                on_state_change.feed(SerializationFormat::Bincode, api::SocketBuilderConnectStateChangeCallback(api::SocketState::Closed));
+                on_state_change.feed(
+                    SerializationFormat::Bincode,
+                    api::SocketBuilderConnectStateChangeCallback(api::SocketState::Closed),
+                );
             }));
         }
 
         {
             ws_sys.set_onmessage(Box::new(move |data| {
                 debug!("websocket recv {} bytes", data.len());
-                on_received.feed(SerializationFormat::Bincode, api::SocketBuilderConnectReceiveCallback(data));
+                on_received.feed(
+                    SerializationFormat::Bincode,
+                    api::SocketBuilderConnectReceiveCallback(data),
+                );
             }));
         }
 

@@ -41,7 +41,7 @@ impl ConsoleAbi for ConsoleHandle {
             let _ = handle.data(channel, data).await;
         }
     }
-    
+
     /// Flushes the data down the SSH pipe
     async fn flush(&self) {
         let channel = self.channel;

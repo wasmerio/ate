@@ -26,7 +26,6 @@ use super::job::*;
 use super::poll::*;
 use super::stdio::*;
 
-
 #[derive(Debug)]
 pub struct Reactor {
     pub(crate) system: System,
@@ -58,7 +57,7 @@ impl Reactor {
     pub fn generate_pid(
         &mut self,
         thread_pool: Arc<WasmBusThreadPool>,
-        ctx: WasmCallerContext
+        ctx: WasmCallerContext,
     ) -> Result<Pid, u32> {
         for _ in 0..10000 {
             let pid = self.pid_seed;
@@ -89,9 +88,7 @@ impl Reactor {
         ERR_OK as u32
     }
 
-    pub fn generate_job(
-        &mut self,
-    ) -> Result<(u32, Job), u32> {
+    pub fn generate_job(&mut self) -> Result<(u32, Job), u32> {
         let mut job_seed = 1;
         for _ in 0..10000 {
             let id = job_seed;

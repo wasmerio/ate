@@ -5,6 +5,7 @@ use core::sync::atomic::AtomicBool;
 use core::sync::atomic::Ordering;
 use std::io::prelude::*;
 use std::io::SeekFrom;
+use std::num::NonZeroU32;
 use std::ops::Deref;
 use std::sync::atomic::AtomicI32;
 use std::sync::atomic::AtomicU32;
@@ -15,7 +16,6 @@ use std::{
     sync::Arc,
     task::{self, Context, Poll, Waker},
 };
-use std::num::NonZeroU32;
 use tokio::io::{self, AsyncRead, AsyncWrite, ReadBuf};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TryRecvError;
@@ -24,13 +24,13 @@ use tokio::sync::Mutex as AsyncMutex;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
+use super::bus::WasmCallerContext;
 use super::common::*;
 use super::err::*;
 use super::pipe::*;
 use super::poll::*;
 use super::reactor::*;
 use super::state::*;
-use super::bus::WasmCallerContext;
 use crate::wasmer_vfs::{FileDescriptor, VirtualFile};
 use crate::wasmer_wasi::{types as wasi_types, WasiFile, WasiFsError};
 
@@ -270,7 +270,7 @@ impl Fd {
                 if self.closed.load(Ordering::Acquire) {
                     return Ok(0usize);
                 }
-                
+
                 // Linearly increasing wait time
                 wait_time += 1;
                 let wait_time = u64::min(wait_time / 10, 20);
@@ -289,8 +289,7 @@ impl Fd {
                 Ok(a) => {
                     return Ok(Some(a));
                 }
-                Err(TryRecvError::Empty) => {
-                }
+                Err(TryRecvError::Empty) => {}
                 Err(TryRecvError::Disconnected) => {
                     return Ok(None);
                 }
@@ -386,7 +385,7 @@ impl Read for Fd {
                     std::thread::yield_now();
                     return Ok(0usize);
                 }
-                
+
                 // Linearly increasing wait time
                 tick_wait += 1;
                 let wait_time = u64::min(tick_wait / 10, 20);

@@ -18,9 +18,7 @@ pub(super) fn wax(
     stdio: Stdio,
 ) -> Pin<Box<dyn Future<Output = ExecResponse>>> {
     if args.len() < 2 {
-        return Box::pin(async move {
-            ExecResponse::Immediate(ctx, err::ERR_EINVAL)
-        });
+        return Box::pin(async move { ExecResponse::Immediate(ctx, err::ERR_EINVAL) });
     }
 
     // Strip out the first argument
@@ -87,10 +85,7 @@ pub(super) fn wax(
 
         let ctx = result.ctx;
         match result.status {
-            EvalStatus::Executed {
-                code,
-                show_result,
-            } => {
+            EvalStatus::Executed { code, show_result } => {
                 debug!("wax executed (code={})", code);
                 if code != 0 && show_result {
                     let mut chars = String::new();

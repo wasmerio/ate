@@ -13,7 +13,5 @@ pub(super) fn unset(
     for arg in &args[1..] {
         ctx.env.unset(arg.as_str());
     }
-    Box::pin(async move {
-        ExecResponse::Immediate(ctx, 0)
-    })
+    Box::pin(async move { ExecResponse::Immediate(ctx, 0) })
 }

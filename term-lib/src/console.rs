@@ -252,8 +252,7 @@ impl Console {
             } else {
                 format!("login --token {}", token)
             };
-            self.on_enter_internal(cmd, false)
-                .await;
+            self.on_enter_internal(cmd, false).await;
         } else if has_init {
             self.on_enter_internal("source /bin/init".to_string(), false)
                 .await;
@@ -401,10 +400,7 @@ impl Console {
                 let mut multiline_input = false;
                 if let Some(rx) = rx {
                     match rx.status {
-                        EvalStatus::Executed {
-                            code,
-                            show_result,
-                        } => {
+                        EvalStatus::Executed { code, show_result } => {
                             debug!("eval executed (code={})", code);
                             let should_line_feed = {
                                 let state = state.lock().unwrap();

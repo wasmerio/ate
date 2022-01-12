@@ -22,8 +22,8 @@ pub use process::*;
 use std::sync::Arc;
 use std::sync::Mutex;
 use tokio::sync::mpsc;
-use tokio::sync::watch;
 use tokio::sync::oneshot;
+use tokio::sync::watch;
 use tokio::sync::RwLock;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
@@ -46,10 +46,7 @@ use super::state::*;
 use super::stdio::*;
 
 pub enum EvalStatus {
-    Executed {
-        code: u32,
-        show_result: bool,
-    },
+    Executed { code: u32, show_result: bool },
     MoreInput,
     Invalid,
     InternalError,
@@ -62,10 +59,7 @@ pub struct EvalResult {
 
 impl EvalResult {
     pub fn new(ctx: EvalContext, status: EvalStatus) -> EvalResult {
-        EvalResult {
-            ctx,
-            status,
-        }
+        EvalResult { ctx, status }
     }
 }
 
@@ -142,10 +136,13 @@ pub(crate) fn eval(mut ctx: EvalContext) -> mpsc::Receiver<EvalResult> {
                     ctx = c;
                     ret = r;
                 }
-                tx.send(EvalResult::new(ctx, EvalStatus::Executed {
-                    code: ret,
-                    show_result,
-                }))
+                tx.send(EvalResult::new(
+                    ctx,
+                    EvalStatus::Executed {
+                        code: ret,
+                        show_result,
+                    },
+                ))
                 .await;
             }
             Err(e) => match e {

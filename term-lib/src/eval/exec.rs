@@ -3,18 +3,18 @@
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use sha2::digest::generic_array::sequence::Lengthen;
+use std::future::Future;
 use std::io::Read;
 use std::ops::Deref;
+use std::ops::DerefMut;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::future::Future;
-use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
-use std::ops::DerefMut;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tokio::sync::watch;
@@ -89,8 +89,14 @@ pub async fn exec_process(
     show_result: &mut bool,
     mut stdio: Stdio,
     redirect: &Vec<Redirect>,
-) -> Result<(Process, AsyncResult<(EvalContext, u32)>, Arc<WasmBusThreadPool>), u32> {
-                
+) -> Result<
+    (
+        Process,
+        AsyncResult<(EvalContext, u32)>,
+        Arc<WasmBusThreadPool>,
+    ),
+    u32,
+> {
     // Make an error message function
     let mut early_stderr = stdio.stderr.clone();
     let on_early_exit = |msg: Option<String>, err: u32| async move {
@@ -133,12 +139,7 @@ pub async fn exec_process(
         let stdio = stdio.clone();
 
         let mut union = root.clone();
-        union.mount(
-            "proc",
-            "/dev",
-            true,
-            Box::new(ProcFileSystem::new(stdio)),
-        );
+        union.mount("proc", "/dev", true, Box::new(ProcFileSystem::new(stdio)));
         union.mount("tmp", "/tmp", true, Box::new(TmpFileSystem::new()));
         union.mount("private", "/.private", true, Box::new(fs_private));
 
@@ -247,7 +248,7 @@ pub async fn exec_process(
                     match err {
                         FsError::EntityNotFound => ERR_ENOENT,
                         _ => ERR_EIO,
-                    }
+                    },
                 )
                 .await;
             }
@@ -277,7 +278,7 @@ pub async fn exec_process(
         stdio.stdout.downgrade(),
         stdio.stderr.downgrade(),
         stdio.log.downgrade(),
-        ctx
+        ctx,
     );
 
     let forced_exit = caller_ctx.get_forced_exit();
@@ -480,7 +481,7 @@ pub async fn exec_process(
             if let Ok(funct) = instance.exports.get_native_function("wasm_bus_drop") {
                 wasm_thread.wasm_bus_drop.initialize(funct);
             }
-            
+
             // Let's call the `_start` function, which is our `main` function in Rust.
             let start = instance
                 .exports
@@ -500,8 +501,7 @@ pub async fn exec_process(
                         Ok(WasiError::UnknownWasiVersion) => {
                             let _ = stderr
                                 .write(
-                                    &format!("exec-failed: unknown wasi version\n").as_bytes()
-                                        [..],
+                                    &format!("exec-failed: unknown wasi version\n").as_bytes()[..],
                                 )
                                 .await;
                             err::ERR_ENOEXEC
@@ -522,15 +522,15 @@ pub async fn exec_process(
                 let mut inner = wasm_thread.inner.lock();
                 inner.poll_thread.take()
             };
-            if let Some(worker) = worker
-            {
+            if let Some(worker) = worker {
                 // Running this in a select ensures any finished callbacks
                 // are also processed whenever the worker thread goes idle.
                 // The wasm_thread.await never finishes by design.
                 ret = ExecInterlacer {
                     poll_thread: worker,
                     wasm_thread,
-                }.await;
+                }
+                .await;
             }
 
             // Ok we are done
@@ -558,22 +558,18 @@ pub async fn exec_process(
     };
     debug!("process created (pid={})", pid);
 
-    Ok(( process, process_result, bus_thread_pool_ret))
+    Ok((process, process_result, bus_thread_pool_ret))
 }
 
-struct ExecInterlacer
-{
+struct ExecInterlacer {
     poll_thread: Pin<Box<dyn Future<Output = u32> + Send + 'static>>,
     wasm_thread: WasmBusThread,
 }
 
-impl Future
-for ExecInterlacer
-{
+impl Future for ExecInterlacer {
     type Output = u32;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output>
-    {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         // Run the wasm thread
         let mut wasm_thread = Pin::new(&mut self.wasm_thread);
         if let Poll::Ready(ret) = wasm_thread.poll(cx) {

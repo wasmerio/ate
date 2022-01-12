@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::sync::Weak;
 use std::sync::Mutex;
+use std::sync::Weak;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
@@ -11,8 +11,8 @@ use wasm_bus_process::prelude::*;
 
 use crate::api::AsyncResult;
 use crate::api::System;
-use crate::eval::Process;
 use crate::eval::EvalContext;
+use crate::eval::Process;
 
 use super::*;
 
@@ -49,7 +49,12 @@ impl SubProcessFactory {
         // Check for any existing process of this name thats already running
         {
             let processes = self.inner.processes.lock().unwrap();
-            if let Some(process) = processes.get(&key).iter().filter_map(|a| a.upgrade()).next() {
+            if let Some(process) = processes
+                .get(&key)
+                .iter()
+                .filter_map(|a| a.upgrade())
+                .next()
+            {
                 return Ok(process);
             }
         }
@@ -85,7 +90,14 @@ impl SubProcessFactory {
 
         // Add it to the list of sub processes and return it
         let ctx = self.ctx.clone();
-        let process = Arc::new(SubProcess::new(wapm.as_str(), process, process_result, thread_pool, ctx, main));
+        let process = Arc::new(SubProcess::new(
+            wapm.as_str(),
+            process,
+            process_result,
+            thread_pool,
+            ctx,
+            main,
+        ));
         {
             let mut processes = self.inner.processes.lock().unwrap();
             processes.insert(key, Arc::downgrade(&process));
@@ -157,11 +169,16 @@ pub struct SubProcessSession {
     pub handle: WasmBusThreadHandle,
     pub thread: WasmBusThread,
     pub sub_process: Arc<SubProcess>,
-    pub ctx: WasmCallerContext
+    pub ctx: WasmCallerContext,
 }
 
 impl SubProcessSession {
-    pub fn new(thread: WasmBusThread, handle: WasmBusThreadHandle, sub_process: Arc<SubProcess>, ctx: WasmCallerContext) -> SubProcessSession {
+    pub fn new(
+        thread: WasmBusThread,
+        handle: WasmBusThreadHandle,
+        sub_process: Arc<SubProcess>,
+        ctx: WasmCallerContext,
+    ) -> SubProcessSession {
         SubProcessSession {
             thread,
             handle,
@@ -174,9 +191,9 @@ impl SubProcessSession {
 impl Session for SubProcessSession {
     fn call(&mut self, topic: &str, request: Vec<u8>) -> Box<dyn Invokable + 'static> {
         let topic = topic.to_string();
-        let invoker = self
-            .thread
-            .call_raw(Some(self.handle.handle()), topic, request, self.ctx.clone());
+        let invoker =
+            self.thread
+                .call_raw(Some(self.handle.handle()), topic, request, self.ctx.clone());
         Box::new(invoker)
     }
 }

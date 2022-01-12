@@ -211,7 +211,9 @@ impl ProcessExecFactory {
                 let ctx = match guard.as_ref() {
                     Some(a) => a,
                     None => {
-                        error!("The eval context has been lost has sub-processes can not be started.");
+                        error!(
+                            "The eval context has been lost has sub-processes can not be started."
+                        );
                         return Err(err::ERR_ENOEXEC);
                     }
                 };
@@ -310,7 +312,14 @@ impl ProcessExecFactory {
         &self,
         request: api::PoolSpawnRequest,
         client_callbacks: HashMap<String, WasmBusCallback>,
-    ) -> Result<(Process, AsyncResult<(EvalContext, u32)>, Arc<WasmBusThreadPool>), CallError> {
+    ) -> Result<
+        (
+            Process,
+            AsyncResult<(EvalContext, u32)>,
+            Arc<WasmBusThreadPool>,
+        ),
+        CallError,
+    > {
         self.launch(request, client_callbacks, |ctx: LaunchContext| {
             Box::pin(async move {
                 let stdio = ctx.eval.stdio.clone();
@@ -477,18 +486,18 @@ fn encode_eval_response(
                 format,
                 &match res.status {
                     EvalStatus::Executed { code, .. } => api::PoolSpawnExitCallback(code as i32),
-                    EvalStatus::InternalError => api::PoolSpawnExitCallback(err::ERR_ENOEXEC as i32),
+                    EvalStatus::InternalError => {
+                        api::PoolSpawnExitCallback(err::ERR_ENOEXEC as i32)
+                    }
                     EvalStatus::Invalid => api::PoolSpawnExitCallback(err::ERR_EINVAL as i32),
                     EvalStatus::MoreInput => api::PoolSpawnExitCallback(err::ERR_EINVAL as i32),
                 },
             )?)
-        },
-        None => {
-            Ok(encode_response(
-                format,
-                &api::PoolSpawnExitCallback(err::ERR_EINVAL as i32)
-            )?)
         }
+        None => Ok(encode_response(
+            format,
+            &api::PoolSpawnExitCallback(err::ERR_EINVAL as i32),
+        )?),
     }
 }
 

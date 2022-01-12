@@ -23,8 +23,7 @@ pub(super) async fn exec_pipeline<'a>(
         let mut cur_stderr = ctx.stdio.stderr.clone();
         let end_stdout = ctx.stdio.stdout.clone();
 
-        for i in 0..pipeline.commands.len()
-        {
+        for i in 0..pipeline.commands.len() {
             let is_last = i == pipeline.commands.len() - 1;
             let command = &pipeline.commands[i];
             match command {
@@ -80,7 +79,7 @@ pub(super) async fn exec_pipeline<'a>(
                         Ok(ExecResponse::Immediate(c, ret)) => {
                             ctx = c;
                             final_return = Some(ret);
-                        },
+                        }
                         Ok(ExecResponse::OrphanedImmediate(ret)) => {
                             final_return = Some(ret);
                         }

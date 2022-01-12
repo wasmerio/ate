@@ -9,6 +9,7 @@ use std::ops::Deref;
 use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::time::Duration;
 use term_lib::api::abi::*;
 use term_lib::api::AsyncResult;
@@ -22,7 +23,6 @@ use tokio::sync::mpsc;
 use tokio::sync::watch;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use std::sync::Mutex;
 
 use crate::ws::SysWebSocket;
 
@@ -265,7 +265,7 @@ impl ConsoleAbi for SysSystem {
             stderr.flush().unwrap();
         }
     }
-    
+
     async fn flush(&self) {
         use raw_tty::GuardMode;
         let _guard = self.stdio_lock.lock().unwrap();

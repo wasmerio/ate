@@ -1,3 +1,4 @@
+mod caller_context;
 mod factory;
 mod feeder;
 mod invokable;
@@ -11,8 +12,8 @@ mod thread;
 mod time;
 mod util;
 mod ws;
-mod caller_context;
 
+pub(crate) use caller_context::*;
 pub(crate) use factory::*;
 pub(crate) use feeder::*;
 pub(crate) use invokable::*;
@@ -22,4 +23,3 @@ use standard::*;
 pub(crate) use sub_process::*;
 pub(crate) use thread::*;
 use util::*;
-pub(crate) use caller_context::*;

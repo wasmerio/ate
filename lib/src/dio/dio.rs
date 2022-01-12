@@ -581,8 +581,8 @@ impl Dio {
                         Ok(recv) => {
                             for key in recv {
                                 state.cache_load.remove(&key);
-                            }  
-                        },
+                            }
+                        }
                         Err(_) => {
                             break;
                         }

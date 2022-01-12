@@ -29,19 +29,18 @@ pub async fn load_bin(
 
     // Enter a loop that will resolve aliases into real files
     let mut alias_loop = true;
-    while alias_loop
-    {
+    while alias_loop {
         // Build the list of alias paths
         let mut alias_checks = vec![
             format!("/bin/{}.alias", name),
-            format!("/usr/bin/{}.alias", name)
+            format!("/usr/bin/{}.alias", name),
         ];
         if name.starts_with("/") {
             alias_checks.push(format!("{}.alias", name));
         } else if name.starts_with("./") && name.len() > 2 {
             alias_checks.push(format!("{}{}.alias", ctx.working_dir, &name[2..]));
         }
-        
+
         // If an alias file exists then process it...otherwise break from the loop
         alias_loop = false;
         for alias_check in alias_checks {
@@ -57,7 +56,7 @@ pub async fn load_bin(
                     break;
                 }
                 already.insert(name.clone());
-                
+
                 if let Ok(d) = file.read_to_end().await {
                     match serde_yaml::from_slice::<AliasConfig>(&d[..]) {
                         Ok(mut next) => {
@@ -81,10 +80,7 @@ pub async fn load_bin(
     }
 
     // Check if there is a file in the /bin and /wapm_packages/.bin folder
-    let mut file_checks = vec![
-        format!("/bin/{}", name),
-        format!("/usr/bin/{}", name)
-    ];
+    let mut file_checks = vec![format!("/bin/{}", name), format!("/usr/bin/{}", name)];
     if name.starts_with("/") {
         file_checks.push(name.clone());
     } else if name.starts_with("./") && name.len() > 2 {

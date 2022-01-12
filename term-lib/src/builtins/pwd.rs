@@ -20,7 +20,10 @@ pub(super) fn pwd(
         });
     }
     Box::pin(async move {
-        let _ = stdio.stdout.write(format!("{}\r\n", ctx.working_dir).as_bytes()).await;
+        let _ = stdio
+            .stdout
+            .write(format!("{}\r\n", ctx.working_dir).as_bytes())
+            .await;
         ExecResponse::Immediate(ctx, 0)
     })
 }

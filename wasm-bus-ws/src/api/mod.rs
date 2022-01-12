@@ -1,8 +1,8 @@
 use serde::*;
-use std::sync::Arc;
 use std::fmt;
 use std::fmt::Display;
 use std::fmt::Formatter;
+use std::sync::Arc;
 use wasm_bus::macros::*;
 
 #[wasm_bus(format = "bincode")]
@@ -36,9 +36,7 @@ pub enum SocketState {
     Failed,
 }
 
-impl Display
-for SocketState
-{
+impl Display for SocketState {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             SocketState::Opening => write!(f, "opening"),

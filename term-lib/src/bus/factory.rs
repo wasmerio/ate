@@ -141,7 +141,7 @@ where
             self.topic.as_str(),
             request,
             self.ctx.clone(),
-            client_callbacks
+            client_callbacks,
         )?;
         let mut invoker = match call {
             (invoker, Some(session)) => {
