@@ -132,7 +132,7 @@ pub(crate) unsafe fn wasm_bus_drop(thread: &WasmBusThread, handle: CallHandle) {
         let mut inner = thread.inner.lock();
         delayed_drop1.push(inner.invocations.remove(&handle));
         delayed_drop2.push(inner.callbacks.remove(&handle));
-        delayed_drop3.push(inner.factory.close(CallHandle::from(handle)));
+        delayed_drop3.push(inner.factory.close(handle));
     }
 }
 

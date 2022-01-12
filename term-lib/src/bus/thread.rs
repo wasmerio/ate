@@ -16,7 +16,6 @@ use std::collections::HashSet;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
-use std::ops::Deref;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::task::Context;
@@ -242,9 +241,6 @@ for WasmBusThread
             sessions = inner.factory.sessions();
         }
 
-        for handle in to_remove {
-            unsafe { super::syscalls::wasm_bus_drop(self.deref(), handle); }
-        }
         for (callback, result) in callbacks {
             callback.process(result, &sessions);
         }
@@ -258,6 +254,15 @@ for WasmBusThread
         }
 
         self.feed_data(feed_data);
+
+        let mut delayed_drop = Vec::new();
+        unsafe {
+            let mut inner = self.inner.lock();
+            for handle in to_remove {
+                delayed_drop.push(inner.invocations.remove(&handle));
+            }
+        }
+        drop(delayed_drop);
 
         Poll::Pending
     }
@@ -289,9 +294,6 @@ impl WasmBusThread
             }
             sessions = inner.factory.sessions();
         }
-        for handle in to_remove {
-            unsafe { super::syscalls::wasm_bus_drop(self, handle); }
-        }
 
         let mut ret = 0usize;
         for (callback, result) in callbacks {
@@ -309,6 +311,15 @@ impl WasmBusThread
 
         ret += feed_data.len();
         self.feed_data(feed_data);
+
+        let mut delayed_drop = Vec::new();
+        unsafe {
+            let mut inner = self.inner.lock();
+            for handle in to_remove {
+                delayed_drop.push(inner.invocations.remove(&handle));
+            }
+        }
+        drop(delayed_drop);
 
         ret
     }
@@ -868,6 +879,7 @@ pub struct WasmBusSessionMarker {
 
 impl Drop for WasmBusSessionMarker {
     fn drop(&mut self) {
+        debug!("bus sesssion closed - handle={}", self.handle);
         self.thread.drop_call(self.handle);
     }
 }
@@ -893,6 +905,10 @@ impl AsyncWasmBusSession {
             handle,
             format,
         }
+    }
+
+    pub fn id(&self) -> CallHandle {
+        self.handle.handle
     }
 
     pub fn call<RES, REQ>(&self, request: REQ, ctx: WasmCallerContext) -> Result<AsyncWasmBusResult<RES>, CallError>

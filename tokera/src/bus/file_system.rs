@@ -59,12 +59,12 @@ impl api::FileSystemSimplified for FileSystem {
                     FsResult::Ok(ret)
                 }
                 Err(err) => {
-                    error!("read_dir failed - {}", err);
+                    debug!("read_dir failed - {}", err);
                     FsResult::Err(conv_err(err))
                 }
             }
         } else {
-            error!("read_dir failed - not found ({})", path);
+            debug!("read_dir failed - not found ({})", path);
             FsResult::Err(FsError::EntityNotFound)
         }
     }
@@ -87,12 +87,12 @@ impl api::FileSystemSimplified for FileSystem {
                 )
                 .await
                 .map_err(|err| {
-                    error!("create_dir failed - {}", err);
+                    debug!("create_dir failed - {}", err);
                     conv_err(err)
                 })
                 .map(super::conv_meta)
         } else {
-            error!(
+            debug!(
                 "create_dir failed - parent not found ({})",
                 parent.to_string_lossy()
             );
@@ -115,7 +115,7 @@ impl api::FileSystemSimplified for FileSystem {
                 .await;
             Ok(())
         } else {
-            error!(
+            debug!(
                 "remove_dir failed - parent not found ({})",
                 parent.to_string_lossy()
             );
@@ -152,11 +152,11 @@ impl api::FileSystemSimplified for FileSystem {
                     .await;
                 Ok(())
             } else {
-                error!("remove_dir failed - new parent not found");
+                debug!("remove_dir failed - new parent not found");
                 Err(FsError::EntityNotFound)
             }
         } else {
-            error!("rename failed - parent not found");
+            debug!("rename failed - parent not found");
             Err(FsError::EntityNotFound)
         }
     }
@@ -176,7 +176,7 @@ impl api::FileSystemSimplified for FileSystem {
                 .await;
             Ok(())
         } else {
-            error!("remove_file failed - parent not found");
+            debug!("remove_file failed - parent not found");
             Err(FsError::EntityNotFound)
         }
     }
@@ -185,7 +185,7 @@ impl api::FileSystemSimplified for FileSystem {
         if let Ok(Some(file)) = self.accessor.search(&self.context, path.as_str()).await {
             FsResult::Ok(super::conv_meta(file))
         } else {
-            error!("read_metadata failed - not found ({})", path);
+            debug!("read_metadata failed - not found ({})", path);
             FsResult::Err(FsError::EntityNotFound)
         }
     }
@@ -194,7 +194,7 @@ impl api::FileSystemSimplified for FileSystem {
         if let Ok(Some(file)) = self.accessor.search(&self.context, path.as_str()).await {
             FsResult::Ok(super::conv_meta(file))
         } else {
-            error!("read_symlink_metadata failed - not found ({})", path);
+            debug!("read_symlink_metadata failed - not found ({})", path);
             FsResult::Err(FsError::EntityNotFound)
         }
     }
@@ -238,7 +238,7 @@ impl api::FileSystemSimplified for FileSystem {
                 {
                     Ok(a) => Ok(a),
                     Err(err) => {
-                        error!("open failed (path={}) - {}", path, err);
+                        debug!("open failed (path={}) - {}", path, err);
                         Err(conv_err(err))
                     }
                 }
@@ -267,7 +267,7 @@ impl api::FileSystemSimplified for FileSystem {
                                     {
                                         Ok(a) => Ok(a),
                                         Err(err) => {
-                                            error!(
+                                            debug!(
                                                 "open failed (path={}) - {}",
                                                 path.to_string_lossy(),
                                                 err
@@ -276,7 +276,7 @@ impl api::FileSystemSimplified for FileSystem {
                                         }
                                     }
                                 } else {
-                                    error!(
+                                    debug!(
                                         "open failed - parent not found ({})",
                                         parent.to_string_lossy()
                                     );
@@ -284,7 +284,7 @@ impl api::FileSystemSimplified for FileSystem {
                                 }
                             }
                             Err(err) => {
-                                error!(
+                                debug!(
                                     "open failed failed - invalid input ({})",
                                     path.to_string_lossy()
                                 );
@@ -293,12 +293,12 @@ impl api::FileSystemSimplified for FileSystem {
                         }
                     }
                     Err(err) => {
-                        error!("open failed - invalid input ({})", path.to_string_lossy());
+                        debug!("open failed - invalid input ({})", path.to_string_lossy());
                         Err(err)
                     }
                 }
             } else {
-                info!("open failed - not found ({})", path);
+                debug!("open failed - not found ({})", path);
                 Err(FsError::EntityNotFound)
             };
 
@@ -323,5 +323,13 @@ impl api::FileSystemSimplified for FileSystem {
             path,
             self.accessor.clone(),
         )))
+    }
+}
+
+impl Drop
+for FileSystem
+{
+    fn drop(&mut self) {
+        info!("file system closed - {}", self.accessor.chain.key())
     }
 }
