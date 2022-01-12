@@ -122,7 +122,7 @@ pub(crate) mod raw {
 }
 
 // Drops a handle used by calls or callbacks
-unsafe fn wasm_bus_drop(thread: &WasmBusThread, handle: CallHandle) {
+pub(crate) unsafe fn wasm_bus_drop(thread: &WasmBusThread, handle: CallHandle) {
     let handle: CallHandle = handle.into();
 
     let mut delayed_drop1 = Vec::new();

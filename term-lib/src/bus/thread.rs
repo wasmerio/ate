@@ -16,6 +16,7 @@ use std::collections::HashSet;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
+use std::ops::Deref;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::task::Context;
@@ -218,10 +219,9 @@ for WasmBusThread
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output>
     {
         let sessions;
+        let mut to_remove = Vec::new();
         let mut callbacks = Vec::new();
         unsafe {
-            let mut to_remove = Vec::new();
-            
             let mut inner = self.inner.lock();
             for (handle, invocation) in inner.invocations.iter_mut() {
                 let mut rx = Pin::new(&mut invocation.result.rx);
@@ -239,12 +239,12 @@ for WasmBusThread
                     }
                 }
             }
-            for handle in to_remove {
-                inner.invocations.remove(&handle);
-            }
             sessions = inner.factory.sessions();
         }
 
+        for handle in to_remove {
+            unsafe { super::syscalls::wasm_bus_drop(self.deref(), handle); }
+        }
         for (callback, result) in callbacks {
             callback.process(result, &sessions);
         }
@@ -268,10 +268,9 @@ impl WasmBusThread
     pub fn process(&self) -> usize
     {
         let sessions;
+        let mut to_remove = Vec::new();
         let mut callbacks = Vec::new();
         unsafe {
-            let mut to_remove = Vec::new();
-
             let mut inner = self.inner.lock();
             for (handle, invocation) in inner.invocations.iter_mut() {
                 match invocation.result.rx.try_recv() {
@@ -288,10 +287,10 @@ impl WasmBusThread
                     }
                 }
             }
-            for handle in to_remove {
-                inner.invocations.remove(&handle);
-            }
             sessions = inner.factory.sessions();
+        }
+        for handle in to_remove {
+            unsafe { super::syscalls::wasm_bus_drop(self, handle); }
         }
 
         let mut ret = 0usize;
@@ -604,6 +603,7 @@ impl WasmBusThread {
                         warn!("wasm-bus::drop - runtime error - {} - {}", err, err.message());
                     }
                 }
+                super::syscalls::wasm_bus_drop(self, handle);
                 err::ERR_OK
             }
         }
