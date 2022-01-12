@@ -218,10 +218,9 @@ for WasmBusThread
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output>
     {
         let sessions;
+        let mut to_remove = Vec::new();
         let mut callbacks = Vec::new();
         unsafe {
-            let mut to_remove = Vec::new();
-            
             let mut inner = self.inner.lock();
             for (handle, invocation) in inner.invocations.iter_mut() {
                 let mut rx = Pin::new(&mut invocation.result.rx);
@@ -238,9 +237,6 @@ for WasmBusThread
                         continue;
                     }
                 }
-            }
-            for handle in to_remove {
-                inner.invocations.remove(&handle);
             }
             sessions = inner.factory.sessions();
         }
@@ -259,6 +255,15 @@ for WasmBusThread
 
         self.feed_data(feed_data);
 
+        let mut delayed_drop = Vec::new();
+        unsafe {
+            let mut inner = self.inner.lock();
+            for handle in to_remove {
+                delayed_drop.push(inner.invocations.remove(&handle));
+            }
+        }
+        drop(delayed_drop);
+
         Poll::Pending
     }
 }
@@ -268,10 +273,9 @@ impl WasmBusThread
     pub fn process(&self) -> usize
     {
         let sessions;
+        let mut to_remove = Vec::new();
         let mut callbacks = Vec::new();
         unsafe {
-            let mut to_remove = Vec::new();
-
             let mut inner = self.inner.lock();
             for (handle, invocation) in inner.invocations.iter_mut() {
                 match invocation.result.rx.try_recv() {
@@ -287,9 +291,6 @@ impl WasmBusThread
                         continue;
                     }
                 }
-            }
-            for handle in to_remove {
-                inner.invocations.remove(&handle);
             }
             sessions = inner.factory.sessions();
         }
@@ -310,6 +311,15 @@ impl WasmBusThread
 
         ret += feed_data.len();
         self.feed_data(feed_data);
+
+        let mut delayed_drop = Vec::new();
+        unsafe {
+            let mut inner = self.inner.lock();
+            for handle in to_remove {
+                delayed_drop.push(inner.invocations.remove(&handle));
+            }
+        }
+        drop(delayed_drop);
 
         ret
     }
@@ -604,6 +614,7 @@ impl WasmBusThread {
                         warn!("wasm-bus::drop - runtime error - {} - {}", err, err.message());
                     }
                 }
+                super::syscalls::wasm_bus_drop(self, handle);
                 err::ERR_OK
             }
         }
@@ -868,6 +879,7 @@ pub struct WasmBusSessionMarker {
 
 impl Drop for WasmBusSessionMarker {
     fn drop(&mut self) {
+        debug!("bus sesssion closed - handle={}", self.handle);
         self.thread.drop_call(self.handle);
     }
 }
@@ -893,6 +905,10 @@ impl AsyncWasmBusSession {
             handle,
             format,
         }
+    }
+
+    pub fn id(&self) -> CallHandle {
+        self.handle.handle
     }
 
     pub fn call<RES, REQ>(&self, request: REQ, ctx: WasmCallerContext) -> Result<AsyncWasmBusResult<RES>, CallError>

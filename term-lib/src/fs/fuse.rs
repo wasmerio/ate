@@ -71,6 +71,7 @@ impl FuseFileSystem {
                 );
                 FsError::IOError
             })?;
+        info!("file system (target={}) opened (handle={})", target, task.id());
 
         let _ = stdio.stdout.flush_async().await;
         let _ = stdio.stdout.write(format!("\r").as_bytes()).await;
@@ -359,7 +360,7 @@ impl FileOpener for FuseFileOpener {
             })?;
 
         return Ok(Box::new(FuseVirtualFile {
-            fs: self.fs.clone(),
+            ctx: self.fs.get_ctx(),
             task,
             io,
             meta,
@@ -370,7 +371,7 @@ impl FileOpener for FuseFileOpener {
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct FuseVirtualFile {
-    fs: FuseFileSystem,
+    ctx: WasmCallerContext,
     #[derivative(Debug = "ignore")]
     task: AsyncWasmBusSession,
     #[derivative(Debug = "ignore")]
@@ -380,7 +381,7 @@ pub struct FuseVirtualFile {
 
 impl FuseVirtualFile {
     fn get_ctx(&self) -> WasmCallerContext {
-        self.fs.get_ctx()
+        self.ctx.clone()
     }
 }
 

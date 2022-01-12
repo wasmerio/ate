@@ -325,3 +325,11 @@ impl api::FileSystemSimplified for FileSystem {
         )))
     }
 }
+
+impl Drop
+for FileSystem
+{
+    fn drop(&mut self) {
+        info!("file system closed - {}", self.accessor.chain.key())
+    }
+}
