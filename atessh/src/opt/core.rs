@@ -2,7 +2,6 @@ use clap::Parser;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
-use super::generate::OptsGenerate;
 use super::ssh::OptsSsh;
 
 #[derive(Parser)]
@@ -15,6 +14,12 @@ pub struct Opts {
     /// Logs debug info to the console
     #[clap(short, long)]
     pub debug: bool,
+    /// URL where the user is authenticated
+    #[clap(short, long, default_value = "ws://tokera.com/auth")]
+    pub auth: url::Url,
+    /// Path to the secret server key
+    #[clap(default_value = "~/ate/ssh.server.key")]
+    pub key_path: String,
 
     #[clap(subcommand)]
     pub subcmd: SubCommand,
@@ -22,10 +27,7 @@ pub struct Opts {
 
 #[derive(Parser)]
 pub enum SubCommand {
-    /// Starts a ssh server
+    /// Starts an SSH command
     #[clap()]
     Ssh(OptsSsh),
-    /// Generates the SSH serve side keys
-    #[clap()]
-    Generate(OptsGenerate),
 }

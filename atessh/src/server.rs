@@ -15,7 +15,7 @@ use tokterm::term_lib::bin_factory::CachedCompiledModules;
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use crate::key::SshServerKey;
-use crate::opt::OptsSsh;
+use crate::opt::*;
 use crate::wizard::*;
 
 pub struct Server {
@@ -34,15 +34,15 @@ pub struct Server {
 }
 
 impl Server {
-    pub async fn new(run: OptsSsh, server_key: SshServerKey, runtime: Arc<Runtime>) -> Self {
+    pub async fn new(host: OptsHost, server_key: SshServerKey, runtime: Arc<Runtime>) -> Self {
         // Create the registry that will be used to validate logins
         let registry = ate::mesh::Registry::new(&conf_cmd()).await.cement();
 
         // Connect to the file system that holds all the binaries that
         // we will present natively to the consumers
         // Note: These are the same files presenting to the web-site version of the terminal
-        let native_files_key = ate::prelude::ChainKey::from(run.native_files);
-        let native_files = registry.open(&run.db, &native_files_key).await.unwrap();
+        let native_files_key = ate::prelude::ChainKey::from(host.native_files);
+        let native_files = registry.open(&host.db_url, &native_files_key).await.unwrap();
         let native_files = Arc::new(
             FileAccessor::new(
                 native_files.as_arc(),
@@ -73,15 +73,15 @@ impl Server {
 
         // Success
         Self {
-            listen: run.listen,
-            port: run.port,
+            listen: host.listen,
+            port: host.port,
             server_key,
             connection_timeout: Duration::from_secs(600),
             auth_rejection_time: Duration::from_secs(0),
-            compiler: run.compiler,
+            compiler: host.compiler,
             registry,
             native_files,
-            auth: run.auth.clone(),
+            auth: host.auth_url,
             compiled_modules: Arc::new(CachedCompiledModules::default()),
             exit_rx: rx_exit,
             stdio_lock: Arc::new(Mutex::new(())),
