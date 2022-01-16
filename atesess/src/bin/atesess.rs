@@ -8,7 +8,7 @@ use tokio::sync::watch::Receiver;
 use tokio::select;
 use tokio::runtime::Builder;
 
-use ate::mesh::MeshRoot;
+use ate::comms::StreamRouter;
 
 use ate_auth::helper::load_key;
 use ate_auth::helper::try_load_key;
@@ -67,7 +67,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
             SubCommand::Generate(_) => {
                 // this was already done earlier
             },
-            SubCommand::SessionServer(solo) => {
+            SubCommand::Run(solo) => {
                 let (_server, hard_exit) = main_web(&solo, conf, None).await?;
                 
                 main_loop(Some(hard_exit)).await?;
@@ -81,7 +81,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
     ret
 }
 
-async fn main_web(solo: &OptsSessionServer, cfg_ate: ConfAte, callback: Option<&Arc<MeshRoot>>) -> Result<(Arc<ateweb::server::Server>, Receiver<bool>), AteError>
+async fn main_web(solo: &OptsSessionServer, cfg_ate: ConfAte, callback: Option<StreamRouter>) -> Result<(Arc<ateweb::server::Server>, Receiver<bool>), AteError>
 {
     let web_key: EncryptKey = load_key(solo.session_key_path.clone(), ".read");
     let mut builder = ateweb::builder::ServerBuilder::new(solo.db_url.clone(), solo.auth_url.clone(), web_key)
@@ -91,7 +91,7 @@ async fn main_web(solo: &OptsSessionServer, cfg_ate: ConfAte, callback: Option<&
 
     if let Some(callback) = callback {
         builder = builder
-            .with_callback(ateweb::ServerMeshAdapter::new(callback));
+            .with_callback(callback);
     }
 
     let server = builder

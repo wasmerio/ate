@@ -22,6 +22,7 @@ mod national_currency;
 mod ownership;
 mod rate_card;
 mod wallet;
+mod service_instance;
 
 pub use advertised_service::*;
 pub use automation_time::*;
@@ -47,6 +48,7 @@ pub use national_currency::*;
 pub use ownership::*;
 pub use rate_card::*;
 pub use wallet::*;
+pub use service_instance::*;
 
 pub const WALLET_COLLECTION_ID: u64 = 2259995437953076879u64;
 pub const CONTRACT_COLLECTION_ID: u64 = 8278931753731734656u64;

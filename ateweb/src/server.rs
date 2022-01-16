@@ -12,7 +12,7 @@ use std::time::Instant;
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 #[allow(unused_imports, dead_code)]
-use tracing::{debug, error, info, instrument, span, trace, warn, Level};
+use tracing::{debug, error, info, instrument, span, trace, warn, event, Level};
 
 use hyper;
 use hyper::header::HeaderValue;
@@ -572,14 +572,20 @@ impl Server {
             return self.process_upgrade(req, sock_addr).await;
         }
 
-        let is_head = req.method() == Method::HEAD;
+        let uri = req.uri().clone();
+        let method = req.method().clone();
+        let is_head = method == Method::HEAD;
         let host = self.get_host(&req)?;
         let conf = self.get_conf(host.as_str()).await?;
 
         let ret = self.process_internal(req, listen, &conf).await;
         match ret {
-            Ok(a) => Ok(a),
+            Ok(a) => {
+                info!("http peer={} method={} path={} - {}", sock_addr, method, uri, a.status());
+                Ok(a)
+            },
             Err(err) => {
+                info!("http peer={} method={} path={} err={}", sock_addr, method, uri, err);
                 let page = conf
                     .status_pages
                     .get(&err.status_code().as_u16())

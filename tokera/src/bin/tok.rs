@@ -88,6 +88,10 @@ enum SubCommand {
     /// contracts.
     #[clap()]
     Contract(OptsContract),
+    /// Instances are running web assembly applications that can accessed from
+    /// anywhere via API calls and/or the wasm-bus.
+    #[clap()]
+    Instance(OptsInstance),
     /// Wallets are directly attached to groups and users - they hold a balance,
     /// store transaction history and facilitate transfers, deposits and withdraws.
     #[clap()]
@@ -286,6 +290,9 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
         }
         SubCommand::Service(opts_service) => {
             main_opts_service(opts_service.purpose, opts.token_path, auth).await?;
+        }
+        SubCommand::Instance(opts_instance) => {
+            main_opts_instance(opts_instance.purpose, opts.token_path, auth).await?;
         }
         SubCommand::Login(opts_login) => main_opts_login(opts_login, opts.token_path, auth).await?,
         SubCommand::Logout(opts_logout) => main_opts_logout(opts_logout, opts.token_path).await?,

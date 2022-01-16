@@ -9,6 +9,7 @@ mod contract_create;
 mod deposit;
 mod service_find;
 mod withdraw;
+mod instance_find;
 
 pub use ate_auth::request::*;
 pub use cancel_deposit::*;
@@ -22,3 +23,4 @@ pub use contract_create::*;
 pub use deposit::*;
 pub use service_find::*;
 pub use withdraw::*;
+pub use instance_find::*;

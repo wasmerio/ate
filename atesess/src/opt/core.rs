@@ -46,7 +46,7 @@ pub struct Opts {
 pub enum SubCommand {
     /// Hosts the session server
     #[clap()]
-    SessionServer(OptsSessionServer),
+    Run(OptsSessionServer),
     /// Generates a set of authentication keys
     #[clap()]
     Generate(Generate),
