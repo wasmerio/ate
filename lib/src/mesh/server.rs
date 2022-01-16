@@ -571,7 +571,7 @@ impl ServerProcessor<Message, SessionContext> for MeshRootProcessor {
     }
 
     async fn shutdown(&self, addr: SocketAddr) {
-        info!("disconnected: {}", addr.to_string());
+        debug!("disconnected: {}", addr.to_string());
     }
 }
 

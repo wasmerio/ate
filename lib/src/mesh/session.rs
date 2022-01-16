@@ -595,7 +595,7 @@ impl InboxProcessor<Message, ()> for MeshSessionProcessor {
     }
 
     async fn shutdown(&mut self, _sock_addr: MeshConnectAddr) {
-        info!("disconnected: {}:{}", self.addr.host, self.addr.port);
+        debug!("disconnected: {}:{}", self.addr.host, self.addr.port);
         if let Some(session) = self.session.upgrade() {
             session.cancel_commits(CommitErrorKind::Aborted).await;
             session.cancel_sniffers();

@@ -54,7 +54,7 @@ impl<'a> Chain {
             let max_cut_off = time.current_timestamp()?.time_since_epoch_ms
                 - guard.sync_tolerance.as_millis() as u64;
             let max_cut_off = ChainTimestamp::from(max_cut_off);
-            info!(
+            debug!(
                 "compacting chain: {} min {} max {}",
                 key, min_cut_off, max_cut_off
             );

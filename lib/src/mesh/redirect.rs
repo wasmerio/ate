@@ -60,7 +60,7 @@ where
     }
 
     async fn shutdown(&mut self, addr: SocketAddr) {
-        info!("disconnected: {}", addr.to_string());
+        debug!("disconnected: {}", addr.to_string());
     }
 }
 
