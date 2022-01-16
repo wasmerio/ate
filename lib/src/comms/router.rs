@@ -129,11 +129,15 @@ impl StreamRouter {
             match routes.get(&hello_meta.path) {
                 Some(a) => a.clone(),
                 None => {
-                    error!(
-                        "There are no routes for this connection path ({})",
-                        hello_meta.path
-                    );
-                    return Ok(());
+                    if let Some(def) = &self.default_route {
+                        def.clone()
+                    } else {
+                        error!(
+                            "There are no routes for this connection path ({})",
+                            hello_meta.path
+                        );
+                        return Ok(());
+                    }
                 }
             }
         };
