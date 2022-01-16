@@ -8,13 +8,12 @@ pub mod server;
 
 pub mod acceptor;
 pub mod acme;
-pub mod adapter;
+pub mod router;
 pub mod repo;
 pub mod stream;
 
 pub use acceptor::*;
 pub use acme::*;
-pub use adapter::ServerMeshAdapter;
 pub use builder::ServerBuilder;
 pub use conf::ServerConf;
 pub use repo::*;

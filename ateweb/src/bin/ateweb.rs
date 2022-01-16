@@ -54,11 +54,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             cfg_mesh.listen_certificate = Some(PrivateEncryptKey::generate(KeySize::Bit192));
             let root = create_server(&cfg_mesh).await?;
 
+            let mut router = ate::comms::StreamRouter::new(
+                cfg_mesh.wire_format.clone(),
+                cfg_mesh.wire_protocol.clone(),
+                cfg_mesh.listen_certificate.clone(),
+                root.server_id(),
+                cfg_mesh.accept_timeout,
+            );
+            router.set_default_route(root);
+
             conf.log_path = Some(run.log_path);
             let server = ServerBuilder::new(run.remote, run.auth_url, web_key)
                 .with_conf(&conf)
                 .ttl(Duration::from_secs(run.ttl))
-                .with_callback(ateweb::ServerMeshAdapter::new(&root))
+                .with_callback(router)
                 .add_listener(run.listen, run.port, run.port == 443u16)
                 .build()
                 .await?;

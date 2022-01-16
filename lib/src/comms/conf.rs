@@ -11,7 +11,7 @@ use std::net::SocketAddr;
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 #[derive(Debug)]
-pub(crate) struct Upstream {
+pub struct Upstream {
     #[allow(dead_code)]
     pub id: NodeId,
     pub outbox: StreamTxChannel,

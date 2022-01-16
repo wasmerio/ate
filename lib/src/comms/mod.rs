@@ -17,6 +17,7 @@ mod rx_tx;
 mod stream;
 mod test;
 mod throttle;
+mod router;
 
 pub use self::node_id::NodeId;
 
@@ -42,7 +43,10 @@ pub use stream::StreamProtocol;
 pub use stream::StreamRx;
 pub use stream::StreamTx;
 pub use stream::StreamTxChannel;
+pub use conf::Upstream;
 pub use throttle::Throttle;
+pub use router::*;
+pub use hello::HelloMetadata;
 
 pub(crate) use helper::InboxProcessor;
 #[cfg(feature = "server")]

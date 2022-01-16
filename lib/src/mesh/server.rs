@@ -204,24 +204,6 @@ impl MeshRoot {
         Ok(root)
     }
 
-    pub async fn accept_stream(
-        &self,
-        stream: Stream,
-        sock_addr: SocketAddr,
-    ) -> Result<(), CommsError> {
-        let listener = {
-            let guard = self.listener.lock().unwrap();
-            if let Some(listener) = guard.as_ref() {
-                Arc::clone(&listener)
-            } else {
-                warn!("listener is inactive - lost stream");
-                bail!(CommsErrorKind::Refused);
-            }
-        };
-        Listener::accept_stream(listener, stream, sock_addr, self.exit.subscribe()).await?;
-        Ok(())
-    }
-
     async fn auto_clean(self: Arc<Self>) {
         let chain = Arc::downgrade(&self);
         loop {
@@ -317,6 +299,10 @@ impl MeshRoot {
         }
     }
 
+    pub fn server_id(&self) -> NodeId {
+        self.server_id.clone()
+    }
+
     pub async fn shutdown(self: &Arc<Self>) {
         TaskEngine::run_until(
             self.__shutdown()
@@ -345,6 +331,32 @@ impl MeshRoot {
                 }
             }
         }
+    }
+}
+
+#[async_trait]
+impl StreamRoute
+for MeshRoot
+{
+    async fn accepted_web_socket(
+        &self,
+        rx: StreamRx,
+        tx: Upstream,
+        hello: HelloMetadata,
+        sock_addr: SocketAddr,
+        wire_encryption: Option<EncryptKey>,
+    ) -> Result<(), CommsError> {
+        let listener = {
+            let guard = self.listener.lock().unwrap();
+            if let Some(listener) = guard.as_ref() {
+                Arc::clone(&listener)
+            } else {
+                warn!("listener is inactive - lost stream");
+                bail!(CommsErrorKind::Refused);
+            }
+        };
+        Listener::accept_stream(listener, rx, tx, hello, wire_encryption, sock_addr, self.exit.subscribe()).await?;
+        Ok(())
     }
 }
 
