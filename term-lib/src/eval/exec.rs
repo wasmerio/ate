@@ -332,7 +332,7 @@ pub async fn exec_process(
                 };
 
                 // Cache miss - compile the module
-                info!("compiling {}", cmd);
+                debug!("compiling {}", cmd);
 
                 let store = Store::default();
                 let compiled_module = match Module::new(&store, &data[..]) {

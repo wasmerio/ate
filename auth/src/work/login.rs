@@ -28,7 +28,7 @@ impl AuthService {
         self: Arc<Self>,
         request: LoginRequest,
     ) -> Result<LoginResponse, LoginFailed> {
-        info!("login attempt: {}", request.email);
+        debug!("login attempt: {}", request.email);
 
         // Create the super key and token
         let (super_key, token) = match self.compute_master_key(&request.secret) {

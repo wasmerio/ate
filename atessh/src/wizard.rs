@@ -159,17 +159,17 @@ impl SshWizard {
                     self.step = match user_exists(&self.registry, &self.auth, &mut self.state).await
                     {
                         UserExistsResult::Found => {
-                            info!("user found (user={})", self.state.email.clone().unwrap());
+                            debug!("user found (user={})", self.state.email.clone().unwrap());
                             SshWizardStep::Login
                         }
                         UserExistsResult::InvalidEmail => {
-                            warn!("user check failed: invalid email");
+                            info!("user check failed: invalid email");
                             self.state.goodbye_message =
                                 Some(CConst::SSH_INVALID_USERNAME.to_string());
                             SshWizardStep::Terminate
                         }
                         UserExistsResult::Banned | UserExistsResult::Suspended => {
-                            warn!("user check failed: banned or suspended");
+                            info!("user check failed: banned or suspended");
                             self.state.goodbye_message =
                                 Some(CConst::SSH_ACCOUNT_LOCKED.to_string());
                             SshWizardStep::Terminate

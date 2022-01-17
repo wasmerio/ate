@@ -374,7 +374,7 @@ where
                 ),
                 Err(err) => warn!("connection-failed (inbox): {}", err),
             };
-            info!("disconnected");
+            debug!("disconnected");
         });
 
         // Happy days

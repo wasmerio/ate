@@ -214,7 +214,7 @@ unsafe fn wasm_bus_fork(thread: &WasmBusThread) -> Result<(), WasiError> {
         }
         // Now we exit the main thread (anything that is not a global
         // variable will be lost)
-        info!("wasm-bus::fork - exiting from main");
+        debug!("wasm-bus::fork - exiting from main");
         return Ok(());
     }
 

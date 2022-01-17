@@ -65,7 +65,7 @@ impl server::Handler for Handler {
         _submethods: &str,
         response: Option<server::Response>,
     ) -> Self::FutureAuth {
-        info!("authenticate with keyboard interactive (user={})", user);
+        debug!("authenticate with keyboard interactive (user={})", user);
         self.user = Some(user.to_string());
 
         // Get the current wizard or fail
@@ -99,7 +99,7 @@ impl server::Handler for Handler {
     }
 
     fn data(mut self, channel: ChannelId, data: &[u8], session: Session) -> Self::FutureUnit {
-        debug!("data on channel {:?}: len={:?}", channel, data.len());
+        trace!("data on channel {:?}: len={:?}", channel, data.len());
         let data = String::from_utf8(data.to_vec()).map_err(|_| {
             let err: SshServerError = SshServerErrorKind::BadData.into();
             err
@@ -115,7 +115,7 @@ impl server::Handler for Handler {
 
     #[allow(unused_variables)]
     fn shell_request(mut self, channel: ChannelId, session: Session) -> Self::FutureUnit {
-        info!("shell_request");
+        debug!("shell_request");
 
         Box::pin(async move {
             // Create the handle
@@ -179,7 +179,7 @@ impl server::Handler for Handler {
 
 impl Drop for Handler {
     fn drop(&mut self) {
-        info!("connection closed ({})", self.peer_addr_str);
+        info!("ssh connection closed ({})", self.peer_addr_str);
     }
 }
 
