@@ -57,7 +57,7 @@ impl LogFileLocalFs {
         _cache_ttl: u64,
         header_bytes: Vec<u8>,
     ) -> Result<Box<LogFileLocalFs>> {
-        info!("open at {}", path_log);
+        debug!("open at {}", path_log);
 
         // Load all the archives
         let mut archives = FxHashMap::default();

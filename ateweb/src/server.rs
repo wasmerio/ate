@@ -247,7 +247,7 @@ impl Server {
                             .set_file(host.as_str(), WEB_CONF_FILES_CONF, ret_str.as_bytes())
                             .await;
                         if let Err(err) = err {
-                            warn!("failed to save default web.yaml - {}", err);
+                            info!("failed to save default web.yaml - {}", err);
                         }
                     }
                     ret

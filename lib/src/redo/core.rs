@@ -69,7 +69,7 @@ impl RedoLog {
                     .await?;
 
                     let cnt = log_file.read_all(loader).await?;
-                    info!(
+                    debug!(
                         "redo-log: loaded {} events from {} files",
                         cnt,
                         log_file.archives.len()

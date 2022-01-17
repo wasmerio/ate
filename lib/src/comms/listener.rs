@@ -279,7 +279,7 @@ where
         sock_addr: SocketAddr,
         exit: broadcast::Receiver<()>,
     ) -> Result<(), CommsError> {
-        info!("accept-from: {}", sock_addr.to_string());
+        debug!("accept-from: {}", sock_addr.to_string());
 
         // Grab all the data we need
         let (
