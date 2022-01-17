@@ -1,5 +1,8 @@
 use serde::*;
 use std::fmt;
+use ate::dio::*;
+
+use super::Contract;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InstanceStatus
@@ -22,6 +25,8 @@ pub struct ServiceInstance {
     /// Identity of the owner of this particular service (the owner of
     /// the service is able to incur charges on your wallet)
     pub owner_identity: String,
+    /// Reference to the contract associated with this instance
+    pub contract: DaoChild<Contract>,
 }
 
 impl fmt::Display

@@ -10,6 +10,7 @@ error_chain! {
     links {
         CoreError(super::CoreError, super::CoreErrorKind);
         QueryError(super::QueryError, super::QueryErrorKind);
+        ContractError(super::ContractError, super::ContractErrorKind);
     }
     foreign_links {
         IO(tokio::io::Error);

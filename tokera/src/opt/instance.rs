@@ -70,6 +70,9 @@ pub enum OptsInstanceAction {
     /// Stops are particular instance
     #[clap()]
     Stop(OptsInstanceStop),
+    /// Clones are particular instance
+    #[clap()]
+    Clone(OptsInstanceClone),
     /// Restarts a particular instance
     #[clap()]
     Restart(OptsInstanceRestart),
@@ -115,6 +118,14 @@ pub struct OptsInstanceStop {
 #[clap()]
 pub struct OptsInstanceRestart {
     /// Token of the instance to be restarted
+    #[clap(index = 1)]
+    pub token: String,
+}
+
+#[derive(Parser, Clone)]
+#[clap()]
+pub struct OptsInstanceClone {
+    /// Token of the instance to be cloned
     #[clap(index = 1)]
     pub token: String,
 }

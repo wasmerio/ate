@@ -64,6 +64,14 @@ pub mod activities {
         pub by: String,
         pub invoice: Invoice,
     }
+
+    #[derive(Serialize, Deserialize, Debug, Clone)]
+    pub struct InstanceCreated {
+        pub when: DateTime<Utc>,
+        pub by: String,
+        pub wapm: String,
+        pub stateful: bool,
+    }
 }
 
 use chrono::prelude::*;
@@ -85,6 +93,7 @@ pub enum HistoricActivity {
     ContractCreated(ContractCreated),
     ContractCharge(ContractInvoice),
     ContractIncome(ContractInvoice),
+    InstanceCreated(InstanceCreated),
 }
 
 impl HistoricActivity {
@@ -99,6 +108,7 @@ impl HistoricActivity {
             HistoricActivity::ContractCreated(a) => &a.when,
             HistoricActivity::ContractCharge(a) => &a.when,
             HistoricActivity::ContractIncome(a) => &a.when,
+            HistoricActivity::InstanceCreated(a) => &a.when,
         }
     }
 
@@ -113,6 +123,7 @@ impl HistoricActivity {
             HistoricActivity::ContractCreated(a) => a.by.as_str(),
             HistoricActivity::ContractCharge(a) => a.by.as_str(),
             HistoricActivity::ContractIncome(a) => a.by.as_str(),
+            HistoricActivity::InstanceCreated(a) => a.by.as_str(),
         }
     }
 
@@ -120,6 +131,7 @@ impl HistoricActivity {
         match self {
             HistoricActivity::WalletCreated(_) => None,
             HistoricActivity::DepositCreated(_) => None,
+            HistoricActivity::InstanceCreated(_) => None,
             HistoricActivity::ContractCreated(_) => None,
             HistoricActivity::ContractCharge(a) => Some(HistoricFinancialActivity {
                 activity: self,
@@ -182,6 +194,9 @@ impl HistoricActivity {
             }
             HistoricActivity::FundsWithdrawn(_) => {
                 format!("Funds withdrawn")
+            }
+            HistoricActivity::InstanceCreated(a) => {
+                format!("Instance created ({})", a.wapm)
             }
         }
     }

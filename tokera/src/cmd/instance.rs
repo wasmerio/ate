@@ -73,6 +73,9 @@ pub async fn main_opts_instance(
         OptsInstanceAction::Restart(_opts) => {
             bail!(InstanceErrorKind::Unsupported);
         }
+        OptsInstanceAction::Clone(_opts) => {
+            bail!(InstanceErrorKind::Unsupported);
+        }
         OptsInstanceAction::Backup(_opts) => {
             bail!(InstanceErrorKind::Unsupported);
         }
