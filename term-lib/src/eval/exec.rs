@@ -534,7 +534,7 @@ pub async fn exec_process(
             }
 
             // Ok we are done
-            info!("exited (name={}) with code {}", cmd, ret);
+            debug!("exited (name={}) with code {}", cmd, ret);
             let ctx = bus_thread_pool.take_context().unwrap();
             (ctx, ret)
         })

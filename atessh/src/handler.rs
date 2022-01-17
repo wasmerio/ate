@@ -172,7 +172,7 @@ impl server::Handler for Handler {
         modes: &[(thrussh::Pty, u32)],
         session: Session,
     ) -> Self::FutureUnit {
-        info!("pty_request");
+        debug!("pty_request");
         self.finished(session)
     }
 }

@@ -25,7 +25,7 @@ impl AuthService {
         self: Arc<Self>,
         request: GatherRequest,
     ) -> Result<GatherResponse, GatherFailed> {
-        info!("gather attempt: {}", request.group);
+        debug!("gather attempt: {}", request.group);
 
         // Load the master key which will be used to encrypt the group so that only
         // the authentication server can access it
