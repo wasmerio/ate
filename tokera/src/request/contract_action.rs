@@ -111,7 +111,7 @@ impl std::fmt::Display for ContractActionFailed {
             ContractActionFailed::InternalError(a) => {
                 write!(
                     f,
-                    "An internal error occured while attempting the contract creation (code={})",
+                    "An internal error occured while attempting to perform an action on the contract (code={})",
                     a
                 )
             }

@@ -23,6 +23,8 @@ mod wallet;
 mod withdraw;
 mod instance;
 mod instance_find;
+mod instance_create;
+mod instance_action;
 
 pub use ate_auth::cmd::*;
 
@@ -51,3 +53,5 @@ pub use wallet::*;
 pub use withdraw::*;
 pub use instance::*;
 pub use instance_find::*;
+pub use instance_create::*;
+pub use instance_action::*;

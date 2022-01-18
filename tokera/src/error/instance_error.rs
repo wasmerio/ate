@@ -123,6 +123,65 @@ impl From<::ate::error::LockErrorKind> for InstanceErrorKind {
     }
 }
 
+impl From<InstanceCreateFailed> for InstanceError {
+    fn from(err: InstanceCreateFailed) -> InstanceError {
+        match err {
+            InstanceCreateFailed::AccountSuspended => {
+                InstanceErrorKind::CoreError(CoreErrorKind::AccountSuspended).into()
+            }
+            InstanceCreateFailed::AuthenticationFailed => {
+                InstanceErrorKind::CoreError(CoreErrorKind::AuthenticationFailed).into()
+            }
+            InstanceCreateFailed::Forbidden => {
+                InstanceErrorKind::CoreError(CoreErrorKind::Forbidden).into()
+            }
+            InstanceCreateFailed::NoMasterKey => {
+                InstanceErrorKind::CoreError(CoreErrorKind::NoMasterKey).into()
+            }
+            InstanceCreateFailed::OperatorBanned => {
+                InstanceErrorKind::CoreError(CoreErrorKind::OperatorBanned).into()
+            }
+            InstanceCreateFailed::OperatorNotFound => {
+                InstanceErrorKind::CoreError(CoreErrorKind::OperatorNotFound).into()
+            }
+            InstanceCreateFailed::InternalError(code) => {
+                InstanceErrorKind::CoreError(CoreErrorKind::InternalError(code)).into()
+            }
+        }
+    }
+}
+
+impl From<InstanceActionFailed> for InstanceError {
+    fn from(err: InstanceActionFailed) -> InstanceError {
+        match err {
+            InstanceActionFailed::AccountSuspended => {
+                InstanceErrorKind::CoreError(CoreErrorKind::AccountSuspended).into()
+            }
+            InstanceActionFailed::AuthenticationFailed => {
+                InstanceErrorKind::CoreError(CoreErrorKind::AuthenticationFailed).into()
+            }
+            InstanceActionFailed::OperatorBanned => {
+                InstanceErrorKind::CoreError(CoreErrorKind::OperatorBanned).into()
+            }
+            InstanceActionFailed::OperatorNotFound => {
+                InstanceErrorKind::CoreError(CoreErrorKind::OperatorNotFound).into()
+            }
+            InstanceActionFailed::NoMasterKey => {
+                InstanceErrorKind::CoreError(CoreErrorKind::NoMasterKey).into()
+            }
+            InstanceActionFailed::Forbidden => {
+                InstanceErrorKind::CoreError(CoreErrorKind::Forbidden).into()
+            }
+            InstanceActionFailed::InvalidToken => {
+                InstanceErrorKind::InvalidInstance.into()
+            }
+            InstanceActionFailed::InternalError(code) => {
+                InstanceErrorKind::CoreError(CoreErrorKind::InternalError(code)).into()
+            }
+        }
+    }
+}
+
 impl From<InstanceFindFailed> for InstanceError {
     fn from(err: InstanceFindFailed) -> InstanceError {
         match err {

@@ -17,6 +17,7 @@ mod wallet_summary;
 mod withdraw;
 mod instance_create;
 mod instance_summary;
+mod instance_action;
 
 pub use accessor::*;
 pub use bag::*;
@@ -37,3 +38,4 @@ pub use wallet_summary::*;
 pub use withdraw::*;
 pub use instance_create::*;
 pub use instance_summary::*;
+pub use instance_action::*;

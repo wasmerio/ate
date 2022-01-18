@@ -28,6 +28,14 @@ impl OptsInstanceFor {
             OptsInstanceFor::Domain(a) => &a.action,
         }
     }
+
+    pub fn is_personal(&self) -> bool {
+        if let OptsInstanceFor::Personal(..) = self {
+            true
+        } else {
+            false
+        }
+    }
 }
 
 #[derive(Parser, Clone)]
@@ -64,12 +72,18 @@ pub enum OptsInstanceAction {
     /// Details the details of a particular active instance
     #[clap()]
     Details(OptsInstanceDetails),
+    /// Creates a new instance
+    #[clap()]
+    Create(OptsInstanceCreate),
     /// Starts a new instance
     #[clap()]
     Start(OptsInstanceStart),
-    /// Stops are particular instance
+    /// Stops are particular instance - stopped instances can not process commands until restarted)
     #[clap()]
     Stop(OptsInstanceStop),
+    /// Kills are particular instance - killed instances are perminantely destroyed
+    #[clap()]
+    Kill(OptsInstanceKill),
     /// Clones are particular instance
     #[clap()]
     Clone(OptsInstanceClone),
@@ -87,6 +101,36 @@ pub enum OptsInstanceAction {
     Upgrade(OptsInstanceUpgrade),
 }
 
+impl OptsInstanceAction
+{
+    pub fn needs_sudo(&self) -> bool {
+        match self {
+            OptsInstanceAction::Kill(_) => true,
+            OptsInstanceAction::Restore(_) => true,
+            OptsInstanceAction::Upgrade(_) => true,
+            OptsInstanceAction::Stop(_) => true,
+            OptsInstanceAction::Start(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn token(&self) -> Option<String> {
+        match self {
+            OptsInstanceAction::List => None,
+            OptsInstanceAction::Create(_) => None,
+            OptsInstanceAction::Start(opts) => Some(opts.token.clone()),
+            OptsInstanceAction::Details(opts) => Some(opts.token.clone()),
+            OptsInstanceAction::Stop(opts) => Some(opts.token.clone()),
+            OptsInstanceAction::Kill(opts) => Some(opts.token.clone()),
+            OptsInstanceAction::Clone(opts) => Some(opts.token.clone()),
+            OptsInstanceAction::Restart(opts) => Some(opts.token.clone()),
+            OptsInstanceAction::Backup(opts) => Some(opts.token.clone()),
+            OptsInstanceAction::Restore(opts) => Some(opts.token.clone()),
+            OptsInstanceAction::Upgrade(opts) => Some(opts.token.clone()),
+        }
+    }
+}
+
 #[derive(Parser, Clone)]
 #[clap()]
 pub struct OptsInstanceDetails {
@@ -97,7 +141,7 @@ pub struct OptsInstanceDetails {
 
 #[derive(Parser, Clone)]
 #[clap()]
-pub struct OptsInstanceStart {
+pub struct OptsInstanceCreate {
     /// Name of the web assembly package to be started
     #[clap(index = 1)]
     pub wapm: String,
@@ -108,8 +152,27 @@ pub struct OptsInstanceStart {
 
 #[derive(Parser, Clone)]
 #[clap()]
+pub struct OptsInstanceStart {
+    /// Token of the instance to be started
+    /// (stopped instances can not process commands until restarted)
+    #[clap(index = 1)]
+    pub token: String,
+}
+
+#[derive(Parser, Clone)]
+#[clap()]
 pub struct OptsInstanceStop {
     /// Token of the instance to be stopped
+    /// (stopped instances can not process commands until restarted)
+    #[clap(index = 1)]
+    pub token: String,
+}
+
+#[derive(Parser, Clone)]
+#[clap()]
+pub struct OptsInstanceKill {
+    /// Token of the instance to be killed
+    /// (killed instances are perminently destroyed)
     #[clap(index = 1)]
     pub token: String,
 }
@@ -136,6 +199,12 @@ pub struct OptsInstanceBackup {
     /// Token of the instance to be backed up
     #[clap(index = 1)]
     pub token: String,
+    /// Chain that the backup file will be stored in
+    #[clap(index = 2)]
+    pub chain: String,
+    /// Path in the chain that the backup file will be stored
+    #[clap(index = 3)]
+    pub path: String,
 }
 
 #[derive(Parser, Clone)]
@@ -144,6 +213,12 @@ pub struct OptsInstanceRestore {
     /// Token of the instance to be restored
     #[clap(index = 1)]
     pub token: String,
+    /// Chain that the backup file is stored
+    #[clap(index = 2)]
+    pub chain: String,
+    /// Path in the chain that the backup file will be restored from
+    #[clap(index = 3)]
+    pub path: String,
 }
 
 #[derive(Parser, Clone)]

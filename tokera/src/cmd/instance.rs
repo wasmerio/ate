@@ -6,6 +6,8 @@ use tracing::{debug, error, info};
 
 use crate::error::*;
 use crate::opt::*;
+use crate::api::TokApi;
+use crate::request::*;
 
 use super::*;
 
@@ -49,11 +51,62 @@ pub async fn main_opts_instance_details(
     Ok(())
 }
 
+pub async fn main_opts_instance_create(
+    api: &mut TokApi,
+    wapm: String,
+    stateful: bool,
+) -> Result<(), InstanceError> {
+    let identity = api.session_identity();
+    let ret = match api.instance_create(wapm, stateful, identity).await {
+        Ok(a) => a,
+        Err(err) => {
+            bail!(err);
+        }
+    };
+    println!("Instance created ({})", ret.token);
+
+    Ok(())
+}
+
+pub async fn main_opts_instance_action(
+    api: &mut TokApi,
+    token: &str,
+    identity: &str,
+    action: InstanceAction,
+) -> Result<(), InstanceError> {
+    match api
+        .instance_action(token, identity, identity, action)
+        .await
+    {
+        Ok(a) => a,
+        Err(InstanceError(InstanceErrorKind::InvalidInstance, _)) => {
+            eprintln!("No instance exists with this token.");
+            std::process::exit(1);
+        }
+        Err(err) => return Err(err),
+    };
+
+    Ok(())
+}
+
 pub async fn main_opts_instance(
     opts: OptsInstanceFor,
-    _token_path: String,
+    token_path: String,
     auth_url: url::Url,
-) -> Result<(), InstanceError> {
+) -> Result<(), InstanceError>
+{
+    // Check if sudo is needed
+    let needs_sudo = if opts.action().needs_sudo() {
+        true
+    } else {
+        false
+    };
+
+    // Perform the action
+    let token = opts.action().token();
+    let mut context = PurposeContext::new(&opts, token_path.as_str(), &auth_url, needs_sudo).await?;
+    let identity = context.identity.clone();    
+
     // Determine what we need to do
     let purpose: &dyn OptsPurpose<OptsInstanceAction> = &opts;
     match purpose.action() {
@@ -63,27 +116,54 @@ pub async fn main_opts_instance(
         OptsInstanceAction::Details(opts) => {
             main_opts_instance_details(opts, &auth_url).await?;
         }
-
-        OptsInstanceAction::Start(_opts) => {
-            bail!(InstanceErrorKind::Unsupported);
+        OptsInstanceAction::Create(opts) => {
+            main_opts_instance_create(&mut context.api, opts.wapm.clone(), opts.stateful).await?;
         }
-        OptsInstanceAction::Stop(_opts) => {
-            bail!(InstanceErrorKind::Unsupported);
+        OptsInstanceAction::Start(_opts_start) => {
+            if token.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
+            let token = token.unwrap();
+            main_opts_instance_action(&mut context.api, token.as_str(), identity.as_str(), InstanceAction::Start).await?;
         }
-        OptsInstanceAction::Restart(_opts) => {
-            bail!(InstanceErrorKind::Unsupported);
+        OptsInstanceAction::Stop(_opts_stop) => {
+            if token.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
+            let token = token.unwrap();
+            main_opts_instance_action(&mut context.api, token.as_str(), identity.as_str(), InstanceAction::Stop).await?;
         }
-        OptsInstanceAction::Clone(_opts) => {
-            bail!(InstanceErrorKind::Unsupported);
+        OptsInstanceAction::Kill(_opts_kill) => {
+            if token.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
+            let token = token.unwrap();
+            main_opts_instance_action(&mut context.api, token.as_str(), identity.as_str(), InstanceAction::Kill).await?;
         }
-        OptsInstanceAction::Backup(_opts) => {
-            bail!(InstanceErrorKind::Unsupported);
+        OptsInstanceAction::Restart(_opts_restart) => {
+            if token.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
+            let token = token.unwrap();
+            main_opts_instance_action(&mut context.api, token.as_str(), identity.as_str(), InstanceAction::Restart).await?;
         }
-        OptsInstanceAction::Restore(_opts) => {
-            bail!(InstanceErrorKind::Unsupported);
+        OptsInstanceAction::Clone(_opts_clone) => {
+            if token.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
+            let token = token.unwrap();
+            main_opts_instance_action(&mut context.api, token.as_str(), identity.as_str(), InstanceAction::Clone).await?;
+        }
+        OptsInstanceAction::Backup(opts_backup) => {
+            if token.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
+            let token = token.unwrap();
+            main_opts_instance_action(&mut context.api, token.as_str(), identity.as_str(), InstanceAction::Backup {
+                chain: opts_backup.chain,
+                path: opts_backup.path
+            }).await?;
+        }
+        OptsInstanceAction::Restore(opts_restore) => {
+            if token.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
+            let token = token.unwrap();
+            main_opts_instance_action(&mut context.api, token.as_str(), identity.as_str(), InstanceAction::Restore {
+                chain: opts_restore.chain,
+                path: opts_restore.path
+            }).await?;
         }
         OptsInstanceAction::Upgrade(_opts) => {
-            bail!(InstanceErrorKind::Unsupported);
+            if token.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
+            let token = token.unwrap();
+            main_opts_instance_action(&mut context.api, token.as_str(), identity.as_str(), InstanceAction::Upgrade).await?;
         }
     }
 

@@ -9,28 +9,26 @@ use crate::error::*;
 use crate::helper::*;
 use crate::request::*;
 
-pub async fn contract_action_command(
+pub async fn instance_action_command(
     registry: &Arc<Registry>,
     session: &dyn AteSession,
     auth: Url,
-    service_code: String,
+    token: String,
     requester_identity: String,
     consumer_identity: String,
-    action_key: Option<EncryptKey>,
-    action: ContractAction,
-) -> Result<ContractActionResponse, ContractError> {
+    action: InstanceAction,
+) -> Result<InstanceActionResponse, InstanceError> {
     // Open a command chain
     let chain = registry.open_cmd(&auth).await?;
 
-    // Now build the request to perform an action on the contract
+    // Now build the request to perform an action on the instance
     let sign_key = session_sign_key(session, requester_identity.contains("@"))?;
-    let contract_action = ContractActionRequest {
+    let contract_action = InstanceActionRequest {
         requester_identity,
-        action_key,
         params: SignedProtectedData::new(
             sign_key,
-            ContractActionRequestParams {
-                service_code,
+            InstanceActionRequestParams {
+                token,
                 consumer_identity,
                 action,
             },
@@ -38,7 +36,7 @@ pub async fn contract_action_command(
     };
 
     // Attempt the create contract request
-    let response: Result<ContractActionResponse, ContractActionFailed> =
+    let response: Result<InstanceActionResponse, InstanceActionFailed> =
         chain.invoke(contract_action).await?;
     let result = response?;
     Ok(result)
