@@ -15,8 +15,8 @@ pub struct InstanceSummary {
     pub key: PrimaryKey,
     /// Name of the instance
     pub name: String,
-    /// Status of the instance
-    pub status: InstanceStatus,
+    /// Chain that the instance lives at
+    pub chain: ChainKey,
 }
 
 impl TokApi {
@@ -28,23 +28,23 @@ impl TokApi {
             ret.push(InstanceSummary {
                 key: instance.key().clone(),
                 name: instance.name.clone(),
-                status: instance.status.clone(),
+                chain: ChainKey::from(instance.chain.clone())
             })
         }
 
         Ok(ret)
     }
 
-    pub async fn instances(&self) -> DaoVec<ServiceInstance>
+    pub async fn instances(&self) -> DaoVec<WalletInstance>
     {
-        DaoVec::<ServiceInstance>::new_orphaned_mut(
+        DaoVec::<WalletInstance>::new_orphaned_mut(
             &self.dio,
             self.wallet.parent_id().unwrap(),
             INSTANCE_COLLECTION_ID
         )
     }
 
-    pub async fn instance_find(&self, name: &str) -> Result<DaoMut<ServiceInstance>, InstanceError>
+    pub async fn instance_find(&self, name: &str) -> Result<DaoMut<WalletInstance>, InstanceError>
     {
         let instance = self.instances()
             .await

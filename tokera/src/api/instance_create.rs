@@ -21,7 +21,7 @@ impl TokApi {
         group: Option<String>,
         session: AteSessionType,
         db_url: url::Url,
-    ) -> Result<ServiceInstance, InstanceError>
+    ) -> Result<WalletInstance, InstanceError>
     {
         // Get the sudo rights from the session (as we will use these for the wallet)
         let sudo_read = {
@@ -83,17 +83,32 @@ impl TokApi {
                 chain_api.mkdir(&chain_api.session_context(), root.key().as_u64(), dir, root.dentry.mode).await?;
             }
         }
+
+        // Add the object directly to the chain
+        let dio = chain_api.dio_mut_meta().await;
+        let mut instance_dao = dio.store_with_key(
+            ServiceInstance {
+                name: name.clone(),
+                token: token.clone(),
+                chain: key_name.clone(),
+                wapm: wapm.clone(),
+                stateful,
+                action: None,
+                status: InstanceStatus::Stopped,
+            },
+            PrimaryKey::from(INSTANCE_ROOT_ID),
+        )?;
+        instance_dao.attach_orphaned(root.key())?;
         chain_api.commit().await?;
+        dio.commit().await?;
 
         // Create the instance and add it to the identities collection
         debug!("adding service instance: {}", name);
-        let instance = ServiceInstance {
+        let instance = WalletInstance {
             name: name.clone(),
             token,
             chain: key_name,
             wapm: wapm.clone(),
-            stateful,
-            status: InstanceStatus::Stopped,
         };
         let mut instance_dao = self.dio.store_with_key(
             instance.clone(),

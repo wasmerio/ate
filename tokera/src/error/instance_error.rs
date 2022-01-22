@@ -1,6 +1,5 @@
 use error_chain::error_chain;
 
-use crate::request::*;
 use super::*;
 
 error_chain! {
@@ -133,49 +132,5 @@ impl From<::ate::error::LockError> for InstanceError {
 impl From<::ate::error::LockErrorKind> for InstanceErrorKind {
     fn from(err: ::ate::error::LockErrorKind) -> Self {
         InstanceErrorKind::CoreError(CoreErrorKind::LockError(err))
-    }
-}
-
-impl From<InstanceActionFailed> for InstanceError {
-    fn from(err: InstanceActionFailed) -> InstanceError {
-        match err {
-            InstanceActionFailed::AccountSuspended => {
-                InstanceErrorKind::CoreError(CoreErrorKind::AccountSuspended).into()
-            }
-            InstanceActionFailed::AuthenticationFailed => {
-                InstanceErrorKind::CoreError(CoreErrorKind::AuthenticationFailed).into()
-            }
-            InstanceActionFailed::OperatorBanned => {
-                InstanceErrorKind::CoreError(CoreErrorKind::OperatorBanned).into()
-            }
-            InstanceActionFailed::OperatorNotFound => {
-                InstanceErrorKind::CoreError(CoreErrorKind::OperatorNotFound).into()
-            }
-            InstanceActionFailed::NoMasterKey => {
-                InstanceErrorKind::CoreError(CoreErrorKind::NoMasterKey).into()
-            }
-            InstanceActionFailed::Forbidden => {
-                InstanceErrorKind::CoreError(CoreErrorKind::Forbidden).into()
-            }
-            InstanceActionFailed::InvalidToken => {
-                InstanceErrorKind::InvalidInstance.into()
-            }
-            InstanceActionFailed::InternalError(code) => {
-                InstanceErrorKind::CoreError(CoreErrorKind::InternalError(code)).into()
-            }
-        }
-    }
-}
-
-impl From<InstanceFindFailed> for InstanceError {
-    fn from(err: InstanceFindFailed) -> InstanceError {
-        match err {
-            InstanceFindFailed::Forbidden => {
-                InstanceErrorKind::CoreError(CoreErrorKind::Forbidden).into()
-            }
-            InstanceFindFailed::InternalError(code) => {
-                InstanceErrorKind::CoreError(CoreErrorKind::InternalError(code)).into()
-            }
-        }
     }
 }

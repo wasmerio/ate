@@ -1,4 +1,6 @@
 use std::ops::Deref;
+use std::sync::Arc;
+use ate::prelude::*;
 use ate::session::AteSessionType;
 use error_chain::bail;
 #[allow(unused_imports)]
@@ -8,32 +10,49 @@ use futures_util::pin_mut;
 use futures_util::stream::StreamExt;
 
 use crate::error::*;
+use crate::model::{INSTANCE_ROOT_ID, ServiceInstance, InstanceAction};
 use crate::opt::*;
 use crate::api::TokApi;
-use crate::request::*;
 
 use super::*;
 
 pub async fn main_opts_instance_list(api: &mut TokApi) -> Result<(), InstanceError> {
-    println!("|-------name-------|---status---|---wapm---");
+    println!("|-------name-------|---status---|--action--|---wapm---");
     let instances = api.instances().await;
 
     let instances = instances.iter().await?;
-    let instances_ext = stream! {
-        for instance in instances {
-            yield api.instance_chain(instance.name.as_str())
-                .await
-                .map(|chain| (instance, chain));
+    let instances_ext = {
+        let api = api.clone();
+        stream! {
+            for instance in instances {
+                yield api.instance_chain(instance.name.as_str())
+                    .await
+                    .map(|chain| (instance, chain));
+            }
         }
     };
     pin_mut!(instances_ext);
 
+    let session = api.session();
     while let Some(res) = instances_ext.next().await {
-        let (instance, _chain) = res?;
-        println!(
-            "- {:<16} - {:<10} - {}",
-            instance.name, instance.status.to_string(), instance.wapm
-        );
+        let (wallet_instance, chain) = res?;
+        let dio: Arc<Dio> = chain.dio(session.deref()).await;
+        match dio.load::<ServiceInstance>(&PrimaryKey::from(INSTANCE_ROOT_ID)).await {
+            Ok(instance) => {
+                let action = instance.action.clone().map(|a| a.to_string()).unwrap_or_else(|| "".to_string());
+                println!(
+                    "- {:<16} - {:<10} - {:<8} - {}",
+                    wallet_instance.name, instance.status.to_string(), action, wallet_instance.wapm
+                );
+            }
+            Err(err) => {
+                debug!("error loading service chain - {}", err);
+                println!(
+                    "- {:<16} - {:<10} - {}",
+                    wallet_instance.name, "error", err
+                );
+            }
+        }
     }
     Ok(())
 }

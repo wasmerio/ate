@@ -83,12 +83,3 @@ impl From<ServiceFindFailed> for CoreError {
         }
     }
 }
-
-impl From<InstanceFindFailed> for CoreError {
-    fn from(err: InstanceFindFailed) -> CoreError {
-        match err {
-            InstanceFindFailed::Forbidden => CoreErrorKind::Forbidden.into(),
-            InstanceFindFailed::InternalError(code) => CoreErrorKind::InternalError(code).into(),
-        }
-    }
-}

@@ -179,6 +179,8 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
             #[cfg(feature = "bus")]
             "bus" => Some(SubCommand::Bus(OptsBus::parse())),
             "service" => Some(SubCommand::Service(OptsService::parse())),
+            "inst" => Some(SubCommand::Instance(OptsInstance::parse())),
+            "instance" => Some(SubCommand::Instance(OptsInstance::parse())),
             "contract" => Some(SubCommand::Contract(OptsContract::parse())),
             "wallet" => Some(SubCommand::Wallet(OptsWallet::parse())),
             "login" => Some(SubCommand::Login(OptsLogin::parse())),

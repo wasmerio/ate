@@ -1,12 +1,12 @@
 use ate::chain::ChainKey;
+use ate::header::PrimaryKey;
 use error_chain::bail;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, trace, warn};
 use std::ops::Deref;
 
 use crate::error::*;
-use crate::model::{activities, HistoricActivity};
-use crate::request::*;
+use crate::model::{activities, HistoricActivity, InstanceAction, INSTANCE_ROOT_ID, ServiceInstance};
 
 use super::*;
 
@@ -84,8 +84,29 @@ impl TokApi {
                 println!("Instance ({} with alias {}) has been killed", wapm, name);
                 Ok(())
             }
-            _ => {
+            InstanceAction::Clone => {
                 bail!(InstanceErrorKind::Unsupported);
+            }
+            InstanceAction::Backup { .. } => {
+                bail!(InstanceErrorKind::Unsupported);
+            }
+            InstanceAction::Restore { .. } => {
+                bail!(InstanceErrorKind::Unsupported);
+            }
+            InstanceAction::Upgrade => {
+                bail!(InstanceErrorKind::Unsupported);
+            }
+            action => {
+                let wapm = instance.wapm.clone();
+                let name = instance.name.clone();
+
+                // Load the instance and set the next action to perform
+                let mut instance = chain_dio.load::<ServiceInstance>(&PrimaryKey::from(INSTANCE_ROOT_ID)).await?;
+                instance.as_mut().action = Some(action.clone());
+                chain_dio.commit().await?;
+
+                println!("Instance action ({}) submitted (for {} with alias {}) has been killed", action, wapm, name);
+                Ok(())
             }
         }
     }
