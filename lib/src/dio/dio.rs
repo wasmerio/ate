@@ -149,6 +149,10 @@ impl Dio {
         &self.chain
     }
 
+    pub fn remote<'a>(&'a self) -> Option<&'a url::Url> {
+        self.chain.remote()
+    }
+
     async fn run_async<F>(&self, future: F) -> F::Output
     where
         F: std::future::Future,
@@ -301,6 +305,19 @@ impl Dio {
         Ok(keys)
     }
 
+    pub async fn root_keys(
+        self: &Arc<Self>,
+    ) -> Vec<PrimaryKey> {
+        self.run_async(self.__root_keys())
+            .await
+    }
+
+    pub async fn __root_keys(
+        self: &Arc<Self>,
+    ) -> Vec<PrimaryKey> {
+        self.multi.roots_raw().await
+    }
+
     pub async fn all_keys(self: &Arc<Self>) -> Vec<PrimaryKey> {
         self.run_async(self.__all_keys()).await
     }
@@ -354,6 +371,50 @@ impl Dio {
     {
         // Load all the objects
         let keys = self.__children_keys(parent_id, collection_id).await?;
+        Ok(self
+            .__load_many_ext(
+                keys.into_iter(),
+                allow_missing_keys,
+                allow_serialization_error,
+            )
+            .await?)
+    }
+
+    pub async fn roots<D>(
+        self: &Arc<Self>,
+    ) -> Result<Vec<Dao<D>>, LoadError>
+    where
+        D: DeserializeOwned,
+    {
+        self.roots_ext(false, false)
+            .await
+    }
+
+    pub async fn roots_ext<D>(
+        self: &Arc<Self>,
+        allow_missing_keys: bool,
+        allow_serialization_error: bool,
+    ) -> Result<Vec<Dao<D>>, LoadError>
+    where
+        D: DeserializeOwned,
+    {
+        self.run_async(self.__roots_ext(
+            allow_missing_keys,
+            allow_serialization_error,
+        ))
+        .await
+    }
+
+    pub(super) async fn __roots_ext<D>(
+        self: &Arc<Self>,
+        allow_missing_keys: bool,
+        allow_serialization_error: bool,
+    ) -> Result<Vec<Dao<D>>, LoadError>
+    where
+        D: DeserializeOwned,
+    {
+        // Load all the objects
+        let keys = self.__root_keys().await;
         Ok(self
             .__load_many_ext(
                 keys.into_iter(),

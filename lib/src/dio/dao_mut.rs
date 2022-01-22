@@ -327,6 +327,10 @@ where
         &self.inner
     }
 
+    pub fn to_immutable(self) -> Dao<D> {
+        self.inner
+    }
+
     pub fn as_mut_owned(self) -> DaoMutGuardOwned<D> {
         DaoMutGuardOwned {
             dao: self,

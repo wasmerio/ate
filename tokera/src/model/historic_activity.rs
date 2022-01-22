@@ -70,6 +70,7 @@ pub mod activities {
         pub when: DateTime<Utc>,
         pub by: String,
         pub wapm: String,
+        pub alias: Option<String>,
         pub stateful: bool,
     }
 }
@@ -196,7 +197,11 @@ impl HistoricActivity {
                 format!("Funds withdrawn")
             }
             HistoricActivity::InstanceCreated(a) => {
-                format!("Instance created ({})", a.wapm)
+                if let Some(alias) = &a.alias {
+                    format!("Instance created ({} with alias {})", a.wapm, alias)
+                } else {
+                    format!("Instance created ({})", a.wapm)
+                }
             }
         }
     }

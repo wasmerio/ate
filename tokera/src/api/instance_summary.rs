@@ -1,5 +1,7 @@
+use error_chain::bail;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, trace, warn};
+use std::sync::Arc;
 
 use crate::error::*;
 use crate::model::*;
@@ -11,12 +13,10 @@ use super::*;
 pub struct InstanceSummary {
     /// Primary key of this instance
     pub key: PrimaryKey,
-    /// Token associated with the instance
-    pub token: String,
+    /// Name of the instance
+    pub name: String,
     /// Status of the instance
     pub status: InstanceStatus,
-    /// Reference to the contract associated with this instance
-    pub contract: Option<ContractSummary>,
 }
 
 impl TokApi {
@@ -24,29 +24,50 @@ impl TokApi {
         // Query all the instances for this wallet
         let mut ret = Vec::new();
 
-        if let Some(parent_id) = self.wallet.parent_id() {
-            let instances = self
-                .dio
-                .children_ext::<ServiceInstance>(parent_id, INSTANCE_COLLECTION_ID, true, true)
-                .await?;
-            for instance in instances {
-                let contract = instance.contract
-                    .load().await?;
-
-                let contract = match contract {
-                    Some(c) => Some(self.get_contract_summary(&c).await?),
-                    None => None
-                };
-
-                ret.push(InstanceSummary {
-                    key: instance.key().clone(),
-                    token: instance.token.clone(),
-                    status: instance.status.clone(),
-                    contract,
-                })
-            }
+        for instance in self.instances().await.iter().await? {
+            ret.push(InstanceSummary {
+                key: instance.key().clone(),
+                name: instance.name.clone(),
+                status: instance.status.clone(),
+            })
         }
 
         Ok(ret)
+    }
+
+    pub async fn instances(&self) -> DaoVec<ServiceInstance>
+    {
+        DaoVec::<ServiceInstance>::new_orphaned_mut(
+            &self.dio,
+            self.wallet.parent_id().unwrap(),
+            INSTANCE_COLLECTION_ID
+        )
+    }
+
+    pub async fn instance_find(&self, name: &str) -> Result<DaoMut<ServiceInstance>, InstanceError>
+    {
+        let instance = self.instances()
+            .await
+            .iter_mut()
+            .await?
+            .filter(|i| i.name.eq_ignore_ascii_case(name))
+            .next();
+
+        let instance = match instance {
+            Some(a) => a,
+            None => {
+                bail!(InstanceErrorKind::InvalidInstance);
+            }
+        };
+
+        Ok(instance)
+    }
+
+    pub async fn instance_chain(&self, name: &str) -> Result<Arc<Chain>, InstanceError> {
+        let instance = self.instance_find(name).await?;
+        let instance_key = ChainKey::from(instance.chain.clone());
+        let db_url: Result<_, InstanceError> = self.db_url.clone().ok_or_else(|| InstanceErrorKind::Unsupported.into());
+        let chain = self.registry.open(&db_url?, &instance_key).await?;
+        Ok(chain.as_arc())
     }
 }

@@ -2,7 +2,7 @@ use super::*;
 use crate::crypto::*;
 use serde::*;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum AteSessionType {
     User(AteSessionUser),
     Sudo(AteSessionSudo),

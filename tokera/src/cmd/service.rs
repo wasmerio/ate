@@ -140,7 +140,7 @@ pub async fn main_opts_service(
         }
         OptsServiceAction::Subscribe(opts) => {
             let mut context =
-                PurposeContext::new(purpose, token_path.as_str(), &auth_url, true).await?;
+                PurposeContext::new(purpose, token_path.as_str(), &auth_url, None, true).await?;
             main_opts_service_subscribe(opts, &mut context.api).await?;
             context.api.commit().await?;
         }

@@ -10,7 +10,6 @@ mod deposit;
 mod service_find;
 mod withdraw;
 mod instance_find;
-mod instance_create;
 mod instance_clone;
 mod instance_action;
 
@@ -27,6 +26,5 @@ pub use deposit::*;
 pub use service_find::*;
 pub use withdraw::*;
 pub use instance_find::*;
-pub use instance_create::*;
 pub use instance_clone::*;
 pub use instance_action::*;

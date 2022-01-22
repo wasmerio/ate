@@ -158,7 +158,7 @@ pub async fn create_wallet(
 
     // Now add the history
     let wallet = {
-        let mut api = crate::api::build_api_accessor(&dio, wallet, auth.clone(), registry).await;
+        let mut api = crate::api::build_api_accessor(&dio, wallet, auth.clone(), None, registry).await;
         if let Err(err) = api
             .record_activity(HistoricActivity::WalletCreated(activities::WalletCreated {
                 when: chrono::offset::Utc::now(),
@@ -308,13 +308,14 @@ where
         purpose: &dyn OptsPurpose<A>,
         token_path: &str,
         auth_url: &url::Url,
+        db_url: Option<&url::Url>,
         sudo: bool,
     ) -> Result<PurposeContext<A>, CoreError> {
         let inner = PurposeContextPrelude::new(purpose, token_path, auth_url, sudo).await?;
 
         // Create the API to the wallet
         let wallet = get_wallet(purpose, &inner.dio, &inner.identity).await?;
-        let api = build_api_accessor(&inner.dio, wallet, auth_url.clone(), &inner.registry).await;
+        let api = build_api_accessor(&inner.dio, wallet, auth_url.clone(), db_url.map(|a| a.clone()), &inner.registry).await;
 
         Ok(PurposeContext { inner, api })
     }

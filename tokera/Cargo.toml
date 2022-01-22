@@ -60,6 +60,7 @@ num-traits = { version = "^0.2" }
 wild = "^2"
 pbr = "^1"
 derivative = { version = "^2" }
+async-stream = "^0.3"
 wasm-bus = { version = "0.5", path = "../wasm-bus" }
 wasm-bus-fuse = { version = "0.2", path = "../wasm-bus-fuse" }
 wasm-bus-ws = { version = "0.2", path = "../wasm-bus-ws" }

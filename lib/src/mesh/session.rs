@@ -55,6 +55,7 @@ impl MeshSession {
         builder: ChainBuilder,
         cfg_mesh: &ConfMesh,
         chain_key: &ChainKey,
+        remote: url::Url,
         addr: MeshAddress,
         node_id: NodeId,
         hello_path: String,
@@ -95,6 +96,7 @@ impl MeshSession {
                 TrustMode::Distributed,
             )
             .await?;
+            chain.remote = Some(remote);
             chain.remote_addr = Some(addr.clone());
             chain
         };

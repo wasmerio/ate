@@ -59,7 +59,8 @@ async fn test_mesh_internal(centralized: bool, proto: StreamProtocol) {
         for n in (5100 + port_offset)..(5105 + port_offset) {
             roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
         }
-        let mut cfg_mesh = ConfMesh::new("localhost", roots.iter());
+        let remote = url::Url::parse(format!("{}://localhost", proto.to_scheme()).as_str()).unwrap();
+        let mut cfg_mesh = ConfMesh::new("localhost", remote, roots.iter());
         cfg_mesh.wire_protocol = proto;
 
         let mut mesh_root_joins = Vec::new();

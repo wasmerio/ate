@@ -54,6 +54,7 @@ pub struct Chain {
     #[allow(dead_code)]
     pub(crate) node_id: NodeId,
     pub(crate) cfg_ate: ConfAte,
+    pub(crate) remote: Option<url::Url>,
     pub(crate) remote_addr: Option<MeshAddress>,
     pub(crate) default_format: MessageFormat,
     pub(crate) inside_sync: Arc<StdRwLock<ChainProtectedSync>>,
@@ -75,6 +76,10 @@ impl<'a> Chain {
 
     pub fn key(&'a self) -> &'a ChainKey {
         &self.key
+    }
+
+    pub fn remote(&'a self) -> Option<&'a url::Url> {
+        self.remote.as_ref()
     }
 
     pub fn remote_addr(&'a self) -> Option<&'a MeshAddress> {

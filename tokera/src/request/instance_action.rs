@@ -33,14 +33,6 @@ pub struct InstanceActionRequest {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum InstanceActionResponse {
-    Started,
-    Stopped,
-    Killed,
-    Restarted,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum InstanceActionFailed {
     OperatorNotFound,
     OperatorBanned,

@@ -1,4 +1,5 @@
 use fxhash::FxHashMap;
+use fxhash::FxHashSet;
 use multimap::MultiMap;
 
 use super::error::*;
@@ -28,6 +29,7 @@ pub struct EventLeaf {
 
 #[derive(Default, Debug)]
 pub(crate) struct BinaryTreeIndexer {
+    roots: FxHashSet<PrimaryKey>,
     primary: FxHashMap<PrimaryKey, EventLeaf>,
     secondary: MultiMap<MetaCollection, PrimaryKey>,
     parents: FxHashMap<PrimaryKey, MetaParent>,
@@ -50,6 +52,7 @@ impl BinaryTreeIndexer {
         for core in entry.meta.core.iter() {
             match core {
                 CoreMetadata::Tombstone(key) => {
+                    self.roots.remove(key);
                     self.primary.remove(&key);
                     if let Some(tree) = self.parents.remove(&key) {
                         if let Some(vec) = self.secondary.get_vec_mut(&tree.vec) {
@@ -62,11 +65,18 @@ impl BinaryTreeIndexer {
             }
         }
 
+        let has_parent = entry.meta.core
+            .iter()
+            .any(|a| if let CoreMetadata::Parent(..) = a { true } else { false });
+        
         for core in entry.meta.core.iter() {
             match core {
                 CoreMetadata::Data(key) => {
                     if entry.raw.data_hash.is_none() {
                         continue;
+                    }
+                    if has_parent {
+                        self.roots.insert(key.clone());
                     }
                     let when = entry.meta.get_timestamp();
                     let v = self.primary.entry(key.clone()).or_insert(EventLeaf {
@@ -142,6 +152,13 @@ impl BinaryTreeIndexer {
             Some(vec) => Some(vec.iter().map(|a| a.clone()).collect::<Vec<_>>()),
             None => None,
         }
+    }
+
+    pub(crate) fn roots_raw(&self) -> Vec<PrimaryKey> {
+        self.roots
+            .iter()
+            .map(|a| a.clone())
+            .collect()
     }
 
     pub(crate) fn get_delayed_upload(&self, from: ChainTimestamp) -> Option<MetaDelayedUpload> {

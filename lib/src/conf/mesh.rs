@@ -24,6 +24,8 @@ use super::*;
 pub struct ConfMesh {
     /// Domain name that this mesh is running on
     pub domain_name: String,
+    /// URL of the target remote location
+    pub remote: url::Url,
 
     /// List of all the allowed certificates for authenticated servers
     pub certificate_validation: CertificateValidation,
@@ -206,11 +208,13 @@ impl ConfMesh {
 
     pub(crate) fn new<'a, 'b>(
         domain_name: &'a str,
+        remote: url::Url,
         roots: impl Iterator<Item = &'b MeshAddress>,
     ) -> ConfMesh {
         ConfMesh {
             roots: roots.map(|a| a.clone()).collect::<Vec<_>>(),
             domain_name: domain_name.to_string(),
+            remote,
             certificate_validation: CertificateValidation::AllowedCertificates(Vec::new()),
             #[cfg(feature = "enable_server")]
             listen_certificate: None,

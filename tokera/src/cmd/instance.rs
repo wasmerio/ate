@@ -1,8 +1,11 @@
-use ate_auth::helper::*;
+use std::ops::Deref;
+use ate::session::AteSessionType;
 use error_chain::bail;
-use std::time::Duration;
 #[allow(unused_imports)]
 use tracing::{debug, error, info};
+use async_stream::stream;
+use futures_util::pin_mut;
+use futures_util::stream::StreamExt;
 
 use crate::error::*;
 use crate::opt::*;
@@ -11,71 +14,87 @@ use crate::request::*;
 
 use super::*;
 
-pub async fn main_opts_instance_list(auth_url: &url::Url) -> Result<(), CoreError> {
-    println!("|------token-------|---status---|---wapm---");
-    let registry = ate::mesh::Registry::new(&conf_cmd())
-        .await
-        .keep_alive(Duration::from_secs(10))
-        .cement();
-    let instances = instance_find_command(&registry, None, auth_url.clone()).await?;
-    for instance in instances.instances {
+pub async fn main_opts_instance_list(api: &mut TokApi) -> Result<(), InstanceError> {
+    println!("|-------name-------|---status---|---wapm---");
+    let instances = api.instances().await;
+
+    let instances = instances.iter().await?;
+    let instances_ext = stream! {
+        for instance in instances {
+            yield api.instance_chain(instance.name.as_str())
+                .await
+                .map(|chain| (instance, chain));
+        }
+    };
+    pin_mut!(instances_ext);
+
+    while let Some(res) = instances_ext.next().await {
+        let (instance, _chain) = res?;
         println!(
-            "- {:16} - {:10} - {}",
-            instance.token, instance.status, instance.wapm
+            "- {:<16} - {:<10} - {}",
+            instance.name, instance.status.to_string(), instance.wapm
         );
     }
     Ok(())
 }
 
 pub async fn main_opts_instance_details(
+    api: &mut TokApi,
     opts: OptsInstanceDetails,
-    auth_url: &url::Url,
-) -> Result<(), CoreError> {
-    let registry = ate::mesh::Registry::new(&conf_cmd())
-        .await
-        .keep_alive(Duration::from_secs(10))
-        .cement();
-    let instances = instance_find_command(&registry, None, auth_url.clone()).await?;
-
-    let token = opts.token.to_lowercase();
-    let instance = match get_service_instance(&instances, &token)? {
-        Some(a) => a,
-        None => {
+) -> Result<(), InstanceError> {
+    let instance = api.instance_find(opts.name.as_str())
+        .await;
+    let instance = match instance {
+        Ok(a) => a,
+        Err(InstanceError(InstanceErrorKind::InvalidInstance, _)) => {
             eprintln!("An instance does not exist for this token.");
             std::process::exit(1);
         }
+        Err(err) => {
+            bail!(err);
+        }
     };
 
-    println!("{}", serde_json::to_string_pretty(instance).unwrap());
+    println!("{}", serde_json::to_string_pretty(instance.deref()).unwrap());
+
+    let _chain = api.instance_chain(instance.name.as_str()).await?;
+    //println!("{}", serde_json::to_string_pretty(instance.deref()).unwrap());
 
     Ok(())
 }
 
 pub async fn main_opts_instance_create(
     api: &mut TokApi,
+    name: Option<String>,
     wapm: String,
+    group: Option<String>,
     stateful: bool,
+    session: AteSessionType,
+    db_url: url::Url,
 ) -> Result<(), InstanceError> {
-    let identity = api.session_identity();
-    let ret = match api.instance_create(wapm, stateful, identity).await {
-        Ok(a) => a,
-        Err(err) => {
-            bail!(err);
+
+    let name = match name {
+        Some(a) => a,
+        None => {
+            ate::crypto::AteHash::generate().to_hex_string()[0..16].to_string()
         }
     };
-    println!("Instance created ({})", ret.token);
+
+    if let Err(err) = api.instance_create(name.clone(), wapm.clone(), stateful, group, session, db_url).await {
+        bail!(err);
+    };
+    println!("Instance created ({} with alias {})", wapm, name);
 
     Ok(())
 }
 
 pub async fn main_opts_instance_action(
     api: &mut TokApi,
-    token: &str,
-    identity: &str,
+    name: &str,
     action: InstanceAction,
 ) -> Result<(), InstanceError> {
     match api
-        .instance_action(token, identity, identity, action)
+        .instance_action(name, action)
         .await
     {
         Ok(a) => a,
@@ -93,6 +112,7 @@ pub async fn main_opts_instance(
     opts: OptsInstanceFor,
     token_path: String,
     auth_url: url::Url,
+    db_url: url::Url,
 ) -> Result<(), InstanceError>
 {
     // Check if sudo is needed
@@ -103,67 +123,67 @@ pub async fn main_opts_instance(
     };
 
     // Perform the action
-    let token = opts.action().token();
-    let mut context = PurposeContext::new(&opts, token_path.as_str(), &auth_url, needs_sudo).await?;
-    let identity = context.identity.clone();    
-
+    let name = opts.action().name();
+    let mut context = PurposeContext::new(&opts, token_path.as_str(), &auth_url, Some(&db_url), needs_sudo).await?;
+    
     // Determine what we need to do
     let purpose: &dyn OptsPurpose<OptsInstanceAction> = &opts;
     match purpose.action() {
         OptsInstanceAction::List => {
-            main_opts_instance_list(&auth_url).await?;
+            main_opts_instance_list(&mut context.api).await?;
         }
         OptsInstanceAction::Details(opts) => {
-            main_opts_instance_details(opts, &auth_url).await?;
+            main_opts_instance_details(&mut context.api, opts).await?;
         }
         OptsInstanceAction::Create(opts) => {
-            main_opts_instance_create(&mut context.api, opts.wapm.clone(), opts.stateful).await?;
+            let session = context.session.clone();
+            main_opts_instance_create(&mut context.api, opts.name, opts.wapm.clone(), purpose.group_name(), opts.stateful, session, db_url).await?;
         }
         OptsInstanceAction::Start(_opts_start) => {
-            if token.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
-            let token = token.unwrap();
-            main_opts_instance_action(&mut context.api, token.as_str(), identity.as_str(), InstanceAction::Start).await?;
+            if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
+            let token = name.unwrap();
+            main_opts_instance_action(&mut context.api, token.as_str(), InstanceAction::Start).await?;
         }
         OptsInstanceAction::Stop(_opts_stop) => {
-            if token.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
-            let token = token.unwrap();
-            main_opts_instance_action(&mut context.api, token.as_str(), identity.as_str(), InstanceAction::Stop).await?;
+            if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
+            let token = name.unwrap();
+            main_opts_instance_action(&mut context.api, token.as_str(), InstanceAction::Stop).await?;
         }
         OptsInstanceAction::Kill(_opts_kill) => {
-            if token.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
-            let token = token.unwrap();
-            main_opts_instance_action(&mut context.api, token.as_str(), identity.as_str(), InstanceAction::Kill).await?;
+            if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
+            let token = name.unwrap();
+            main_opts_instance_action(&mut context.api, token.as_str(), InstanceAction::Kill).await?;
         }
         OptsInstanceAction::Restart(_opts_restart) => {
-            if token.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
-            let token = token.unwrap();
-            main_opts_instance_action(&mut context.api, token.as_str(), identity.as_str(), InstanceAction::Restart).await?;
+            if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
+            let token = name.unwrap();
+            main_opts_instance_action(&mut context.api, token.as_str(), InstanceAction::Restart).await?;
         }
         OptsInstanceAction::Clone(_opts_clone) => {
-            if token.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
-            let token = token.unwrap();
-            main_opts_instance_action(&mut context.api, token.as_str(), identity.as_str(), InstanceAction::Clone).await?;
+            if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
+            let token = name.unwrap();
+            main_opts_instance_action(&mut context.api, token.as_str(), InstanceAction::Clone).await?;
         }
         OptsInstanceAction::Backup(opts_backup) => {
-            if token.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
-            let token = token.unwrap();
-            main_opts_instance_action(&mut context.api, token.as_str(), identity.as_str(), InstanceAction::Backup {
+            if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
+            let token = name.unwrap();
+            main_opts_instance_action(&mut context.api, token.as_str(), InstanceAction::Backup {
                 chain: opts_backup.chain,
                 path: opts_backup.path
             }).await?;
         }
         OptsInstanceAction::Restore(opts_restore) => {
-            if token.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
-            let token = token.unwrap();
-            main_opts_instance_action(&mut context.api, token.as_str(), identity.as_str(), InstanceAction::Restore {
+            if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
+            let token = name.unwrap();
+            main_opts_instance_action(&mut context.api, token.as_str(), InstanceAction::Restore {
                 chain: opts_restore.chain,
                 path: opts_restore.path
             }).await?;
         }
         OptsInstanceAction::Upgrade(_opts) => {
-            if token.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
-            let token = token.unwrap();
-            main_opts_instance_action(&mut context.api, token.as_str(), identity.as_str(), InstanceAction::Upgrade).await?;
+            if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
+            let token = name.unwrap();
+            main_opts_instance_action(&mut context.api, token.as_str(), InstanceAction::Upgrade).await?;
         }
     }
 

@@ -258,6 +258,7 @@ impl Registry {
         };
 
         let mut ret = self.cfg_for_domain(domain, port).await?;
+        ret.remote = url.clone();
         ret.wire_protocol = protocol;
 
         // Set the fail fast
@@ -431,8 +432,17 @@ impl Registry {
         port: u16,
     ) -> Result<ConfMesh, ChainCreationError> {
         let roots = self.cfg_roots(domain_name, port).await?;
-        let ret = ConfMesh::new(domain_name, roots.iter());
+        let remote = url::Url::parse(format!("{}://{}", Self::guess_schema(port), domain_name).as_str())?;
+        let ret = ConfMesh::new(domain_name, remote, roots.iter());
         Ok(ret)
+    }
+
+    pub fn guess_schema(port: u16) -> &'static str {
+        match port {
+            80 => "ws",
+            443 => "wss",
+            _ => "tcp"
+        }
     }
 
     /// Will generate a random command key - reused for 30 seconds to improve performance
@@ -451,6 +461,7 @@ impl Registry {
     }
 }
 
+#[derive(Clone)]
 pub struct ChainGuard {
     keep_alive: Option<Duration>,
     chain: Arc<Chain>,

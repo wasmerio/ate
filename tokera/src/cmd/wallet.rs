@@ -114,7 +114,7 @@ pub async fn main_opts_wallet(
         &inner.identity,
     )
     .await?;
-    let api = crate::api::build_api_accessor(&inner.dio, wallet, auth_url, &inner.registry).await;
+    let api = crate::api::build_api_accessor(&inner.dio, wallet, auth_url, None, &inner.registry).await;
 
     let mut context = PurposeContext::<OptWalletAction> { inner, api };
 

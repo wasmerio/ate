@@ -1,4 +1,5 @@
 use clap::Parser;
+use url::Url;
 
 use super::purpose::*;
 
@@ -9,6 +10,9 @@ pub struct OptsInstance {
     /// Category of instances to perform an action upon
     #[clap(subcommand)]
     pub purpose: OptsInstanceFor,
+    /// URL where the data is remotely stored on a distributed commit log.
+    #[clap(short, long, default_value = "ws://tokera.com/db")]
+    pub remote: Url,
 }
 
 #[derive(Parser, Clone)]
@@ -104,7 +108,9 @@ pub enum OptsInstanceAction {
 impl OptsInstanceAction
 {
     pub fn needs_sudo(&self) -> bool {
+        /*
         match self {
+            OptsInstanceAction::Create(_) => true,
             OptsInstanceAction::Kill(_) => true,
             OptsInstanceAction::Restore(_) => true,
             OptsInstanceAction::Upgrade(_) => true,
@@ -112,21 +118,23 @@ impl OptsInstanceAction
             OptsInstanceAction::Start(_) => true,
             _ => false,
         }
+        */
+        true
     }
 
-    pub fn token(&self) -> Option<String> {
+    pub fn name(&self) -> Option<String> {
         match self {
             OptsInstanceAction::List => None,
             OptsInstanceAction::Create(_) => None,
-            OptsInstanceAction::Start(opts) => Some(opts.token.clone()),
-            OptsInstanceAction::Details(opts) => Some(opts.token.clone()),
-            OptsInstanceAction::Stop(opts) => Some(opts.token.clone()),
-            OptsInstanceAction::Kill(opts) => Some(opts.token.clone()),
-            OptsInstanceAction::Clone(opts) => Some(opts.token.clone()),
-            OptsInstanceAction::Restart(opts) => Some(opts.token.clone()),
-            OptsInstanceAction::Backup(opts) => Some(opts.token.clone()),
-            OptsInstanceAction::Restore(opts) => Some(opts.token.clone()),
-            OptsInstanceAction::Upgrade(opts) => Some(opts.token.clone()),
+            OptsInstanceAction::Start(opts) => Some(opts.name.clone()),
+            OptsInstanceAction::Details(opts) => Some(opts.name.clone()),
+            OptsInstanceAction::Stop(opts) => Some(opts.name.clone()),
+            OptsInstanceAction::Kill(opts) => Some(opts.name.clone()),
+            OptsInstanceAction::Clone(opts) => Some(opts.name.clone()),
+            OptsInstanceAction::Restart(opts) => Some(opts.name.clone()),
+            OptsInstanceAction::Backup(opts) => Some(opts.name.clone()),
+            OptsInstanceAction::Restore(opts) => Some(opts.name.clone()),
+            OptsInstanceAction::Upgrade(opts) => Some(opts.name.clone()),
         }
     }
 }
@@ -136,7 +144,7 @@ impl OptsInstanceAction
 pub struct OptsInstanceDetails {
     /// Token of the instance to get details for
     #[clap(index = 1)]
-    pub token: String,
+    pub name: String,
 }
 
 #[derive(Parser, Clone)]
@@ -148,57 +156,60 @@ pub struct OptsInstanceCreate {
     /// Stateful instances have persistent file systems that can be backed up and restored
     #[clap(short, long)]
     pub stateful: bool,
+    /// Name of the new instance (which will be generated if you dont supply one)
+    #[clap(index = 2)]
+    pub name: Option<String>,
 }
 
 #[derive(Parser, Clone)]
 #[clap()]
 pub struct OptsInstanceStart {
-    /// Token of the instance to be started
+    /// Name of the instance to be started
     /// (stopped instances can not process commands until restarted)
     #[clap(index = 1)]
-    pub token: String,
+    pub name: String,
 }
 
 #[derive(Parser, Clone)]
 #[clap()]
 pub struct OptsInstanceStop {
-    /// Token of the instance to be stopped
+    /// Name of the instance to be stopped
     /// (stopped instances can not process commands until restarted)
     #[clap(index = 1)]
-    pub token: String,
+    pub name: String,
 }
 
 #[derive(Parser, Clone)]
 #[clap()]
 pub struct OptsInstanceKill {
-    /// Token of the instance to be killed
+    /// Name of the instance to be killed
     /// (killed instances are perminently destroyed)
     #[clap(index = 1)]
-    pub token: String,
+    pub name: String,
 }
 
 #[derive(Parser, Clone)]
 #[clap()]
 pub struct OptsInstanceRestart {
-    /// Token of the instance to be restarted
+    /// Name of the instance to be restarted
     #[clap(index = 1)]
-    pub token: String,
+    pub name: String,
 }
 
 #[derive(Parser, Clone)]
 #[clap()]
 pub struct OptsInstanceClone {
-    /// Token of the instance to be cloned
+    /// Name of the instance to be cloned
     #[clap(index = 1)]
-    pub token: String,
+    pub name: String,
 }
 
 #[derive(Parser, Clone)]
 #[clap()]
 pub struct OptsInstanceBackup {
-    /// Token of the instance to be backed up
+    /// Name of the instance to be backed up
     #[clap(index = 1)]
-    pub token: String,
+    pub name: String,
     /// Chain that the backup file will be stored in
     #[clap(index = 2)]
     pub chain: String,
@@ -210,9 +221,9 @@ pub struct OptsInstanceBackup {
 #[derive(Parser, Clone)]
 #[clap()]
 pub struct OptsInstanceRestore {
-    /// Token of the instance to be restored
+    /// Name of the instance to be restored
     #[clap(index = 1)]
-    pub token: String,
+    pub name: String,
     /// Chain that the backup file is stored
     #[clap(index = 2)]
     pub chain: String,
@@ -224,9 +235,9 @@ pub struct OptsInstanceRestore {
 #[derive(Parser, Clone)]
 #[clap()]
 pub struct OptsInstanceUpgrade {
-    /// Token of the instance to be upgrades
+    /// Name of the instance to be upgrades
     #[clap(index = 1)]
-    pub token: String,
+    pub name: String,
 }
 
 impl OptsPurpose<OptsInstanceAction> for OptsInstanceFor {

@@ -92,6 +92,14 @@ impl ChainMultiUser {
         self.inside_async.read().await.chain.lookup_parent(key)
     }
 
+    pub async fn roots_raw(&self) -> Vec<PrimaryKey> {
+        self.inside_async
+            .read()
+            .await
+            .chain
+            .roots_raw()
+    }
+
     #[allow(dead_code)]
     pub(crate) fn metadata_lint_many<'a>(
         &self,

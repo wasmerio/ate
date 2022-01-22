@@ -291,6 +291,8 @@ impl<D> DaoVec<D> {
         Ok(IterMut::new(children))
     }
 
+    /// Pushes a data object into this collection and stores
+    /// it for the next DIO commit
     pub fn push(&mut self, data: D) -> Result<DaoMut<D>, SerializationError>
     where
         D: Clone + Serialize + DeserializeOwned,

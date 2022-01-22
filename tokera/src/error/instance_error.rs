@@ -11,14 +11,27 @@ error_chain! {
         CoreError(super::CoreError, super::CoreErrorKind);
         QueryError(super::QueryError, super::QueryErrorKind);
         ContractError(super::ContractError, super::ContractErrorKind);
+        FileSystemError(ate_files::error::FileSystemError, ate_files::error::FileSystemErrorKind);
     }
     foreign_links {
         IO(tokio::io::Error);
     }
     errors {
+        Unauthorized {
+            description("insufficient access rights - login with sudo")
+            display("insufficient access rights")
+        }
+        AlreadyExists {
+            description("an instance with this name already exists")
+            display("an instance with this name already exists")
+        }
         InvalidInstance {
-            description("the service was this code could not be found")
-            display("the service was this code could not be found")
+            description("the instance was this name could not be found")
+            display("the instance was this name could not be found")
+        }
+        InternalError {
+            description("an internal error has occured")
+            display("an internal error has occured")
         }
         Unsupported {
             description("the operation is not yet supported")
@@ -120,34 +133,6 @@ impl From<::ate::error::LockError> for InstanceError {
 impl From<::ate::error::LockErrorKind> for InstanceErrorKind {
     fn from(err: ::ate::error::LockErrorKind) -> Self {
         InstanceErrorKind::CoreError(CoreErrorKind::LockError(err))
-    }
-}
-
-impl From<InstanceCreateFailed> for InstanceError {
-    fn from(err: InstanceCreateFailed) -> InstanceError {
-        match err {
-            InstanceCreateFailed::AccountSuspended => {
-                InstanceErrorKind::CoreError(CoreErrorKind::AccountSuspended).into()
-            }
-            InstanceCreateFailed::AuthenticationFailed => {
-                InstanceErrorKind::CoreError(CoreErrorKind::AuthenticationFailed).into()
-            }
-            InstanceCreateFailed::Forbidden => {
-                InstanceErrorKind::CoreError(CoreErrorKind::Forbidden).into()
-            }
-            InstanceCreateFailed::NoMasterKey => {
-                InstanceErrorKind::CoreError(CoreErrorKind::NoMasterKey).into()
-            }
-            InstanceCreateFailed::OperatorBanned => {
-                InstanceErrorKind::CoreError(CoreErrorKind::OperatorBanned).into()
-            }
-            InstanceCreateFailed::OperatorNotFound => {
-                InstanceErrorKind::CoreError(CoreErrorKind::OperatorNotFound).into()
-            }
-            InstanceCreateFailed::InternalError(code) => {
-                InstanceErrorKind::CoreError(CoreErrorKind::InternalError(code)).into()
-            }
-        }
     }
 }
 

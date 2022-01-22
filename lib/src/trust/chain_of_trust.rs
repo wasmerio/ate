@@ -86,6 +86,10 @@ impl<'a> ChainOfTrust {
         self.timeline.lookup_secondary_raw(key)
     }
 
+    pub(crate) fn roots_raw(&self) -> Vec<PrimaryKey> {
+        self.timeline.roots_raw()
+    }
+
     pub(crate) fn invalidate_caches(&mut self) {
         self.timeline.invalidate_caches();
     }

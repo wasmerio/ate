@@ -32,6 +32,10 @@ impl<'a> ChainTimeline {
         self.pointers.lookup_secondary_raw(key)
     }
 
+    pub(crate) fn roots_raw(&self) -> Vec<PrimaryKey> {
+        self.pointers.roots_raw()
+    }
+
     pub(crate) fn invalidate_caches(&mut self) {}
 
     pub(crate) fn add_history(&mut self, header: EventHeader) {

@@ -12,7 +12,7 @@ pub async fn main_opts_contract(
     token_path: String,
     auth_url: Url,
 ) -> Result<(), ContractError> {
-    let mut context = PurposeContext::new(&opts, token_path.as_str(), &auth_url, true).await?;
+    let mut context = PurposeContext::new(&opts, token_path.as_str(), &auth_url, None, true).await?;
     let identity = context.identity.clone();
 
     match context.action.clone() {

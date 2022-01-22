@@ -125,7 +125,7 @@ impl TokApi {
             };
             let mut dio = chain.dio_trans(&session, TransactionScope::Full).await;
             let wallet = get_wallet(destination, &mut dio, &identity).await?;
-            build_api_accessor(&dio, wallet, self.auth.clone(), &registry).await
+            build_api_accessor(&dio, wallet, self.auth.clone(), self.db_url.clone(), &registry).await
         };
 
         // Carve out the coins from the wallet

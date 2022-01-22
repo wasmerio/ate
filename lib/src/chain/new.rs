@@ -193,7 +193,11 @@ impl<'a> Chain {
         }
 
         // Process all the events in the chain-of-trust
-        let conversation = Arc::new(ConversationSession::default());
+        let mut conversation = ConversationSession::default();
+        if let TrustMode::Centralized(_) = load_integrity {
+            conversation.weaken_validation = true;
+        }
+        let conversation = Arc::new(conversation);
         if let Err(err) =
             inside_async.process(inside_sync.write().unwrap(), headers, Some(&conversation))
         {
@@ -244,6 +248,7 @@ impl<'a> Chain {
             key: key.clone(),
             node_id: builder.node_id.clone(),
             cfg_ate: builder.cfg_ate.clone(),
+            remote: None,
             remote_addr: None,
             default_format: builder.cfg_ate.log_format,
             inside_sync,
