@@ -73,6 +73,14 @@ pub mod activities {
         pub alias: Option<String>,
         pub stateful: bool,
     }
+
+    #[derive(Serialize, Deserialize, Debug, Clone)]
+    pub struct InstanceDestroyed {
+        pub when: DateTime<Utc>,
+        pub by: String,
+        pub wapm: String,
+        pub alias: Option<String>,
+    }
 }
 
 use chrono::prelude::*;
@@ -95,6 +103,7 @@ pub enum HistoricActivity {
     ContractCharge(ContractInvoice),
     ContractIncome(ContractInvoice),
     InstanceCreated(InstanceCreated),
+    InstanceDestroyed(InstanceDestroyed),
 }
 
 impl HistoricActivity {
@@ -110,6 +119,7 @@ impl HistoricActivity {
             HistoricActivity::ContractCharge(a) => &a.when,
             HistoricActivity::ContractIncome(a) => &a.when,
             HistoricActivity::InstanceCreated(a) => &a.when,
+            HistoricActivity::InstanceDestroyed(a) => &a.when,
         }
     }
 
@@ -125,6 +135,7 @@ impl HistoricActivity {
             HistoricActivity::ContractCharge(a) => a.by.as_str(),
             HistoricActivity::ContractIncome(a) => a.by.as_str(),
             HistoricActivity::InstanceCreated(a) => a.by.as_str(),
+            HistoricActivity::InstanceDestroyed(a) => a.by.as_str(),
         }
     }
 
@@ -133,6 +144,7 @@ impl HistoricActivity {
             HistoricActivity::WalletCreated(_) => None,
             HistoricActivity::DepositCreated(_) => None,
             HistoricActivity::InstanceCreated(_) => None,
+            HistoricActivity::InstanceDestroyed(_) => None,
             HistoricActivity::ContractCreated(_) => None,
             HistoricActivity::ContractCharge(a) => Some(HistoricFinancialActivity {
                 activity: self,
@@ -201,6 +213,13 @@ impl HistoricActivity {
                     format!("Instance created ({} with alias {})", a.wapm, alias)
                 } else {
                     format!("Instance created ({})", a.wapm)
+                }
+            }
+            HistoricActivity::InstanceDestroyed(a) => {
+                if let Some(alias) = &a.alias {
+                    format!("Instance destroyed ({} with alias {})", a.wapm, alias)
+                } else {
+                    format!("Instance destroyed ({})", a.wapm)
                 }
             }
         }

@@ -18,9 +18,14 @@ use crate::comms::{
     NodeId,
     hello::{
         HelloMetadata,
-        mesh_hello_exchange_receiver
     },
     key_exchange,
+};
+#[cfg(feature = "enable_server")]
+use crate::comms::{
+    hello::{
+        mesh_hello_exchange_receiver
+    },
 };
 use crate::spec::SerializationFormat;
 use crate::crypto::{
@@ -74,6 +79,7 @@ impl StreamRouter {
         self.default_route = Some(route);
     }
 
+    #[cfg(feature = "enable_server")]
     pub async fn accept_socket(
         &self,
         stream: Stream,

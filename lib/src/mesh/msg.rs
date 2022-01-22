@@ -165,6 +165,55 @@ pub(super) enum Message {
     SecuredWith(AteSessionUser),
 }
 
+impl std::fmt::Display for Message {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Message::Noop => write!(f, "noop"),
+            Message::Subscribe { chain_key, from, allow_redirect} => {
+                if *allow_redirect {
+                    write!(f, "subscribe(chain_key={}, from={}, allow_redirect)", chain_key, from)
+                } else {
+                    write!(f, "subscribe(chain_key={}, from={})", chain_key, from)
+                }
+            },
+            Message::HumanMessage { message } => write!(f, "human-message('{}')", message),
+            Message::ReadOnly => write!(f, "read-only"),
+            Message::Lock { key } => write!(f, "lock(key={})", key),
+            Message::Unlock { key } => write!(f, "unlock(key={})", key),
+            Message::LockResult { key, is_locked } => {
+                if *is_locked {
+                    write!(f, "lock-result(key={}, locked)", key)
+                } else {
+                    write!(f, "lock-result(key={}, unlocked)", key)
+                }
+            },
+            Message::NewConversation { conversation_id } => write!(f, "new-conversation(id={})", conversation_id),
+            Message::StartOfHistory { size, from, to, integrity, root_keys } => {
+                write!(f, "start-of-history(size={}", size)?;
+                if let Some(from) = from {
+                    write!(f, ", from={}", from)?;
+                }
+                if let Some(to) = to {
+                    write!(f, ", to={}", to)?;
+                }
+                write!(f, ", integrity={}, root_key_cnt={})", integrity, root_keys.len())
+            },
+            Message::Events { commit, evts } => {
+                if let Some(commit) = commit {
+                    write!(f, "events(commit={}, evt_cnt={})", commit, evts.len())
+                } else {
+                    write!(f, "events(evt_cnt={})", evts.len())
+                }
+            },
+            Message::EndOfHistory => write!(f, "end-of-history"),
+            Message::Confirmed(id) => write!(f, "confirmed({})", id),
+            Message::CommitError { id, err } => write!(f, "commit-error(id={}, err='{}')", id, err),
+            Message::FatalTerminate(why) => write!(f, "fatal-terminate({})", why),
+            Message::SecuredWith(sess) => write!(f, "secured-with({})", sess),
+        }
+    }
+}
+
 impl Default for Message {
     fn default() -> Message {
         Message::Noop

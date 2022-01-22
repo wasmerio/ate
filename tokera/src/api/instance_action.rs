@@ -5,6 +5,7 @@ use tracing::{debug, error, info, trace, warn};
 use std::ops::Deref;
 
 use crate::error::*;
+use crate::model::{activities, HistoricActivity};
 use crate::request::*;
 
 use super::*;
@@ -60,6 +61,21 @@ impl TokApi {
                 chain_dio.commit().await?;
                 drop(chain_dio);
                 drop(chain);
+
+                // Now add the history
+                if let Err(err) = self
+                    .record_activity(HistoricActivity::InstanceDestroyed(
+                        activities::InstanceDestroyed {
+                            when: chrono::offset::Utc::now(),
+                            by: self.user_identity(),
+                            wapm: wapm.clone(),
+                            alias: Some(name.clone()),
+                        },
+                    ))
+                    .await
+                {
+                    error!("Error writing activity: {}", err);
+                }
 
                 debug!("deleting the instance from the user/group");
                 let _ = instance.delete()?;

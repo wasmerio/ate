@@ -2,6 +2,8 @@ use crate::engine::timeout;
 use async_trait::async_trait;
 use error_chain::bail;
 use fxhash::FxHashMap;
+use std::ops::Deref;
+use std::ops::DerefMut;
 use std::ops::Rem;
 use std::sync::Mutex as StdMutex;
 use std::sync::RwLock as StdRwLock;
@@ -430,17 +432,47 @@ impl EventPipe for RecoverableSessionPipe {
             work.trans.events.len(),
             work.trans.scope
         );
-        {
+
+        let timeout = work.trans.timeout.clone();
+        let receiver = {
             let mut lock = self.active.write().await;
             if let Some(pipe) = lock.as_mut() {
-                pipe.feed(&mut work.trans).await?;
+                pipe.feed(&mut work.trans).await?
             } else if self.mode.should_error_out() {
                 bail!(CommitErrorKind::CommsError(CommsErrorKind::Disconnected));
             } else if self.mode.should_go_readonly() {
                 bail!(CommitErrorKind::CommsError(CommsErrorKind::ReadOnly));
+            } else {
+                None
             }
+        };
+
+        // If we need to wait for the transaction to commit then do so
+        if let Some(mut receiver) = receiver {
+            trace!("waiting for transaction to commit");
+            match crate::engine::timeout(timeout, receiver.recv()).await {
+                Ok(Some(result)) => {
+                    {
+                        let mut lock = self.active.write().await;
+                        if let Some(pipe) = lock.as_mut() {
+                            pipe.likely_read_only = false;
+                        }
+                    }
+                    let commit_id = result?;
+                    trace!("transaction committed: {}", commit_id);
+                }
+                Ok(None) => {
+                    debug!("transaction has aborted");
+                    bail!(CommitErrorKind::Aborted);
+                }
+                Err(elapsed) => {
+                    debug!("transaction has timed out");
+                    bail!(CommitErrorKind::Timeout(elapsed.to_string()));
+                }
+            };
         }
 
+        // Now we pass on the transaction work to the local chain
         self.next.feed(work).await
     }
 

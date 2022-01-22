@@ -139,6 +139,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>>
 ## Changelog
 
 ```
+1.1.0  -= Minor Release =-
+        + Modified the interface slightly but most users should not be impacted
+        + Fixed a bug around validators rejecting events during the subscribe
+          process that re-reads them from disk - these validators should not be running
+        + Added the ability to list all root objects
+        + Added the ability to delete all root objects (and hence wipe a chain)
+
 1.0.2  -= WASM BUS =-
        + Integrated with the WASM bus (wasm-bus) which allows for ATE to use
          the web sockets while running in a controlled sandbox.

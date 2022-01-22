@@ -448,6 +448,8 @@ impl MeshSession {
         #[cfg(feature = "enable_super_verbose")]
         trace!("packet size={}", pck.data.bytes.len());
 
+        //trace!("packet(size={} msg={:?})", pck.data.bytes.len(), pck.packet.msg);
+
         match pck.packet.msg {
             Message::StartOfHistory {
                 size,
@@ -473,12 +475,19 @@ impl MeshSession {
                 self.cancel_commits(CommitErrorKind::ReadOnly).await;
                 let _ = self.status_tx.send(ConnectionStatusChange::ReadOnly).await;
             }
-            Message::Events { commit: _, evts } => {
+            Message::Events { commit, evts } => {
                 let num_deletes = evts
                     .iter()
                     .filter(|a| a.meta.get_tombstone().is_some())
                     .count();
                 let num_data = evts.iter().filter(|a| a.data.is_some()).count();
+                let ret2 = if let Some(id) = commit {
+                    Self::inbox_confirmed(self, id)
+                        .instrument(span!(Level::DEBUG, "commit-confirmed"))
+                        .await
+                } else {
+                    Result::<_, CommsError>::Ok(())
+                };
                 Self::inbox_events(self, evts, loader)
                     .instrument(span!(
                         Level::DEBUG,
@@ -487,6 +496,7 @@ impl MeshSession {
                         data_cnt = num_data
                     ))
                     .await?;
+                ret2?;
             }
             Message::Confirmed(id) => {
                 Self::inbox_confirmed(self, id)

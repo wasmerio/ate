@@ -105,9 +105,9 @@ impl ActiveSessionPipe {
 }
 
 impl ActiveSessionPipe {
-    pub(super) async fn feed(&mut self, trans: &mut Transaction) -> Result<(), CommitError> {
+    pub(super) async fn feed(&mut self, trans: &mut Transaction) -> Result<Option<mpsc::Receiver<Result<u64, CommitError>>>, CommitError> {
         // Only transmit the packet if we are meant to
-        if trans.transmit == true {
+        let ret = if trans.transmit == true {
             // If we are likely in a read only situation then all transactions
             // should go to the server in synchronous mode until we can confirm
             // normal writability is restored
@@ -122,36 +122,17 @@ impl ActiveSessionPipe {
                 } else if self.mode.should_go_readonly() {
                     return Err(CommitErrorKind::CommsError(CommsErrorKind::ReadOnly).into());
                 } else {
-                    return Ok(());
+                    return Ok(None);
                 }
             }
 
             // Feed the transaction into the pipe
-            let timeout = trans.timeout;
-            let receiver = self.feed_internal(trans).await?;
+            self.feed_internal(trans).await?
+        } else {
+            None
+        };
 
-            // If we need to wait for the transaction to commit then do so
-            if let Some(mut receiver) = receiver {
-                trace!("waiting for transaction to commit");
-                match crate::engine::timeout(timeout, receiver.recv()).await {
-                    Ok(Some(result)) => {
-                        self.likely_read_only = false;
-                        let commit_id = result?;
-                        trace!("transaction committed: {}", commit_id);
-                    }
-                    Ok(None) => {
-                        debug!("transaction has aborted");
-                        bail!(CommitErrorKind::Aborted);
-                    }
-                    Err(elapsed) => {
-                        debug!("transaction has timed out");
-                        bail!(CommitErrorKind::Timeout(elapsed.to_string()));
-                    }
-                };
-            }
-        }
-
-        Ok(())
+        Ok(ret)
     }
 
     pub(super) async fn try_lock(&mut self, key: PrimaryKey) -> Result<bool, CommitError> {
