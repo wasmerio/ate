@@ -182,7 +182,7 @@ pub async fn main_opts_instance(
             if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
             bail!(InstanceErrorKind::Unsupported);
         }
-        OptsInstanceAction::Exec(_opts_exec) => {
+        OptsInstanceAction::Shell(_opts_exec) => {
             if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
             bail!(InstanceErrorKind::Unsupported);
         }

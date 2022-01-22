@@ -85,12 +85,12 @@ pub enum OptsInstanceAction {
     /// Stops are particular instance - stopped instances can not process commands until restarted)
     #[clap()]
     Stop(OptsInstanceStop),
-    /// Kills are particular instance - killed instances are perminantely destroyed
+    /// Kills are particular instance - killed instances are totally destroyed
     #[clap()]
     Kill(OptsInstanceKill),
-    /// Runs a particular command against an existing instance
+    /// Switches to a shell that runs against a particular instance
     #[clap()]
-    Exec(OptsInstanceExec),
+    Shell(OptsInstanceShell),
     /// Hooks up STDIO to the current running instance
     #[clap()]
     Stdio(OptsInstanceStdio),
@@ -140,7 +140,7 @@ impl OptsInstanceAction
             OptsInstanceAction::Stop(opts) => Some(opts.name.clone()),
             OptsInstanceAction::Kill(opts) => Some(opts.name.clone()),
             OptsInstanceAction::Clone(opts) => Some(opts.name.clone()),
-            OptsInstanceAction::Exec(opts) => Some(opts.name.clone()),
+            OptsInstanceAction::Shell(opts) => Some(opts.name.clone()),
             OptsInstanceAction::Stdio(opts) => Some(opts.name.clone()),
             OptsInstanceAction::Mount(opts) => Some(opts.name.clone()),
             OptsInstanceAction::Restart(opts) => Some(opts.name.clone()),
@@ -218,13 +218,10 @@ pub struct OptsInstanceClone {
 
 #[derive(Parser, Clone)]
 #[clap()]
-pub struct OptsInstanceExec {
-    /// Name of the instance to run the command against
+pub struct OptsInstanceShell {
+    /// Name of the instance to run commmands against
     #[clap(index = 1)]
     pub name: String,
-    /// Command to run against the instance
-    #[clap(index = 2)]
-    pub exec: String,
 }
 
 #[derive(Parser, Clone)]
