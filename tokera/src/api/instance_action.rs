@@ -84,18 +84,6 @@ impl TokApi {
                 println!("Instance ({} with alias {}) has been killed", wapm, name);
                 Ok(())
             }
-            InstanceAction::Clone => {
-                bail!(InstanceErrorKind::Unsupported);
-            }
-            InstanceAction::Backup { .. } => {
-                bail!(InstanceErrorKind::Unsupported);
-            }
-            InstanceAction::Restore { .. } => {
-                bail!(InstanceErrorKind::Unsupported);
-            }
-            InstanceAction::Upgrade => {
-                bail!(InstanceErrorKind::Unsupported);
-            }
             action => {
                 let wapm = instance.wapm.clone();
                 let name = instance.name.clone();

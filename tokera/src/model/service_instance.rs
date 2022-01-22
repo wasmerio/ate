@@ -54,15 +54,6 @@ pub enum InstanceAction {
     Stop,
     Restart,
     Kill,
-    Clone,
-    Backup {
-        chain: String,
-        path: String,
-    },
-    Restore {
-        chain: String,
-        path: String
-    },
     Upgrade,
 }
 
@@ -75,9 +66,6 @@ for InstanceAction
             InstanceAction::Stop => write!(f, "stop"),
             InstanceAction::Restart => write!(f, "restart"),
             InstanceAction::Kill => write!(f, "kill"),
-            InstanceAction::Clone => write!(f, "clone"),
-            InstanceAction::Backup { .. } => write!(f, "backup"),
-            InstanceAction::Restore { .. } => write!(f, "restore"),
             InstanceAction::Upgrade => write!(f, "upgrade"),
         }
     }

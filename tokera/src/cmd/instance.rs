@@ -180,24 +180,27 @@ pub async fn main_opts_instance(
         }
         OptsInstanceAction::Clone(_opts_clone) => {
             if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
-            let token = name.unwrap();
-            main_opts_instance_action(&mut context.api, token.as_str(), InstanceAction::Clone).await?;
+            bail!(InstanceErrorKind::Unsupported);
         }
-        OptsInstanceAction::Backup(opts_backup) => {
+        OptsInstanceAction::Exec(_opts_exec) => {
             if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
-            let token = name.unwrap();
-            main_opts_instance_action(&mut context.api, token.as_str(), InstanceAction::Backup {
-                chain: opts_backup.chain,
-                path: opts_backup.path
-            }).await?;
+            bail!(InstanceErrorKind::Unsupported);
         }
-        OptsInstanceAction::Restore(opts_restore) => {
+        OptsInstanceAction::Stdio(_opts_stdio) => {
             if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
-            let token = name.unwrap();
-            main_opts_instance_action(&mut context.api, token.as_str(), InstanceAction::Restore {
-                chain: opts_restore.chain,
-                path: opts_restore.path
-            }).await?;
+            bail!(InstanceErrorKind::Unsupported);
+        }
+        OptsInstanceAction::Mount(_opts_mount) => {
+            if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
+            bail!(InstanceErrorKind::Unsupported);
+        }
+        OptsInstanceAction::Backup(_opts_backup) => {
+            if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
+            bail!(InstanceErrorKind::Unsupported);
+        }
+        OptsInstanceAction::Restore(_opts_restore) => {
+            if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
+            bail!(InstanceErrorKind::Unsupported);
         }
         OptsInstanceAction::Upgrade(_opts) => {
             if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }

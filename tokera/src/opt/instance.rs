@@ -88,7 +88,16 @@ pub enum OptsInstanceAction {
     /// Kills are particular instance - killed instances are perminantely destroyed
     #[clap()]
     Kill(OptsInstanceKill),
-    /// Clones are particular instance
+    /// Runs a particular command against an existing instance
+    #[clap()]
+    Exec(OptsInstanceExec),
+    /// Hooks up STDIO to the current running instance
+    #[clap()]
+    Stdio(OptsInstanceStdio),
+    /// Mount an existing instance file system to a particular path
+    #[clap()]
+    Mount(OptsInstanceMount),
+    /// Clones a particular instance
     #[clap()]
     Clone(OptsInstanceClone),
     /// Restarts a particular instance
@@ -131,6 +140,9 @@ impl OptsInstanceAction
             OptsInstanceAction::Stop(opts) => Some(opts.name.clone()),
             OptsInstanceAction::Kill(opts) => Some(opts.name.clone()),
             OptsInstanceAction::Clone(opts) => Some(opts.name.clone()),
+            OptsInstanceAction::Exec(opts) => Some(opts.name.clone()),
+            OptsInstanceAction::Stdio(opts) => Some(opts.name.clone()),
+            OptsInstanceAction::Mount(opts) => Some(opts.name.clone()),
             OptsInstanceAction::Restart(opts) => Some(opts.name.clone()),
             OptsInstanceAction::Backup(opts) => Some(opts.name.clone()),
             OptsInstanceAction::Restore(opts) => Some(opts.name.clone()),
@@ -202,6 +214,36 @@ pub struct OptsInstanceClone {
     /// Name of the instance to be cloned
     #[clap(index = 1)]
     pub name: String,
+}
+
+#[derive(Parser, Clone)]
+#[clap()]
+pub struct OptsInstanceExec {
+    /// Name of the instance to run the command against
+    #[clap(index = 1)]
+    pub name: String,
+    /// Command to run against the instance
+    #[clap(index = 2)]
+    pub exec: String,
+}
+
+#[derive(Parser, Clone)]
+#[clap()]
+pub struct OptsInstanceStdio {
+    /// Name of the existing instance to connect to
+    #[clap(index = 1)]
+    pub name: String,
+}
+
+#[derive(Parser, Clone)]
+#[clap()]
+pub struct OptsInstanceMount {
+    /// Name of the instance to mounted
+    #[clap(index = 1)]
+    pub name: String,
+    /// Path that the instance will be mounted at
+    #[clap(index = 2)]
+    pub path: String,
 }
 
 #[derive(Parser, Clone)]
