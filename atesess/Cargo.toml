@@ -40,3 +40,4 @@ ate-auth = { version = "^1", path = "../auth", default_features = false, feature
 ate-files = { version = "^1", path = "../files" }
 ateweb = { version = "^1", path = "../ateweb" }
 atessh = { version = "^1", path = "../atessh" }
+tokera = { version = "^1", path = "../tokera" }

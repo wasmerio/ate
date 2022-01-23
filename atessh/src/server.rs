@@ -38,41 +38,18 @@ impl Server {
         // Create the registry that will be used to validate logins
         let registry = ate::mesh::Registry::new(&conf_cmd()).await.cement();
 
-        // Connect to the file system that holds all the binaries that
-        // we will present natively to the consumers
-        // Note: These are the same files presenting to the web-site version of the terminal
-        let native_files_key = ate::prelude::ChainKey::from(host.native_files);
-        let native_files = registry.open(&host.db_url, &native_files_key).await.unwrap();
-        let native_files = Arc::new(
-            FileAccessor::new(
-                native_files.as_arc(),
-                None,
-                AteSessionType::User(AteSessionUser::default()),
-                TransactionScope::Local,
-                TransactionScope::Local,
-                true,
-                false,
-            )
-            .await,
-        );
-
-        // Attempt to read the root from the native file system which will make sure that its
-        // all nicely running
-        native_files
-            .search(&RequestContext { uid: 0, gid: 0 }, "/")
-            .await
-            .unwrap();
-
         // Set the system
         let (tx_exit, rx_exit) = watch::channel(false);
         let sys = Arc::new(tokterm::system::SysSystem::new_with_runtime(
             tx_exit, runtime,
         ));
-        let sys = crate::system::System::new(sys, native_files.clone());
+        let sys = crate::system::System::new(sys, registry.clone(), host.db_url, host.native_files).await;
+        let native_files = sys.native_files.clone();
         term_lib::api::set_system_abi(sys);
 
         // Success
         Self {
+            native_files,
             listen: host.listen,
             port: host.port,
             server_key,
@@ -80,7 +57,6 @@ impl Server {
             auth_rejection_time: Duration::from_secs(0),
             compiler: host.compiler,
             registry,
-            native_files,
             auth: host.auth_url,
             compiled_modules: Arc::new(CachedCompiledModules::default()),
             exit_rx: rx_exit,

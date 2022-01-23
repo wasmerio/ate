@@ -24,6 +24,10 @@ mod rate_card;
 mod wallet;
 mod service_instance;
 mod wallet_instance;
+mod instance_command;
+mod instance_hello;
+mod instance_action;
+mod instance_export;
 
 pub use advertised_service::*;
 pub use automation_time::*;
@@ -51,6 +55,10 @@ pub use rate_card::*;
 pub use wallet::*;
 pub use service_instance::*;
 pub use wallet_instance::*;
+pub use instance_command::*;
+pub use instance_hello::*;
+pub use instance_action::*;
+pub use instance_export::*;
 
 pub const WALLET_COLLECTION_ID: u64 = 2259995437953076879u64;
 pub const CONTRACT_COLLECTION_ID: u64 = 8278931753731734656u64;

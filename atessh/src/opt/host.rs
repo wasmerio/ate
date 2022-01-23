@@ -14,9 +14,6 @@ pub struct OptsHost {
     /// Port that the server will listen on for SSH requests
     #[clap(long, default_value = "22")]
     pub port: u16,
-    /// Location where the native binary files are stored
-    #[clap(long, default_value = "tokera.sh/www")]
-    pub native_files: String,
     /// Determines which compiler to use
     #[clap(short, long, default_value = "default")]
     pub compiler: term_lib::eval::Compiler,
@@ -26,4 +23,7 @@ pub struct OptsHost {
     /// URL of the authentication servers
     #[clap(long, default_value = "ws://tokera.com/auth")]
     pub auth_url: url::Url,
+    /// Location where the native binary files are stored
+    #[clap(long, default_value = "tokera.sh/www")]
+    pub native_files: String,
 }

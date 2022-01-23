@@ -16,8 +16,6 @@ impl TokApi {
     pub async fn instance_create(
         &mut self,
         name: String,
-        wapm: String,
-        stateful: bool,
         group: Option<String>,
         session: AteSessionType,
         db_url: url::Url,
@@ -54,10 +52,8 @@ impl TokApi {
         }
         
         // Create the edge chain-of-trust
-        let token = AteHash::generate().to_hex_string().to_ascii_lowercase();
-        let token_hash = AteHash::from_bytes(token.as_bytes());
-        let key_name = format!("{}/{}_edge", self.session_identity(), token_hash);
-        let token = format!("{}/{}", self.session_identity(), token);
+        let token = AteHash::generate();
+        let key_name = format!("{}/{}_edge", self.session_identity(), token);
         let key = ChainKey::from(key_name.clone());
         let chain = self.registry.open(&db_url, &key).await?;
         let chain_api = Arc::new(
@@ -89,12 +85,8 @@ impl TokApi {
         let mut instance_dao = dio.store_with_key(
             ServiceInstance {
                 name: name.clone(),
-                token: token.clone(),
                 chain: key_name.clone(),
-                wapm: wapm.clone(),
-                stateful,
-                action: None,
-                status: InstanceStatus::Stopped,
+                exports: DaoVec::new(),
             },
             PrimaryKey::from(INSTANCE_ROOT_ID),
         )?;
@@ -106,9 +98,7 @@ impl TokApi {
         debug!("adding service instance: {}", name);
         let instance = WalletInstance {
             name: name.clone(),
-            token,
             chain: key_name,
-            wapm: wapm.clone(),
         };
         let mut instance_dao = self.dio.store_with_key(
             instance.clone(),
@@ -126,9 +116,7 @@ impl TokApi {
                 activities::InstanceCreated {
                     when: chrono::offset::Utc::now(),
                     by: self.user_identity(),
-                    wapm,
                     alias: Some(name),
-                    stateful
                 },
             ))
             .await

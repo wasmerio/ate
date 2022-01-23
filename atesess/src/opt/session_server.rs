@@ -15,13 +15,22 @@ pub struct OptsSessionServer {
     /// Forces Tokera to listen on a specific port for HTTPS requests with generated certificates
     #[clap(long)]
     pub tls_port: Option<u16>,
-    /// Path to the secret key that grants access to the EdgeServer role within groups
-    #[clap(long, default_value = "~/ate/session.key")]
-    pub session_key_path: String,
+    /// Path to the secret key that grants access to the EdgeCompute role within groups
+    #[clap(long, default_value = "~/ate/edge.key")]
+    pub edge_key_path: String,
     /// URL where the web data is remotely stored on a distributed commit log.
     #[clap(short, long, default_value = "ws://tokera.com/db")]
     pub db_url: url::Url,
     /// URL of the authentication servers
     #[clap(long, default_value = "ws://tokera.com/auth")]
     pub auth_url: url::Url,
+    /// URL of the session servers that clients will connect to
+    #[clap(long, default_value = "ws://tokera.com/sess")]
+    pub sess_url: url::Url,
+    /// Ensures that this combined server(s) runs as a specific node_id
+    #[clap(short, long)]
+    pub node_id: Option<u32>,
+    /// Location where the native binary files are stored
+    #[clap(long, default_value = "tokera.sh/www")]
+    pub native_files: String,
 }

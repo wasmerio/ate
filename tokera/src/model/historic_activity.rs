@@ -69,16 +69,13 @@ pub mod activities {
     pub struct InstanceCreated {
         pub when: DateTime<Utc>,
         pub by: String,
-        pub wapm: String,
         pub alias: Option<String>,
-        pub stateful: bool,
     }
 
     #[derive(Serialize, Deserialize, Debug, Clone)]
     pub struct InstanceDestroyed {
         pub when: DateTime<Utc>,
         pub by: String,
-        pub wapm: String,
         pub alias: Option<String>,
     }
 }
@@ -210,16 +207,16 @@ impl HistoricActivity {
             }
             HistoricActivity::InstanceCreated(a) => {
                 if let Some(alias) = &a.alias {
-                    format!("Instance created ({} with alias {})", a.wapm, alias)
+                    format!("Instance created ({})", alias)
                 } else {
-                    format!("Instance created ({})", a.wapm)
+                    format!("Instance created")
                 }
             }
             HistoricActivity::InstanceDestroyed(a) => {
                 if let Some(alias) = &a.alias {
-                    format!("Instance destroyed ({} with alias {})", a.wapm, alias)
+                    format!("Instance destroyed ({})", alias)
                 } else {
-                    format!("Instance destroyed ({})", a.wapm)
+                    format!("Instance destroyed")
                 }
             }
         }

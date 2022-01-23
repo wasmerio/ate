@@ -1,4 +1,8 @@
 use async_trait::async_trait;
+use ate::mesh::Registry;
+use ate::session::AteSessionType;
+use ate::session::AteSessionUser;
+use ate::transaction::TransactionScope;
 use ate_files::prelude::*;
 use std::cell::RefCell;
 use std::future::Future;
@@ -18,7 +22,32 @@ pub struct System {
 }
 
 impl System {
-    pub fn new(inner: Arc<dyn SystemAbi>, native_files: Arc<FileAccessor>) -> Self {
+    pub async fn new(inner: Arc<dyn SystemAbi>, registry: Arc<Registry>, db_url: url::Url, native_files: String) -> Self {
+        // Connect to the file system that holds all the binaries that
+        // we will present natively to the consumers
+        // Note: These are the same files presenting to the web-site version of the terminal
+        let native_files_key = ate::prelude::ChainKey::from(native_files);
+        let native_files = registry.open(&db_url, &native_files_key).await.unwrap();
+        let native_files = Arc::new(
+            FileAccessor::new(
+                native_files.as_arc(),
+                None,
+                AteSessionType::User(AteSessionUser::default()),
+                TransactionScope::Local,
+                TransactionScope::Local,
+                true,
+                false,
+            )
+            .await,
+        );
+
+        // Attempt to read the root from the native file system which will make sure that its
+        // all nicely running
+        native_files
+            .search(&RequestContext { uid: 0, gid: 0 }, "/")
+            .await
+            .unwrap();
+            
         Self {
             inner,
             native_files,

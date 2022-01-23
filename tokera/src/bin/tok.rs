@@ -294,7 +294,7 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
             main_opts_service(opts_service.purpose, opts.token_path, auth).await?;
         }
         SubCommand::Instance(opts_instance) => {
-            main_opts_instance(opts_instance.purpose, opts.token_path, auth, opts_instance.remote).await?;
+            main_opts_instance(opts_instance.purpose, opts.token_path, auth, opts_instance.db_url, opts_instance.sess_url).await?;
         }
         SubCommand::Login(opts_login) => main_opts_login(opts_login, opts.token_path, auth).await?,
         SubCommand::Logout(opts_logout) => main_opts_logout(opts_logout, opts.token_path).await?,

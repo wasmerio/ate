@@ -1,12 +1,14 @@
 use ate::chain::ChainKey;
 use ate::header::PrimaryKey;
+use ate::prelude::{DaoMut, DioMut};
 use error_chain::bail;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, trace, warn};
 use std::ops::Deref;
+use std::sync::Arc;
 
 use crate::error::*;
-use crate::model::{activities, HistoricActivity, InstanceAction, INSTANCE_ROOT_ID, ServiceInstance};
+use crate::model::{INSTANCE_ROOT_ID, ServiceInstance};
 
 use super::*;
 
@@ -14,8 +16,7 @@ impl TokApi {
     pub async fn instance_action(
         &mut self,
         name: &str,
-        action: InstanceAction,
-    ) -> Result<(), InstanceError> {
+    ) -> Result<(Arc<DioMut>, DaoMut<ServiceInstance>), InstanceError> {
 
         // If the name supplied is not good enough then fail
         let name = name.to_lowercase();
@@ -33,7 +34,7 @@ impl TokApi {
             .collect::<Vec<_>>();
         
         // If there are too many instances that match this name then fail
-        if instances.len() <= 0 {
+        if instances.len() > 1 {
             bail!(InstanceErrorKind::InvalidInstance);
         }
 
@@ -49,53 +50,8 @@ impl TokApi {
         let chain = self.registry.open(&db_url?, &instance_key).await?;
         let chain_dio = chain.dio_full(self.session().deref()).await;
 
-        // Based on the action we are going to do something
-        match action
-        {
-            InstanceAction::Kill => {
-                let wapm = instance.wapm.clone();
-                let name = instance.name.clone();
-
-                debug!("deleting all the roots in the chain");
-                chain_dio.delete_all_roots().await?;
-                chain_dio.commit().await?;
-                drop(chain_dio);
-                drop(chain);
-
-                // Now add the history
-                if let Err(err) = self
-                    .record_activity(HistoricActivity::InstanceDestroyed(
-                        activities::InstanceDestroyed {
-                            when: chrono::offset::Utc::now(),
-                            by: self.user_identity(),
-                            wapm: wapm.clone(),
-                            alias: Some(name.clone()),
-                        },
-                    ))
-                    .await
-                {
-                    error!("Error writing activity: {}", err);
-                }
-
-                debug!("deleting the instance from the user/group");
-                let _ = instance.delete()?;
-                self.dio.commit().await?;
-
-                println!("Instance ({} with alias {}) has been killed", wapm, name);
-                Ok(())
-            }
-            action => {
-                let wapm = instance.wapm.clone();
-                let name = instance.name.clone();
-
-                // Load the instance and set the next action to perform
-                let mut instance = chain_dio.load::<ServiceInstance>(&PrimaryKey::from(INSTANCE_ROOT_ID)).await?;
-                instance.as_mut().action = Some(action.clone());
-                chain_dio.commit().await?;
-
-                println!("Instance action ({}) submitted (for {} with alias {}) has been killed", action, wapm, name);
-                Ok(())
-            }
-        }
+        // Load the instance
+        let instance = chain_dio.load::<ServiceInstance>(&PrimaryKey::from(INSTANCE_ROOT_ID)).await?;
+        Ok((chain_dio, instance))
     }
 }

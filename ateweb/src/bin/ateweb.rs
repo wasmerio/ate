@@ -75,7 +75,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    info!("atefs::shutdown");
+    info!("ateweb::shutdown");
 
     Ok(())
 }

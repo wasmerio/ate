@@ -1,4 +1,5 @@
 #![allow(unused_imports)]
+use crate::crypto::InitializationVector;
 use crate::engine::timeout as tokio_timeout;
 use error_chain::bail;
 use std::fs::File;
@@ -6,6 +7,8 @@ use std::result::Result;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
+use std::io::Error as TError;
+use std::io::ErrorKind as TErrorKind;
 #[cfg(feature = "enable_full")]
 use tokio::net::tcp::OwnedReadHalf;
 #[cfg(feature = "enable_full")]
@@ -835,6 +838,49 @@ impl StreamRx {
             StreamRx::ViaFile(_, p) => p.clone(),
             #[cfg(target_arch = "wasm32")]
             StreamRx::WasmWebSocket(_) => StreamProtocol::WebSocket,
+        }
+    }
+
+    pub async fn read_buf(&mut self, wire_encryption: &Option<EncryptKey>, total_read: &mut u64) -> Result<Vec<u8>, TError> {
+        match wire_encryption {
+            Some(key) => {
+                // Read the initialization vector
+                let iv_bytes = self.read_8bit().await?;
+                *total_read += 1u64;
+                match iv_bytes.len() {
+                    0 => Err(TError::new(TErrorKind::BrokenPipe, "iv_bytes-len is zero")),
+                    l => {
+                        *total_read += l as u64;
+                        let iv = InitializationVector::from(iv_bytes);
+
+                        // Read the cipher text and decrypt it
+                        let cipher_bytes = self.read_32bit().await?;
+                        *total_read += 4u64;
+                        match cipher_bytes.len() {
+                            0 => Err(TError::new(
+                                TErrorKind::BrokenPipe,
+                                "cipher_bytes-len is zero",
+                            )),
+                            l => {
+                                *total_read += l as u64;
+                                Ok(key.decrypt(&iv, &cipher_bytes))
+                            }
+                        }
+                    }
+                }
+            }
+            None => {
+                // Read the next message
+                let buf = self.read_32bit().await?;
+                *total_read += 4u64;
+                match buf.len() {
+                    0 => Err(TError::new(TErrorKind::BrokenPipe, "buf-len is zero")),
+                    l => {
+                        *total_read += l as u64;
+                        Ok(buf)
+                    }
+                }
+            }
         }
     }
 }

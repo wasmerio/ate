@@ -1,6 +1,7 @@
 use crate::{header::PrimaryKey, meta::Metadata, pipe::EventPipe};
 use async_trait::async_trait;
 use bytes::Bytes;
+use error_chain::bail;
 use serde::{Deserialize, Serialize};
 use std::ops::*;
 use std::{collections::BTreeMap, sync::Arc};
@@ -8,7 +9,7 @@ use tokio::sync::mpsc;
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use crate::chain::*;
-use crate::comms::PacketData;
+use crate::comms::{PacketData, NodeId};
 use crate::comms::StreamTx;
 use crate::comms::StreamTxChannel;
 use crate::comms::Tx;
@@ -155,7 +156,7 @@ pub struct MeshHashTable {
 }
 
 impl MeshHashTable {
-    pub(crate) fn lookup(&self, key: &ChainKey) -> Option<(MeshAddress, u32)> {
+    pub fn lookup(&self, key: &ChainKey) -> Option<(MeshAddress, u32)> {
         let hash = key.hash();
 
         let mut pointer: Option<usize> = None;
@@ -184,7 +185,7 @@ impl MeshHashTable {
         None
     }
 
-    pub(crate) fn derive_id(&self, addr: &MeshAddress) -> Option<u32> {
+    pub fn derive_id(&self, addr: &MeshAddress) -> Option<u32> {
         let mut n = 0usize;
         while n < self.address_lookup.len() {
             let test = &self.address_lookup[n];
@@ -213,8 +214,27 @@ impl MeshHashTable {
         None
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn new(cfg_mesh: &ConfMesh) -> MeshHashTable {
+    pub fn compute_node_id(&self, force_node_id: Option<u32>) -> Result<NodeId, CommsError> {
+        let node_id = match force_node_id {
+            Some(a) => a,
+            None => {
+                match self.address_lookup
+                    .iter()
+                    .filter_map(|a| self.derive_id(a))
+                    .next()
+                {
+                    Some(a) => a,
+                    None => {
+                        bail!(CommsErrorKind::RequredExplicitNodeId);
+                    }
+                }
+            }
+        };
+        let node_id = NodeId::generate_server_id(node_id);
+        Ok(node_id)
+    }
+
+    pub fn new(cfg_mesh: &ConfMesh) -> MeshHashTable {
         let mut index: usize = 0;
 
         let mut addresses = Vec::new();

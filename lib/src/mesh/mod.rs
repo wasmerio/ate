@@ -60,6 +60,7 @@ pub(crate) use crate::mesh::client::MeshClient;
 
 pub(crate) use session::MeshSession;
 
+pub use crate::mesh::core::MeshHashTable;
 pub use self::core::BackupMode;
 pub use self::core::RecoveryMode;
 pub use self::msg::FatalTerminate;

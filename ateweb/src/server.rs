@@ -27,6 +27,7 @@ use hyper_tungstenite::WebSocketStream;
 
 use ate::prelude::*;
 use ate_files::prelude::*;
+use ate_files::repo::*;
 
 use crate::model::WebConf;
 
@@ -37,7 +38,6 @@ use super::conf::*;
 use super::error::WebServerError;
 use super::error::WebServerErrorKind;
 use super::model::*;
-use super::repo::*;
 use super::stream::*;
 
 pub struct ServerWebConf {
@@ -102,6 +102,7 @@ impl Server {
             &registry,
             builder.remote.clone(),
             builder.auth_url.clone(),
+            "web-read".to_string(),
             builder.web_key.clone(),
             builder.conf.ttl,
         )
@@ -220,10 +221,11 @@ impl Server {
             }
         };
         if trigger {
+            let key = ChainKey::from(format!("{}/www", host));
             conf.web_conf_when = Some(Instant::now());
             conf.web_conf = match self
                 .repo
-                .get_file(host.as_str(), WEB_CONF_FILES_CONF)
+                .get_file(&key, host.as_str(), WEB_CONF_FILES_CONF)
                 .await
                 .ok()
                 .flatten()
@@ -244,7 +246,7 @@ impl Server {
                     if let Some(ret_str) = serde_yaml::to_string(&ret).ok() {
                         let err = self
                             .repo
-                            .set_file(host.as_str(), WEB_CONF_FILES_CONF, ret_str.as_bytes())
+                            .set_file(&key, host.as_str(), WEB_CONF_FILES_CONF, ret_str.as_bytes())
                             .await;
                         if let Err(err) = err {
                             info!("failed to save default web.yaml - {}", err);
@@ -358,7 +360,8 @@ impl Server {
         conf: &WebConf,
     ) -> Result<Option<Response<Body>>, WebServerError> {
         self.sanitize(path)?;
-        if let Some(data) = self.repo.get_file(host, path).await? {
+        let key = ChainKey::from(format!("{}/www", host));
+        if let Some(data) = self.repo.get_file(&key, host, path).await? {
             let len_str = data.len().to_string();
 
             let mut resp = if is_head {

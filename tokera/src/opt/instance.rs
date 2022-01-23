@@ -12,7 +12,10 @@ pub struct OptsInstance {
     pub purpose: OptsInstanceFor,
     /// URL where the data is remotely stored on a distributed commit log.
     #[clap(short, long, default_value = "ws://tokera.com/db")]
-    pub remote: Url,
+    pub db_url: Url,
+    /// URL where the instances can be accessed from
+    #[clap(short, long, default_value = "ws://tokera.com/sess")]
+    pub sess_url: Url,
 }
 
 #[derive(Parser, Clone)]
@@ -79,39 +82,24 @@ pub enum OptsInstanceAction {
     /// Creates a new instance
     #[clap()]
     Create(OptsInstanceCreate),
-    /// Starts a new instance
+    /// Exports an interface from a particular instance
     #[clap()]
-    Start(OptsInstanceStart),
-    /// Stops are particular instance - stopped instances can not process commands until restarted)
+    Export(OptsInstanceExport),
+    /// Deports a previously exposed interface for a particular instance
     #[clap()]
-    Stop(OptsInstanceStop),
+    Deport(OptsInstanceDeport),
     /// Kills are particular instance - killed instances are totally destroyed
     #[clap()]
     Kill(OptsInstanceKill),
     /// Switches to a shell that runs against a particular instance
     #[clap()]
     Shell(OptsInstanceShell),
-    /// Hooks up STDIO to the current running instance
-    #[clap()]
-    Stdio(OptsInstanceStdio),
     /// Mount an existing instance file system to a particular path
     #[clap()]
     Mount(OptsInstanceMount),
     /// Clones a particular instance
     #[clap()]
     Clone(OptsInstanceClone),
-    /// Restarts a particular instance
-    #[clap()]
-    Restart(OptsInstanceRestart),
-    /// Backs up a particular instance
-    #[clap()]
-    Backup(OptsInstanceBackup),
-    /// Restores a particular instance from a previous backup
-    #[clap()]
-    Restore(OptsInstanceRestore),
-    /// Updates a particular instance to the latest version of its running software
-    #[clap()]
-    Upgrade(OptsInstanceUpgrade),
 }
 
 impl OptsInstanceAction
@@ -135,18 +123,13 @@ impl OptsInstanceAction
         match self {
             OptsInstanceAction::List => None,
             OptsInstanceAction::Create(_) => None,
-            OptsInstanceAction::Start(opts) => Some(opts.name.clone()),
             OptsInstanceAction::Details(opts) => Some(opts.name.clone()),
-            OptsInstanceAction::Stop(opts) => Some(opts.name.clone()),
             OptsInstanceAction::Kill(opts) => Some(opts.name.clone()),
             OptsInstanceAction::Clone(opts) => Some(opts.name.clone()),
             OptsInstanceAction::Shell(opts) => Some(opts.name.clone()),
-            OptsInstanceAction::Stdio(opts) => Some(opts.name.clone()),
+            OptsInstanceAction::Export(opts) => Some(opts.name.clone()),
+            OptsInstanceAction::Deport(opts) => Some(opts.name.clone()),
             OptsInstanceAction::Mount(opts) => Some(opts.name.clone()),
-            OptsInstanceAction::Restart(opts) => Some(opts.name.clone()),
-            OptsInstanceAction::Backup(opts) => Some(opts.name.clone()),
-            OptsInstanceAction::Restore(opts) => Some(opts.name.clone()),
-            OptsInstanceAction::Upgrade(opts) => Some(opts.name.clone()),
         }
     }
 }
@@ -162,33 +145,41 @@ pub struct OptsInstanceDetails {
 #[derive(Parser, Clone)]
 #[clap()]
 pub struct OptsInstanceCreate {
-    /// Name of the web assembly package to be started
-    #[clap(index = 1)]
-    pub wapm: String,
-    /// Stateful instances have persistent file systems that can be backed up and restored
-    #[clap(short, long)]
-    pub stateful: bool,
     /// Name of the new instance (which will be generated if you dont supply one)
-    #[clap(index = 2)]
+    #[clap(index = 1)]
     pub name: Option<String>,
 }
 
 #[derive(Parser, Clone)]
 #[clap()]
-pub struct OptsInstanceStart {
-    /// Name of the instance to be started
-    /// (stopped instances can not process commands until restarted)
+pub struct OptsInstanceExport {
+    /// Name of the instance to export an interface from
     #[clap(index = 1)]
     pub name: String,
+    /// Name of the binary that will be exported
+    #[clap(index = 2)]
+    pub binary: String,
+    /// Distributed instances run all over the world concurrently on the same file system
+    /// They are started on-demand as needed and shutdown when idle.
+    #[clap(short, long)]
+    pub distributed: bool,
+    /// Indicates if the exported endpoint will be accessible via https (API calls)
+    #[clap(long)]
+    pub no_https: bool,
+    /// Indicates if the exported endpoint will be accessible via wasm-bus
+    #[clap(long)]
+    pub no_bus: bool,
 }
 
 #[derive(Parser, Clone)]
 #[clap()]
-pub struct OptsInstanceStop {
-    /// Name of the instance to be stopped
-    /// (stopped instances can not process commands until restarted)
+pub struct OptsInstanceDeport {
+    /// Name of the instance to export an interface from
     #[clap(index = 1)]
     pub name: String,
+    /// Token of the exported interface to be deleted
+    #[clap(index = 2)]
+    pub token: String,
 }
 
 #[derive(Parser, Clone)]
@@ -196,14 +187,6 @@ pub struct OptsInstanceStop {
 pub struct OptsInstanceKill {
     /// Name of the instance to be killed
     /// (killed instances are perminently destroyed)
-    #[clap(index = 1)]
-    pub name: String,
-}
-
-#[derive(Parser, Clone)]
-#[clap()]
-pub struct OptsInstanceRestart {
-    /// Name of the instance to be restarted
     #[clap(index = 1)]
     pub name: String,
 }
@@ -226,14 +209,6 @@ pub struct OptsInstanceShell {
 
 #[derive(Parser, Clone)]
 #[clap()]
-pub struct OptsInstanceStdio {
-    /// Name of the existing instance to connect to
-    #[clap(index = 1)]
-    pub name: String,
-}
-
-#[derive(Parser, Clone)]
-#[clap()]
 pub struct OptsInstanceMount {
     /// Name of the instance to mounted
     #[clap(index = 1)]
@@ -241,42 +216,6 @@ pub struct OptsInstanceMount {
     /// Path that the instance will be mounted at
     #[clap(index = 2)]
     pub path: String,
-}
-
-#[derive(Parser, Clone)]
-#[clap()]
-pub struct OptsInstanceBackup {
-    /// Name of the instance to be backed up
-    #[clap(index = 1)]
-    pub name: String,
-    /// Chain that the backup file will be stored in
-    #[clap(index = 2)]
-    pub chain: String,
-    /// Path in the chain that the backup file will be stored
-    #[clap(index = 3)]
-    pub path: String,
-}
-
-#[derive(Parser, Clone)]
-#[clap()]
-pub struct OptsInstanceRestore {
-    /// Name of the instance to be restored
-    #[clap(index = 1)]
-    pub name: String,
-    /// Chain that the backup file is stored
-    #[clap(index = 2)]
-    pub chain: String,
-    /// Path in the chain that the backup file will be restored from
-    #[clap(index = 3)]
-    pub path: String,
-}
-
-#[derive(Parser, Clone)]
-#[clap()]
-pub struct OptsInstanceUpgrade {
-    /// Name of the instance to be upgrades
-    #[clap(index = 1)]
-    pub name: String,
 }
 
 impl OptsPurpose<OptsInstanceAction> for OptsInstanceFor {

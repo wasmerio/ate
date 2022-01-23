@@ -37,6 +37,8 @@ cached = "^0.23"
 seqlock = "^0.1"
 array-init = "^1"
 rpassword-wasi = "^5"
+url = "^2"
+ttl_cache = "^0.5"
 
 [target.'cfg(not(target_os = "wasi"))'.dependencies]
 tokio = { version = "^1", features = [ "rt", "io-util", "macros", "sync", "time", "fs" ], default_features = false }

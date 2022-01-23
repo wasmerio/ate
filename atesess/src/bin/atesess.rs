@@ -1,4 +1,7 @@
 #![recursion_limit="256"]
+use ate::mesh::MeshHashTable;
+use atesess::server::Server;
+use tokio::sync::watch;
 #[allow(unused_imports, dead_code)]
 use tracing::{info, error, debug, trace, warn};
 use ate::prelude::*;
@@ -12,7 +15,6 @@ use ate::comms::StreamRouter;
 
 use ate_auth::helper::load_key;
 use ate_auth::helper::try_load_key;
-use ate_auth::helper::save_key;
 
 use atesess::opt::*;
 
@@ -32,22 +34,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
     let opts: Opts = Opts::parse();
     //let opts = main_debug();
     ate::log_init(opts.verbose, opts.debug);
-
-    if let SubCommand::Generate(generate) = &opts.subcmd {
-        let read_key = EncryptKey::generate(generate.strength);
-        println!("read-key-hash: {}", read_key.hash());
-        save_key(generate.key_path.clone(), read_key, ".read");            
-
-        let write_key = PrivateSignKey::generate(generate.strength);
-        println!("write-key-hash: {}", write_key.hash());
-        save_key(generate.key_path.clone(), write_key, ".write");
-
-        let cert_key = PrivateEncryptKey::generate(generate.strength);
-        println!("cert-key-hash: {}", cert_key.hash());
-        println!("TXT:    ate-cert-{}", cert_key.hash().to_hex_string().to_lowercase());
-        save_key(generate.key_path.clone(), cert_key, ".cert");
-        return Ok(());
-    }
         
     let cert: PrivateEncryptKey = match try_load_key(opts.cert_path.clone()) {
         Some(a) => a,
@@ -64,11 +50,47 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
     
     let ret = runtime.clone().block_on(async move {
         match opts.subcmd {
-            SubCommand::Generate(_) => {
-                // this was already done earlier
-            },
             SubCommand::Run(solo) => {
-                let (_server, hard_exit) = main_web(&solo, conf, None).await?;
+                let edge_key: EncryptKey = load_key(solo.edge_key_path.clone(), ".read");
+                let protocol = StreamProtocol::parse(&solo.sess_url)?;
+                let port = solo.auth_url.port().unwrap_or(protocol.default_port());
+                let domain = solo.auth_url.domain().unwrap_or("localhost").to_string();
+
+                let mut cfg_mesh = ConfMesh::skeleton(&conf, domain, port, solo.node_id).await?;
+                cfg_mesh.wire_protocol = protocol;
+                cfg_mesh.wire_encryption = Some(opts.wire_encryption);
+                cfg_mesh.listen_certificate = Some(cert);
+
+                let table = MeshHashTable::new(&cfg_mesh);
+                let server_id = table.compute_node_id(solo.node_id)?;
+
+                let registry = Arc::new(Registry::new(&conf).await);
+        
+                // Set the system
+                let (tx_exit, _) = watch::channel(false);
+                let sys = Arc::new(tokterm::system::SysSystem::new_with_runtime(
+                    tx_exit, runtime,
+                ));
+                let sys = atessh::system::System::new(sys, registry.clone(), solo.db_url.clone(), solo.native_files.clone()).await;
+                atessh::term_lib::api::set_system_abi(sys);
+
+                let instance_server = Server::new(
+                    solo.db_url.clone(),
+                    solo.auth_url.clone(),
+                    edge_key,
+                    registry.clone()
+                ).await?;
+
+                let mut router = ate::comms::StreamRouter::new(
+                    cfg_mesh.wire_format.clone(),
+                    cfg_mesh.wire_protocol.clone(),
+                    cfg_mesh.listen_certificate.clone(),
+                    server_id,
+                    cfg_mesh.accept_timeout,
+                );
+                router.add_route("sess", Arc::new(instance_server)).await;
+
+                let (_server, hard_exit) = main_web(&solo, conf, Some(router)).await?;
                 
                 main_loop(Some(hard_exit)).await?;
                 //server.shutdown().await;
@@ -81,9 +103,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
     ret
 }
 
-async fn main_web(solo: &OptsSessionServer, cfg_ate: ConfAte, callback: Option<StreamRouter>) -> Result<(Arc<ateweb::server::Server>, Receiver<bool>), AteError>
+#[allow(dead_code)]
+async fn main_web(solo: &OptsSessionServer, cfg_ate: ConfAte, callback: Option<StreamRouter>) -> Result<(Arc<ateweb::server::Server>, watch::Receiver<bool>), AteError>
 {
-    let web_key: EncryptKey = load_key(solo.session_key_path.clone(), ".read");
+    let (hard_exit_tx, hard_exit_rx) = tokio::sync::watch::channel(false);
+    let server = main_web_ext(solo, cfg_ate, callback, hard_exit_tx).await?;
+    Ok((server, hard_exit_rx))
+}
+
+async fn main_web_ext(solo: &OptsSessionServer, cfg_ate: ConfAte, callback: Option<StreamRouter>, hard_exit_tx: watch::Sender<bool>) -> Result<Arc<ateweb::server::Server>, AteError>
+{
+    let web_key: EncryptKey = load_key(solo.edge_key_path.clone(), ".read");
     let mut builder = ateweb::builder::ServerBuilder::new(solo.db_url.clone(), solo.auth_url.clone(), web_key)
         .add_listener(solo.listen, solo.port.unwrap_or(80u16), false)
         .add_listener(solo.listen, solo.tls_port.unwrap_or(443u16), true)
@@ -98,8 +128,6 @@ async fn main_web(solo: &OptsSessionServer, cfg_ate: ConfAte, callback: Option<S
         .build()
         .await?;
 
-    let (hard_exit_tx, hard_exit_rx) = tokio::sync::watch::channel(false);
-    
     // Run the web server
     {
         let server = Arc::clone(&server);
@@ -113,7 +141,7 @@ async fn main_web(solo: &OptsSessionServer, cfg_ate: ConfAte, callback: Option<S
     }
 
     // Done
-    Ok((server, hard_exit_rx))
+    Ok(server)
 }
 
 async fn main_loop(hard_exit: Option<Receiver<bool>>) -> Result<(), Box<dyn std::error::Error>>

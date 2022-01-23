@@ -79,6 +79,11 @@ impl StreamRouter {
         self.default_route = Some(route);
     }
 
+    pub async fn add_route(&mut self, path: &str, route: Arc<dyn StreamRoute>) {
+        let mut guard = self.routes.lock().await;
+        guard.insert(path.to_string(), route);
+    }
+
     #[cfg(feature = "enable_server")]
     pub async fn accept_socket(
         &self,

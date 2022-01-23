@@ -1,3 +1,5 @@
+use core::fmt;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -10,6 +12,18 @@ pub enum NodeId {
 impl Default for NodeId {
     fn default() -> Self {
         NodeId::Unknown
+    }
+}
+
+impl fmt::Display
+for NodeId
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            NodeId::Unknown => write!(f, "unknown"),
+            NodeId::Client(id) => write!(f, "client({})", id),
+            NodeId::Server(server_id, node_id) => write!(f, "server(id={}, node={})", server_id, node_id),
+        }
     }
 }
 

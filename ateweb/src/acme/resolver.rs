@@ -30,10 +30,10 @@ use tokio::sync::Mutex;
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 use ttl_cache::TtlCache;
 use x509_parser::parse_x509_certificate;
+use ate_files::repo::*;
 
 use crate::error::*;
 use crate::model::*;
-use crate::repo::*;
 
 #[derive(Default)]
 pub struct AcmeState {
@@ -99,13 +99,14 @@ impl AcmeResolver {
         }
 
         // Load the certificates
+        let web_key = ChainKey::from(format!("{}/www", sni));
         let cert = self
             .repo
-            .get_file(sni.as_str(), WEB_CONF_FILES_ALPN_CERT)
+            .get_file(&web_key, sni.as_str(), WEB_CONF_FILES_ALPN_CERT)
             .await?;
         let key = self
             .repo
-            .get_file(sni.as_str(), WEB_CONF_FILES_ALPN_KEY)
+            .get_file(&web_key, sni.as_str(), WEB_CONF_FILES_ALPN_KEY)
             .await?;
 
         if let Some(cert) = cert {
@@ -145,6 +146,8 @@ impl AcmeResolver {
             }
         }
 
+        let web_key = ChainKey::from(format!("{}/www", sni));
+
         let lock = {
             let mut guard = self.locks.lock().unwrap();
             match guard.entry(sni.clone()) {
@@ -177,11 +180,11 @@ impl AcmeResolver {
         if loaded == false {
             let cert = self
                 .repo
-                .get_file(sni.as_str(), WEB_CONF_FILES_WEB_CERT)
+                .get_file(&web_key, sni.as_str(), WEB_CONF_FILES_WEB_CERT)
                 .await?;
             let key = self
                 .repo
-                .get_file(sni.as_str(), WEB_CONF_FILES_WEB_KEY)
+                .get_file(&web_key, sni.as_str(), WEB_CONF_FILES_WEB_KEY)
                 .await?;
             if let Some(cert) = cert {
                 if let Some(key) = key {
@@ -208,7 +211,7 @@ impl AcmeResolver {
 
             // If the file system that backs this web site is not even in existance then we should
             // not try and generate a certificate as we have nowhere to save it
-            let accessor = self.repo.get_accessor(sni.as_str()).await?;
+            let accessor = self.repo.get_accessor(&web_key, sni.as_str()).await?;
             if accessor
                 .root(&ate_files::prelude::RequestContext::default())
                 .await?
@@ -241,10 +244,10 @@ impl AcmeResolver {
                 lock.next_try = None;
 
                 self.repo
-                    .set_file(sni.as_str(), WEB_CONF_FILES_WEB_CERT, cert_pem.as_bytes())
+                    .set_file(&web_key, sni.as_str(), WEB_CONF_FILES_WEB_CERT, cert_pem.as_bytes())
                     .await?;
                 self.repo
-                    .set_file(sni.as_str(), WEB_CONF_FILES_WEB_KEY, pk_pem.as_bytes())
+                    .set_file(&web_key, sni.as_str(), WEB_CONF_FILES_WEB_KEY, pk_pem.as_bytes())
                     .await?;
 
                 let mut guard = self.certs.write().unwrap();
@@ -384,11 +387,12 @@ impl AcmeResolver {
                 let (challenge, _auth_key, cert_pem, pk_pem) =
                     account.tls_alpn_01(&challenges, domain.clone())?;
 
+                let key = ChainKey::from(format!("{}/www", sni));
                 self.repo
-                    .set_file(sni, WEB_CONF_FILES_ALPN_CERT, cert_pem.as_bytes())
+                    .set_file(&key, sni, WEB_CONF_FILES_ALPN_CERT, cert_pem.as_bytes())
                     .await?;
                 self.repo
-                    .set_file(sni, WEB_CONF_FILES_ALPN_KEY, pk_pem.as_bytes())
+                    .set_file(&key, sni, WEB_CONF_FILES_ALPN_KEY, pk_pem.as_bytes())
                     .await?;
 
                 self.auths.write().unwrap().remove(&domain);
