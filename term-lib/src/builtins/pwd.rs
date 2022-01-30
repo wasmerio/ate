@@ -9,7 +9,7 @@ pub(super) fn pwd(
     args: &[String],
     ctx: EvalContext,
     mut stdio: Stdio,
-) -> Pin<Box<dyn Future<Output = ExecResponse>>> {
+) -> Pin<Box<dyn Future<Output = ExecResponse> + Send>> {
     if args.len() > 1 {
         return Box::pin(async move {
             let _ = stdio

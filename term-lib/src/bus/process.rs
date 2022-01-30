@@ -45,7 +45,7 @@ pub struct ProcessExecFactory {
     #[derivative(Debug = "ignore")]
     reactor: Arc<RwLock<Reactor>>,
     #[derivative(Debug = "ignore")]
-    exec_factory: EvalFactory,
+    pub(crate) exec_factory: EvalFactory,
     pub(crate) inherit_stdin: WeakFd,
     pub(crate) inherit_stdout: WeakFd,
     pub(crate) inherit_stderr: WeakFd,

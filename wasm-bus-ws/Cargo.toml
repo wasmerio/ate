@@ -12,11 +12,17 @@ readme = "README.md"
 [features]
 default = [ "frontend" ]
 frontend = [ "wasm-bus/syscalls" ]
+sys = [ "tokio-tungstenite", "futures", "futures-util", "tokio/rt", "tokio/rt-multi-thread", "tokio/time", "tokio/net" ]
 
 [dependencies]
-wasm-bus = { version = "^0.5", path = "../wasm-bus", default_features = false, features = [ "rt", "macros" ] }
 tracing = { version = "^0.1", features = [ "log" ] }
 serde = { version = "^1", features = ["derive"] }
 url = "2"
-tokio = { version = "^1", features = [ "sync", "macros" ], default_features = false }
 async-trait = "^0.1"
+tokio = { version = "^1", features = [ "sync", "macros" ], default_features = false }
+wasm-bus = { version = "^0.5", path = "../wasm-bus", default_features = false, features = [ "rt", "macros" ] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio-tungstenite = { version = "^0.16", features = [ "native-tls" ], optional = true }
+futures = { version = "^0.3", optional = true }
+futures-util = { version = "^0.3", optional = true }

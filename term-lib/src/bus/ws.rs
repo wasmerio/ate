@@ -10,6 +10,7 @@ use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
 use wasm_bus::abi::SerializationFormat;
 use wasm_bus_ws::api;
+use wasm_bus_ws::model;
 
 use super::*;
 use crate::api::*;
@@ -33,7 +34,7 @@ pub fn web_socket(
 
     // Construct the channels
     let (tx_keepalive, mut rx_keepalive) = mpsc::channel(1);
-    let (tx_state, rx_state) = broadcast::channel::<api::SocketState>(10);
+    let (tx_state, rx_state) = broadcast::channel::<model::SocketState>(10);
     let (tx_send, mut rx_send) = mpsc::channel::<Vec<u8>>(MAX_MPSC);
 
     // The web socket will be started in a background thread as it
@@ -46,10 +47,10 @@ pub fn web_socket(
             Ok(a) => a,
             Err(err) => {
                 debug!("failed to create web socket ({}): {}", connect.url, err);
-                let _ = tx_state.send(api::SocketState::Failed);
+                let _ = tx_state.send(model::SocketState::Failed);
                 on_state_change.feed(
                     SerializationFormat::Bincode,
-                    api::SocketBuilderConnectStateChangeCallback(api::SocketState::Failed),
+                    api::SocketBuilderConnectStateChangeCallback(model::SocketState::Failed),
                 );
                 return;
             }
@@ -59,10 +60,10 @@ pub fn web_socket(
             let tx_state = tx_state.clone();
             let on_state_change = on_state_change.clone();
             ws_sys.set_onopen(Box::new(move || {
-                let _ = tx_state.send(api::SocketState::Opened);
+                let _ = tx_state.send(model::SocketState::Opened);
                 on_state_change.feed(
                     SerializationFormat::Bincode,
-                    api::SocketBuilderConnectStateChangeCallback(api::SocketState::Opened),
+                    api::SocketBuilderConnectStateChangeCallback(model::SocketState::Opened),
                 );
             }));
         }
@@ -71,10 +72,10 @@ pub fn web_socket(
             let tx_state = tx_state.clone();
             let on_state_change = on_state_change.clone();
             ws_sys.set_onclose(Box::new(move || {
-                let _ = tx_state.send(api::SocketState::Closed);
+                let _ = tx_state.send(model::SocketState::Closed);
                 on_state_change.feed(
                     SerializationFormat::Bincode,
-                    api::SocketBuilderConnectStateChangeCallback(api::SocketState::Closed),
+                    api::SocketBuilderConnectStateChangeCallback(model::SocketState::Closed),
                 );
             }));
         }
@@ -98,7 +99,7 @@ pub fn web_socket(
                 state = rx_state.recv() => {
                     match state {
                         Ok(state) => {
-                            if state != api::SocketState::Opened {
+                            if state != model::SocketState::Opened {
                                 return;
                             }
                             break;
@@ -117,7 +118,7 @@ pub fn web_socket(
                     break;
                 }
                 state = rx_state.recv() => {
-                    if state != Ok(api::SocketState::Opened) {
+                    if state != Ok(model::SocketState::Opened) {
                         break;
                     }
                 }
@@ -144,7 +145,7 @@ pub fn web_socket(
 
         on_state_change.feed(
             SerializationFormat::Bincode,
-            api::SocketBuilderConnectStateChangeCallback(api::SocketState::Closed),
+            api::SocketBuilderConnectStateChangeCallback(model::SocketState::Closed),
         );
     });
 
@@ -162,7 +163,7 @@ pub fn web_socket(
 pub struct WebSocket {
     #[allow(dead_code)]
     tx_keepalive: mpsc::Sender<()>,
-    rx_state: broadcast::Receiver<api::SocketState>,
+    rx_state: broadcast::Receiver<model::SocketState>,
 }
 
 impl WebSocket {
@@ -170,10 +171,10 @@ impl WebSocket {
         loop {
             let state = self.rx_state.recv().await;
             match state {
-                Ok(api::SocketState::Opened) => {
+                Ok(model::SocketState::Opened) => {
                     debug!("confirmed websocket successfully opened");
                 }
-                Ok(api::SocketState::Closed) => {
+                Ok(model::SocketState::Closed) => {
                     debug!("confirmed websocket closed before it opened");
                     return;
                 }
@@ -241,7 +242,7 @@ impl Session for WebSocketSession {
             } else {
                 ResultInvokable::new(
                     SerializationFormat::Bincode,
-                    api::SendResult::Success(data_len),
+                    model::SendResult::Success(data_len),
                 )
             }
         } else {
@@ -263,7 +264,7 @@ impl Invokable for DelayedSend {
             size = data.len();
             let _ = self.tx.send(data).await;
         }
-        ResultInvokable::new(SerializationFormat::Bincode, api::SendResult::Success(size))
+        ResultInvokable::new(SerializationFormat::Bincode, model::SendResult::Success(size))
             .process()
             .await
     }

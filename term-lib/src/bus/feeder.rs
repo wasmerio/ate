@@ -51,6 +51,9 @@ impl WasmBusCallback {
                     })
                 }));
             }
+            Ok(InvokeResult::ResponseThenLeak(response)) => {
+                self.feed_bytes_or_error(Ok(response));
+            }
             Err(err) => {
                 self.feed_bytes_or_error(Err(err));
                 sessions.lock().unwrap().remove(&self.handle);

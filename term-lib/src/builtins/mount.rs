@@ -18,7 +18,7 @@ pub(super) fn mount(
     args: &[String],
     mut ctx: EvalContext,
     mut stdio: Stdio,
-) -> Pin<Box<dyn Future<Output = ExecResponse>>> {
+) -> Pin<Box<dyn Future<Output = ExecResponse> + Send>> {
     let wapm: String;
     let mountpoint: String;
     let target: String;

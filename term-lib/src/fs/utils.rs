@@ -8,9 +8,13 @@ use super::*;
 
 static STATIC_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/static");
 
-pub fn create_root_fs() -> UnionFileSystem {
+pub fn create_root_fs(inner: Option<Box<dyn MountedFileSystem>>) -> UnionFileSystem {
     let mut mounts = UnionFileSystem::new();
-    mounts.mount("root", "/", false, Box::new(TmpFileSystem::new()));
+    let inner = match inner {
+        Some(a) => a,
+        None => Box::new(TmpFileSystem::new())
+    };
+    mounts.mount("root", "/", false, inner);
     append_static_dir(&mut mounts, &STATIC_DIR);
     mounts
 }
@@ -33,6 +37,15 @@ pub fn append_static_dir(fs: &mut UnionFileSystem, dir: &Dir) {
         }
         if let Some(path) = file.path().to_str() {
             let path = format!("/{}", path);
+
+            // If it already exists then skip it
+            if fs.new_open_options()
+                .read(true)
+                .open(path.as_str())
+                .is_ok()
+            {
+                continue;
+            }
 
             let mut bin = fs
                 .new_open_options()

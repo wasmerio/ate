@@ -40,6 +40,15 @@ impl OpenedFile {
             accessor,
         }
     }
+
+    pub async fn io(&self) -> Result<Arc<FileIo>, CallError> {
+        let handle = self.handle.clone().map_err(|_err| CallError::BadRequest)?;
+        Ok(Arc::new(FileIo::new(
+            handle,
+            self.offset.clone(),
+            self.append,
+        )))
+    }
 }
 
 #[async_trait]
@@ -85,11 +94,7 @@ impl api::OpenedFileSimplified for OpenedFile {
     }
 
     async fn io(&self) -> Result<Arc<dyn api::FileIO + Send + Sync + 'static>, CallError> {
-        let handle = self.handle.clone().map_err(|_err| CallError::BadRequest)?;
-        Ok(Arc::new(FileIo::new(
-            handle,
-            self.offset.clone(),
-            self.append,
-        )))
+        let ret = OpenedFile::io(self).await?;
+        Ok(ret)
     }
 }

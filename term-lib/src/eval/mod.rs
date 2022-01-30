@@ -125,44 +125,52 @@ pub(crate) fn eval(mut ctx: EvalContext) -> mpsc::Receiver<EvalResult> {
     let parser = grammar::programParser::new();
 
     let (tx, rx) = mpsc::channel(1);
-    system.fork_local(async move {
+
+    let work = {
         let input = ctx.input.clone();
-        match parser.parse(input.as_str()) {
-            Ok(program) => {
-                let mut show_result = false;
-                let mut ret = 0;
-                for cc in program.commands.complete_commands {
-                    let (c, r) = complete_command(ctx, &builtins, &cc, &mut show_result).await;
-                    ctx = c;
-                    ret = r;
+        async move {
+            match parser.parse(input.as_str()) {
+                Ok(program) => {
+                    let mut show_result = false;
+                    let mut ret = 0;
+                    for cc in program.commands.complete_commands {
+                        let (c, r) = complete_command(ctx, &builtins, &cc, &mut show_result).await;
+                        ctx = c;
+                        ret = r;
+                    }
+                    tx.send(EvalResult::new(
+                        ctx,
+                        EvalStatus::Executed {
+                            code: ret,
+                            show_result,
+                        },
+                    ))
+                    .await;
                 }
-                tx.send(EvalResult::new(
-                    ctx,
-                    EvalStatus::Executed {
-                        code: ret,
-                        show_result,
-                    },
-                ))
-                .await;
+                Err(e) => match e {
+                    grammar::ParseError::UnrecognizedToken {
+                        token: _,
+                        expected: _,
+                    } => {
+                        tx.send(EvalResult::new(ctx, EvalStatus::MoreInput)).await;
+                    }
+                    grammar::ParseError::UnrecognizedEOF {
+                        location: _,
+                        expected: _,
+                    } => {
+                        tx.send(EvalResult::new(ctx, EvalStatus::MoreInput)).await;
+                    }
+                    _ => {
+                        tx.send(EvalResult::new(ctx, EvalStatus::Invalid)).await;
+                    }
+                },
             }
-            Err(e) => match e {
-                grammar::ParseError::UnrecognizedToken {
-                    token: _,
-                    expected: _,
-                } => {
-                    tx.send(EvalResult::new(ctx, EvalStatus::MoreInput)).await;
-                }
-                grammar::ParseError::UnrecognizedEOF {
-                    location: _,
-                    expected: _,
-                } => {
-                    tx.send(EvalResult::new(ctx, EvalStatus::MoreInput)).await;
-                }
-                _ => {
-                    tx.send(EvalResult::new(ctx, EvalStatus::Invalid)).await;
-                }
-            },
         }
-    });
+    };
+
+    #[cfg(target_arch = "wasm32")]
+    system.fork_local(work);
+    #[cfg(not(target_arch = "wasm32"))]
+    system.fork_shared(move || work);
     rx
 }

@@ -1,19 +1,17 @@
 use std::ops::Deref;
-use std::sync::Arc;
 use ate::prelude::*;
-use ate::session::AteSessionType;
 use chrono::NaiveDateTime;
 use error_chain::bail;
-#[allow(unused_imports)]
-use tracing::{debug, error, info};
 use async_stream::stream;
 use futures_util::pin_mut;
 use futures_util::stream::StreamExt;
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, trace, warn};
 
 use crate::error::*;
-use crate::model::{INSTANCE_ROOT_ID, ServiceInstance, HistoricActivity, activities};
+use crate::model::{HistoricActivity, activities, InstanceHello, InstanceCommand};
 use crate::opt::*;
-use crate::api::TokApi;
+use crate::api::{TokApi, InstanceClient};
 
 use super::*;
 
@@ -34,11 +32,9 @@ pub async fn main_opts_instance_list(api: &mut TokApi) -> Result<(), InstanceErr
     };
     pin_mut!(instances_ext);
 
-    let session = api.session();
     while let Some(res) = instances_ext.next().await {
-        let (wallet_instance, chain) = res?;
-        let dio: Arc<Dio> = chain.dio(session.deref()).await;
-        match dio.load::<ServiceInstance>(&PrimaryKey::from(INSTANCE_ROOT_ID)).await {
+        let (wallet_instance, _) = res?;
+        match api.instance_load(&wallet_instance).await {
             Ok(instance) => {
                 let secs = instance.when_created() / 1000;
                 let nsecs = (instance.when_created() % 1000) * 1000 * 1000;
@@ -52,14 +48,14 @@ pub async fn main_opts_instance_list(api: &mut TokApi) -> Result<(), InstanceErr
                     }
                 }
                 println!(
-                    "- {:<16} - {:<16} - {}",
+                    "- {:<16} - {:<18} - {}",
                     wallet_instance.name, when.format("%Y-%m-%d %H:%M:%S"), exports
                 );
             }
             Err(err) => {
                 debug!("error loading service chain - {}", err);
                 println!(
-                    "- {:<16} - {:<16} - {}",
+                    "- {:<16} - {:<18} - {}",
                     wallet_instance.name, "error", err
                 );
             }
@@ -97,8 +93,8 @@ pub async fn main_opts_instance_create(
     api: &mut TokApi,
     name: Option<String>,
     group: Option<String>,
-    session: AteSessionType,
     db_url: url::Url,
+    instance_authority: String,
 ) -> Result<(), InstanceError> {
 
     let name = match name {
@@ -108,26 +104,39 @@ pub async fn main_opts_instance_create(
         }
     };
 
-    if let Err(err) = api.instance_create(name.clone(), group, session, db_url).await {
+    if let Err(err) = api.instance_create(name.clone(), group, db_url, instance_authority).await {
         bail!(err);
     };
-    println!("Instance created ({})", name);
 
+    println!("Instance created ({})", name);
     Ok(())
 }
 
 pub async fn main_opts_instance_kill(
     api: &mut TokApi,
     name: &str,
+    force: bool,
 ) -> Result<(), InstanceError> {
-    let (chain, instance) = api.instance_action(name).await?;
+    let (service_instance, wallet_instance) = api.instance_action(name).await?;
 
-    let name = instance.name.clone();
-
-    debug!("deleting all the roots in the chain");
-    chain.delete_all_roots().await?;
-    chain.commit().await?;
-    drop(chain);
+    let name = match service_instance {
+        Ok(service_instance) => {
+            let dio = service_instance.dio_mut();
+            let name = service_instance.name.clone();
+            debug!("deleting all the roots in the chain");
+            dio.delete_all_roots().await?;
+            dio.commit().await?;
+            drop(dio);
+            name
+        }
+        Err(err) if force => {
+            warn!("failed to read service instance data - forcing through - {}", err);
+            name.to_string()
+        }
+        Err(err) => {
+            bail!(err);
+        }
+    };
 
     // Now add the history
     if let Err(err) = api
@@ -144,11 +153,68 @@ pub async fn main_opts_instance_kill(
     }
 
     debug!("deleting the instance from the user/group");
-    let _ = instance.delete()?;
+    let _ = wallet_instance.delete()?;
     api.dio.commit().await?;
 
     println!("Instance ({}) has been killed", name);
     Ok(())
+}
+
+pub async fn main_opts_instance_shell(
+    api: &mut TokApi,
+    sess_url: url::Url,
+    name: &str,
+) -> Result<(), InstanceError> {
+    let (instance, _) = api.instance_action(name).await?;
+    let instance = instance?;
+    let mut client = InstanceClient::new(sess_url).await
+        .unwrap();
+
+    client.send_hello(InstanceHello {
+        owner_identity: api.session_identity(),
+        access_token: instance.admin_token.clone(),
+        chain: ChainKey::from(instance.chain.clone()),
+    }).await.unwrap();
+
+    client.send_cmd(InstanceCommand::Shell)
+        .await.unwrap();
+
+    client.run_shell()
+        .await.unwrap();
+        
+    Ok(())
+}
+
+pub async fn main_opts_instance_export(
+    _api: &mut TokApi,
+    _name: &str,
+) -> Result<(), InstanceError> {
+
+    Err(InstanceErrorKind::Unsupported.into())
+}
+
+pub async fn main_opts_instance_deport(
+    _api: &mut TokApi,
+    _name: &str,
+) -> Result<(), InstanceError> {
+
+    Err(InstanceErrorKind::Unsupported.into())
+}
+
+pub async fn main_opts_instance_clone(
+    _api: &mut TokApi,
+    _name: &str,
+) -> Result<(), InstanceError> {
+
+    Err(InstanceErrorKind::Unsupported.into())
+}
+
+pub async fn main_opts_instance_mount(
+    _api: &mut TokApi,
+    _name: &str,
+) -> Result<(), InstanceError> {
+
+    Err(InstanceErrorKind::Unsupported.into())
 }
 
 pub async fn main_opts_instance(
@@ -156,7 +222,8 @@ pub async fn main_opts_instance(
     token_path: String,
     auth_url: url::Url,
     db_url: url::Url,
-    _sess_url: url::Url,
+    sess_url: url::Url,
+    instance_authority: String,
 ) -> Result<(), InstanceError>
 {
     // Check if sudo is needed
@@ -180,33 +247,37 @@ pub async fn main_opts_instance(
             main_opts_instance_details(&mut context.api, opts).await?;
         }
         OptsInstanceAction::Create(opts) => {
-            let session = context.session.clone();
-            main_opts_instance_create(&mut context.api, opts.name, purpose.group_name(), session, db_url).await?;
+            main_opts_instance_create(&mut context.api, opts.name, purpose.group_name(), db_url, instance_authority).await?;
         }
-        OptsInstanceAction::Kill(_opts_kill) => {
+        OptsInstanceAction::Kill(opts_kill) => {
             if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
             let name = name.unwrap();
-            main_opts_instance_kill(&mut context.api, name.as_str()).await?;
+            main_opts_instance_kill(&mut context.api, name.as_str(), opts_kill.force).await?;
         }
         OptsInstanceAction::Shell(_opts_exec) => {
             if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
-            bail!(InstanceErrorKind::Unsupported);
+            let name = name.unwrap();
+            main_opts_instance_shell(&mut context.api, sess_url, name.as_str()).await?;
         }
         OptsInstanceAction::Export(_opts_export) => {
             if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
-            bail!(InstanceErrorKind::Unsupported);
+            let name = name.unwrap();
+            main_opts_instance_export(&mut context.api, name.as_str()).await?;
         }
         OptsInstanceAction::Deport(_opts_deport) => {
             if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
-            bail!(InstanceErrorKind::Unsupported);
+            let name = name.unwrap();
+            main_opts_instance_deport(&mut context.api, name.as_str()).await?;
         }
         OptsInstanceAction::Clone(_opts_clone) => {
             if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
-            bail!(InstanceErrorKind::Unsupported);
+            let name = name.unwrap();
+            main_opts_instance_clone(&mut context.api, name.as_str()).await?;
         }
         OptsInstanceAction::Mount(_opts_mount) => {
             if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
-            bail!(InstanceErrorKind::Unsupported);
+            let name = name.unwrap();
+            main_opts_instance_mount(&mut context.api, name.as_str()).await?;
         }
     }
 

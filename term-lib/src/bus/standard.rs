@@ -6,6 +6,7 @@ use wasm_bus::abi::CallError;
 use wasm_bus::abi::SerializationFormat;
 
 use crate::api::System;
+use crate::fs::TtyFile;
 
 use super::*;
 
@@ -35,7 +36,6 @@ impl StandardBus {
                 if topic == type_name::<wasm_bus_ws::api::SocketBuilderConnectRequest>() =>
             {
                 let request = decode_request(SerializationFormat::Bincode, request.as_ref())?;
-
                 let (invoker, session) = ws::web_socket(request, client_callbacks.clone())?;
                 Ok((Box::new(invoker), Some(Box::new(session))))
             }
@@ -58,6 +58,25 @@ impl StandardBus {
                     .eval(request, client_callbacks.clone())
                     .await?;
                 Ok((Box::new(created.invoker), Some(Box::new(created.session))))
+            }
+            ("os", topic) if topic == type_name::<wasm_bus_tty::api::TtyStdinRequest>() => {
+                let stdio = self.process_factory.exec_factory.stdio();
+                let tty = TtyFile::new(&stdio);
+                let request = decode_request(SerializationFormat::Json, request.as_ref())?;
+                let (invoker, session) = tty::stdin(request, tty, client_callbacks.clone())?;
+                Ok((Box::new(invoker), Some(Box::new(session))))
+            }
+            ("os", topic) if topic == type_name::<wasm_bus_tty::api::TtyStdoutRequest>() => {
+                let stdout = self.process_factory.exec_factory.stdout();
+                let request = decode_request(SerializationFormat::Json, request.as_ref())?;
+                let (invoker, session) = tty::stdout(request, stdout, client_callbacks.clone())?;
+                Ok((Box::new(invoker), Some(Box::new(session))))
+            }
+            ("os", topic) if topic == type_name::<wasm_bus_tty::api::TtyStderrRequest>() => {
+                let stderr = self.process_factory.exec_factory.stderr();
+                let request = decode_request(SerializationFormat::Json, request.as_ref())?;
+                let (invoker, session) = tty::stderr(request, stderr, client_callbacks.clone())?;
+                Ok((Box::new(invoker), Some(Box::new(session))))
             }
             ("os", topic) => {
                 error!("the os function ({}) is not supported", topic);

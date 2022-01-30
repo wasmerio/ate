@@ -13,7 +13,7 @@ readme = "../README.md"
 [features]
 default = [ "sys" ]
 js = [ "wasmer/js-default", "wasmer-wasi/js-default" ]
-sys = [ "wasmer/sys-default", "wasmer-wasi/sys", "wasmer-wasi/logging", "tokio/rt-multi-thread" ]
+sys = [ "wasmer/sys-default", "wasmer-wasi/sys", "wasmer-wasi/logging", "tokio/rt-multi-thread", "wasm-bus-tty/sys", "wasm-bus-ws/sys" ]
 llvm = [ "wasmer-compiler-llvm", "wasmer-compiler" ]
 cranelift = [ "wasmer-compiler-cranelift", "wasmer-compiler" ]
 singlepass = [ "wasmer-compiler-singlepass", "wasmer-compiler" ]
@@ -52,6 +52,7 @@ sha2 = { version = "^0.9" }
 wasm-bus = { version = "0.5", path = "../wasm-bus", features = [ "rt" ], default_features = false }
 wasm-bus-fuse = { version = "0.2", path = "../wasm-bus-fuse",  default_features = false }
 wasm-bus-ws = { version = "0.2", path = "../wasm-bus-ws", default_features = false }
+wasm-bus-tty = { version = "0.2", path = "../wasm-bus-tty", default_features = false }
 wasm-bus-time = { version = "0.2", path = "../wasm-bus-time", default_features = false }
 wasm-bus-process = { version = "0.2", path = "../wasm-bus-process", default_features = false }
 wasm-bus-reqwest = { version = "0.2", path = "../wasm-bus-reqwest", default_features = false }

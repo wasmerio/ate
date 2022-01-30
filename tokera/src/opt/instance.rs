@@ -189,6 +189,10 @@ pub struct OptsInstanceKill {
     /// (killed instances are perminently destroyed)
     #[clap(index = 1)]
     pub name: String,
+    /// Forces the removal of the instance from the wallet even
+    /// if access is denied to its data and thus this would create an orphan chain.
+    #[clap(short, long)]
+    pub force: bool,
 }
 
 #[derive(Parser, Clone)]

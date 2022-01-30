@@ -62,11 +62,13 @@ impl Console {
         compiler: Compiler,
         abi: Arc<dyn ConsoleAbi>,
         wizard: Option<Box<dyn WizardAbi + Send + Sync + 'static>>,
+        fs: Option<Box<dyn MountedFileSystem>>,
         #[cfg(feature = "cached_compiling")] compiled_modules: Arc<CachedCompiledModules>,
     ) -> Console {
         let reactor = Reactor::new();
 
-        let state = Arc::new(Mutex::new(ConsoleState::new(super::fs::create_root_fs())));
+        let fs = super::fs::create_root_fs(fs);
+        let state = Arc::new(Mutex::new(ConsoleState::new(fs)));
 
         let (stdio, mut stdio_rx) = pipe_out(FdFlag::None);
         let mut stdout = stdio.clone();
@@ -84,7 +86,7 @@ impl Console {
         {
             let abi = abi.clone();
             let state = state.clone();
-            system.fork_local(async move {
+            let work = async move {
                 while let Some(msg) = stdio_rx.recv().await {
                     match msg {
                         FdMsg::Data { data, flag } => match flag {
@@ -115,7 +117,11 @@ impl Console {
                     }
                 }
                 info!("main IO loop exited");
-            });
+            };
+            #[cfg(target_arch = "wasm32")]
+            system.fork_local(work);
+            #[cfg(not(target_arch = "wasm32"))]
+            system.fork_shared(move || work);
         }
 
         let location = url::Url::parse(&location).unwrap();

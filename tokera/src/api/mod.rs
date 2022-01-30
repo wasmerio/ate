@@ -18,6 +18,7 @@ mod withdraw;
 mod instance_create;
 mod instance_summary;
 mod instance_action;
+mod instance_client;
 
 pub use accessor::*;
 pub use bag::*;
@@ -39,3 +40,4 @@ pub use withdraw::*;
 pub use instance_create::*;
 pub use instance_summary::*;
 pub use instance_action::*;
+pub use instance_client::*;

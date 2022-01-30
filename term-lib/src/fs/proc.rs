@@ -200,6 +200,10 @@ impl TtyFile {
             tty: stdio.tty.clone(),
         }
     }
+
+    pub async fn read_async(&mut self) -> io::Result<FdMsg> {
+        self.fd.read_async().await
+    }
 }
 
 impl Drop for TtyFile {

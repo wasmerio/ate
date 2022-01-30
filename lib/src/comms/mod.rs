@@ -5,9 +5,9 @@ mod certificate_validation;
 #[cfg(feature = "enable_client")]
 mod client;
 mod conf;
-mod hello;
+pub mod hello;
 mod helper;
-mod key_exchange;
+pub mod key_exchange;
 #[cfg(feature = "enable_server")]
 mod listener;
 mod metrics;

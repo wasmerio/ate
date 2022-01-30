@@ -36,7 +36,7 @@ impl FileSystem {
         Ok(FileSystem { fs })
     }
 
-    async fn read_dir(&self, path: &Path) -> FsResult<Dir> {
+    pub async fn read_dir(&self, path: &Path) -> FsResult<Dir> {
         debug!("read_dir: path={}", path.display());
 
         self.fs
@@ -45,7 +45,7 @@ impl FileSystem {
             .map_err(|_| FsError::IOError)?
     }
 
-    async fn create_dir(&self, path: &Path) -> FsResult<Metadata> {
+    pub async fn create_dir(&self, path: &Path) -> FsResult<Metadata> {
         debug!("create_dir: path={}", path.display());
 
         self.fs
@@ -54,7 +54,7 @@ impl FileSystem {
             .map_err(|_| FsError::IOError)?
     }
 
-    async fn remove_dir(&self, path: &Path) -> FsResult<()> {
+    pub async fn remove_dir(&self, path: &Path) -> FsResult<()> {
         debug!("remove_dir: path={}", path.display());
 
         self.fs
@@ -63,7 +63,7 @@ impl FileSystem {
             .map_err(|_| FsError::IOError)?
     }
 
-    async fn rename(&self, from: &Path, to: &Path) -> FsResult<()> {
+    pub async fn rename(&self, from: &Path, to: &Path) -> FsResult<()> {
         debug!("rename: from={}, to={}", from.display(), to.display());
 
         self.fs
@@ -75,7 +75,7 @@ impl FileSystem {
             .map_err(|_| FsError::IOError)?
     }
 
-    async fn metadata(&self, path: &Path) -> FsResult<Metadata> {
+    pub async fn metadata(&self, path: &Path) -> FsResult<Metadata> {
         debug!("metadata: path={}", path.display());
 
         self.fs
@@ -84,7 +84,7 @@ impl FileSystem {
             .map_err(|_| FsError::IOError)?
     }
 
-    async fn symlink_metadata(&self, path: &Path) -> FsResult<Metadata> {
+    pub async fn symlink_metadata(&self, path: &Path) -> FsResult<Metadata> {
         debug!("symlink_metadata: path={}", path.display());
 
         self.fs
@@ -93,7 +93,7 @@ impl FileSystem {
             .map_err(|_| FsError::IOError)?
     }
 
-    async fn remove_file(&self, path: &Path) -> FsResult<()> {
+    pub async fn remove_file(&self, path: &Path) -> FsResult<()> {
         debug!("remove_file: path={}", path.display());
 
         self.fs
@@ -102,7 +102,7 @@ impl FileSystem {
             .map_err(|_| FsError::IOError)?
     }
 
-    async fn new_open_options(&self) -> OpenOptions {
+    pub fn new_open_options(&self) -> OpenOptions {
         OpenOptions::new(self.clone())
     }
 }
@@ -261,23 +261,23 @@ impl io::Read for VirtualFile {
 }
 
 impl VirtualFile {
-    fn last_accessed(&self) -> u64 {
+    pub fn last_accessed(&self) -> u64 {
         self.meta.accessed
     }
 
-    fn last_modified(&self) -> u64 {
+    pub fn last_modified(&self) -> u64 {
         self.meta.modified
     }
 
-    fn created_time(&self) -> u64 {
+    pub fn created_time(&self) -> u64 {
         self.meta.created
     }
 
-    fn size(&self) -> u64 {
+    pub fn size(&self) -> u64 {
         self.meta.len
     }
 
-    async fn set_len(&mut self, new_size: u64) -> FsResult<()> {
+    pub async fn set_len(&mut self, new_size: u64) -> FsResult<()> {
         let result: FsResult<()> = self
             .fd
             .set_len(new_size)
@@ -289,7 +289,56 @@ impl VirtualFile {
         Ok(())
     }
 
-    async fn unlink(&mut self) -> FsResult<()> {
+    pub async fn unlink(&mut self) -> FsResult<()> {
         self.fd.unlink().await.map_err(|_| FsError::IOError)?
+    }
+
+    pub async fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+        let seek = match pos {
+            io::SeekFrom::Current(a) => api::SeekFrom::Current(a),
+            io::SeekFrom::End(a) => api::SeekFrom::End(a),
+            io::SeekFrom::Start(a) => api::SeekFrom::Start(a),
+        };
+
+        self.io
+            .seek(seek)
+            .await
+            .map_err(|err| err.into_io_error())?
+            .map_err(|err| err.into())
+    }
+
+    pub async fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.io
+            .write(buf.to_vec())
+            .await
+            .map_err(|err| err.into_io_error())?
+            .map_err(|err| err.into())
+            .map(|a| a as usize)
+    }
+
+    pub async fn flush(&mut self) -> io::Result<()> {
+        self.io
+            .flush()
+            .await
+            .map_err(|err| err.into_io_error())?
+            .map_err(|err| err.into())
+    }
+
+    pub async fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let data: Result<_, io::Error> = self
+            .io
+            .read(buf.len() as u64)
+            .await
+            .map_err(|err| err.into_io_error())?
+            .map_err(|err| err.into());
+
+        let data = data?;
+        if data.len() <= 0 {
+            return Ok(0usize);
+        }
+
+        let dst = &mut buf[..data.len()];
+        dst.copy_from_slice(&data[..]);
+        Ok(data.len())
     }
 }

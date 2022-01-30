@@ -84,6 +84,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             compiler,
             con.clone(),
             None,
+            None,
             compiled_modules,
         );
         console.init().await;

@@ -34,7 +34,7 @@ struct ReceiverHello {
 }
 
 #[cfg(feature = "enable_client")]
-pub(super) async fn mesh_hello_exchange_sender(
+pub async fn mesh_hello_exchange_sender(
     stream_rx: &mut StreamRx,
     stream_tx: &mut StreamTx,
     client_id: NodeId,
@@ -94,7 +94,7 @@ pub(super) async fn mesh_hello_exchange_sender(
 }
 
 #[cfg(feature = "enable_server")]
-pub(super) async fn mesh_hello_exchange_receiver(
+pub async fn mesh_hello_exchange_receiver(
     stream_rx: &mut StreamRx,
     stream_tx: &mut StreamTx,
     server_id: NodeId,
@@ -104,6 +104,7 @@ pub(super) async fn mesh_hello_exchange_receiver(
     // Read the hello message from the other side
     let hello_client_bytes = stream_rx.read_16bit().await?;
     trace!("server received hello from client");
+    //trace!("server received hello from client: {}", String::from_utf8_lossy(&hello_client_bytes[..]));
     let hello_client: SenderHello = serde_json::from_slice(&hello_client_bytes[..])?;
 
     // Upgrade the key_size if the client is bigger

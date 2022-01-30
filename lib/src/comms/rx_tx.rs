@@ -69,7 +69,7 @@ impl Tx {
                     total_sent += tx.send_reply(pck).await?;
                 }
                 TxDirection::Upcast(tx) => {
-                    total_sent += tx.outbox.send(pck).await?;
+                    total_sent += tx.outbox.send(&pck.bytes[..]).await?;
                 }
                 TxDirection::Nullcast => {}
             }
@@ -83,7 +83,7 @@ impl Tx {
         let total_sent = match &mut self.direction {
             #[cfg(feature = "enable_server")]
             TxDirection::Downcast(tx) => tx.send_reply(pck).await?,
-            TxDirection::Upcast(tx) => tx.outbox.send(pck).await?,
+            TxDirection::Upcast(tx) => tx.outbox.send(&pck.bytes[..]).await?,
             TxDirection::Nullcast => 0u64,
         };
         self.metrics_add_sent(total_sent).await;
@@ -117,7 +117,7 @@ impl Tx {
         let total_sent = match &mut self.direction {
             #[cfg(feature = "enable_server")]
             TxDirection::Downcast(tx) => tx.send_all(pck).await?,
-            TxDirection::Upcast(tx) => tx.outbox.send(pck).await?,
+            TxDirection::Upcast(tx) => tx.outbox.send(&pck.bytes[..]).await?,
             TxDirection::Nullcast => 0u64,
         };
         self.metrics_add_sent(total_sent).await;
@@ -229,7 +229,7 @@ impl TxGroupSpecific {
     #[cfg(feature = "enable_server")]
     pub async fn send_reply(&mut self, pck: PacketData) -> Result<u64, CommsError> {
         let mut tx = self.me_tx.lock().await;
-        let total_sent = tx.outbox.send(pck).await?;
+        let total_sent = tx.outbox.send(&pck.bytes[..]).await?;
         Ok(total_sent)
     }
 
@@ -285,7 +285,7 @@ impl TxGroup {
                 {
                     let mut tx = tx.lock().await;
                     if Some(tx.id) != skip {
-                        total_sent += tx.outbox.send(pck).await?;
+                        total_sent += tx.outbox.send(&pck.bytes[..]).await?;
                     }
                 }
             }
@@ -294,7 +294,7 @@ impl TxGroup {
                 for tx in all {
                     let mut tx = tx.lock().await;
                     if Some(tx.id) != skip {
-                        total_sent += tx.outbox.send(pck.clone()).await?;
+                        total_sent += tx.outbox.send(&pck.bytes[..]).await?;
                     }
                 }
             }

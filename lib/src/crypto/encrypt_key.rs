@@ -115,13 +115,16 @@ impl EncryptKey {
 
     #[cfg(feature = "enable_openssl")]
     pub fn encrypt_with_iv(&self, iv: &InitializationVector, data: &[u8]) -> Vec<u8> {
-        let iv_store;
+        let mut iv_store;
         let iv = match iv.bytes.len() {
             16 => iv,
             _ => {
                 iv_store = InitializationVector {
                     bytes: iv.bytes.clone().into_iter().take(16).collect::<Vec<_>>(),
                 };
+                while iv_store.bytes.len() < 16 {
+                    iv_store.bytes.push(0u8);
+                }
                 &iv_store
             }
         };
@@ -130,13 +133,16 @@ impl EncryptKey {
 
     #[cfg(not(feature = "enable_openssl"))]
     pub fn encrypt_with_iv(&self, iv: &InitializationVector, data: &[u8]) -> Vec<u8> {
-        let iv_store;
+        let mut iv_store;
         let iv = match iv.bytes.len() {
             16 => iv,
             _ => {
                 iv_store = InitializationVector {
                     bytes: iv.bytes.clone().into_iter().take(16).collect::<Vec<_>>(),
                 };
+                while iv_store.bytes.len() < 16 {
+                    iv_store.bytes.push(0u8);
+                }
                 &iv_store
             }
         };
@@ -169,13 +175,16 @@ impl EncryptKey {
 
     #[cfg(feature = "enable_openssl")]
     pub fn decrypt(&self, iv: &InitializationVector, data: &[u8]) -> Vec<u8> {
-        let iv_store;
+        let mut iv_store;
         let iv = match iv.bytes.len() {
             16 => iv,
             _ => {
                 iv_store = InitializationVector {
                     bytes: iv.bytes.clone().into_iter().take(16).collect::<Vec<_>>(),
                 };
+                while iv_store.bytes.len() < 16 {
+                    iv_store.bytes.push(0u8);
+                }
                 &iv_store
             }
         };
@@ -184,13 +193,16 @@ impl EncryptKey {
 
     #[cfg(not(feature = "enable_openssl"))]
     pub fn decrypt(&self, iv: &InitializationVector, data: &[u8]) -> Vec<u8> {
-        let iv_store;
+        let mut iv_store;
         let iv = match iv.bytes.len() {
             16 => iv,
             _ => {
                 iv_store = InitializationVector {
                     bytes: iv.bytes.clone().into_iter().take(16).collect::<Vec<_>>(),
                 };
+                while iv_store.bytes.len() < 16 {
+                    iv_store.bytes.push(0u8);
+                }
                 &iv_store
             }
         };

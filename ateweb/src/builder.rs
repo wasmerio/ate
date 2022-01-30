@@ -12,21 +12,26 @@ pub struct ServerBuilder {
     pub(crate) remote: Url,
     pub(crate) auth_url: Url,
     pub(crate) conf: ServerConf,
-    pub(crate) web_key: EncryptKey,
+    pub(crate) web_master_key: Option<EncryptKey>,
     pub(crate) session_cert_store: Option<AteSessionGroup>,
     pub(crate) callback: Option<Arc<dyn ServerCallback>>,
 }
 
 impl ServerBuilder {
-    pub fn new(remote: Url, auth_url: Url, web_key: EncryptKey) -> ServerBuilder {
+    pub fn new(remote: Url, auth_url: Url) -> ServerBuilder {
         ServerBuilder {
             remote,
             auth_url,
             conf: ServerConf::default(),
-            web_key,
+            web_master_key: None,
             session_cert_store: None,
             callback: None,
         }
+    }
+
+    pub fn with_web_master_key(mut self, key: EncryptKey) -> Self {
+        self.web_master_key = Some(key);
+        self
     }
 
     pub fn with_conf(mut self, cfg: &ConfAte) -> Self {

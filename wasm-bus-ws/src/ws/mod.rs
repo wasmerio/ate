@@ -1,13 +1,11 @@
-#![allow(unused_imports)]
-mod socket_builder;
-mod web_socket;
+#[cfg(target_arch = "wasm32")]
+mod wasm;
+#[cfg(feature = "sys")]
+#[cfg(not(target_arch = "wasm32"))]
+mod sys;
 
-pub(crate) use socket_builder::*;
-pub(crate) use web_socket::*;
-
-pub use socket_builder::SocketBuilder;
-pub use web_socket::RecvHalf;
-pub use web_socket::SendHalf;
-pub use web_socket::WebSocket;
-
-pub const WAPM_NAME: &'static str = "os";
+#[cfg(target_arch = "wasm32")]
+pub use wasm::*;
+#[cfg(feature = "sys")]
+#[cfg(not(target_arch = "wasm32"))]
+pub use sys::*;

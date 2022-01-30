@@ -360,6 +360,7 @@ impl FileOpener for FuseFileOpener {
             task,
             io,
             meta,
+            dirty: conf.create_new() || conf.truncate(),
         }));
     }
 }
@@ -373,11 +374,22 @@ pub struct FuseVirtualFile {
     #[derivative(Debug = "ignore")]
     io: AsyncWasmBusSession,
     meta: backend::Metadata,
+    dirty: bool,
 }
 
 impl FuseVirtualFile {
     fn get_ctx(&self) -> WasmCallerContext {
         self.ctx.clone()
+    }
+}
+
+impl Drop
+for FuseVirtualFile
+{
+    fn drop(&mut self) {
+        if self.dirty {
+            let _ = self.flush();
+        }
     }
 }
 
@@ -418,7 +430,9 @@ impl Write for FuseVirtualFile {
             .block_on()
             .map_err(|err| err.into_io_error())?
             .map_err(|err| err.into());
-        Ok(ret?)
+        let ret = ret?;
+        self.dirty = true;
+        Ok(ret)
     }
 
     fn flush(&mut self) -> io::Result<()> {
@@ -433,7 +447,9 @@ impl Write for FuseVirtualFile {
             .block_on()
             .map_err(|err| err.into_io_error())?
             .map_err(|err| err.into());
-        Ok(ret?)
+        let ret = ret?;
+        self.dirty = false;
+        Ok(ret)
     }
 }
 
@@ -493,7 +509,7 @@ impl VirtualFile for FuseVirtualFile {
             .map_err(|_| FsError::IOError)?
             .map_err(conv_fs_error);
         result?;
-
+        self.dirty = true;
         self.meta.len = new_size;
         Ok(())
     }
@@ -507,7 +523,9 @@ impl VirtualFile for FuseVirtualFile {
             .map_err(|_| FsError::IOError)?
             .block_on()
             .map_err(|_| FsError::IOError)?
-            .map_err(conv_fs_error)
+            .map_err(conv_fs_error)?;
+        self.dirty = false;
+        Ok(())
     }
 }
 

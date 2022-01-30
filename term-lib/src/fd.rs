@@ -54,6 +54,14 @@ impl FdFlag {
             _ => false,
         }
     }
+    
+    pub fn is_stdin(&self) -> bool {
+        match self {
+            FdFlag::Stdin(_) => true,
+            FdFlag::Tty => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -170,6 +178,10 @@ impl Fd {
         self.write_vec(buf.to_vec()).await
     }
 
+    pub fn try_write(&mut self, buf: &[u8]) -> io::Result<Option<usize>> {
+        self.try_send(FdMsg::new(buf.to_vec(), self.flag))
+    }
+
     pub async fn write_vec(&mut self, buf: Vec<u8>) -> io::Result<usize> {
         self.check_closed()?;
         if let Some(sender) = self.sender.as_mut() {
@@ -233,6 +245,38 @@ impl Fd {
             Ok(msg)
         } else {
             return Ok(FdMsg::new(Vec::new(), self.flag));
+        }
+    }
+
+    fn try_send(&mut self, msg: FdMsg) -> io::Result<Option<usize>> {
+        if let Some(sender) = self.sender.as_mut() {
+            let buf_len = msg.len();
+
+            // Try and send the data
+            match sender.try_send(msg) {
+                Ok(_) => {
+                    return Ok(Some(buf_len));
+                }
+                Err(TrySendError::Closed(_)) => {
+                    return Ok(Some(0));
+                }
+                Err(TrySendError::Full(_)) => {
+                    // Check for a forced exit
+                    if self.ctx.should_terminate().is_some() {
+                        return Err(std::io::ErrorKind::Interrupted.into());
+                    }
+
+                    // Maybe we are closed - if not then yield and try again
+                    if self.closed.load(Ordering::Acquire) {
+                        return Ok(Some(0usize));
+                    }
+
+                    // We fail as this would have blocked
+                    Ok(None)
+                }
+            }
+        } else {
+            return Ok(Some(0usize));
         }
     }
 

@@ -182,6 +182,10 @@ where
         }
     }
 
+    pub fn dio_mut(&self) -> Arc<DioMut> {
+        self.trans()
+    }
+
     pub fn attach(
         &mut self,
         parent: &dyn DaoObj,

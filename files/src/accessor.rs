@@ -35,7 +35,6 @@ where
     pub dio: Arc<Dio>,
     pub no_auth: bool,
     pub is_www: bool,
-    pub is_edge: bool,
     pub scope_meta: TransactionScope,
     pub scope_io: TransactionScope,
     pub group: Option<String>,
@@ -74,7 +73,6 @@ impl FileAccessor {
         impersonate_uid: bool,
     ) -> FileAccessor {
         let is_www = chain.key().to_string().ends_with("/www");
-        let is_edge = chain.key().to_string().ends_with("_edge");
         let dio = chain.dio(&session).await;
 
         FileAccessor {
@@ -82,7 +80,6 @@ impl FileAccessor {
             dio,
             no_auth,
             is_www,
-            is_edge,
             group,
             session,
             scope_meta,
@@ -109,9 +106,9 @@ impl FileAccessor {
         }
     }
 
-    pub async fn init(&self, req: &RequestContext) -> Result<Dao<Inode>> {
+    pub async fn init(&self, req: &RequestContext) -> Result<DaoMut<Inode>> {
         let dio = self.dio_mut_meta().await;
-        let root = match self.dio.load::<Inode>(&PrimaryKey::from(1)).await
+        let root = match dio.load::<Inode>(&PrimaryKey::from(1)).await
         {
             Ok(a) => a,
             Err(LoadError(LoadErrorKind::NotFound(_), _)) => {
@@ -124,7 +121,7 @@ impl FileAccessor {
                 match dio.store_with_key(root, PrimaryKey::from(1)) {
                     Ok(mut root) => {
                         self.update_auth(mode, uid, gid, root.auth_mut())?;
-                        root.to_immutable()
+                        root
                     }
                     Err(err) => {
                         error!("{}", err);
@@ -151,8 +148,6 @@ impl FileAccessor {
     pub fn get_group_read_key<'a>(&'a self, gid: u32) -> Option<&'a EncryptKey> {
         let purpose = if self.is_www {
             AteRolePurpose::WebServer
-        } else if self.is_edge {
-            AteRolePurpose::EdgeCompute
         } else {
             AteRolePurpose::Observer
         };
@@ -167,8 +162,6 @@ impl FileAccessor {
     pub fn get_group_write_key<'a>(&'a self, gid: u32) -> Option<&'a PrivateSignKey> {
         let purpose = if self.is_www {
             AteRolePurpose::WebServer
-        } else if self.is_edge {
-            AteRolePurpose::EdgeCompute
         } else {
             AteRolePurpose::Contributor
         };

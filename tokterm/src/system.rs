@@ -5,7 +5,6 @@ use std::cell::RefCell;
 use std::convert::TryFrom;
 use std::future::Future;
 use std::io::{self, Write};
-use std::ops::Deref;
 use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -58,8 +57,7 @@ impl SysSystem {
 
     pub fn block_on<F: Future>(&self, future: F) -> F::Output {
         self.runtime.block_on(async move {
-            let set = tokio::task::LocalSet::new();
-            set.run_until(future).await
+            future.await
         })
     }
 }
@@ -95,6 +93,15 @@ impl SystemAbi for SysSystem {
         self.runtime.spawn_blocking(move || {
             THREAD_LOCAL.with(|local| {
                 let local = local.clone();
+                let fut = task(local);
+                rt.block_on(fut)
+            });
+        });
+        /*
+        use std::ops::Deref;
+        self.runtime.spawn_blocking(move || {
+            THREAD_LOCAL.with(|local| {
+                let local = local.clone();
                 let set = tokio::task::LocalSet::new();
                 set.block_on(rt.deref(), async move {
                     let fut = task(local);
@@ -103,6 +110,7 @@ impl SystemAbi for SysSystem {
                 rt.block_on(set);
             });
         });
+        */
     }
 
     /// Starts an asynchronous task will will run on a dedicated thread
@@ -114,12 +122,8 @@ impl SystemAbi for SysSystem {
     ) {
         let rt = self.runtime.clone();
         self.runtime.spawn_blocking(move || {
-            let set = tokio::task::LocalSet::new();
-            set.block_on(rt.deref(), async move {
-                let fut = task();
-                fut.await;
-            });
-            rt.block_on(set);
+            let fut = task();
+            rt.block_on(fut)
         });
     }
 

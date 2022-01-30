@@ -1,0 +1,14 @@
+# Bugs to fix
+
+- There is a panic on the instance shell functionality which needs to be fixed
+- The coin splitting goes wild when there is too much money in a wallet
+  (better to split the coins by the exact amount and simplify the design).
+  Also need to be super careful for lost coins - apparently some go missing
+  during either the split or the combine, not sure which but I suspect the combine
+- Some times the instance process in Tokera outputs giberish - likely cause
+  of this is a partial IV received and then corruption on the decrypted data.
+  Reason for the partial received IV is because web sockets are not guaranteed
+  to send per-packet so need to add in some length pre-qualifier or just
+  add buffering
+- The contracts are not visible in Tokera domains/groups even though one has
+  been added

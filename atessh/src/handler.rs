@@ -131,7 +131,7 @@ impl server::Handler for Handler {
             // Spawn a dedicated thread and wait for it to do its thing
             let system = System::default();
             system
-                .spawn_dedicated(move || async move {
+                .spawn_shared(move || async move {
                     // Get the wizard
                     let wizard = self.wizard.take().map(|a| {
                         Box::new(a) as Box<dyn term_api::WizardAbi + Send + Sync + 'static>
@@ -147,6 +147,7 @@ impl server::Handler for Handler {
                         self.compiler,
                         handle,
                         wizard,
+                        None,
                         compiled_modules,
                     );
                     console.init().await;
@@ -173,6 +174,13 @@ impl server::Handler for Handler {
         session: Session,
     ) -> Self::FutureUnit {
         debug!("pty_request");
+
+        {
+            let mut guard = self.rect.lock().unwrap();
+            guard.cols = col_width;
+            guard.rows = row_height;
+        }
+
         self.finished(session)
     }
 }

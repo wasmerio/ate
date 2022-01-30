@@ -13,7 +13,7 @@ use super::StreamRx;
 use super::StreamTx;
 
 #[cfg(feature = "enable_client")]
-pub(super) async fn mesh_key_exchange_sender(
+pub async fn mesh_key_exchange_sender(
     stream_rx: &mut StreamRx,
     stream_tx: &mut StreamTx,
     key_size: KeySize,

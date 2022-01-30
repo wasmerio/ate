@@ -31,6 +31,9 @@ struct Opts {
     /// URL that this command will send all its authentication requests to
     #[clap(long, default_value = "ws://tokera.com/auth")]
     pub auth_url: String,
+    /// Instance authority that has the access rights to run service instances.
+    #[clap(long, default_value = "tokera.sh")]
+    pub instance_authority: String,
     /// NTP server address that the file-system will synchronize with
     #[clap(long)]
     pub ntp_pool: Option<String>,
@@ -155,9 +158,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-#[tokio::main(flavor = "current_thread")]
+#[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    main_async().await
+    main_async().await?;
+    std::process::exit(0);
 }
 
 async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
@@ -195,6 +199,7 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
                 #[cfg(target_os = "wasi")]
                 token_path: "/.private/token".to_string(),
                 auth_url: "ws://tokera.com/auth".to_string(),
+                instance_authority: "tokera.com".to_string(),
                 ntp_pool: None,
                 ntp_port: None,
                 dns_sec: false,
@@ -294,7 +299,7 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
             main_opts_service(opts_service.purpose, opts.token_path, auth).await?;
         }
         SubCommand::Instance(opts_instance) => {
-            main_opts_instance(opts_instance.purpose, opts.token_path, auth, opts_instance.db_url, opts_instance.sess_url).await?;
+            main_opts_instance(opts_instance.purpose, opts.token_path, auth, opts_instance.db_url, opts_instance.sess_url, opts.instance_authority).await?;
         }
         SubCommand::Login(opts_login) => main_opts_login(opts_login, opts.token_path, auth).await?,
         SubCommand::Logout(opts_logout) => main_opts_logout(opts_logout, opts.token_path).await?,

@@ -28,6 +28,7 @@ ate = { version = "^1", path = "../lib", default_features = false }
 error-chain = { version = "^0.12", default_features = false }
 tokio = { version = "^1", features = [ "macros", "sync" ], default_features = false }
 serde = { version = "^1", features = ["derive"] }
+serde_json = { version = "^1" }
 tracing = { version = "^0.1", features = [ "log" ] }
 tracing-futures = { version = "^0.2" }
 tracing-subscriber = { version = "^0.2" }

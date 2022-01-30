@@ -9,7 +9,7 @@ pub(super) fn unset(
     args: &[String],
     mut ctx: EvalContext,
     _stdio: Stdio,
-) -> Pin<Box<dyn Future<Output = ExecResponse>>> {
+) -> Pin<Box<dyn Future<Output = ExecResponse> + Send>> {
     for arg in &args[1..] {
         ctx.env.unset(arg.as_str());
     }

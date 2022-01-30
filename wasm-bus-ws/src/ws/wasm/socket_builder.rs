@@ -8,7 +8,7 @@ use tracing::{debug, error, info, trace, warn};
 
 use super::*;
 use crate::api;
-use crate::api::SocketState;
+use crate::model::SocketState;
 use wasm_bus::abi::*;
 
 const MAX_MPSC: usize = std::usize::MAX >> 3;

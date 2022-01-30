@@ -2,6 +2,7 @@
 use tracing::{info, error, debug};
 use ate::{prelude::*};
 use clap::Parser;
+use atessh::term_lib;
 
 /// Runs the session server
 #[derive(Parser)]
@@ -15,9 +16,9 @@ pub struct OptsSessionServer {
     /// Forces Tokera to listen on a specific port for HTTPS requests with generated certificates
     #[clap(long)]
     pub tls_port: Option<u16>,
-    /// Path to the secret key that grants access to the EdgeCompute role within groups
-    #[clap(long, default_value = "~/ate/edge.key")]
-    pub edge_key_path: String,
+    /// Token file to read that holds a previously created token to be used for this operation
+    #[clap(long, default_value = "~/ate/token")]
+    pub token_path: String,
     /// URL where the web data is remotely stored on a distributed commit log.
     #[clap(short, long, default_value = "ws://tokera.com/db")]
     pub db_url: url::Url,
@@ -33,4 +34,10 @@ pub struct OptsSessionServer {
     /// Location where the native binary files are stored
     #[clap(long, default_value = "tokera.sh/www")]
     pub native_files: String,
+    /// Instance authority that has the access rights to run service instances.
+    #[clap(long, default_value = "tokera.sh")]
+    pub instance_authority: String,
+    /// Determines which compiler to use
+    #[clap(short, long, default_value = "default")]
+    pub compiler: term_lib::eval::Compiler,
 }

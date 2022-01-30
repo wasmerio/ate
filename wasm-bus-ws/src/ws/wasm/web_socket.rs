@@ -7,8 +7,8 @@ use tokio::sync::watch;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
-use crate::api::SendResult;
-use crate::api::SocketState;
+use crate::model::SendResult;
+use crate::model::SocketState;
 use wasm_bus::abi::*;
 
 #[derive(Debug)]
@@ -46,6 +46,10 @@ impl SendHalf {
         }
         let ret = (*state.borrow()).clone();
         ret
+    }
+
+    pub async fn close(&self) -> io::Result<()> {
+        Ok(())
     }
 
     pub async fn send(&self, data: Vec<u8>) -> io::Result<usize> {

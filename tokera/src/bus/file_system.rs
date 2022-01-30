@@ -12,7 +12,7 @@ use wasm_bus_fuse::prelude::*;
 use super::conv_err;
 use super::opened_file::*;
 
-#[derive(Derivative)]
+#[derive(Derivative, Clone)]
 #[derivative(Debug)]
 pub struct FileSystem {
     #[derivative(Debug = "ignore")]
@@ -23,6 +23,132 @@ pub struct FileSystem {
 impl FileSystem {
     pub fn new(accessor: Arc<FileAccessor>, context: RequestContext) -> FileSystem {
         FileSystem { accessor, context }
+    }
+
+    pub async fn open(
+        &self,
+        path: String,
+        options: api::OpenOptions,
+    ) -> Arc<OpenedFile> {
+        // Determine all the flags
+        let mut flags = 0i32;
+        if options.append {
+            flags |= O_APPEND;
+        }
+        if options.create {
+            flags |= O_CREAT;
+        }
+        if options.create_new {
+            flags |= O_CREAT | O_TRUNC;
+        }
+        if options.read && options.write {
+            flags |= O_RDWR;
+        } else if options.read {
+            flags |= O_RDONLY;
+        } else if options.write {
+            flags |= O_WRONLY;
+        }
+        if options.truncate {
+            flags |= O_TRUNC;
+        }
+        let append = options.append;
+        let create = options.create | options.create_new;
+
+        // Open the file!
+        let handle =
+            if let Ok(Some(file)) = self.accessor.search(&self.context, path.as_str()).await {
+                match self
+                    .accessor
+                    .open(&self.context, file.ino, flags as u32)
+                    .await
+                {
+                    Ok(a) => Ok(a),
+                    Err(err) => {
+                        debug!("open failed (path={}) - {}", path, err);
+                        Err(conv_err(err))
+                    }
+                }
+            } else if create == true {
+                let path = std::path::Path::new(&path);
+                let name = path.file_name().ok_or_else(|| FsError::InvalidInput);
+                match name {
+                    Ok(name) => {
+                        let parent = path.parent().ok_or_else(|| FsError::InvalidInput);
+                        match parent {
+                            Ok(parent) => {
+                                if let Ok(Some(parent)) = self
+                                    .accessor
+                                    .search(&self.context, parent.to_string_lossy().as_ref())
+                                    .await
+                                {
+                                    match self
+                                        .accessor
+                                        .create(
+                                            &self.context,
+                                            parent.ino,
+                                            name.to_string_lossy().as_ref(),
+                                            0o666 as u32,
+                                        )
+                                        .await
+                                    {
+                                        Ok(a) => Ok(a),
+                                        Err(err) => {
+                                            debug!(
+                                                "open failed (path={}) - {}",
+                                                path.to_string_lossy(),
+                                                err
+                                            );
+                                            Err(conv_err(err))
+                                        }
+                                    }
+                                } else {
+                                    debug!(
+                                        "open failed - parent not found ({})",
+                                        parent.to_string_lossy()
+                                    );
+                                    Err(FsError::EntityNotFound)
+                                }
+                            }
+                            Err(err) => {
+                                debug!(
+                                    "open failed failed - invalid input ({})",
+                                    path.to_string_lossy()
+                                );
+                                Err(err)
+                            }
+                        }
+                    }
+                    Err(err) => {
+                        debug!("open failed - invalid input ({})", path.to_string_lossy());
+                        Err(err)
+                    }
+                }
+            } else {
+                debug!("open failed - not found ({})", path);
+                Err(FsError::EntityNotFound)
+            };
+
+        // Every file as an offset pointer
+        // If we are in append mode then we need to change the offeset
+        let offset = if let Ok(handle) = &handle {
+            if append {
+                Arc::new(Mutex::new(handle.spec.size() as u64))
+            } else {
+                Arc::new(Mutex::new(0u64))
+            }
+        } else {
+            Arc::new(Mutex::new(0u64))
+        };
+
+        // Return an opened file
+        Arc::new(OpenedFile::new(
+            handle,
+            offset,
+            self.context.clone(),
+            append,
+            path,
+            self.accessor.clone(),
+        ))
     }
 }
 
@@ -204,130 +330,7 @@ impl api::FileSystemSimplified for FileSystem {
         path: String,
         options: api::OpenOptions,
     ) -> Result<Arc<dyn api::OpenedFile + Send + Sync + 'static>, CallError> {
-        // Determine all the flags
-        let mut flags = 0i32;
-        if options.append {
-            flags |= O_APPEND;
-        }
-        if options.create {
-            flags |= O_CREAT;
-        }
-        if options.create_new {
-            flags |= O_CREAT | O_TRUNC;
-        }
-        if options.read && options.write {
-            flags |= O_RDWR;
-        } else if options.read {
-            flags |= O_RDONLY;
-        } else if options.write {
-            flags |= O_WRONLY;
-        }
-        if options.truncate {
-            flags |= O_TRUNC;
-        }
-        let append = options.append;
-        let create = options.create | options.create_new;
-
-        // Open the file!
-        let handle =
-            if let Ok(Some(file)) = self.accessor.search(&self.context, path.as_str()).await {
-                match self
-                    .accessor
-                    .open(&self.context, file.ino, flags as u32)
-                    .await
-                {
-                    Ok(a) => Ok(a),
-                    Err(err) => {
-                        debug!("open failed (path={}) - {}", path, err);
-                        Err(conv_err(err))
-                    }
-                }
-            } else if create == true {
-                let path = std::path::Path::new(&path);
-                let name = path.file_name().ok_or_else(|| FsError::InvalidInput);
-                match name {
-                    Ok(name) => {
-                        let parent = path.parent().ok_or_else(|| FsError::InvalidInput);
-                        match parent {
-                            Ok(parent) => {
-                                if let Ok(Some(parent)) = self
-                                    .accessor
-                                    .search(&self.context, parent.to_string_lossy().as_ref())
-                                    .await
-                                {
-                                    match self
-                                        .accessor
-                                        .create(
-                                            &self.context,
-                                            parent.ino,
-                                            name.to_string_lossy().as_ref(),
-                                            0o666 as u32,
-                                        )
-                                        .await
-                                    {
-                                        Ok(a) => Ok(a),
-                                        Err(err) => {
-                                            debug!(
-                                                "open failed (path={}) - {}",
-                                                path.to_string_lossy(),
-                                                err
-                                            );
-                                            Err(conv_err(err))
-                                        }
-                                    }
-                                } else {
-                                    debug!(
-                                        "open failed - parent not found ({})",
-                                        parent.to_string_lossy()
-                                    );
-                                    Err(FsError::EntityNotFound)
-                                }
-                            }
-                            Err(err) => {
-                                debug!(
-                                    "open failed failed - invalid input ({})",
-                                    path.to_string_lossy()
-                                );
-                                Err(err)
-                            }
-                        }
-                    }
-                    Err(err) => {
-                        debug!("open failed - invalid input ({})", path.to_string_lossy());
-                        Err(err)
-                    }
-                }
-            } else {
-                debug!("open failed - not found ({})", path);
-                Err(FsError::EntityNotFound)
-            };
-
-        // Every file as an offset pointer
-        // If we are in append mode then we need to change the offeset
-        let offset = if let Ok(handle) = &handle {
-            if append {
-                Arc::new(Mutex::new(handle.spec.size() as u64))
-            } else {
-                Arc::new(Mutex::new(0u64))
-            }
-        } else {
-            Arc::new(Mutex::new(0u64))
-        };
-
-        // Return an opened file
-        Ok(Arc::new(OpenedFile::new(
-            handle,
-            offset,
-            self.context.clone(),
-            append,
-            path,
-            self.accessor.clone(),
-        )))
-    }
-}
-
-impl Drop for FileSystem {
-    fn drop(&mut self) {
-        info!("file system closed - {}", self.accessor.chain.key())
+        let ret = FileSystem::open(self, path, options).await;
+        Ok(ret)
     }
 }

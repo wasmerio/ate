@@ -33,7 +33,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let web_key: EncryptKey = load_key(run.web_key_path.clone(), ".read");
 
             conf.log_path = Some(run.log_path);
-            let server = ServerBuilder::new(run.remote, run.auth_url, web_key)
+            let server = ServerBuilder::new(run.remote, run.auth_url)
+                .with_web_master_key(web_key)
                 .with_conf(&conf)
                 .ttl(Duration::from_secs(run.ttl))
                 .add_listener(run.listen, run.port, run.port == 443u16)
@@ -64,7 +65,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             router.set_default_route(root);
 
             conf.log_path = Some(run.log_path);
-            let server = ServerBuilder::new(run.remote, run.auth_url, web_key)
+            let server = ServerBuilder::new(run.remote, run.auth_url)
+                .with_web_master_key(web_key)
                 .with_conf(&conf)
                 .ttl(Duration::from_secs(run.ttl))
                 .with_callback(router)

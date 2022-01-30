@@ -16,7 +16,7 @@ pub(super) fn wax(
     args: &[String],
     mut ctx: EvalContext,
     stdio: Stdio,
-) -> Pin<Box<dyn Future<Output = ExecResponse>>> {
+) -> Pin<Box<dyn Future<Output = ExecResponse> + Send>> {
     if args.len() < 2 {
         return Box::pin(async move { ExecResponse::Immediate(ctx, err::ERR_EINVAL) });
     }

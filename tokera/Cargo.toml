@@ -13,10 +13,11 @@ readme = "README.md"
 [features]
 default = [ "client", "server" ]
 client_web = [ "ate/client_web" ]
-client = [ "enable_full", "ate/client" ]
-server = [ "enable_full", "ctrlc-async", "ate/server", "ate/enable_mt" ]
+client = [ "sys", "enable_full", "ate/client" ]
+server = [ "sys", "enable_full", "ctrlc-async", "ate/server", "ate/enable_mt" ]
 force_tty = [ "ate-auth/force_tty" ]
 bus = []
+sys = [ "wasm-bus-ws/sys", "wasm-bus-tty/sys" ]
 enable_full = [ "enable_tcp" ]
 enable_tcp = [ "enable_ntp", "enable_dns" ]
 enable_dns = []
@@ -64,6 +65,7 @@ async-stream = "^0.3"
 wasm-bus = { version = "0.5", path = "../wasm-bus" }
 wasm-bus-fuse = { version = "0.2", path = "../wasm-bus-fuse" }
 wasm-bus-ws = { version = "0.2", path = "../wasm-bus-ws" }
+wasm-bus-tty = { version = "0.2", path = "../wasm-bus-tty" }
 
 [target.'cfg(not(target_os = "wasi"))'.dependencies]
 tokio = { version = "^1", features = [ "rt", "io-util", "macros", "sync", "time", "fs" ], default_features = false }

@@ -11,6 +11,8 @@ pub struct ServiceInstance {
     pub name: String,
     /// Name of the chain-of-trust used for this instance
     pub chain: String,
+    /// Admin token associated with an instance
+    pub admin_token: String,
     /// List of all the binaries that are exposed by this instance
     /// and hence can be invoked by clients
     pub exports: DaoVec<InstanceExport>,

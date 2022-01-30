@@ -17,11 +17,8 @@ use tokio::net::tcp::OwnedWriteHalf;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
-#[cfg(target_arch = "wasm32")]
 use wasm_bus_ws::prelude::RecvHalf as WasmRecvHalf;
-#[cfg(target_arch = "wasm32")]
 use wasm_bus_ws::prelude::SendHalf as WasmSendHalf;
-#[cfg(target_arch = "wasm32")]
 use wasm_bus_ws::prelude::WebSocket as WasmWebSocket;
 
 use crate::comms::PacketData;
@@ -131,7 +128,6 @@ pub enum Stream {
         StreamProtocol,
     ),
     ViaFile(std::fs::File, StreamProtocol),
-    #[cfg(target_arch = "wasm32")]
     WasmWebSocket(WasmWebSocket),
 }
 
@@ -176,7 +172,6 @@ pub enum StreamRx {
     ),
     ViaQueue(mpsc::Receiver<Vec<u8>>, StreamProtocol),
     ViaFile(Arc<std::sync::Mutex<std::fs::File>>, StreamProtocol),
-    #[cfg(target_arch = "wasm32")]
     WasmWebSocket(WasmRecvHalf),
 }
 
@@ -194,7 +189,6 @@ pub enum StreamTx {
     ),
     ViaQueue(mpsc::Sender<Vec<u8>>, StreamProtocol),
     ViaFile(Arc<std::sync::Mutex<std::fs::File>>, StreamProtocol),
-    #[cfg(target_arch = "wasm32")]
     WasmWebSocket(WasmSendHalf),
 }
 
@@ -229,7 +223,6 @@ impl Stream {
                 let tx = Arc::clone(&rx);
                 (StreamRx::ViaFile(rx, p), StreamTx::ViaFile(tx, p))
             }
-            #[cfg(target_arch = "wasm32")]
             Stream::WasmWebSocket(a) => {
                 let (tx, rx) = a.split();
                 (StreamRx::WasmWebSocket(rx), StreamTx::WasmWebSocket(tx))
@@ -262,7 +255,6 @@ impl Stream {
             Stream::ViaStream(a, p) => Stream::ViaStream(a, p),
             Stream::ViaQueue(a, b, p) => Stream::ViaQueue(a, b, p),
             Stream::ViaFile(a, p) => Stream::ViaFile(a, p),
-            #[cfg(target_arch = "wasm32")]
             Stream::WasmWebSocket(a) => Stream::WasmWebSocket(a),
         };
 
@@ -304,7 +296,6 @@ impl Stream {
             Stream::ViaStream(a, p) => Stream::ViaStream(a, p),
             Stream::ViaQueue(a, b, p) => Stream::ViaQueue(a, b, p),
             Stream::ViaFile(a, p) => Stream::ViaFile(a, p),
-            #[cfg(target_arch = "wasm32")]
             Stream::WasmWebSocket(a) => Stream::WasmWebSocket(a),
         };
         Ok(ret)
@@ -322,13 +313,53 @@ impl Stream {
             Stream::ViaStream(_, p) => p.clone(),
             Stream::ViaQueue(_, _, p) => p.clone(),
             Stream::ViaFile(_, p) => p.clone(),
-            #[cfg(target_arch = "wasm32")]
             Stream::WasmWebSocket(_) => StreamProtocol::WebSocket,
         }
     }
 }
 
 impl StreamTx {
+    pub async fn close(
+        &mut self
+    ) -> Result<(), tokio::io::Error>
+    {
+        match self {
+            #[cfg(feature = "enable_full")]
+            StreamTx::Tcp(a) => {
+                let _ = a.flush().await;
+                a.shutdown().await?;
+            }
+            #[cfg(feature = "enable_full")]
+            StreamTx::WebSocket(a) => {
+                use futures_util::SinkExt;
+                let _ = a.flush().await;
+                a.close().await
+                    .map_err(|err| tokio::io::Error::new(tokio::io::ErrorKind::Other, err))?;
+            }
+            #[cfg(feature = "enable_server")]
+            StreamTx::HyperWebSocket(a) => {
+                use futures_util::SinkExt;
+                let _ = a.flush().await;
+                a.close().await
+                    .map_err(|err| tokio::io::Error::new(tokio::io::ErrorKind::Other, err))?;
+            }
+            StreamTx::ViaStream(a, _) => {
+                use tokio::io::AsyncWriteExt;
+                let mut a = a.lock().await;
+                let _ = a.flush().await;
+                a.shutdown().await?;
+            }
+            StreamTx::ViaQueue(_, _) => {
+            }
+            StreamTx::ViaFile(_, _) => {
+            }
+            StreamTx::WasmWebSocket(a) => {
+                a.close().await?;
+            }
+        }
+        Ok(())
+    }
+
     #[allow(unused_variables)]
     pub async fn write_8bit(
         &mut self,
@@ -372,7 +403,6 @@ impl StreamTx {
             StreamTx::ViaFile(_, _) => {
                 total_sent += self.write_32bit(buf, delay_flush).await?;
             }
-            #[cfg(target_arch = "wasm32")]
             StreamTx::WasmWebSocket(_) => {
                 total_sent += self.write_32bit(buf, delay_flush).await?;
             }
@@ -424,7 +454,6 @@ impl StreamTx {
             StreamTx::ViaFile(_, _) => {
                 total_sent += self.write_32bit(buf, delay_flush).await?;
             }
-            #[cfg(target_arch = "wasm32")]
             StreamTx::WasmWebSocket(_) => {
                 total_sent += self.write_32bit(buf, delay_flush).await?;
             }
@@ -546,7 +575,6 @@ impl StreamTx {
                 let mut a = a.lock().unwrap();
                 a.write_all(buf)?;
             }
-            #[cfg(target_arch = "wasm32")]
             StreamTx::WasmWebSocket(a) => {
                 a.send(buf.to_vec()).await?;
             }
@@ -565,21 +593,21 @@ impl StreamTx {
         }
     }
 
-    pub(crate) async fn send(
+    pub async fn send(
         &mut self,
         wire_encryption: &Option<EncryptKey>,
-        pck: PacketData,
+        data: &[u8],
     ) -> Result<u64, tokio::io::Error> {
         #[allow(unused_mut)]
         let mut total_sent = 0u64;
         match wire_encryption {
             Some(key) => {
-                let enc = key.encrypt(&pck.bytes[..]);
+                let enc = key.encrypt(data);
                 total_sent += self.write_8bit(&enc.iv.bytes, true).await?;
                 total_sent += self.write_32bit(&enc.data, false).await?;
             }
             None => {
-                total_sent += self.write_32bit(&pck.bytes[..], false).await?;
+                total_sent += self.write_32bit(data, false).await?;
             }
         };
         #[allow(unreachable_code)]
@@ -601,8 +629,12 @@ impl StreamTxChannel {
         }
     }
 
-    pub(crate) async fn send(&mut self, pck: PacketData) -> Result<u64, tokio::io::Error> {
-        self.tx.send(&self.wire_encryption, pck).await
+    pub async fn send(&mut self, data: &[u8]) -> Result<u64, tokio::io::Error> {
+        self.tx.send(&self.wire_encryption, data).await
+    }
+
+    pub async fn close(&mut self) -> Result<(), tokio::io::Error> {
+        self.tx.close().await
     }
 }
 
@@ -630,7 +662,6 @@ impl StreamRx {
             StreamRx::ViaStream(_, _) => self.read_32bit().await?,
             StreamRx::ViaQueue(_, _) => self.read_32bit().await?,
             StreamRx::ViaFile(_, _) => self.read_32bit().await?,
-            #[cfg(target_arch = "wasm32")]
             StreamRx::WasmWebSocket(_) => self.read_32bit().await?,
         };
         #[allow(unreachable_code)]
@@ -660,7 +691,6 @@ impl StreamRx {
             StreamRx::ViaStream(_, _) => self.read_32bit().await?,
             StreamRx::ViaQueue(_, _) => self.read_32bit().await?,
             StreamRx::ViaFile(_, _) => self.read_32bit().await?,
-            #[cfg(target_arch = "wasm32")]
             StreamRx::WasmWebSocket(_) => self.read_32bit().await?,
         };
         #[allow(unreachable_code)]
@@ -809,7 +839,6 @@ impl StreamRx {
                 }
                 ret
             }
-            #[cfg(target_arch = "wasm32")]
             StreamRx::WasmWebSocket(a) => match a.recv().await {
                 Some(a) => a,
                 None => {
@@ -836,7 +865,6 @@ impl StreamRx {
             StreamRx::ViaStream(_, p) => p.clone(),
             StreamRx::ViaQueue(_, p) => p.clone(),
             StreamRx::ViaFile(_, p) => p.clone(),
-            #[cfg(target_arch = "wasm32")]
             StreamRx::WasmWebSocket(_) => StreamProtocol::WebSocket,
         }
     }

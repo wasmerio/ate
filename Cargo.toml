@@ -16,6 +16,7 @@ members = [
     "wasm-bus-ws",
     "wasm-bus-process",
     "wasm-bus-time",
+    "wasm-bus-tty",
     "term-lib",
     "tokterm",
     "tokweb",

@@ -29,6 +29,7 @@ error-chain = { version = "^0.12", default_features = false }
 futures = "^0.3"
 shellexpand = "^2"
 serde = { version = "^1", features = ["derive"] }
+serde_json = "^1"
 bincode = "^1"
 tokterm = { version = "^0.2", path = "../tokterm", default_features = false }
 async-trait = "^0.1"
@@ -41,3 +42,5 @@ ate-files = { version = "^1", path = "../files" }
 ateweb = { version = "^1", path = "../ateweb" }
 atessh = { version = "^1", path = "../atessh" }
 tokera = { version = "^1", path = "../tokera" }
+wasm-bus-fuse = { version = "0.2", path = "../wasm-bus-fuse",  default_features = false }
+dummy-waker = "^1"

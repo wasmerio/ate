@@ -12,7 +12,7 @@ pub(super) fn about(
     args: &[String],
     ctx: EvalContext,
     mut stdio: Stdio,
-) -> Pin<Box<dyn Future<Output = ExecResponse>>> {
+) -> Pin<Box<dyn Future<Output = ExecResponse> + Send>> {
     let txt = if args.len() <= 1 {
         Tty::ABOUT
     } else {

@@ -91,6 +91,36 @@ impl EvalFactory {
         }
     }
 
+    pub fn tty(&self) -> Tty {
+        self.state.tty.clone()
+    }
+
+    pub fn stdin(&self) -> Fd {
+        self.state.tty.fd()
+    }
+
+    pub fn stdout(&self) -> Stdout {
+        self.state.stdout.clone()
+    }
+
+    pub fn stderr(&self) -> Fd {
+        self.state.stderr.clone()
+    }
+
+    pub fn log(&self) -> Fd {
+        self.state.log.clone()
+    }
+
+    pub fn stdio(&self) -> Stdio {
+        Stdio {
+            stdin: self.stdin(),
+            stdout: self.stdout().fd.clone(),
+            stderr: self.stderr(),
+            log: self.log(),
+            tty: self.tty(),
+        }
+    }
+
     pub fn create_context(&self, ctx: SpawnContext) -> crate::eval::EvalContext {
         // Build the standard IO
         let stdio = Stdio {
