@@ -127,7 +127,7 @@ for Server
     {
         // Read the instance hello message
         let mut _total_read = 0u64;
-        let hello_buf = rx.read_buf(&wire_encryption, &mut _total_read).await?;
+        let hello_buf = rx.read_buf_with_header(&wire_encryption, &mut _total_read).await?;
         let hello_instance: InstanceHello = serde_json::from_slice(&hello_buf[..])?;
         debug!("accept-web-socket: {}", hello_instance);
 

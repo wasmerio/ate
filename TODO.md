@@ -1,5 +1,7 @@
 # Bugs to fix
 
+- Firing off web sockets to unreachable ports freezes the proces. This is the
+  case for instances 'tok' for instance when they dont go to the correct port.
 - There is a panic on the instance shell functionality which needs to be fixed
 - The coin splitting goes wild when there is too much money in a wallet
   (better to split the coins by the exact amount and simplify the design).
@@ -12,3 +14,13 @@
   add buffering
 - The contracts are not visible in Tokera domains/groups even though one has
   been added
+- Need to fix the browser tests for the MAC - there is now some testing suite
+  that should work and thus allow for some debugging
+
+# Fun stuff
+
+- make this work...
+  https://crates.io/crates/macroquad
+
+  so this works...
+  https://github.com/Gerstacker/macroquad-forestfire/blob/main/src/main.rs

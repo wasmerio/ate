@@ -1,7 +1,9 @@
 #![allow(unused_imports)]
 use crate::crypto::InitializationVector;
 use crate::engine::timeout as tokio_timeout;
+use bytes::BytesMut;
 use error_chain::bail;
+use std::collections::VecDeque;
 use std::fs::File;
 use std::result::Result;
 use std::str::FromStr;
@@ -20,6 +22,7 @@ use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 use wasm_bus_ws::prelude::RecvHalf as WasmRecvHalf;
 use wasm_bus_ws::prelude::SendHalf as WasmSendHalf;
 use wasm_bus_ws::prelude::WebSocket as WasmWebSocket;
+use bytes::Bytes;
 
 use crate::comms::PacketData;
 use crate::crypto::EncryptKey;
@@ -159,19 +162,23 @@ impl StreamProtocol {
 }
 
 #[derive(Debug)]
-pub enum StreamRx {
+pub struct StreamRx {
+    inner: StreamRxInner,
+    buffer: Option<Bytes>,
+    protocol: StreamProtocol,
+}
+
+#[derive(Debug)]
+pub enum StreamRxInner {
     #[cfg(feature = "enable_full")]
     Tcp(OwnedReadHalf),
     #[cfg(feature = "enable_full")]
     WebSocket(futures_util::stream::SplitStream<WebSocketStream<TcpStream>>),
     #[cfg(feature = "enable_server")]
     HyperWebSocket(futures_util::stream::SplitStream<HyperWebSocket<HyperUpgraded>>),
-    ViaStream(
-        Arc<tokio::sync::Mutex<Box<dyn AsyncStream + 'static>>>,
-        StreamProtocol,
-    ),
-    ViaQueue(mpsc::Receiver<Vec<u8>>, StreamProtocol),
-    ViaFile(Arc<std::sync::Mutex<std::fs::File>>, StreamProtocol),
+    ViaStream(Arc<tokio::sync::Mutex<Box<dyn AsyncStream + 'static>>>),
+    ViaQueue(mpsc::Receiver<Vec<u8>>),
+    ViaFile(Arc<std::sync::Mutex<std::fs::File>>),
     WasmWebSocket(WasmRecvHalf),
 }
 
@@ -198,34 +205,36 @@ impl Stream {
             #[cfg(feature = "enable_full")]
             Stream::Tcp(a) => {
                 let (rx, tx) = a.into_split();
-                (StreamRx::Tcp(rx), StreamTx::Tcp(tx))
+                (StreamRx::new(StreamRxInner::Tcp(rx), StreamProtocol::Tcp), StreamTx::Tcp(tx))
             }
             #[cfg(feature = "enable_full")]
-            Stream::WebSocket(a, _) => {
+            Stream::WebSocket(a, p) => {
                 use futures_util::StreamExt;
                 let (tx, rx) = a.split();
-                (StreamRx::WebSocket(rx), StreamTx::WebSocket(tx))
+                (StreamRx::new(StreamRxInner::WebSocket(rx), p), StreamTx::WebSocket(tx))
             }
             #[cfg(feature = "enable_server")]
-            Stream::HyperWebSocket(a, _) => {
+            Stream::HyperWebSocket(a, p) => {
                 use futures_util::StreamExt;
                 let (tx, rx) = a.split();
-                (StreamRx::HyperWebSocket(rx), StreamTx::HyperWebSocket(tx))
+                (StreamRx::new(StreamRxInner::HyperWebSocket(rx), p), StreamTx::HyperWebSocket(tx))
             }
             Stream::ViaStream(a, p) => {
                 let a = Arc::new(tokio::sync::Mutex::new(a));
                 let b = Arc::clone(&a);
-                (StreamRx::ViaStream(a, p), StreamTx::ViaStream(b, p))
+                (StreamRx::new(StreamRxInner::ViaStream(a), p), StreamTx::ViaStream(b, p))
             }
-            Stream::ViaQueue(a, b, p) => (StreamRx::ViaQueue(b, p), StreamTx::ViaQueue(a, p)),
+            Stream::ViaQueue(a, b, p) => {
+                (StreamRx::new(StreamRxInner::ViaQueue(b), p), StreamTx::ViaQueue(a, p))
+            },
             Stream::ViaFile(a, p) => {
                 let rx = Arc::new(std::sync::Mutex::new(a));
                 let tx = Arc::clone(&rx);
-                (StreamRx::ViaFile(rx, p), StreamTx::ViaFile(tx, p))
+                (StreamRx::new(StreamRxInner::ViaFile(rx), p), StreamTx::ViaFile(tx, p))
             }
             Stream::WasmWebSocket(a) => {
                 let (tx, rx) = a.split();
-                (StreamRx::WasmWebSocket(rx), StreamTx::WasmWebSocket(tx))
+                (StreamRx::new(StreamRxInner::WasmWebSocket(rx), StreamProtocol::WebSocket), StreamTx::WasmWebSocket(tx))
             }
         }
     }
@@ -361,137 +370,113 @@ impl StreamTx {
     }
 
     #[allow(unused_variables)]
-    pub async fn write_8bit(
+    pub async fn write_with_8bit_header(
         &mut self,
         buf: &'_ [u8],
         delay_flush: bool,
     ) -> Result<u64, tokio::io::Error> {
-        #[allow(unused_mut)]
-        let mut total_sent = 0u64;
-        match self {
-            #[cfg(feature = "enable_full")]
-            StreamTx::Tcp(a) => {
-                if buf.len() > u8::MAX as usize {
-                    return Err(tokio::io::Error::new(
-                        tokio::io::ErrorKind::InvalidData,
-                        format!(
-                            "Data is to big to write (len={}, max={})",
-                            buf.len(),
-                            u8::MAX
-                        ),
-                    ));
-                }
-                a.write_u8(buf.len() as u8).await?;
-                total_sent += 1u64;
-                a.write_all(&buf[..]).await?;
-                total_sent += buf.len() as u64;
-            }
-            #[cfg(feature = "enable_full")]
-            StreamTx::WebSocket(_) => {
-                total_sent += self.write_32bit(buf, delay_flush).await?;
-            }
-            #[cfg(feature = "enable_server")]
-            StreamTx::HyperWebSocket(_) => {
-                total_sent += self.write_32bit(buf, delay_flush).await?;
-            }
-            StreamTx::ViaStream(_, _) => {
-                total_sent += self.write_32bit(buf, delay_flush).await?;
-            }
-            StreamTx::ViaQueue(_, _) => {
-                total_sent += self.write_32bit(buf, delay_flush).await?;
-            }
-            StreamTx::ViaFile(_, _) => {
-                total_sent += self.write_32bit(buf, delay_flush).await?;
-            }
-            StreamTx::WasmWebSocket(_) => {
-                total_sent += self.write_32bit(buf, delay_flush).await?;
-            }
+        if buf.len() > u8::MAX as usize {
+            return Err(tokio::io::Error::new(
+                tokio::io::ErrorKind::InvalidData,
+                format!(
+                    "Data is too big to write (len={}, max={})",
+                    buf.len(),
+                    u8::MAX
+                ),
+            ));
         }
-        #[allow(unreachable_code)]
-        Ok(total_sent)
+
+        let len = buf.len() as u8;
+        let len_buf = len.to_be_bytes();
+        if len <= 63 {
+            let concatenated = [&len_buf[..], &buf[..]].concat();
+            self.write_all(&concatenated[..], delay_flush).await?;
+            Ok(concatenated.len() as u64)
+        } else {
+            let total_sent = len_buf.len() as u64 + len as u64;
+            self.write_all(&len_buf[..], true).await?;
+            self.write_all(&buf[..], delay_flush).await?;
+            Ok(total_sent)
+        }        
     }
 
     #[allow(unused_variables)]
-    pub async fn write_16bit(
+    pub async fn write_with_16bit_header(
         &mut self,
         buf: &'_ [u8],
         delay_flush: bool,
     ) -> Result<u64, tokio::io::Error> {
-        #[allow(unused_mut)]
-        let mut total_sent = 0u64;
-        match self {
-            #[cfg(feature = "enable_full")]
-            StreamTx::Tcp(a) => {
-                if buf.len() > u16::MAX as usize {
-                    return Err(tokio::io::Error::new(
-                        tokio::io::ErrorKind::InvalidData,
-                        format!(
-                            "Data is to big to write (len={}, max={})",
-                            buf.len(),
-                            u16::MAX
-                        ),
-                    ));
-                }
-                a.write_u16(buf.len() as u16).await?;
-                total_sent += 2u64;
-                a.write_all(&buf[..]).await?;
-                total_sent += buf.len() as u64;
-            }
-            #[cfg(feature = "enable_full")]
-            StreamTx::WebSocket(_) => {
-                total_sent += self.write_32bit(buf, delay_flush).await?;
-            }
-            #[cfg(feature = "enable_server")]
-            StreamTx::HyperWebSocket(_) => {
-                total_sent += self.write_32bit(buf, delay_flush).await?;
-            }
-            StreamTx::ViaStream(_, _) => {
-                total_sent += self.write_32bit(buf, delay_flush).await?;
-            }
-            StreamTx::ViaQueue(_, _) => {
-                total_sent += self.write_32bit(buf, delay_flush).await?;
-            }
-            StreamTx::ViaFile(_, _) => {
-                total_sent += self.write_32bit(buf, delay_flush).await?;
-            }
-            StreamTx::WasmWebSocket(_) => {
-                total_sent += self.write_32bit(buf, delay_flush).await?;
-            }
+        if buf.len() > u16::MAX as usize {
+            return Err(tokio::io::Error::new(
+                tokio::io::ErrorKind::InvalidData,
+                format!(
+                    "Data is too big to write (len={}, max={})",
+                    buf.len(),
+                    u8::MAX
+                ),
+            ));
         }
-        #[allow(unreachable_code)]
-        Ok(total_sent)
+
+        let len = buf.len() as u16;
+        let len_buf = len.to_be_bytes();
+        if len <= 62 {
+            let concatenated = [&len_buf[..], &buf[..]].concat();
+            self.write_all(&concatenated[..], delay_flush).await?;
+            Ok(concatenated.len() as u64)
+        } else {
+            let total_sent = len_buf.len() as u64 + len as u64;
+            self.write_all(&len_buf[..], true).await?;
+            self.write_all(&buf[..], delay_flush).await?;
+            Ok(total_sent)
+        }
     }
 
     #[allow(unused_variables)]
-    pub async fn write_32bit(
+    pub async fn write_with_32bit_header(
         &mut self,
         buf: &'_ [u8],
         delay_flush: bool,
     ) -> Result<u64, tokio::io::Error> {
+        if buf.len() > u32::MAX as usize {
+            return Err(tokio::io::Error::new(
+                tokio::io::ErrorKind::InvalidData,
+                format!(
+                    "Data is too big to write (len={}, max={})",
+                    buf.len(),
+                    u8::MAX
+                ),
+            ));
+        }
+
+        let len = buf.len() as u32;
+        let len_buf = len.to_be_bytes();
+        if len <= 60 {
+            let concatenated = [&len_buf[..], &buf[..]].concat();
+            self.write_all(&concatenated[..], delay_flush).await?;
+            Ok(concatenated.len() as u64)
+        } else {
+            let total_sent = len_buf.len() as u64 + len as u64;
+            self.write_all(&len_buf[..], true).await?;
+            self.write_all(&buf[..], delay_flush).await?;
+            Ok(total_sent)
+        }
+    }
+
+    #[allow(unused_variables)]
+    pub async fn write_all(
+        &mut self,
+        buf: &'_ [u8],
+        delay_flush: bool,
+    ) -> Result<(), tokio::io::Error> {
         #[allow(unused_mut)]
-        let mut total_sent = 0u64;
         match self {
             #[cfg(feature = "enable_full")]
             StreamTx::Tcp(a) => {
-                if buf.len() > u32::MAX as usize {
-                    return Err(tokio::io::Error::new(
-                        tokio::io::ErrorKind::InvalidData,
-                        format!(
-                            "Data is to big to write (len={}, max={})",
-                            buf.len(),
-                            u32::MAX
-                        ),
-                    ));
-                }
-                a.write_u32(buf.len() as u32).await?;
-                total_sent += 4u64;
                 a.write_all(&buf[..]).await?;
-                total_sent += buf.len() as u64;
             }
             #[cfg(feature = "enable_full")]
             StreamTx::WebSocket(a) => {
                 use futures_util::SinkExt;
-                total_sent += buf.len() as u64;
                 if delay_flush {
                     match a.feed(Message::binary(buf)).await {
                         Ok(a) => a,
@@ -517,7 +502,6 @@ impl StreamTx {
             #[cfg(feature = "enable_server")]
             StreamTx::HyperWebSocket(a) => {
                 use futures_util::SinkExt;
-                total_sent += buf.len() as u64;
                 if delay_flush {
                     match a.feed(HyperMessage::binary(buf)).await {
                         Ok(a) => a,
@@ -556,7 +540,6 @@ impl StreamTx {
                     ));
                 }
                 a.write_all(&buf[..]).await?;
-                total_sent += buf.len() as u64;
             }
             StreamTx::ViaQueue(a, _) => {
                 let buf = buf.to_vec();
@@ -579,8 +562,7 @@ impl StreamTx {
                 a.send(buf.to_vec()).await?;
             }
         }
-        #[allow(unreachable_code)]
-        Ok(total_sent)
+        Ok(())
     }
 
     #[cfg(feature = "enable_server")]
@@ -603,11 +585,11 @@ impl StreamTx {
         match wire_encryption {
             Some(key) => {
                 let enc = key.encrypt(data);
-                total_sent += self.write_8bit(&enc.iv.bytes, true).await?;
-                total_sent += self.write_32bit(&enc.data, false).await?;
+                total_sent += self.write_with_8bit_header(&enc.iv.bytes, true).await?;
+                total_sent += self.write_with_32bit_header(&enc.data, false).await?;
             }
             None => {
-                total_sent += self.write_32bit(data, false).await?;
+                total_sent += self.write_with_32bit_header(data, false).await?;
             }
         };
         #[allow(unreachable_code)]
@@ -638,83 +620,22 @@ impl StreamTxChannel {
     }
 }
 
-impl StreamRx {
-    pub async fn read_8bit(&mut self) -> Result<Vec<u8>, tokio::io::Error> {
-        #[allow(unused_variables)]
-        let ret = match self {
-            #[cfg(feature = "enable_full")]
-            StreamRx::Tcp(a) => {
-                let len = a.read_u8().await?;
-                if len <= 0 {
-                    return Ok(vec![]);
-                }
-                let mut bytes = vec![0 as u8; len as usize];
-                let n = a.read_exact(&mut bytes).await?;
-                if n != (len as usize) {
-                    return Ok(vec![]);
-                }
-                bytes
-            }
-            #[cfg(feature = "enable_full")]
-            StreamRx::WebSocket(_) => self.read_32bit().await?,
-            #[cfg(feature = "enable_server")]
-            StreamRx::HyperWebSocket(_) => self.read_32bit().await?,
-            StreamRx::ViaStream(_, _) => self.read_32bit().await?,
-            StreamRx::ViaQueue(_, _) => self.read_32bit().await?,
-            StreamRx::ViaFile(_, _) => self.read_32bit().await?,
-            StreamRx::WasmWebSocket(_) => self.read_32bit().await?,
-        };
-        #[allow(unreachable_code)]
-        Ok(ret)
-    }
+impl StreamRxInner {
 
-    pub async fn read_16bit(&mut self) -> Result<Vec<u8>, tokio::io::Error> {
+    pub async fn recv(&mut self) -> Result<Vec<u8>, tokio::io::Error> {
         #[allow(unused_variables)]
         let ret = match self {
             #[cfg(feature = "enable_full")]
-            StreamRx::Tcp(a) => {
-                let len = a.read_u16().await?;
-                if len <= 0 {
+            StreamRxInner::Tcp(a) => {
+                let mut bytes = vec![0u8; 4096];
+                let n = a.read(&mut bytes).await?;
+                if n <= 0 {
                     return Ok(vec![]);
                 }
-                let mut bytes = vec![0 as u8; len as usize];
-                let n = a.read_exact(&mut bytes).await?;
-                if n != (len as usize) {
-                    return Ok(vec![]);
-                }
-                bytes
+                bytes[0..n].to_vec()
             }
             #[cfg(feature = "enable_full")]
-            StreamRx::WebSocket(_) => self.read_32bit().await?,
-            #[cfg(feature = "enable_server")]
-            StreamRx::HyperWebSocket(_) => self.read_32bit().await?,
-            StreamRx::ViaStream(_, _) => self.read_32bit().await?,
-            StreamRx::ViaQueue(_, _) => self.read_32bit().await?,
-            StreamRx::ViaFile(_, _) => self.read_32bit().await?,
-            StreamRx::WasmWebSocket(_) => self.read_32bit().await?,
-        };
-        #[allow(unreachable_code)]
-        Ok(ret)
-    }
-
-    pub async fn read_32bit(&mut self) -> Result<Vec<u8>, tokio::io::Error> {
-        #[allow(unused_variables)]
-        let ret = match self {
-            #[cfg(feature = "enable_full")]
-            StreamRx::Tcp(a) => {
-                let len = a.read_u32().await?;
-                if len <= 0 {
-                    return Ok(vec![]);
-                }
-                let mut bytes = vec![0 as u8; len as usize];
-                let n = a.read_exact(&mut bytes).await?;
-                if n != (len as usize) {
-                    return Ok(vec![]);
-                }
-                bytes
-            }
-            #[cfg(feature = "enable_full")]
-            StreamRx::WebSocket(a) => {
+            StreamRxInner::WebSocket(a) => {
                 use futures_util::StreamExt;
                 match a.next().await {
                     Some(a) => {
@@ -746,7 +667,7 @@ impl StreamRx {
                 }
             }
             #[cfg(feature = "enable_server")]
-            StreamRx::HyperWebSocket(a) => {
+            StreamRxInner::HyperWebSocket(a) => {
                 use futures_util::StreamExt;
                 match a.next().await {
                     Some(a) => {
@@ -777,7 +698,7 @@ impl StreamRx {
                     }
                 }
             }
-            StreamRx::ViaStream(a, _) => {
+            StreamRxInner::ViaStream(a) => {
                 use tokio::io::AsyncReadExt;
                 let mut a = a.lock().await;
                 let mut ret = bytes::BytesMut::new();
@@ -792,7 +713,7 @@ impl StreamRx {
                 }
                 ret.to_vec()
             }
-            StreamRx::ViaQueue(a, _) => match a.recv().await {
+            StreamRxInner::ViaQueue(a) => match a.recv().await {
                 Some(a) => a,
                 None => {
                     return Err(tokio::io::Error::new(
@@ -801,7 +722,7 @@ impl StreamRx {
                     ));
                 }
             },
-            StreamRx::ViaFile(a, _) => {
+            StreamRxInner::ViaFile(a) => {
                 use std::io::Read;
                 let mut ret;
                 loop {
@@ -839,7 +760,7 @@ impl StreamRx {
                 }
                 ret
             }
-            StreamRx::WasmWebSocket(a) => match a.recv().await {
+            StreamRxInner::WasmWebSocket(a) => match a.recv().await {
                 Some(a) => a,
                 None => {
                     return Err(tokio::io::Error::new(
@@ -849,31 +770,54 @@ impl StreamRx {
                 }
             },
         };
-        #[allow(unreachable_code)]
         Ok(ret)
     }
+}
 
-    #[allow(dead_code)]
-    pub fn protocol(&self) -> StreamProtocol {
-        match self {
-            #[cfg(feature = "enable_full")]
-            StreamRx::Tcp(_) => StreamProtocol::Tcp,
-            #[cfg(feature = "enable_full")]
-            StreamRx::WebSocket(_) => StreamProtocol::WebSocket,
-            #[cfg(feature = "enable_server")]
-            StreamRx::HyperWebSocket(_) => StreamProtocol::WebSocket,
-            StreamRx::ViaStream(_, p) => p.clone(),
-            StreamRx::ViaQueue(_, p) => p.clone(),
-            StreamRx::ViaFile(_, p) => p.clone(),
-            StreamRx::WasmWebSocket(_) => StreamProtocol::WebSocket,
+impl StreamRx {
+    pub fn new(inner: StreamRxInner, proto: StreamProtocol) -> Self {
+        Self {
+            inner,
+            buffer: Default::default(),
+            protocol: proto,
         }
     }
 
-    pub async fn read_buf(&mut self, wire_encryption: &Option<EncryptKey>, total_read: &mut u64) -> Result<Vec<u8>, TError> {
+    pub async fn read_with_8bit_header(&mut self) -> Result<Vec<u8>, tokio::io::Error> {
+        let len = self.read_u8().await?;
+        if len <= 0 {
+            return Ok(vec![]);
+        }
+        let mut bytes = vec![0 as u8; len as usize];
+        self.read_exact(&mut bytes).await?;
+        Ok(bytes)
+    }
+
+    pub async fn read_with_16bit_header(&mut self) -> Result<Vec<u8>, tokio::io::Error> {
+        let len = self.read_u16().await?;
+        if len <= 0 {
+            return Ok(vec![]);
+        }
+        let mut bytes = vec![0 as u8; len as usize];
+        self.read_exact(&mut bytes).await?;
+        Ok(bytes)
+    }
+
+    pub async fn read_with_32bit_header(&mut self) -> Result<Vec<u8>, tokio::io::Error> {
+        let len = self.read_u32().await?;
+        if len <= 0 {
+            return Ok(vec![]);
+        }
+        let mut bytes = vec![0 as u8; len as usize];
+        self.read_exact(&mut bytes).await?;
+        Ok(bytes)
+    }
+
+    pub async fn read_buf_with_header(&mut self, wire_encryption: &Option<EncryptKey>, total_read: &mut u64) -> Result<Vec<u8>, TError> {
         match wire_encryption {
             Some(key) => {
                 // Read the initialization vector
-                let iv_bytes = self.read_8bit().await?;
+                let iv_bytes = self.read_with_8bit_header().await?;
                 *total_read += 1u64;
                 match iv_bytes.len() {
                     0 => Err(TError::new(TErrorKind::BrokenPipe, "iv_bytes-len is zero")),
@@ -882,7 +826,7 @@ impl StreamRx {
                         let iv = InitializationVector::from(iv_bytes);
 
                         // Read the cipher text and decrypt it
-                        let cipher_bytes = self.read_32bit().await?;
+                        let cipher_bytes = self.read_with_32bit_header().await?;
                         *total_read += 4u64;
                         match cipher_bytes.len() {
                             0 => Err(TError::new(
@@ -899,7 +843,7 @@ impl StreamRx {
             }
             None => {
                 // Read the next message
-                let buf = self.read_32bit().await?;
+                let buf = self.read_with_32bit_header().await?;
                 *total_read += 4u64;
                 match buf.len() {
                     0 => Err(TError::new(TErrorKind::BrokenPipe, "buf-len is zero")),
@@ -910,5 +854,56 @@ impl StreamRx {
                 }
             }
         }
+    }
+
+    pub async fn read_u8(&mut self) -> Result<u8, tokio::io::Error> {
+        let mut buf = [0u8; 1];
+        self.read_exact(&mut buf).await?;
+        Ok(u8::from_be_bytes(buf))
+    }
+
+    pub async fn read_u16(&mut self) -> Result<u16, tokio::io::Error> {
+        let mut buf = [0u8; 2];
+        self.read_exact(&mut buf).await?;
+        Ok(u16::from_be_bytes(buf))
+    }
+
+    pub async fn read_u32(&mut self) -> Result<u32, tokio::io::Error> {
+        let mut buf = [0u8; 4];
+        self.read_exact(&mut buf).await?;
+        Ok(u32::from_be_bytes(buf))
+    }
+
+    pub async fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), tokio::io::Error> {
+        use bytes::Buf;
+
+        let mut index = 0;
+        while index < buf.len() {
+            let left = buf.len() - index;
+
+            // If we have any data then lets go!
+            if let Some(staging) = self.buffer.as_mut() {
+                if staging.has_remaining() {
+                    let amount = staging.remaining().min(left);
+                    let end = index + amount;
+                    buf[index..end].copy_from_slice(&staging[..amount]);
+                    staging.advance(amount);
+                    index += amount;
+                    continue;
+                }
+            }
+
+            // Read some more data and put it in the buffer
+            let data = self.inner.recv().await?;
+            self.buffer.replace(Bytes::from(data));
+        }
+
+        // Success
+        Ok(())
+    }
+
+    #[allow(dead_code)]
+    pub fn protocol(&self) -> StreamProtocol {
+        self.protocol.clone()
     }
 }

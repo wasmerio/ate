@@ -52,11 +52,11 @@ pub async fn mesh_hello_exchange_sender(
     };
     let hello_client_bytes = serde_json::to_vec(&hello_client)?;
     stream_tx
-        .write_16bit(&hello_client_bytes[..], false)
+        .write_with_16bit_header(&hello_client_bytes[..], false)
         .await?;
 
     // Read the hello message from the other side
-    let hello_server_bytes = stream_rx.read_16bit().await?;
+    let hello_server_bytes = stream_rx.read_with_16bit_header().await?;
     trace!("client received hello from server");
     trace!("{}", String::from_utf8_lossy(&hello_server_bytes[..]));
     let hello_server: ReceiverHello = serde_json::from_slice(&hello_server_bytes[..])?;
@@ -102,7 +102,7 @@ pub async fn mesh_hello_exchange_receiver(
     wire_format: SerializationFormat,
 ) -> Result<HelloMetadata, CommsError> {
     // Read the hello message from the other side
-    let hello_client_bytes = stream_rx.read_16bit().await?;
+    let hello_client_bytes = stream_rx.read_with_16bit_header().await?;
     trace!("server received hello from client");
     //trace!("server received hello from client: {}", String::from_utf8_lossy(&hello_client_bytes[..]));
     let hello_client: SenderHello = serde_json::from_slice(&hello_client_bytes[..])?;
@@ -119,7 +119,7 @@ pub async fn mesh_hello_exchange_receiver(
     };
     let hello_server_bytes = serde_json::to_vec(&hello_server)?;
     stream_tx
-        .write_16bit(&hello_server_bytes[..], false)
+        .write_with_16bit_header(&hello_server_bytes[..], false)
         .await?;
 
     Ok(HelloMetadata {

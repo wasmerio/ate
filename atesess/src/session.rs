@@ -43,7 +43,7 @@ impl Session
         let wire_encryption = self.wire_encryption.clone();
         let mut total_read = 0u64;
         loop {
-            let cmd = self.rx.read_buf(&wire_encryption, &mut total_read).await?;
+            let cmd = self.rx.read_buf_with_header(&wire_encryption, &mut total_read).await?;
             debug!("session read (len={})", cmd.len());
 
             let action: InstanceCommand = serde_json::from_slice(&cmd[..])?;
@@ -100,7 +100,7 @@ impl Session
         let mut total_read = 0;
         loop {
             tokio::select! {
-                data = self.rx.read_buf(&self.wire_encryption, &mut total_read) => {
+                data = self.rx.read_buf_with_header(&self.wire_encryption, &mut total_read) => {
                     match data {
                         Ok(data) => {
                             let data = String::from_utf8_lossy(&data[..]);

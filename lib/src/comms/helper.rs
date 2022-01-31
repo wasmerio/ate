@@ -143,7 +143,7 @@ where
                     }
                 }
 
-                rx.read_buf(&wire_encryption, &mut total_read).await
+                rx.read_buf_with_header(&wire_encryption, &mut total_read).await
             };
             let buf = {
                 select! {

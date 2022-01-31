@@ -108,7 +108,7 @@ impl InstanceClient
         let mut total_read = 0u64;
         loop {
             tokio::select! {
-                data = self.rx.read_buf(&self.ek, &mut total_read) => {
+                data = self.rx.read_buf_with_header(&self.ek, &mut total_read) => {
                     if let Ok(data) = data {
                         stdout.write(data).await?;
                         stdout.flush().await?;
