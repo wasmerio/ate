@@ -3,7 +3,6 @@ name = "term-lib"
 version = "1.0.0"
 authors = ["John Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
-publish = false
 description = "Terminal Library built on WASMER and ATE"
 license = "MIT OR Apache-2.0"
 keywords = [ "wasm", "browser", "terminal" ]
