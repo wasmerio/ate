@@ -1,5 +1,4 @@
 use ate::prelude::*;
-use ate_auth::prelude::*;
 use ate_files::prelude::*;
 use std::net::IpAddr;
 use std::sync::Arc;
@@ -7,10 +6,9 @@ use std::sync::Mutex;
 use std::time::Duration;
 use term_lib::api::ConsoleRect;
 use thrussh::server;
-use tokio::runtime::Runtime;
 use tokio::sync::watch;
 use tokterm::term_lib;
-use tokterm::term_lib::bin_factory::CachedCompiledModules;
+use term_lib::bin_factory::CachedCompiledModules;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
@@ -34,19 +32,7 @@ pub struct Server {
 }
 
 impl Server {
-    pub async fn new(host: OptsHost, server_key: SshServerKey, runtime: Arc<Runtime>) -> Self {
-        // Create the registry that will be used to validate logins
-        let registry = ate::mesh::Registry::new(&conf_cmd()).await.cement();
-
-        // Set the system
-        let (tx_exit, rx_exit) = watch::channel(false);
-        let sys = Arc::new(tokterm::system::SysSystem::new_with_runtime(
-            tx_exit, runtime,
-        ));
-        let sys = crate::system::System::new(sys, registry.clone(), host.db_url, host.native_files).await;
-        let native_files = sys.native_files.clone();
-        term_lib::api::set_system_abi(sys);
-
+    pub async fn new(host: OptsHost, server_key: SshServerKey, registry: Arc<Registry>, compiled_modules: Arc<CachedCompiledModules>, native_files: Arc<FileAccessor>, rx_exit: watch::Receiver<bool>) -> Self {
         // Success
         Self {
             native_files,
@@ -58,7 +44,7 @@ impl Server {
             compiler: host.compiler,
             registry,
             auth: host.auth_url,
-            compiled_modules: Arc::new(CachedCompiledModules::default()),
+            compiled_modules,
             exit_rx: rx_exit,
             stdio_lock: Arc::new(Mutex::new(())),
         }

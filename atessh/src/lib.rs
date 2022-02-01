@@ -10,3 +10,4 @@ pub mod utils;
 pub mod wizard;
 
 pub use tokterm::term_lib;
+pub use ate_files;

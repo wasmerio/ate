@@ -51,8 +51,8 @@ impl InstanceClient
             .await?;
             
         let (tx, rx) = socket.split(); 
-        let mut tx = StreamTx::WasmWebSocket(tx);
-        let mut rx = StreamRx::WasmWebSocket(rx);
+        let mut tx: StreamTx = tx.into();
+        let mut rx: StreamRx = rx.into();
         
         // Say hello
         let node_id = NodeId::generate_client_id();

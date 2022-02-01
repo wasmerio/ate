@@ -185,6 +185,41 @@ pub enum StreamRxInner {
     WasmWebSocket(WasmRecvHalf),
 }
 
+#[cfg(feature = "enable_full")]
+impl From<OwnedReadHalf>
+for StreamRx
+{
+    fn from(inner: OwnedReadHalf) -> Self {
+        Self::new(StreamRxInner::Tcp(inner), StreamProtocol::Tcp)
+    }
+}
+
+#[cfg(feature = "enable_full")]
+impl From<futures_util::stream::SplitStream<WebSocketStream<TcpStream>>>
+for StreamRx
+{
+    fn from(inner: futures_util::stream::SplitStream<WebSocketStream<TcpStream>>) -> Self {
+        Self::new(StreamRxInner::WebSocket(inner), StreamProtocol::WebSocket)
+    }
+}
+
+#[cfg(feature = "enable_server")]
+impl From<futures_util::stream::SplitStream<HyperWebSocket<HyperUpgraded>>>
+for StreamRx
+{
+    fn from(inner: futures_util::stream::SplitStream<HyperWebSocket<HyperUpgraded>>) -> Self {
+        Self::new(StreamRxInner::HyperWebSocket(inner), StreamProtocol::WebSocket)
+    }
+}
+
+impl From<WasmRecvHalf>
+for StreamRx
+{
+    fn from(inner: WasmRecvHalf) -> Self {
+        Self::new(StreamRxInner::WasmWebSocket(inner), StreamProtocol::WebSocket)
+    }
+}
+
 #[derive(Debug)]
 pub struct StreamTx {
     inner: StreamTxInner,
@@ -204,6 +239,41 @@ pub enum StreamTxInner {
     ViaQueue(mpsc::Sender<Vec<u8>>),
     ViaFile(Arc<std::sync::Mutex<std::fs::File>>),
     WasmWebSocket(WasmSendHalf),
+}
+
+#[cfg(feature = "enable_full")]
+impl From<OwnedWriteHalf>
+for StreamTx
+{
+    fn from(inner: OwnedWriteHalf) -> Self {
+        Self::new(StreamTxInner::Tcp(inner), StreamProtocol::Tcp)
+    }
+}
+
+#[cfg(feature = "enable_full")]
+impl From<futures_util::stream::SplitSink<WebSocketStream<TcpStream>, Message>>
+for StreamTx
+{
+    fn from(inner: futures_util::stream::SplitSink<WebSocketStream<TcpStream>, Message>) -> Self {
+        Self::new(StreamTxInner::WebSocket(inner), StreamProtocol::WebSocket)
+    }
+}
+
+#[cfg(feature = "enable_server")]
+impl From<futures_util::stream::SplitSink<HyperWebSocket<HyperUpgraded>, HyperMessage>>
+for StreamTx
+{
+    fn from(inner: futures_util::stream::SplitSink<HyperWebSocket<HyperUpgraded>, HyperMessage>) -> Self {
+        Self::new(StreamTxInner::HyperWebSocket(inner), StreamProtocol::WebSocket)
+    }
+}
+
+impl From<WasmSendHalf>
+for StreamTx
+{
+    fn from(inner: WasmSendHalf) -> Self {
+        Self::new(StreamTxInner::WasmWebSocket(inner), StreamProtocol::WebSocket)
+    }
 }
 
 impl Stream {
