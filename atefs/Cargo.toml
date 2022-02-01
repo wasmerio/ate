@@ -20,7 +20,7 @@ server = [ "ate/server", "ate-auth/server", "ate-files/sys", "ate/enable_mt" ]
 enable_tokera = [ "tokera" ]
 
 [dependencies]
-ate = { version = "^1", path = "../lib", default_features = false }
+ate = { version = "^1.1", path = "../lib", default_features = false }
 ate-auth = { version = "^1", path = "../auth", default_features = false }
 ate-files = { version = "^1", path = "../files", default_features = false }
 tokera = { version = "^1", path = "../tokera", optional = true }

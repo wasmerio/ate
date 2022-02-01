@@ -18,7 +18,7 @@ readme = "README.md"
 default = []
 
 [dependencies]
-ate = { version = "^1", path = "../lib", features = [ "client", "server" ], default_features = false }
+ate = { version = "^1.1", path = "../lib", features = [ "client", "server" ], default_features = false }
 ate-auth = { version = "^1", path = "../auth", features = [ "client", "server" ], default_features = false }
 ate-files = { version = "^1", path = "../files" }
 hyper = { version = "^0.14", features = ["full"] }

@@ -24,7 +24,7 @@ enable_dns = []
 enable_ntp = []
 
 [dependencies]
-ate = { version = "^1", path = "../lib", default_features = false }
+ate = { version = "^1.1", path = "../lib", default_features = false }
 ate-auth = { version = "^1", path = "../auth", default_features = false }
 ate-files = { version = "^1", path = "../files", default_features = false }
 error-chain = { version = "^0.12", default_features = false }

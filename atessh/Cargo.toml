@@ -34,6 +34,6 @@ tokterm = { version = "^0.2", path = "../tokterm", default_features = false }
 async-trait = "^0.1"
 raw_tty = "0.1.0"
 regex = "^1"
-ate = { version = "^1", path = "../lib", default_features = false, features = [ "client" ] }
+ate = { version = "^1.1", path = "../lib", default_features = false, features = [ "client" ] }
 ate-auth = { version = "^1", path = "../auth", default_features = false, features = [ "client" ] }
 ate-files = { version = "^1", path = "../files" }
