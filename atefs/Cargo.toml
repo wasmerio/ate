@@ -1,6 +1,6 @@
 [package]
 name = "atefs"
-version = "1.8.1"
+version = "1.9.0"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 description = "Distributed filesystem built on an immutable data store with strong encryption and authentication"

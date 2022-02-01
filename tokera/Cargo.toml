@@ -1,6 +1,6 @@
 [package]
 name = "tokera"
-version = "1.1.0"
+version = "1.2.0"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 description = "Provides an interface into Tokera and its supporting services"
@@ -62,10 +62,10 @@ wild = "^2"
 pbr = "^1"
 derivative = { version = "^2" }
 async-stream = "^0.3"
-wasm-bus = { version = "0.5", path = "../wasm-bus" }
-wasm-bus-fuse = { version = "0.2", path = "../wasm-bus-fuse" }
-wasm-bus-ws = { version = "0.2", path = "../wasm-bus-ws" }
-wasm-bus-tty = { version = "0.2", path = "../wasm-bus-tty" }
+wasm-bus = { version = "^1", path = "../wasm-bus" }
+wasm-bus-fuse = { version = "^1", path = "../wasm-bus-fuse" }
+wasm-bus-ws = { version = "^1", path = "../wasm-bus-ws" }
+wasm-bus-tty = { version = "^1", path = "../wasm-bus-tty" }
 
 [target.'cfg(not(target_os = "wasi"))'.dependencies]
 tokio = { version = "^1", features = [ "rt", "io-util", "macros", "sync", "time", "fs" ], default_features = false }
@@ -75,4 +75,4 @@ tokio = { version = "^1", features = [ "macros", "sync" ], default_features = fa
 backtrace = "^0.3"
 wasi = { version = "^0.10" }
 wasm-timer = { version = "^0.2" }
-wasm-bus-process = { version = "^0.2", path = "../wasm-bus-process" }
+wasm-bus-process = { version = "^1", path = "../wasm-bus-process" }

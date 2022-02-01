@@ -1,6 +1,6 @@
 [package]
 name = "wasm-bus-fuse"
-version = "0.2.0"
+version = "1.0.0"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 description = "WebAssembly fuse bus interface"
@@ -15,7 +15,7 @@ frontend = [ "wasm-bus/syscalls" ]
 backend = []
 
 [dependencies]
-wasm-bus = { version = "^0.5", path = "../wasm-bus", default_features = false, features = [ "rt", "macros" ] }
+wasm-bus = { version = "^1", path = "../wasm-bus", default_features = false, features = [ "rt", "macros" ] }
 tracing = { version = "^0.1", features = [ "log" ] }
 serde = { version = "^1", features = ["derive"] }
 tokio = { version = "^1", features = [ "sync", "macros" ], default_features = false }

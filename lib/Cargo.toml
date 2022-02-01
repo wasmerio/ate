@@ -77,7 +77,7 @@ aes = { version = "^0.7" }
 ctr = { version = "^0.8" }
 tokio = { version = "^1", features = [ "macros", "sync" ], default_features = false }
 derivative = { version = "^2" }
-wasm-bus-ws = { version = "0.2", path = "../wasm-bus-ws" }
+wasm-bus-ws = { version = "^1", path = "../wasm-bus-ws" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 pnet = { version = "^0.27", optional = true }
@@ -88,8 +88,8 @@ trust-dns-client = { version = "^0.20", features = ["dnssec"], optional = true }
 backtrace = { version = "^0.3" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-bus = { version = "0.5", path = "../wasm-bus" }
-wasm-bus-time = { version = "0.2", path = "../wasm-bus-time" }
+wasm-bus = { version = "^1", path = "../wasm-bus" }
+wasm-bus-time = { version = "^1", path = "../wasm-bus-time" }
 
 [dev-dependencies]
 ctor = "0.1.*"

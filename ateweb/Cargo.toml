@@ -1,6 +1,6 @@
 [package]
 name = "ateweb"
-version = "1.0.0"
+version = "1.1.0"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 description = "High performance web server built on top of atefs"

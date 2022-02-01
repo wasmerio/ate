@@ -1,6 +1,6 @@
 [package]
 name = "atedb"
-version = "1.6.0"
+version = "1.7.0"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 description = "Distributed datachain (database) built on an immutable data store with strong encryption and authentication"

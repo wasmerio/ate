@@ -1,6 +1,6 @@
 [package]
 name = "wasm-bus-ws"
-version = "0.2.0"
+version = "1.0.0"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 description = "WebAssembly Web Socket Interface"
@@ -20,7 +20,7 @@ serde = { version = "^1", features = ["derive"] }
 url = "2"
 async-trait = "^0.1"
 tokio = { version = "^1", features = [ "sync", "macros" ], default_features = false }
-wasm-bus = { version = "^0.5", path = "../wasm-bus", default_features = false, features = [ "rt", "macros" ] }
+wasm-bus = { version = "^1", path = "../wasm-bus", default_features = false, features = [ "rt", "macros" ] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio-tungstenite = { version = "^0.16", features = [ "native-tls" ], optional = true }

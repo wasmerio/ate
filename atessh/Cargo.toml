@@ -1,6 +1,6 @@
 [package]
 name = "atessh"
-version = "1.1.0"
+version = "1.2.0"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 description = "SSH Server that provides terminal sessions for Web Assembly programs"

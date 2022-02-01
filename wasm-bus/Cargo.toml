@@ -1,6 +1,6 @@
 [package]
 name = "wasm-bus"
-version = "0.5.0"
+version = "1.0.0"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 description = "Invocation bus for web assembly modules"
@@ -27,5 +27,5 @@ derivative = { version = "^2" }
 tracing = { version = "^0.1", features = [ "log" ] }
 cooked-waker = { version = "^5", optional = true }
 tokio = { version = "^1", features = [ "sync", "macros" ], default_features = false }
-wasm-bus-macros = { version = "0.1", path = "../wasm-bus-macros", optional = true }
-wasm-bus-types = { version = "0.1", path = "../wasm-bus-types" }
+wasm-bus-macros = { version = "^1", path = "../wasm-bus-macros", optional = true }
+wasm-bus-types = { version = "^1", path = "../wasm-bus-types" }
