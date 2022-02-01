@@ -148,7 +148,7 @@ where
             let buf = {
                 select! {
                     _ = exit.recv() => {
-                        debug!("received exit broadcast - {}", sock_addr);
+                        debug!("received exit broadcast - {} - id={} peer={}", sock_addr, id.to_short_string().as_str(), peer_id.to_short_string().as_str());
                         break;
                     },
                     a = buf => a

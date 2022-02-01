@@ -5,6 +5,7 @@ use bytes::BytesMut;
 use error_chain::bail;
 use std::collections::VecDeque;
 use std::fs::File;
+use std::net::SocketAddr;
 use std::result::Result;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -42,6 +43,8 @@ use {
 };
 
 use crate::error::*;
+
+use super::NodeId;
 
 #[derive(Debug, Clone, Copy)]
 pub enum StreamProtocol {
@@ -183,19 +186,23 @@ pub enum StreamRxInner {
 }
 
 #[derive(Debug)]
-pub enum StreamTx {
+pub struct StreamTx {
+    inner: StreamTxInner,
+    #[allow(dead_code)]
+    protocol: StreamProtocol,
+}
+
+#[derive(Debug)]
+pub enum StreamTxInner {
     #[cfg(feature = "enable_full")]
     Tcp(OwnedWriteHalf),
     #[cfg(feature = "enable_full")]
     WebSocket(futures_util::stream::SplitSink<WebSocketStream<TcpStream>, Message>),
     #[cfg(feature = "enable_server")]
     HyperWebSocket(futures_util::stream::SplitSink<HyperWebSocket<HyperUpgraded>, HyperMessage>),
-    ViaStream(
-        Arc<tokio::sync::Mutex<Box<dyn AsyncStream + 'static>>>,
-        StreamProtocol,
-    ),
-    ViaQueue(mpsc::Sender<Vec<u8>>, StreamProtocol),
-    ViaFile(Arc<std::sync::Mutex<std::fs::File>>, StreamProtocol),
+    ViaStream(Arc<tokio::sync::Mutex<Box<dyn AsyncStream + 'static>>>),
+    ViaQueue(mpsc::Sender<Vec<u8>>),
+    ViaFile(Arc<std::sync::Mutex<std::fs::File>>),
     WasmWebSocket(WasmSendHalf),
 }
 
@@ -205,36 +212,43 @@ impl Stream {
             #[cfg(feature = "enable_full")]
             Stream::Tcp(a) => {
                 let (rx, tx) = a.into_split();
-                (StreamRx::new(StreamRxInner::Tcp(rx), StreamProtocol::Tcp), StreamTx::Tcp(tx))
+                (StreamRx::new(StreamRxInner::Tcp(rx), StreamProtocol::Tcp),
+                 StreamTx::new(StreamTxInner::Tcp(tx), StreamProtocol::Tcp))
             }
             #[cfg(feature = "enable_full")]
             Stream::WebSocket(a, p) => {
                 use futures_util::StreamExt;
                 let (tx, rx) = a.split();
-                (StreamRx::new(StreamRxInner::WebSocket(rx), p), StreamTx::WebSocket(tx))
+                (StreamRx::new(StreamRxInner::WebSocket(rx), p),
+                 StreamTx::new(StreamTxInner::WebSocket(tx), p))
             }
             #[cfg(feature = "enable_server")]
             Stream::HyperWebSocket(a, p) => {
                 use futures_util::StreamExt;
                 let (tx, rx) = a.split();
-                (StreamRx::new(StreamRxInner::HyperWebSocket(rx), p), StreamTx::HyperWebSocket(tx))
+                (StreamRx::new(StreamRxInner::HyperWebSocket(rx), p),
+                 StreamTx::new(StreamTxInner::HyperWebSocket(tx), p))
             }
             Stream::ViaStream(a, p) => {
                 let a = Arc::new(tokio::sync::Mutex::new(a));
                 let b = Arc::clone(&a);
-                (StreamRx::new(StreamRxInner::ViaStream(a), p), StreamTx::ViaStream(b, p))
+                (StreamRx::new(StreamRxInner::ViaStream(a), p),
+                 StreamTx::new(StreamTxInner::ViaStream(b), p))
             }
             Stream::ViaQueue(a, b, p) => {
-                (StreamRx::new(StreamRxInner::ViaQueue(b), p), StreamTx::ViaQueue(a, p))
+                (StreamRx::new(StreamRxInner::ViaQueue(b), p),
+                 StreamTx::new(StreamTxInner::ViaQueue(a), p))
             },
             Stream::ViaFile(a, p) => {
                 let rx = Arc::new(std::sync::Mutex::new(a));
                 let tx = Arc::clone(&rx);
-                (StreamRx::new(StreamRxInner::ViaFile(rx), p), StreamTx::ViaFile(tx, p))
+                (StreamRx::new(StreamRxInner::ViaFile(rx), p),
+                 StreamTx::new(StreamTxInner::ViaFile(tx), p))
             }
             Stream::WasmWebSocket(a) => {
                 let (tx, rx) = a.split();
-                (StreamRx::new(StreamRxInner::WasmWebSocket(rx), StreamProtocol::WebSocket), StreamTx::WasmWebSocket(tx))
+                (StreamRx::new(StreamRxInner::WasmWebSocket(rx), StreamProtocol::WebSocket),
+                 StreamTx::new(StreamTxInner::WasmWebSocket(tx), StreamProtocol::WebSocket))
             }
         }
     }
@@ -328,45 +342,18 @@ impl Stream {
 }
 
 impl StreamTx {
+    pub fn new(inner: StreamTxInner, proto: StreamProtocol) -> Self {
+        Self {
+            inner,
+            protocol: proto,
+        }
+    }
+
     pub async fn close(
         &mut self
     ) -> Result<(), tokio::io::Error>
     {
-        match self {
-            #[cfg(feature = "enable_full")]
-            StreamTx::Tcp(a) => {
-                let _ = a.flush().await;
-                a.shutdown().await?;
-            }
-            #[cfg(feature = "enable_full")]
-            StreamTx::WebSocket(a) => {
-                use futures_util::SinkExt;
-                let _ = a.flush().await;
-                a.close().await
-                    .map_err(|err| tokio::io::Error::new(tokio::io::ErrorKind::Other, err))?;
-            }
-            #[cfg(feature = "enable_server")]
-            StreamTx::HyperWebSocket(a) => {
-                use futures_util::SinkExt;
-                let _ = a.flush().await;
-                a.close().await
-                    .map_err(|err| tokio::io::Error::new(tokio::io::ErrorKind::Other, err))?;
-            }
-            StreamTx::ViaStream(a, _) => {
-                use tokio::io::AsyncWriteExt;
-                let mut a = a.lock().await;
-                let _ = a.flush().await;
-                a.shutdown().await?;
-            }
-            StreamTx::ViaQueue(_, _) => {
-            }
-            StreamTx::ViaFile(_, _) => {
-            }
-            StreamTx::WasmWebSocket(a) => {
-                a.close().await?;
-            }
-        }
-        Ok(())
+        self.inner.close().await
     }
 
     #[allow(unused_variables)]
@@ -468,101 +455,7 @@ impl StreamTx {
         buf: &'_ [u8],
         delay_flush: bool,
     ) -> Result<(), tokio::io::Error> {
-        #[allow(unused_mut)]
-        match self {
-            #[cfg(feature = "enable_full")]
-            StreamTx::Tcp(a) => {
-                a.write_all(&buf[..]).await?;
-            }
-            #[cfg(feature = "enable_full")]
-            StreamTx::WebSocket(a) => {
-                use futures_util::SinkExt;
-                if delay_flush {
-                    match a.feed(Message::binary(buf)).await {
-                        Ok(a) => a,
-                        Err(err) => {
-                            return Err(tokio::io::Error::new(
-                                tokio::io::ErrorKind::Other,
-                                format!("Failed to feed data into websocket - {}", err.to_string()),
-                            ));
-                        }
-                    }
-                } else {
-                    match a.send(Message::binary(buf)).await {
-                        Ok(a) => a,
-                        Err(err) => {
-                            return Err(tokio::io::Error::new(
-                                tokio::io::ErrorKind::Other,
-                                format!("Failed to feed data into websocket - {}", err.to_string()),
-                            ));
-                        }
-                    }
-                }
-            }
-            #[cfg(feature = "enable_server")]
-            StreamTx::HyperWebSocket(a) => {
-                use futures_util::SinkExt;
-                if delay_flush {
-                    match a.feed(HyperMessage::binary(buf)).await {
-                        Ok(a) => a,
-                        Err(err) => {
-                            let kind = StreamTx::conv_error_kind(&err);
-                            return Err(tokio::io::Error::new(
-                                kind,
-                                format!("Failed to feed data into websocket - {}", err.to_string()),
-                            ));
-                        }
-                    }
-                } else {
-                    match a.send(HyperMessage::binary(buf)).await {
-                        Ok(a) => a,
-                        Err(err) => {
-                            let kind = StreamTx::conv_error_kind(&err);
-                            return Err(tokio::io::Error::new(
-                                kind,
-                                format!("Failed to feed data into websocket - {}", err.to_string()),
-                            ));
-                        }
-                    }
-                }
-            }
-            StreamTx::ViaStream(a, _) => {
-                use tokio::io::AsyncWriteExt;
-                let mut a = a.lock().await;
-                if buf.len() > u32::MAX as usize {
-                    return Err(tokio::io::Error::new(
-                        tokio::io::ErrorKind::InvalidData,
-                        format!(
-                            "Data is to big to write (len={}, max={})",
-                            buf.len(),
-                            u32::MAX
-                        ),
-                    ));
-                }
-                a.write_all(&buf[..]).await?;
-            }
-            StreamTx::ViaQueue(a, _) => {
-                let buf = buf.to_vec();
-                match a.send(buf).await {
-                    Ok(a) => a,
-                    Err(err) => {
-                        return Err(tokio::io::Error::new(
-                            tokio::io::ErrorKind::Other,
-                            format!("Failed to send data on pipe/queue - {}", err.to_string()),
-                        ));
-                    }
-                }
-            }
-            StreamTx::ViaFile(a, _) => {
-                use std::io::Write;
-                let mut a = a.lock().unwrap();
-                a.write_all(buf)?;
-            }
-            StreamTx::WasmWebSocket(a) => {
-                a.send(buf.to_vec()).await?;
-            }
-        }
-        Ok(())
+        self.inner.write_all(buf, delay_flush).await
     }
 
     #[cfg(feature = "enable_server")]
@@ -594,6 +487,152 @@ impl StreamTx {
         };
         #[allow(unreachable_code)]
         Ok(total_sent)
+    }
+}
+
+impl StreamTxInner {
+    pub async fn close(
+        &mut self
+    ) -> Result<(), tokio::io::Error>
+    {
+        match self {
+            #[cfg(feature = "enable_full")]
+            StreamTxInner::Tcp(a) => {
+                let _ = a.flush().await;
+                a.shutdown().await?;
+            }
+            #[cfg(feature = "enable_full")]
+            StreamTxInner::WebSocket(a) => {
+                use futures_util::SinkExt;
+                let _ = a.flush().await;
+                a.close().await
+                    .map_err(|err| tokio::io::Error::new(tokio::io::ErrorKind::Other, err))?;
+            }
+            #[cfg(feature = "enable_server")]
+            StreamTxInner::HyperWebSocket(a) => {
+                use futures_util::SinkExt;
+                let _ = a.flush().await;
+                a.close().await
+                    .map_err(|err| tokio::io::Error::new(tokio::io::ErrorKind::Other, err))?;
+            }
+            StreamTxInner::ViaStream(a) => {
+                use tokio::io::AsyncWriteExt;
+                let mut a = a.lock().await;
+                let _ = a.flush().await;
+                a.shutdown().await?;
+            }
+            StreamTxInner::ViaQueue(_) => {
+            }
+            StreamTxInner::ViaFile(_) => {
+            }
+            StreamTxInner::WasmWebSocket(a) => {
+                a.close().await?;
+            }
+        }
+        Ok(())
+    }
+
+    #[allow(unused_variables)]
+    pub async fn write_all(
+        &mut self,
+        buf: &'_ [u8],
+        delay_flush: bool,
+    ) -> Result<(), tokio::io::Error> {
+        #[allow(unused_mut)]
+        match self {
+            #[cfg(feature = "enable_full")]
+            StreamTxInner::Tcp(a) => {
+                a.write_all(buf).await?;
+            }
+            #[cfg(feature = "enable_full")]
+            StreamTxInner::WebSocket(a) => {
+                use futures_util::SinkExt;
+                if delay_flush {
+                    match a.feed(Message::binary(buf)).await {
+                        Ok(a) => a,
+                        Err(err) => {
+                            return Err(tokio::io::Error::new(
+                                tokio::io::ErrorKind::Other,
+                                format!("Failed to feed data into websocket - {}", err.to_string()),
+                            ));
+                        }
+                    }
+                } else {
+                    match a.send(Message::binary(buf)).await {
+                        Ok(a) => a,
+                        Err(err) => {
+                            return Err(tokio::io::Error::new(
+                                tokio::io::ErrorKind::Other,
+                                format!("Failed to feed data into websocket - {}", err.to_string()),
+                            ));
+                        }
+                    }
+                }
+            }
+            #[cfg(feature = "enable_server")]
+            StreamTxInner::HyperWebSocket(a) => {
+                use futures_util::SinkExt;
+                if delay_flush {
+                    match a.feed(HyperMessage::binary(buf)).await {
+                        Ok(a) => a,
+                        Err(err) => {
+                            let kind = StreamTx::conv_error_kind(&err);
+                            return Err(tokio::io::Error::new(
+                                kind,
+                                format!("Failed to feed data into websocket - {}", err.to_string()),
+                            ));
+                        }
+                    }
+                } else {
+                    match a.send(HyperMessage::binary(buf)).await {
+                        Ok(a) => a,
+                        Err(err) => {
+                            let kind = StreamTx::conv_error_kind(&err);
+                            return Err(tokio::io::Error::new(
+                                kind,
+                                format!("Failed to feed data into websocket - {}", err.to_string()),
+                            ));
+                        }
+                    }
+                }
+            }
+            StreamTxInner::ViaStream(a) => {
+                use tokio::io::AsyncWriteExt;
+                let mut a = a.lock().await;
+                if buf.len() > u32::MAX as usize {
+                    return Err(tokio::io::Error::new(
+                        tokio::io::ErrorKind::InvalidData,
+                        format!(
+                            "Data is to big to write (len={}, max={})",
+                            buf.len(),
+                            u32::MAX
+                        ),
+                    ));
+                }
+                a.write_all(&buf[..]).await?;
+            }
+            StreamTxInner::ViaQueue(a) => {
+                let buf = buf.to_vec();
+                match a.send(buf).await {
+                    Ok(a) => a,
+                    Err(err) => {
+                        return Err(tokio::io::Error::new(
+                            tokio::io::ErrorKind::Other,
+                            format!("Failed to send data on pipe/queue - {}", err.to_string()),
+                        ));
+                    }
+                }
+            }
+            StreamTxInner::ViaFile(a) => {
+                use std::io::Write;
+                let mut a = a.lock().unwrap();
+                a.write_all(buf)?;
+            }
+            StreamTxInner::WasmWebSocket(a) => {
+                a.send(buf.to_vec()).await?;
+            }
+        }
+        Ok(())
     }
 }
 

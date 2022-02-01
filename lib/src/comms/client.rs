@@ -347,5 +347,5 @@ async fn mesh_connect_worker<M, C>(
     let _span = span.enter();
 
     //#[cfg(feature = "enable_verbose")]
-    debug!("disconnected-inbox: {}", connect.addr.to_string());
+    debug!("disconnected-inbox: node-id={} addr={}", node_id.to_short_string().as_str(), connect.addr.to_string());
 }

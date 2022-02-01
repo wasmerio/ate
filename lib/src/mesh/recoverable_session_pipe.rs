@@ -196,14 +196,14 @@ impl RecoverableSessionPipe {
             // Upgrade to a full reference long enough to get a channel clone
             // if we can not get a full reference then the chain has been destroyed
             // and we should exit
-            let (pipe, exit) = {
+            let pipe = {
                 let chain = match Weak::upgrade(&chain) {
                     Some(a) => a,
                     None => {
                         break;
                     }
                 };
-                (Arc::clone(&chain.pipe), chain.exit.clone())
+                Arc::clone(&chain.pipe)
             };
 
             // Wait on it to disconnect
@@ -236,7 +236,7 @@ impl RecoverableSessionPipe {
                 }
 
                 // Reconnect
-                status_change = match pipe.connect(exit.clone()).await {
+                status_change = match pipe.connect().await {
                     Ok(a) => a,
                     Err(ChainCreationError(
                         ChainCreationErrorKind::CommsError(CommsErrorKind::Refused),
@@ -294,7 +294,6 @@ impl EventPipe for RecoverableSessionPipe {
 
     async fn connect(
         &self,
-        exit: broadcast::Sender<()>,
     ) -> Result<mpsc::Receiver<ConnectionStatusChange>, ChainCreationError> {
         trace!("connecting to {}", self.addr);
 
@@ -334,9 +333,9 @@ impl EventPipe for RecoverableSessionPipe {
         // Set the pipe and drop the lock so that events can be fed correctly
         let (status_tx, status_rx) = mpsc::channel(1);
         let pipe = self
-            .create_active_pipe(composite_loader, status_tx, exit.subscribe())
+            .create_active_pipe(composite_loader, status_tx, self.exit.subscribe())
             .await?;
-
+        
         // We replace the new pipe which will mean the chain becomes active again
         // before its completed all the load operations however this is required
         // as otherwise when events are received on the inbox they will not feed

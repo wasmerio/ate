@@ -6,7 +6,6 @@ use crate::header::PrimaryKey;
 use crate::meta::*;
 use async_trait::async_trait;
 use std::sync::Arc;
-use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 
 pub enum ConnectionStatusChange {
@@ -22,7 +21,6 @@ pub(crate) trait EventPipe: Send + Sync {
 
     async fn connect(
         &self,
-        _exit: broadcast::Sender<()>,
     ) -> Result<mpsc::Receiver<ConnectionStatusChange>, ChainCreationError> {
         Err(ChainCreationErrorKind::NotImplemented.into())
     }
@@ -136,9 +134,8 @@ impl EventPipe for DuelPipe {
 
     async fn connect(
         &self,
-        exit: broadcast::Sender<()>,
     ) -> Result<mpsc::Receiver<ConnectionStatusChange>, ChainCreationError> {
-        match self.first.connect(exit.clone()).await {
+        match self.first.connect().await {
             Ok(a) => {
                 return Ok(a);
             }
@@ -147,7 +144,7 @@ impl EventPipe for DuelPipe {
                 return Err(err);
             }
         }
-        match self.second.connect(exit.clone()).await {
+        match self.second.connect().await {
             Ok(a) => {
                 return Ok(a);
             }

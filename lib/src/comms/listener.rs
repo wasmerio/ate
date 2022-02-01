@@ -388,7 +388,6 @@ where
     C: Send + Sync,
 {
     fn drop(&mut self) {
-        debug!("drop (Listener)");
         let _ = self.exit.send(());
     }
 }
