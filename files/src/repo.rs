@@ -1,9 +1,7 @@
+use async_trait::async_trait;
 use ate::prelude::*;
 use ate_auth::error::GatherError;
 use bytes::Bytes;
-use std::ops::Deref;
-use std::future::Future;
-use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::time::Duration;
@@ -20,28 +18,24 @@ pub struct Repository {
     pub auth_url: url::Url,
     pub sessions: RwLock<TtlCache<String, AteSessionType>>,
     pub chains: Mutex<TtlCache<ChainKey, Arc<FileAccessor>>>,
-    pub session_factory: Box<dyn Fn(&str, ChainKey) -> Pin<Box<dyn Future<Output=Result<AteSessionType, AteError>> + Send>> + Send + Sync + 'static>,
+    pub session_factory: Box<dyn RepositorySessionFactory + 'static>,
     pub ttl: Duration,
 }
 
 impl Repository {
-    pub async fn new<Fut>(
+    pub async fn new(
         registry: &Arc<Registry>,
         db_url: url::Url,
         auth_url: url::Url,
-        session_factory: impl Fn(&str, ChainKey) -> Fut + Send + Sync + 'static,
+        session_factory: Box<dyn RepositorySessionFactory + 'static>,
         ttl: Duration,
     ) -> Result<Arc<Repository>, AteError>
-    where Fut: Future<Output=Result<AteSessionType, AteError>>,
-          Fut: Send + 'static,
     {
         let ret = Repository {
             registry: Arc::clone(registry),
             db_url,
             auth_url,
-            session_factory: Box::new(move |sni, key| {
-                Box::pin(session_factory(sni, key))
-            }),
+            session_factory,
             sessions: RwLock::new(TtlCache::new(usize::MAX)),
             chains: Mutex::new(TtlCache::new(usize::MAX)),
             ttl,
@@ -62,8 +56,7 @@ impl Repository {
         }
 
         // Create the session
-        let session_factory = self.session_factory.deref();
-        let session = session_factory(sni.as_str(), key).await?;
+        let session = self.session_factory.create(sni.clone(), key).await?;
 
         // Enter a write lock and check again
         let mut guard = self.sessions.write().unwrap();
@@ -167,4 +160,11 @@ impl Repository {
         let mut lock = self.chains.lock().await;
         lock.iter(); // this will run the remove_expired function
     }
+}
+
+#[async_trait]
+pub trait RepositorySessionFactory
+where Self: Send + Sync
+{
+    async fn create(&self, sni: String, key: ChainKey) -> Result<AteSessionType, AteError>;
 }

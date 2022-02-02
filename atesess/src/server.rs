@@ -10,6 +10,7 @@ use ate::comms::StreamRx;
 use ate::comms::Upstream;
 use ate::prelude::*;
 use ate_files::repo::Repository;
+use ate_files::repo::RepositorySessionFactory;
 use atessh::NativeFiles;
 use atessh::term_lib::api::System;
 use atessh::term_lib::api::SystemAbiExt;
@@ -24,6 +25,8 @@ use tokera::model::MASTER_AUTHORITY_ID;
 use atessh::term_lib;
 use term_lib::bin_factory::CachedCompiledModules;
 use term_lib::api::ConsoleRect;
+use ate_auth::cmd::gather_command;
+use ate_auth::helper::b64_to_session;
 
 use crate::session::Session;
 
@@ -44,7 +47,8 @@ impl Server
     pub async fn new(
         db_url: Url,
         auth_url: Url,
-        edge_session: AteSessionGroup,
+        instance_authority: String,
+        token_path: String,
         registry: Arc<Registry>,
         native_files: NativeFiles,
         compiler: term_lib::eval::Compiler,
@@ -52,50 +56,21 @@ impl Server
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let ttl = Duration::from_secs(60);
 
-        // Get the broker key from the edge session (if we have none then fail)
-        let broker_key = if let Some(broker_key) = edge_session.broker_read() {
-            broker_key.clone()
-        } else {
-            panic!("The edge session does not contain a broker read key and hence the server can not read session instance chains.");
-        };
-
         // Build a session factory that will load the session for this instance using the broker key
-        let session_factory = {
-            let db_url = db_url.clone();
-            let registry = registry.clone();
-            move |sni: &str, key: ChainKey| {
-                let sni = sni.to_string();
-                let db_url = db_url.clone();
-                let edge_session = edge_session.clone();
-                let broker_key = broker_key.clone();
-                let registry = registry.clone();
-                async move {
-                    // Now we read the chain of trust and attempt to get the master authority object
-                    let chain = registry.open(&db_url, &key).await?;
-                    let dio = chain.dio(&edge_session).await;
-                    let master_authority = dio.load::<MasterAuthority>(&PrimaryKey::from(MASTER_AUTHORITY_ID)).await?;
-                    let master_authority = master_authority.inner_broker.unwrap(&broker_key)?;
-
-                    // Build the session using the master authority
-                    let mut chain_session = AteSessionUser::default();
-                    chain_session.add_user_read_key(&master_authority.read);
-                    chain_session.add_user_write_key(&master_authority.write);
-                    chain_session.add_user_uid(0);
-                    let mut chain_session = AteSessionGroup::new(AteSessionInner::User(chain_session), sni);
-                    chain_session.add_group_gid(&AteRolePurpose::Observer, 0);
-                    chain_session.add_group_gid(&AteRolePurpose::Contributor, 0);
-                    chain_session.add_group_read_key(&AteRolePurpose::Observer, &master_authority.read);
-                    chain_session.add_group_write_key(&AteRolePurpose::Contributor, &master_authority.write);
-                    Ok(AteSessionType::Group(chain_session))
-                }
-            }
+        let session_factory = SessionFactory {
+            db_url: db_url.clone(),
+            auth_url: auth_url.clone(),
+            registry: registry.clone(),
+            token_path: token_path.clone(),
+            instance_authority: instance_authority.clone(),
+            edge_session_cache: Arc::new(tokio::sync::Mutex::new(None)),
         };
 
         let repo = Repository::new(
             &registry,
             db_url.clone(),
             auth_url.clone(),
-            session_factory,
+            Box::new(session_factory),
             ttl,
         )
         .await?;
@@ -171,5 +146,75 @@ for Server
             }
         });
         Ok(())
+    }
+}
+
+struct SessionFactory
+{
+    db_url: url::Url,
+    auth_url: url::Url,
+    token_path: String,
+    registry: Arc<Registry>,
+    instance_authority: String,
+    edge_session_cache: Arc<tokio::sync::Mutex<Option<AteSessionGroup>>>,
+}
+
+#[async_trait]
+impl RepositorySessionFactory
+for SessionFactory
+{
+    async fn create(&self, sni: String, key: ChainKey) -> Result<AteSessionType, AteError>
+    {
+        let edge_session = {
+            let mut edge_session_cache = self.edge_session_cache.lock().await;
+            if edge_session_cache.is_none() {
+                // First we need to get the edge session that has the rights to
+                // access this domain
+                let path = shellexpand::tilde(self.token_path.as_str()).to_string();
+                let session = if let Ok(token) = std::fs::read_to_string(path) {
+                    b64_to_session(token)
+                } else {
+                    let err: ate_auth::error::GatherError = ate_auth::error::GatherErrorKind::NoMasterKey.into();
+                    return Err(err.into());
+                };
+
+                // Now we gather the rights to the particular domain this website is running under
+                let edge_session = gather_command(
+                    &self.registry,
+                    self.instance_authority.clone(),
+                    session.clone_inner(),
+                    self.auth_url.clone(),
+                ).await?;
+                edge_session_cache.replace(edge_session);
+            }
+            edge_session_cache.clone().unwrap()
+        };
+        
+        // Get the broker key from the edge session (if we have none then fail)
+        let broker_key = if let Some(broker_key) = edge_session.broker_read() {
+            broker_key.clone()
+        } else {
+            error!("failed to get the broker key from the master edge session");
+            let err: ate_auth::error::GatherError = ate_auth::error::GatherErrorKind::NoMasterKey.into();
+            return Err(err.into());
+        };
+
+        // Now we read the chain of trust and attempt to get the master authority object
+        let chain = self.registry.open(&self.db_url, &key).await?;
+        let dio = chain.dio(&edge_session).await;
+        let master_authority = dio.load::<MasterAuthority>(&PrimaryKey::from(MASTER_AUTHORITY_ID)).await?;
+        let master_authority = master_authority.inner_broker.unwrap(&broker_key)?;
+
+        // Build the session using the master authority
+        let mut chain_session = AteSessionUser::default();
+        chain_session.add_user_read_key(&master_authority.read);
+        chain_session.add_user_write_key(&master_authority.write);
+        chain_session.add_user_uid(0);
+        let mut chain_session = AteSessionGroup::new(AteSessionInner::User(chain_session), sni);
+        chain_session.add_group_gid(&AteRolePurpose::Observer, 0);
+        chain_session.add_group_gid(&AteRolePurpose::Contributor, 0);
+        chain_session.add_group_read_key(&AteRolePurpose::Observer, &master_authority.read);
+        chain_session.add_group_write_key(&AteRolePurpose::Contributor, &master_authority.write);
+        Ok(AteSessionType::Group(chain_session))
     }
 }
