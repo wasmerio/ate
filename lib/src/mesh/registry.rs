@@ -273,6 +273,8 @@ impl Registry {
         // Set the ignore certificates
         if self.ignore_certificates {
             ret.certificate_validation = CertificateValidation::AllowAll;
+        } else if url.domain() == Some("localhost") {
+            ret.certificate_validation = CertificateValidation::AllowAll;
         }
 
         // Add all the global certificates
