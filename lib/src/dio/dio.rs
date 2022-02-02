@@ -59,6 +59,7 @@ pub(crate) struct DioState {
 ///
 /// When setting the scope for the DIO it will behave differently when the commit function
 /// is invoked based on what scope you set for the transaction.
+#[derive(Debug)]
 pub struct Dio {
     pub(super) chain: Arc<Chain>,
     pub(super) multi: ChainMultiUser,

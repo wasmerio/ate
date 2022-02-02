@@ -27,6 +27,7 @@ use super::prelude::*;
 
 use fxhash::FxHashMap;
 
+#[derive(Debug)]
 pub struct FileAccessor
 where
     Self: Send + Sync,

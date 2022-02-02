@@ -77,6 +77,14 @@ pub trait AteSession: Send + Sync + std::fmt::Display {
     fn clone_inner(&self) -> AteSessionInner;
 }
 
+impl std::fmt::Debug
+for dyn AteSession
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self, f)
+    }
+}
+
 impl From<AteSessionUser> for Box<dyn AteSession> {
     fn from(session: AteSessionUser) -> Self {
         Box::new(session)

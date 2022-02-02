@@ -1,5 +1,4 @@
 use ate::prelude::*;
-use ate_files::prelude::*;
 use std::net::IpAddr;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -15,6 +14,7 @@ use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 use crate::key::SshServerKey;
 use crate::opt::*;
 use crate::wizard::*;
+use super::NativeFiles;
 
 pub struct Server {
     pub listen: IpAddr,
@@ -24,7 +24,7 @@ pub struct Server {
     pub auth_rejection_time: Duration,
     pub compiler: term_lib::eval::Compiler,
     pub registry: Arc<Registry>,
-    pub native_files: Arc<FileAccessor>,
+    pub native_files: NativeFiles,
     pub auth: url::Url,
     pub compiled_modules: Arc<CachedCompiledModules>,
     pub exit_rx: watch::Receiver<bool>,
@@ -32,7 +32,7 @@ pub struct Server {
 }
 
 impl Server {
-    pub async fn new(host: OptsHost, server_key: SshServerKey, registry: Arc<Registry>, compiled_modules: Arc<CachedCompiledModules>, native_files: Arc<FileAccessor>, rx_exit: watch::Receiver<bool>) -> Self {
+    pub async fn new(host: OptsHost, server_key: SshServerKey, registry: Arc<Registry>, compiled_modules: Arc<CachedCompiledModules>, native_files: NativeFiles, rx_exit: watch::Receiver<bool>) -> Self {
         // Success
         Self {
             native_files,

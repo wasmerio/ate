@@ -10,13 +10,13 @@ use ate::comms::StreamRx;
 use ate::comms::Upstream;
 use ate::prelude::*;
 use ate_files::repo::Repository;
+use atessh::NativeFiles;
 use atessh::term_lib::api::System;
 use atessh::term_lib::api::SystemAbiExt;
 use tokera::model::InstanceHello;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 use url::Url;
-use ate_files::prelude::FileAccessor;
 use tokera::model::MasterAuthority;
 use tokera::model::ServiceInstance;
 use tokera::model::INSTANCE_ROOT_ID;
@@ -34,7 +34,7 @@ pub struct Server
     pub repo: Arc<Repository>,
     pub db_url: url::Url,
     pub auth_url: url::Url,
-    pub native_files: Arc<FileAccessor>,
+    pub native_files: NativeFiles,
     pub compiler: term_lib::eval::Compiler,
     pub compiled_modules: Arc<CachedCompiledModules>,
 }
@@ -46,7 +46,7 @@ impl Server
         auth_url: Url,
         edge_session: AteSessionGroup,
         registry: Arc<Registry>,
-        native_files: Arc<FileAccessor>,
+        native_files: NativeFiles,
         compiler: term_lib::eval::Compiler,
         compiled_modules: Arc<CachedCompiledModules>
     ) -> Result<Self, Box<dyn std::error::Error>> {
@@ -140,6 +140,14 @@ for Server
         let chain_dio = accessor.dio.clone().as_mut().await;
         let service_instance = chain_dio.load::<ServiceInstance>(&PrimaryKey::from(INSTANCE_ROOT_ID)).await?;
 
+        // Get the native files
+        let native_files = self.native_files
+            .get()
+            .await
+            .map_err(|err| {
+                CommsErrorKind::InternalError(err.to_string())
+            })?;
+
         // Build the session
         let session = Session {
             rx,
@@ -150,7 +158,7 @@ for Server
             hello_instance,
             accessor,
             service_instance,
-            native_files: self.native_files.clone(),
+            native_files,
             rect: Arc::new(Mutex::new(ConsoleRect { cols: 80, rows: 25 })),
             compiler: self.compiler.clone(),
             compiled_modules: self.compiled_modules.clone()
