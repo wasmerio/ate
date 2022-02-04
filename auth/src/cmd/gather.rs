@@ -22,7 +22,8 @@ pub async fn gather_command(
     auth: Url,
 ) -> Result<AteSessionGroup, GatherError> {
     // Open a command chain
-    let chain = registry.open_cmd(&auth).await?;
+    let chain = registry.open_cmd(&auth).await
+        .unwrap();
 
     // Create the gather command
     let gather = GatherRequest {
@@ -31,7 +32,8 @@ pub async fn gather_command(
     };
 
     // Attempt the gather request with a 10 second timeout
-    let response: Result<GatherResponse, GatherFailed> = chain.invoke(gather).await?;
+    let response: Result<GatherResponse, GatherFailed> = chain.invoke(gather).await
+        .unwrap();
     let result = response?;
     Ok(result.authority)
 }
