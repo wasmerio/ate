@@ -103,25 +103,32 @@ for Server
         // Read the instance hello message
         let mut _total_read = 0u64;
         let hello_buf = rx.read_buf_with_header(&wire_encryption, &mut _total_read).await?;
-        let hello_instance: InstanceHello = serde_json::from_slice(&hello_buf[..])?;
+        let hello_instance: InstanceHello = serde_json::from_slice(&hello_buf[..])
+            .unwrap();
         debug!("accept-web-socket: {}", hello_instance);
 
         // Open the instance chain that backs this particular instance
         let accessor = self.repo.get_accessor(&hello_instance.chain, hello_instance.owner_identity.as_str()).await
-            .map_err(|err| CommsErrorKind::InternalError(err.to_string()))?;
+            .unwrap();
+            //.map_err(|err| CommsErrorKind::InternalError(err.to_string()))?;
 
         // Load the service instance object
         let _chain = accessor.chain.clone();
         let chain_dio = accessor.dio.clone().as_mut().await;
-        let service_instance = chain_dio.load::<ServiceInstance>(&PrimaryKey::from(INSTANCE_ROOT_ID)).await?;
+        let service_instance = chain_dio.load::<ServiceInstance>(&PrimaryKey::from(INSTANCE_ROOT_ID))
+            .await
+            .unwrap();
+            //.await?;
 
         // Get the native files
         let native_files = self.native_files
             .get()
             .await
+            .unwrap();
+            /*
             .map_err(|err| {
                 CommsErrorKind::InternalError(err.to_string())
-            })?;
+            })?;*/
 
         // Build the session
         let session = Session {
