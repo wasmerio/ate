@@ -16,6 +16,7 @@ pub fn create_root_fs(inner: Option<Box<dyn MountedFileSystem>>) -> UnionFileSys
     };
     mounts.mount("root", "/", false, inner);
     append_static_dir(&mut mounts, &STATIC_DIR);
+    mounts.mount("app", "/app", false, Box::new(TmpFileSystem::new()));
     mounts
 }
 
