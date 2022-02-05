@@ -105,7 +105,7 @@ impl TokApi {
 
         // Perform an authenticator query to get the edge key
         let query = query_command(&self.registry, instance_authority, self.auth.clone()).await?;
-        let master_public = query.advert.broker_encrypt;
+        let master_public = query.advert.nominal_encrypt;
 
         // Add the master authority record so that the master servers can read this
         let admin_token = AteHash::generate().to_hex_string();

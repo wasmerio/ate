@@ -103,32 +103,25 @@ for Server
         // Read the instance hello message
         let mut _total_read = 0u64;
         let hello_buf = rx.read_buf_with_header(&wire_encryption, &mut _total_read).await?;
-        let hello_instance: InstanceHello = serde_json::from_slice(&hello_buf[..])
-            .unwrap();
+        let hello_instance: InstanceHello = serde_json::from_slice(&hello_buf[..])?;
         debug!("accept-web-socket: {}", hello_instance);
 
         // Open the instance chain that backs this particular instance
         let accessor = self.repo.get_accessor(&hello_instance.chain, hello_instance.owner_identity.as_str()).await
-            .unwrap();
-            //.map_err(|err| CommsErrorKind::InternalError(err.to_string()))?;
+            .map_err(|err| CommsErrorKind::InternalError(err.to_string()))?;
 
         // Load the service instance object
         let _chain = accessor.chain.clone();
         let chain_dio = accessor.dio.clone().as_mut().await;
-        let service_instance = chain_dio.load::<ServiceInstance>(&PrimaryKey::from(INSTANCE_ROOT_ID))
-            .await
-            .unwrap();
-            //.await?;
+        let service_instance = chain_dio.load::<ServiceInstance>(&PrimaryKey::from(INSTANCE_ROOT_ID)).await?;
 
         // Get the native files
         let native_files = self.native_files
             .get()
             .await
-            .unwrap();
-            /*
             .map_err(|err| {
                 CommsErrorKind::InternalError(err.to_string())
-            })?;*/
+            })?;
 
         // Build the session
         let session = Session {
@@ -196,21 +189,24 @@ for SessionFactory
             }
             edge_session_cache.clone().unwrap()
         };
-        
-        // Get the broker key from the edge session (if we have none then fail)
-        let broker_key = if let Some(broker_key) = edge_session.broker_read() {
-            broker_key.clone()
-        } else {
-            error!("failed to get the broker key from the master edge session");
-            let err: ate_auth::error::GatherError = ate_auth::error::GatherErrorKind::NoMasterKey.into();
-            return Err(err.into());
-        };
 
         // Now we read the chain of trust and attempt to get the master authority object
         let chain = self.registry.open(&self.db_url, &key).await?;
         let dio = chain.dio(&edge_session).await;
         let master_authority = dio.load::<MasterAuthority>(&PrimaryKey::from(MASTER_AUTHORITY_ID)).await?;
-        let master_authority = master_authority.inner_broker.unwrap(&broker_key)?;
+
+        // Get the private key and use it to access the authority for this chain
+        let access_key =  if let Some(key) = edge_session
+            .private_read_keys(AteSessionKeyCategory::AllKeys)
+            .filter(|k| k.hash() == master_authority.inner_broker.ek_hash())
+            .next() {
+            key.clone()
+        } else {
+            error!("failed to get the broker key from the master edge session");
+            let err: ate_auth::error::GatherError = ate_auth::error::GatherErrorKind::NoMasterKey.into();
+            return Err(err.into());
+        };
+        let master_authority = master_authority.inner_broker.unwrap(&access_key)?;
 
         // Build the session using the master authority
         let mut chain_session = AteSessionUser::default();

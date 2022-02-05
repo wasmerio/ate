@@ -52,17 +52,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
     let ret = runtime.clone().block_on(async move {
         match opts.subcmd {
             SubCommand::Run(solo) => {
-                let edge_session = ate_auth::cmd::main_session_group(
-                    None,
-                    Some(solo.token_path.clone()),
-                    solo.instance_authority.clone(),
-                    false,
-                    None,
-                    Some(solo.auth_url.clone()),
-                    "Domain",
-                )
-                .await?;    
-
                 let protocol = StreamProtocol::parse(&solo.sess_url)?;
                 let port = solo.auth_url.port().unwrap_or(protocol.default_port());
                 let domain = solo.auth_url.domain().unwrap_or("localhost").to_string();
@@ -90,7 +79,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
                 let instance_server = Server::new(
                     solo.db_url.clone(),
                     solo.auth_url.clone(),
-                    edge_session,
+                    solo.instance_authority.clone(),
+                    solo.token_path.clone(),
                     registry.clone(),
                     native_files,
                     solo.compiler.clone(),

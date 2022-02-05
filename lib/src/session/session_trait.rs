@@ -121,6 +121,7 @@ pub enum AteSessionKeyCategory {
     UserKeys,
     SudoKeys,
     GroupKeys,
+    BrokerKeys,
     NonGroupKeys,
     AllKeys,
 }
@@ -145,6 +146,13 @@ impl AteSessionKeyCategory {
     pub fn includes_group_keys(&self) -> bool {
         match self {
             AteSessionKeyCategory::GroupKeys => true,
+            AteSessionKeyCategory::AllKeys => true,
+            _ => false,
+        }
+    }
+    pub fn includes_broker_keys(&self) -> bool {
+        match self {
+            AteSessionKeyCategory::BrokerKeys => true,
             AteSessionKeyCategory::AllKeys => true,
             _ => false,
         }

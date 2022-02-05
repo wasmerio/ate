@@ -104,7 +104,8 @@ impl AteSession for AteSessionGroup {
             .iter()
             .filter(move |_| category.includes_group_keys())
             .flat_map(|a| a.write_keys());
-        Box::new(ret1.chain(ret2))
+        let ret3 = self.broker_write().filter(move |_| category.includes_broker_keys()).into_iter();
+        Box::new(ret1.chain(ret2).chain(ret3))
     }
 
     fn public_read_keys<'a>(
@@ -121,7 +122,8 @@ impl AteSession for AteSessionGroup {
             .iter()
             .filter(move |_| category.includes_group_keys())
             .flat_map(|a| a.public_read_keys());
-        Box::new(ret1.chain(ret2))
+        let ret3 = self.broker_read().filter(move |_| category.includes_broker_keys()).map(|a| a.as_public_key()).into_iter();
+        Box::new(ret1.chain(ret2).chain(ret3))
     }
 
     fn private_read_keys<'a>(
@@ -138,7 +140,8 @@ impl AteSession for AteSessionGroup {
             .iter()
             .filter(move |_| category.includes_group_keys())
             .flat_map(|a| a.private_read_keys());
-        Box::new(ret1.chain(ret2))
+        let ret3 = self.broker_read().filter(move |_| category.includes_broker_keys()).into_iter();
+        Box::new(ret1.chain(ret2).chain(ret3))
     }
 
     fn broker_read<'a>(&'a self) -> Option<&'a PrivateEncryptKey> {
