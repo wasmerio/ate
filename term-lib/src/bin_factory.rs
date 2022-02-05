@@ -29,8 +29,10 @@ pub struct BinaryPackage {
     pub data: Bytes,
     pub hash: String,
     pub chroot: bool,
+    pub base_dir: Option<String>,
     pub fs: TmpFileSystem,
     pub mappings: Vec<String>,
+    pub envs: HashMap<String, String>,
 }
 
 impl BinaryPackage {
@@ -41,8 +43,10 @@ impl BinaryPackage {
             data,
             hash,
             chroot: false,
+            base_dir: None,
             fs: TmpFileSystem::new(),
             mappings: Vec::new(),
+            envs: HashMap::default(),
         }
     }
 }
@@ -56,6 +60,8 @@ pub struct AliasConfig {
     pub base: Option<String>,
     #[serde(default)]
     pub mappings: Vec<String>,
+    #[serde(default)]
+    pub envs: HashMap<String, String>,
 }
 
 #[derive(Debug, Default)]

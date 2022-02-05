@@ -3,6 +3,7 @@
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use sha2::digest::generic_array::sequence::Lengthen;
+use std::collections::HashMap;
 use std::future::Future;
 use std::io::Read;
 use std::ops::Deref;
@@ -110,11 +111,23 @@ pub async fn exec_process(
     // Grab the private file system for this binary (if the binary changes the private
     // file system will also change)
     let mut preopen = ctx.pre_open.clone();
+    let mut envs = ctx.env.iter().filter_map(|(k, _)| ctx.env.get(k.as_str()).map(|v| (k.clone(), v))).collect::<HashMap<_,_>>();
+    let mut set_pwd = false;
+    let mut base_dir = None;
     let mut chroot = ctx.chroot;
     let (data_hash, data, mut fs_private) = match load_bin(&ctx, cmd, &mut stdio).await {
         Some(a) => {
             if a.chroot {
                 chroot = true;
+            }
+            if let Some(d) = a.base_dir {
+                base_dir = Some(d);
+            }
+            for (k, v) in a.envs {
+                if k == "PWD" {
+                    set_pwd = true;
+                }
+                envs.insert(k, v);
             }
             preopen.extend(a.mappings.into_iter());
 
@@ -124,6 +137,13 @@ pub async fn exec_process(
             return on_early_exit(None, err::ERR_ENOENT).await;
         }
     };
+    if set_pwd == false {
+        if let Some(ref base_dir) = base_dir {
+            envs.insert("PWD".to_string(), base_dir.clone());
+        } else {
+            envs.insert("PWD".to_string(), ctx.working_dir.clone());
+        }
+    }
 
     // If compile caching is enabled the load the module
     #[cfg(feature = "cached_compiling")]
@@ -263,7 +283,11 @@ pub async fn exec_process(
     let compiler = ctx.compiler;
     let reactor = ctx.reactor.clone();
     let chroot = if chroot {
-        Some(ctx.working_dir.clone())
+        if let Some(ref base_dir) = base_dir {
+            Some(base_dir.clone())
+        } else {
+            Some(ctx.working_dir.clone())
+        }
     } else {
         None
     };
@@ -371,11 +395,13 @@ pub async fn exec_process(
 
             // Build the list of arguments
             let args = args.iter().skip(1).map(|a| a.as_str()).collect::<Vec<_>>();
-
+            let envs = envs.iter().map(|(a, b)| (a.as_str(), b.as_str())).collect::<HashMap<_,_>>();
+            
             // Create the `WasiEnv`.
             let mut wasi_env = WasiState::new(cmd.as_str());
             let mut wasi_env = wasi_env
                 .args(&args)
+                .envs(&envs)
                 .stdin(Box::new(stdio.stdin.clone()))
                 .stdout(Box::new(stdio.stdout.clone()))
                 .stderr(Box::new(stdio.stderr.clone()));

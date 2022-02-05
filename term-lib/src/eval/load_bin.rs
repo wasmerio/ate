@@ -2,6 +2,7 @@
 #![allow(unused)]
 use bytes::Bytes;
 use std::collections::HashSet;
+use std::collections::HashMap;
 use std::io::Read;
 use std::path::Path;
 use std::path::PathBuf;
@@ -23,6 +24,8 @@ pub async fn load_bin(
 ) -> Option<BinaryPackage> {
     // Resolve any alias
     let mut chroot = false;
+    let mut base_dir = None;
+    let mut envs = HashMap::default();
     let mut mappings = Vec::new();
     let mut already = HashSet::<String>::default();
     let mut name = name.clone();
@@ -63,6 +66,12 @@ pub async fn load_bin(
                             if next.chroot {
                                 chroot = true;
                             }
+                            if next.base.is_some() {
+                                base_dir = next.base;
+                            }
+                            for (k, v) in next.envs {
+                                envs.insert(k, v);
+                            }
                             mappings.extend(next.mappings.into_iter());
 
                             debug!("binary alias '{}' found for {}", next.run, name);
@@ -100,6 +109,8 @@ pub async fn load_bin(
                 if chroot {
                     ret.chroot = true;
                 }
+                ret.base_dir = base_dir;
+                ret.envs = envs;
                 ret.mappings.extend(mappings.into_iter());
                 return Some(ret);
             }
@@ -115,6 +126,12 @@ pub async fn load_bin(
         if next.chroot {
             chroot = true;
         }
+        if next.base.is_some() {
+            base_dir = next.base;
+        }
+        for (k, v) in next.envs {
+            envs.insert(k, v);
+        }
         name = next.run;
     }
 
@@ -124,6 +141,8 @@ pub async fn load_bin(
         if chroot {
             ret.chroot = true;
         }
+        ret.base_dir = base_dir;
+        ret.envs = envs;
         ret.mappings.extend(mappings.into_iter());
     }
     ret
