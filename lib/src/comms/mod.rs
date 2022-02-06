@@ -18,6 +18,7 @@ mod stream;
 mod test;
 mod throttle;
 mod router;
+mod protocol;
 
 pub use self::node_id::NodeId;
 
