@@ -1,5 +1,7 @@
 # Bugs to fix
 
+- Logging in will mount the same folder twice which will show double the files
+  so to fix this mounts should override mounts
 - Firing off web sockets to unreachable ports freezes the proces. This is the
   case for instances 'tok' for instance when they dont go to the correct port.
 - There is a panic on the instance shell functionality which needs to be fixed

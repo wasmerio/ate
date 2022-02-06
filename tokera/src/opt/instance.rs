@@ -16,6 +16,9 @@ pub struct OptsInstance {
     /// URL where the instances can be accessed from
     #[clap(short, long, default_value = "ws://tokera.com/sess")]
     pub sess_url: Url,
+    /// Indicates that the server certificate should be ignored
+    #[clap(long)]
+    pub ignore_certificate: bool
 }
 
 #[derive(Parser, Clone)]

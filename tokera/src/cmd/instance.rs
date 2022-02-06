@@ -164,10 +164,11 @@ pub async fn main_opts_instance_shell(
     api: &mut TokApi,
     sess_url: url::Url,
     name: &str,
+    ignore_certificate: bool
 ) -> Result<(), InstanceError> {
     let (instance, _) = api.instance_action(name).await?;
     let instance = instance?;
-    let mut client = InstanceClient::new(sess_url).await
+    let mut client = InstanceClient::new_ext(sess_url, ignore_certificate).await
         .unwrap();
 
     client.send_hello(InstanceHello {
@@ -224,6 +225,7 @@ pub async fn main_opts_instance(
     db_url: url::Url,
     sess_url: url::Url,
     instance_authority: String,
+    ignore_certificate: bool
 ) -> Result<(), InstanceError>
 {
     // Check if sudo is needed
@@ -257,7 +259,7 @@ pub async fn main_opts_instance(
         OptsInstanceAction::Shell(_opts_exec) => {
             if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
             let name = name.unwrap();
-            main_opts_instance_shell(&mut context.api, sess_url, name.as_str()).await?;
+            main_opts_instance_shell(&mut context.api, sess_url, name.as_str(), ignore_certificate).await?;
         }
         OptsInstanceAction::Export(_opts_export) => {
             if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }

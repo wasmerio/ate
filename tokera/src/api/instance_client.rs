@@ -13,16 +13,21 @@ pub struct InstanceClient
 {
     rx: StreamRx,
     tx: StreamTx,
-    ek: Option<EncryptKey>
+    ek: Option<EncryptKey>,
 }
 
 impl InstanceClient
 {
     pub async fn new(connect_url: url::Url) -> Result<Self, Box<dyn std::error::Error>>
     {
+        Self::new_ext(connect_url, false).await
+    }
+
+    pub async fn new_ext(connect_url: url::Url, ignore_certificate: bool) -> Result<Self, Box<dyn std::error::Error>>
+    {
         let domain = connect_url.domain().clone().map(|a| a.to_string()).unwrap_or("localhost".to_string());
 
-        let validation = {
+        let mut validation = {
             let mut certs = Vec::new();
             
             #[cfg(not(target_arch = "wasm32"))]
@@ -45,6 +50,9 @@ impl InstanceClient
                 CertificateValidation::DenyAll
             }
         };
+        if ignore_certificate {
+            validation = CertificateValidation::AllowAll;
+        }
 
         let socket = SocketBuilder::new(connect_url)
             .open()
