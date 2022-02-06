@@ -140,19 +140,19 @@ impl MessageProtocol
                     buf[index..end].copy_from_slice(&staging[..amount]);
                     staging.advance(amount);
                     index += amount;
-                    trace!("stream_rx::staging({} bytes)", amount);
+                    //trace!("stream_rx::staging({} bytes)", amount);
                     continue;
                 }
             }
 
             // Read some more data and put it in the buffer
             let data = rx.recv().await?;
-            trace!("stream_rx::recv_and_buffered({} bytes)", data.len());
+            //trace!("stream_rx::recv_and_buffered({} bytes)", data.len());
             self.buffer.replace(Bytes::from(data));
         }
 
         // Success
-        trace!("stream_rx::read({} bytes)", index);
+        //trace!("stream_rx::read({} bytes)", index);
         Ok(())
     }
 
@@ -163,10 +163,10 @@ impl MessageProtocol
     {
         let len = self.read_u8(rx).await?;
         if len <= 0 {
-            trace!("stream_rx::8bit-header(no bytes!!)");
+            //trace!("stream_rx::8bit-header(no bytes!!)");
             return Ok(vec![]);
         }
-        trace!("stream_rx::8bit-header(next_msg={} bytes)", len);
+        //trace!("stream_rx::8bit-header(next_msg={} bytes)", len);
         let mut bytes = vec![0 as u8; len as usize];
         self.read_exact(rx, &mut bytes).await?;
         Ok(bytes)
@@ -222,10 +222,10 @@ for MessageProtocol
     {
         let len = self.read_u16(rx).await?;
         if len <= 0 {
-            trace!("stream_rx::16bit-header(no bytes!!)");
+            //trace!("stream_rx::16bit-header(no bytes!!)");
             return Ok(vec![]);
         }
-        trace!("stream_rx::16bit-header(next_msg={} bytes)", len);
+        //trace!("stream_rx::16bit-header(next_msg={} bytes)", len);
         let mut bytes = vec![0 as u8; len as usize];
         self.read_exact(rx, &mut bytes).await?;
         Ok(bytes)
@@ -238,10 +238,10 @@ for MessageProtocol
     {
         let len = self.read_u32(rx).await?;
         if len <= 0 {
-            trace!("stream_rx::32bit-header(no bytes!!)");
+            //trace!("stream_rx::32bit-header(no bytes!!)");
             return Ok(vec![]);
         }
-        trace!("stream_rx::32bit-header(next_msg={} bytes)", len);
+        //trace!("stream_rx::32bit-header(next_msg={} bytes)", len);
         let mut bytes = vec![0 as u8; len as usize];
         self.read_exact(rx, &mut bytes).await?;
         Ok(bytes)
