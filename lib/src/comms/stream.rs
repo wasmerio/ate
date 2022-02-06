@@ -895,8 +895,10 @@ impl StreamRx {
     pub async fn read_with_8bit_header(&mut self) -> Result<Vec<u8>, tokio::io::Error> {
         let len = self.read_u8().await?;
         if len <= 0 {
+            trace!("stream_rx::8bit-header(no bytes!!)");
             return Ok(vec![]);
         }
+        trace!("stream_rx::8bit-header(next_msg={} bytes)", len);
         let mut bytes = vec![0 as u8; len as usize];
         self.read_exact(&mut bytes).await?;
         Ok(bytes)
@@ -905,8 +907,10 @@ impl StreamRx {
     pub async fn read_with_16bit_header(&mut self) -> Result<Vec<u8>, tokio::io::Error> {
         let len = self.read_u16().await?;
         if len <= 0 {
+            trace!("stream_rx::16bit-header(no bytes!!)");
             return Ok(vec![]);
         }
+        trace!("stream_rx::16bit-header(next_msg={} bytes)", len);
         let mut bytes = vec![0 as u8; len as usize];
         self.read_exact(&mut bytes).await?;
         Ok(bytes)
@@ -915,8 +919,10 @@ impl StreamRx {
     pub async fn read_with_32bit_header(&mut self) -> Result<Vec<u8>, tokio::io::Error> {
         let len = self.read_u32().await?;
         if len <= 0 {
+            trace!("stream_rx::32bit-header(no bytes!!)");
             return Ok(vec![]);
         }
+        trace!("stream_rx::32bit-header(next_msg={} bytes)", len);
         let mut bytes = vec![0 as u8; len as usize];
         self.read_exact(&mut bytes).await?;
         Ok(bytes)
@@ -998,16 +1004,19 @@ impl StreamRx {
                     buf[index..end].copy_from_slice(&staging[..amount]);
                     staging.advance(amount);
                     index += amount;
+                    trace!("stream_rx::staging({} bytes)", amount);
                     continue;
                 }
             }
 
             // Read some more data and put it in the buffer
             let data = self.inner.recv().await?;
+            trace!("stream_rx::recv_and_buffered({} bytes)", data.len());
             self.buffer.replace(Bytes::from(data));
         }
 
         // Success
+        trace!("stream_rx::read({} bytes)", index);
         Ok(())
     }
 
