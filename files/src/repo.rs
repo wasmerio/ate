@@ -47,10 +47,11 @@ impl Repository {
 
 impl Repository {
     pub async fn get_session(&self, sni: &String, key: ChainKey) -> Result<AteSessionType, GatherError> {
-        // Check the check
+        // Check the cache
+        let cache_key = format!("{}-{}", sni, key);
         {
             let guard = self.sessions.read().unwrap();
-            if let Some(ret) = guard.get(sni) {
+            if let Some(ret) = guard.get(&cache_key) {
                 return Ok(ret.clone());
             }
         }
@@ -60,12 +61,12 @@ impl Repository {
 
         // Enter a write lock and check again
         let mut guard = self.sessions.write().unwrap();
-        if let Some(ret) = guard.get(sni) {
+        if let Some(ret) = guard.get(&cache_key) {
             return Ok(ret.clone());
         }
 
         // Cache and and return it
-        guard.insert(sni.clone(), session.clone(), self.ttl);
+        guard.insert(cache_key.clone(), session.clone(), self.ttl);
         Ok(session)
     }
 

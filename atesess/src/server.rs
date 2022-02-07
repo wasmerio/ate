@@ -181,7 +181,7 @@ for SessionFactory
                     return Err(err.into());
                 };
 
-                // Now we gather the rights to the particular domain this website is running under
+                // Now we gather the rights to the instance domain that is capable of running these instances
                 let edge_session = gather_command(
                     &self.registry,
                     self.instance_authority.clone(),
