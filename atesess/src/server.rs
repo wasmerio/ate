@@ -109,13 +109,16 @@ for Server
         // Open the instance chain that backs this particular instance
         let accessor = self.repo.get_accessor(&hello_instance.chain, hello_instance.owner_identity.as_str()).await
             .map_err(|err| CommsErrorKind::InternalError(err.to_string()))?;
+        trace!("loaded file accessor for {}", hello_instance.chain);
 
         // Load the service instance object
         let _chain = accessor.chain.clone();
         let chain_dio = accessor.dio.clone().as_mut().await;
+        trace!("loading service instance with key {}", PrimaryKey::from(INSTANCE_ROOT_ID));
         let service_instance = chain_dio.load::<ServiceInstance>(&PrimaryKey::from(INSTANCE_ROOT_ID)).await?;
 
         // Get the native files
+        trace!("loading and attaching native files");
         let native_files = self.native_files
             .get()
             .await
