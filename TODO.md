@@ -19,6 +19,13 @@
 - Need to fix the browser tests for the MAC - there is now some testing suite
   that should work and thus allow for some debugging
 
+# Features to implement
+
+- The /.app folder needs to save its files to a temporary file or directory
+  on the real machine so that it saves memory.
+- Cached compiled objects need to save their files to temporary files so
+  that it saves memory.
+
 # Fun stuff
 
 - make this work...
