@@ -31,6 +31,9 @@ struct Opts {
     /// Determines which compiler to use
     #[clap(short, long, default_value = "default")]
     pub compiler: term_lib::eval::Compiler,
+    /// Location where cached compiled modules are stored
+    #[clap(long, default_value = "~/ate/compiled")]
+    pub compiler_cache_path: String,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -70,7 +73,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     // Build the compiled modules
-    let compiled_modules = Arc::new(CachedCompiledModules::default());
+    let compiled_modules = Arc::new(CachedCompiledModules::new(Some(opts.compiler_cache_path)));
 
     // Now we run the actual console under the runtime
     let con = con.clone();

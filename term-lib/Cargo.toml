@@ -57,6 +57,7 @@ wasm-bus-process = { version = "^1", path = "../wasm-bus-process", default_featu
 wasm-bus-reqwest = { version = "^1", path = "../wasm-bus-reqwest", default_features = false }
 url = { version = "^2" }
 regex = { version = "^1.5" }
+hex = "^0.4"
 fastrand = "^1.5"
 bincode = "1"
 async-trait = "^0.1"
@@ -66,3 +67,5 @@ wild = "^2"
 cooked-waker = { version = "^5" }
 serde_yaml = { version = "^0.8" }
 include_dir = "0.7.2"
+shellexpand = "^2"
+weezl = "^0.1"

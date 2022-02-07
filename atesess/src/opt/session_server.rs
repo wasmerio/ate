@@ -19,6 +19,9 @@ pub struct OptsSessionServer {
     /// Token file to read that holds a previously created token to be used for this operation
     #[clap(long, default_value = "~/ate/token")]
     pub token_path: String,
+    /// Location where cached compiled modules are stored
+    #[clap(long, default_value = "~/ate/compiled")]
+    pub compiler_cache_path: String,
     /// URL where the web data is remotely stored on a distributed commit log.
     #[clap(short, long, default_value = "ws://tokera.com/db")]
     pub db_url: url::Url,

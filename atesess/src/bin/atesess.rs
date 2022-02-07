@@ -75,7 +75,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
                 let native_files = sys.native_files.clone();
                 atessh::term_lib::api::set_system_abi(sys);
 
-                let compiled_modules = Arc::new(CachedCompiledModules::default());
+                let compiled_modules = Arc::new(CachedCompiledModules::new(Some(solo.compiler_cache_path)));
                 let instance_server = Server::new(
                     solo.db_url.clone(),
                     solo.auth_url.clone(),

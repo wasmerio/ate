@@ -45,9 +45,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let sys = atessh::system::System::new(sys, registry.clone(), host.db_url.clone(), host.native_files.clone()).await;
                         let native_files = sys.native_files.clone();
                         term_lib::api::set_system_abi(sys);
-        
+
                         // Start the SSH server
-                        let compiled_modules = Arc::new(CachedCompiledModules::default());
+                        let compiled_modules = Arc::new(CachedCompiledModules::new(Some(host.compiler_cache_path.clone())));
                         let server = Server::new(host, server_key, registry, compiled_modules, native_files, rx_exit).await;
                         server.listen().await?;
                         Ok(())

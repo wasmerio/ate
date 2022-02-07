@@ -41,18 +41,10 @@ use crate::reactor::*;
 use crate::state::*;
 use crate::stdio::*;
 use crate::wasmer::{ChainableNamedResolver, Instance, Module, Store};
-#[cfg(feature = "wasmer-compiler-cranelift")]
-use crate::wasmer_compiler_cranelift::Cranelift;
-#[cfg(feature = "wasmer-compiler-llvm")]
-use crate::wasmer_compiler_llvm::LLVM;
-#[cfg(feature = "wasmer-compiler-singlepass")]
-use crate::wasmer_compiler_singlepass::Singlepass;
 use crate::wasmer_vfs::FileSystem;
 use crate::wasmer_vfs::FsError;
 use crate::wasmer_wasi::Stdin;
 use crate::wasmer_wasi::{Stdout, WasiError, WasiState};
-#[cfg(feature = "wasmer-compiler")]
-use {crate::wasmer::Universal, crate::wasmer_compiler::CompilerConfig};
 
 pub enum ExecResponse {
     Immediate(EvalContext, u32),
@@ -147,7 +139,7 @@ pub async fn exec_process(
 
     // If compile caching is enabled the load the module
     #[cfg(feature = "cached_compiling")]
-    let mut module = { ctx.bins.get_compiled_module(&data_hash).await };
+    let mut module = { ctx.bins.get_compiled_module(&data_hash, ctx.compiler).await };
 
     // We listen for any forced exits using this channel
     let caller_ctx = WasmCallerContext::default();
@@ -336,29 +328,10 @@ pub async fn exec_process(
                 }
 
                 // Choose the right compiler
-                let store = match compiler {
-                    #[cfg(feature = "cranelift")]
-                    Compiler::Cranelift => {
-                        let compiler = Cranelift::default();
-                        Store::new(&Universal::new(compiler).engine())
-                    }
-                    #[cfg(feature = "llvm")]
-                    Compiler::LLVM => {
-                        let compiler = LLVM::default();
-                        Store::new(&Universal::new(compiler).engine())
-                    }
-                    #[cfg(feature = "singlepass")]
-                    Compiler::Singlepass => {
-                        let compiler = Singlepass::default();
-                        Store::new(&Universal::new(compiler).engine())
-                    }
-                    _ => Store::default(),
-                };
+                let store = compiler.new_store();
 
                 // Cache miss - compile the module
                 debug!("compiling {}", cmd);
-
-                let store = Store::default();
                 let compiled_module = match Module::new(&store, &data[..]) {
                     Ok(a) => a,
                     Err(err) => {
@@ -381,7 +354,7 @@ pub async fn exec_process(
                 );
 
                 #[cfg(feature = "cached_compiling")]
-                bins.set_compiled_module(data_hash.clone(), compiled_module.clone())
+                bins.set_compiled_module(data_hash.clone(), compiler, compiled_module.clone())
                     .await;
 
                 thread_local

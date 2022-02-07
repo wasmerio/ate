@@ -17,6 +17,9 @@ pub struct OptsHost {
     /// Determines which compiler to use
     #[clap(short, long, default_value = "default")]
     pub compiler: term_lib::eval::Compiler,
+    /// Location where cached compiled modules are stored
+    #[clap(long, default_value = "~/ate/compiled")]
+    pub compiler_cache_path: String,
     /// URL of the datachain servers
     #[clap(long, default_value = "ws://tokera.com/db")]
     pub db_url: url::Url,

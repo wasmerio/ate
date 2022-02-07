@@ -28,6 +28,16 @@ use tokio::sync::RwLock;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
+#[cfg(feature = "wasmer-compiler")]
+use {crate::wasmer::Universal, crate::wasmer_compiler::CompilerConfig};
+use crate::wasmer::{Store};
+#[cfg(feature = "wasmer-compiler-cranelift")]
+use crate::wasmer_compiler_cranelift::Cranelift;
+#[cfg(feature = "wasmer-compiler-llvm")]
+use crate::wasmer_compiler_llvm::LLVM;
+#[cfg(feature = "wasmer-compiler-singlepass")]
+use crate::wasmer_compiler_singlepass::Singlepass;
+
 use crate::api::*;
 use crate::ast;
 use crate::environment::Environment;
@@ -74,6 +84,34 @@ pub enum Compiler {
     Cranelift,
 }
 
+impl Compiler
+{
+    #[cfg(feature = "wasmer-compiler")]
+    pub fn new_store(&self) -> Store
+    {
+        // Choose the right compiler
+        let store = match self {
+            #[cfg(feature = "cranelift")]
+            Compiler::Cranelift => {
+                let compiler = Cranelift::default();
+                Store::new(&Universal::new(compiler).engine())
+            }
+            #[cfg(feature = "llvm")]
+            Compiler::LLVM => {
+                let compiler = LLVM::default();
+                Store::new(&Universal::new(compiler).engine())
+            }
+            #[cfg(feature = "singlepass")]
+            Compiler::Singlepass => {
+                let compiler = Singlepass::default();
+                Store::new(&Universal::new(compiler).engine())
+            }
+            _ => Store::default(),
+        };
+        store
+    }
+}
+
 impl std::str::FromStr for Compiler {
     type Err = String;
 
@@ -96,6 +134,22 @@ impl std::str::FromStr for Compiler {
                 msg.push_str(", 'cranelift'");
                 Err(msg)
             }
+        }
+    }
+}
+
+impl std::fmt::Display
+for Compiler
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            #[cfg(feature = "singlepass")]
+            Compiler::Singlepass => write!(f, "singlepass"),
+            #[cfg(feature = "cranelift")]
+            Compiler::Cranelift => write!(f, "cranelift"),
+            #[cfg(feature = "llvm")]
+            Compiler::LLVM => write!(f, "llvm"),
+            Compiler::Default => write!(f, "default")
         }
     }
 }
