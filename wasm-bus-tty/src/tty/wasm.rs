@@ -1,10 +1,10 @@
 #![allow(dead_code)]
+use crate::api;
+use std::io;
 use std::{result::Result, sync::Arc};
 use tokio::sync::mpsc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use crate::api;
-use std::io;
 
 pub const WAPM_NAME: &'static str = "os";
 const MAX_MPSC: usize = std::usize::MAX >> 3;
@@ -24,15 +24,15 @@ impl Tty {
                 }),
                 Box::new(move |_| {
                     let _ = tx_flush.blocking_send(());
-                })
+                }),
             )
             .await
             .map_err(|err| err.into_io_error())?;
-
+        
         Ok(Stdin {
             rx_data,
             rx_flush,
-            client
+            client,
         })
     }
 
@@ -42,9 +42,7 @@ impl Tty {
             .await
             .map_err(|err| err.into_io_error())?;
 
-        Ok(Stdout {
-            client
-        })
+        Ok(Stdout { client })
     }
 
     pub async fn stderr() -> Result<Stderr, io::Error> {
@@ -53,23 +51,24 @@ impl Tty {
             .await
             .map_err(|err| err.into_io_error())?;
 
-        Ok(Stderr {
-            client
-        })
+        Ok(Stderr { client })
     }
 }
 
-pub struct Stdin
-{
+pub struct Stdin {
     rx_data: mpsc::Receiver<Vec<u8>>,
     rx_flush: mpsc::Receiver<()>,
     client: Arc<dyn api::Stdin + Send + Sync>,
 }
 
-impl Stdin
-{
+impl Stdin {
     pub async fn read(&mut self) -> Option<Vec<u8>> {
-        self.rx_data.recv().await
+        if let Some(data) = self.rx_data.recv().await {
+            if data.len() > 0 {
+                return Some(data);
+            }
+        }
+        None
     }
 
     pub async fn wait_for_flush(&mut self) -> Option<()> {
@@ -77,13 +76,11 @@ impl Stdin
     }
 }
 
-pub struct Stdout
-{
-    client: Arc<dyn api::Stdout + Send + Sync>,    
+pub struct Stdout {
+    client: Arc<dyn api::Stdout + Send + Sync>,
 }
 
-impl Stdout
-{
+impl Stdout {
     pub async fn write(&mut self, data: Vec<u8>) -> Result<usize, io::Error> {
         self.client
             .write(data)
@@ -95,6 +92,18 @@ impl Stdout
             })?
     }
 
+    pub async fn print(&mut self, text: String) -> Result<(), io::Error> {
+        let data = text.as_bytes().to_vec();
+        self.write(data).await?;
+        self.flush().await
+    }
+
+    pub async fn println(&mut self, text: String) -> Result<(), io::Error> {
+        let data = [text.as_bytes(), "\r\n".as_bytes()].concat();
+        self.write(data).await?;
+        self.flush().await
+    }
+
     pub async fn flush(&mut self) -> Result<(), io::Error> {
         self.client
             .flush()
@@ -104,13 +113,11 @@ impl Stdout
     }
 }
 
-pub struct Stderr
-{
-    client: Arc<dyn api::Stderr + Send + Sync>,    
+pub struct Stderr {
+    client: Arc<dyn api::Stderr + Send + Sync>,
 }
 
-impl Stderr
-{
+impl Stderr {
     pub async fn write(&mut self, data: Vec<u8>) -> Result<usize, io::Error> {
         self.client
             .write(data)

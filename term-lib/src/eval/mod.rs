@@ -110,6 +110,12 @@ impl Compiler
         };
         store
     }
+
+    #[cfg(not(feature = "wasmer-compiler"))]
+    pub fn new_store(&self) -> Store
+    {
+        Store::default()
+    }
 }
 
 impl std::str::FromStr for Compiler {

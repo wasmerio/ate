@@ -20,6 +20,7 @@ use crate::api::*;
 use crate::err;
 use crate::eval::*;
 use crate::fd::*;
+use crate::stdout::*;
 use crate::pipe::*;
 use crate::reactor::*;
 
@@ -348,6 +349,41 @@ impl ProcessExecFactory {
     pub fn take_context(&self) -> Option<EvalContext> {
         let mut guard = self.ctx.lock().unwrap();
         guard.take()
+    }
+
+    pub fn stdio(&self) -> crate::stdio::Stdio {
+        let mut stdio = self.exec_factory.stdio(self.stdin());
+        stdio.stdin = self.stdin();
+        stdio.stdout = self.stdout().fd();
+        stdio.stderr = self.stderr();
+        stdio
+    }
+
+    pub fn stdin(&self) -> Fd {
+        use crate::pipe::*;
+
+        if let Some(fd) = self.inherit_stdin.upgrade() {
+            fd
+        } else {
+            let (stdin_fd, _) = pipe_in(ReceiverMode::Stream, FdFlag::Stdin(false));
+            stdin_fd
+        }
+    }
+
+    pub fn stdout(&self) -> Stdout {
+        if let Some(fd) = self.inherit_stdout.upgrade() {
+            Stdout::new(fd)
+        } else {
+            self.exec_factory.stdout()
+        }        
+    }
+
+    pub fn stderr(&self) -> Fd {
+        if let Some(fd) = self.inherit_stderr.upgrade() {
+            fd
+        } else {
+            self.exec_factory.stderr()
+        }        
     }
 }
 

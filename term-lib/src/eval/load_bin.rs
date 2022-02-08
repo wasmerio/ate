@@ -184,8 +184,8 @@ pub async fn wapm_install(ctx: &EvalContext, name: &String, wapm: String, base_d
         let (stdin_fd, _) = pipe_in(ReceiverMode::Stream, FdFlag::Stdin(false));
         let mut ctx = ctx.clone();
         ctx.stdio.stdin = stdin_fd;
-        ctx.stdio.stdout = ctx.stdio.tty.fd();
-        ctx.stdio.stderr = ctx.stdio.tty.fd();
+        ctx.stdio.stdout = ctx.stdio.tty.fd_stdout();
+        ctx.stdio.stderr = ctx.stdio.tty.fd_stdout();
         ctx.input = format!("wapm install {}", wapm);
 
         let mut process = super::eval(ctx);

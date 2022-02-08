@@ -95,10 +95,6 @@ impl EvalFactory {
         self.state.tty.clone()
     }
 
-    pub fn stdin(&self) -> Fd {
-        self.state.tty.fd()
-    }
-
     pub fn stdout(&self) -> Stdout {
         self.state.stdout.clone()
     }
@@ -111,9 +107,9 @@ impl EvalFactory {
         self.state.log.clone()
     }
 
-    pub fn stdio(&self) -> Stdio {
+    pub fn stdio(&self, stdin: Fd) -> Stdio {
         Stdio {
-            stdin: self.stdin(),
+            stdin,
             stdout: self.stdout().fd.clone(),
             stderr: self.stderr(),
             log: self.log(),

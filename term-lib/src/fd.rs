@@ -41,7 +41,6 @@ pub enum FdFlag {
     Stdout(bool), // bool indicates if the terminal is TTY
     Stderr(bool), // bool indicates if the terminal is TTY
     Log,
-    Tty,
 }
 
 impl FdFlag {
@@ -50,7 +49,6 @@ impl FdFlag {
             FdFlag::Stdin(tty) => tty.clone(),
             FdFlag::Stdout(tty) => tty.clone(),
             FdFlag::Stderr(tty) => tty.clone(),
-            FdFlag::Tty => true,
             _ => false,
         }
     }
@@ -58,8 +56,21 @@ impl FdFlag {
     pub fn is_stdin(&self) -> bool {
         match self {
             FdFlag::Stdin(_) => true,
-            FdFlag::Tty => true,
             _ => false,
+        }
+    }
+}
+
+impl std::fmt::Display
+for FdFlag
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FdFlag::None => write!(f, "none"),
+            FdFlag::Stdin(tty) => write!(f, "stdin(tty={})", tty),
+            FdFlag::Stdout(tty) => write!(f, "stdout(tty={})", tty),
+            FdFlag::Stderr(tty) => write!(f, "stderr(tty={})", tty),
+            FdFlag::Log => write!(f, "log"),
         }
     }
 }
@@ -95,6 +106,7 @@ pub struct Fd {
     pub(crate) blocking: Arc<AtomicBool>,
     pub(crate) sender: Option<Arc<mpsc::Sender<FdMsg>>>,
     pub(crate) receiver: Option<Arc<AsyncMutex<ReactorPipeReceiver>>>,
+    pub(crate) flip_to_abort: bool,
 }
 
 impl Fd {
@@ -110,6 +122,7 @@ impl Fd {
             blocking: Arc::new(AtomicBool::new(true)),
             sender: tx.map(|a| Arc::new(a)),
             receiver: rx,
+            flip_to_abort: false,
         }
     }
 
@@ -121,6 +134,7 @@ impl Fd {
             blocking: Arc::new(AtomicBool::new(fd1.blocking.load(Ordering::Relaxed))),
             sender: None,
             receiver: None,
+            flip_to_abort: false,
         };
 
         if let Some(a) = fd1.sender.as_ref() {
@@ -165,6 +179,14 @@ impl Fd {
 
     pub fn is_closed(&self) -> bool {
         self.closed.load(Ordering::Acquire)
+    }
+
+    pub fn is_readable(&self) -> bool {
+        self.receiver.is_some()
+    }
+
+    pub fn is_writable(&self) -> bool {
+        self.sender.is_some()
     }
 
     fn check_closed(&self) -> io::Result<()> {
@@ -232,18 +254,31 @@ impl Fd {
             }
             if receiver.mode == ReceiverMode::Message(true) {
                 receiver.mode = ReceiverMode::Message(false);
+                crate::common::panic_on_thrash(50, file!(), line!());
                 return Ok(FdMsg::new(Vec::new(), receiver.cur_flag));
             }
             let msg = receiver
                 .rx
                 .recv()
                 .await
-                .unwrap_or(FdMsg::new(Vec::new(), receiver.cur_flag));
+                .unwrap_or_else(|| {
+                    FdMsg::new(Vec::new(), receiver.cur_flag)
+                });
             if let FdMsg::Data { flag, .. } = &msg {
                 receiver.cur_flag = flag.clone();
             }
+            if msg.len() <= 0 {
+                if self.flip_to_abort {
+                    return Err(std::io::ErrorKind::BrokenPipe.into());        
+                }
+                self.flip_to_abort = true;
+            }
             Ok(msg)
         } else {
+            if self.flip_to_abort {
+                return Err(std::io::ErrorKind::BrokenPipe.into());        
+            }
+            self.flip_to_abort = true;
             return Ok(FdMsg::new(Vec::new(), self.flag));
         }
     }
@@ -335,6 +370,10 @@ impl Fd {
                 }
                 Err(TryRecvError::Empty) => {}
                 Err(TryRecvError::Disconnected) => {
+                    if self.flip_to_abort {
+                        return Err(std::io::ErrorKind::BrokenPipe.into());        
+                    }
+                    self.flip_to_abort = true;
                     return Ok(None);
                 }
             }
@@ -351,6 +390,10 @@ impl Fd {
 
             // Maybe we are closed - if not then yield and try again
             if self.closed.load(Ordering::Acquire) {
+                if self.flip_to_abort {
+                    return Err(std::io::ErrorKind::BrokenPipe.into());        
+                }
+                self.flip_to_abort = true;
                 return Ok(None);
             }
 
@@ -409,6 +452,10 @@ impl Read for Fd {
                         }
                         Err(mpsc::error::TryRecvError::Empty) => {}
                         Err(mpsc::error::TryRecvError::Disconnected) => {
+                            if self.flip_to_abort {
+                                return Err(std::io::ErrorKind::BrokenPipe.into());        
+                            }
+                            self.flip_to_abort = true;
                             return Ok(0usize);
                         }
                     }
@@ -426,6 +473,10 @@ impl Read for Fd {
 
                 // Maybe we are closed - if not then yield and try again
                 if self.closed.load(Ordering::Acquire) {
+                    if self.flip_to_abort {
+                        return Err(std::io::ErrorKind::BrokenPipe.into());        
+                    }
+                    self.flip_to_abort = true;
                     std::thread::yield_now();
                     return Ok(0usize);
                 }
@@ -436,6 +487,10 @@ impl Read for Fd {
                 std::thread::park_timeout(std::time::Duration::from_millis(wait_time));
             }
         } else {
+            if self.flip_to_abort {
+                return Err(std::io::ErrorKind::BrokenPipe.into());        
+            }
+            self.flip_to_abort = true;
             return Ok(0usize);
         }
     }
@@ -500,6 +555,7 @@ impl WeakFd {
             blocking,
             sender,
             receiver,
+            flip_to_abort: false,
         })
     }
 }

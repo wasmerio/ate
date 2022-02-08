@@ -2,7 +2,7 @@ use serde::*;
 use std::sync::Arc;
 use wasm_bus::macros::*;
 
-#[wasm_bus(format = "json")]
+#[wasm_bus(format = "bincode")]
 pub trait Tty {
     async fn stdin(
         &self,

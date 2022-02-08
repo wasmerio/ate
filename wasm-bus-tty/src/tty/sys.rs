@@ -1,17 +1,14 @@
 #![allow(dead_code)]
-use std::{result::Result};
+use libc::{tcsetattr, termios, ECHO, ICANON, ICRNL, IEXTEN, ISIG, IXON, OPOST, TCSANOW};
+use std::os::unix::io::AsRawFd;
+use std::result::Result;
 use tokio::{io, io::AsyncReadExt, io::AsyncWriteExt};
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use std::os::unix::io::AsRawFd;
-use libc::{
-    tcsetattr, termios, ECHO, ICANON, ICRNL, IEXTEN, ISIG, IXON, OPOST, TCSANOW,
-};
 
 const MAX_MPSC: usize = std::usize::MAX >> 3;
 
-pub struct Tty {
-}
+pub struct Tty {}
 
 impl Tty {
     pub async fn stdin() -> Result<Stdin, std::io::Error> {
@@ -43,32 +40,29 @@ impl Tty {
     pub async fn stdout() -> Result<Stdout, io::Error> {
         let stdout = tokio::io::stdout();
 
-        Ok(Stdout {
-            stdout
-        })
+        Ok(Stdout { stdout })
     }
 
     pub async fn stderr() -> Result<Stderr, io::Error> {
         let stderr = tokio::io::stdout();
 
-        Ok(Stderr {
-            stderr
-        })
+        Ok(Stderr { stderr })
     }
 }
 
-pub struct Stdin
-{
+pub struct Stdin {
     tty: tokio::fs::File,
     tty_fd: i32,
     termios: termios,
 }
 
-impl Stdin
-{
+impl Stdin {
     pub async fn read(&mut self) -> Option<Vec<u8>> {
         let mut buffer = [0; 1024];
         if let Ok(read) = self.tty.read(&mut buffer[..]).await {
+            if read == 0 {
+                return None;
+            }
             let ret = (&buffer[0..read]).to_vec();
             Some(ret)
         } else {
@@ -81,24 +75,32 @@ impl Stdin
     }
 }
 
-impl Drop
-for Stdin
-{
+impl Drop for Stdin {
     fn drop(&mut self) {
         unsafe { tcsetattr(self.tty_fd, TCSANOW, &self.termios) };
     }
 }
 
-pub struct Stdout
-{
-    stdout: io::Stdout
+pub struct Stdout {
+    stdout: io::Stdout,
 }
 
-impl Stdout
-{
+impl Stdout {
     pub async fn write(&mut self, data: Vec<u8>) -> Result<usize, io::Error> {
         self.stdout.write_all(&data[..]).await?;
         Ok(data.len())
+    }
+    
+    pub async fn print(&mut self, text: String) -> Result<(), io::Error> {
+        let data = text.as_bytes().to_vec();
+        self.write(data).await?;
+        self.flush().await
+    }
+
+    pub async fn println(&mut self, text: String) -> Result<(), io::Error> {
+        let data = [text.as_bytes(), "\r\n".as_bytes()].concat();
+        self.write(data).await?;
+        self.flush().await
     }
 
     pub async fn flush(&mut self) -> Result<(), io::Error> {
@@ -107,13 +109,11 @@ impl Stdout
     }
 }
 
-pub struct Stderr
-{
-    stderr: io::Stdout
+pub struct Stderr {
+    stderr: io::Stdout,
 }
 
-impl Stderr
-{
+impl Stderr {
     pub async fn write(&mut self, data: Vec<u8>) -> Result<usize, io::Error> {
         self.stderr.write_all(&data[..]).await?;
         Ok(data.len())

@@ -80,7 +80,7 @@ impl Invokable for StdinInvoker {
         if let Some(stdin) = stdin {
             let fut = Box::pin(stdin.run());
             Ok(InvokeResult::ResponseThenWork(
-                encode_response(SerializationFormat::Json, &())?,
+                encode_response(SerializationFormat::Bincode, &())?,
                 fut,
             ))
         } else {
@@ -117,7 +117,7 @@ pub struct StdoutInvoker {
 impl Invokable for StdoutInvoker {
     async fn process(&mut self) -> Result<InvokeResult, CallError> {
         Ok(InvokeResult::ResponseThenLeak(
-            encode_response(SerializationFormat::Json, &())?,
+            encode_response(SerializationFormat::Bincode, &())?,
         ))
     }
 }
@@ -158,7 +158,7 @@ impl Session for StdoutSession {
                     )
                 },
             }
-        } else if topic == type_name::<api::StderrFlushRequest>() {
+        } else if topic == type_name::<api::StdoutFlushRequest>() {
             Box::new(DelayedStdoutFlush {
                 stdout: self.stdout.clone(),
             })
@@ -224,7 +224,7 @@ pub struct StderrInvoker {
 impl Invokable for StderrInvoker {
     async fn process(&mut self) -> Result<InvokeResult, CallError> {
         Ok(InvokeResult::ResponseThenLeak(
-            encode_response(SerializationFormat::Json, &())?,
+            encode_response(SerializationFormat::Bincode, &())?,
         ))
     }
 }
