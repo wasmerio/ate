@@ -620,14 +620,17 @@ impl Console {
         let mode = self.tty.mode().await;
         match mode {
             TtyMode::StdIn(job) => {
-                // Ctrl-C is not fed to the process and always actioned
-                if data == "\u{0003}" {
-                    self.on_ctrl_c(Some(job)).await
-
                 // Buffered input will only be sent to the process once a return key is pressed
                 // which allows the line to be 'edited' in the terminal before its submitted
-                } else if self.tty.is_buffering() {
-                    self.on_parse(&data, Some(job)).await
+                if self.tty.is_buffering()
+                {
+                    // Ctrl-C is not fed to the process and always actioned
+                    if data == "\u{0003}" {
+                        self.on_ctrl_c(Some(job)).await
+                    }
+                    else {
+                        self.on_parse(&data, Some(job)).await
+                    }
 
                 // When we are sending unbuffered keys the return key is turned into a newline so that its compatible
                 // with things like the rpassword crate which simple reads a line of input with a line feed terminator
