@@ -20,6 +20,7 @@ use crate::api::*;
 use crate::err;
 use crate::eval::*;
 use crate::fd::*;
+use crate::stdout::*;
 use crate::pipe::*;
 use crate::reactor::*;
 
@@ -30,9 +31,9 @@ pub struct EvalCreated {
 
 struct ProcessExecCreate {
     request: api::PoolSpawnRequest,
-    on_stdout: Option<WasmBusCallback>,
-    on_stderr: Option<WasmBusCallback>,
-    on_exit: Option<WasmBusCallback>,
+    on_stdout: Option<WasmBusFeeder>,
+    on_stderr: Option<WasmBusFeeder>,
+    on_exit: Option<WasmBusFeeder>,
 }
 
 #[derive(Derivative, Clone)]
@@ -45,7 +46,7 @@ pub struct ProcessExecFactory {
     #[derivative(Debug = "ignore")]
     reactor: Arc<RwLock<Reactor>>,
     #[derivative(Debug = "ignore")]
-    exec_factory: EvalFactory,
+    pub(crate) exec_factory: EvalFactory,
     pub(crate) inherit_stdin: WeakFd,
     pub(crate) inherit_stdout: WeakFd,
     pub(crate) inherit_stderr: WeakFd,
@@ -61,9 +62,9 @@ pub struct LaunchContext {
     stdin_tx: Option<mpsc::Sender<FdMsg>>,
     stdout_rx: Option<mpsc::Receiver<FdMsg>>,
     stderr_rx: Option<mpsc::Receiver<FdMsg>>,
-    on_stdout: Option<WasmBusCallback>,
-    on_stderr: Option<WasmBusCallback>,
-    on_exit: Option<WasmBusCallback>,
+    on_stdout: Option<WasmBusFeeder>,
+    on_stderr: Option<WasmBusFeeder>,
+    on_exit: Option<WasmBusFeeder>,
 }
 
 impl ProcessExecFactory {
@@ -96,7 +97,7 @@ impl ProcessExecFactory {
     pub async fn launch<T, F>(
         &self,
         request: api::PoolSpawnRequest,
-        mut client_callbacks: HashMap<String, WasmBusCallback>,
+        mut client_callbacks: HashMap<String, WasmBusFeeder>,
         funct: F,
     ) -> Result<T, CallError>
     where
@@ -269,11 +270,13 @@ impl ProcessExecFactory {
     pub async fn eval(
         &self,
         request: api::PoolSpawnRequest,
-        client_callbacks: HashMap<String, WasmBusCallback>,
+        this_callback: WasmBusFeeder,
+        client_callbacks: HashMap<String, WasmBusFeeder>,
     ) -> Result<EvalCreated, CallError> {
         let dst = Arc::clone(&self.ctx);
         self.launch(request, client_callbacks, move |ctx: LaunchContext| {
             let dst = dst.clone();
+            let this_callback = this_callback.clone();
             Box::pin(async move {
                 let eval_rx = crate::eval::eval(ctx.eval);
 
@@ -293,6 +296,7 @@ impl ProcessExecFactory {
                             stdout: ctx.stdout_rx,
                             stderr: ctx.stderr_rx,
                             eval_rx,
+                            this: this_callback,
                             on_stdout: ctx.on_stdout,
                             on_stderr: ctx.on_stderr,
                             on_exit: ctx.on_exit,
@@ -311,7 +315,7 @@ impl ProcessExecFactory {
     pub async fn create(
         &self,
         request: api::PoolSpawnRequest,
-        client_callbacks: HashMap<String, WasmBusCallback>,
+        client_callbacks: HashMap<String, WasmBusFeeder>,
     ) -> Result<
         (
             Process,
@@ -349,6 +353,41 @@ impl ProcessExecFactory {
         let mut guard = self.ctx.lock().unwrap();
         guard.take()
     }
+
+    pub fn stdio(&self) -> crate::stdio::Stdio {
+        let mut stdio = self.exec_factory.stdio(self.stdin());
+        stdio.stdin = self.stdin();
+        stdio.stdout = self.stdout().fd();
+        stdio.stderr = self.stderr();
+        stdio
+    }
+
+    pub fn stdin(&self) -> Fd {
+        use crate::pipe::*;
+
+        if let Some(fd) = self.inherit_stdin.upgrade() {
+            fd
+        } else {
+            let (stdin_fd, _) = pipe_in(ReceiverMode::Stream, FdFlag::Stdin(false));
+            stdin_fd
+        }
+    }
+
+    pub fn stdout(&self) -> Stdout {
+        if let Some(fd) = self.inherit_stdout.upgrade() {
+            Stdout::new(fd)
+        } else {
+            self.exec_factory.stdout()
+        }        
+    }
+
+    pub fn stderr(&self) -> Fd {
+        if let Some(fd) = self.inherit_stderr.upgrade() {
+            fd
+        } else {
+            self.exec_factory.stderr()
+        }        
+    }
 }
 
 pub struct ProcessExec {
@@ -356,10 +395,11 @@ pub struct ProcessExec {
     stdout: Option<mpsc::Receiver<FdMsg>>,
     stderr: Option<mpsc::Receiver<FdMsg>>,
     eval_rx: mpsc::Receiver<EvalResult>,
-    on_stdout: Option<WasmBusCallback>,
-    on_stderr: Option<WasmBusCallback>,
-    on_exit: Option<WasmBusCallback>,
+    on_stdout: Option<WasmBusFeeder>,
+    on_stderr: Option<WasmBusFeeder>,
+    on_exit: Option<WasmBusFeeder>,
     on_ctx: Pin<Box<dyn Fn(EvalContext) + Send + 'static>>,
+    this: WasmBusFeeder,
 }
 
 impl ProcessExec {
@@ -392,7 +432,7 @@ impl ProcessExec {
                             if let Some(on_exit) = self.on_exit.take() {
                                 on_exit.feed_bytes_or_error(res);
                             }
-                            return;
+                            break;
                         }
                     }
                 } else {
@@ -411,7 +451,7 @@ impl ProcessExec {
                             if let Some(on_exit) = self.on_exit.take() {
                                 on_exit.feed_bytes_or_error(res);
                             }
-                            return;
+                            break;
                         }
                     }
                 }
@@ -432,7 +472,7 @@ impl ProcessExec {
                             if let Some(on_exit) = self.on_exit.take() {
                                 on_exit.feed_bytes_or_error(res);
                             }
-                            return;
+                            break;
                         }
                     }
                 } else {
@@ -442,12 +482,13 @@ impl ProcessExec {
                             if let Some(on_exit) = self.on_exit.take() {
                                 on_exit.feed_bytes_or_error(res);
                             }
-                            return;
+                            break;
                         }
                     }
                 }
             }
         }
+        self.this.terminate();
     }
 }
 

@@ -3,6 +3,7 @@ use std::sync::RwLock as StdRwLock;
 use std::sync::{Arc, Weak};
 use std::time::Duration;
 use tokio::sync::RwLock;
+use derivative::*;
 
 use crate::session::AteSession;
 
@@ -32,10 +33,13 @@ impl<'a> std::ops::Deref for ChainMultiUserLock<'a> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Derivative, Clone)]
+#[derivative(Debug)]
 pub struct ChainMultiUser {
     pub(super) inside_async: Arc<RwLock<ChainProtectedAsync>>,
+    #[derivative(Debug = "ignore")]
     pub(super) inside_sync: Arc<StdRwLock<ChainProtectedSync>>,
+    #[derivative(Debug = "ignore")]
     pub(super) pipe: Arc<Box<dyn EventPipe>>,
     pub(super) default_format: MessageFormat,
 }

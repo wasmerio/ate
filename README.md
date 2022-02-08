@@ -139,6 +139,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>>
 ## Changelog
 
 ```
+1.1.1  -= Performance and Bug Fixes =-
+        + Fixed an issue with the web sockets that caused sporadic disconnects
+        + Improved the performance of web socket messages by reusing IV's
+        + Reduced the message overhead with a new message encoding format
+
+1.1.0  -= Comms Upgrade =-
+        + Streaming websockets are now more stable as they use length headers to delimit messages.
+        + Fixed a bug where disconnecting clients would drop neighbors on the same server.
+        + Various changes to the interfaces for stability reasons
+        (this upgrade is not backwards compatible with version 1.0.6)
+
 1.0.6  -= Bug Fixes =-
         + Modified the interface slightly but most users should not be impacted
         + Fixed a bug around validators rejecting events during the subscribe

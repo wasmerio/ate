@@ -1,8 +1,5 @@
 use async_trait::async_trait;
 use ate::mesh::Registry;
-use ate::session::AteSessionType;
-use ate::session::AteSessionUser;
-use ate::transaction::TransactionScope;
 use ate_files::prelude::*;
 use std::cell::RefCell;
 use std::future::Future;
@@ -15,42 +12,18 @@ use tokio::sync::mpsc;
 use tokterm::term_lib;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
+use super::NativeFiles;
 
 pub struct System {
     pub inner: Arc<dyn SystemAbi>,
-    pub native_files: Arc<FileAccessor>,
+    pub native_files: NativeFiles,
 }
 
 impl System {
     pub async fn new(inner: Arc<dyn SystemAbi>, registry: Arc<Registry>, db_url: url::Url, native_files: String) -> Self {
-        // Connect to the file system that holds all the binaries that
-        // we will present natively to the consumers
-        // Note: These are the same files presenting to the web-site version of the terminal
-        let native_files_key = ate::prelude::ChainKey::from(native_files);
-        let native_files = registry.open(&db_url, &native_files_key).await.unwrap();
-        let native_files = Arc::new(
-            FileAccessor::new(
-                native_files.as_arc(),
-                None,
-                AteSessionType::User(AteSessionUser::default()),
-                TransactionScope::Local,
-                TransactionScope::Local,
-                true,
-                false,
-            )
-            .await,
-        );
-
-        // Attempt to read the root from the native file system which will make sure that its
-        // all nicely running
-        native_files
-            .search(&RequestContext { uid: 0, gid: 0 }, "/")
-            .await
-            .unwrap();
-            
         Self {
             inner,
-            native_files,
+            native_files: NativeFiles::new(registry, db_url, native_files),
         }
     }
 }
@@ -110,6 +83,13 @@ impl term_lib::api::SystemAbi for System {
         let (tx_result, rx_result) = mpsc::channel(1);
         self.task_dedicated(Box::new(move || {
             let task = async move {
+                let native_files = native_files.get()
+                    .await
+                    .map_err(|err| {
+                        debug!("failed to fetch native files container - {}", err);
+                        err::ERR_EIO
+                    })?;
+
                 // Search for the file
                 let ctx = RequestContext { uid: 0, gid: 0 };
                 let flags = ate_files::codes::O_RDONLY as u32;

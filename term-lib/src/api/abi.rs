@@ -108,6 +108,7 @@ where
         data: Option<Vec<u8>>,
     ) -> AsyncResult<Result<ReqwestResponse, u32>>;
 
+    /// Make a web socket connection to a particular URL
     async fn web_socket(&self, url: &str) -> Result<Box<dyn WebSocketAbi>, String>;
 }
 

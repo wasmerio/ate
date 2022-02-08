@@ -11,7 +11,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
-pub(crate) struct PacketData {
+pub struct PacketData {
     pub bytes: Bytes,
     pub wire_format: SerializationFormat,
 }
@@ -75,7 +75,7 @@ impl PacketData {
             wire_format,
         };
 
-        tx.send(pck).await?;
+        tx.send(&pck.bytes[..]).await?;
         Ok(())
     }
 }

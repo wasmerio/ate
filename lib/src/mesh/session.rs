@@ -131,7 +131,7 @@ impl MeshSession {
 
         // Set a reference to the chain and trigger it to connect!
         chain_store.lock().unwrap().replace(Arc::downgrade(&chain));
-        let on_disconnect = chain.pipe.connect(chain.exit.clone()).await?;
+        let on_disconnect = chain.pipe.connect().await?;
 
         // Launch an automatic reconnect thread
         if temporal == false {
@@ -223,7 +223,7 @@ impl MeshSession {
         if let Some(result) = r {
             result.send(Ok(id)).await?;
         } else {
-            debug!("orphaned confirmation!");
+            trace!("orphaned confirmation!");
         }
         Ok(())
     }

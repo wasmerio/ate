@@ -69,7 +69,7 @@ pub struct Tty {
 impl Tty {
     pub fn new(stdout: &Stdout, is_mobile: bool) -> Tty {
         let mut stdout = stdout.clone();
-        stdout.set_flag(FdFlag::Tty);
+        stdout.set_flag(FdFlag::Stdout(true));
         Tty {
             inner_async: Arc::new(AsyncMutex::new(TtyInnerAsync {
                 line: String::new(),
@@ -92,7 +92,7 @@ impl Tty {
         }
     }
 
-    pub fn fd(&self) -> Fd {
+    pub fn fd_stdout(&self) -> Fd {
         self.stdout.fd.clone()
     }
 
@@ -397,7 +397,9 @@ impl Tty {
         let chars = std::iter::repeat(Tty::TERM_CURSOR_LEFT)
             .take(shift_left)
             .collect::<String>();
-        self.draw(chars.as_str()).await
+        if chars.len() > 0 {
+            self.draw(chars.as_str()).await
+        }
     }
 
     pub async fn set_cursor_to_end(&mut self) {
@@ -416,7 +418,9 @@ impl Tty {
         let chars = std::iter::repeat(Tty::TERM_CURSOR_RIGHT)
             .take(shift_right)
             .collect::<String>();
-        self.draw(chars.as_str()).await
+        if chars.len() > 0 {
+            self.draw(chars.as_str()).await
+        }
     }
 
     pub async fn draw_undo(&mut self) -> String {

@@ -173,7 +173,7 @@ pub fn create_temporal_client(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Arc<Mes
     MeshClient::new(&cfg_ate, &cfg_mesh, client_id, true)
 }
 
-pub(crate) static GLOBAL_CERTIFICATES: Lazy<StdRwLock<Vec<AteHash>>> =
+pub static GLOBAL_CERTIFICATES: Lazy<StdRwLock<Vec<AteHash>>> =
     Lazy::new(|| StdRwLock::new(Vec::new()));
 
 pub(crate) static GLOBAL_COMM_FACTORY: Lazy<

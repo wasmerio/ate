@@ -21,7 +21,9 @@ pub struct ConsoleHandle {
 }
 
 #[async_trait]
-impl ConsoleAbi for ConsoleHandle {
+impl ConsoleAbi
+for ConsoleHandle
+{
     /// Writes output to the SSH pipe
     async fn stdout(&self, data: Vec<u8>) {
         let channel = self.channel;

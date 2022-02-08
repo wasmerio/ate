@@ -52,6 +52,7 @@ where Self: Send + Sync
     ) -> Result<(), CommsError>;
 }
 
+#[allow(dead_code)]
 pub struct StreamRouter {
     wire_format: SerializationFormat,
     wire_protocol: StreamProtocol,

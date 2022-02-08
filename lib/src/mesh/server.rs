@@ -389,8 +389,9 @@ impl EventPipe for ServerPipe {
                 evts: evts.clone(),
             })
             .to_packet_data(self.wire_format)?;
+            
             let mut tx = self.tx_group.lock().await;
-            tx.send(pck, None).await?;
+            tx.send(pck, None).await;
         }
 
         // Hand over to the next pipe as this transaction
@@ -639,7 +640,7 @@ async fn inbox_event<'b>(
             }
 
             // Send the packet data onto the others in this broadcast group
-            tx.send_others(pck_data).await?;
+            tx.send_others(pck_data).await;
             Ok(())
         }
         Err(err) => {

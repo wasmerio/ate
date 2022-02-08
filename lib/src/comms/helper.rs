@@ -143,12 +143,12 @@ where
                     }
                 }
 
-                rx.read_buf(&wire_encryption, &mut total_read).await
+                rx.read_buf_with_header(&wire_encryption, &mut total_read).await
             };
             let buf = {
                 select! {
                     _ = exit.recv() => {
-                        debug!("received exit broadcast - {}", sock_addr);
+                        debug!("received exit broadcast - {} - id={} peer={}", sock_addr, id.to_short_string().as_str(), peer_id.to_short_string().as_str());
                         break;
                     },
                     a = buf => a

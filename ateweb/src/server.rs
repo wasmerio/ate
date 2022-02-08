@@ -13,6 +13,8 @@ use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, instrument, span, trace, warn, event, Level};
+use ate_auth::service::AuthService;
+use ate_auth::cmd::gather_command;
 
 use hyper;
 use hyper::header::HeaderValue;
@@ -98,15 +100,22 @@ async fn process(
 impl Server {
     pub(crate) async fn new(builder: ServerBuilder) -> Result<Arc<Server>, AteError> {
         let registry = Arc::new(Registry::new(&builder.conf.cfg_ate).await);
+
+        let session_factory = SessionFactory {
+            auth_url: builder.auth_url.clone(),
+            registry: registry.clone(),
+            master_key: builder.web_master_key.clone(),
+        };
+
         let repo = Repository::new(
             &registry,
             builder.remote.clone(),
             builder.auth_url.clone(),
-            "web-read".to_string(),
-            builder.web_key.clone(),
+            Box::new(session_factory),
             builder.conf.ttl,
         )
         .await?;
+
         Ok(Arc::new(Server {
             repo,
             web_conf: Mutex::new(FxHashMap::default()),
@@ -619,11 +628,11 @@ impl Server {
                     Ok(websocket) => {
                         let ret = callback.web_socket(websocket, sock_addr).await;
                         if let Err(err) = ret {
-                            error!("web socket failed - {}", err);
+                            error!("web socket failed(1) - {}", err);
                         }
                     }
                     Err(err) => {
-                        error!("web socket failed - {}", err);
+                        error!("web socket failed(2) - {}", err);
                     }
                 }
             });
@@ -663,5 +672,44 @@ impl Server {
                 Ok(resp)
             }
         }
+    }
+}
+
+struct SessionFactory
+{
+    master_key: Option<EncryptKey>,
+    registry: Arc<Registry>,
+    auth_url: url::Url,
+}
+
+#[async_trait]
+impl RepositorySessionFactory
+for SessionFactory
+{
+    async fn create(&self, sni: String, _key: ChainKey) -> Result<AteSessionType, AteError>
+    {
+        // Create the session
+        let key_entropy = format!("{}:{}", "web-read", sni);
+        let key_entropy = AteHash::from_bytes(key_entropy.as_bytes());
+        let mut session = AteSessionUser::default();
+
+        // If we have a master key then add it
+        if let Some(master_key) = &self.master_key {
+            let read_key = AuthService::compute_super_key_from_hash(master_key, &key_entropy);
+            session.add_user_read_key(&read_key);
+        }
+
+        // Now attempt to gather permissions to the chain
+        let registry = self.registry.clone();
+        let auth_url = self.auth_url.clone();
+        
+        // Now we gather the rights to the particular domain this website is running under
+        Ok(AteSessionType::Group(gather_command(
+            &registry,
+            sni,
+            AteSessionInner::User(session),
+            auth_url.clone(),
+        )
+        .await?))
     }
 }

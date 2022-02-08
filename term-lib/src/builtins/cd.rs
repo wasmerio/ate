@@ -14,7 +14,7 @@ pub(super) fn cd(
     args: &[String],
     mut ctx: EvalContext,
     mut stdio: Stdio,
-) -> Pin<Box<dyn Future<Output = ExecResponse>>> {
+) -> Pin<Box<dyn Future<Output = ExecResponse> + Send>> {
     if args.len() > 2 {
         return Box::pin(async move {
             let _ = stdio

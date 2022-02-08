@@ -5,6 +5,7 @@ use std::fmt;
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct InstanceHello {
     pub owner_identity: String,
+    pub access_token: String,
     pub chain: ChainKey
 }
 

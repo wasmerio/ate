@@ -16,7 +16,7 @@ pub(super) fn wax(
     args: &[String],
     mut ctx: EvalContext,
     stdio: Stdio,
-) -> Pin<Box<dyn Future<Output = ExecResponse>>> {
+) -> Pin<Box<dyn Future<Output = ExecResponse> + Send>> {
     if args.len() < 2 {
         return Box::pin(async move { ExecResponse::Immediate(ctx, err::ERR_EINVAL) });
     }
@@ -37,7 +37,7 @@ pub(super) fn wax(
     return Box::pin(async move {
         // If the process is not yet installed then install it
         if wax.lock().unwrap().contains(&cmd) == false {
-            let mut tty = ctx.stdio.tty.fd();
+            let mut tty = ctx.stdio.tty.fd_stdout();
 
             let (stdin_fd, _) = pipe_in(ReceiverMode::Stream, FdFlag::Stdin(false));
             let mut ctx = ctx.clone();

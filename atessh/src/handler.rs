@@ -1,5 +1,4 @@
 use ate::mesh::Registry;
-use ate_files::prelude::*;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -24,10 +23,11 @@ use crate::wizard::SshWizard;
 
 use super::console_handle::*;
 use super::error::*;
+use super::NativeFiles;
 
 pub struct Handler {
     pub registry: Arc<Registry>,
-    pub native_files: Arc<FileAccessor>,
+    pub native_files: NativeFiles,
     pub peer_addr: Option<std::net::SocketAddr>,
     pub peer_addr_str: String,
     pub user: Option<String>,
@@ -117,13 +117,19 @@ impl server::Handler for Handler {
     fn shell_request(mut self, channel: ChannelId, session: Session) -> Self::FutureUnit {
         debug!("shell_request");
 
+        let native_files = self.native_files.clone();
         Box::pin(async move {
+            // Get the native files or fail
+            let native_files = native_files
+                .get()
+                .await?;
+
             // Create the handle
             let handle = Arc::new(ConsoleHandle {
                 rect: self.rect.clone(),
                 channel: channel.clone(),
                 handle: session.handle(),
-                native_files: self.native_files.clone(),
+                native_files,
                 stdio_lock: self.stdio_lock.clone(),
                 enable_stderr: false,
             });
@@ -131,7 +137,7 @@ impl server::Handler for Handler {
             // Spawn a dedicated thread and wait for it to do its thing
             let system = System::default();
             system
-                .spawn_dedicated(move || async move {
+                .spawn_shared(move || async move {
                     // Get the wizard
                     let wizard = self.wizard.take().map(|a| {
                         Box::new(a) as Box<dyn term_api::WizardAbi + Send + Sync + 'static>
@@ -147,6 +153,7 @@ impl server::Handler for Handler {
                         self.compiler,
                         handle,
                         wizard,
+                        None,
                         compiled_modules,
                     );
                     console.init().await;
@@ -173,6 +180,13 @@ impl server::Handler for Handler {
         session: Session,
     ) -> Self::FutureUnit {
         debug!("pty_request");
+
+        {
+            let mut guard = self.rect.lock().unwrap();
+            guard.cols = col_width;
+            guard.rows = row_height;
+        }
+
         self.finished(session)
     }
 }

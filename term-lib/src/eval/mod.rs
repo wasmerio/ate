@@ -28,6 +28,16 @@ use tokio::sync::RwLock;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
+#[cfg(feature = "wasmer-compiler")]
+use {crate::wasmer::Universal, crate::wasmer_compiler::CompilerConfig};
+use crate::wasmer::{Store};
+#[cfg(feature = "wasmer-compiler-cranelift")]
+use crate::wasmer_compiler_cranelift::Cranelift;
+#[cfg(feature = "wasmer-compiler-llvm")]
+use crate::wasmer_compiler_llvm::LLVM;
+#[cfg(feature = "wasmer-compiler-singlepass")]
+use crate::wasmer_compiler_singlepass::Singlepass;
+
 use crate::api::*;
 use crate::ast;
 use crate::environment::Environment;
@@ -74,6 +84,40 @@ pub enum Compiler {
     Cranelift,
 }
 
+impl Compiler
+{
+    #[cfg(feature = "wasmer-compiler")]
+    pub fn new_store(&self) -> Store
+    {
+        // Choose the right compiler
+        let store = match self {
+            #[cfg(feature = "cranelift")]
+            Compiler::Cranelift => {
+                let compiler = Cranelift::default();
+                Store::new(&Universal::new(compiler).engine())
+            }
+            #[cfg(feature = "llvm")]
+            Compiler::LLVM => {
+                let compiler = LLVM::default();
+                Store::new(&Universal::new(compiler).engine())
+            }
+            #[cfg(feature = "singlepass")]
+            Compiler::Singlepass => {
+                let compiler = Singlepass::default();
+                Store::new(&Universal::new(compiler).engine())
+            }
+            _ => Store::default(),
+        };
+        store
+    }
+
+    #[cfg(not(feature = "wasmer-compiler"))]
+    pub fn new_store(&self) -> Store
+    {
+        Store::default()
+    }
+}
+
 impl std::str::FromStr for Compiler {
     type Err = String;
 
@@ -96,6 +140,22 @@ impl std::str::FromStr for Compiler {
                 msg.push_str(", 'cranelift'");
                 Err(msg)
             }
+        }
+    }
+}
+
+impl std::fmt::Display
+for Compiler
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            #[cfg(feature = "singlepass")]
+            Compiler::Singlepass => write!(f, "singlepass"),
+            #[cfg(feature = "cranelift")]
+            Compiler::Cranelift => write!(f, "cranelift"),
+            #[cfg(feature = "llvm")]
+            Compiler::LLVM => write!(f, "llvm"),
+            Compiler::Default => write!(f, "default")
         }
     }
 }
@@ -125,44 +185,52 @@ pub(crate) fn eval(mut ctx: EvalContext) -> mpsc::Receiver<EvalResult> {
     let parser = grammar::programParser::new();
 
     let (tx, rx) = mpsc::channel(1);
-    system.fork_local(async move {
+
+    let work = {
         let input = ctx.input.clone();
-        match parser.parse(input.as_str()) {
-            Ok(program) => {
-                let mut show_result = false;
-                let mut ret = 0;
-                for cc in program.commands.complete_commands {
-                    let (c, r) = complete_command(ctx, &builtins, &cc, &mut show_result).await;
-                    ctx = c;
-                    ret = r;
+        async move {
+            match parser.parse(input.as_str()) {
+                Ok(program) => {
+                    let mut show_result = false;
+                    let mut ret = 0;
+                    for cc in program.commands.complete_commands {
+                        let (c, r) = complete_command(ctx, &builtins, &cc, &mut show_result).await;
+                        ctx = c;
+                        ret = r;
+                    }
+                    tx.send(EvalResult::new(
+                        ctx,
+                        EvalStatus::Executed {
+                            code: ret,
+                            show_result,
+                        },
+                    ))
+                    .await;
                 }
-                tx.send(EvalResult::new(
-                    ctx,
-                    EvalStatus::Executed {
-                        code: ret,
-                        show_result,
-                    },
-                ))
-                .await;
+                Err(e) => match e {
+                    grammar::ParseError::UnrecognizedToken {
+                        token: _,
+                        expected: _,
+                    } => {
+                        tx.send(EvalResult::new(ctx, EvalStatus::MoreInput)).await;
+                    }
+                    grammar::ParseError::UnrecognizedEOF {
+                        location: _,
+                        expected: _,
+                    } => {
+                        tx.send(EvalResult::new(ctx, EvalStatus::MoreInput)).await;
+                    }
+                    _ => {
+                        tx.send(EvalResult::new(ctx, EvalStatus::Invalid)).await;
+                    }
+                },
             }
-            Err(e) => match e {
-                grammar::ParseError::UnrecognizedToken {
-                    token: _,
-                    expected: _,
-                } => {
-                    tx.send(EvalResult::new(ctx, EvalStatus::MoreInput)).await;
-                }
-                grammar::ParseError::UnrecognizedEOF {
-                    location: _,
-                    expected: _,
-                } => {
-                    tx.send(EvalResult::new(ctx, EvalStatus::MoreInput)).await;
-                }
-                _ => {
-                    tx.send(EvalResult::new(ctx, EvalStatus::Invalid)).await;
-                }
-            },
         }
-    });
+    };
+
+    #[cfg(target_arch = "wasm32")]
+    system.fork_local(work);
+    #[cfg(not(target_arch = "wasm32"))]
+    system.fork_shared(move || work);
     rx
 }

@@ -18,12 +18,54 @@ pub struct HelloMetadata {
     pub wire_format: SerializationFormat,
 }
 
+/// Version of the stream protocol used to talk to Tokera services
+#[repr(u16)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub enum StreamProtocolVersion
+{
+    V1 = 1,
+    V2 = 2,
+}
+
+impl StreamProtocolVersion
+{
+    pub fn min(&self, other: StreamProtocolVersion) -> StreamProtocolVersion {
+        let first = *self as u16;
+        let second = other as u16;
+        let min = first.min(second);
+
+        if first == min {
+            *self
+        } else {
+            other
+        }
+    }
+
+    pub fn create(&self) -> Box<dyn super::protocol::api::MessageProtocolApi + 'static>
+    {
+        match self {
+            StreamProtocolVersion::V1 => {
+                Box::new(super::protocol::v1::MessageProtocol::default())
+            }
+            StreamProtocolVersion::V2 => {
+                Box::new(super::protocol::v2::MessageProtocol::default())
+            }
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct SenderHello {
     pub id: NodeId,
     pub path: String,
     pub domain: String,
     pub key_size: Option<KeySize>,
+    #[serde(default = "default_stream_protocol_version")]
+    pub version: StreamProtocolVersion,
+}
+
+fn default_stream_protocol_version() -> StreamProtocolVersion {
+    StreamProtocolVersion::V1
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -31,10 +73,12 @@ struct ReceiverHello {
     pub id: NodeId,
     pub encryption: Option<KeySize>,
     pub wire_format: SerializationFormat,
+    #[serde(default = "default_stream_protocol_version")]
+    pub version: StreamProtocolVersion,
 }
 
 #[cfg(feature = "enable_client")]
-pub(super) async fn mesh_hello_exchange_sender(
+pub async fn mesh_hello_exchange_sender(
     stream_rx: &mut StreamRx,
     stream_tx: &mut StreamTx,
     client_id: NodeId,
@@ -49,14 +93,15 @@ pub(super) async fn mesh_hello_exchange_sender(
         path: hello_path.clone(),
         domain,
         key_size,
+        version: StreamProtocolVersion::V2,
     };
     let hello_client_bytes = serde_json::to_vec(&hello_client)?;
     stream_tx
-        .write_16bit(&hello_client_bytes[..], false)
+        .write_with_fixed_16bit_header(&hello_client_bytes[..], false)
         .await?;
 
     // Read the hello message from the other side
-    let hello_server_bytes = stream_rx.read_16bit().await?;
+    let hello_server_bytes = stream_rx.read_with_fixed_16bit_header().await?;
     trace!("client received hello from server");
     trace!("{}", String::from_utf8_lossy(&hello_server_bytes[..]));
     let hello_server: ReceiverHello = serde_json::from_slice(&hello_server_bytes[..])?;
@@ -73,6 +118,11 @@ pub(super) async fn mesh_hello_exchange_sender(
             _ => {}
         }
     }
+
+    // Switch to the correct protocol version
+    let version = hello_server.version.min(hello_client.version);
+    stream_rx.change_protocol_version(version.create());
+    stream_tx.change_protocol_version(version.create());
 
     // Upgrade the key_size if the server is bigger
     trace!(
@@ -94,7 +144,7 @@ pub(super) async fn mesh_hello_exchange_sender(
 }
 
 #[cfg(feature = "enable_server")]
-pub(super) async fn mesh_hello_exchange_receiver(
+pub async fn mesh_hello_exchange_receiver(
     stream_rx: &mut StreamRx,
     stream_tx: &mut StreamTx,
     server_id: NodeId,
@@ -102,8 +152,9 @@ pub(super) async fn mesh_hello_exchange_receiver(
     wire_format: SerializationFormat,
 ) -> Result<HelloMetadata, CommsError> {
     // Read the hello message from the other side
-    let hello_client_bytes = stream_rx.read_16bit().await?;
+    let hello_client_bytes = stream_rx.read_with_fixed_16bit_header().await?;
     trace!("server received hello from client");
+    //trace!("server received hello from client: {}", String::from_utf8_lossy(&hello_client_bytes[..]));
     let hello_client: SenderHello = serde_json::from_slice(&hello_client_bytes[..])?;
 
     // Upgrade the key_size if the client is bigger
@@ -115,11 +166,17 @@ pub(super) async fn mesh_hello_exchange_receiver(
         id: server_id,
         encryption,
         wire_format,
+        version: StreamProtocolVersion::V2,
     };
     let hello_server_bytes = serde_json::to_vec(&hello_server)?;
     stream_tx
-        .write_16bit(&hello_server_bytes[..], false)
+        .write_with_fixed_16bit_header(&hello_server_bytes[..], false)
         .await?;
+
+    // Switch to the correct protocol version
+    let version = hello_server.version.min(hello_client.version);
+    stream_rx.change_protocol_version(version.create());
+    stream_tx.change_protocol_version(version.create());
 
     Ok(HelloMetadata {
         client_id: hello_client.id,

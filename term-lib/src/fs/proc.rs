@@ -185,20 +185,28 @@ impl FileOpener for CoreFileOpener {
 
 #[derive(Debug)]
 pub struct TtyFile {
-    fd: Fd,
+    fd_stdin: Fd,
+    fd_stdout: Fd,
     tty: Tty,
 }
 
 impl TtyFile {
     pub fn new(stdio: &Stdio) -> TtyFile {
-        let mut fd = Fd::combine(&stdio.stdin, &stdio.stdout);
-        fd.set_flag(FdFlag::Tty);
+        let mut fd_stdin = stdio.stdin.clone();
+        let mut fd_stdout = stdio.stdout.clone();
+        fd_stdin.set_flag(FdFlag::Stdin(true));
+        fd_stdout.set_flag(FdFlag::Stdout(true));
 
         stdio.tty.set_buffering(false);
         TtyFile {
-            fd,
+            fd_stdin,
+            fd_stdout,
             tty: stdio.tty.clone(),
         }
+    }
+
+    pub async fn read_async(&mut self) -> io::Result<FdMsg> {
+        self.fd_stdin.read_async().await
     }
 }
 
@@ -210,50 +218,50 @@ impl Drop for TtyFile {
 
 impl Seek for TtyFile {
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
-        self.fd.seek(pos)
+        self.fd_stdout.seek(pos)
     }
 }
 
 impl Write for TtyFile {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.fd.write_all(buf)?;
+        self.fd_stdout.write_all(buf)?;
         Ok(buf.len())
     }
     fn flush(&mut self) -> io::Result<()> {
-        self.fd.flush()
+        self.fd_stdout.flush()
     }
 }
 
 impl Read for TtyFile {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.fd.read(buf)
+        self.fd_stdin.read(buf)
     }
 }
 
 impl VirtualFile for TtyFile {
     fn last_accessed(&self) -> u64 {
-        self.fd.last_accessed()
+        self.fd_stdin.last_accessed()
     }
     fn last_modified(&self) -> u64 {
-        self.fd.last_modified()
+        self.fd_stdout.last_modified()
     }
     fn created_time(&self) -> u64 {
-        self.fd.created_time()
+        self.fd_stdout.created_time()
     }
     fn size(&self) -> u64 {
-        self.fd.size()
+        self.fd_stdin.size()
     }
     fn set_len(&mut self, new_size: wasi_types::__wasi_filesize_t) -> StdResult<(), WasiFsError> {
-        self.fd.set_len(new_size)
+        self.fd_stdout.set_len(new_size)
     }
     fn unlink(&mut self) -> StdResult<(), WasiFsError> {
-        self.fd.unlink()
+        self.fd_stdout.unlink()
     }
     fn bytes_available(&self) -> StdResult<usize, WasiFsError> {
-        self.fd.bytes_available()
+        self.fd_stdin.bytes_available()
     }
     fn get_fd(&self) -> Option<FileDescriptor> {
-        self.fd.get_fd()
+        self.fd_stdin.get_fd()
     }
 }
 

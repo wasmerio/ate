@@ -1,8 +1,8 @@
-mod file_io;
-mod file_system;
+pub mod file_io;
+pub mod file_system;
 mod fuse;
 mod main;
-mod opened_file;
+pub mod opened_file;
 
 pub use main::*;
 

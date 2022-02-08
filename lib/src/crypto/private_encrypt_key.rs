@@ -155,6 +155,30 @@ impl PrivateEncryptKey {
         Ok(ek.decrypt(iv, data))
     }
 
+    pub fn decrypt_ext(
+        &self,
+        iv: &InitializationVector,
+        data: &[u8],
+        ek_hash: &AteHash,
+    ) -> Result<Vec<u8>, std::io::Error> {
+        let ek = match self.decapsulate(iv) {
+            Some(a) => a,
+            None => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "The encryption key could not be decapsulated from the initialization vector.",
+                ));
+            }
+        };
+        if ek.hash() != *ek_hash {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("The decryption key is not valid for this cipher data ({} vs {}).", ek.hash(), ek_hash).as_str(),
+            ));
+        }
+        Ok(ek.decrypt(iv, data))
+    }
+
     pub fn size(&self) -> KeySize {
         match &self {
             PrivateEncryptKey::Ntru128 { pk: _, sk: _ } => KeySize::Bit128,

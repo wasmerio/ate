@@ -205,4 +205,12 @@ impl Into<io::Error> for FsError {
     }
 }
 
+impl Into<Box<dyn std::error::Error>> for FsError {
+    fn into(self) -> Box<dyn std::error::Error> {
+        let kind: io::ErrorKind = self.into();
+        let err: io::Error = kind.into();
+        Box::new(err)
+    }
+}
+
 pub type FsResult<T> = Result<T, FsError>;

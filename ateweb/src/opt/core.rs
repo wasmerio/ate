@@ -5,6 +5,8 @@ use url::Url;
 
 use clap::Parser;
 
+use super::OptsAuth;
+
 #[derive(Parser)]
 #[clap(version = "1.6", author = "John S. <johnathan.sharratt@gmail.com>")]
 pub struct Opts {
@@ -89,9 +91,18 @@ pub struct OptsAll {
     /// Path to the secret key that grants access to the WebServer role within groups
     #[clap(long, default_value = "~/ate/web.key")]
     pub web_key_path: String,
+    /// Path to the secret key that grants access to the EdgeCompute role within groups
+    #[clap(long, default_value = "~/ate/edge.key")]
+    pub edge_key_path: String,
+    /// Path to the secret key that grants access to the contracts
+    #[clap(long, default_value = "~/ate/contract.key")]
+    pub contract_key_path: String,
     /// Path to the log files where all the authentication data is stored
     #[clap(long, default_value = "~/ate/auth")]
     pub auth_logs_path: String,
+    /// Path to the backup and restore location of log files
+    #[clap(short, long)]
+    pub backup_path: Option<String>,
     /// URL where the data is remotely stored on a distributed commit log.
     #[clap(short, long, default_value = "ws://tokera.com/db")]
     pub remote: Url,
@@ -99,10 +110,16 @@ pub struct OptsAll {
     /// this server can connect to if the chain is on another mesh node
     #[clap(short, long, default_value = "ws://localhost:5001/auth")]
     pub auth_url: url::Url,
+    /// Ensures that this authentication server runs as a specific node_id
+    #[clap(short, long)]
+    pub node_id: Option<u32>,
 }
 
 #[derive(Parser)]
 pub enum SubCommand {
+    /// Hosts the authentication service
+    #[clap()]
+    Auth(OptsAuth),
     /// Starts a web server that will load Tokera file systems and serve
     /// them directly as HTML content
     #[clap()]

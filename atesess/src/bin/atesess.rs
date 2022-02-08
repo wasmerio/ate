@@ -10,10 +10,11 @@ use clap::Parser;
 use tokio::sync::watch::Receiver;
 use tokio::select;
 use tokio::runtime::Builder;
+use atessh::term_lib;
+use term_lib::bin_factory::CachedCompiledModules;
 
 use ate::comms::StreamRouter;
 
-use ate_auth::helper::load_key;
 use ate_auth::helper::try_load_key;
 
 use atesess::opt::*;
@@ -51,7 +52,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
     let ret = runtime.clone().block_on(async move {
         match opts.subcmd {
             SubCommand::Run(solo) => {
-                let edge_key: EncryptKey = load_key(solo.edge_key_path.clone(), ".read");
                 let protocol = StreamProtocol::parse(&solo.sess_url)?;
                 let port = solo.auth_url.port().unwrap_or(protocol.default_port());
                 let domain = solo.auth_url.domain().unwrap_or("localhost").to_string();
@@ -72,13 +72,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
                     tx_exit, runtime,
                 ));
                 let sys = atessh::system::System::new(sys, registry.clone(), solo.db_url.clone(), solo.native_files.clone()).await;
+                let native_files = sys.native_files.clone();
                 atessh::term_lib::api::set_system_abi(sys);
 
+                let compiled_modules = Arc::new(CachedCompiledModules::new(Some(solo.compiler_cache_path)));
                 let instance_server = Server::new(
                     solo.db_url.clone(),
                     solo.auth_url.clone(),
-                    edge_key,
-                    registry.clone()
+                    solo.instance_authority.clone(),
+                    solo.token_path.clone(),
+                    registry.clone(),
+                    native_files,
+                    solo.compiler.clone(),
+                    compiled_modules.clone()
                 ).await?;
 
                 let mut router = ate::comms::StreamRouter::new(
@@ -88,7 +94,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
                     server_id,
                     cfg_mesh.accept_timeout,
                 );
-                router.add_route("sess", Arc::new(instance_server)).await;
+                router.add_route("/sess", Arc::new(instance_server)).await;
 
                 let (_server, hard_exit) = main_web(&solo, conf, Some(router)).await?;
                 
@@ -113,8 +119,7 @@ async fn main_web(solo: &OptsSessionServer, cfg_ate: ConfAte, callback: Option<S
 
 async fn main_web_ext(solo: &OptsSessionServer, cfg_ate: ConfAte, callback: Option<StreamRouter>, hard_exit_tx: watch::Sender<bool>) -> Result<Arc<ateweb::server::Server>, AteError>
 {
-    let web_key: EncryptKey = load_key(solo.edge_key_path.clone(), ".read");
-    let mut builder = ateweb::builder::ServerBuilder::new(solo.db_url.clone(), solo.auth_url.clone(), web_key)
+    let mut builder = ateweb::builder::ServerBuilder::new(solo.db_url.clone(), solo.auth_url.clone())
         .add_listener(solo.listen, solo.port.unwrap_or(80u16), false)
         .add_listener(solo.listen, solo.tls_port.unwrap_or(443u16), true)
         .with_conf(&cfg_ate);

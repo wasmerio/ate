@@ -18,8 +18,8 @@ default = []
 [dependencies]
 clap = { version = "^3.0.0-rc.7", features = [ "derive" ] }
 tokio = { version = "^1", features = [ "rt", "io-util", "macros", "sync", "time", "fs" ], default_features = false }
-#tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
-tracing = { version = "^0.1", features = [ "log", "release_max_level_debug" ] }
+tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
+#tracing = { version = "^0.1", features = [ "log", "release_max_level_debug" ] }
 tracing-futures = { version = "^0.2" }
 tracing-subscriber = { version = "^0.2" }
 thrussh = { version = "^0.33", git = "https://github.com/john-sharratt/thrussh.git" }
@@ -29,15 +29,18 @@ error-chain = { version = "^0.12", default_features = false }
 futures = "^0.3"
 shellexpand = "^2"
 serde = { version = "^1", features = ["derive"] }
+serde_json = "^1"
 bincode = "^1"
-tokterm = { version = "^0.2", path = "../tokterm", default_features = false }
+tokterm = { version = "^1.0", path = "../tokterm", default_features = false }
 async-trait = "^0.1"
 raw_tty = "0.1.0"
 regex = "^1"
 ctrlc = { version = "^3" }
-ate = { version = "^1", path = "../lib", default_features = false, features = [ "client" ] }
-ate-auth = { version = "^1", path = "../auth", default_features = false, features = [ "client" ] }
-ate-files = { version = "^1", path = "../files" }
-ateweb = { version = "^1", path = "../ateweb" }
+ate = { version = "^1.1", path = "../lib", default_features = false, features = [ "client" ] }
+ate-auth = { version = "^1.8", path = "../auth", default_features = false, features = [ "client" ] }
+ate-files = { version = "^1.1", path = "../files" }
+ateweb = { version = "^1.1", path = "../ateweb" }
 atessh = { version = "^1", path = "../atessh" }
-tokera = { version = "^1", path = "../tokera" }
+tokera = { version = "^1.2", path = "../tokera" }
+wasm-bus-fuse = { version = "^1", path = "../wasm-bus-fuse",  default_features = false }
+dummy-waker = "^1"

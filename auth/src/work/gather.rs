@@ -27,11 +27,11 @@ impl AuthService {
     ) -> Result<GatherResponse, GatherFailed> {
         debug!("gather attempt: {}", request.group);
 
-        // Load the master key which will be used to encrypt the group so that only
-        // the authentication server can access it
+        // Load the master key which is used to read the authentication chains
         let master_key = match self.master_key() {
             Some(a) => a,
             None => {
+                error!("gather failed - no master key!");
                 return Err(GatherFailed::NoMasterKey);
             }
         };
@@ -55,6 +55,7 @@ impl AuthService {
                 LoadErrorKind::TransformationError(TransformErrorKind::MissingReadKey(_)),
                 _,
             )) => {
+                error!("gather failed - missing master key!");
                 return Err(GatherFailed::NoMasterKey);
             }
             Err(err) => {

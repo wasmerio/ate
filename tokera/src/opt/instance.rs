@@ -16,6 +16,9 @@ pub struct OptsInstance {
     /// URL where the instances can be accessed from
     #[clap(short, long, default_value = "ws://tokera.com/sess")]
     pub sess_url: Url,
+    /// Indicates that the server certificate should be ignored
+    #[clap(long)]
+    pub ignore_certificate: bool
 }
 
 #[derive(Parser, Clone)]
@@ -189,6 +192,10 @@ pub struct OptsInstanceKill {
     /// (killed instances are perminently destroyed)
     #[clap(index = 1)]
     pub name: String,
+    /// Forces the removal of the instance from the wallet even
+    /// if access is denied to its data and thus this would create an orphan chain.
+    #[clap(short, long)]
+    pub force: bool,
 }
 
 #[derive(Parser, Clone)]

@@ -1,7 +1,6 @@
+use async_trait::async_trait;
 use ate::prelude::*;
-use ate_auth::cmd::gather_command;
 use ate_auth::error::GatherError;
-use ate_auth::service::AuthService;
 use bytes::Bytes;
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -17,10 +16,9 @@ pub struct Repository {
     pub registry: Arc<Registry>,
     pub db_url: url::Url,
     pub auth_url: url::Url,
-    pub master_prefix: String,
-    pub master_key: EncryptKey,
-    pub sessions: RwLock<TtlCache<String, AteSessionGroup>>,
+    pub sessions: RwLock<TtlCache<String, AteSessionType>>,
     pub chains: Mutex<TtlCache<ChainKey, Arc<FileAccessor>>>,
+    pub session_factory: Box<dyn RepositorySessionFactory + 'static>,
     pub ttl: Duration,
 }
 
@@ -29,16 +27,15 @@ impl Repository {
         registry: &Arc<Registry>,
         db_url: url::Url,
         auth_url: url::Url,
-        master_prefix: String,
-        master_key: EncryptKey,
+        session_factory: Box<dyn RepositorySessionFactory + 'static>,
         ttl: Duration,
-    ) -> Result<Arc<Repository>, AteError> {
+    ) -> Result<Arc<Repository>, AteError>
+    {
         let ret = Repository {
             registry: Arc::clone(registry),
             db_url,
             auth_url,
-            master_prefix,
-            master_key,
+            session_factory,
             sessions: RwLock::new(TtlCache::new(usize::MAX)),
             chains: Mutex::new(TtlCache::new(usize::MAX)),
             ttl,
@@ -49,46 +46,34 @@ impl Repository {
 }
 
 impl Repository {
-    pub async fn get_session(&self, sni: &String) -> Result<AteSessionGroup, GatherError> {
-        // Check the check
+    pub async fn get_session(&self, sni: &String, key: ChainKey) -> Result<AteSessionType, GatherError> {
+        // Check the cache
+        let cache_key = format!("{}-{}", sni, key);
         {
             let guard = self.sessions.read().unwrap();
-            if let Some(ret) = guard.get(sni) {
+            if let Some(ret) = guard.get(&cache_key) {
                 return Ok(ret.clone());
             }
         }
 
         // Create the session
-        let key_entropy = format!("{}:{}", self.master_prefix, sni);
-        let key_entropy = AteHash::from_bytes(key_entropy.as_bytes());
-        let web_key = AuthService::compute_super_key_from_hash(&self.master_key, &key_entropy);
-        let mut session = AteSessionUser::default();
-        session.add_user_read_key(&web_key);
-
-        // Now gather the rights to the chain
-        let session = gather_command(
-            &self.registry,
-            sni.clone(),
-            AteSessionInner::User(session),
-            self.auth_url.clone(),
-        )
-        .await?;
+        let session = self.session_factory.create(sni.clone(), key).await?;
 
         // Enter a write lock and check again
         let mut guard = self.sessions.write().unwrap();
-        if let Some(ret) = guard.get(sni) {
+        if let Some(ret) = guard.get(&cache_key) {
             return Ok(ret.clone());
         }
 
         // Cache and and return it
-        guard.insert(sni.clone(), session.clone(), self.ttl);
+        guard.insert(cache_key.clone(), session.clone(), self.ttl);
         Ok(session)
     }
 
     pub async fn get_accessor(&self, key: &ChainKey, sni: &str) -> Result<Arc<FileAccessor>, GatherError> {
         // Get the session
         let sni = sni.to_string();
-        let session = self.get_session(&sni).await?;
+        let session = self.get_session(&sni, key.clone()).await?;
 
         // Now get the chain for this host
         let chain = {
@@ -102,7 +87,7 @@ impl Repository {
                     FileAccessor::new(
                         chain.as_arc(),
                         Some(sni),
-                        AteSessionType::Group(session),
+                        session,
                         TransactionScope::Local,
                         TransactionScope::Local,
                         false,
@@ -176,4 +161,11 @@ impl Repository {
         let mut lock = self.chains.lock().await;
         lock.iter(); // this will run the remove_expired function
     }
+}
+
+#[async_trait]
+pub trait RepositorySessionFactory
+where Self: Send + Sync
+{
+    async fn create(&self, sni: String, key: ChainKey) -> Result<AteSessionType, AteError>;
 }

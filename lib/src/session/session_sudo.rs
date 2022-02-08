@@ -81,7 +81,8 @@ impl AteSession for AteSessionSudo {
             .sudo
             .write_keys()
             .filter(move |_| category.includes_sudo_keys());
-        Box::new(ret1.chain(ret2))
+        let ret3 = self.broker_write().filter(|_| category.includes_broker_keys()).into_iter();
+        Box::new(ret1.chain(ret2).chain(ret3))
     }
 
     fn public_read_keys<'a>(
@@ -96,7 +97,8 @@ impl AteSession for AteSessionSudo {
             .sudo
             .public_read_keys()
             .filter(move |_| category.includes_sudo_keys());
-        Box::new(ret1.chain(ret2))
+        let ret3 = self.broker_read().filter(move |_| category.includes_broker_keys()).map(|a| a.as_public_key()).into_iter();
+        Box::new(ret1.chain(ret2).chain(ret3))
     }
 
     fn private_read_keys<'a>(
@@ -111,7 +113,8 @@ impl AteSession for AteSessionSudo {
             .sudo
             .private_read_keys()
             .filter(move |_| category.includes_sudo_keys());
-        Box::new(ret1.chain(ret2))
+        let ret3 = self.broker_read().filter(move |_| category.includes_broker_keys()).into_iter();
+        Box::new(ret1.chain(ret2).chain(ret3))
     }
 
     fn broker_read<'a>(&'a self) -> Option<&'a PrivateEncryptKey> {

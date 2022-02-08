@@ -34,7 +34,7 @@ use super::eval::EvalContext;
 use super::eval::ExecResponse;
 use super::stdio::*;
 
-pub type Command = fn(&[String], EvalContext, Stdio) -> Pin<Box<dyn Future<Output = ExecResponse>>>;
+pub type Command = fn(&[String], EvalContext, Stdio) -> Pin<Box<dyn Future<Output = ExecResponse> + Send>>;
 
 #[derive(Default)]
 pub struct Builtins {

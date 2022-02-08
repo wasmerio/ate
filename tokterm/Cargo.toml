@@ -1,9 +1,8 @@
 [package]
 name = "tokterm"
-version = "0.2.0"
+version = "1.0.0"
 authors = ["John Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
-publish = false
 description = "Tokera Terminal built on WASMER and ATE"
 license = "MIT OR Apache-2.0"
 keywords = [ "wasm", "browser", "terminal" ]
@@ -15,7 +14,7 @@ default = [ "embedded_files" ]
 embedded_files = [ "include_dir" ]
 
 [dependencies]
-term-lib = { version = "^0.2", path = "../term-lib", features = [ "singlepass", "cranelift", "cached_compiling", "async_ws" ] }
+term-lib = { version = "^1.0", path = "../term-lib", features = [ "singlepass", "cranelift", "cached_compiling", "async_ws" ] }
 #tracing = { version = "^0.1", features = [ "log", "release_max_level_warn" ] }
 #log = { version = "^0.4", features = [ "release_max_level_warn" ] }
 tracing = { version = "^0.1", features = [ "log", "release_max_level_debug" ] }
@@ -34,8 +33,8 @@ futures = "^0.3"
 futures-util = "^0.3"
 derivative = { version = "^2" }
 base64 = { version = "^0.13" }
-wasm-bus = { version = "0.5", path = "../wasm-bus", features = [ "rt" ], default_features = false }
-wasm-bus-reqwest = { version = "0.2", path = "../wasm-bus-reqwest" }
+wasm-bus = { version = "^1", path = "../wasm-bus", features = [ "rt" ], default_features = false }
+wasm-bus-reqwest = { version = "^1", path = "../wasm-bus-reqwest" }
 url = { version = "^2" }
 fastrand = "^1.5"
 bincode = "1"

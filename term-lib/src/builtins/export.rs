@@ -9,7 +9,7 @@ pub(super) fn export(
     args: &[String],
     mut ctx: EvalContext,
     stdio: Stdio,
-) -> Pin<Box<dyn Future<Output = ExecResponse>>> {
+) -> Pin<Box<dyn Future<Output = ExecResponse> + Send>> {
     if args.len() <= 1 || args[1] == "-p" {
         let output = ctx
             .env
@@ -25,7 +25,7 @@ pub(super) fn export(
             .collect::<Vec<_>>();
         return Box::pin(async move {
             for output in output {
-                let _ = stdio.println(format_args!("{}", output)).await;
+                let _ = stdio.println(output).await;
             }
             ExecResponse::Immediate(ctx, 0)
         });

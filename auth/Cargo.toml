@@ -1,6 +1,6 @@
 [package]
 name = "ate-auth"
-version = "1.7.3"
+version = "1.8.0"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 description = "Represents a standardized data model and API for authenticating an ATE chain-of-trust"
@@ -24,10 +24,11 @@ tty = [ "atty" ]
 force_tty = [ "tty" ]
 
 [dependencies]
-ate = { version = "^1", path = "../lib", default_features = false }
+ate = { version = "^1.1", path = "../lib", default_features = false }
 error-chain = { version = "^0.12", default_features = false }
 tokio = { version = "^1", features = [ "macros", "sync" ], default_features = false }
 serde = { version = "^1", features = ["derive"] }
+serde_json = { version = "^1" }
 tracing = { version = "^0.1", features = [ "log" ] }
 tracing-futures = { version = "^0.2" }
 tracing-subscriber = { version = "^0.2" }

@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use error_chain::bail;
 use fxhash::FxHashMap;
 use once_cell::sync::Lazy;
+use derivative::*;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::net::Ipv4Addr;
 use std::net::Ipv6Addr;
@@ -31,8 +32,11 @@ use crate::service::Service;
 use crate::utils::chain_key_16hex;
 use crate::{conf::ConfAte, error::ChainCreationError};
 
+#[derive(Derivative)]
+#[derivative(Debug)]
 pub struct Registry {
     pub cfg_ate: ConfAte,
+    #[derivative(Debug = "ignore")]
     #[cfg(feature = "enable_dns")]
     dns: Mutex<DnsClient>,
     pub temporal: bool,
@@ -42,8 +46,10 @@ pub struct Registry {
     pub ignore_certificates: bool,
 
     cmd_key: StdMutex<FxHashMap<url::Url, String>>,
+    #[derivative(Debug = "ignore")]
     #[cfg(feature = "enable_client")]
     chains: Mutex<FxHashMap<url::Url, Arc<MeshClient>>>,
+    #[derivative(Debug = "ignore")]
     pub(crate) services: StdMutex<Vec<Arc<dyn Service>>>,
 }
 
@@ -266,6 +272,8 @@ impl Registry {
 
         // Set the ignore certificates
         if self.ignore_certificates {
+            ret.certificate_validation = CertificateValidation::AllowAll;
+        } else if url.domain() == Some("localhost") {
             ret.certificate_validation = CertificateValidation::AllowAll;
         }
 

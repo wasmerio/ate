@@ -9,7 +9,7 @@ pub(super) fn exit(
     _args: &[String],
     ctx: EvalContext,
     _stdio: Stdio,
-) -> Pin<Box<dyn Future<Output = ExecResponse>>> {
+) -> Pin<Box<dyn Future<Output = ExecResponse> + Send>> {
     Box::pin(async move {
         ctx.abi.exit().await;
         ExecResponse::Immediate(ctx, 0)

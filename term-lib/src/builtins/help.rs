@@ -10,7 +10,7 @@ pub(super) fn help(
     _args: &[String],
     ctx: EvalContext,
     mut stdio: Stdio,
-) -> Pin<Box<dyn Future<Output = ExecResponse>>> {
+) -> Pin<Box<dyn Future<Output = ExecResponse> + Send>> {
     Box::pin(async move {
         let _ = stdio.stdout.write(Tty::HELP.as_bytes()).await;
         ExecResponse::Immediate(ctx, 0)

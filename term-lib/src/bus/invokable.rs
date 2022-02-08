@@ -13,6 +13,7 @@ use std::pin::Pin;
 pub enum InvokeResult {
     Response(Vec<u8>),
     ResponseThenWork(Vec<u8>, Pin<Box<dyn Future<Output = ()> + Send + 'static>>),
+    ResponseThenLeak(Vec<u8>),
 }
 
 #[async_trait]

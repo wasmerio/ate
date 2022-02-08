@@ -69,7 +69,7 @@ impl Tx {
                     total_sent += tx.send_reply(pck).await?;
                 }
                 TxDirection::Upcast(tx) => {
-                    total_sent += tx.outbox.send(pck).await?;
+                    total_sent += tx.outbox.send(&pck.bytes[..]).await?;
                 }
                 TxDirection::Nullcast => {}
             }
@@ -83,7 +83,7 @@ impl Tx {
         let total_sent = match &mut self.direction {
             #[cfg(feature = "enable_server")]
             TxDirection::Downcast(tx) => tx.send_reply(pck).await?,
-            TxDirection::Upcast(tx) => tx.outbox.send(pck).await?,
+            TxDirection::Upcast(tx) => tx.outbox.send(&pck.bytes[..]).await?,
             TxDirection::Nullcast => 0u64,
         };
         self.metrics_add_sent(total_sent).await;
@@ -101,23 +101,24 @@ impl Tx {
     }
 
     #[cfg(feature = "enable_server")]
-    pub async fn send_others(&mut self, pck: PacketData) -> Result<(), CommsError> {
+    pub async fn send_others(&mut self, pck: PacketData) {
         trace!("send others (bytes={})", pck.bytes.len());
         let total_sent = match &mut self.direction {
             #[cfg(feature = "enable_server")]
-            TxDirection::Downcast(tx) => tx.send_others(pck).await?,
+            TxDirection::Downcast(tx) => {
+                tx.send_others(pck).await
+            },
             _ => 0u64,
         };
         self.metrics_add_sent(total_sent).await;
-        Ok(())
     }
 
     pub async fn send_all(&mut self, pck: PacketData) -> Result<(), CommsError> {
-        trace!("send others (bytes={})", pck.bytes.len());
+        trace!("send all (bytes={})", pck.bytes.len());
         let total_sent = match &mut self.direction {
             #[cfg(feature = "enable_server")]
-            TxDirection::Downcast(tx) => tx.send_all(pck).await?,
-            TxDirection::Upcast(tx) => tx.outbox.send(pck).await?,
+            TxDirection::Downcast(tx) => tx.send_all(pck).await,
+            TxDirection::Upcast(tx) => tx.outbox.send(&pck.bytes[..]).await?,
             TxDirection::Nullcast => 0u64,
         };
         self.metrics_add_sent(total_sent).await;
@@ -229,22 +230,20 @@ impl TxGroupSpecific {
     #[cfg(feature = "enable_server")]
     pub async fn send_reply(&mut self, pck: PacketData) -> Result<u64, CommsError> {
         let mut tx = self.me_tx.lock().await;
-        let total_sent = tx.outbox.send(pck).await?;
+        let total_sent = tx.outbox.send(&pck.bytes[..]).await?;
         Ok(total_sent)
     }
 
     #[cfg(feature = "enable_server")]
-    pub async fn send_others(&mut self, pck: PacketData) -> Result<u64, CommsError> {
+    pub async fn send_others(&mut self, pck: PacketData) -> u64 {
         let mut group = self.group.lock().await;
-        let total_sent = group.send(pck, Some(self.me_id)).await?;
-        Ok(total_sent)
+        group.send(pck, Some(self.me_id)).await
     }
 
     #[cfg(feature = "enable_server")]
-    pub async fn send_all(&mut self, pck: PacketData) -> Result<u64, CommsError> {
+    pub async fn send_all(&mut self, pck: PacketData) -> u64 {
         let mut group = self.group.lock().await;
-        let total_sent = group.send(pck, None).await?;
-        Ok(total_sent)
+        group.send(pck, None).await
     }
 
     #[cfg(feature = "enable_server")]
@@ -271,35 +270,18 @@ impl TxGroup {
         &mut self,
         pck: PacketData,
         skip: Option<NodeId>,
-    ) -> Result<u64, CommsError> {
+    ) -> u64 {
         let mut total_sent = 0u64;
-        match self.all.len() {
-            1 => {
-                if let Some(tx) = self
-                    .all
-                    .values()
-                    .next()
-                    .iter()
-                    .filter_map(|a| Weak::upgrade(a))
-                    .next()
-                {
-                    let mut tx = tx.lock().await;
-                    if Some(tx.id) != skip {
-                        total_sent += tx.outbox.send(pck).await?;
-                    }
-                }
-            }
-            _ => {
-                let all = self.all.values().filter_map(|a| Weak::upgrade(a));
-                for tx in all {
-                    let mut tx = tx.lock().await;
-                    if Some(tx.id) != skip {
-                        total_sent += tx.outbox.send(pck.clone()).await?;
-                    }
+        let all = self.all.values().filter_map(|a| Weak::upgrade(a));
+        for tx in all {
+            let mut tx = tx.lock().await;
+            if Some(tx.id) != skip {
+                if let Ok(amt) = tx.outbox.send(&pck.bytes[..]).await {
+                    total_sent += amt;
                 }
             }
         }
-        Ok(total_sent)
+        total_sent
     }
 }
 
