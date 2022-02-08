@@ -30,12 +30,13 @@ impl BusFactory {
 
     pub fn start(
         &mut self,
+        thread: &WasmBusThread,
         parent: Option<CallHandle>,
         handle: CallHandle,
         wapm: String,
         topic: String,
         request: Vec<u8>,
-        client_callbacks: HashMap<String, WasmBusCallback>,
+        client_callbacks: HashMap<String, WasmBusFeeder>,
         ctx: WasmCallerContext,
     ) -> Box<dyn Invokable> {
         // If it has a parent then we need to make the call relative to this parents session
@@ -49,6 +50,9 @@ impl BusFactory {
             }
         }
 
+        // Create the parent callbackc
+        let this_callback = WasmBusFeeder::new(thread, handle);
+
         // Push this into an asynchronous operation
         Box::new(BusStartInvokable {
             standard: self.standard.clone(),
@@ -58,6 +62,7 @@ impl BusFactory {
             wapm,
             topic,
             request: Some(request),
+            this_callback,
             client_callbacks,
             ctx,
         })
@@ -84,7 +89,8 @@ where
     wapm: String,
     topic: String,
     request: Option<Vec<u8>>,
-    client_callbacks: HashMap<String, WasmBusCallback>,
+    this_callback: WasmBusFeeder,
+    client_callbacks: HashMap<String, WasmBusFeeder>,
     ctx: WasmCallerContext,
 }
 
@@ -112,6 +118,7 @@ where
                 self.wapm.as_str(),
                 self.topic.as_str(),
                 &request,
+                &self.this_callback,
                 &client_callbacks,
             )
             .await

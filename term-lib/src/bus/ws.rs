@@ -17,7 +17,8 @@ use crate::api::*;
 
 pub fn web_socket(
     connect: api::SocketBuilderConnectRequest,
-    mut client_callbacks: HashMap<String, WasmBusCallback>,
+    this_callback: WasmBusFeeder,
+    mut client_callbacks: HashMap<String, WasmBusFeeder>,
 ) -> Result<(WebSocketInvoker, WebSocketSession), CallError> {
     let system = System::default();
 
@@ -153,6 +154,7 @@ pub fn web_socket(
     let invoker = WebSocketInvoker {
         ws: Some(WebSocket {
             tx_keepalive,
+            this: this_callback,
             rx_state,
         }),
     };
@@ -163,6 +165,7 @@ pub fn web_socket(
 pub struct WebSocket {
     #[allow(dead_code)]
     tx_keepalive: mpsc::Sender<()>,
+    this: WasmBusFeeder,
     rx_state: broadcast::Receiver<model::SocketState>,
 }
 
@@ -176,18 +179,19 @@ impl WebSocket {
                 }
                 Ok(model::SocketState::Closed) => {
                     debug!("confirmed websocket closed before it opened");
-                    return;
+                    break;
                 }
                 Ok(_) => {
                     debug!("confirmed websocket failed before it opened");
-                    return;
+                    break;
                 }
                 Err(_) => {
                     debug!("confirmed websocket closed by client");
-                    return;
+                    break;
                 }
             }
         }
+        self.this.terminate();
     }
 }
 

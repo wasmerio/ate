@@ -361,7 +361,7 @@ unsafe fn wasm_bus_reply_callback(
             .get(&handle)
             .map(|handle| handle.get(&topic))
             .flatten()
-            .map(|handle| WasmBusCallback::new(thread, handle.clone()))
+            .map(|handle| WasmBusFeeder::new(thread, handle.clone()))
     };
 
     // Grab the sender we will relay this response to
@@ -411,17 +411,17 @@ unsafe fn wasm_bus_call(
         .to_vec();
 
     // Grab references to the ABI that will be used
-    let data_feeder = WasmBusCallback::new(thread, handle.into());
+    let data_feeder = WasmBusFeeder::new(thread, handle.into());
 
     // Grab all the client callbacks that have been registered
-    let client_callbacks: HashMap<String, WasmBusCallback> = {
+    let client_callbacks: HashMap<String, WasmBusFeeder> = {
         let mut inner = thread.inner.lock();
         inner
             .callbacks
             .remove(&handle)
             .map(|a| {
                 a.into_iter()
-                    .map(|(topic, handle)| (topic, WasmBusCallback::new(thread, handle.into())))
+                    .map(|(topic, handle)| (topic, WasmBusFeeder::new(thread, handle.into())))
                     .collect()
             })
             .unwrap_or_default()
@@ -430,6 +430,7 @@ unsafe fn wasm_bus_call(
     let mut invoke = {
         let mut inner = thread.inner.lock();
         inner.factory.start(
+            thread,
             parent,
             handle.into(),
             wapm.to_string(),

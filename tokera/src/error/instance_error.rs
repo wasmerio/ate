@@ -28,9 +28,9 @@ error_chain! {
             description("the instance was this name could not be found")
             display("the instance was this name could not be found")
         }
-        InternalError {
+        InternalError(code: u16) {
             description("an internal error has occured")
-            display("an internal error has occured")
+            display("an internal error has occured - code={}", code)
         }
         Unsupported {
             description("the operation is not yet supported")

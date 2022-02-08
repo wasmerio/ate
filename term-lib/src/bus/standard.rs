@@ -44,19 +44,20 @@ impl StandardBus {
         self.process_factory.stderr()
     }
 
-    pub async fn create(
+    pub(crate) async fn create(
         &self,
         wapm: &str,
         topic: &str,
         request: &Vec<u8>,
-        client_callbacks: &HashMap<String, WasmBusCallback>,
+        this_callback: &WasmBusFeeder,
+        client_callbacks: &HashMap<String, WasmBusFeeder>,
     ) -> Result<(Box<dyn Invokable>, Option<Box<dyn Session>>), CallError> {
         match (wapm, topic) {
             ("os", topic)
                 if topic == type_name::<wasm_bus_ws::api::SocketBuilderConnectRequest>() =>
             {
                 let request = decode_request(SerializationFormat::Bincode, request.as_ref())?;
-                let (invoker, session) = ws::web_socket(request, client_callbacks.clone())?;
+                let (invoker, session) = ws::web_socket(request, this_callback.clone(), client_callbacks.clone())?;
                 Ok((Box::new(invoker), Some(Box::new(session))))
             }
             ("os", topic) if topic == type_name::<wasm_bus_time::api::TimeSleepRequest>() => {
@@ -72,10 +73,9 @@ impl StandardBus {
             }
             ("os", topic) if topic == type_name::<wasm_bus_process::api::PoolSpawnRequest>() => {
                 let request = decode_request(SerializationFormat::Bincode, request.as_ref())?;
-
                 let created = self
                     .process_factory
-                    .eval(request, client_callbacks.clone())
+                    .eval(request, this_callback.clone(), client_callbacks.clone())
                     .await?;
                 Ok((Box::new(created.invoker), Some(Box::new(created.session))))
             }
@@ -83,7 +83,7 @@ impl StandardBus {
                 let stdio = self.stdio();
                 let tty = TtyFile::new(&stdio);
                 let request = decode_request(SerializationFormat::Bincode, request.as_ref())?;
-                let (invoker, session) = tty::stdin(request, tty, client_callbacks.clone())?;
+                let (invoker, session) = tty::stdin(request, tty, this_callback, client_callbacks.clone())?;
                 Ok((Box::new(invoker), Some(Box::new(session))))
             }
             ("os", topic) if topic == type_name::<wasm_bus_tty::api::TtyStdoutRequest>() => {

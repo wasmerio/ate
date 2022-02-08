@@ -181,7 +181,10 @@ pub async fn main_opts_instance_shell(
         .await.unwrap();
 
     client.run_shell()
-        .await.unwrap();
+        .await
+        .map_err(|err| {
+            InstanceErrorKind::InternalError(ate::utils::obscure_error_str(err.to_string().as_str()))
+        })?;
         
     Ok(())
 }

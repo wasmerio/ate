@@ -153,7 +153,7 @@ pub(crate) enum WasmBusThreadWork {
 pub(crate) struct WasmBusThreadInvocation {
     pub _abort: mpsc::Sender<()>,
     pub result: AsyncResult<Result<InvokeResult, CallError>>,
-    pub data_feeder: WasmBusCallback,
+    pub data_feeder: WasmBusFeeder,
 }
 
 pub(crate) struct WasmBusThreadInner {
@@ -331,10 +331,12 @@ impl WasmBusThread {
         let native_malloc = self.wasm_bus_malloc_ref();
         let native_finish = self.wasm_bus_finish_ref();
         let native_error = self.wasm_bus_error_ref();
+        let native_drop = self.wasm_bus_drop_ref();
         if native_memory.is_none()
             || native_malloc.is_none()
             || native_finish.is_none()
             || native_error.is_none()
+            || native_drop.is_none()
         {
             warn!("wasm-bus::call - ABI does not match (finish)");
             return;
@@ -343,11 +345,12 @@ impl WasmBusThread {
         let native_malloc = native_malloc.unwrap();
         let native_finish = native_finish.unwrap();
         let native_error = native_error.unwrap();
+        let native_drop = native_drop.unwrap();
 
         for feed in feeds {
             match feed {
                 FeedData::Finish { handle, data } => {
-                    trace!(
+                    debug!(
                         "wasm-bus::call-reply (handle={}, response={} bytes)",
                         handle.id,
                         data.len()
@@ -362,8 +365,12 @@ impl WasmBusThread {
                     native_finish.call(handle.id, buf, buf_len).unwrap();
                 }
                 FeedData::Error { handle, err } => {
-                    trace!("wasm-bus::call-reply (handle={}, error={})", handle.id, err);
+                    debug!("wasm-bus::call-reply (handle={}, error={})", handle.id, err);
                     native_error.call(handle.id, err.into()).unwrap();
+                }
+                FeedData::Terminate { handle } => {
+                    debug!("wasm-bus::drop (handle={})", handle.id);
+                    native_drop.call(handle.id).unwrap();
                 }
             }
         }
@@ -618,6 +625,11 @@ impl WasmBusThread {
                             "wasm-bus::drop - runtime error - {} - {}",
                             err,
                             err.message()
+                        );
+                    } else {
+                        debug!(
+                            "wasm-bus::drop - ({})",
+                            handle
                         );
                     }
                 }
@@ -880,14 +892,29 @@ where
 }
 
 pub struct WasmBusSessionMarker {
-    thread: WasmBusThread,
+    system: System,
+    work_tx: mpsc::Sender<WasmBusThreadWork>,
     handle: CallHandle,
+}
+
+impl WasmBusSessionMarker
+{
+    pub fn new(thread: &WasmBusThread, handle: CallHandle) -> Arc<WasmBusSessionMarker>
+    {
+        Arc::new(
+            WasmBusSessionMarker {
+                system: thread.system.clone(),
+                work_tx: thread.work_tx.clone(),
+                handle
+            }
+        )
+    }
 }
 
 impl Drop for WasmBusSessionMarker {
     fn drop(&mut self) {
-        debug!("bus sesssion closed - handle={}", self.handle);
-        self.thread.drop_call(self.handle);
+        debug!("wasm-bus::session closed - ({})", self.handle);
+        self.system.fork_send(&self.work_tx, WasmBusThreadWork::Drop { handle: self.handle });
     }
 }
 
@@ -895,7 +922,8 @@ impl Drop for WasmBusSessionMarker {
 pub struct AsyncWasmBusSession {
     pub(crate) handle: WasmBusThreadHandle,
     pub(crate) format: SerializationFormat,
-    pub(crate) marker: Arc<WasmBusSessionMarker>,
+    pub(crate) thread: WasmBusThread,
+    pub(crate) _marker: Arc<WasmBusSessionMarker>,
 }
 
 impl AsyncWasmBusSession {
@@ -905,11 +933,9 @@ impl AsyncWasmBusSession {
         format: SerializationFormat,
     ) -> Self {
         Self {
-            marker: Arc::new(WasmBusSessionMarker {
-                thread: thread.clone(),
-                handle: handle.handle(),
-            }),
+            _marker: WasmBusSessionMarker::new(thread, handle.handle()),
             handle,
+            thread: thread.clone(),
             format,
         }
     }
@@ -970,11 +996,10 @@ impl AsyncWasmBusSession {
         };
 
         let (rx, handle) =
-            self.marker
-                .thread
+            self.thread
                 .call_internal(Some(self.handle.handle()), topic.to_string(), data);
         Ok(AsyncWasmBusResult::new(
-            &self.marker.thread,
+            &self.thread,
             rx,
             handle,
             format,

@@ -24,6 +24,7 @@ pub struct BusEngineState {
     pub handles: HashSet<CallHandle>,
     pub calls: HashMap<CallHandle, Arc<dyn CallOps>>,
     pub callbacks: HashMap<CallHandle, Arc<dyn FinishOps>>,
+    pub children: HashMap<CallHandle, Vec<CallHandle>>,
     #[cfg(feature = "rt")]
     pub listening: HashMap<String, ListenService>,
     #[cfg(feature = "rt")]
@@ -182,7 +183,16 @@ impl BusEngine {
         wakers.insert(handle.clone(), waker);
     }
 
+    pub fn add_callback(handle: CallHandle, child: CallHandle) {
+        let mut state = BusEngine::write();
+        let children = state.children
+            .entry(handle)
+            .or_insert(Vec::new());
+        children.push(child);
+    }
+
     pub fn remove(handle: &CallHandle, reason: &'static str) {
+        let mut children = Vec::new();
         {
             let mut delayed_drop1 = Vec::new();
             let mut delayed_drop2 = Vec::new();
@@ -192,6 +202,9 @@ impl BusEngine {
                 let mut state = BusEngine::write();
                 #[cfg(feature = "rt")]
                 state.handles.remove(handle);
+                if let Some(mut c) = state.children.remove(handle) {
+                    children.append(&mut c);
+                }
                 if let Some(drop_me) = state.calls.remove(handle) {
                     trace!(
                         "wasm_bus_drop (handle={}, reason='{}', wapm={}, topic={})",
@@ -222,6 +235,10 @@ impl BusEngine {
                     }
                 }
             }
+        }
+
+        for child in children {
+            Self::remove(&child, reason);
         }
 
         let mut wakers = Self::wakers();

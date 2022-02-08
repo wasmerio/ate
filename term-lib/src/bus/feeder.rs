@@ -14,15 +14,15 @@ use crate::api::System;
 use crate::api::SystemAbiExt;
 
 #[derive(Clone)]
-pub struct WasmBusCallback {
+pub struct WasmBusFeeder {
     system: System,
     tx: mpsc::Sender<FeedData>,
     handle: CallHandle,
 }
 
-impl WasmBusCallback {
-    pub fn new(thread: &WasmBusThread, handle: CallHandle) -> WasmBusCallback {
-        WasmBusCallback {
+impl WasmBusFeeder {
+    pub fn new(thread: &WasmBusThread, handle: CallHandle) -> WasmBusFeeder {
+        WasmBusFeeder {
             system: thread.system,
             tx: thread.feed_data.clone(),
             handle,
@@ -105,10 +105,20 @@ impl WasmBusCallback {
             },
         );
     }
+
+    pub fn terminate(&self) {
+        self.system.fork_send(
+            &self.tx,
+            FeedData::Terminate {
+                handle: self.handle.clone(),
+            },
+        );
+    }
 }
 
 #[derive(Debug)]
 pub enum FeedData {
     Finish { handle: CallHandle, data: Vec<u8> },
     Error { handle: CallHandle, err: CallError },
+    Terminate { handle: CallHandle },
 }

@@ -90,7 +90,8 @@ where
     let topic = type_name::<REQ>();
     let recv = crate::engine::BusEngine::callback(format, callback);
     let handle = recv.handle;
-
+    
+    crate::engine::BusEngine::add_callback(parent.clone(), handle.clone());
     syscall::callback(parent, handle, topic);
     return recv;
 }

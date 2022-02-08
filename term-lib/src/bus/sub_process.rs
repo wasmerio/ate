@@ -147,7 +147,7 @@ impl SubProcess {
         topic: &str,
         request: Vec<u8>,
         ctx: WasmCallerContext,
-        _client_callbacks: HashMap<String, WasmBusCallback>,
+        _client_callbacks: HashMap<String, WasmBusFeeder>,
     ) -> Result<(Box<dyn Invokable>, Option<Box<dyn Session>>), CallError> {
         let threads = match self.threads.first() {
             Some(a) => a,

@@ -31,9 +31,9 @@ pub struct EvalCreated {
 
 struct ProcessExecCreate {
     request: api::PoolSpawnRequest,
-    on_stdout: Option<WasmBusCallback>,
-    on_stderr: Option<WasmBusCallback>,
-    on_exit: Option<WasmBusCallback>,
+    on_stdout: Option<WasmBusFeeder>,
+    on_stderr: Option<WasmBusFeeder>,
+    on_exit: Option<WasmBusFeeder>,
 }
 
 #[derive(Derivative, Clone)]
@@ -62,9 +62,9 @@ pub struct LaunchContext {
     stdin_tx: Option<mpsc::Sender<FdMsg>>,
     stdout_rx: Option<mpsc::Receiver<FdMsg>>,
     stderr_rx: Option<mpsc::Receiver<FdMsg>>,
-    on_stdout: Option<WasmBusCallback>,
-    on_stderr: Option<WasmBusCallback>,
-    on_exit: Option<WasmBusCallback>,
+    on_stdout: Option<WasmBusFeeder>,
+    on_stderr: Option<WasmBusFeeder>,
+    on_exit: Option<WasmBusFeeder>,
 }
 
 impl ProcessExecFactory {
@@ -97,7 +97,7 @@ impl ProcessExecFactory {
     pub async fn launch<T, F>(
         &self,
         request: api::PoolSpawnRequest,
-        mut client_callbacks: HashMap<String, WasmBusCallback>,
+        mut client_callbacks: HashMap<String, WasmBusFeeder>,
         funct: F,
     ) -> Result<T, CallError>
     where
@@ -270,11 +270,13 @@ impl ProcessExecFactory {
     pub async fn eval(
         &self,
         request: api::PoolSpawnRequest,
-        client_callbacks: HashMap<String, WasmBusCallback>,
+        this_callback: WasmBusFeeder,
+        client_callbacks: HashMap<String, WasmBusFeeder>,
     ) -> Result<EvalCreated, CallError> {
         let dst = Arc::clone(&self.ctx);
         self.launch(request, client_callbacks, move |ctx: LaunchContext| {
             let dst = dst.clone();
+            let this_callback = this_callback.clone();
             Box::pin(async move {
                 let eval_rx = crate::eval::eval(ctx.eval);
 
@@ -294,6 +296,7 @@ impl ProcessExecFactory {
                             stdout: ctx.stdout_rx,
                             stderr: ctx.stderr_rx,
                             eval_rx,
+                            this: this_callback,
                             on_stdout: ctx.on_stdout,
                             on_stderr: ctx.on_stderr,
                             on_exit: ctx.on_exit,
@@ -312,7 +315,7 @@ impl ProcessExecFactory {
     pub async fn create(
         &self,
         request: api::PoolSpawnRequest,
-        client_callbacks: HashMap<String, WasmBusCallback>,
+        client_callbacks: HashMap<String, WasmBusFeeder>,
     ) -> Result<
         (
             Process,
@@ -392,10 +395,11 @@ pub struct ProcessExec {
     stdout: Option<mpsc::Receiver<FdMsg>>,
     stderr: Option<mpsc::Receiver<FdMsg>>,
     eval_rx: mpsc::Receiver<EvalResult>,
-    on_stdout: Option<WasmBusCallback>,
-    on_stderr: Option<WasmBusCallback>,
-    on_exit: Option<WasmBusCallback>,
+    on_stdout: Option<WasmBusFeeder>,
+    on_stderr: Option<WasmBusFeeder>,
+    on_exit: Option<WasmBusFeeder>,
     on_ctx: Pin<Box<dyn Fn(EvalContext) + Send + 'static>>,
+    this: WasmBusFeeder,
 }
 
 impl ProcessExec {
@@ -428,7 +432,7 @@ impl ProcessExec {
                             if let Some(on_exit) = self.on_exit.take() {
                                 on_exit.feed_bytes_or_error(res);
                             }
-                            return;
+                            break;
                         }
                     }
                 } else {
@@ -447,7 +451,7 @@ impl ProcessExec {
                             if let Some(on_exit) = self.on_exit.take() {
                                 on_exit.feed_bytes_or_error(res);
                             }
-                            return;
+                            break;
                         }
                     }
                 }
@@ -468,7 +472,7 @@ impl ProcessExec {
                             if let Some(on_exit) = self.on_exit.take() {
                                 on_exit.feed_bytes_or_error(res);
                             }
-                            return;
+                            break;
                         }
                     }
                 } else {
@@ -478,12 +482,13 @@ impl ProcessExec {
                             if let Some(on_exit) = self.on_exit.take() {
                                 on_exit.feed_bytes_or_error(res);
                             }
-                            return;
+                            break;
                         }
                     }
                 }
             }
         }
+        self.this.terminate();
     }
 }
 

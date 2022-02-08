@@ -22,7 +22,8 @@ use crate::api::*;
 pub fn stdin(
     _req: api::TtyStdinRequest,
     tty: crate::fs::TtyFile,
-    mut client_callbacks: HashMap<String, WasmBusCallback>,
+    this_callback: &WasmBusFeeder,
+    mut client_callbacks: HashMap<String, WasmBusFeeder>,
 ) -> Result<(StdinInvoker, StdinSession), CallError> {
 
     // Build all the callbacks
@@ -37,7 +38,7 @@ pub fn stdin(
     let on_flush = on_flush.unwrap();
 
     // Return the invokers
-    let stdin = Stdin { tty, on_recv, on_flush };
+    let stdin = Stdin { tty, on_recv, on_flush, this: this_callback.clone() };
     let invoker = StdinInvoker { stdin: Some(stdin) };
     let session = StdinSession {};
     Ok((invoker, session))
@@ -45,8 +46,9 @@ pub fn stdin(
 
 pub struct Stdin {
     tty: crate::fs::TtyFile,
-    on_recv: WasmBusCallback,
-    on_flush: WasmBusCallback,
+    this: WasmBusFeeder,
+    on_recv: WasmBusFeeder,
+    on_flush: WasmBusFeeder,
 }
 
 impl Stdin
@@ -65,6 +67,9 @@ impl Stdin
                 }
             }
         }
+        self.on_recv.terminate();
+        self.on_flush.terminate();
+        self.this.terminate();
     }
 }
 
@@ -101,7 +106,7 @@ impl Session for StdinSession {
 pub fn stdout(
     _req: api::TtyStdoutRequest,
     stdout: crate::stdout::Stdout,
-    _client_callbacks: HashMap<String, WasmBusCallback>,
+    _client_callbacks: HashMap<String, WasmBusFeeder>,
 ) -> Result<(StdoutInvoker, StdoutSession), CallError> {
 
     // Return the invokers
@@ -208,7 +213,7 @@ impl Invokable for DelayedStdoutSend {
 pub fn stderr(
     _req: api::TtyStderrRequest,
     stderr: crate::fd::Fd,
-    _client_callbacks: HashMap<String, WasmBusCallback>,
+    _client_callbacks: HashMap<String, WasmBusFeeder>,
 ) -> Result<(StderrInvoker, StderrSession), CallError> {
 
     // Return the invokers
