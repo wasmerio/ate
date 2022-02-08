@@ -254,7 +254,6 @@ impl Fd {
             }
             if receiver.mode == ReceiverMode::Message(true) {
                 receiver.mode = ReceiverMode::Message(false);
-                crate::common::panic_on_thrash(50, file!(), line!());
                 return Ok(FdMsg::new(Vec::new(), receiver.cur_flag));
             }
             let msg = receiver
