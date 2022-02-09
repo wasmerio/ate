@@ -430,6 +430,7 @@ impl StreamTx {
         &mut self
     ) -> Result<(), tokio::io::Error>
     {
+        let _ = self.version.send_close(&mut self.inner).await;
         self.inner.close().await
     }
 

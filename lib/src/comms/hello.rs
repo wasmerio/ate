@@ -25,6 +25,15 @@ pub enum StreamProtocolVersion
 {
     V1 = 1,
     V2 = 2,
+    V3 = 3,
+}
+
+impl Default
+for StreamProtocolVersion
+{
+    fn default() -> Self {
+        StreamProtocolVersion::V3
+    }
 }
 
 impl StreamProtocolVersion
@@ -49,6 +58,9 @@ impl StreamProtocolVersion
             }
             StreamProtocolVersion::V2 => {
                 Box::new(super::protocol::v2::MessageProtocol::default())
+            }
+            StreamProtocolVersion::V3 => {
+                Box::new(super::protocol::v3::MessageProtocol::default())
             }
         }
     }
@@ -93,7 +105,7 @@ pub async fn mesh_hello_exchange_sender(
         path: hello_path.clone(),
         domain,
         key_size,
-        version: StreamProtocolVersion::V2,
+        version: StreamProtocolVersion::default(),
     };
     let hello_client_bytes = serde_json::to_vec(&hello_client)?;
     stream_tx
@@ -166,7 +178,7 @@ pub async fn mesh_hello_exchange_receiver(
         id: server_id,
         encryption,
         wire_format,
-        version: StreamProtocolVersion::V2,
+        version: StreamProtocolVersion::default(),
     };
     let hello_server_bytes = serde_json::to_vec(&hello_server)?;
     stream_tx

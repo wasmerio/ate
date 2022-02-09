@@ -17,13 +17,14 @@ enum MessageOpCode {
     NewIV = 1,
     Buf16bit = 2,
     Buf32bit = 3,
+    Close = 4,
 }
 impl MessageOpCode {
     fn to_u8(self) -> u8 {
         self as u8
     }
 }
-const MAX_MESSAGE_OP_CODE: u8 = 4;
+const MAX_MESSAGE_OP_CODE: u8 = 8;
 const EXCESS_OP_CODE_SPACE: u8 = u8::MAX - MAX_MESSAGE_OP_CODE;
 const MESSAGE_MAX_IV_REUSE: u32 = 1000;
 
@@ -34,6 +35,8 @@ pub struct MessageProtocol {
     iv_rx: Option<InitializationVector>,
     iv_use_cnt: u32,
     buffer: Option<Bytes>,
+    flip_to_abort: bool,
+    is_closed: bool,
 }
 
 impl MessageProtocol
@@ -131,6 +134,19 @@ impl MessageProtocol
         //trace!("stream_rx::read({} bytes)", index);
         Ok(())
     }
+
+    pub fn check_abort(&mut self) -> std::io::Result<bool>
+    {
+        if self.is_closed {
+            if self.flip_to_abort {
+                return Err(std::io::ErrorKind::BrokenPipe.into());
+            }
+            self.flip_to_abort = true;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
 }
 
 #[async_trait]
@@ -143,6 +159,9 @@ for MessageProtocol
         buf: &'_ [u8],
         delay_flush: bool,
     ) -> Result<u64, tokio::io::Error> {
+        if self.check_abort()? {
+            return Ok(0);
+        }
         let len = buf.len();
         let header = if len < u16::MAX as usize {
             let len = len as u16;
@@ -170,6 +189,9 @@ for MessageProtocol
         buf: &'_ [u8],
         delay_flush: bool,
     ) -> Result<u64, tokio::io::Error> {
+        if self.check_abort()? {
+            return Ok(0);
+        }
         let len = buf.len();
         let header = if len < u32::MAX as usize {
             let len = len as u32;
@@ -197,6 +219,9 @@ for MessageProtocol
         wire_encryption: &Option<EncryptKey>,
         data: &[u8],
     ) -> Result<u64, tokio::io::Error> {
+        if self.check_abort()? {
+            return Ok(0);
+        }
         let mut total_sent = 0u64;
         match wire_encryption {
             Some(key) => {
@@ -228,6 +253,9 @@ for MessageProtocol
         rx: &mut StreamRxInner,
     ) -> Result<Vec<u8>, tokio::io::Error>
     {
+        if self.check_abort()? {
+            return Ok(vec![]);
+        }
         let len = self.read_u16(rx).await?;
         if len <= 0 {
             //trace!("stream_rx::16bit-header(no bytes!!)");
@@ -244,6 +272,9 @@ for MessageProtocol
         rx: &mut StreamRxInner,
     ) -> Result<Vec<u8>, tokio::io::Error>
     {
+        if self.check_abort()? {
+            return Ok(vec![]);
+        }
         let len = self.read_u32(rx).await?;
         if len <= 0 {
             //trace!("stream_rx::32bit-header(no bytes!!)");
@@ -264,6 +295,9 @@ for MessageProtocol
     {
         // Enter a loop processing op codes and the data within it
         loop {
+            if self.check_abort()? {
+                return Ok(vec![]);
+            }
             let op = self.read_u8(rx).await?;
             *total_read += 1;
             let len = if op == MessageOpCode::Noop.to_u8() {
@@ -287,6 +321,11 @@ for MessageProtocol
                 let len = self.read_u32(rx).await? as u32;
                 *total_read += 4;
                 len
+            } else if op == MessageOpCode::Close.to_u8() {
+                //trace!("stream_rx::op(close)");
+                self.is_closed = true;
+                continue;
+
             } else {
                 //trace!("stream_rx::op(buf-packed)");
                 (op as u32) - (MAX_MESSAGE_OP_CODE as u32)
@@ -319,8 +358,12 @@ for MessageProtocol
 
     async fn send_close(
         &mut self,
-        _tx: &mut StreamTxInner,
+        tx: &mut StreamTxInner,
     ) -> std::io::Result<()> {
+        let op = MessageOpCode::Close as u8;
+        let op = op.to_be_bytes();
+        tx.write_all(&op[..], false).await?;
+        self.is_closed = true;
         Ok(())
     }
 }

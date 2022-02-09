@@ -43,4 +43,9 @@ where Self: std::fmt::Debug + Send + Sync
         wire_encryption: &Option<EncryptKey>,
         total_read: &mut u64
     ) -> std::io::Result<Vec<u8>>;
+
+    async fn send_close(
+        &mut self,
+        tx: &mut StreamTxInner,
+    ) -> std::io::Result<()>;
 }

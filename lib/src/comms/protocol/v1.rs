@@ -295,4 +295,11 @@ for MessageProtocol
             }
         }
     }
+
+    async fn send_close(
+        &mut self,
+        _tx: &mut StreamTxInner,
+    ) -> std::io::Result<()> {
+        Ok(())
+    }
 }
