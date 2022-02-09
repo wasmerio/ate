@@ -15,7 +15,7 @@ use tracing::{debug, error, info, warn};
 
 #[allow(dead_code)]
 #[derive(Parser)]
-#[clap(version = "1.5", author = "Tokera Pty Ltd <info@tokera.com>")]
+#[clap(version = "1.2", author = "Tokera Pty Ltd <info@tokera.com>")]
 struct Opts {
     /// Sets the level of log verbosity, can be used multiple times
     #[clap(short, long, parse(from_occurrences))]

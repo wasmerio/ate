@@ -14,7 +14,7 @@ pub struct OptsInstance {
     #[clap(short, long, default_value = "ws://tokera.com/db")]
     pub db_url: Url,
     /// URL where the instances can be accessed from
-    #[clap(short, long, default_value = "ws://tokera.com/sess")]
+    #[clap(short, long, default_value = "wss://tokera.com/sess")]
     pub sess_url: Url,
     /// Indicates that the server certificate should be ignored
     #[clap(long)]

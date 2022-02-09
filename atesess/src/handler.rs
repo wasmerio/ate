@@ -59,6 +59,7 @@ for SessionHandler
     async fn exit(&self) {
         {
             let mut tx = self.tx.lock().await;
+            let _ = tx.outbox.send(&[0u8; 0]).await;            
             let _ = tx.outbox.close().await;
         }
         let _ = self.exit.send(()).await;
