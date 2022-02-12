@@ -21,3 +21,10 @@ pub struct MasterAuthority {
     /// Inner area that is protected by a master key and is only accessible by the owner
     pub inner_owner: PublicEncryptedSecureData<MasterAuthorityInner>,
 }
+
+impl std::fmt::Display
+for MasterAuthority {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "master_authority(broker={},owner={})", self.inner_broker, self.inner_owner)
+    }
+}
