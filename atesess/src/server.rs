@@ -201,7 +201,7 @@ for SessionFactory
         error!("{}", edge_session);
 
         use std::ops::Deref;
-        error!("{}", serde_json::to_string_pretty(master_authority.deref()));
+        error!("{}", serde_json::to_string_pretty(master_authority.deref()).unwrap());
 
         // Get the private key and use it to access the authority for this chain
         let access_key =  if let Some(key) = edge_session
