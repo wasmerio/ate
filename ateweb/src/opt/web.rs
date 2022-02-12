@@ -18,7 +18,7 @@ pub struct OptsWeb {
     #[clap(long, default_value = "60")]
     pub ttl: u64,
     /// URL where the data is remotely stored on a distributed commit log.
-    #[clap(short, long, default_value = "ws://tokera.com/db")]
+    #[clap(short, long, default_value = "ws://tokera.sh/db")]
     pub remote: Url,
     /// Location where all the websites will be cached
     #[clap(long, default_value = "/tmp/www")]

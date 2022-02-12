@@ -75,11 +75,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
                 let native_files = sys.native_files.clone();
                 atessh::term_lib::api::set_system_abi(sys);
 
+                let mut instance_authority = solo.sess_url.domain()
+                    .map(|a| a.to_string())
+                    .unwrap_or_else(|| "tokera.sh".to_string());
+                if instance_authority == "localhost" {
+                    instance_authority = "tokera.sh".to_string();
+                }
+
                 let compiled_modules = Arc::new(CachedCompiledModules::new(Some(solo.compiler_cache_path)));
                 let instance_server = Server::new(
                     solo.db_url.clone(),
                     solo.auth_url.clone(),
-                    solo.instance_authority.clone(),
+                    instance_authority.clone(),
                     solo.token_path.clone(),
                     registry.clone(),
                     native_files,

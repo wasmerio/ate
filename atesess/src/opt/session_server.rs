@@ -23,13 +23,13 @@ pub struct OptsSessionServer {
     #[clap(long, default_value = "~/ate/compiled")]
     pub compiler_cache_path: String,
     /// URL where the web data is remotely stored on a distributed commit log.
-    #[clap(short, long, default_value = "ws://tokera.com/db")]
+    #[clap(short, long, default_value = "ws://tokera.sh/db")]
     pub db_url: url::Url,
     /// URL of the authentication servers
-    #[clap(long, default_value = "ws://tokera.com/auth")]
+    #[clap(long, default_value = "ws://tokera.sh/auth")]
     pub auth_url: url::Url,
     /// URL of the session servers that clients will connect to
-    #[clap(long, default_value = "ws://tokera.com/sess")]
+    #[clap(long, default_value = "ws://tokera.sh/sess")]
     pub sess_url: url::Url,
     /// Ensures that this combined server(s) runs as a specific node_id
     #[clap(short, long)]
@@ -37,9 +37,6 @@ pub struct OptsSessionServer {
     /// Location where the native binary files are stored
     #[clap(long, default_value = "tokera.sh/www")]
     pub native_files: String,
-    /// Instance authority that has the access rights to run service instances.
-    #[clap(long, default_value = "tokera.sh")]
-    pub instance_authority: String,
     /// Determines which compiler to use
     #[clap(short, long, default_value = "default")]
     pub compiler: term_lib::eval::Compiler,

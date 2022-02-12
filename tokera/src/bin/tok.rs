@@ -29,11 +29,8 @@ struct Opts {
     #[clap(long, default_value = "/.private/token")]
     pub token_path: String,
     /// URL that this command will send all its authentication requests to
-    #[clap(long, default_value = "ws://tokera.com/auth")]
+    #[clap(long, default_value = "ws://tokera.sh/auth")]
     pub auth_url: String,
-    /// Instance authority that has the access rights to run service instances.
-    #[clap(long, default_value = "tokera.sh")]
-    pub instance_authority: String,
     /// NTP server address that the file-system will synchronize with
     #[clap(long)]
     pub ntp_pool: Option<String>,
@@ -141,7 +138,7 @@ async fn init_wasi() {
         Box::pin(async move {
             tracing::trace!("opening wasm_bus::web_socket");
             let ws = wasm_bus_ws::prelude::SocketBuilder::new(
-                url::Url::from_str("wss://tokera.com").unwrap(),
+                url::Url::from_str("wss://tokera.sh").unwrap(),
             )
             .open()
             .await
@@ -198,8 +195,7 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
                 token_path: "~/tok/token".to_string(),
                 #[cfg(target_os = "wasi")]
                 token_path: "/.private/token".to_string(),
-                auth_url: "ws://tokera.com/auth".to_string(),
-                instance_authority: "tokera.com".to_string(),
+                auth_url: "ws://tokera.sh/auth".to_string(),
                 ntp_pool: None,
                 ntp_port: None,
                 dns_sec: false,
@@ -299,7 +295,7 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
             main_opts_service(opts_service.purpose, opts.token_path, auth).await?;
         }
         SubCommand::Instance(opts_instance) => {
-            main_opts_instance(opts_instance.purpose, opts.token_path, auth, opts_instance.db_url, opts_instance.sess_url, opts.instance_authority, opts_instance.ignore_certificate).await?;
+            main_opts_instance(opts_instance.purpose, opts.token_path, auth, opts_instance.db_url, opts_instance.sess_url, opts_instance.ignore_certificate).await?;
         }
         SubCommand::Login(opts_login) => main_opts_login(opts_login, opts.token_path, auth).await?,
         SubCommand::Logout(opts_logout) => main_opts_logout(opts_logout, opts.token_path).await?,

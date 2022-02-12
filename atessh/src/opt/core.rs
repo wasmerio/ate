@@ -15,7 +15,7 @@ pub struct Opts {
     #[clap(short, long)]
     pub debug: bool,
     /// URL where the user is authenticated
-    #[clap(short, long, default_value = "ws://tokera.com/auth")]
+    #[clap(short, long, default_value = "ws://tokera.sh/auth")]
     pub auth: url::Url,
     /// Path to the secret server key
     #[clap(default_value = "~/ate/ssh.server.key")]

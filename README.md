@@ -82,7 +82,7 @@ This library is a way of working with data in modern distributed computing.
                       '-----------------'
 
 The easiest way to get up and running is to just build your app and point the
-database URL at ws://tokera.com/db. You will need to register an account and verify
+database URL at ws://tokera.sh/db. You will need to register an account and verify
 your identity however after this you can use the free databases and/or paid option.
 
 Alternatively, if you wish to host your own ATE servers in infrastructure that you
@@ -92,7 +92,7 @@ manage and run then follow these high-level steps.
 2. Create several records for each IP address under the same A-record in your DNS
 3. Either create your own authentication server as well using the auth-server binary
    or just use the authentication servers hosted at Tokera by pointing to
-   ws://tokera.com/auth.
+   ws://tokera.sh/auth.
 ```
 
 ## Quick Start
