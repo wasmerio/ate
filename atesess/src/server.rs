@@ -198,6 +198,11 @@ for SessionFactory
         let dio = chain.dio(&edge_session).await;
         let master_authority = dio.load::<MasterAuthority>(&PrimaryKey::from(MASTER_AUTHORITY_ID)).await?;
 
+        error!("{}", edge_session);
+
+        use std::ops::Deref;
+        error!("{}", serde_json::to_string_pretty(master_authority.deref()));
+
         // Get the private key and use it to access the authority for this chain
         let access_key =  if let Some(key) = edge_session
             .private_read_keys(AteSessionKeyCategory::AllKeys)
