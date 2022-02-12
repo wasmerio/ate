@@ -185,7 +185,9 @@ impl FileAccessor {
                     AteSessionType::Group(a) => match &a.inner {
                         AteSessionInner::User(a) => a.user.read_keys().next(),
                         AteSessionInner::Sudo(a) => a.inner.user.read_keys().next(),
+                        AteSessionInner::Nothing => None,
                     },
+                    AteSessionType::Nothing => None,
                 }
             }
         } else {
@@ -204,7 +206,9 @@ impl FileAccessor {
                     AteSessionType::Group(a) => match &a.inner {
                         AteSessionInner::User(a) => a.user.write_keys().next(),
                         AteSessionInner::Sudo(a) => a.inner.user.write_keys().next(),
+                        AteSessionInner::Nothing => None,
                     },
+                    AteSessionType::Nothing => None,
                 }
             }
         } else {

@@ -25,7 +25,7 @@ use tokera::model::MASTER_AUTHORITY_ID;
 use atessh::term_lib;
 use term_lib::bin_factory::CachedCompiledModules;
 use term_lib::api::ConsoleRect;
-use ate_auth::cmd::gather_command;
+use ate_auth::cmd::impersonate_command;
 use ate_auth::helper::b64_to_session;
 
 use crate::session::Session;
@@ -182,7 +182,7 @@ for SessionFactory
                 };
 
                 // Now we gather the rights to the instance domain that is capable of running these instances
-                let edge_session = gather_command(
+                let edge_session = impersonate_command(
                     &self.registry,
                     self.instance_authority.clone(),
                     session.clone_inner(),
