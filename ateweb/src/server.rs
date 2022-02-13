@@ -5,6 +5,7 @@ use std::collections::hash_map::Entry as StdEntry;
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::ops::Deref;
+use std::ops::RangeBounds;
 use std::sync::Arc;
 use std::sync::Weak;
 use std::time::Duration;
@@ -704,14 +705,22 @@ impl Server {
                             .append(header, val);
                     }
                 }
-                resp.headers_mut()
-                    .append(http::header::ACCESS_CONTROL_ALLOW_ORIGIN, "*".parse().unwrap());
-                resp.headers_mut()
-                    .append(http::header::ACCESS_CONTROL_ALLOW_METHODS, "*".parse().unwrap());
-                resp.headers_mut()
-                    .append(http::header::ACCESS_CONTROL_ALLOW_HEADERS, "*".parse().unwrap());
-                resp.headers_mut()
-                    .append(http::header::ACCESS_CONTROL_MAX_AGE, "86400".parse().unwrap());
+                if resp.headers().contains_key(http::header::ACCESS_CONTROL_ALLOW_ORIGIN) == false {
+                    resp.headers_mut()
+                        .append(http::header::ACCESS_CONTROL_ALLOW_ORIGIN, "*".parse().unwrap());
+                }
+                if resp.headers().contains_key(http::header::ACCESS_CONTROL_ALLOW_METHODS) == false {
+                    resp.headers_mut()
+                        .append(http::header::ACCESS_CONTROL_ALLOW_METHODS, "*".parse().unwrap());
+                }
+                if resp.headers().contains_key(http::header::ACCESS_CONTROL_ALLOW_HEADERS) == false {
+                    resp.headers_mut()
+                        .append(http::header::ACCESS_CONTROL_ALLOW_HEADERS, "*".parse().unwrap());
+                }
+                if resp.headers().contains_key(http::header::ACCESS_CONTROL_MAX_AGE) == false {
+                    resp.headers_mut()
+                        .append(http::header::ACCESS_CONTROL_MAX_AGE, "86400".parse().unwrap());
+                }
                 *resp.status_mut() = status;
                 return Ok(resp);
             } else {
