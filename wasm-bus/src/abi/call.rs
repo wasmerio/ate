@@ -34,6 +34,22 @@ pub struct CallState {
     pub(crate) callbacks: Vec<Finish>,
 }
 
+#[derive(Debug, Clone)]
+pub struct CallInstance {
+    pub(crate) instance: String,
+    pub(crate) access_token: String,
+}
+
+impl CallInstance
+{
+    pub fn new(instance: &str, access_token: &str) -> CallInstance {
+        CallInstance { 
+            instance: instance.to_string(),
+            access_token: access_token.to_string(),
+        }
+    }
+}
+
 #[derive(Derivative, Clone)]
 #[derivative(Debug)]
 #[must_use = "you must 'wait' or 'await' to actually send this call to other modules"]
@@ -41,7 +57,7 @@ pub struct Call {
     pub(crate) wapm: Cow<'static, str>,
     pub(crate) topic: Cow<'static, str>,
     pub(crate) format: SerializationFormat,
-    pub(crate) session: Option<String>,
+    pub(crate) instance: Option<CallInstance>,
     pub(crate) handle: CallHandle,
     pub(crate) parent: Option<CallHandle>,
     pub(crate) state: Arc<Mutex<CallState>>,
@@ -95,8 +111,16 @@ impl Call {
         self.wapm.clone()
     }
 
-    pub fn session(&self) -> Option<&str> {
-        self.session.as_ref().map(|a| a.as_str())
+    pub fn instance(&self) -> Option<&CallInstance> {
+        self.instance.as_ref()
+    }
+
+    pub fn instance_ref(&self) -> Option<&str> {
+        self.instance.as_ref().map(|a| a.instance.as_str())
+    }
+
+    pub fn access_token(&self) -> Option<&str> {
+        self.instance.as_ref().map(|a| a.access_token.as_str())
     }
 }
 
@@ -142,7 +166,7 @@ impl CallBuilder {
 
         let handle = call.handle.clone();
         let wapm = call.wapm.clone();
-        let session = call.session.clone();
+        let instance = call.instance.clone();
 
         let result = call.join::<T>().await?;
 
@@ -150,7 +174,7 @@ impl CallBuilder {
             handle,
             result,
             wapm,
-            session,
+            instance,
         })
     }
 
@@ -165,13 +189,25 @@ impl CallBuilder {
     fn invoke_internal(&self, call: &Call) {
         match &self.request {
             Data::Success(req) => {
-                crate::abi::syscall::call(
-                    call.parent,
-                    call.handle,
-                    &call.wapm,
-                    &call.topic,
-                    &req[..],
-                );
+                if let Some(ref instance) = call.instance {
+                    crate::abi::syscall::call_instance(
+                        call.parent,
+                        call.handle,
+                        &instance.instance,
+                        &instance.access_token,
+                        &call.wapm,
+                        &call.topic,
+                        &req[..],
+                    );
+                } else {
+                    crate::abi::syscall::call(
+                        call.parent,
+                        call.handle,
+                        &call.wapm,
+                        &call.topic,
+                        &req[..],
+                    );
+                }
             }
             Data::Error(err) => {
                 crate::engine::BusEngine::error(call.handle, err.clone());
@@ -206,7 +242,7 @@ impl Call {
             Some(self.handle),
             self.wapm.clone(),
             format,
-            self.session.clone(),
+            self.instance.clone(),
             req,
         )
     }
@@ -246,7 +282,7 @@ pub struct DetachedCall<T> {
     handle: CallHandle,
     result: T,
     wapm: Cow<'static, str>,
-    session: Option<String>,
+    instance: Option<CallInstance>,
 }
 
 impl<T> DetachedCall<T> {
@@ -254,8 +290,20 @@ impl<T> DetachedCall<T> {
         self.wapm.clone()
     }
 
-    pub fn session(&self) -> Option<&str> {
-        self.session.as_ref().map(|a| a.as_str())
+    pub fn instance(&self) -> Option<&CallInstance> {
+        self.instance.as_ref()
+    }
+
+    pub fn clone_instance(&self) -> Option<CallInstance> {
+        self.instance.clone()
+    }
+
+    pub fn instance_ref(&self) -> Option<&str> {
+        self.instance.as_ref().map(|a| a.instance.as_str())
+    }
+
+    pub fn access_token(&self) -> Option<&str> {
+        self.instance.as_ref().map(|a| a.access_token.as_str())
     }
 
     pub fn handle(&self) -> CallHandle {

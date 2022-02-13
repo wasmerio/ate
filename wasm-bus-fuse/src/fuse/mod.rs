@@ -27,8 +27,8 @@ impl FileSystem {
         Ok(FileSystem { fs })
     }
 
-    pub async fn mount_with_session(wapm: &str, session: &str, name: &str) -> FsResult<FileSystem> {
-        let fs = api::FuseClient::new_with_session(wapm, session)
+    pub async fn mount_instance(instance: &str, access_token: &str, wapm: &str, name: &str) -> FsResult<FileSystem> {
+        let fs = api::FuseClient::new_with_instance(wapm, instance, access_token)
             .mount(name.to_string())
             .await
             .map_err(|_| FsError::IOError)?;

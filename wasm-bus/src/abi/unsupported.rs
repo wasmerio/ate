@@ -45,6 +45,18 @@ pub fn call(
     panic!("unsupported on this platform");
 }
 
+pub fn call_instance(
+    _parent: Option<CallHandle>,
+    _handle: CallHandle,
+    _instance: &str,
+    _access_token: &str,
+    _wapm: &str,
+    _topic: &str,
+    _request: &[u8],
+) {
+    panic!("unsupported on this platform");
+}
+
 pub fn callback(_parent: CallHandle, _handle: CallHandle, _topic: &str) {
     panic!("unsupported on this platform");
 }

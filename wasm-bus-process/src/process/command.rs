@@ -63,7 +63,14 @@ pub struct Command {
     pub(super) stdout: Option<Stdio>,
     pub(super) stderr: Option<Stdio>,
     pub(super) pre_open: Vec<String>,
-    pub(super) session: Option<String>,
+    pub(super) instance: Option<CommandInstance>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CommandInstance
+{
+    pub instance: String,
+    pub access_token: String,
 }
 
 impl Command {
@@ -102,7 +109,7 @@ impl Command {
             stdout: None,
             stderr: None,
             pre_open: Vec::new(),
-            session: None,
+            instance: None,
         }
     }
 
@@ -247,14 +254,17 @@ impl Command {
     /// use wasi_net::Command;
     ///
     /// Command::new("ls")
-    ///         .session("my-session")
+    ///         .session("my-session", "71248123")
     ///         .working_dir("/bin")
     ///         .chroot(true)
     ///         .spawn()
     ///         .expect("ls command failed to start");
     /// ```
-    pub fn session(&mut self, session: &str) -> &mut Command {
-        self.session = Some(session.to_string());
+    pub fn instance(&mut self, instance: &str, access_token: &str) -> &mut Command {
+        self.instance = Some(CommandInstance {
+            instance: instance.to_string(),
+            access_token: access_token.to_string()
+        });
         self
     }
 
@@ -356,8 +366,14 @@ impl Command {
             .map(|a| a.clone())
             .unwrap_or(Stdio::inherit());
         let preopen = self.pre_open.clone();
-        let session = self.session.clone();
-        Child::new(self, session, stdin.mode, stdout.mode, stderr.mode, preopen).await
+        let instance = self.instance.clone()
+            .map(|a| {
+                super::child::ChildInstance {
+                    instance: a.instance,
+                    access_token: a.access_token
+                }
+            });
+        Child::new(self, instance, stdin.mode, stdout.mode, stderr.mode, preopen).await
     }
 
     /// Executes the command as a child process, returning a handle to it.

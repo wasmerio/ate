@@ -251,7 +251,7 @@ impl BusEngine {
         wapm: Cow<'static, str>,
         topic: Cow<'static, str>,
         format: SerializationFormat,
-        session: Option<String>,
+        instance: Option<CallInstance>,
     ) -> Call {
         use std::sync::atomic::AtomicBool;
 
@@ -266,7 +266,7 @@ impl BusEngine {
             wapm,
             topic,
             format,
-            session,
+            instance,
             drop_on_data: Arc::new(AtomicBool::new(true)),
         };
 
@@ -294,7 +294,7 @@ impl BusEngine {
         _wapm: Cow<'static, str>,
         _topic: Cow<'static, str>,
         _format: SerializationFormat,
-        _session: Option<String>,
+        _instance: Option<CallInstance>,
     ) -> Call {
         panic!("call not supported on this platform");
     }

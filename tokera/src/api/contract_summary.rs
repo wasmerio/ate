@@ -35,7 +35,7 @@ impl TokApi {
         if let Some(parent_id) = self.wallet.parent_id() {
             let contracts = self
                 .dio
-                .children_ext::<Contract>(parent_id, CONTRACT_COLLECTION_ID, false, true)
+                .children_ext::<Contract>(parent_id, CONTRACT_COLLECTION_ID, true, true)
                 .await?;
             for contract in contracts {
                 ret.push(self.get_contract_summary(contract.as_immutable()).await?)

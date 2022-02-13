@@ -246,7 +246,7 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                             {
                                 let wasm_me = wasm_me.clone();
                                 wasm_bus::task::respond_to(
-                                    session_handle,
+                                    call_handle,
                                     #format,
                                     #[allow(unused_variables)]
                                     move |wasm_handle: wasm_bus::abi::CallHandle, wasm_req: #request_name| {
@@ -273,7 +273,7 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                             {
                                 let wasm_me = wasm_me.clone();
                                 wasm_bus::task::respond_to(
-                                    session_handle,
+                                    call_handle,
                                     #format,
                                     #[allow(unused_variables)]
                                     move |_wasm_handle: wasm_bus::abi::CallHandle, wasm_req: #request_name| {
@@ -332,7 +332,7 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                                         self.parent.as_ref().map(|a| a.handle()),
                                         self.wapm.clone(),
                                         #format,
-                                        self.session.clone(),
+                                        self.instance.clone(),
                                         request
                                     )
                                     #( #method_callbacks )*
@@ -401,7 +401,7 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                                         self.parent.as_ref().map(|a| a.handle()),
                                         self.wapm.clone(),
                                         #format,
-                                        self.session.clone(),
+                                        self.instance.clone(),
                                         request
                                     )
                                     #( #method_callbacks )*
@@ -496,7 +496,7 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                     impl #trait_service_ident
                     {
                         #[allow(dead_code)]
-                        pub(crate) fn attach(wasm_me: std::sync::Arc<dyn #trait_ident + Send + Sync + 'static>, session_handle: wasm_bus::abi::CallHandle) {
+                        pub(crate) fn attach(wasm_me: std::sync::Arc<dyn #trait_ident + Send + Sync + 'static>, call_handle: wasm_bus::abi::CallHandle) {
                             #( #service_attach_points )*
                         }
 
@@ -519,7 +519,7 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                     pub struct #trait_client_ident
                     {
                         wapm: std::borrow::Cow<'static, str>,
-                        session: Option<String>,
+                        instance: Option<wasm_bus::abi::CallInstance>,
                         parent: Option<std::sync::Arc<wasm_bus::abi::DetachedCall<()>>>,
                         task: Option<wasm_bus::abi::Call>,
                         join: Option<wasm_bus::abi::CallJoin<()>>,
@@ -529,17 +529,17 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                         pub fn new(wapm: &str) -> Self {
                             Self {
                                 wapm: wapm.to_string().into(),
-                                session: None,
+                                instance: None,
                                 parent: None,
                                 task: None,
                                 join: None,
                             }
                         }
 
-                        pub fn new_with_session(wapm: &str, session: &str) -> Self {
+                        pub fn new_with_instance(wapm: &str, instance: &str, access_token: &str) -> Self {
                             Self {
                                 wapm: wapm.to_string().into(),
-                                session: Some(session.to_string()),
+                                instance: Some(wasm_bus::abi::CallInstance::new(instance, access_token)),
                                 parent: None,
                                 task: None,
                                 join: None,
@@ -548,11 +548,11 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
 
                         pub fn attach(task: wasm_bus::abi::DetachedCall<()>) -> Self {
                             let wapm = task.wapm();
-                            let session = task.session().map(|a| a.to_string());
+                            let instance = task.clone_instance();
                             
                             Self {
                                 wapm,
-                                session,
+                                instance,
                                 parent: Some(std::sync::Arc::new(task)),
                                 task: None,
                                 join: None,

@@ -39,27 +39,27 @@ pub use wasm_bus_types::*;
 pub fn call<T>(
     wapm: Cow<'static, str>,
     format: SerializationFormat,
-    session: Option<String>,
+    instance: Option<CallInstance>,
     request: T,
 ) -> CallBuilder
 where
     T: Serialize,
 {
-    call_ext(None, wapm, format, session, request)
+    call_ext(None, wapm, format, instance, request)
 }
 
 pub fn call_ext<T>(
     parent: Option<CallHandle>,
     wapm: Cow<'static, str>,
     format: SerializationFormat,
-    session: Option<String>,
+    instance: Option<CallInstance>,
     request: T,
 ) -> CallBuilder
 where
     T: Serialize,
 {
     let topic = type_name::<T>();
-    let call = crate::engine::BusEngine::call(parent, wapm, topic.into(), format, session);
+    let call = crate::engine::BusEngine::call(parent, wapm, topic.into(), format, instance);
 
     let req = match format {
         SerializationFormat::Bincode => match bincode::serialize(&request) {

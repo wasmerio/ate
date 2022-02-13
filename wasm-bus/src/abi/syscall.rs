@@ -164,6 +164,24 @@ mod raw {
             request_len: u32,
         ) -> u32;
 
+        // Calls a function within a hosted instance 
+        // The operating system will respond with either a 'wasm_bus_finish'
+        // or a 'wasm_bus_error' message.
+        pub(crate) fn call_instance(
+            parent: u32,
+            handle: u32,
+            instance: u32,
+            instance_len: u32,
+            access_token: u32,
+            access_token_len: u32,
+            wapm: u32,
+            wapm_len: u32,
+            topic: u32,
+            topic_len: u32,
+            request: u32,
+            request_len: u32,
+        ) -> u32;
+
         // Incidates that a call that will be made should invoke a callback
         // back to this process under the designated handle.
         pub(crate) fn callback(parent: u32, handle: u32, topic: u32, topic_len: u32);
@@ -257,6 +275,48 @@ pub fn call(
         raw::call(
             parent,
             handle.id,
+            wapm as u32,
+            wapm_len as u32,
+            topic as u32,
+            topic_len as u32,
+            request as u32,
+            request_len as u32,
+        )
+    };
+
+    if CallError::Success as u32 != ret {
+        raw::wasm_bus_error(handle.id, ret);
+    }
+}
+
+pub fn call_instance(
+    parent: Option<CallHandle>,
+    handle: CallHandle,
+    instance: &str,
+    access_token: &str,
+    wapm: &str,
+    topic: &str,
+    request: &[u8],
+) {
+    let ret = unsafe {
+        let parent = parent.map(|a| a.id).unwrap_or_else(|| u32::MAX);
+        let instance_len = instance.len();
+        let instance = instance.as_ptr();
+        let access_token_len = access_token.len();
+        let access_token = access_token.as_ptr();
+        let wapm_len = wapm.len();
+        let wapm = wapm.as_ptr();
+        let topic_len = topic.len();
+        let topic = topic.as_ptr();
+        let request_len = request.len();
+        let request = request.as_ptr();
+        raw::call_instance(
+            parent,
+            handle.id,
+            instance as u32,
+            instance_len as u32,
+            access_token as u32,
+            access_token_len as u32,
             wapm as u32,
             wapm_len as u32,
             topic as u32,
