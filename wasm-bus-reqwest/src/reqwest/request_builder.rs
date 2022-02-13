@@ -47,10 +47,12 @@ impl RequestBuilder {
 
     pub fn send(self) -> Result<Response, std::io::Error> {
         let url = self.url.to_string();
+        let options = self.client.options();
 
         let task = ReqwestClient::new(WAPM_NAME).blocking_make(
             url,
             self.method.to_string(),
+            options,
             self.headers
                 .iter()
                 .map(|(a, b)| (a.clone(), b.clone()))

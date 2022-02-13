@@ -10,6 +10,7 @@ pub fn reqwest(
     request: api::ReqwestMakeRequest,
 ) -> AsyncResult<Result<api::Response, u32>> {
     let url = request.url;
+    let options = request.options;
     let method = request.method;
     let headers = request.headers;
     let data = request.body;
