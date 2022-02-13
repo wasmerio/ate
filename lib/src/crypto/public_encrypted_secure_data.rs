@@ -71,6 +71,16 @@ where
     }
 }
 
+impl<T> std::fmt::Display
+for PublicEncryptedSecureData<T>
+where
+    T: serde::Serialize + serde::de::DeserializeOwned
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "secure_data(format={},ek_hash={},size={})", self.format, self.ek_hash, self.sd_encrypted.len())
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MultiEncryptedSecureData<T>
 where

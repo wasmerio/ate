@@ -19,7 +19,7 @@ pub struct Opts {
     #[clap(short, long, parse(from_occurrences))]
     pub verbose: i32,
     /// URL where the user is authenticated
-    #[clap(short, long, default_value = "ws://tokera.com/auth")]
+    #[clap(short, long, default_value = "ws://tokera.sh/auth")]
     pub auth: Url,
     /// No authentication or passcode will be used to protect this file-system
     #[clap(short, long)]
@@ -113,7 +113,7 @@ pub enum SubCommand {
     #[cfg(feature = "enable_tokera")]
     #[clap()]
     Logout(OptsLogout),
-    /// Mounts a local or a remote file system (e.g. ws://tokera.com/db). When
+    /// Mounts a local or a remote file system (e.g. ws://tokera.sh/db). When
     /// using a Tokera remote you can either use the default free hosting or subscribe
     /// to the service which will consume funds from the wallet.
     #[clap()]
@@ -131,7 +131,7 @@ pub struct OptsMount {
     #[clap(index = 2)]
     pub remote_name: Option<String>,
     /// URL where the data is remotely stored on a distributed commit log.
-    #[clap(short, long, default_value = "ws://tokera.com/db")]
+    #[clap(short, long, default_value = "ws://tokera.sh/db")]
     pub remote: Url,
     /// (Optional) Location of the local persistent redo log (e.g. ~/ate/fs")
     /// If this parameter is not specified then chain-of-trust will cache in memory rather than disk

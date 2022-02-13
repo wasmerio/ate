@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 use std::collections::HashMap;
 
+use crate::api::ReqwestOptions;
+
 use super::*;
 
 pub struct Client {
@@ -44,5 +46,12 @@ impl Client {
 
     pub fn builder() -> ClientBuilder {
         ClientBuilder::new()
+    }
+
+    pub fn options(&self) -> ReqwestOptions {
+        ReqwestOptions {
+            gzip: self.builder.gzip,
+            cors_proxy: self.builder.cors_proxy.clone(),
+        }
     }
 }

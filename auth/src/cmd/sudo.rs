@@ -28,6 +28,7 @@ pub async fn main_session_sudo(
         AteSessionType::Group(a) => a.inner,
         AteSessionType::User(a) => AteSessionInner::User(a),
         AteSessionType::Sudo(a) => AteSessionInner::Sudo(a),
+        AteSessionType::Nothing => AteSessionInner::Nothing,
     };
 
     Ok(match session {
@@ -39,6 +40,7 @@ pub async fn main_session_sudo(
             }
         }
         AteSessionInner::Sudo(a) => a,
+        AteSessionInner::Nothing => AteSessionSudo::new()
     })
 }
 

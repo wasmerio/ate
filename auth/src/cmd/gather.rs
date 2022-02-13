@@ -15,6 +15,20 @@ use crate::request::*;
 
 use super::*;
 
+pub async fn impersonate_command(
+    registry: &Registry,
+    group: String,
+    session: AteSessionInner,
+    auth: Url,
+) -> Result<AteSessionGroup, GatherError> {
+    let ret = gather_command(registry, group, session, auth).await?;
+    let ret = AteSessionGroup {
+        inner: AteSessionInner::Nothing,
+        group: ret.group
+    };
+    Ok(ret)
+}
+
 pub async fn gather_command(
     registry: &Registry,
     group: String,
@@ -69,6 +83,7 @@ pub async fn main_session_group_ext(
         }
         AteSessionType::User(a) => AteSessionInner::User(a),
         AteSessionType::Sudo(a) => AteSessionInner::Sudo(a),
+        AteSessionType::Nothing => AteSessionInner::Nothing,
     };
 
     if sudo {

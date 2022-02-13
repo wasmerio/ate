@@ -4,7 +4,7 @@ use clap::Parser;
 #[derive(Parser)]
 pub struct OptsBus {
     /// URL where the data is remotely stored on a distributed commit log.
-    #[clap(short, long, default_value = "ws://tokera.com/db")]
+    #[clap(short, long, default_value = "ws://tokera.sh/db")]
     pub remote: url::Url,
     /// Determines how the file-system will react while it is nominal and when it is
     /// recovering from a communication failure (valid options are 'async', 'readonly-async',

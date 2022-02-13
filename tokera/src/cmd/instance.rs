@@ -227,7 +227,6 @@ pub async fn main_opts_instance(
     auth_url: url::Url,
     db_url: url::Url,
     sess_url: url::Url,
-    instance_authority: String,
     ignore_certificate: bool
 ) -> Result<(), InstanceError>
 {
@@ -237,6 +236,14 @@ pub async fn main_opts_instance(
     } else {
         false
     };
+
+    // Determine the instance authority from the session URL
+    let mut instance_authority = sess_url.domain()
+        .map(|a| a.to_string())
+        .unwrap_or_else(|| "tokera.sh".to_string());
+    if instance_authority == "localhost" {
+        instance_authority = "tokera.sh".to_string();
+    }
 
     // Perform the action
     let name = opts.action().name();

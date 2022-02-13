@@ -90,7 +90,7 @@ cargo install auth-server
 # Launch AteDB with all the defaults which is a good balance of security, performance
 # and simplfied setup. This instance will use the default authentication when it creates
 # new chains setting the root write key to that of the owner. The authentication server
-# that is queried will default to ws://tokera.com/auth.
+# that is queried will default to ws://tokera.sh/auth.
 # The instance will listen on all ports and all network addresses.
 atedb solo
 ```
@@ -152,7 +152,7 @@ FLAGS:
 
 OPTIONS:
     -a, --auth <auth>
-            URL where the user is authenticated [default: ws://tokera.com/auth]
+            URL where the user is authenticated [default: ws://tokera.sh/auth]
 
         --dns-server <dns-server>
             Address that DNS queries will be sent to [default: 8.8.8.8]

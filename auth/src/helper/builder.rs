@@ -23,8 +23,8 @@ impl Default for DioBuilder {
     fn default() -> DioBuilder {
         DioBuilder {
             cfg_ate: ConfAte::default(),
-            url_db: url::Url::parse("ws://tokera.com/db").unwrap(),
-            url_auth: url::Url::parse("ws://tokera.com/auth").unwrap(),
+            url_db: url::Url::parse("ws://tokera.sh/db").unwrap(),
+            url_auth: url::Url::parse("ws://tokera.sh/auth").unwrap(),
             registry: None,
             session: Box::new(AteSessionUser::default()),
             group: None,

@@ -117,11 +117,13 @@ pub async fn main_session_user(
         AteSessionType::Group(a) => a.inner,
         AteSessionType::User(a) => AteSessionInner::User(a),
         AteSessionType::Sudo(a) => AteSessionInner::Sudo(a),
+        AteSessionType::Nothing => AteSessionInner::Nothing,
     };
 
     Ok(match session {
         AteSessionInner::User(a) => a,
         AteSessionInner::Sudo(a) => a.inner,
+        AteSessionInner::Nothing => AteSessionUser::new()
     })
 }
 

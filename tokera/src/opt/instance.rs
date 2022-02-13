@@ -11,10 +11,10 @@ pub struct OptsInstance {
     #[clap(subcommand)]
     pub purpose: OptsInstanceFor,
     /// URL where the data is remotely stored on a distributed commit log.
-    #[clap(short, long, default_value = "ws://tokera.com/db")]
+    #[clap(short, long, default_value = "ws://tokera.sh/db")]
     pub db_url: Url,
     /// URL where the instances can be accessed from
-    #[clap(short, long, default_value = "wss://tokera.com/sess")]
+    #[clap(short, long, default_value = "wss://tokera.sh/sess")]
     pub sess_url: Url,
     /// Indicates that the server certificate should be ignored
     #[clap(long)]

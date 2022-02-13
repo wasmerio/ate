@@ -15,7 +15,7 @@ pub struct Opts {
     #[clap(short, long, parse(from_occurrences))]
     pub verbose: i32,
     /// URL where the user is authenticated
-    #[clap(short, long, default_value = "ws://tokera.com/auth")]
+    #[clap(short, long, default_value = "ws://tokera.sh/auth")]
     pub auth: Url,
     /// No NTP server will be used to synchronize the time thus the server time
     /// will be used instead
@@ -57,10 +57,10 @@ pub struct OptsWeb {
     #[clap(long, default_value = "60")]
     pub ttl: u64,
     /// URL where the data is remotely stored on a distributed commit log.
-    #[clap(short, long, default_value = "ws://tokera.com/db")]
+    #[clap(short, long, default_value = "ws://tokera.sh/db")]
     pub remote: Url,
     /// URL where the authentication requests will be lodged.
-    #[clap(short, long, default_value = "ws://tokera.com/auth")]
+    #[clap(short, long, default_value = "ws://tokera.sh/auth")]
     pub auth_url: Url,
     /// Path to the secret key that grants access to the WebServer role within groups
     #[clap(long, default_value = "~/ate/web.key")]
@@ -104,7 +104,7 @@ pub struct OptsAll {
     #[clap(short, long)]
     pub backup_path: Option<String>,
     /// URL where the data is remotely stored on a distributed commit log.
-    #[clap(short, long, default_value = "ws://tokera.com/db")]
+    #[clap(short, long, default_value = "ws://tokera.sh/db")]
     pub remote: Url,
     /// Address that the authentication server(s) are listening and that
     /// this server can connect to if the chain is on another mesh node
