@@ -704,6 +704,8 @@ impl Server {
                             .append(header, val);
                     }
                 }
+                resp.headers_mut()
+                    .append(http::header::ACCESS_CONTROL_ALLOW_ORIGIN, "*".parse().unwrap());
                 if conf.coop {
                     resp.headers_mut().append(
                         "Cross-Origin-Embedder-Policy",

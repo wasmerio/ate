@@ -129,7 +129,7 @@ pub async fn fetch(
     method: &str,
     _gzip: bool,
     cors_proxy: Option<String>,
-    mut headers: Vec<(String, String)>,
+    headers: Vec<(String, String)>,
     data: Option<Vec<u8>>,
 ) -> Result<Response, u32> {
     let request = {
