@@ -706,16 +706,10 @@ impl Server {
                 }
                 resp.headers_mut()
                     .append(http::header::ACCESS_CONTROL_ALLOW_ORIGIN, "*".parse().unwrap());
-                if conf.coop {
-                    resp.headers_mut().append(
-                        "Cross-Origin-Embedder-Policy",
-                        HeaderValue::from_str("require-corp").unwrap(),
-                    );
-                    resp.headers_mut().append(
-                        "Cross-Origin-Opener-Policy",
-                        HeaderValue::from_str("same-origin").unwrap(),
-                    );
-                }
+                resp.headers_mut()
+                    .append(http::header::ACCESS_CONTROL_ALLOW_METHODS, "*".parse().unwrap());
+                resp.headers_mut()
+                    .append(http::header::ACCESS_CONTROL_MAX_AGE, "86400".parse().unwrap());
                 *resp.status_mut() = status;
                 return Ok(resp);
             } else {
