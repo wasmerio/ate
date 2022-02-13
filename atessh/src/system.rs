@@ -122,10 +122,11 @@ impl term_lib::api::SystemAbi for System {
         &self,
         url: &str,
         method: &str,
+        options: ReqwestOptions,
         headers: Vec<(String, String)>,
         data: Option<Vec<u8>>,
     ) -> AsyncResult<Result<ReqwestResponse, u32>> {
-        self.inner.reqwest(url, method, headers, data)
+        self.inner.reqwest(url, method, options, headers, data)
     }
 
     async fn web_socket(&self, url: &str) -> Result<Box<dyn WebSocketAbi>, String> {
