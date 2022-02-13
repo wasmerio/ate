@@ -124,56 +124,81 @@ impl AnimationFrameCallbackWrapper /*<'a>*/ {
     }
 }
 
+fn fetch_internal(
+    request: &Request
+) -> JsFuture
+{
+    if is_worker() {
+        let global = js_sys::global();
+        JsFuture::from(
+            global
+                .dyn_into::<WorkerGlobalScope>()
+                .unwrap()
+                .fetch_with_request(request),
+        )
+    } else {
+        JsFuture::from(web_sys::window().unwrap().fetch_with_request(request))
+    }
+}
+
 pub async fn fetch(
-    mut url: &str,
+    url: &str,
     method: &str,
     _gzip: bool,
     cors_proxy: Option<String>,
     headers: Vec<(String, String)>,
     data: Option<Vec<u8>>,
 ) -> Result<Response, u32> {
+    let mut opts = RequestInit::new();
+    opts.method(method);
+    opts.mode(RequestMode::Cors);
+
+    if let Some(data) = data {
+        let data_len = data.len();
+        let array = js_sys::Uint8Array::new_with_length(data_len as u32);
+        array.copy_from(&data[..]);
+
+        opts.body(Some(&array));
+    }
+
     let request = {
-        let mut opts = RequestInit::new();
-        opts.method(method);
-        opts.mode(RequestMode::Cors);
-
-        if let Some(data) = data {
-            let data_len = data.len();
-            let array = js_sys::Uint8Array::new_with_length(data_len as u32);
-            array.copy_from(&data[..]);
-
-            opts.body(Some(&array));
-        }
-
-        let url_store;
-        if let Some(cors_proxy) = cors_proxy {
-            url_store = format!("https://{}/{}", cors_proxy, url);
-            url = url_store.as_str();
-        }
-
         let request = Request::new_with_str_and_init(&url, &opts).map_err(|_| err::ERR_EIO)?;
 
         let set_headers = request.headers();
-        for (name, val) in headers {
+        for (name, val) in headers.iter() {
             set_headers
                 .set(name.as_str(), val.as_str())
                 .map_err(|_| err::ERR_EIO)?;
         }
-
-        if is_worker() {
-            let global = js_sys::global();
-            JsFuture::from(
-                global
-                    .dyn_into::<WorkerGlobalScope>()
-                    .unwrap()
-                    .fetch_with_request(&request),
-            )
-        } else {
-            JsFuture::from(web_sys::window().unwrap().fetch_with_request(&request))
-        }
+        request
     };
 
-    let resp_value = request.await.map_err(|_| err::ERR_EIO)?;
+    let resp_value = match fetch_internal(&request).await.ok()
+    {
+        Some(a) => a,
+        None => {
+            // If the request failed it may be because of CORS so if a cors proxy
+            // is configured then try again with the cors proxy
+            let url_store;
+            let url = if let Some(cors_proxy) = cors_proxy {
+                url_store = format!("https://{}/{}", cors_proxy, url);
+                url_store.as_str()
+            } else {
+                return Err(err::ERR_EIO);
+            };
+            
+            let request = Request::new_with_str_and_init(url, &opts).map_err(|_| err::ERR_EIO)?;
+
+            let set_headers = request.headers();
+            for (name, val) in headers.iter() {
+                set_headers
+                    .set(name.as_str(), val.as_str())
+                    .map_err(|_| err::ERR_EIO)?;
+            }
+        
+            fetch_internal(&request).await.map_err(|_| err::ERR_EIO)?
+        }
+    };
     assert!(resp_value.is_instance_of::<Response>());
     let resp: Response = resp_value.dyn_into().unwrap();
 

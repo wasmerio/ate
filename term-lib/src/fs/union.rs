@@ -95,6 +95,7 @@ impl UnionFileSystem {
         should_sanitize: bool,
         fs: Box<dyn MountedFileSystem>,
     ) {
+        self.unmount(path);
         let mut path = path.to_string();
         if path.ends_with("/") == false {
             path += "/";

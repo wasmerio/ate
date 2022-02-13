@@ -5,7 +5,6 @@ use std::collections::hash_map::Entry as StdEntry;
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::ops::Deref;
-use std::ops::RangeBounds;
 use std::sync::Arc;
 use std::sync::Weak;
 use std::time::Duration;
