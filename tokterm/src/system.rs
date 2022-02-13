@@ -175,6 +175,7 @@ impl SystemAbi for SysSystem {
         &self,
         url: &str,
         method: &str,
+        _options: ReqwestOptions,
         headers: Vec<(String, String)>,
         data: Option<Vec<u8>>,
     ) -> AsyncResult<Result<ReqwestResponse, u32>> {

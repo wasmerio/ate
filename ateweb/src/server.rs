@@ -657,10 +657,10 @@ impl Server {
         }
 
         let host = self.get_host(&req)?;
-        let is_head = req.method() == Method::HEAD;
+        let is_head = req.method() == Method::HEAD || req.method() == Method::OPTIONS;
 
         match req.method() {
-            &Method::HEAD | &Method::GET => {
+            &Method::OPTIONS | &Method::HEAD | &Method::GET => {
                 let path = req.uri().path();
                 self.sanitize(path)?;
                 self.process_get_with_default(host.as_str(), path, is_head, conf)

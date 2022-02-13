@@ -125,9 +125,11 @@ impl AnimationFrameCallbackWrapper /*<'a>*/ {
 }
 
 pub async fn fetch(
-    url: &str,
+    mut url: &str,
     method: &str,
-    headers: Vec<(String, String)>,
+    _gzip: bool,
+    cors_proxy: Option<String>,
+    mut headers: Vec<(String, String)>,
     data: Option<Vec<u8>>,
 ) -> Result<Response, u32> {
     let request = {
@@ -141,6 +143,12 @@ pub async fn fetch(
             array.copy_from(&data[..]);
 
             opts.body(Some(&array));
+        }
+
+        let url_store;
+        if let Some(cors_proxy) = cors_proxy {
+            url_store = format!("https://{}/{}", cors_proxy, url);
+            url = url_store.as_str();
         }
 
         let request = Request::new_with_str_and_init(&url, &opts).map_err(|_| err::ERR_EIO)?;
@@ -183,10 +191,12 @@ pub async fn fetch(
 pub async fn fetch_data(
     url: &str,
     method: &str,
+    gzip: bool,
+    cors_proxy: Option<String>,
     headers: Vec<(String, String)>,
     data: Option<Vec<u8>>,
 ) -> Result<Vec<u8>, u32> {
-    Ok(get_response_data(fetch(url, method, headers, data).await?).await?)
+    Ok(get_response_data(fetch(url, method, gzip, cors_proxy, headers, data).await?).await?)
 }
 
 pub async fn get_response_data(resp: Response) -> Result<Vec<u8>, u32> {

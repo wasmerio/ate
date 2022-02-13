@@ -14,6 +14,11 @@ pub struct ConsoleRect {
     pub rows: u32,
 }
 
+pub struct ReqwestOptions {
+    pub gzip: bool,
+    pub cors_proxy: Option<String>,
+}
+
 pub struct ReqwestResponse {
     pub pos: usize,
     pub data: Option<Vec<u8>>,
@@ -104,6 +109,7 @@ where
         &self,
         url: &str,
         method: &str,
+        options: ReqwestOptions,
         headers: Vec<(String, String)>,
         data: Option<Vec<u8>>,
     ) -> AsyncResult<Result<ReqwestResponse, u32>>;

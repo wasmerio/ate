@@ -94,7 +94,7 @@ impl SystemAbi for WebSystem {
         let (tx, rx) = mpsc::channel(1);
         self.pool.spawn_shared(Box::new(move || {
             Box::pin(async move {
-                let ret = crate::common::fetch_data(url.as_str(), "GET", headers, None).await;
+                let ret = crate::common::fetch_data(url.as_str(), "GET", false, None, headers, None).await;
                 let _ = tx.send(ret).await;
             })
         }));
@@ -105,6 +105,7 @@ impl SystemAbi for WebSystem {
         &self,
         url: &str,
         method: &str,
+        options: ReqwestOptions,
         headers: Vec<(String, String)>,
         data: Option<Vec<u8>>,
     ) -> AsyncResult<Result<ReqwestResponse, u32>> {
@@ -114,7 +115,13 @@ impl SystemAbi for WebSystem {
         let (tx, rx) = mpsc::channel(1);
         self.pool.spawn_shared(Box::new(move || {
             Box::pin(async move {
-                let resp = match crate::common::fetch(url.as_str(), method.as_str(), headers, data)
+                let resp = match crate::common::fetch(
+                    url.as_str(),
+                    method.as_str(),
+                    options.gzip,
+                    options.cors_proxy,
+                    headers,
+                    data)
                     .await
                 {
                     Ok(a) => a,
