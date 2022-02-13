@@ -642,6 +642,88 @@ impl Server {
         }
     }
 
+    pub(crate) async fn process_cors(
+        &self,
+        req: Request<Body>,
+        _listen: &ServerListen,
+        conf: &WebConf,
+        target: String
+    ) -> Result<Response<Body>, StatusCode> {
+        let mut uri = format!("https://{}", target);
+        if let Some(query) = req.uri().query() {
+            uri += "?";
+            uri += query;
+        }
+        if let Ok(uri) = http::uri::Uri::from_str(uri.as_str())
+        {
+            // Check if its allowed
+            if conf.cors_proxy
+                .iter()
+                .map(|cors| Some(cors.as_str()))
+                .any(|cors| cors == uri.authority().map(|a| a.as_str()))
+            {
+                let method = req.method().clone();
+                let client = reqwest::ClientBuilder::default().build().map_err(|err| {
+                    debug!("failed to build reqwest client - {}", err);
+                    StatusCode::BAD_REQUEST
+                })?;
+
+                let mut builder = client.request(method, uri.to_string().as_str());
+                for (header, val) in req.headers() {
+                    builder = builder.header(header, val);
+                }
+                let body = hyper::body::to_bytes(req.into_body()).await
+                    .map_err(|err| {
+                    debug!("failed to build reqwest body - {}", err);
+                    StatusCode::BAD_REQUEST
+                })?;
+                builder = builder.body(reqwest::Body::from(body));
+
+                let request = builder.build().map_err(|err| {
+                    debug!("failed to convert request (url={}) - {}", uri, err);
+                    StatusCode::BAD_REQUEST
+                })?;
+
+                let response = client.execute(request).await.map_err(|err| {
+                    debug!("failed to execute reqest - {}", err);
+                    StatusCode::BAD_REQUEST
+                })?;
+
+                let status = response.status();
+                let headers = response.headers().clone();
+                let data = response.bytes().await.map_err(|err| {
+                    debug!("failed to read response bytes - {}", err);
+                    StatusCode::BAD_REQUEST
+                })?;
+                let data = data.to_vec();
+
+                let mut resp = Response::new(Body::from(data));
+                for (header, val) in headers {
+                    if let Some(header) = header {
+                        resp.headers_mut()
+                            .append(header, val);
+                    }
+                }
+                if conf.coop {
+                    resp.headers_mut().append(
+                        "Cross-Origin-Embedder-Policy",
+                        HeaderValue::from_str("require-corp").unwrap(),
+                    );
+                    resp.headers_mut().append(
+                        "Cross-Origin-Opener-Policy",
+                        HeaderValue::from_str("same-origin").unwrap(),
+                    );
+                }
+                *resp.status_mut() = status;
+                return Ok(resp);
+            } else {
+                return Err(StatusCode::UNAUTHORIZED);
+            }
+        }
+            
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
     pub(crate) async fn process_internal(
         &self,
         req: Request<Body>,
@@ -654,6 +736,18 @@ impl Server {
 
         if conf.force_https && listen.tls == false {
             return self.force_https(req).await;
+        }
+
+        let mut cors_proxy = req.uri().path().split("https://");
+        cors_proxy.next();
+        if let Some(next) = cors_proxy.next() {
+            let next = next.to_string();
+            return Ok(self.process_cors(req, listen, conf, next).await
+                .unwrap_or_else(|code| {
+                    let mut resp = Response::new(Body::from(code.as_str().to_string()));
+                    *resp.status_mut() = code;
+                    resp
+                }));
         }
 
         let host = self.get_host(&req)?;

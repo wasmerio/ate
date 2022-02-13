@@ -64,3 +64,4 @@ base64 = { version = "^0.13" }
 jsonxf = { version = "^1" }
 ring = { version = "^0.16", features = ["std"] }
 libc = "^0.2"
+reqwest = { version = "0.11", features = ["json"] }

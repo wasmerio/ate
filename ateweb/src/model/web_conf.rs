@@ -21,6 +21,9 @@ pub struct WebConf {
     /// Redirects certain status codes to specific pages
     #[serde(default)]
     pub status_pages: FxHashMap<u16, String>,
+    /// List of the domains that this domain will reverse proxy for cors
+    #[serde(default)]
+    pub cors_proxy: Vec<String>,
 }
 
 impl Default for WebConf {
@@ -32,6 +35,7 @@ impl Default for WebConf {
             force_https: false,
             default_page: None,
             status_pages: FxHashMap::default(),
+            cors_proxy: Vec::new(),
         }
     }
 }
