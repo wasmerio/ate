@@ -709,6 +709,8 @@ impl Server {
                 resp.headers_mut()
                     .append(http::header::ACCESS_CONTROL_ALLOW_METHODS, "*".parse().unwrap());
                 resp.headers_mut()
+                    .append(http::header::ACCESS_CONTROL_ALLOW_HEADERS, "*".parse().unwrap());
+                resp.headers_mut()
                     .append(http::header::ACCESS_CONTROL_MAX_AGE, "86400".parse().unwrap());
                 *resp.status_mut() = status;
                 return Ok(resp);
