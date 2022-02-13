@@ -54,7 +54,7 @@ impl TreeAuthorityPlugin {
                         }
                     }
                 }
-                Err(TransformErrorKind::MissingReadKey(key_hash.clone()).into())
+                Err(TransformErrorKind::MissingReadKey(key_hash.to_hex_string()).into())
             }
         }
     }

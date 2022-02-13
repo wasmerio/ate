@@ -109,7 +109,7 @@ pub async fn main_opts_service_subscribe(
         std::process::exit(1);
     }
 
-    let ret = match api.contract_create(service.clone()).await {
+    let ret = match api.contract_create(service.clone(), opts.force).await {
         Ok(a) => a,
         Err(ContractError(ContractErrorKind::AlreadyExists(msg), _)) => {
             eprintln!("{}", msg);

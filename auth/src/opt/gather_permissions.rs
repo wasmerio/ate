@@ -12,4 +12,7 @@ pub struct GatherPermissions {
     /// Display the token in human readable format
     #[clap(long)]
     pub human: bool,
+    /// Summarises the token rather than returning it
+    #[clap(long)]
+    pub summary: bool,
 }

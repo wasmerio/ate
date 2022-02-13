@@ -20,6 +20,7 @@ pub async fn contract_create_command(
     consumer_wallet: PrimaryKey,
     broker_key: PublicEncryptedSecureData<EncryptKey>,
     broker_unlock_key: EncryptKey,
+    force: bool
 ) -> Result<ContractCreateResponse, ContractError> {
     // Open a command chain
     let chain = registry.open_cmd(&auth).await?;
@@ -36,6 +37,7 @@ pub async fn contract_create_command(
                 consumer_wallet,
                 broker_unlock_key,
                 broker_key,
+                force,
                 limited_duration: None,
             },
         )?,
