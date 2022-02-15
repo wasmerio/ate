@@ -98,6 +98,11 @@ impl StandardBus {
                 let (invoker, session) = tty::stderr(request, stderr, client_callbacks.clone())?;
                 Ok((Box::new(invoker), Some(Box::new(session))))
             }
+            ("os", topic) if topic == type_name::<wasm_bus_tty::api::TtyRectRequest>() => {
+                let request = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+                let invoker = tty::rect(request, &self.process_factory.abi)?;
+                Ok((Box::new(invoker), None))
+            }
             ("os", topic) => {
                 error!("the os function ({}) is not supported", topic);
                 return Err(CallError::Unsupported);

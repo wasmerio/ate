@@ -40,7 +40,7 @@ struct ProcessExecCreate {
 #[derivative(Debug)]
 pub struct ProcessExecFactory {
     #[derivative(Debug = "ignore")]
-    abi: Arc<dyn ConsoleAbi>,
+    pub(crate) abi: Arc<dyn ConsoleAbi>,
     system: System,
     compiler: Compiler,
     #[derivative(Debug = "ignore")]

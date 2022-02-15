@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use libc::{tcsetattr, termios, ECHO, ICANON, ICRNL, IEXTEN, ISIG, IXON, OPOST, TCSANOW};
+use libc::{tcsetattr, termios, winsize, ECHO, ICANON, ICRNL, IEXTEN, ISIG, IXON, OPOST, TCSANOW, TIOCGWINSZ};
 use std::os::unix::io::AsRawFd;
 use std::result::Result;
 use tokio::{io, io::AsyncReadExt, io::AsyncWriteExt};
@@ -15,6 +15,29 @@ impl Tty {
         let tty = tokio::fs::File::open("/dev/tty").await?;
         let fd = tty.as_raw_fd();
 
+        let termios = Self::termios(fd)?;
+
+        Ok(Stdin {
+            tty,
+            tty_fd: fd,
+            termios,
+        })
+    }
+
+    pub fn blocking_stdin() -> Result<BlockingStdin, std::io::Error> {
+        let tty = std::fs::File::open("/dev/tty")?;
+        let fd = tty.as_raw_fd();
+
+        let termios = Self::termios(fd)?;
+
+        Ok(BlockingStdin {
+            tty,
+            tty_fd: fd,
+            termios,
+        })
+    }
+
+    fn termios(fd: i32) -> Result<termios, std::io::Error> {
         let mut termios = std::mem::MaybeUninit::<termios>::uninit();
         io_result(unsafe { ::libc::tcgetattr(fd, termios.as_mut_ptr()) })?;
         let termios = unsafe { termios.assume_init() };
@@ -29,12 +52,7 @@ impl Tty {
         new_termios.c_lflag &= !OPOST;
 
         unsafe { tcsetattr(fd, TCSANOW, &new_termios) };
-
-        Ok(Stdin {
-            tty,
-            tty_fd: fd,
-            termios,
-        })
+        Ok(termios)
     }
 
     pub async fn stdout() -> Result<Stdout, io::Error> {
@@ -48,10 +66,57 @@ impl Tty {
 
         Ok(Stderr { stderr })
     }
+
+    pub async fn rect(
+        &self,
+    ) -> Result<TtyRect, io::Error> {
+        let tty = tokio::fs::File::open("/dev/tty").await?;
+        let fd = tty.as_raw_fd();
+
+        let mut winsize = std::mem::MaybeUninit::<winsize>::uninit();
+        io_result(unsafe { ::libc::ioctl(fd, TIOCGWINSZ, winsize.as_mut_ptr()) })?;
+        let winsize = unsafe { winsize.assume_init() };
+
+        Ok(
+            TtyRect {
+                cols: winsize.ws_col as u32,
+                rows: winsize.ws_row as u32,
+            }
+        )
+    }
+
+    pub fn blocking_rect(
+        &self,
+    ) -> Result<TtyRect, io::Error> {
+        let tty = std::fs::File::open("/dev/tty")?;
+        let fd = tty.as_raw_fd();
+
+        let mut winsize = std::mem::MaybeUninit::<winsize>::uninit();
+        io_result(unsafe { ::libc::ioctl(fd, TIOCGWINSZ, winsize.as_mut_ptr()) })?;
+        let winsize = unsafe { winsize.assume_init() };
+
+        Ok(
+            TtyRect {
+                cols: winsize.ws_col as u32,
+                rows: winsize.ws_row as u32,
+            }
+        )
+    }
+}
+
+pub struct TtyRect {
+    pub cols: u32,
+    pub rows: u32,
 }
 
 pub struct Stdin {
     tty: tokio::fs::File,
+    tty_fd: i32,
+    termios: termios,
+}
+
+pub struct BlockingStdin {
+    tty: std::fs::File,
     tty_fd: i32,
     termios: termios,
 }

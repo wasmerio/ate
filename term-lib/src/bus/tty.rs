@@ -15,6 +15,7 @@ use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
 use wasm_bus::abi::SerializationFormat;
 use wasm_bus_tty::api;
+use std::sync::Arc;
 
 use super::*;
 use crate::api::*;
@@ -315,4 +316,31 @@ impl Invokable for DelayedStderrSend {
             .process()
             .await
     }
+}
+
+pub struct DelayedTtyRect {
+    abi: Arc<dyn ConsoleAbi>
+}
+
+#[async_trait]
+impl Invokable for DelayedTtyRect
+{
+    async fn process(&mut self) -> Result<InvokeResult, CallError> {
+        let rect = self.abi.console_rect().await;
+        ResultInvokable::new(SerializationFormat::Bincode, api::TtyRect {
+            cols: rect.cols as usize,
+            rows: rect.rows as usize
+        })
+        .process()
+        .await
+    }
+}
+
+pub fn rect(
+    _req: api::TtyRectRequest,
+    abi: &Arc<dyn ConsoleAbi>,
+) -> Result<DelayedTtyRect, CallError> {
+    Ok(DelayedTtyRect {
+        abi: abi.clone()
+    })
 }

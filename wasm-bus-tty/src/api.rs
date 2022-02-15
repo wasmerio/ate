@@ -2,6 +2,13 @@ use serde::*;
 use std::sync::Arc;
 use wasm_bus::macros::*;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TtyRect
+{
+    pub cols: u32,
+    pub rows: u32,
+}
+
 #[wasm_bus(format = "bincode")]
 pub trait Tty {
     async fn stdin(
@@ -17,6 +24,10 @@ pub trait Tty {
     async fn stderr(
         &self,
     ) -> Arc<dyn Stderr>;
+
+    async fn rect(
+        &self,
+    ) -> TtyRect;
 }
 
 #[wasm_bus(format = "bincode")]
