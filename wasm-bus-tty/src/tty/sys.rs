@@ -67,9 +67,7 @@ impl Tty {
         Ok(Stderr { stderr })
     }
 
-    pub async fn rect(
-        &self,
-    ) -> Result<TtyRect, io::Error> {
+    pub async fn rect() -> Result<TtyRect, io::Error> {
         let tty = tokio::fs::File::open("/dev/tty").await?;
         let fd = tty.as_raw_fd();
 
@@ -85,9 +83,7 @@ impl Tty {
         )
     }
 
-    pub fn blocking_rect(
-        &self,
-    ) -> Result<TtyRect, io::Error> {
+    pub fn blocking_rect() -> Result<TtyRect, io::Error> {
         let tty = std::fs::File::open("/dev/tty")?;
         let fd = tty.as_raw_fd();
 

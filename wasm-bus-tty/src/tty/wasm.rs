@@ -75,9 +75,7 @@ impl Tty {
         Ok(Stderr { client })
     }
 
-    pub async fn rect(
-        &self,
-    ) -> Result<TtyRect, io::Error> {
+    pub async fn rect() -> Result<TtyRect, io::Error> {
         let rect = api::TtyClient::new(WAPM_NAME)
             .rect()
             .await
@@ -89,9 +87,7 @@ impl Tty {
         })
     }
 
-    pub fn blocking_rect(
-        &self,
-    ) -> Result<TtyRect, io::Error> {
+    pub fn blocking_rect() -> Result<TtyRect, io::Error> {
         let rect = api::TtyClient::new(WAPM_NAME)
             .blocking_rect()
             .map_err(|err| err.into_io_error())?;
