@@ -328,8 +328,8 @@ impl Invokable for DelayedTtyRect
     async fn process(&mut self) -> Result<InvokeResult, CallError> {
         let rect = self.abi.console_rect().await;
         ResultInvokable::new(SerializationFormat::Bincode, api::TtyRect {
-            cols: rect.cols as usize,
-            rows: rect.rows as usize
+            cols: rect.cols as u32,
+            rows: rect.rows as u32
         })
         .process()
         .await
