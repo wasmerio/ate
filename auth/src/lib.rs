@@ -10,5 +10,6 @@ pub mod request;
 pub mod service;
 mod test;
 pub mod work;
+pub mod util;
 
 pub static GENERIC_TERMS_AND_CONDITIONS: &str = include_str!("generic_terms.txt");

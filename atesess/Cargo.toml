@@ -35,6 +35,7 @@ tokterm = { version = "^1.0", path = "../tokterm", default_features = false }
 async-trait = "^0.1"
 raw_tty = "0.1.0"
 regex = "^1"
+ttl_cache = "^0.5"
 ctrlc = { version = "^3" }
 ate = { version = "^1.1", path = "../lib", default_features = false, features = [ "client" ] }
 ate-auth = { version = "^1.8", path = "../auth", default_features = false, features = [ "client" ] }
@@ -44,3 +45,5 @@ atessh = { version = "^1", path = "../atessh" }
 tokera = { version = "^1.2", path = "../tokera" }
 wasm-bus-fuse = { version = "^1", path = "../wasm-bus-fuse",  default_features = false }
 dummy-waker = "^1"
+http = { version = "^0.2" }
+fastrand = "^1.4"

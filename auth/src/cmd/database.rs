@@ -54,22 +54,23 @@ pub async fn main_opts_db(
     let progress_remote = LoadProgress::new(std::io::stderr());
 
     // Load the chain
+    let remote = crate::prelude::origin_url(&opts_db.remote, "db");
     let guard = registry
         .open_ext(
-            &opts_db.remote,
+            &remote,
             &ChainKey::from(db_name.clone()),
             progress_local,
             progress_remote,
         )
         .await?;
     let db = guard.as_arc();
-
+    
     match opts_db.action {
         DatabaseAction::Details(_action) => {
             let guard = db.metrics().lock().unwrap();
             println!("Database Chain Details");
             println!("======================");
-            println!("Remote: {}", opts_db.remote);
+            println!("Remote: {}", remote);
             println!("Group Name: {}", group_name);
             println!("DB Name: {}", db_name);
             println!("Size: {}", guard.chain_size);

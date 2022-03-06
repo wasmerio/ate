@@ -285,18 +285,20 @@ pub async fn exec_process(
     };
 
     // Create the process factory that used by this process to create sub-processes
+    let launch_env = LaunchEnvironment {
+        abi: ctx.abi.clone(),
+        inherit_stdin: stdio.stdin.downgrade(),
+        inherit_stdout: stdio.stdout.downgrade(),
+        inherit_stderr: stdio.stderr.downgrade(),
+        inherit_log: stdio.log.downgrade(),
+    };
     let sub_process_factory = ProcessExecFactory::new(
-        ctx.abi.clone(),
         ctx.reactor.clone(),
         compiler,
         ctx.exec_factory.clone(),
-        stdio.stdin.downgrade(),
-        stdio.stdout.downgrade(),
-        stdio.stderr.downgrade(),
-        stdio.log.downgrade(),
         ctx,
     );
-
+    
     let forced_exit = caller_ctx.get_forced_exit();
 
     // The BUS pool is what gives this WASM process its syscall and operation system
@@ -408,19 +410,16 @@ pub async fn exec_process(
             } else {
                 wasi_env.preopen_dir(Path::new("/")).unwrap();
             }
-
+            
             // Add the tick callback that will invoke the WASM bus background
             // operations on the current thread
-            {
-                let bus_pool = Arc::clone(&bus_thread_pool);
-                wasi_env.on_yield(move |thread| {
-                    let forced_exit = forced_exit.load(Ordering::Acquire);
-                    if forced_exit != 0 {
-                        return Err(WasiError::Exit(forced_exit));
-                    }
-                    Ok(())
-                });
-            }
+            wasi_env.on_yield(move |thread| {
+                let forced_exit = forced_exit.load(Ordering::Acquire);
+                if forced_exit != 0 {
+                    return Err(WasiError::Exit(forced_exit));
+                }
+                Ok(())
+            });
 
             // Finish off the WasiEnv
             let mut wasi_env = match wasi_env.set_fs(Box::new(union)).finalize() {
@@ -451,9 +450,10 @@ pub async fn exec_process(
 
             // Generate an `ImportObject`.
             let wasi_import = wasi_thread.import_object(&module).unwrap();
-            let mut wasm_thread = bus_thread_pool.get_or_create(&wasi_thread);
+            let mut wasm_thread = bus_thread_pool.get_or_create(&wasi_thread, &launch_env);
             let wasm_bus_import = wasm_thread.import_object(&module);
             let import = wasi_import.chain_front(wasm_bus_import);
+            let bus_thread_pool = bus_thread_pool.to_take_context();
 
             // Let's instantiate the module with the imports.
             let instance = Instance::new(&module, &import).unwrap();

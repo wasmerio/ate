@@ -11,7 +11,6 @@ use crate::tty::*;
 
 pub struct SpawnContext {
     pub abi: Arc<dyn ConsoleAbi>,
-    pub cmd: String,
     pub env: Environment,
     pub job: Job,
     pub stdin: Fd,
@@ -27,7 +26,6 @@ pub struct SpawnContext {
 impl SpawnContext {
     pub fn new(
         abi: Arc<dyn ConsoleAbi>,
-        cmd: String,
         env: Environment,
         job: Job,
         stdin: Fd,
@@ -41,7 +39,6 @@ impl SpawnContext {
     ) -> SpawnContext {
         SpawnContext {
             abi,
-            cmd,
             env,
             job,
             stdin,
@@ -138,7 +135,6 @@ impl EvalFactory {
             working_dir: ctx.working_dir,
             last_return: 0u32,
             pre_open: ctx.pre_open,
-            input: ctx.cmd,
             stdio,
             root: ctx.root,
             exec_factory: self.clone(),
@@ -149,7 +145,7 @@ impl EvalFactory {
         ctx
     }
 
-    pub fn eval(&self, ctx: SpawnContext) -> mpsc::Receiver<EvalResult> {
-        crate::eval::eval(self.create_context(ctx))
+    pub fn eval(&self, cmd: String, ctx: SpawnContext) -> mpsc::Receiver<EvalResult> {
+        crate::eval::eval(cmd, self.create_context(ctx))
     }
 }

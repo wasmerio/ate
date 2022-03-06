@@ -51,7 +51,10 @@ impl MountPoint {
         }
         {
             let mut guard = self.temp_holding.lock().unwrap();
-            guard.take();
+            let fs = guard.take();
+            if self.fs.is_none() {
+                self.fs = fs;
+            }
         }
     }
 
@@ -84,6 +87,10 @@ pub struct UnionFileSystem {
 impl UnionFileSystem {
     pub fn new() -> UnionFileSystem {
         UnionFileSystem { mounts: Vec::new() }
+    }
+
+    pub fn clear(&mut self) {
+        self.mounts.clear();
     }
 }
 
@@ -159,12 +166,16 @@ impl UnionFileSystem {
     }
 
     pub fn sanitize(mut self) -> Self {
-        for mount in self.mounts.iter_mut() {
-            mount.solidify();
-        }
+        self.solidify();
         self.mounts.retain(|mount| mount.should_sanitize == false);
         self.set_ctx(&WasmCallerContext::default());
         self
+    }
+
+    pub fn solidify(&mut self) {
+        for mount in self.mounts.iter_mut() {
+            mount.solidify();
+        }
     }
 }
 

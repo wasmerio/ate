@@ -59,6 +59,7 @@ pub struct Call {
     pub(crate) format: SerializationFormat,
     pub(crate) instance: Option<CallInstance>,
     pub(crate) handle: CallHandle,
+    pub(crate) keepalive: bool,
     pub(crate) parent: Option<CallHandle>,
     pub(crate) state: Arc<Mutex<CallState>>,
     pub(crate) drop_on_data: Arc<AtomicBool>,
@@ -160,7 +161,8 @@ impl CallBuilder {
     where
         T: de::DeserializeOwned,
     {
-        let call = self.call.take().unwrap();
+        let mut call = self.call.take().unwrap();
+        call.keepalive = true;
         call.drop_on_data.store(false, Ordering::Release);
         self.invoke_internal(&call);
 
@@ -193,6 +195,7 @@ impl CallBuilder {
                     crate::abi::syscall::call_instance(
                         call.parent,
                         call.handle,
+                        call.keepalive,
                         &instance.instance,
                         &instance.access_token,
                         &call.wapm,
@@ -203,6 +206,7 @@ impl CallBuilder {
                     crate::abi::syscall::call(
                         call.parent,
                         call.handle,
+                        call.keepalive,
                         &call.wapm,
                         &call.topic,
                         &req[..],

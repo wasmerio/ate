@@ -262,6 +262,7 @@ impl BusEngine {
                 callbacks: Vec::new(),
             })),
             handle,
+            keepalive: false,
             parent,
             wapm,
             topic,

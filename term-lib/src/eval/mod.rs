@@ -54,6 +54,7 @@ use super::job::*;
 use super::reactor::*;
 use super::state::*;
 use super::stdio::*;
+use super::bus::LaunchEnvironment;
 
 pub enum EvalStatus {
     Executed { code: u32, show_result: bool },
@@ -171,7 +172,6 @@ pub struct EvalContext {
     pub chroot: bool,
     pub working_dir: String,
     pub pre_open: Vec<String>,
-    pub input: String,
     pub stdio: Stdio,
     pub root: UnionFileSystem,
     pub exec_factory: EvalFactory,
@@ -179,7 +179,19 @@ pub struct EvalContext {
     pub compiler: Compiler,
 }
 
-pub(crate) fn eval(mut ctx: EvalContext) -> mpsc::Receiver<EvalResult> {
+impl EvalContext {
+    pub fn launch_env(&self) -> LaunchEnvironment {
+        LaunchEnvironment {
+            abi: self.abi.clone(),
+            inherit_stderr: self.stdio.stderr.downgrade(),
+            inherit_stdout: self.stdio.stdout.downgrade(),
+            inherit_stdin: self.stdio.stdin.downgrade(),
+            inherit_log: self.stdio.log.downgrade(),
+        }
+    }
+}
+
+pub(crate) fn eval(cmd: String, mut ctx: EvalContext) -> mpsc::Receiver<EvalResult> {
     let system = ctx.system;
     let builtins = Builtins::new();
     let parser = grammar::programParser::new();
@@ -187,9 +199,8 @@ pub(crate) fn eval(mut ctx: EvalContext) -> mpsc::Receiver<EvalResult> {
     let (tx, rx) = mpsc::channel(1);
 
     let work = {
-        let input = ctx.input.clone();
         async move {
-            match parser.parse(input.as_str()) {
+            match parser.parse(cmd.as_str()) {
                 Ok(program) => {
                     let mut show_result = false;
                     let mut ret = 0;

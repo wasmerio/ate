@@ -6,8 +6,21 @@ use ate_files::prelude::*;
 use ate::prelude::AteErrorKind;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use std::path::PathBuf;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
+
+#[derive(Debug, Clone)]
+pub enum NativeFileType {
+    AteFileSystem(String),
+    LocalFileSystem(String),
+}
+
+#[derive(Debug, Clone)]
+pub enum NativeFileInterface {
+    AteFileSystem(NativeFiles),
+    LocalFileSystem(PathBuf),
+}
 
 #[derive(Debug, Clone)]
 pub struct NativeFiles {

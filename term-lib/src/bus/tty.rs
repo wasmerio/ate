@@ -8,6 +8,7 @@ use std::any::type_name;
 use std::collections::HashMap;
 use std::io;
 use std::io::Write;
+use std::ops::Deref;
 use tokio::select;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
@@ -23,8 +24,8 @@ use crate::api::*;
 pub fn stdin(
     _req: api::TtyStdinRequest,
     tty: crate::fs::TtyFile,
-    this_callback: &WasmBusFeeder,
-    mut client_callbacks: HashMap<String, WasmBusFeeder>,
+    this_callback: &Arc<dyn BusFeeder + Send + Sync + 'static>,
+    mut client_callbacks: HashMap<String, Arc<dyn BusFeeder + Send + Sync + 'static>>,
 ) -> Result<(StdinInvoker, StdinSession), CallError> {
 
     // Build all the callbacks
@@ -47,9 +48,9 @@ pub fn stdin(
 
 pub struct Stdin {
     tty: crate::fs::TtyFile,
-    this: WasmBusFeeder,
-    on_recv: WasmBusFeeder,
-    on_flush: WasmBusFeeder,
+    this: Arc<dyn BusFeeder + Send + Sync + 'static>,
+    on_recv: Arc<dyn BusFeeder + Send + Sync + 'static>,
+    on_flush: Arc<dyn BusFeeder + Send + Sync + 'static>,
 }
 
 impl Stdin
@@ -60,11 +61,11 @@ impl Stdin
             match msg {
                 FdMsg::Data { data, flag } => {
                     if flag.is_stdin() {
-                        self.on_recv.feed(SerializationFormat::Bincode, data);
+                        BusFeederUtils::feed(self.on_recv.deref(), SerializationFormat::Bincode, data);
                     }
                 }
                 FdMsg::Flush { .. } => {
-                    self.on_flush.feed(SerializationFormat::Bincode, ());
+                    BusFeederUtils::feed(self.on_flush.deref(), SerializationFormat::Bincode, ());
                 }
             }
         }
@@ -99,7 +100,7 @@ pub struct StdinSession {
 }
 
 impl Session for StdinSession {
-    fn call(&mut self, _topic: &str, _request: Vec<u8>) -> Box<dyn Invokable + 'static> {
+    fn call(&mut self, _topic: &str, _request: Vec<u8>, _keepalive: bool) -> Box<dyn Invokable + 'static> {
         ErrornousInvokable::new(CallError::InvalidTopic)
     }
 }
@@ -107,7 +108,7 @@ impl Session for StdinSession {
 pub fn stdout(
     _req: api::TtyStdoutRequest,
     stdout: crate::stdout::Stdout,
-    _client_callbacks: HashMap<String, WasmBusFeeder>,
+    _client_callbacks: HashMap<String, Arc<dyn BusFeeder + Send + Sync + 'static>>,
 ) -> Result<(StdoutInvoker, StdoutSession), CallError> {
 
     // Return the invokers
@@ -133,7 +134,7 @@ pub struct StdoutSession {
 }
 
 impl Session for StdoutSession {
-    fn call(&mut self, topic: &str, request: Vec<u8>) -> Box<dyn Invokable + 'static> {
+    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Box<dyn Invokable + 'static> {
         if topic == type_name::<api::StdoutWriteRequest>() {
             let data = match decode_request::<api::StdoutWriteRequest>(
                 SerializationFormat::Bincode,
@@ -214,7 +215,7 @@ impl Invokable for DelayedStdoutSend {
 pub fn stderr(
     _req: api::TtyStderrRequest,
     stderr: crate::fd::Fd,
-    _client_callbacks: HashMap<String, WasmBusFeeder>,
+    _client_callbacks: HashMap<String, Arc<dyn BusFeeder + Send + Sync + 'static>>,
 ) -> Result<(StderrInvoker, StderrSession), CallError> {
 
     // Return the invokers
@@ -240,7 +241,7 @@ pub struct StderrSession {
 }
 
 impl Session for StderrSession {
-    fn call(&mut self, topic: &str, request: Vec<u8>) -> Box<dyn Invokable + 'static> {
+    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Box<dyn Invokable + 'static> {
         if topic == type_name::<api::StderrWriteRequest>() {
             let data = match decode_request::<api::StderrWriteRequest>(
                 SerializationFormat::Bincode,

@@ -37,7 +37,13 @@ pub struct OptsSessionServer {
     /// Location where the native binary files are stored
     #[clap(long, default_value = "tokera.sh/www")]
     pub native_files: String,
+    /// Uses a local directory for native files rather than the published ate chain
+    #[clap(long)]
+    pub native_files_path: Option<String>,
     /// Determines which compiler to use
     #[clap(short, long, default_value = "default")]
     pub compiler: term_lib::eval::Compiler,
+    /// Time-to-live for sessions that are initiated
+    #[clap(long, default_value = "300")]
+    pub ttl: u64,
 }

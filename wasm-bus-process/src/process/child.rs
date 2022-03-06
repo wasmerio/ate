@@ -88,7 +88,6 @@ pub struct ChildInstance
 {
     pub instance: String,
     pub access_token: String,
-
 }
 
 impl Child {

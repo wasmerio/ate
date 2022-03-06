@@ -10,12 +10,12 @@ pub struct OptsInstance {
     /// Category of instances to perform an action upon
     #[clap(subcommand)]
     pub purpose: OptsInstanceFor,
-    /// URL where the data is remotely stored on a distributed commit log.
-    #[clap(short, long, default_value = "ws://tokera.sh/db")]
-    pub db_url: Url,
-    /// URL where the instances can be accessed from
-    #[clap(short, long, default_value = "wss://tokera.sh/sess")]
-    pub sess_url: Url,
+    /// URL where the data is remotely stored on a distributed commit log (e.g. wss://tokera.sh/db).
+    #[clap(short, long)]
+    pub db_url: Option<Url>,
+    /// URL where the instances can be accessed from (e.g. wss://tokera.sh/sess)
+    #[clap(short, long)]
+    pub sess_url: Option<Url>,
     /// Indicates that the server certificate should be ignored
     #[clap(long)]
     pub ignore_certificate: bool
@@ -97,6 +97,9 @@ pub enum OptsInstanceAction {
     /// Switches to a shell that runs against a particular instance
     #[clap()]
     Shell(OptsInstanceShell),
+    /// Calls a function within a process in a particular instance
+    #[clap()]
+    Call(OptsInstanceCall),
     /// Mount an existing instance file system to a particular path
     #[clap()]
     Mount(OptsInstanceMount),
@@ -130,6 +133,7 @@ impl OptsInstanceAction
             OptsInstanceAction::Kill(opts) => Some(opts.name.clone()),
             OptsInstanceAction::Clone(opts) => Some(opts.name.clone()),
             OptsInstanceAction::Shell(opts) => Some(opts.name.clone()),
+            OptsInstanceAction::Call(opts) => Some(opts.name.clone()),
             OptsInstanceAction::Export(opts) => Some(opts.name.clone()),
             OptsInstanceAction::Deport(opts) => Some(opts.name.clone()),
             OptsInstanceAction::Mount(opts) => Some(opts.name.clone()),
@@ -212,6 +216,20 @@ pub struct OptsInstanceShell {
     /// Name of the instance to run commmands against
     #[clap(index = 1)]
     pub name: String,
+}
+
+#[derive(Parser, Clone)]
+#[clap()]
+pub struct OptsInstanceCall {
+    /// Name of the instance to run commmands against
+    #[clap(index = 1)]
+    pub name: String,
+    /// WAPM name of the process to be invoked
+    #[clap(index = 2)]
+    pub binary: String,
+    /// Topic of the invocation call
+    #[clap(index = 3)]
+    pub topic: String,
 }
 
 #[derive(Parser, Clone)]

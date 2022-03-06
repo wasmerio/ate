@@ -57,12 +57,13 @@ pub(super) fn source(
         let script = process_script(script, &ctx);
 
         ctx.stdio = stdio;
-        ctx.input = script;
+        
+        let cmd = script;
 
         let mut stdout = ctx.stdio.stdout.clone();
         let mut stderr = ctx.stdio.stderr.clone();
 
-        let mut process = eval(ctx);
+        let mut process = eval(cmd, ctx);
         let result = process.recv().await;
         drop(process);
 

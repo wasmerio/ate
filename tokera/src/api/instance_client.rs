@@ -7,7 +7,7 @@ use ate::mesh::GLOBAL_CERTIFICATES;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
-use crate::model::{InstanceCommand, InstanceHello};
+use crate::model::{InstanceCommand, InstanceHello, InstanceReply};
 
 pub struct InstanceClient
 {
@@ -99,12 +99,17 @@ impl InstanceClient
 
     pub async fn send_hello(&mut self, hello: InstanceHello) -> Result<(), Box<dyn std::error::Error>> {
         let data = serde_json::to_vec(&hello)?;
-        self.tx.send(&self.ek, &data[..]).await?;
+        self.send_data(data).await?;
         Ok(())
     }
 
     pub async fn send_cmd(&mut self, cmd: InstanceCommand) -> Result<(), Box<dyn std::error::Error>> {
         let data = serde_json::to_vec(&cmd)?;
+        self.send_data(data).await?;
+        Ok(())
+    }
+
+    pub async fn send_data(&mut self, data: Vec<u8>) -> Result<(), Box<dyn std::error::Error>> {
         self.tx.send(&self.ek, &data[..]).await?;
         Ok(())
     }
@@ -133,6 +138,66 @@ impl InstanceClient
                     } else {
                         break;
                     }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub async fn run_read(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let mut stdout = Tty::stdout().await?;
+        let mut stderr = Tty::stderr().await?;
+        let mut total_read = 0u64;
+        loop {
+            match self.rx.read_buf_with_header(&self.ek, &mut total_read).await {
+                Ok(data) => {
+                    if data.len() <= 0 {
+                        break;
+                    }
+
+                    let reply: InstanceReply = bincode::deserialize(&data[..])?;
+                    match reply {
+                        InstanceReply::FeedBytes {
+                            handle: _,
+                            data,
+                        } => {
+                            stdout.write(data).await?;
+                            stdout.write("\r\n".as_bytes().to_vec()).await?;
+                            stdout.flush().await?;
+                            break;
+                        },
+                        InstanceReply::Stdout { data } => {
+                            stdout.write(data).await?;
+                            stdout.write("\r\n".as_bytes().to_vec()).await?;
+                            stdout.flush().await?;
+                        },
+                        InstanceReply::Stderr { data } => {
+                            stderr.write(data).await?;
+                            stderr.write("\r\n".as_bytes().to_vec()).await?;
+                            stderr.flush().await?;
+                        },
+                        InstanceReply::Error {
+                            handle: _,
+                            error,
+                        } => {
+                            let error = format!("error: {}\r\n", error);
+                            let mut stderr = Tty::stderr().await?;
+                            stderr.write(error.into_bytes()).await?;
+                            stderr.flush().await?;
+                            break;
+                        }
+                        InstanceReply::Terminate {
+                            handle: _,
+                        } => {
+                            break;
+                        }
+                        InstanceReply::Exit => {
+                            break;
+                        }
+                    }
+                }
+                _ => {
+                    break;
                 }
             }
         }

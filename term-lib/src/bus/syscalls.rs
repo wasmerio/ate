@@ -3,6 +3,7 @@ use crate::wasmer::Array;
 use crate::wasmer::WasmPtr;
 use crate::wasmer_wasi::WasiError;
 use std::collections::HashMap;
+use std::sync::Arc;
 use tokio::sync::mpsc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
@@ -86,6 +87,7 @@ pub(crate) mod raw {
         thread: &WasmBusThread,
         parent: u32,
         handle: u32,
+        leak: u32,
         wapm_ptr: u32,
         wapm_len: u32,
         topic_ptr: u32,
@@ -107,6 +109,53 @@ pub(crate) mod raw {
                 thread,
                 parent,
                 handle,
+                leak != 0,
+                wapm_ptr,
+                wapm_len as usize,
+                topic_ptr,
+                topic_len as usize,
+                request_ptr,
+                request_len as usize,
+            )
+        }
+    }
+    pub fn wasm_bus_call_instance(
+        thread: &WasmBusThread,
+        parent: u32,
+        handle: u32,
+        leak: u32,
+        instance_ptr: u32,
+        instance_len: u32,
+        access_token_ptr: u32,
+        access_token_len: u32,
+        wapm_ptr: u32,
+        wapm_len: u32,
+        topic_ptr: u32,
+        topic_len: u32,
+        request_ptr: u32,
+        request_len: u32,
+    ) -> u32 {
+        let parent: Option<CallHandle> = if parent != u32::MAX {
+            Some(parent.into())
+        } else {
+            None
+        };
+        let handle: CallHandle = handle.into();
+        let instance_ptr: WasmPtr<u8, Array> = WasmPtr::new(instance_ptr as u32);
+        let access_token_ptr: WasmPtr<u8, Array> = WasmPtr::new(access_token_ptr as u32);
+        let wapm_ptr: WasmPtr<u8, Array> = WasmPtr::new(wapm_ptr as u32);
+        let topic_ptr: WasmPtr<u8, Array> = WasmPtr::new(topic_ptr as u32);
+        let request_ptr: WasmPtr<u8, Array> = WasmPtr::new(request_ptr as u32);
+        unsafe {
+            super::wasm_bus_call_instance(
+                thread,
+                parent,
+                handle,
+                leak != 0,
+                instance_ptr,
+                instance_len as usize,
+                access_token_ptr,
+                access_token_len as usize,
                 wapm_ptr,
                 wapm_len as usize,
                 topic_ptr,
@@ -380,12 +429,13 @@ unsafe fn wasm_bus_call(
     thread: &WasmBusThread,
     parent: Option<CallHandle>,
     handle: CallHandle,
+    keepalive: bool,
     wapm_ptr: WasmPtr<u8, Array>,
     wapm_len: usize,
     topic_ptr: WasmPtr<u8, Array>,
     topic_len: usize,
     request_ptr: WasmPtr<u8, Array>,
-    request_len: usize,
+    request_len: usize
 ) -> u32 {
     let wapm = wapm_ptr
         .get_utf8_str(thread.memory(), wapm_len as u32)
@@ -410,18 +460,25 @@ unsafe fn wasm_bus_call(
         .uint8view_with_byte_offset_and_length(request_ptr.offset(), request_len as u32)
         .to_vec();
 
-    // Grab references to the ABI that will be used
+    // Create to data feeders that will respond to the message in a happy path or
+    // an unhappy path
     let data_feeder = WasmBusFeeder::new(thread, handle.into());
+    let this_callback = WasmBusFeeder::new(thread, handle.into());
+    let this_callback: Arc<dyn BusFeeder + Send + Sync + 'static> = Arc::new(this_callback);
 
     // Grab all the client callbacks that have been registered
-    let client_callbacks: HashMap<String, WasmBusFeeder> = {
+    let client_callbacks: HashMap<String, Arc<dyn BusFeeder + Send + Sync + 'static>> = {
         let mut inner = thread.inner.lock();
         inner
             .callbacks
             .remove(&handle)
             .map(|a| {
                 a.into_iter()
-                    .map(|(topic, handle)| (topic, WasmBusFeeder::new(thread, handle.into())))
+                    .map(|(topic, handle)| {
+                        let feeder = WasmBusFeeder::new(thread, handle.into());
+                        let feeder: Arc<dyn BusFeeder + Send + Sync + 'static> = Arc::new(feeder);
+                        (topic, feeder)
+                    })
                     .collect()
             })
             .unwrap_or_default()
@@ -429,15 +486,139 @@ unsafe fn wasm_bus_call(
 
     let mut invoke = {
         let mut inner = thread.inner.lock();
+        let env = inner.env.clone();
         inner.factory.start(
-            thread,
             parent,
             handle.into(),
             wapm.to_string(),
             topic.to_string(),
             request,
+            this_callback,
             client_callbacks,
             thread.ctx.clone(),
+            keepalive,
+            env
+        )
+    };
+
+    // Invoke the send operation
+    let (abort_tx, mut abort_rx) = mpsc::channel(1);
+    let result = {
+        let thread = thread.clone();
+        thread.system.spawn_shared(move || async move {
+            tokio::select! {
+                response = invoke.process() => {
+                    response
+                }
+                _ = abort_rx.recv() => {
+                    Err(CallError::Aborted)
+                }
+            }
+        })
+    };
+
+    // Turn it into a invocations object
+    let invoke = WasmBusThreadInvocation {
+        _abort: abort_tx,
+        result,
+        data_feeder,
+    };
+
+    // Record the invocations and return success
+    let mut inner = thread.inner.lock();
+    inner.invocations.insert(handle, invoke);
+    CallError::Success.into()
+}
+
+// Calls a function in a WAPM process that is running in an
+// instance with a particular access token.
+// The operating system will respond with either a 'wasm_bus_finish'
+// or a 'wasm_bus_error' message.
+unsafe fn wasm_bus_call_instance(
+    thread: &WasmBusThread,
+    parent: Option<CallHandle>,
+    handle: CallHandle,
+    keepalive: bool,
+    instance_ptr: WasmPtr<u8, Array>,
+    instance_len: usize,
+    access_token_ptr: WasmPtr<u8, Array>,
+    access_token_len: usize,
+    wapm_ptr: WasmPtr<u8, Array>,
+    wapm_len: usize,
+    topic_ptr: WasmPtr<u8, Array>,
+    topic_len: usize,
+    request_ptr: WasmPtr<u8, Array>,
+    request_len: usize,
+) -> u32 {
+    let instance = instance_ptr
+        .get_utf8_str(thread.memory(), instance_len as u32)
+        .unwrap();
+    #[allow(unused)]
+    let access_token = access_token_ptr
+        .get_utf8_str(thread.memory(), access_token_len as u32)
+        .unwrap();
+    let wapm = wapm_ptr
+        .get_utf8_str(thread.memory(), wapm_len as u32)
+        .unwrap();
+    let topic = topic_ptr
+        .get_utf8_str(thread.memory(), topic_len as u32)
+        .unwrap();
+    if let Some(parent) = parent {
+        debug!(
+            "wasm-bus::call_instance (parent={}, handle={}, instance={}, wapm={}, topic={}, request={} bytes)",
+            parent.id, handle.id, instance, wapm, topic, request_len
+        );
+    } else {
+        debug!(
+            "wasm-bus::call_instance (handle={}, instance={}, wapm={}, topic={}, request={} bytes)",
+            handle.id, instance, wapm, topic, request_len
+        );
+    }
+
+    #[allow(unused)]
+    let request = thread
+        .memory()
+        .uint8view_with_byte_offset_and_length(request_ptr.offset(), request_len as u32)
+        .to_vec();
+
+    // Create to data feeders that will respond to the message in a happy path or
+    // an unhappy path
+    let data_feeder = WasmBusFeeder::new(thread, handle.into());
+    let this_callback = WasmBusFeeder::new(thread, handle.into());
+    let this_callback: Arc<dyn BusFeeder + Send + Sync + 'static> = Arc::new(this_callback);
+
+    // Grab all the client callbacks that have been registered
+    let client_callbacks: HashMap<String, Arc<dyn BusFeeder + Send + Sync + 'static>> = {
+        let mut inner = thread.inner.lock();
+        inner
+            .callbacks
+            .remove(&handle)
+            .map(|a| {
+                a.into_iter()
+                    .map(|(topic, handle)| {
+                        let feeder = WasmBusFeeder::new(thread, handle.into());
+                        let feeder: Arc<dyn BusFeeder + Send + Sync + 'static> = Arc::new(feeder);
+                        (topic, feeder)
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+
+    let mut invoke = {
+        let mut inner = thread.inner.lock();
+        let env = inner.env.clone();
+        inner.factory.start(
+            parent,
+            handle.into(),
+            wapm.to_string(),
+            topic.to_string(),
+            request,
+            this_callback,
+            client_callbacks,
+            thread.ctx.clone(),
+            keepalive,
+            env
         )
     };
 

@@ -528,6 +528,17 @@ pub struct WeakFd {
 }
 
 impl WeakFd {
+    pub fn null() -> WeakFd {
+        WeakFd {
+            flag: FdFlag::None,
+            ctx: WasmCallerContext::default(),
+            closed: Weak::new(),
+            blocking: Weak::new(),
+            sender: None,
+            receiver: None,
+        }
+    }
+
     pub fn upgrade(&self) -> Option<Fd> {
         let closed = match self.closed.upgrade() {
             Some(a) => a,

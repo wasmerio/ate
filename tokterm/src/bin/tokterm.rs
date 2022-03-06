@@ -76,6 +76,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let compiled_modules = Arc::new(CachedCompiledModules::new(Some(opts.compiler_cache_path)));
 
     // Now we run the actual console under the runtime
+    let fs = term_lib::fs::create_root_fs(None);
     let con = con.clone();
     let compiler = opts.compiler;
     sys.block_on(async move {
@@ -87,7 +88,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             compiler,
             con.clone(),
             None,
-            None,
+            fs,
             compiled_modules,
         );
         console.init().await;

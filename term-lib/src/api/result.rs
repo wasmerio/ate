@@ -6,7 +6,7 @@ use tokio::sync::mpsc;
 use wasm_bus::abi::SerializationFormat;
 
 pub struct AsyncResult<T> {
-    pub(crate) rx: mpsc::Receiver<T>,
+    pub rx: mpsc::Receiver<T>,
     pub(crate) format: SerializationFormat,
 }
 

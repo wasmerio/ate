@@ -51,6 +51,7 @@ use super::protocol::MessageProtocolApi;
 pub enum StreamProtocol {
     Tcp,
     WebSocket,
+    SecureWebSocket,
 }
 
 impl std::str::FromStr for StreamProtocol {
@@ -60,6 +61,7 @@ impl std::str::FromStr for StreamProtocol {
         let ret = match s {
             "tcp" => StreamProtocol::Tcp,
             "ws" => StreamProtocol::WebSocket,
+            "wss" => StreamProtocol::SecureWebSocket,
             _ => {
                 bail!(CommsErrorKind::UnsupportedProtocolError(s.to_string()));
             }
@@ -73,6 +75,7 @@ impl StreamProtocol {
         let ret = match self {
             StreamProtocol::Tcp => "tcp",
             StreamProtocol::WebSocket => "ws",
+            StreamProtocol::SecureWebSocket => "wss",
         };
         ret.to_string()
     }
@@ -85,6 +88,7 @@ impl StreamProtocol {
         match self {
             StreamProtocol::Tcp => 5000,
             StreamProtocol::WebSocket => 80,
+            StreamProtocol::SecureWebSocket => 443,
         }
     }
 
@@ -92,6 +96,7 @@ impl StreamProtocol {
         match self {
             StreamProtocol::Tcp => true,
             StreamProtocol::WebSocket => false,
+            StreamProtocol::SecureWebSocket => false,
         }
     }
 
@@ -99,6 +104,7 @@ impl StreamProtocol {
         match self {
             StreamProtocol::Tcp => false,
             StreamProtocol::WebSocket => true,
+            StreamProtocol::SecureWebSocket => true,
         }
     }
 }
@@ -337,7 +343,7 @@ impl Stream {
             #[cfg(feature = "enable_full")]
             Stream::Tcp(a) => match protocol {
                 StreamProtocol::Tcp => Stream::Tcp(a),
-                StreamProtocol::WebSocket => {
+                StreamProtocol::WebSocket | StreamProtocol::SecureWebSocket => {
                     let wait = tokio_tungstenite::accept_async(a);
                     let socket = tokio_timeout(timeout, wait).await??;
                     Stream::WebSocket(socket, protocol)
@@ -365,10 +371,14 @@ impl Stream {
             #[cfg(feature = "enable_full")]
             Stream::Tcp(a) => match protocol {
                 StreamProtocol::Tcp => Stream::Tcp(a),
-                StreamProtocol::WebSocket => {
+                StreamProtocol::WebSocket | StreamProtocol::SecureWebSocket => {
+                    let port = match protocol {
+                        StreamProtocol::SecureWebSocket => 443,
+                        _ => 80
+                    };
                     let url = StreamProtocol::WebSocket.make_url(
                         "localhost".to_string(),
-                        80,
+                        port,
                         "/".to_string(),
                     )?;
                     let mut request = tokio_tungstenite::tungstenite::http::Request::new(());
@@ -793,6 +803,12 @@ impl StreamRxInner {
     }
 }
 
+#[async_trait::async_trait]
+pub trait StreamReader
+{
+    async fn read_buf_with_header(&mut self, wire_encryption: &Option<EncryptKey>, total_read: &mut u64) -> Result<Vec<u8>, TError>;
+}
+
 impl StreamRx {
     pub fn new(inner: StreamRxInner, proto: StreamProtocol) -> Self {
         Self {
@@ -821,5 +837,14 @@ impl StreamRx {
     #[allow(dead_code)]
     pub fn protocol(&self) -> StreamProtocol {
         self.protocol.clone()
+    }
+}
+
+#[async_trait::async_trait]
+impl StreamReader
+for StreamRx
+{
+    async fn read_buf_with_header(&mut self, wire_encryption: &Option<EncryptKey>, total_read: &mut u64) -> Result<Vec<u8>, TError> {
+        StreamRx::read_buf_with_header(self, wire_encryption, total_read).await
     }
 }

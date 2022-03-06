@@ -38,6 +38,7 @@ pub fn reply_callback(_handle: CallHandle, _topic: &str, _response: &[u8]) {
 pub fn call(
     _parent: Option<CallHandle>,
     _handle: CallHandle,
+    _leak: bool,
     _wapm: &str,
     _topic: &str,
     _request: &[u8],
@@ -48,6 +49,7 @@ pub fn call(
 pub fn call_instance(
     _parent: Option<CallHandle>,
     _handle: CallHandle,
+    _leak: bool,
     _instance: &str,
     _access_token: &str,
     _wapm: &str,

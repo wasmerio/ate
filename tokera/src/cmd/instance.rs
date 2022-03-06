@@ -1,4 +1,5 @@
 use std::ops::Deref;
+use std::io::Read;
 use ate::prelude::*;
 use chrono::NaiveDateTime;
 use error_chain::bail;
@@ -9,7 +10,7 @@ use futures_util::stream::StreamExt;
 use tracing::{debug, error, info, trace, warn};
 
 use crate::error::*;
-use crate::model::{HistoricActivity, activities, InstanceHello, InstanceCommand};
+use crate::model::{HistoricActivity, activities, InstanceHello, InstanceCommand, InstanceExport, InstanceCall};
 use crate::opt::*;
 use crate::api::{TokApi, InstanceClient};
 
@@ -43,7 +44,7 @@ pub async fn main_opts_instance_list(api: &mut TokApi) -> Result<(), InstanceErr
                 for export in instance.exports.iter().await? {
                     if exports.len() > 0 { exports.push_str(","); }
                     exports.push_str(export.binary.as_str());
-                    if export.distributed {
+                    if export.distributed == false {
                         exports.push_str("*");
                     }
                 }
@@ -66,6 +67,7 @@ pub async fn main_opts_instance_list(api: &mut TokApi) -> Result<(), InstanceErr
 
 pub async fn main_opts_instance_details(
     api: &mut TokApi,
+    sess_url: url::Url,
     opts: OptsInstanceDetails,
 ) -> Result<(), InstanceError> {
     let instance = api.instance_find(opts.name.as_str())
@@ -81,10 +83,20 @@ pub async fn main_opts_instance_details(
         }
     };
 
+    println!("Instance");
     println!("{}", serde_json::to_string_pretty(instance.deref()).unwrap());
 
-    let _chain = api.instance_chain(instance.name.as_str()).await?;
-    //println!("{}", serde_json::to_string_pretty(instance.deref()).unwrap());
+    if let Ok(service_instance) = api.instance_load(instance.deref()).await {
+        if service_instance.exports.len().await? > 0 {
+            println!("");
+            println!("Exports");
+            for export in service_instance.exports.iter().await? {
+                let url = compute_export_url(&sess_url, service_instance.chain.as_str(), export.binary.as_str());
+                println!("POST {}", url);
+                println!("{}", serde_json::to_string_pretty(export.deref()).unwrap());
+            }
+        }
+    }
 
     Ok(())
 }
@@ -172,7 +184,6 @@ pub async fn main_opts_instance_shell(
         .unwrap();
 
     client.send_hello(InstanceHello {
-        owner_identity: api.session_identity(),
         access_token: instance.admin_token.clone(),
         chain: ChainKey::from(instance.chain.clone()),
     }).await.unwrap();
@@ -189,20 +200,172 @@ pub async fn main_opts_instance_shell(
     Ok(())
 }
 
-pub async fn main_opts_instance_export(
-    _api: &mut TokApi,
-    _name: &str,
-) -> Result<(), InstanceError> {
+pub async fn main_opts_instance_call(
+    api: &mut TokApi,
+    sess_url: url::Url,
+    name: &str,
+    binary: &str,
+    topic: &str,
+    ignore_certificate: bool
+) -> Result<(), InstanceError>
+{
+    // Read the object into stdin
+    let mut request = Vec::new();
+    std::io::stdin()
+        .lock()
+        .read_to_end(&mut request)
+        .map_err(|_| InstanceErrorKind::NoInput)?;
 
-    Err(InstanceErrorKind::Unsupported.into())
+    let (instance, _) = api.instance_action(name).await?;
+    let instance = instance?;
+    let mut client = InstanceClient::new_ext(sess_url, ignore_certificate).await
+        .unwrap();
+
+    // Search for an export that matches this binary
+    let export = instance.exports
+        .iter()
+        .await?
+        .filter(|e| e.binary.eq_ignore_ascii_case(binary))
+        .next()
+        .ok_or_else(|| InstanceErrorKind::NotExported)?;
+
+    client.send_hello(InstanceHello {
+        access_token: export.access_token.clone(),
+        chain: ChainKey::from(instance.chain.clone()),
+    }).await.unwrap();
+
+    client.send_cmd(InstanceCommand::Call(InstanceCall {
+        parent: None,
+        handle: fastrand::u32(..),
+        binary: binary.to_string(),
+        topic: topic.to_string(),
+        keepalive: false,
+    })).await.unwrap();
+
+    client.send_data(request).await.unwrap();
+
+    client.run_read()
+        .await
+        .map_err(|err| {
+            InstanceErrorKind::InternalError(ate::utils::obscure_error_str(err.to_string().as_str()))
+        })?;
+        
+    Ok(())
+}
+
+pub async fn main_opts_instance_export(
+    api: &mut TokApi,
+    sess_url: url::Url,
+    name: &str,
+    binary: &str,
+) -> Result<(), InstanceError> {
+    let (service_instance, _wallet_instance) = api.instance_action(name).await?;
+
+    let access_token = AteHash::generate().to_hex_string();
+    let (name, chain) = match service_instance {
+        Ok(mut service_instance) => {
+            let dio = service_instance.dio_mut();
+            let name = service_instance.name.clone();
+            let chain = service_instance.chain.clone();
+            service_instance.as_mut().exports.push(InstanceExport {
+                access_token: access_token.clone(),
+                binary: binary.to_string(),
+                distributed: true,
+                http: true,
+                https: true,
+                bus: true,
+                pinned: None,
+            })?;
+            dio.commit().await?;
+            drop(dio);
+            (name, chain)
+        }
+        Err(err) => {
+            bail!(err);
+        }
+    };
+
+    // Build the URL that can be used to access this binary
+    let url = compute_export_url(&sess_url, chain.as_str(), binary);
+
+    // Now add the history
+    if let Err(err) = api
+        .record_activity(HistoricActivity::InstanceExported(
+            activities::InstanceExported {
+                when: chrono::offset::Utc::now(),
+                by: api.user_identity(),
+                alias: Some(name.clone()),
+                binary: binary.to_string(),
+            },
+        ))
+        .await
+    {
+        error!("Error writing activity: {}", err);
+    }
+    api.dio.commit().await?;
+
+    println!("Instance ({}) has exported binary ({})", name, binary);
+    println!("Authentication: {}", access_token);
+    println!("POST: {}", url);
+    Ok(())
+}
+
+fn compute_export_url(sess_url: &url::Url, chain: &str, binary: &str) -> String
+{
+    // Build the URL that can be used to access this binary
+    let domain = sess_url.domain().unwrap_or_else(|| "localhost");
+    let url = format!("https://{}{}/{}/{}/", domain, sess_url.path(), chain, binary);
+    url
 }
 
 pub async fn main_opts_instance_deport(
-    _api: &mut TokApi,
-    _name: &str,
+    api: &mut TokApi,
+    name: &str,
+    access_token: &str,
 ) -> Result<(), InstanceError> {
 
-    Err(InstanceErrorKind::Unsupported.into())
+    let (service_instance, _wallet_instance) = api.instance_action(name).await?;
+
+    let (name, binary) = match service_instance {
+        Ok(mut service_instance) => {
+            let dio = service_instance.dio_mut();
+            let name = service_instance.name.clone();
+
+            let export = service_instance.as_mut().exports.iter_mut().await?
+                .filter(|e| e.access_token.eq_ignore_ascii_case(access_token))
+                .next()
+                .ok_or(InstanceErrorKind::InvalidAccessToken)?;
+
+            let binary = export.binary.clone();
+
+            export.delete()?;                
+            dio.commit().await?;
+            drop(dio);
+            (name, binary)
+        }
+        Err(err) => {
+            bail!(err);
+        }
+    };
+
+    // Now add the history
+    if let Err(err) = api
+        .record_activity(HistoricActivity::InstanceDeported(
+            activities::InstanceDeported {
+                when: chrono::offset::Utc::now(),
+                by: api.user_identity(),
+                alias: Some(name.clone()),
+                binary: binary.to_string(),
+            },
+        ))
+        .await
+    {
+        error!("Error writing activity: {}", err);
+    }
+    api.dio.commit().await?;
+
+    println!("Instance ({}) has deported binary ({})", name, binary);
+    Ok(())
 }
 
 pub async fn main_opts_instance_clone(
@@ -256,7 +419,7 @@ pub async fn main_opts_instance(
             main_opts_instance_list(&mut context.api).await?;
         }
         OptsInstanceAction::Details(opts) => {
-            main_opts_instance_details(&mut context.api, opts).await?;
+            main_opts_instance_details(&mut context.api, sess_url, opts).await?;
         }
         OptsInstanceAction::Create(opts) => {
             main_opts_instance_create(&mut context.api, opts.name, purpose.group_name(), db_url, instance_authority).await?;
@@ -271,15 +434,20 @@ pub async fn main_opts_instance(
             let name = name.unwrap();
             main_opts_instance_shell(&mut context.api, sess_url, name.as_str(), ignore_certificate).await?;
         }
-        OptsInstanceAction::Export(_opts_export) => {
+        OptsInstanceAction::Call(opts_call) => {
             if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
             let name = name.unwrap();
-            main_opts_instance_export(&mut context.api, name.as_str()).await?;
+            main_opts_instance_call(&mut context.api, sess_url, name.as_str(), opts_call.binary.as_str(), opts_call.topic.as_str(), ignore_certificate).await?;
         }
-        OptsInstanceAction::Deport(_opts_deport) => {
+        OptsInstanceAction::Export(opts_export) => {
             if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
             let name = name.unwrap();
-            main_opts_instance_deport(&mut context.api, name.as_str()).await?;
+            main_opts_instance_export(&mut context.api, sess_url, name.as_str(), opts_export.binary.as_str()).await?;
+        }
+        OptsInstanceAction::Deport(opts_deport) => {
+            if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
+            let name = name.unwrap();
+            main_opts_instance_deport(&mut context.api, name.as_str(), opts_deport.token.as_str()).await?;
         }
         OptsInstanceAction::Clone(_opts_clone) => {
             if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }

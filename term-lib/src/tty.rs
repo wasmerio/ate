@@ -8,6 +8,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use tokio::sync::Mutex as AsyncMutex;
 use tokio::sync::RwLock;
+use tokio::sync::mpsc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
@@ -18,6 +19,8 @@ use super::fd::*;
 use super::job::*;
 use super::reactor::*;
 use super::stdout::*;
+use super::pipe::*;
+use super::api::*;
 
 #[derive(Debug, Clone)]
 pub enum TtyMode {
@@ -63,11 +66,13 @@ pub struct Tty {
     inner_async: Arc<AsyncMutex<TtyInnerAsync>>,
     inner_sync: Arc<TtyInnerSync>,
     stdout: Stdout,
+    stderr: Fd,
+    log: Fd,
     is_mobile: bool,
 }
 
 impl Tty {
-    pub fn new(stdout: &Stdout, is_mobile: bool) -> Tty {
+    pub fn new(stdout: Stdout, stderr: Fd, log: Fd, is_mobile: bool) -> Tty {
         let mut stdout = stdout.clone();
         stdout.set_flag(FdFlag::Stdout(true));
         Tty {
@@ -88,12 +93,82 @@ impl Tty {
                 buffering: AtomicBool::new(true),
             }),
             stdout,
+            stderr,
+            log,
             is_mobile,
         }
     }
 
+    pub fn channel(abi: &Arc<dyn ConsoleAbi>, unfinished_line: &Arc<AtomicBool>, is_mobile: bool) -> Tty {
+        let (stdio, mut stdio_rx) = pipe_out(FdFlag::None);
+        let mut stdout = stdio.clone();
+        let mut stderr = stdio.clone();
+        let mut log = stdio.clone();
+        stdout.set_flag(FdFlag::Stdout(true));
+        stderr.set_flag(FdFlag::Stderr(true));
+        log.set_flag(FdFlag::Log);
+        let stdout = Stdout::new(stdout);
+        let tty = Tty::new(stdout, stderr, log, is_mobile);
+
+        // Stdout, Stderr and Logging (this is serialized in order for a good reason!)
+        let unfinished_line = unfinished_line.clone();
+        let system = System::default();
+        {
+            let abi = abi.clone();
+            let work = async move {
+                while let Some(msg) = stdio_rx.recv().await {
+                    match msg {
+                        FdMsg::Data { data, flag } => match flag {
+                            FdFlag::Log => {
+                                let txt = String::from_utf8_lossy(&data[..]);
+                                let mut txt = txt.as_ref();
+                                while txt.ends_with("\n") || txt.ends_with("\r") {
+                                    txt = &txt[..(txt.len() - 1)];
+                                }
+                                abi.log(txt.to_string()).await;
+                            }
+                            _ => {
+                                let text =
+                                    String::from_utf8_lossy(&data[..])[..].replace("\n", "\r\n");
+                                match flag {
+                                    FdFlag::Stderr(_) => abi.stderr(text.as_bytes().to_vec()).await,
+                                    _ => abi.stdout(text.as_bytes().to_vec()).await,
+                                };
+
+                                let is_unfinished = is_cleared_line(&text) == false;
+                                unfinished_line.store(is_unfinished, Ordering::Release);
+                            }
+                        },
+                        FdMsg::Flush { tx } => {
+                            let _ = tx.send(()).await;
+                        }
+                    }
+                }
+                info!("main IO loop exited");
+            };
+            #[cfg(target_arch = "wasm32")]
+            system.fork_local(work);
+            #[cfg(not(target_arch = "wasm32"))]
+            system.fork_shared(move || work);
+        }
+
+        tty
+    }
+
+    pub fn stdout(&self) -> Stdout {
+        self.stdout.clone()
+    }
+
     pub fn fd_stdout(&self) -> Fd {
         self.stdout.fd.clone()
+    }
+
+    pub fn stderr(&self) -> Fd {
+        self.stderr.clone()
+    }
+
+    pub fn log(&self) -> Fd {
+        self.log.clone()
     }
 
     pub async fn reset_line(&self) {

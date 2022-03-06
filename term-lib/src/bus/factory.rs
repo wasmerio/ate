@@ -20,42 +20,43 @@ pub struct BusFactory {
 }
 
 impl BusFactory {
-    pub fn new(process_factory: ProcessExecFactory) -> BusFactory {
+    pub fn new(process_factory: ProcessExecFactory, multiplexer: SubProcessMultiplexer) -> BusFactory {
         BusFactory {
             standard: StandardBus::new(process_factory.clone()),
-            sub_processes: SubProcessFactory::new(process_factory),
+            sub_processes: SubProcessFactory::new(process_factory, multiplexer),
             sessions: Arc::new(Mutex::new(HashMap::default())),
         }
     }
 
     pub fn start(
         &mut self,
-        thread: &WasmBusThread,
         parent: Option<CallHandle>,
         handle: CallHandle,
         wapm: String,
         topic: String,
         request: Vec<u8>,
-        client_callbacks: HashMap<String, WasmBusFeeder>,
+        this_callback: Arc<dyn BusFeeder + Send + Sync + 'static>,
+        client_callbacks: HashMap<String, Arc<dyn BusFeeder + Send + Sync + 'static>>,
         ctx: WasmCallerContext,
-    ) -> Box<dyn Invokable> {
+        keepalive: bool,
+        env: LaunchEnvironment,
+    ) -> Box<dyn Invokable + 'static> {
         // If it has a parent then we need to make the call relative to this parents session
         if let Some(parent) = parent {
             let mut sessions = self.sessions.lock().unwrap();
             if let Some(session) = sessions.get_mut(&parent) {
-                return session.call(topic.as_ref(), request);
+                return session.call(topic.as_ref(), request, keepalive);
             } else {
                 // Session is orphaned
+                debug!("orphaned wasm-bus session (handle={})", parent);
                 return ErrornousInvokable::new(CallError::InvalidHandle);
             }
         }
 
-        // Create the parent callbackc
-        let this_callback = WasmBusFeeder::new(thread, handle);
-
         // Push this into an asynchronous operation
         Box::new(BusStartInvokable {
             standard: self.standard.clone(),
+            env: env.clone(),
             handle,
             sub_processes: self.sub_processes.clone(),
             sessions: self.sessions.clone(),
@@ -65,11 +66,13 @@ impl BusFactory {
             this_callback,
             client_callbacks,
             ctx,
+            keepalive,
         })
     }
 
     pub fn close(&mut self, handle: CallHandle) -> Option<Box<dyn Session>> {
         let mut sessions = self.sessions.lock().unwrap();
+        trace!("closing handle={}", handle);
         sessions.remove(&handle)
     }
 
@@ -83,15 +86,17 @@ where
     Self: Send + 'static,
 {
     standard: StandardBus,
+    env: LaunchEnvironment,
     handle: CallHandle,
     sub_processes: SubProcessFactory,
     sessions: Arc<Mutex<HashMap<CallHandle, Box<dyn Session>>>>,
     wapm: String,
     topic: String,
     request: Option<Vec<u8>>,
-    this_callback: WasmBusFeeder,
-    client_callbacks: HashMap<String, WasmBusFeeder>,
+    this_callback: Arc<dyn BusFeeder + Send + Sync + 'static>,
+    client_callbacks: HashMap<String, Arc<dyn BusFeeder + Send + Sync + 'static>>,
     ctx: WasmCallerContext,
+    keepalive: bool,
 }
 
 #[async_trait]
@@ -120,6 +125,7 @@ where
                 &request,
                 &self.this_callback,
                 &client_callbacks,
+                &self.env,
             )
             .await
         {
@@ -140,23 +146,32 @@ where
         // First we get or start the sub_process that will handle the requests
         let sub_process = self
             .sub_processes
-            .get_or_create(self.wapm.as_str(), StdioMode::Log, StdioMode::Log)
+            .get_or_create(
+                self.wapm.as_str(),
+                &self.env,
+                StdioMode::Log,
+                StdioMode::Log)
             .await?;
 
-        // Next we kick all the call itself into the process (with assocated callbacks)
+        // Next we kick off the call itself into the process (with assocated callbacks)
         let call = sub_process.create(
             self.topic.as_str(),
             request,
             self.ctx.clone(),
             client_callbacks,
+            self.keepalive,
         )?;
         let mut invoker = match call {
             (invoker, Some(session)) => {
                 let mut sessions = self.sessions.lock().unwrap();
+                trace!("adding session handle={}", self.handle);
                 sessions.insert(self.handle, session);
                 invoker
             }
-            (invoker, None) => invoker,
+            (invoker, None) => {
+                trace!("no session for handle={}", self.handle);
+                invoker
+            },
         };
 
         // Now invoke it

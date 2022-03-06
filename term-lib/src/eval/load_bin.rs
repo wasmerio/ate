@@ -186,9 +186,10 @@ pub async fn wapm_install(ctx: &EvalContext, name: &String, wapm: String, base_d
         ctx.stdio.stdin = stdin_fd;
         ctx.stdio.stdout = ctx.stdio.tty.fd_stdout();
         ctx.stdio.stderr = ctx.stdio.tty.fd_stdout();
-        ctx.input = format!("wapm install {}", wapm);
+        
+        let eval_cmd = format!("wapm install {}", wapm);
 
-        let mut process = super::eval(ctx);
+        let mut process = super::eval(eval_cmd, ctx);
         let result = process.recv().await;
         drop(process);
     } else {

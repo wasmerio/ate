@@ -459,6 +459,8 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                     fn as_client(&self) -> Option<#trait_client_ident>;
 
                     fn handle(&self) -> Option<wasm_bus::abi::CallHandle>;
+
+                    fn parent_handle(&self) -> Option<wasm_bus::abi::CallHandle>;
                 }
 
                 #[async_trait::async_trait]
@@ -480,6 +482,10 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                     }
 
                     fn handle(&self) -> Option<wasm_bus::abi::CallHandle> {
+                        None
+                    }
+
+                    fn parent_handle(&self) -> Option<wasm_bus::abi::CallHandle> {
                         None
                     }
                 }
@@ -569,6 +575,10 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                             }
                             None
                         }
+
+                        pub fn parent_handle(&self) -> Option<wasm_bus::abi::CallHandle> {
+                            self.parent.as_ref().map(|a| a.handle())
+                        }
                         
                         pub fn wait(self) -> Result<(), wasm_bus::abi::CallError> {
                             if let Some(join) = self.join {
@@ -626,6 +636,10 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
 
                         fn handle(&self) -> Option<wasm_bus::abi::CallHandle> {
                             #trait_client_ident::handle(self)
+                        }
+
+                        fn parent_handle(&self) -> Option<wasm_bus::abi::CallHandle> {
+                            #trait_client_ident::parent_handle(self)
                         }
                     }
                 }

@@ -19,15 +19,15 @@ use tokterm::term_lib::bin_factory::CachedCompiledModules;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
+use crate::native_files::NativeFileInterface;
 use crate::wizard::SshWizard;
 
 use super::console_handle::*;
 use super::error::*;
-use super::NativeFiles;
 
 pub struct Handler {
     pub registry: Arc<Registry>,
-    pub native_files: NativeFiles,
+    pub native_files: NativeFileInterface,
     pub peer_addr: Option<std::net::SocketAddr>,
     pub peer_addr_str: String,
     pub user: Option<String>,
@@ -119,17 +119,11 @@ impl server::Handler for Handler {
 
         let native_files = self.native_files.clone();
         Box::pin(async move {
-            // Get the native files or fail
-            let native_files = native_files
-                .get()
-                .await?;
-
             // Create the handle
             let handle = Arc::new(ConsoleHandle {
                 rect: self.rect.clone(),
                 channel: channel.clone(),
                 handle: session.handle(),
-                native_files,
                 stdio_lock: self.stdio_lock.clone(),
                 enable_stderr: false,
             });
@@ -144,7 +138,8 @@ impl server::Handler for Handler {
                     });
 
                     // Create the console
-                    let location = "wss://tokera.sh/?no_welcome".to_string();
+                    let fs = term_lib::fs::create_root_fs(None);
+                    let location = "ssh://tokera.sh/?no_welcome".to_string();
                     let user_agent = "noagent".to_string();
                     let compiled_modules = self.compiled_modules.clone();
                     let mut console = Console::new(
@@ -153,7 +148,7 @@ impl server::Handler for Handler {
                         self.compiler,
                         handle,
                         wizard,
-                        None,
+                        fs,
                         compiled_modules,
                     );
                     console.init().await;

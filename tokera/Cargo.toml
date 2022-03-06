@@ -66,6 +66,7 @@ wasm-bus = { version = "^1", path = "../wasm-bus" }
 wasm-bus-fuse = { version = "^1", path = "../wasm-bus-fuse" }
 wasm-bus-ws = { version = "^1", path = "../wasm-bus-ws" }
 wasm-bus-tty = { version = "^1", path = "../wasm-bus-tty" }
+wasm-bus-tok = { version = "^1", path = "../wasm-bus-tok" }
 
 [target.'cfg(not(target_os = "wasi"))'.dependencies]
 tokio = { version = "^1", features = [ "rt", "io-util", "macros", "sync", "time", "fs" ], default_features = false }

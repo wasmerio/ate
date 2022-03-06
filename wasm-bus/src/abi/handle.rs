@@ -1,7 +1,8 @@
+use serde::*;
 use std::fmt;
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CallHandle {
     pub id: u32,
 }

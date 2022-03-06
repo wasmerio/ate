@@ -21,6 +21,7 @@ use wasm_bus_fuse::api::FuseService;
 use wasm_bus_fuse::prelude::*;
 
 use super::fuse::FuseServer;
+use super::tok::TokServer;
 
 pub async fn main_opts_bus(
     opts: OptsBus,
@@ -30,8 +31,37 @@ pub async fn main_opts_bus(
 ) -> Result<(), crate::error::BusError> {
     info!("wasm bus initializing");
 
-    // Start the fuse implementation
-    FuseServer::serve(opts, conf, token_path, auth_url).await?;
+    // Freeze the opts
+    let opts = Arc::new(opts);
+
+    // Load the session
+    let session_user = match main_session_user(None, Some(token_path.clone()), None).await {
+        Ok(a) => a,
+        Err(err) => {
+            warn!("failed to acquire token - {}", err);
+            return Err(crate::error::BusErrorKind::LoginFailed.into());
+        }
+    };
+
+    // Build the configuration used to access the chains
+    let mut conf = conf.clone();
+    conf.configured_for(opts.configured_for);
+    conf.log_format.meta = opts.meta_format;
+    conf.log_format.data = opts.data_format;
+    conf.recovery_mode = opts.recovery_mode;
+    conf.compact_mode = opts
+        .compact_mode
+        .with_growth_factor(opts.compact_threshold_factor)
+        .with_growth_size(opts.compact_threshold_size)
+        .with_timer_value(Duration::from_secs(opts.compact_timer));
+
+    // Create the registry
+    let registry = Arc::new(Registry::new(&conf).await);
+
+    // Start the fuse and tok implementations
+    TokServer::listen(opts.clone(), registry.clone(), session_user.clone(), conf.clone(), auth_url.clone()).await?;
+    FuseServer::listen(opts, registry, session_user, conf, auth_url).await?;
+    wasm_bus::task::serve();
     Ok(())
 }
 
