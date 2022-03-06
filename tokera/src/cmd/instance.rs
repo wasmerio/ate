@@ -67,7 +67,7 @@ pub async fn main_opts_instance_list(api: &mut TokApi) -> Result<(), InstanceErr
 
 pub async fn main_opts_instance_details(
     api: &mut TokApi,
-    sess_url: url::Url,
+    inst_url: url::Url,
     opts: OptsInstanceDetails,
 ) -> Result<(), InstanceError> {
     let instance = api.instance_find(opts.name.as_str())
@@ -91,7 +91,7 @@ pub async fn main_opts_instance_details(
             println!("");
             println!("Exports");
             for export in service_instance.exports.iter().await? {
-                let url = compute_export_url(&sess_url, service_instance.chain.as_str(), export.binary.as_str());
+                let url = compute_export_url(&inst_url, service_instance.chain.as_str(), export.binary.as_str());
                 println!("POST {}", url);
                 println!("{}", serde_json::to_string_pretty(export.deref()).unwrap());
             }
@@ -174,13 +174,13 @@ pub async fn main_opts_instance_kill(
 
 pub async fn main_opts_instance_shell(
     api: &mut TokApi,
-    sess_url: url::Url,
+    inst_url: url::Url,
     name: &str,
     ignore_certificate: bool
 ) -> Result<(), InstanceError> {
     let (instance, _) = api.instance_action(name).await?;
     let instance = instance?;
-    let mut client = InstanceClient::new_ext(sess_url, ignore_certificate).await
+    let mut client = InstanceClient::new_ext(inst_url, ignore_certificate).await
         .unwrap();
 
     client.send_hello(InstanceHello {
@@ -202,7 +202,7 @@ pub async fn main_opts_instance_shell(
 
 pub async fn main_opts_instance_call(
     api: &mut TokApi,
-    sess_url: url::Url,
+    inst_url: url::Url,
     name: &str,
     binary: &str,
     topic: &str,
@@ -218,7 +218,7 @@ pub async fn main_opts_instance_call(
 
     let (instance, _) = api.instance_action(name).await?;
     let instance = instance?;
-    let mut client = InstanceClient::new_ext(sess_url, ignore_certificate).await
+    let mut client = InstanceClient::new_ext(inst_url, ignore_certificate).await
         .unwrap();
 
     // Search for an export that matches this binary
@@ -255,7 +255,7 @@ pub async fn main_opts_instance_call(
 
 pub async fn main_opts_instance_export(
     api: &mut TokApi,
-    sess_url: url::Url,
+    inst_url: url::Url,
     name: &str,
     binary: &str,
 ) -> Result<(), InstanceError> {
@@ -286,7 +286,7 @@ pub async fn main_opts_instance_export(
     };
 
     // Build the URL that can be used to access this binary
-    let url = compute_export_url(&sess_url, chain.as_str(), binary);
+    let url = compute_export_url(&inst_url, chain.as_str(), binary);
 
     // Now add the history
     if let Err(err) = api
@@ -305,16 +305,16 @@ pub async fn main_opts_instance_export(
     api.dio.commit().await?;
 
     println!("Instance ({}) has exported binary ({})", name, binary);
-    println!("Authentication: {}", access_token);
+    println!("Authorization: {}", access_token);
     println!("POST: {}", url);
     Ok(())
 }
 
-fn compute_export_url(sess_url: &url::Url, chain: &str, binary: &str) -> String
+fn compute_export_url(inst_url: &url::Url, chain: &str, binary: &str) -> String
 {
     // Build the URL that can be used to access this binary
-    let domain = sess_url.domain().unwrap_or_else(|| "localhost");
-    let url = format!("https://{}{}/{}/{}/", domain, sess_url.path(), chain, binary);
+    let domain = inst_url.domain().unwrap_or_else(|| "localhost");
+    let url = format!("https://{}{}/{}/{}/", domain, inst_url.path(), chain, binary);
     url
 }
 
@@ -389,7 +389,7 @@ pub async fn main_opts_instance(
     token_path: String,
     auth_url: url::Url,
     db_url: url::Url,
-    sess_url: url::Url,
+    inst_url: url::Url,
     ignore_certificate: bool
 ) -> Result<(), InstanceError>
 {
@@ -401,7 +401,7 @@ pub async fn main_opts_instance(
     };
 
     // Determine the instance authority from the session URL
-    let mut instance_authority = sess_url.domain()
+    let mut instance_authority = inst_url.domain()
         .map(|a| a.to_string())
         .unwrap_or_else(|| "tokera.sh".to_string());
     if instance_authority == "localhost" {
@@ -419,7 +419,7 @@ pub async fn main_opts_instance(
             main_opts_instance_list(&mut context.api).await?;
         }
         OptsInstanceAction::Details(opts) => {
-            main_opts_instance_details(&mut context.api, sess_url, opts).await?;
+            main_opts_instance_details(&mut context.api, inst_url, opts).await?;
         }
         OptsInstanceAction::Create(opts) => {
             main_opts_instance_create(&mut context.api, opts.name, purpose.group_name(), db_url, instance_authority).await?;
@@ -432,17 +432,17 @@ pub async fn main_opts_instance(
         OptsInstanceAction::Shell(_opts_exec) => {
             if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
             let name = name.unwrap();
-            main_opts_instance_shell(&mut context.api, sess_url, name.as_str(), ignore_certificate).await?;
+            main_opts_instance_shell(&mut context.api, inst_url, name.as_str(), ignore_certificate).await?;
         }
         OptsInstanceAction::Call(opts_call) => {
             if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
             let name = name.unwrap();
-            main_opts_instance_call(&mut context.api, sess_url, name.as_str(), opts_call.binary.as_str(), opts_call.topic.as_str(), ignore_certificate).await?;
+            main_opts_instance_call(&mut context.api, inst_url, name.as_str(), opts_call.binary.as_str(), opts_call.topic.as_str(), ignore_certificate).await?;
         }
         OptsInstanceAction::Export(opts_export) => {
             if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
             let name = name.unwrap();
-            main_opts_instance_export(&mut context.api, sess_url, name.as_str(), opts_export.binary.as_str()).await?;
+            main_opts_instance_export(&mut context.api, inst_url, name.as_str(), opts_export.binary.as_str()).await?;
         }
         OptsInstanceAction::Deport(opts_deport) => {
             if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }

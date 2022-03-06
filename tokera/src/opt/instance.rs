@@ -13,9 +13,9 @@ pub struct OptsInstance {
     /// URL where the data is remotely stored on a distributed commit log (e.g. wss://tokera.sh/db).
     #[clap(short, long)]
     pub db_url: Option<Url>,
-    /// URL where the instances can be accessed from (e.g. wss://tokera.sh/sess)
+    /// URL where the instances can be accessed from (e.g. wss://tokera.sh/inst)
     #[clap(short, long)]
-    pub sess_url: Option<Url>,
+    pub inst_url: Option<Url>,
     /// Indicates that the server certificate should be ignored
     #[clap(long)]
     pub ignore_certificate: bool

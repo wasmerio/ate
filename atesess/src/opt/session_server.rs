@@ -29,8 +29,8 @@ pub struct OptsSessionServer {
     #[clap(long, default_value = "ws://tokera.sh/auth")]
     pub auth_url: url::Url,
     /// URL of the session servers that clients will connect to
-    #[clap(long, default_value = "ws://tokera.sh/sess")]
-    pub sess_url: url::Url,
+    #[clap(long, default_value = "ws://tokera.sh/inst")]
+    pub inst_url: url::Url,
     /// Ensures that this combined server(s) runs as a specific node_id
     #[clap(short, long)]
     pub node_id: Option<u32>,
