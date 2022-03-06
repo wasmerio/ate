@@ -83,11 +83,18 @@ pub struct Child {
     pub stderr: Option<ChildStderr>,
 }
 
+#[derive(Debug, Clone)]
+pub struct ChildInstance
+{
+    pub instance: String,
+    pub access_token: String,
+}
+
 impl Child {
     // Starts the child process
     pub(super) async fn new(
         cmd: &Command,
-        session: Option<String>,
+        instance: Option<ChildInstance>,
         stdin_mode: StdioMode,
         stdout_mode: StdioMode,
         stderr_mode: StdioMode,
@@ -139,8 +146,8 @@ impl Child {
             })
         };
 
-        let pool = if let Some(session) = session {
-            api::PoolClient::new_with_session(WAPM_NAME, session.as_str())
+        let pool = if let Some(instance) = instance {
+            api::PoolClient::new_with_instance(WAPM_NAME, instance.instance.as_str(), instance.access_token.as_str())
         } else {
             api::PoolClient::new(WAPM_NAME)
         };

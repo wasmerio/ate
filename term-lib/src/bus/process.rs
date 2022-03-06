@@ -31,28 +31,39 @@ pub struct EvalCreated {
 
 struct ProcessExecCreate {
     request: api::PoolSpawnRequest,
-    on_stdout: Option<WasmBusFeeder>,
-    on_stderr: Option<WasmBusFeeder>,
-    on_exit: Option<WasmBusFeeder>,
+    on_stdout: Option<Arc<dyn BusFeeder + Send + Sync + 'static>>,
+    on_stderr: Option<Arc<dyn BusFeeder + Send + Sync + 'static>>,
+    on_exit: Option<Arc<dyn BusFeeder + Send + Sync + 'static>>,
 }
 
 #[derive(Derivative, Clone)]
 #[derivative(Debug)]
 pub struct ProcessExecFactory {
-    #[derivative(Debug = "ignore")]
-    abi: Arc<dyn ConsoleAbi>,
     system: System,
     compiler: Compiler,
     #[derivative(Debug = "ignore")]
     reactor: Arc<RwLock<Reactor>>,
     #[derivative(Debug = "ignore")]
     pub(crate) exec_factory: EvalFactory,
-    pub(crate) inherit_stdin: WeakFd,
-    pub(crate) inherit_stdout: WeakFd,
-    pub(crate) inherit_stderr: WeakFd,
-    pub(crate) inherit_log: WeakFd,
     #[derivative(Debug = "ignore")]
     pub(crate) ctx: Arc<Mutex<Option<EvalContext>>>,
+}
+
+pub struct EvalContextTaker {
+    ctx: Arc<Mutex<Option<EvalContext>>>,
+}
+
+impl EvalContextTaker {
+    pub fn new(factory: &ProcessExecFactory) -> EvalContextTaker {
+        EvalContextTaker {
+            ctx: factory.ctx.clone()
+        }
+    }
+    
+    pub fn take_context(&self) -> Option<EvalContext> {
+        let mut guard = self.ctx.lock().unwrap();
+        guard.take()
+    }
 }
 
 pub struct LaunchContext {
@@ -62,34 +73,35 @@ pub struct LaunchContext {
     stdin_tx: Option<mpsc::Sender<FdMsg>>,
     stdout_rx: Option<mpsc::Receiver<FdMsg>>,
     stderr_rx: Option<mpsc::Receiver<FdMsg>>,
-    on_stdout: Option<WasmBusFeeder>,
-    on_stderr: Option<WasmBusFeeder>,
-    on_exit: Option<WasmBusFeeder>,
+    on_stdout: Option<Arc<dyn BusFeeder + Send + Sync + 'static>>,
+    on_stderr: Option<Arc<dyn BusFeeder + Send + Sync + 'static>>,
+    on_exit: Option<Arc<dyn BusFeeder + Send + Sync + 'static>>,
+}
+
+#[derive(Derivative, Clone)]
+#[derivative(Debug)]
+pub struct LaunchEnvironment {
+    #[derivative(Debug = "ignore")]
+    pub abi: Arc<dyn ConsoleAbi>,
+    pub inherit_stdin: WeakFd,
+    pub inherit_stdout: WeakFd,
+    pub inherit_stderr: WeakFd,
+    pub inherit_log: WeakFd,
 }
 
 impl ProcessExecFactory {
     pub fn new(
-        abi: Arc<dyn ConsoleAbi>,
         reactor: Arc<RwLock<Reactor>>,
         compiler: Compiler,
         exec_factory: EvalFactory,
-        inherit_stdin: WeakFd,
-        inherit_stdout: WeakFd,
-        inherit_stderr: WeakFd,
-        inherit_log: WeakFd,
         ctx: EvalContext,
     ) -> ProcessExecFactory {
         let system = System::default();
         ProcessExecFactory {
-            abi,
             system,
             reactor,
             compiler,
             exec_factory,
-            inherit_stdin,
-            inherit_stdout,
-            inherit_stderr,
-            inherit_log,
             ctx: Arc::new(Mutex::new(Some(ctx))),
         }
     }
@@ -97,7 +109,8 @@ impl ProcessExecFactory {
     pub async fn launch<T, F>(
         &self,
         request: api::PoolSpawnRequest,
-        mut client_callbacks: HashMap<String, WasmBusFeeder>,
+        env: &LaunchEnvironment,
+        mut client_callbacks: HashMap<String, Arc<dyn BusFeeder + Send + Sync + 'static>>,
         funct: F,
     ) -> Result<T, CallError>
     where
@@ -122,14 +135,14 @@ impl ProcessExecFactory {
 
         // Push all the cloned variables into a background thread so
         // that it does not hurt anything
-        let abi = self.abi.clone();
+        let abi = env.abi.clone();
         let ctx = self.ctx.clone();
         let reactor = self.reactor.clone();
         let compiler = self.compiler;
-        let inherit_stdin = self.inherit_stdin.upgrade();
-        let inherit_stdout = self.inherit_stdout.upgrade();
-        let inherit_stderr = self.inherit_stderr.upgrade();
-        let inherit_log = self.inherit_log.upgrade();
+        let inherit_stdin = env.inherit_stdin.upgrade();
+        let inherit_stdout = env.inherit_stdout.upgrade();
+        let inherit_stderr = env.inherit_stderr.upgrade();
+        let inherit_log = env.inherit_log.upgrade();
         let exec_factory = self.exec_factory.clone();
         let result = self.system.spawn_dedicated(move || async move {
             let path = create.request.spawn.path;
@@ -220,7 +233,6 @@ impl ProcessExecFactory {
                 };
                 SpawnContext::new(
                     abi,
-                    cmd,
                     ctx.env.clone(),
                     job.clone(),
                     stdin,
@@ -270,16 +282,17 @@ impl ProcessExecFactory {
     pub async fn eval(
         &self,
         request: api::PoolSpawnRequest,
-        this_callback: WasmBusFeeder,
-        client_callbacks: HashMap<String, WasmBusFeeder>,
+        env: &LaunchEnvironment,
+        this_callback: Arc<dyn BusFeeder + Send + Sync + 'static>,
+        client_callbacks: HashMap<String, Arc<dyn BusFeeder + Send + Sync + 'static>>,
     ) -> Result<EvalCreated, CallError> {
         let dst = Arc::clone(&self.ctx);
-        self.launch(request, client_callbacks, move |ctx: LaunchContext| {
+        self.launch(request, env, client_callbacks, move |ctx: LaunchContext| {
             let dst = dst.clone();
             let this_callback = this_callback.clone();
             Box::pin(async move {
-                let eval_rx = crate::eval::eval(ctx.eval);
-
+                let cmd = ctx.path.clone();
+                let eval_rx = crate::eval::eval(cmd, ctx.eval);
                 let on_ctx = Box::pin(move |src: EvalContext| {
                     let mut guard = dst.lock().unwrap();
                     if let Some(dst) = guard.as_mut() {
@@ -315,7 +328,8 @@ impl ProcessExecFactory {
     pub async fn create(
         &self,
         request: api::PoolSpawnRequest,
-        client_callbacks: HashMap<String, WasmBusFeeder>,
+        env: &LaunchEnvironment,
+        client_callbacks: HashMap<String, Arc<dyn BusFeeder + Send + Sync + 'static>>,
     ) -> Result<
         (
             Process,
@@ -324,7 +338,7 @@ impl ProcessExecFactory {
         ),
         CallError,
     > {
-        self.launch(request, client_callbacks, |ctx: LaunchContext| {
+        self.launch(request, env, client_callbacks, |ctx: LaunchContext| {
             Box::pin(async move {
                 let stdio = ctx.eval.stdio.clone();
                 let env = ctx.eval.env.clone().into_exported();
@@ -354,18 +368,18 @@ impl ProcessExecFactory {
         guard.take()
     }
 
-    pub fn stdio(&self) -> crate::stdio::Stdio {
-        let mut stdio = self.exec_factory.stdio(self.stdin());
-        stdio.stdin = self.stdin();
-        stdio.stdout = self.stdout().fd();
-        stdio.stderr = self.stderr();
+    pub fn stdio(&self, env: &LaunchEnvironment) -> crate::stdio::Stdio {
+        let mut stdio = self.exec_factory.stdio(self.stdin(env));
+        stdio.stdin = self.stdin(env);
+        stdio.stdout = self.stdout(env).fd();
+        stdio.stderr = self.stderr(env);
         stdio
     }
 
-    pub fn stdin(&self) -> Fd {
+    pub fn stdin(&self, env: &LaunchEnvironment) -> Fd {
         use crate::pipe::*;
 
-        if let Some(fd) = self.inherit_stdin.upgrade() {
+        if let Some(fd) = env.inherit_stdin.upgrade() {
             fd
         } else {
             let (stdin_fd, _) = pipe_in(ReceiverMode::Stream, FdFlag::Stdin(false));
@@ -373,16 +387,16 @@ impl ProcessExecFactory {
         }
     }
 
-    pub fn stdout(&self) -> Stdout {
-        if let Some(fd) = self.inherit_stdout.upgrade() {
+    pub fn stdout(&self, env: &LaunchEnvironment) -> Stdout {
+        if let Some(fd) = env.inherit_stdout.upgrade() {
             Stdout::new(fd)
         } else {
             self.exec_factory.stdout()
         }        
     }
 
-    pub fn stderr(&self) -> Fd {
-        if let Some(fd) = self.inherit_stderr.upgrade() {
+    pub fn stderr(&self, env: &LaunchEnvironment) -> Fd {
+        if let Some(fd) = env.inherit_stderr.upgrade() {
             fd
         } else {
             self.exec_factory.stderr()
@@ -395,33 +409,35 @@ pub struct ProcessExec {
     stdout: Option<mpsc::Receiver<FdMsg>>,
     stderr: Option<mpsc::Receiver<FdMsg>>,
     eval_rx: mpsc::Receiver<EvalResult>,
-    on_stdout: Option<WasmBusFeeder>,
-    on_stderr: Option<WasmBusFeeder>,
-    on_exit: Option<WasmBusFeeder>,
+    on_stdout: Option<Arc<dyn BusFeeder + Send + Sync + 'static>>,
+    on_stderr: Option<Arc<dyn BusFeeder + Send + Sync + 'static>>,
+    on_exit: Option<Arc<dyn BusFeeder + Send + Sync + 'static>>,
     on_ctx: Pin<Box<dyn Fn(EvalContext) + Send + 'static>>,
-    this: WasmBusFeeder,
+    this: Arc<dyn BusFeeder + Send + Sync + 'static>,
 }
 
 impl ProcessExec {
     pub async fn run(mut self) {
+        use std::ops::Deref;
+
         // Now process all the STDIO concurrently
         loop {
             if let Some(stdout_rx) = self.stdout.as_mut() {
                 if let Some(stderr_rx) = self.stderr.as_mut() {
                     tokio::select! {
                         msg = stdout_rx.recv() => {
-                            if let (Some(msg), Some(on_data)) = (msg, self.on_stdout.as_mut()) {
+                            if let (Some(msg), Some(on_data)) = (msg, self.on_stdout.as_ref()) {
                                 if let FdMsg::Data { data, .. } = msg {
-                                    on_data.feed(self.format, api::PoolSpawnStdoutCallback(data));
+                                    BusFeederUtils::feed(on_data.deref(), self.format, api::PoolSpawnStdoutCallback(data));
                                 }
                             } else {
                                 self.stdout.take();
                             }
                         }
                         msg = stderr_rx.recv() => {
-                            if let (Some(msg), Some(on_data)) = (msg, self.on_stderr.as_mut()) {
+                            if let (Some(msg), Some(on_data)) = (msg, self.on_stderr.as_ref()) {
                                 if let FdMsg::Data { data, .. } = msg {
-                                    on_data.feed(self.format, api::PoolSpawnStderrCallback(data));
+                                    BusFeederUtils::feed(on_data.deref(), self.format, api::PoolSpawnStderrCallback(data));
                                 }
                             } else {
                                 self.stderr.take();
@@ -430,7 +446,7 @@ impl ProcessExec {
                         res = self.eval_rx.recv() => {
                             let res = encode_eval_response(self.format, self.on_ctx, res);
                             if let Some(on_exit) = self.on_exit.take() {
-                                on_exit.feed_bytes_or_error(res);
+                                BusFeederUtils::feed_bytes_or_error(on_exit.deref(), res);
                             }
                             break;
                         }
@@ -438,9 +454,9 @@ impl ProcessExec {
                 } else {
                     tokio::select! {
                         msg = stdout_rx.recv() => {
-                            if let (Some(msg), Some(on_data)) = (msg, self.on_stdout.as_mut()) {
+                            if let (Some(msg), Some(on_data)) = (msg, self.on_stdout.as_ref()) {
                                 if let FdMsg::Data { data, .. } = msg {
-                                    on_data.feed(self.format, api::PoolSpawnStdoutCallback(data));
+                                    BusFeederUtils::feed(on_data.deref(), self.format, api::PoolSpawnStdoutCallback(data));
                                 }
                             } else {
                                 self.stdout.take();
@@ -449,7 +465,7 @@ impl ProcessExec {
                         res = self.eval_rx.recv() => {
                             let res = encode_eval_response(self.format, self.on_ctx, res);
                             if let Some(on_exit) = self.on_exit.take() {
-                                on_exit.feed_bytes_or_error(res);
+                                BusFeederUtils::feed_bytes_or_error(on_exit.deref(), res);
                             }
                             break;
                         }
@@ -459,9 +475,9 @@ impl ProcessExec {
                 if let Some(stderr_rx) = self.stderr.as_mut() {
                     tokio::select! {
                         msg = stderr_rx.recv() => {
-                            if let (Some(msg), Some(on_data)) = (msg, self.on_stderr.as_mut()) {
+                            if let (Some(msg), Some(on_data)) = (msg, self.on_stderr.as_ref()) {
                                 if let FdMsg::Data { data, .. } = msg {
-                                    on_data.feed(self.format, api::PoolSpawnStderrCallback(data));
+                                    BusFeederUtils::feed(on_data.deref(), self.format, api::PoolSpawnStderrCallback(data));
                                 }
                             } else {
                                 self.stderr.take();
@@ -470,7 +486,7 @@ impl ProcessExec {
                         res = self.eval_rx.recv() => {
                             let res = encode_eval_response(self.format, self.on_ctx, res);
                             if let Some(on_exit) = self.on_exit.take() {
-                                on_exit.feed_bytes_or_error(res);
+                                BusFeederUtils::feed_bytes_or_error(on_exit.deref(), res);
                             }
                             break;
                         }
@@ -480,7 +496,7 @@ impl ProcessExec {
                         res = self.eval_rx.recv() => {
                             let res = encode_eval_response(self.format, self.on_ctx, res);
                             if let Some(on_exit) = self.on_exit.take() {
-                                on_exit.feed_bytes_or_error(res);
+                                BusFeederUtils::feed_bytes_or_error(on_exit.deref(), res);
                             }
                             break;
                         }
@@ -548,7 +564,7 @@ pub struct ProcessExecSession {
 }
 
 impl Session for ProcessExecSession {
-    fn call(&mut self, topic: &str, request: Vec<u8>) -> Box<dyn Invokable + 'static> {
+    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Box<dyn Invokable + 'static> {
         if topic == type_name::<api::ProcessStdinRequest>() {
             let request: api::ProcessStdinRequest =
                 match decode_request(SerializationFormat::Bincode, request.as_ref()) {

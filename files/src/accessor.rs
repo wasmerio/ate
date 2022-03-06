@@ -5,6 +5,7 @@ use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 use bytes::Bytes;
 use std::sync::Arc;
 use std::sync::Mutex;
+use tokio::sync::Mutex as AsyncMutex;
 
 use crate::fixed::FixedFile;
 use ::ate::chain::*;
@@ -46,6 +47,7 @@ where
     pub commit_lock: tokio::sync::Mutex<()>,
     pub impersonate_uid: bool,
     pub force_sudo: bool,
+    pub init_flag: AsyncMutex<bool>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -91,6 +93,7 @@ impl FileAccessor {
             commit_lock: tokio::sync::Mutex::new(()),
             impersonate_uid,
             force_sudo: false,
+            init_flag: AsyncMutex::new(false),
         }
     }
 

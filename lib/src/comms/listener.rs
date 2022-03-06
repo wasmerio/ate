@@ -241,7 +241,7 @@ where
                 router.set_default_route(adapter);
 
                 let stream = Stream::Tcp(stream);
-                match router.accept_socket(stream, sock_addr)
+                match router.accept_socket(stream, sock_addr, None, None)
                     .instrument(tracing::info_span!(
                         "server-accept",
                         id = server_id.to_short_string().as_str()

@@ -44,7 +44,7 @@ impl TokApi {
         )
     }
 
-    pub async fn instance_find(&self, name: &str) -> Result<DaoMut<WalletInstance>, InstanceError>
+    pub async fn instance_find_exact(&self, name: &str) -> Result<DaoMut<WalletInstance>, InstanceError>
     {
         let instance = self.instances()
             .await
@@ -52,6 +52,39 @@ impl TokApi {
             .await?
             .filter(|i| i.name.eq_ignore_ascii_case(name))
             .next();
+
+        let instance = match instance {
+            Some(a) => a,
+            None => {
+                bail!(InstanceErrorKind::InvalidInstance);
+            }
+        };
+
+        Ok(instance)
+    }
+
+    pub async fn instance_find(&self, name: &str) -> Result<DaoMut<WalletInstance>, InstanceError>
+    {
+        // If the name supplied is not good enough then fail
+        let name = name.to_lowercase();
+        if name.len() <= 0 {
+            bail!(InstanceErrorKind::InvalidInstance);
+        }
+        let name = name.as_str();
+
+        // Find the instance that best matches the name supplied
+        let mut instances = self.instances().await;
+        let instances = instances
+            .iter_mut()
+            .await?
+            .filter(|i| i.name.to_lowercase().starts_with(name))
+            .collect::<Vec<_>>();
+        
+        // If there are too many instances that match this name then fail
+        if instances.len() > 1 {
+            bail!(InstanceErrorKind::InvalidInstance);
+        }
+        let instance = instances.into_iter().next();
 
         let instance = match instance {
             Some(a) => a,

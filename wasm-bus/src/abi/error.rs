@@ -1,8 +1,9 @@
+use serde::*;
 use std::fmt;
 use std::io;
 
 #[repr(u32)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum CallError {
     Success = 0,
     SerializationFailed = 1,
@@ -20,6 +21,7 @@ pub enum CallError {
     InternalFailure = 14,
     MemoryAllocationFailed = 16,
     BusInvocationFailed = 17,
+    AccessDenied = 18,
     Unknown = u32::MAX,
 }
 
@@ -42,6 +44,7 @@ impl From<u32> for CallError {
             14 => CallError::InternalFailure,
             16 => CallError::MemoryAllocationFailed,
             17 => CallError::BusInvocationFailed,
+            18 => CallError::AccessDenied,
             _ => CallError::Unknown,
         }
     }
@@ -66,6 +69,7 @@ impl Into<u32> for CallError {
             CallError::InternalFailure => 14,
             CallError::MemoryAllocationFailed => 16,
             CallError::BusInvocationFailed => 17,
+            CallError::AccessDenied => 18,
             CallError::Unknown => u32::MAX,
         }
     }
@@ -121,6 +125,7 @@ impl fmt::Display for CallError {
                 f,
                 "invalid input was supplied in the call resulting in a bad request."
             ),
+            CallError::AccessDenied => write!(f, "access denied"),
             CallError::InternalFailure => write!(f, "an internal failure has occured"),
             CallError::MemoryAllocationFailed => write!(f, "memory allocation has failed"),
             CallError::BusInvocationFailed => write!(f, "bus invocation has failed"),

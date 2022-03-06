@@ -118,6 +118,17 @@ umount <mountpoint>
 Example: umount /www
 "#;
 
+    pub const CALL_USAGE: &'static str = r#"Usage:
+call <instance> <wapm-name> <topic> [<access-token>]
+
+<instance>: Identifier of the instance that will be invoked
+<wapm-name>: Name of the process that will handle this call
+<topic>: Target operation that will be invoked
+<access-token>: Token used to gain access to this particular instance
+<stdin>: Data to be sent to the call (i.e. some json, yaml or binary)
+<stdout>: Data returned by the call (i.e. some json, yaml or binary)
+"#;
+
     pub const ABOUT: &'static str = include_str!("txt/about.md");
     pub const ABOUT_TOKERA: &'static str = include_str!("txt/about_tokera.md");
     pub const ABOUT_WASMER: &'static str = include_str!("txt/about_wasmer.md");

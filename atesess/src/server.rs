@@ -2,16 +2,21 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
+use ate::comms::RawWebRoute;
+use error_chain::bail;
+#[allow(unused_imports)]
+use tokio::sync::mpsc;
 
 use async_trait::async_trait;
 use ate::comms::HelloMetadata;
+use ate::comms::RawStreamRoute;
 use ate::comms::StreamRoute;
 use ate::comms::StreamRx;
 use ate::comms::Upstream;
+use ate::comms::StreamReader;
 use ate::prelude::*;
 use ate_files::repo::Repository;
 use ate_files::repo::RepositorySessionFactory;
-use atessh::NativeFiles;
 use atessh::term_lib::api::System;
 use atessh::term_lib::api::SystemAbiExt;
 use tokera::model::InstanceHello;
@@ -20,15 +25,34 @@ use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 use url::Url;
 use tokera::model::MasterAuthority;
 use tokera::model::ServiceInstance;
+use tokera::model::InstanceReply;
 use tokera::model::INSTANCE_ROOT_ID;
 use tokera::model::MASTER_AUTHORITY_ID;
+#[allow(unused_imports)]
+use tokera::model::InstanceCall;
 use atessh::term_lib;
-use term_lib::bin_factory::CachedCompiledModules;
 use term_lib::api::ConsoleRect;
+use term_lib::fs::UnionFileSystem;
+use term_lib::bin_factory::*;
+use term_lib::reactor::Reactor;
+use term_lib::bus::SubProcessMultiplexer;
 use ate_auth::cmd::impersonate_command;
 use ate_auth::helper::b64_to_session;
+use ttl_cache::TtlCache;
+use tokio::sync::RwLock;
 
+use crate::adapter::FileAccessorAdapter;
 use crate::session::Session;
+use crate::fixed_reader::FixedReader;
+
+#[derive(Clone)]
+pub struct SessionBasics {
+    pub fs: UnionFileSystem,
+    pub bins: BinFactory,
+    pub reactor: Arc<RwLock<Reactor>>,
+    pub service_instance: DaoMut<ServiceInstance>,
+    pub multiplexer: SubProcessMultiplexer
+}
 
 pub struct Server
 {
@@ -37,9 +61,11 @@ pub struct Server
     pub repo: Arc<Repository>,
     pub db_url: url::Url,
     pub auth_url: url::Url,
-    pub native_files: NativeFiles,
     pub compiler: term_lib::eval::Compiler,
     pub compiled_modules: Arc<CachedCompiledModules>,
+    pub instance_authority: String,
+    pub sessions: RwLock<TtlCache<ChainKey, SessionBasics>>,
+    pub ttl: Duration,
 }
 
 impl Server
@@ -50,12 +76,11 @@ impl Server
         instance_authority: String,
         token_path: String,
         registry: Arc<Registry>,
-        native_files: NativeFiles,
         compiler: term_lib::eval::Compiler,
-        compiled_modules: Arc<CachedCompiledModules>
-    ) -> Result<Self, Box<dyn std::error::Error>> {
-        let ttl = Duration::from_secs(60);
-
+        compiled_modules: Arc<CachedCompiledModules>,
+        ttl: Duration,
+    ) -> Result<Self, Box<dyn std::error::Error>>
+    {
         // Build a session factory that will load the session for this instance using the broker key
         let session_factory = SessionFactory {
             db_url: db_url.clone(),
@@ -75,18 +100,132 @@ impl Server
         )
         .await?;
 
+        let sessions = RwLock::new(TtlCache::new(usize::MAX));
+
         Ok(Self {
             system: System::default(),
             db_url,
             auth_url,
             registry,
             repo,
-            native_files,
             compiler,
             compiled_modules,
+            instance_authority,
+            sessions,
+            ttl,
         })
     }
+
+    pub async fn get_or_create_session_basics(&self, key: ChainKey) -> Result<(SessionBasics, bool), CommsError> {
+        // Check the cache
+        {
+            let guard = self.sessions.read().await;
+            if let Some(ret) = guard.get(&key) {
+                return Ok((ret.clone(), false));
+            }
+        }
+
+        // Open the instance chain that backs this particular instance
+        // (this will reuse accessors across threads and calls)
+        let accessor = self.repo.get_accessor(&key, self.instance_authority.as_str()).await
+            .map_err(|err| CommsErrorKind::InternalError(err.to_string()))?;
+        let mut fs = term_lib::fs::create_root_fs(Some(Box::new(FileAccessorAdapter::new(&accessor))));
+        fs.solidify();
+        trace!("loaded file file system for {}", key);
+
+        // Load the service instance object
+        let _chain = accessor.chain.clone();
+        let chain_dio = accessor.dio.clone().as_mut().await;
+        trace!("loading service instance with key {}", PrimaryKey::from(INSTANCE_ROOT_ID));
+        let service_instance = chain_dio.load::<ServiceInstance>(&PrimaryKey::from(INSTANCE_ROOT_ID)).await?;
+
+        // Enter a write lock and check again
+        let mut guard = self.sessions.write().await;
+        if let Some(ret) = guard.get(&key) {
+            return Ok((ret.clone(), false));
+        }
+
+        // Create the bin factory
+        let bins = BinFactory::new(self.compiled_modules.clone());
+        let reactor = Arc::new(RwLock::new(Reactor::new()));
+        let multiplexer = SubProcessMultiplexer::new();
+        
+        // Build the basics
+        let basics = SessionBasics {
+            fs,
+            bins,
+            reactor,
+            service_instance,
+            multiplexer,
+        };
+
+        // Cache and and return it
+        let ret = basics.clone();
+        guard.insert(key.clone(), basics, self.ttl);
+        Ok((ret, true))
+    }
+
+    pub async fn new_session(
+        &self,
+        rx: Box<dyn StreamReader + Send + Sync + 'static>,
+        tx: Upstream,
+        hello: HelloMetadata,
+        hello_instance: InstanceHello,
+        sock_addr: SocketAddr,
+        wire_encryption: Option<EncryptKey>,
+    ) -> Result<Session, CommsError>
+    {
+        // Get or create the basics that make up a new session
+        let key = hello_instance.chain.clone();
+        let (basics, first_init) = self.get_or_create_session_basics(key.clone()).await?;
+
+        // Build the session
+        let ret = Session::new(
+            rx,
+            Some(tx),
+            hello,
+            hello_instance,
+            sock_addr,
+            wire_encryption,
+            Arc::new(Mutex::new(ConsoleRect { cols: 80, rows: 25 })),
+            self.compiler.clone(),
+            basics.clone(),
+            first_init
+        ).await;
+
+        Ok(ret)
+    }
+
+    async fn accept_internal(
+        &self,
+        rx: Box<dyn StreamReader + Send + Sync + 'static>,
+        tx: Upstream,
+        hello: HelloMetadata,
+        hello_instance: InstanceHello,
+        sock_addr: SocketAddr,
+        wire_encryption: Option<EncryptKey>,
+    ) -> Result<(), CommsError>
+    {
+        // Create the session
+        let session = self.new_session(
+            rx,
+            tx,
+            hello,
+            hello_instance,
+            sock_addr,
+            wire_encryption
+        ).await?;
+
+        // Start the background thread that will process events on the session
+        self.system.fork_shared(|| async move {
+            if let Err(err) = session.run().await {
+                debug!("instance session failed: {}", err);
+            }
+        });
+        Ok(())
+    }
 }
+
 #[async_trait]
 impl StreamRoute
 for Server
@@ -106,49 +245,211 @@ for Server
         let hello_instance: InstanceHello = serde_json::from_slice(&hello_buf[..])?;
         debug!("accept-web-socket: {}", hello_instance);
 
-        // Open the instance chain that backs this particular instance
-        let accessor = self.repo.get_accessor(&hello_instance.chain, hello_instance.owner_identity.as_str()).await
-            .map_err(|err| CommsErrorKind::InternalError(err.to_string()))?;
-        trace!("loaded file accessor for {}", hello_instance.chain);
+        // Build the rx and tx
+        let rx = Box::new(rx);
 
-        // Load the service instance object
-        let _chain = accessor.chain.clone();
-        let chain_dio = accessor.dio.clone().as_mut().await;
-        trace!("loading service instance with key {}", PrimaryKey::from(INSTANCE_ROOT_ID));
-        let service_instance = chain_dio.load::<ServiceInstance>(&PrimaryKey::from(INSTANCE_ROOT_ID)).await?;
-
-        // Get the native files
-        trace!("loading and attaching native files");
-        let native_files = self.native_files
-            .get()
-            .await
-            .map_err(|err| {
-                CommsErrorKind::InternalError(err.to_string())
-            })?;
-
-        // Build the session
-        let session = Session {
+        // Accept the web connection
+        self.accept_internal(
             rx,
             tx,
             hello,
-            sock_addr,
-            wire_encryption,
             hello_instance,
-            accessor,
-            service_instance,
-            native_files,
-            rect: Arc::new(Mutex::new(ConsoleRect { cols: 80, rows: 25 })),
-            compiler: self.compiler.clone(),
-            compiled_modules: self.compiled_modules.clone()
+            sock_addr,
+            wire_encryption
+        ).await
+    }
+}
+
+#[async_trait]
+impl RawStreamRoute
+for Server
+{
+    async fn accepted_raw_web_socket(
+        &self,
+        rx: StreamRx,
+        tx: Upstream,
+        uri: http::Uri,
+        headers: http::HeaderMap,
+        sock_addr: SocketAddr,
+        server_id: NodeId,
+    ) -> Result<(), CommsError>
+    {
+        // Get the chain and the topic
+        let path = std::path::PathBuf::from(uri.path().to_string());
+        let chain = {
+            let mut path_iter = path.iter();
+            path_iter.next();
+            path_iter.next()
+                .map(|a| a.to_string_lossy().to_string())
+                .ok_or_else(|| {
+                    CommsErrorKind::InternalError(format!("instance web_socket path is invalid - {}", uri))
+                })?
+        };
+        let chain = ChainKey::new(chain.clone());
+        
+        // Get the authorization
+        if headers.contains_key(http::header::AUTHORIZATION) == false {
+            bail!(CommsErrorKind::Refused);
+        }
+        let auth = headers[http::header::AUTHORIZATION].clone();
+
+        debug!("accept-raw-web-socket: uri: {}", uri);
+
+        // Make a fake hello from the HTTP metadata
+        let hello = HelloMetadata {
+            client_id: NodeId::generate_client_id(),
+            server_id,
+            path: path.to_string_lossy().to_string(),
+            encryption: None,
+            wire_format: tx.wire_format,
+        };
+        let hello_instance = InstanceHello {
+            access_token: auth.to_str().unwrap().to_string(),
+            chain: chain.clone(),
         };
 
-        // Start the background thread that will process events on the session
-        self.system.fork_shared(|| async move {
-            if let Err(err) = session.run().await {
-                debug!("instance session failed: {}", err);
+        // Build the rx and tx
+        let rx = Box::new(rx);
+
+        // Accept the web connection
+        self.accept_internal(
+            rx,
+            tx,
+            hello,
+            hello_instance,
+            sock_addr,
+            None
+        ).await
+    }
+}
+
+#[async_trait]
+impl RawWebRoute
+for Server
+{
+    #[allow(unused_variables)]
+    async fn accepted_raw_web_request(
+        &self,
+        uri: http::Uri,
+        headers: http::HeaderMap,
+        sock_addr: SocketAddr,
+        server_id: NodeId,
+        body: Vec<u8>,
+    ) -> Result<Vec<u8>, CommsError>
+    {
+        // Get the chain and the topic
+        let path = std::path::PathBuf::from(uri.path().to_string());
+        let (chain, binary, topic) = {
+            let mut path_iter = path.iter().map(|a| a.to_string_lossy().to_string());
+            path_iter.next();
+            path_iter.next();
+            let identity = path_iter.next();
+            let db = path_iter.next();
+            let binary = path_iter.next();
+            let topic = path_iter.next();
+
+            if identity.is_none() || db.is_none() || binary.is_none() || topic.is_none() {
+                bail!(CommsErrorKind::InternalError(format!("instance path is invalid - {}", uri)));
             }
-        });
-        Ok(())
+
+            let identity = identity.unwrap();
+            let db = db.unwrap();
+            let binary = binary.unwrap();
+            let topic = topic.unwrap();
+
+            let chain = format!("{}/{}", identity, db);
+            (chain, binary, topic)
+        };
+        let chain = ChainKey::new(chain);
+        
+        // Get the authorization
+        if headers.contains_key(http::header::AUTHORIZATION) == false {
+            bail!(CommsErrorKind::Refused);
+        }
+        let auth = headers[http::header::AUTHORIZATION].clone();
+
+        debug!("accept-raw-web-request: uri: {}", uri);
+
+        // Make a fake hello from the HTTP metadata
+        let hello = HelloMetadata {
+            client_id: NodeId::generate_client_id(),
+            server_id,
+            path: path.to_string_lossy().to_string(),
+            encryption: None,
+            wire_format: SerializationFormat::Json,
+        };
+        let hello_instance = InstanceHello {
+            access_token: auth.to_str().unwrap().to_string(),
+            chain: chain.clone(),
+        };
+
+        // Get or create the basics that make up a new session
+        let key = hello_instance.chain.clone();
+        let (basics, first_init) = self.get_or_create_session_basics(key.clone()).await?;
+
+        // Create a fixed reader
+        let rx = Box::new(FixedReader::new(Vec::new()));
+
+        // Build the session
+        let mut session = Session::new(
+            rx,
+            None,
+            hello,
+            hello_instance,
+            sock_addr,
+            None,
+            Arc::new(Mutex::new(ConsoleRect { cols: 80, rows: 25 })),
+            self.compiler.clone(),
+            basics.clone(),
+            first_init
+        ).await;
+        
+        // Invoke the call
+        let (tx_reply, mut rx_reply) = mpsc::channel(1);
+        session.call(InstanceCall {
+                parent: None,
+                handle: fastrand::u32(..),
+                binary,
+                topic,
+                keepalive: false,
+            },
+            body,
+            tx_reply,
+            )
+            .await
+            .map_err(|err: Box<dyn std::error::Error>| {
+                let err: CommsError = CommsErrorKind::InternalError(format!("instance call failed - {}", err)).into();
+                err
+            })?;
+
+        // Read the result and pump it
+        loop {
+            let invocations = session.invocations.clone();
+            tokio::select! {
+                reply = rx_reply.recv() => {
+                    if let Some(reply) = reply {
+                        match reply {
+                            InstanceReply::FeedBytes { data, .. } => {
+                                return Ok(data);
+                            }
+                            InstanceReply::Stderr { data } => {
+                                trace!("{}", String::from_utf8_lossy(&data[..]));
+                            },
+                            InstanceReply::Stdout { data } => {
+                                trace!("{}", String::from_utf8_lossy(&data[..]));
+                            },
+                            err => {
+                                bail!(CommsErrorKind::InternalError(format!("instance call failed - {}", err)));
+                            }
+                        }
+                    } else {
+                        break;
+                    }
+                },
+                _ = invocations => { }
+            }
+        }
+        bail!(CommsErrorKind::InternalError(format!("instance call failed - exited without replying")));
     }
 }
 

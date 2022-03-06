@@ -8,13 +8,13 @@ use thrussh::server;
 use tokio::sync::watch;
 use tokterm::term_lib;
 use term_lib::bin_factory::CachedCompiledModules;
+use crate::native_files::NativeFileInterface;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use crate::key::SshServerKey;
 use crate::opt::*;
 use crate::wizard::*;
-use super::NativeFiles;
 
 pub struct Server {
     pub listen: IpAddr,
@@ -24,7 +24,7 @@ pub struct Server {
     pub auth_rejection_time: Duration,
     pub compiler: term_lib::eval::Compiler,
     pub registry: Arc<Registry>,
-    pub native_files: NativeFiles,
+    pub native_files: NativeFileInterface,
     pub auth: url::Url,
     pub compiled_modules: Arc<CachedCompiledModules>,
     pub exit_rx: watch::Receiver<bool>,
@@ -32,8 +32,9 @@ pub struct Server {
 }
 
 impl Server {
-    pub async fn new(host: OptsHost, server_key: SshServerKey, registry: Arc<Registry>, compiled_modules: Arc<CachedCompiledModules>, native_files: NativeFiles, rx_exit: watch::Receiver<bool>) -> Self {
-        // Success
+    pub async fn new(host: OptsHost, server_key: SshServerKey, registry: Arc<Registry>, compiled_modules: Arc<CachedCompiledModules>, native_files: NativeFileInterface, rx_exit: watch::Receiver<bool>) -> Self {
+        // Succes
+        let auth = ate_auth::prelude::origin_url(&host.auth_url, "auth");
         Self {
             native_files,
             listen: host.listen,
@@ -43,7 +44,7 @@ impl Server {
             auth_rejection_time: Duration::from_secs(0),
             compiler: host.compiler,
             registry,
-            auth: host.auth_url,
+            auth,
             compiled_modules,
             exit_rx: rx_exit,
             stdio_lock: Arc::new(Mutex::new(())),

@@ -20,12 +20,12 @@ pub struct OptsHost {
     /// Location where cached compiled modules are stored
     #[clap(long, default_value = "~/ate/compiled")]
     pub compiler_cache_path: String,
-    /// URL of the datachain servers
-    #[clap(long, default_value = "ws://tokera.sh/db")]
-    pub db_url: url::Url,
-    /// URL of the authentication servers
-    #[clap(long, default_value = "ws://tokera.sh/auth")]
-    pub auth_url: url::Url,
+    /// URL of the datachain servers (e.g. wss://tokera.sh/db)
+    #[clap(long)]
+    pub db_url: Option<url::Url>,
+    /// URL of the authentication servers (e.g. wss://tokera.sh/auth)
+    #[clap(long)]
+    pub auth_url: Option<url::Url>,
     /// Location where the native binary files are stored
     #[clap(long, default_value = "tokera.sh/www")]
     pub native_files: String,

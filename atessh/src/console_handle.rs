@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use ate_files::prelude::*;
 use std::io::{self, Write};
 use std::ops::Deref;
 use std::sync::Arc;
@@ -13,7 +12,6 @@ use tokterm::term_lib;
 
 pub struct ConsoleHandle {
     pub rect: Arc<Mutex<ConsoleRect>>,
-    pub native_files: Arc<FileAccessor>,
     pub channel: ChannelId,
     pub handle: Handle,
     pub stdio_lock: Arc<Mutex<()>>,

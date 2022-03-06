@@ -6,7 +6,7 @@ pub struct WebConf {
     /// Forces the host to be redirected to a new URL
     #[serde(default)]
     pub redirect: Option<String>,
-    /// Hosts the ATE web sockets on this site
+    /// Hosts the ATE web sockets and other end-points such as HTTP on this site
     #[serde(default)]
     pub ate_proxy: bool,
     /// Enable COOP (Cross-Origin-Opener-Policy: same-origin)

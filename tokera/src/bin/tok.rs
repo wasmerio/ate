@@ -28,9 +28,9 @@ struct Opts {
     #[cfg(target_os = "wasi")]
     #[clap(long, default_value = "/.private/token")]
     pub token_path: String,
-    /// URL that this command will send all its authentication requests to
-    #[clap(long, default_value = "ws://tokera.sh/auth")]
-    pub auth_url: String,
+    /// URL that this command will send all its authentication requests to (e.g. wss://tokera.sh/auth)
+    #[clap(long)]
+    pub auth_url: Option<url::Url>,
     /// NTP server address that the file-system will synchronize with
     #[clap(long)]
     pub ntp_pool: Option<String>,
@@ -118,7 +118,7 @@ fn name(binary_path: &Path) -> &str {
 }
 
 #[cfg(target_os = "wasi")]
-async fn init_wasi() {
+async fn init_wasi_hook() {
     std::panic::set_hook(Box::new(|panic_info| {
         if let Some(location) = panic_info.location() {
             println!(
@@ -131,18 +131,24 @@ async fn init_wasi() {
         }
         eprintln!("{:?}", backtrace::Backtrace::new());
     }));
+}
 
-    // Add the main Tokera certificate and connect via a emulated file
+#[cfg(target_os = "wasi")]
+async fn init_wasi_ws() {
+    // Add the main Tokera certificate and connect via a wasm_bus web socket
     add_global_certificate(&AteHash::from_hex_string("9c960f3ba2ece59881be0b45f39ef989").unwrap());
-    set_comm_factory(move |_| {
+    set_comm_factory(move |addr| {
+        let schema = match addr.port() {
+            80 => "ws",
+            _ => "wss",
+        };
+        let addr = url::Url::from_str(format!("{}://{}", schema, addr).as_str()).unwrap();
         Box::pin(async move {
             tracing::trace!("opening wasm_bus::web_socket");
-            let ws = wasm_bus_ws::prelude::SocketBuilder::new(
-                url::Url::from_str("wss://tokera.sh").unwrap(),
-            )
-            .open()
-            .await
-            .unwrap();
+            let ws = wasm_bus_ws::prelude::SocketBuilder::new(addr)
+                .open()
+                .await
+                .unwrap();
             Some(ate::comms::Stream::WasmWebSocket(ws))
         })
     })
@@ -164,7 +170,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize the logging and panic hook
     #[cfg(target_os = "wasi")]
-    init_wasi().await;
+    init_wasi_hook().await;
+
+    // Set the origin
+    #[cfg(target_os = "wasi")]
+    init_wasi_ws().await;
 
     // Allow for symbolic links to the main binary
     let args = wild::args_os().collect::<Vec<_>>();
@@ -195,7 +205,7 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
                 token_path: "~/tok/token".to_string(),
                 #[cfg(target_os = "wasi")]
                 token_path: "/.private/token".to_string(),
-                auth_url: "ws://tokera.sh/auth".to_string(),
+                auth_url: None,
                 ntp_pool: None,
                 ntp_port: None,
                 dns_sec: false,
@@ -215,9 +225,7 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     ate::log_init(opts.verbose, opts.debug);
-
-    // Load the authentication address
-    let auth = url::Url::parse(opts.auth_url.as_str())?;
+    let auth = ate_auth::prelude::origin_url(&opts.auth_url, "auth");
 
     // Build the ATE configuration object
     let mut conf = AteConfig::default();
@@ -295,7 +303,9 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
             main_opts_service(opts_service.purpose, opts.token_path, auth).await?;
         }
         SubCommand::Instance(opts_instance) => {
-            main_opts_instance(opts_instance.purpose, opts.token_path, auth, opts_instance.db_url, opts_instance.sess_url, opts_instance.ignore_certificate).await?;
+            let db_url = ate_auth::prelude::origin_url(&opts_instance.db_url, "db");
+            let sess_url = ate_auth::prelude::origin_url(&opts_instance.sess_url, "sess");
+            main_opts_instance(opts_instance.purpose, opts.token_path, auth, db_url, sess_url, opts_instance.ignore_certificate).await?;
         }
         SubCommand::Login(opts_login) => main_opts_login(opts_login, opts.token_path, auth).await?,
         SubCommand::Logout(opts_logout) => main_opts_logout(opts_logout, opts.token_path).await?,

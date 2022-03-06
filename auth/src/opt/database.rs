@@ -6,9 +6,9 @@ use super::*;
 #[derive(Parser)]
 #[clap()]
 pub struct OptsDatabase {
-    /// URL where the data is remotely stored on a distributed commit log.
-    #[clap(short, long, default_value = "ws://tokera.sh/db")]
-    pub remote: Url,
+    /// URL where the data is remotely stored on a distributed commit log (e.g. wss://tokera.sh/db).
+    #[clap(short, long)]
+    pub remote: Option<Url>,
     #[clap(subcommand)]
     pub action: DatabaseAction,
 }

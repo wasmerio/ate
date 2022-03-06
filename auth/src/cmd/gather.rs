@@ -35,6 +35,12 @@ pub async fn gather_command(
     session: AteSessionInner,
     auth: Url,
 ) -> Result<AteSessionGroup, GatherError> {
+
+    // If the group is localhost then obviously don't try and gather for it
+    if group == "localhost" {
+        bail!(GatherErrorKind::NotFound(group));
+    }
+
     // Open a command chain
     let chain = registry.open_cmd(&auth).await?;
 

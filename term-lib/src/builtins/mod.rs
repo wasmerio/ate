@@ -11,6 +11,7 @@ mod source;
 mod umount;
 mod unset;
 mod wax;
+mod call;
 
 use about::*;
 use cd::*;
@@ -25,6 +26,7 @@ use source::*;
 use umount::*;
 use unset::*;
 use wax::*;
+use call::*;
 
 use std::collections::HashMap;
 use std::future::Future;
@@ -45,6 +47,7 @@ impl Builtins {
     pub fn new() -> Builtins {
         let mut b: Builtins = Default::default();
         b.insert("cd", cd);
+        b.insert("call", call);
         b.insert("export", export);
         b.insert("readonly", readonly);
         b.insert("unset", unset);

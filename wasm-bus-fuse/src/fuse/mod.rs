@@ -22,49 +22,75 @@ impl FileSystem {
         let fs = api::FuseClient::new(wapm)
             .mount(name.to_string())
             .await
-            .map_err(|_| FsError::IOError)?;
-        let _ = fs.init().await;
+            .map_err(|err| {
+                debug!("mount failed - {}", err);
+                FsError::IOError
+            })?;
+        fs.init().await.map_err(|err| {
+            debug!("mount init failed (parent={:?}) - {}", fs.parent_handle(), err);
+            FsError::IOError
+        })??;
         Ok(FileSystem { fs })
     }
 
-    pub async fn mount_with_session(wapm: &str, session: &str, name: &str) -> FsResult<FileSystem> {
-        let fs = api::FuseClient::new_with_session(wapm, session)
+    pub async fn mount_instance(
+        instance: &str,
+        access_token: &str,
+        wapm: &str,
+        name: &str,
+    ) -> FsResult<FileSystem> {
+        let fs = api::FuseClient::new_with_instance(wapm, instance, access_token)
             .mount(name.to_string())
             .await
-            .map_err(|_| FsError::IOError)?;
-        let _ = fs.init().await;
+            .map_err(|err| {
+                debug!("mount_instance failed - {}", err);
+                FsError::IOError
+            })?;
+        fs.init().await.map_err(|err| {
+            debug!("mount init failed (parent={:?}) - {}", fs.parent_handle(), err);
+            FsError::IOError
+        })??;
         Ok(FileSystem { fs })
     }
 
     pub async fn read_dir(&self, path: &Path) -> FsResult<Dir> {
-        debug!("read_dir: path={}", path.display());
+        trace!("read_dir: path={}", path.display());
 
         self.fs
             .read_dir(path.to_string_lossy().to_string())
             .await
-            .map_err(|_| FsError::IOError)?
+            .map_err(|err| {
+                debug!("read_dir failed - {}", err);
+                FsError::IOError
+            })?
     }
 
     pub async fn create_dir(&self, path: &Path) -> FsResult<Metadata> {
-        debug!("create_dir: path={}", path.display());
+        trace!("create_dir: path={}", path.display());
 
         self.fs
             .create_dir(path.to_string_lossy().to_string())
             .await
-            .map_err(|_| FsError::IOError)?
+            .map_err(|err| {
+                debug!("create_dir failed - {}", err);
+                FsError::IOError
+            })?
     }
 
     pub async fn remove_dir(&self, path: &Path) -> FsResult<()> {
-        debug!("remove_dir: path={}", path.display());
+        trace!("remove_dir: path={}", path.display());
 
         self.fs
             .remove_dir(path.to_string_lossy().to_string())
             .await
-            .map_err(|_| FsError::IOError)?
+            .map_err(|err| {
+                debug!("remove_dir failed - {}", err);
+                FsError::IOError
+            })?
     }
 
     pub async fn rename(&self, from: &Path, to: &Path) -> FsResult<()> {
-        debug!("rename: from={}, to={}", from.display(), to.display());
+        trace!("rename: from={}, to={}", from.display(), to.display());
 
         self.fs
             .rename(
@@ -72,34 +98,46 @@ impl FileSystem {
                 to.to_string_lossy().to_string(),
             )
             .await
-            .map_err(|_| FsError::IOError)?
+            .map_err(|err| {
+                debug!("rename failed - {}", err);
+                FsError::IOError
+            })?
     }
 
     pub async fn metadata(&self, path: &Path) -> FsResult<Metadata> {
-        debug!("metadata: path={}", path.display());
+        trace!("metadata: path={}", path.display());
 
         self.fs
             .read_metadata(path.to_string_lossy().to_string())
             .await
-            .map_err(|_| FsError::IOError)?
+            .map_err(|err| {
+                debug!("metadata failed - {}", err);
+                FsError::IOError
+            })?
     }
 
     pub async fn symlink_metadata(&self, path: &Path) -> FsResult<Metadata> {
-        debug!("symlink_metadata: path={}", path.display());
+        trace!("symlink_metadata: path={}", path.display());
 
         self.fs
             .read_symlink_metadata(path.to_string_lossy().to_string())
             .await
-            .map_err(|_| FsError::IOError)?
+            .map_err(|err| {
+                debug!("symlink_metadata failed - {}", err);
+                FsError::IOError
+            })?
     }
 
     pub async fn remove_file(&self, path: &Path) -> FsResult<()> {
-        debug!("remove_file: path={}", path.display());
+        trace!("remove_file: path={}", path.display());
 
         self.fs
             .remove_file(path.to_string_lossy().to_string())
             .await
-            .map_err(|_| FsError::IOError)?
+            .map_err(|err| {
+                debug!("remove_file failed - {}", err);
+                FsError::IOError
+            })?
     }
 
     pub fn new_open_options(&self) -> OpenOptions {
@@ -189,7 +227,10 @@ impl OpenOptions {
                 },
             )
             .await
-            .map_err(|_| FsError::IOError)?;
+            .map_err(|err| {
+                debug!("open failed - {}", err);
+                FsError::IOError
+            })?;
 
         let meta = fd.meta().await.map_err(|_| FsError::IOError)??;
 

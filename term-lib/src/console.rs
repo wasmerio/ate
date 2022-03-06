@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::atomic::AtomicBool;
 use tokio::sync::mpsc;
 use tokio::sync::RwLock;
 #[allow(unused_imports, dead_code)]
@@ -49,6 +50,21 @@ pub struct Console {
     no_welcome: bool,
 }
 
+impl Drop
+for Console
+{
+    fn drop(&mut self) {
+        let state = self.state.clone();
+        let reactor = self.reactor.clone();
+        let system = System::default();
+        let work = async move {
+            reactor.write().await.clear();
+            state.lock().unwrap().clear_mounts();
+        };
+        system.fork_shared(move || work);
+    }
+}
+
 pub enum StdioEvent {
     Stdout(Vec<u8>),
     Stderr(Vec<u8>),
@@ -62,96 +78,68 @@ impl Console {
         compiler: Compiler,
         abi: Arc<dyn ConsoleAbi>,
         wizard: Option<Box<dyn WizardAbi + Send + Sync + 'static>>,
-        fs: Option<Box<dyn MountedFileSystem>>,
+        fs: UnionFileSystem,
         #[cfg(feature = "cached_compiling")] compiled_modules: Arc<CachedCompiledModules>,
     ) -> Console {
-        let reactor = Reactor::new();
-
-        let fs = super::fs::create_root_fs(fs);
-        let state = Arc::new(Mutex::new(ConsoleState::new(fs)));
-
-        let (stdio, mut stdio_rx) = pipe_out(FdFlag::None);
-        let mut stdout = stdio.clone();
-        let mut stderr = stdio.clone();
-        let mut log = stdio.clone();
-        stdout.set_flag(FdFlag::Stdout(true));
-        stderr.set_flag(FdFlag::Stderr(true));
-        log.set_flag(FdFlag::Log);
-        let stdout = Stdout::new(stdout);
-
-        let system = System::default();
-        let reactor = Arc::new(RwLock::new(reactor));
-
-        // Stdout, Stderr and Logging (this is serialized in order for a good reason!)
-        {
-            let abi = abi.clone();
-            let state = state.clone();
-            let work = async move {
-                while let Some(msg) = stdio_rx.recv().await {
-                    match msg {
-                        FdMsg::Data { data, flag } => match flag {
-                            FdFlag::Log => {
-                                let txt = String::from_utf8_lossy(&data[..]);
-                                let mut txt = txt.as_ref();
-                                while txt.ends_with("\n") || txt.ends_with("\r") {
-                                    txt = &txt[..(txt.len() - 1)];
-                                }
-                                abi.log(txt.to_string()).await;
-                            }
-                            _ => {
-                                let text =
-                                    String::from_utf8_lossy(&data[..])[..].replace("\n", "\r\n");
-                                match flag {
-                                    FdFlag::Stderr(_) => abi.stderr(text.as_bytes().to_vec()).await,
-                                    _ => abi.stdout(text.as_bytes().to_vec()).await,
-                                };
-
-                                let is_unfinished = is_cleared_line(&text) == false;
-                                let mut state = state.lock().unwrap();
-                                state.unfinished_line = is_unfinished;
-                            }
-                        },
-                        FdMsg::Flush { tx } => {
-                            let _ = tx.send(()).await;
-                        }
-                    }
-                }
-                info!("main IO loop exited");
-            };
-            #[cfg(target_arch = "wasm32")]
-            system.fork_local(work);
-            #[cfg(not(target_arch = "wasm32"))]
-            system.fork_shared(move || work);
-        }
-
-        let location = url::Url::parse(&location).unwrap();
-
-        let is_mobile = is_mobile(&user_agent);
-        let tty = Tty::new(&stdout, is_mobile);
-
         let bins = BinFactory::new(
             #[cfg(feature = "cached_compiling")]
             compiled_modules,
         );
+        let reactor = Arc::new(RwLock::new(Reactor::new()));
+        
+        Self::new_ext(
+            location,
+            user_agent,
+            compiler,
+            abi,
+            wizard,
+            fs,
+            bins,
+            reactor)
+    }
+
+    pub fn new_ext(
+        location: String,
+        user_agent: String,
+        compiler: Compiler,
+        abi: Arc<dyn ConsoleAbi>,
+        wizard: Option<Box<dyn WizardAbi + Send + Sync + 'static>>,
+        fs: UnionFileSystem,
+        bins: BinFactory,
+        reactor: Arc<RwLock<Reactor>>,
+    ) -> Console {
+        let location = url::Url::parse(&location).unwrap();
+        let is_mobile = is_mobile(&user_agent);
+        
+        let unfinished_line = Arc::new(AtomicBool::new(false));
+        let mut state = ConsoleState::new(fs, unfinished_line.clone());
+        if let Some(origin) = location.domain().clone() {
+            state.env.set_var("ORIGIN", origin.to_string());
+        }
+        state.env.set_var("LOCATION", location.to_string());
+
+        let state = Arc::new(Mutex::new(state));
+        let tty = Tty::channel(&abi, &unfinished_line, is_mobile);
+        
         let exec_factory = EvalFactory::new(
             bins.clone(),
             tty.clone(),
             reactor.clone(),
-            stdout.clone(),
-            stderr.clone(),
-            log.clone(),
+            tty.stdout(),
+            tty.stderr(),
+            tty.log(),
         );
 
         let wizard = wizard.map(|a| WizardExecutor::new(a));
 
-        Console {
+        let mut ret = Console {
             location,
             is_mobile,
             user_agent,
             bins,
             state,
-            stdout,
-            stderr,
+            stdout: tty.stdout(),
+            stderr: tty.stderr(),
             tty,
             reactor,
             exec: exec_factory,
@@ -161,30 +149,25 @@ impl Console {
             whitelabel: false,
             bootstrap_token: None,
             no_welcome: false,
-        }
+        };
+
+        ret.new_init();
+
+        ret
     }
 
-    pub async fn init(&mut self) {
-        let mut location_file = self
-            .state
-            .lock()
-            .unwrap()
-            .rootfs
-            .new_open_options()
-            .create_new(true)
-            .write(true)
-            .open(Path::new("/etc/location"))
-            .unwrap();
-        location_file
-            .write_all(self.location.as_str().as_bytes())
-            .unwrap();
+    fn new_init(&mut self) {
+        self.whitelabel = self.location.query_pairs().any(|(key, _)| key == "wl");
 
-        let run_command = self
+        if let Some(prompt) = self
             .location
             .query_pairs()
-            .filter(|(key, _)| key == "run-command" || key == "init")
+            .filter(|(key, _)| key == "prompt")
             .next()
-            .map(|(_, val)| val.to_string());
+            .map(|(_, val)| val.to_string())
+        {
+            self.state.lock().unwrap().user = prompt;
+        }
 
         let no_welcome = self
             .location
@@ -198,17 +181,39 @@ impl Console {
             .next()
             .map(|(_, val)| val.to_string());
 
-        self.whitelabel = self.location.query_pairs().any(|(key, _)| key == "wl");
+        self.bootstrap_token = token;
+        self.no_welcome = no_welcome;
+    }
 
-        if let Some(prompt) = self
+    pub async fn prepare(&mut self) {
+        let rect = self.abi.console_rect().await;
+        self.tty.set_bounds(rect.cols, rect.rows).await;
+
+        Console::update_prompt(false, &self.state, &self.tty).await;
+    }
+
+    pub async fn init(&mut self) {
+        let mut location_file = self
+            .state
+            .lock()
+            .unwrap()
+            .rootfs
+            .new_open_options()
+            .create_new(true)
+            .write(true)
+            .open(Path::new("/etc/location"))
+            .unwrap();
+
+        location_file
+            .write_all(self.location.as_str().as_bytes())
+            .unwrap();
+
+        let run_command = self
             .location
             .query_pairs()
-            .filter(|(key, _)| key == "prompt")
+            .filter(|(key, _)| key == "run-command" || key == "init")
             .next()
-            .map(|(_, val)| val.to_string())
-        {
-            self.state.lock().unwrap().user = prompt;
-        }
+            .map(|(_, val)| val.to_string());
 
         if let Some(run_command) = &run_command {
             let mut init_file = self
@@ -224,13 +229,7 @@ impl Console {
             init_file.write_all(run_command.as_bytes()).unwrap();
         }
 
-        self.bootstrap_token = token;
-        self.no_welcome = no_welcome;
-
-        let rect = self.abi.console_rect().await;
-        self.tty.set_bounds(rect.cols, rect.rows).await;
-
-        Console::update_prompt(false, &self.state, &self.tty).await;
+        self.prepare().await;
 
         if self.wizard.is_some() {
             self.on_wizard(None).await;
@@ -269,6 +268,75 @@ impl Console {
 
     pub fn tty(&self) -> &Tty {
         &self.tty
+    }
+
+    pub fn tty_mut(&mut self) -> &mut Tty {
+        &mut self.tty
+    }
+
+    pub fn abi(&self) -> Arc<dyn ConsoleAbi> {
+        self.abi.clone()
+    }
+
+    pub fn reactor(&self) -> Arc<RwLock<Reactor>> {
+        self.reactor.clone()
+    }
+
+    pub fn stdout_fd(&self) -> Fd {
+        self.stdout.fd()
+    }
+
+    pub fn stderr_fd(&self) -> Fd {
+        self.stderr.clone()
+    }
+
+    pub fn exec_factory(&self) -> EvalFactory {
+        self.exec.clone()
+    }
+
+    pub async fn new_job(&mut self) -> Option<Job> {
+        // Generate the job and make it the active version
+        let job = {
+            let mut reactor = self.reactor.write().await;
+            let job = match reactor.generate_job() {
+                Ok((_, job)) => job,
+                Err(_) => {
+                    drop(reactor);
+                    self.tty.draw("term: insufficient job space\r\n").await;
+                    self.tty.reset_line().await;
+                    self.tty.draw_prompt().await;
+                    return None;
+                }
+            };
+            reactor.set_current_job(job.id);
+            job
+        };
+        Some(job)
+    }
+
+    pub fn root_fs(&self) -> UnionFileSystem {
+        let state = self.state.lock().unwrap();
+        state.rootfs.clone()
+    }
+
+    pub fn new_spawn_context(&self, job: &Job) -> SpawnContext {
+        let ctx = {
+            let state = self.state.lock().unwrap();
+            SpawnContext::new(
+                self.abi.clone(),
+                state.env.clone(),
+                job.clone(),
+                job.stdin.clone(),
+                self.stdout.fd.clone(),
+                self.stderr.clone(),
+                false,
+                state.path.clone(),
+                Vec::new(),
+                state.rootfs.clone(),
+                self.compiler,
+            )
+        };
+        ctx
     }
 
     pub async fn on_wizard(&mut self, cmd: Option<String>) {
@@ -332,23 +400,11 @@ impl Console {
             return;
         }
 
-        let reactor = self.reactor.clone();
-
         // Generate the job and make it the active version
-        let job = {
-            let mut reactor = reactor.write().await;
-            let job = match reactor.generate_job() {
-                Ok((_, job)) => job,
-                Err(_) => {
-                    drop(reactor);
-                    self.tty.draw("term: insufficient job space\r\n").await;
-                    self.tty.reset_line().await;
-                    self.tty.draw_prompt().await;
-                    return;
-                }
-            };
-            reactor.set_current_job(job.id);
-            job
+        let job = if let Some(j) = self.new_job().await {
+            j
+        } else {
+            return;
         };
 
         // Switch the console to this particular job
@@ -359,33 +415,18 @@ impl Console {
             .await;
 
         // Spawn the process and attach it to the job
-        let ctx = {
-            let state = self.state.lock().unwrap();
-            SpawnContext::new(
-                self.abi.clone(),
-                cmd.clone(),
-                state.env.clone(),
-                job.clone(),
-                job.stdin.clone(),
-                self.stdout.fd.clone(),
-                self.stderr.clone(),
-                false,
-                state.path.clone(),
-                Vec::new(),
-                state.rootfs.clone(),
-                self.compiler,
-            )
-        };
+        let ctx = self.new_spawn_context(&job);
 
         // Spawn a background thread that will process the result
         // of the process that we just started
         let exec = self.exec.clone();
+        let reactor = self.reactor.clone();
         let system = System::default();
         let state = self.state.clone();
         let mut stdout = ctx.stdout.clone();
         let mut stderr = ctx.stderr.clone();
         system.fork_dedicated(move || {
-            let mut process = exec.eval(ctx);
+            let mut process = exec.eval(cmd.clone(), ctx);
             async move {
                 // Wait for the process to finish
                 let rx = process.recv().await;
@@ -410,7 +451,7 @@ impl Console {
                             debug!("eval executed (code={})", code);
                             let should_line_feed = {
                                 let state = state.lock().unwrap();
-                                state.unfinished_line
+                                state.unfinished_line.load(std::sync::atomic::Ordering::Acquire)
                             };
 
                             if record_history {

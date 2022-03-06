@@ -12,6 +12,7 @@ use tokio::select;
 use tokio::runtime::Builder;
 use atessh::term_lib;
 use term_lib::bin_factory::CachedCompiledModules;
+use atessh::native_files::NativeFileType;
 
 use ate::comms::StreamRouter;
 
@@ -55,6 +56,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
                 let protocol = StreamProtocol::parse(&solo.sess_url)?;
                 let port = solo.auth_url.port().unwrap_or(protocol.default_port());
                 let domain = solo.auth_url.domain().unwrap_or("localhost").to_string();
+                let ttl = std::time::Duration::from_secs(solo.ttl);
 
                 let mut cfg_mesh = ConfMesh::skeleton(&conf, domain, port, solo.node_id).await?;
                 cfg_mesh.wire_protocol = protocol;
@@ -65,14 +67,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
                 let server_id = table.compute_node_id(solo.node_id)?;
 
                 let registry = Arc::new(Registry::new(&conf).await);
+
+                let native_files = if let Some(path) = solo.native_files_path.clone() {
+                    NativeFileType::LocalFileSystem(path)
+                } else {
+                    NativeFileType::AteFileSystem(solo.native_files.clone())
+                };
         
                 // Set the system
                 let (tx_exit, _) = watch::channel(false);
                 let sys = Arc::new(tokterm::system::SysSystem::new_with_runtime(
                     tx_exit, runtime,
                 ));
-                let sys = atessh::system::System::new(sys, registry.clone(), solo.db_url.clone(), solo.native_files.clone()).await;
-                let native_files = sys.native_files.clone();
+                let sys = atessh::system::System::new(sys, registry.clone(), solo.db_url.clone(), native_files).await;
                 atessh::term_lib::api::set_system_abi(sys);
 
                 let mut instance_authority = solo.sess_url.domain()
@@ -82,16 +89,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
                     instance_authority = "tokera.sh".to_string();
                 }
 
-                let compiled_modules = Arc::new(CachedCompiledModules::new(Some(solo.compiler_cache_path)));
+                let compiled_modules = Arc::new(CachedCompiledModules::new(Some(solo.compiler_cache_path.clone())));
                 let instance_server = Server::new(
                     solo.db_url.clone(),
                     solo.auth_url.clone(),
                     instance_authority.clone(),
                     solo.token_path.clone(),
                     registry.clone(),
-                    native_files,
                     solo.compiler.clone(),
-                    compiled_modules.clone()
+                    compiled_modules.clone(),
+                    ttl,
                 ).await?;
 
                 let mut router = ate::comms::StreamRouter::new(
@@ -101,7 +108,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
                     server_id,
                     cfg_mesh.accept_timeout,
                 );
-                router.add_route("/sess", Arc::new(instance_server)).await;
+                
+                let route = Arc::new(instance_server);
+                router.add_socket_route("/sess", route.clone()).await;
+                router.add_web_route("/sess", route.clone()).await;
 
                 let (_server, hard_exit) = main_web(&solo, conf, Some(router)).await?;
                 

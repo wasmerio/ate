@@ -20,7 +20,7 @@ use hyper;
 use hyper::header::HeaderValue;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::upgrade::Upgraded;
-use hyper::Body;
+pub use hyper::Body;
 use hyper::Method;
 use hyper::Request;
 use hyper::Response;
@@ -53,8 +53,20 @@ pub trait ServerCallback: Send + Sync {
         &self,
         _ws: WebSocketStream<Upgraded>,
         _sock_addr: SocketAddr,
+        _uri: Option<http::Uri>,
+        _headers: Option<http::HeaderMap>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         Ok(())
+    }
+
+    async fn post_request(
+        &self,
+        _body: Vec<u8>,
+        _sock_addr: SocketAddr,
+        _uri: http::Uri,
+        _headers: http::HeaderMap,
+    ) -> Result<Vec<u8>, StatusCode> {
+        Err(StatusCode::BAD_REQUEST)
     }
 }
 
@@ -62,7 +74,7 @@ pub struct Server {
     repo: Arc<Repository>,
     web_conf: Mutex<FxHashMap<String, ServerWebConf>>,
     server_conf: ServerConf,
-    callback: Option<Arc<dyn ServerCallback>>,
+    callback: Option<Arc<dyn ServerCallback + 'static>>,
     mime: FxHashMap<String, String>,
 }
 
@@ -586,6 +598,37 @@ impl Server {
 
         let uri = req.uri().clone();
         let method = req.method().clone();
+
+        if method == Method::POST {
+            if let Some(callback) = &self.callback {
+                let headers = req.headers().clone();
+                if let Some(body) = hyper::body::to_bytes(req.into_body()).await.ok() {
+                    let body = body.to_vec();                
+                    match callback.post_request(body, sock_addr, uri, headers).await {
+                        Ok(resp) => {
+                            let resp = Response::new(Body::from(resp));
+                            trace!("res: status={}", resp.status().as_u16());
+                            return Ok(resp);
+                        }
+                        Err(status) => {
+                            let err = status.as_str().to_string();
+                            let mut resp = Response::new(Body::from(err));
+                            *resp.status_mut() = status;
+                            trace!("res: status={}", resp.status().as_u16());
+                            return Ok(resp);
+                        }
+                    };
+                } else {
+                    let status = StatusCode::BAD_REQUEST;
+                    let err = status.as_str().to_string();
+                    let mut resp = Response::new(Body::from(err));
+                    *resp.status_mut() = status;
+                    trace!("res: status={}", resp.status().as_u16());
+                    return Ok(resp);
+                }
+            }
+        }
+
         let is_head = method == Method::HEAD;
         let host = self.get_host(&req)?;
         let conf = self.get_conf(host.as_str()).await?;
@@ -621,12 +664,14 @@ impl Server {
         sock_addr: SocketAddr,
     ) -> Result<Response<Body>, WebServerError> {
         if let Some(callback) = &self.callback {
+            let uri = req.uri().clone();
+            let headers = req.headers().clone();
             let callback = Arc::clone(callback);
             let (response, websocket) = hyper_tungstenite::upgrade(req, None)?;
             TaskEngine::spawn(async move {
                 match websocket.await {
                     Ok(websocket) => {
-                        let ret = callback.web_socket(websocket, sock_addr).await;
+                        let ret = callback.web_socket(websocket, sock_addr, Some(uri), Some(headers)).await;
                         if let Err(err) = ret {
                             error!("web socket failed(1) - {}", err);
                         }
@@ -759,9 +804,9 @@ impl Server {
         let host = self.get_host(&req)?;
         let is_head = req.method() == Method::HEAD || req.method() == Method::OPTIONS;
 
+        let path = req.uri().path();
         match req.method() {
             &Method::OPTIONS | &Method::HEAD | &Method::GET => {
-                let path = req.uri().path();
                 self.sanitize(path)?;
                 self.process_get_with_default(host.as_str(), path, is_head, conf)
                     .await

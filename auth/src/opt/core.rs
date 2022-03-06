@@ -9,9 +9,9 @@ pub struct Opts {
     /// Sets the level of log verbosity, can be used multiple times
     #[clap(short, long, parse(from_occurrences))]
     pub verbose: i32,
-    /// URL where the user is authenticated
-    #[clap(short, long, default_value = "ws://tokera.sh/auth")]
-    pub auth: Url,
+    /// URL where the user is authenticated (e.g. wss://tokera.sh/auth)
+    #[clap(short, long)]
+    pub auth: Option<Url>,
     /// Token used to access your encrypted file-system (if you do not supply a token then you will
     /// be prompted for a username and password)
     #[clap(short, long)]

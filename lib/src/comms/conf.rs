@@ -100,4 +100,8 @@ impl Upstream {
     pub fn wire_encryption(&self) -> Option<EncryptKey> {
         self.outbox.wire_encryption.clone()
     }
+
+    pub async fn close(&mut self) -> Result<(), tokio::io::Error> {
+        self.outbox.close().await
+    }
 }

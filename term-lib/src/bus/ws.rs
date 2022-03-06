@@ -2,6 +2,8 @@ use crate::common::MAX_MPSC;
 use async_trait::async_trait;
 use std::any::type_name;
 use std::collections::HashMap;
+use std::sync::Arc;
+use std::ops::Deref;
 use tokio::select;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
@@ -17,8 +19,8 @@ use crate::api::*;
 
 pub fn web_socket(
     connect: api::SocketBuilderConnectRequest,
-    this_callback: WasmBusFeeder,
-    mut client_callbacks: HashMap<String, WasmBusFeeder>,
+    this_callback: Arc<dyn BusFeeder + Send + Sync + 'static>,
+    mut client_callbacks: HashMap<String, Arc<dyn BusFeeder + Send + Sync + 'static>>,
 ) -> Result<(WebSocketInvoker, WebSocketSession), CallError> {
     let system = System::default();
 
@@ -49,7 +51,8 @@ pub fn web_socket(
             Err(err) => {
                 debug!("failed to create web socket ({}): {}", connect.url, err);
                 let _ = tx_state.send(model::SocketState::Failed);
-                on_state_change.feed(
+                BusFeederUtils::feed(
+                    on_state_change.deref(),
                     SerializationFormat::Bincode,
                     api::SocketBuilderConnectStateChangeCallback(model::SocketState::Failed),
                 );
@@ -61,8 +64,10 @@ pub fn web_socket(
             let tx_state = tx_state.clone();
             let on_state_change = on_state_change.clone();
             ws_sys.set_onopen(Box::new(move || {
+                debug!("websocket set_onopen()");
                 let _ = tx_state.send(model::SocketState::Opened);
-                on_state_change.feed(
+                BusFeederUtils::feed(
+                    on_state_change.deref(),
                     SerializationFormat::Bincode,
                     api::SocketBuilderConnectStateChangeCallback(model::SocketState::Opened),
                 );
@@ -73,8 +78,10 @@ pub fn web_socket(
             let tx_state = tx_state.clone();
             let on_state_change = on_state_change.clone();
             ws_sys.set_onclose(Box::new(move || {
+                debug!("websocket set_onclose()");
                 let _ = tx_state.send(model::SocketState::Closed);
-                on_state_change.feed(
+                BusFeederUtils::feed(
+                    on_state_change.deref(),
                     SerializationFormat::Bincode,
                     api::SocketBuilderConnectStateChangeCallback(model::SocketState::Closed),
                 );
@@ -84,7 +91,8 @@ pub fn web_socket(
         {
             ws_sys.set_onmessage(Box::new(move |data| {
                 debug!("websocket recv {} bytes", data.len());
-                on_received.feed(
+                BusFeederUtils::feed(
+                    on_received.deref(),
                     SerializationFormat::Bincode,
                     api::SocketBuilderConnectReceiveCallback(data),
                 );
@@ -144,7 +152,8 @@ pub fn web_socket(
             }
         }
 
-        on_state_change.feed(
+        BusFeederUtils::feed(
+            on_state_change.deref(),
             SerializationFormat::Bincode,
             api::SocketBuilderConnectStateChangeCallback(model::SocketState::Closed),
         );
@@ -165,7 +174,7 @@ pub fn web_socket(
 pub struct WebSocket {
     #[allow(dead_code)]
     tx_keepalive: mpsc::Sender<()>,
-    this: WasmBusFeeder,
+    this: Arc<dyn BusFeeder + Send + Sync + 'static>,
     rx_state: broadcast::Receiver<model::SocketState>,
 }
 
@@ -220,7 +229,7 @@ pub struct WebSocketSession {
 }
 
 impl Session for WebSocketSession {
-    fn call(&mut self, topic: &str, request: Vec<u8>) -> Box<dyn Invokable + 'static> {
+    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Box<dyn Invokable + 'static> {
         if topic == type_name::<api::WebSocketSendRequest>() {
             let data = match decode_request::<api::WebSocketSendRequest>(
                 SerializationFormat::Bincode,

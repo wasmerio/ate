@@ -8,6 +8,7 @@ use wasmer_vfs::FileSystem;
 
 use crate::bus::ProcessExecFactory;
 use crate::bus::SubProcessFactory;
+use crate::bus::SubProcessMultiplexer;
 use crate::eval::EvalContext;
 use crate::eval::ExecResponse;
 use crate::fs::FuseFileSystem;
@@ -62,15 +63,11 @@ pub(super) fn mount(
         }
     }
 
+    let multiplexer = SubProcessMultiplexer::new();
     let factory = ProcessExecFactory::new(
-        ctx.abi.clone(),
         ctx.reactor.clone(),
         ctx.compiler,
         ctx.exec_factory.clone(),
-        stdio.stdin.downgrade(),
-        stdio.stdout.downgrade(),
-        stdio.stderr.downgrade(),
-        stdio.log.downgrade(),
         ctx.clone(),
     );
 
@@ -93,9 +90,10 @@ pub(super) fn mount(
         )
         .await;
 
-        let factory = SubProcessFactory::new(factory);
+        let launch_env = ctx.launch_env();
+        let factory = SubProcessFactory::new(factory, multiplexer);
         let sub_process = match factory
-            .get_or_create(wapm.as_str(), StdioMode::Inherit, StdioMode::Log)
+            .get_or_create(wapm.as_str(), &launch_env, StdioMode::Inherit, StdioMode::Log)
             .await
         {
             Ok(a) => a,

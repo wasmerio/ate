@@ -44,6 +44,7 @@ pub use stream::StreamProtocol;
 pub use stream::StreamRx;
 pub use stream::StreamTx;
 pub use stream::StreamTxChannel;
+pub use stream::StreamReader;
 pub use conf::Upstream;
 pub use throttle::Throttle;
 pub use router::*;

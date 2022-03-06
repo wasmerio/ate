@@ -175,6 +175,12 @@ impl BinFactory {
         }
     }
 
+    pub async fn clear(&self) {
+        self.wax.lock().unwrap().clear();
+        self.alias.write().await.clear();
+        self.cache.write().await.clear();
+    }
+
     pub async fn get(&self, name: &str, mut stderr: Fd) -> Option<BinaryPackage> {
         let mut name = name.to_string();
 

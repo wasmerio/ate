@@ -60,7 +60,7 @@ impl WasmBusThreadPool {
             .map(|a| a.clone())
     }
 
-    pub fn get_or_create(self: &Arc<WasmBusThreadPool>, thread: &WasiThread) -> WasmBusThread {
+    pub fn get_or_create(self: &Arc<WasmBusThreadPool>, thread: &WasiThread, env: &LaunchEnvironment) -> WasmBusThread {
         // fast path
         let thread_id = thread.thread_id();
         {
@@ -80,16 +80,18 @@ impl WasmBusThreadPool {
         let (polling_tx, polling_rx) = watch::channel(false);
         let (feed_tx, feed_rx) = mpsc::channel(crate::common::MAX_MPSC);
 
+        let multiplexer = SubProcessMultiplexer::new();
         let inner = WasmBusThreadInner {
             invocations: HashMap::default(),
             feed_data: feed_rx,
             calls: HashMap::default(),
-            factory: BusFactory::new(self.process_factory.clone()),
+            factory: BusFactory::new(self.process_factory.clone(), multiplexer),
             callbacks: HashMap::default(),
             listens: HashSet::default(),
             polling: polling_tx,
             work_rx: Some(work_rx),
             poll_thread: None,
+            env: env.clone(),
         };
 
         let ret = WasmBusThread {
@@ -118,6 +120,14 @@ impl WasmBusThreadPool {
 
     pub fn take_context(&self) -> Option<EvalContext> {
         self.process_factory.take_context()
+    }
+
+    pub fn prepare_take_context(&self) -> EvalContextTaker {
+        EvalContextTaker::new(&self.process_factory)
+    }
+
+    pub fn to_take_context(self: Arc<WasmBusThreadPool>) -> EvalContextTaker {
+        EvalContextTaker::new(&self.process_factory)
     }
 }
 
@@ -163,6 +173,7 @@ pub(crate) struct WasmBusThreadInner {
     pub(super) callbacks: HashMap<CallHandle, HashMap<String, CallHandle>>,
     pub(super) listens: HashSet<String>,
     pub(super) factory: BusFactory,
+    pub(super) env: LaunchEnvironment,
     #[allow(dead_code)]
     pub(crate) polling: watch::Sender<bool>,
     #[allow(dead_code)]
@@ -242,7 +253,7 @@ impl Future for WasmBusThread {
         }
 
         for (callback, result) in callbacks {
-            callback.process(result, &sessions);
+            BusFeederUtils::process(&callback, result, &sessions);
         }
 
         let mut feed_data = Vec::new();
@@ -295,7 +306,7 @@ impl WasmBusThread {
 
         let mut ret = 0usize;
         for (callback, result) in callbacks {
-            callback.process(result, &sessions);
+            BusFeederUtils::process(&callback, result, &sessions);
             ret += 1;
         }
 
@@ -430,9 +441,10 @@ impl WasmBusThread {
         topic: String,
         data: Vec<u8>,
         ctx: WasmCallerContext,
+        keepalive: bool,
     ) -> AsyncWasmBusResultRaw {
         let (rx, handle) = self.call_internal(parent, topic, data);
-        AsyncWasmBusResultRaw::new(rx, handle, ctx, self.ctx.clone())
+        AsyncWasmBusResultRaw::new(rx, handle, ctx, self.ctx.clone(), keepalive)
     }
 
     pub fn call<RES, REQ>(
@@ -662,6 +674,7 @@ pub struct AsyncWasmBusResultRaw {
     pub(crate) handle: WasmBusThreadHandle,
     pub(crate) ctx_src: WasmCallerContext,
     pub(crate) ctx_dst: WasmCallerContext,
+    pub(crate) keepalive: bool,
 }
 
 impl AsyncWasmBusResultRaw {
@@ -670,12 +683,14 @@ impl AsyncWasmBusResultRaw {
         handle: WasmBusThreadHandle,
         ctx_src: WasmCallerContext,
         ctx_dst: WasmCallerContext,
+        keepalive: bool,
     ) -> Self {
         Self {
             rx,
             handle,
             ctx_src,
             ctx_dst,
+            keepalive,
         }
     }
 
@@ -716,11 +731,18 @@ impl AsyncWasmBusResultRaw {
 #[async_trait]
 impl Invokable for AsyncWasmBusResultRaw {
     async fn process(&mut self) -> Result<InvokeResult, CallError> {
+        let leak = self.keepalive;
         self.rx
             .recv()
             .await
             .ok_or_else(|| CallError::Aborted)?
-            .map(|a| InvokeResult::Response(a))
+            .map(|a| {
+                if leak {
+                    InvokeResult::ResponseThenLeak(a)
+                } else {
+                    InvokeResult::Response(a)
+                }
+            })
     }
 }
 

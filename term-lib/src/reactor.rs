@@ -6,6 +6,7 @@ use std::num::NonZeroU32;
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::sync::Weak;
 use std::sync::Mutex;
 use tokio::sync::mpsc;
 use tokio::sync::watch;
@@ -44,6 +45,12 @@ impl Reactor {
             job: HashMap::default(),
             current_job: None,
         }
+    }
+
+    pub fn clear(&mut self) {
+        self.pid.clear();
+        self.job.clear();
+        self.current_job.take();
     }
 
     pub fn get_process(&self, pid: Pid) -> Option<Process> {

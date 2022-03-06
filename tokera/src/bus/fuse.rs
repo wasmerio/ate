@@ -15,6 +15,7 @@ use tracing::{debug, error, info, trace, warn};
 use wasm_bus::prelude::*;
 use wasm_bus_fuse::api;
 use wasm_bus_fuse::prelude::*;
+use wasm_bus_tok::prelude::*;
 
 use super::file_system::FileSystem;
 use crate::opt::OptsBus;
@@ -32,46 +33,23 @@ pub struct FuseServer {
 }
 
 impl FuseServer {
-    pub async fn serve(
-        opts: OptsBus,
+    pub async fn listen(
+        opts: Arc<OptsBus>,
+        registry: Arc<Registry>,
+        session_user: AteSessionUser,
         conf: AteConfig,
-        token_path: String,
         auth_url: url::Url,
-    ) -> Result<(), crate::error::BusError> {
-        // Load the session
-        let session_user = match main_session_user(None, Some(token_path.clone()), None).await {
-            Ok(a) => a,
-            Err(err) => {
-                warn!("failed to acquire token - {}", err);
-                return Err(crate::error::BusErrorKind::LoginFailed.into());
-            }
-        };
-
-        // Build the configuration used to access the chains
-        let mut conf = conf.clone();
-        conf.configured_for(opts.configured_for);
-        conf.log_format.meta = opts.meta_format;
-        conf.log_format.data = opts.data_format;
-        conf.recovery_mode = opts.recovery_mode;
-        conf.compact_mode = opts
-            .compact_mode
-            .with_growth_factor(opts.compact_threshold_factor)
-            .with_growth_size(opts.compact_threshold_size)
-            .with_timer_value(Duration::from_secs(opts.compact_timer));
-
-        // Create the registry
-        let registry = Arc::new(Registry::new(&conf).await);
+    ) -> Result<(), crate::error::BusError> {       
 
         // Register so we can respond to calls
         let server = Arc::new(FuseServer {
             registry,
-            opts: Arc::new(opts),
+            opts,
             conf,
-            session_user: session_user,
+            session_user,
             auth_url,
         });
         api::FuseService::listen(server);
-        api::FuseService::serve();
         Ok(())
     }
 }
@@ -121,6 +99,7 @@ impl api::FuseSimplified for FuseServer {
         println!("Loading the chain-of-trust");
 
         // Load the chain
+        let remote = crate::prelude::origin_url(&remote, "db");
         let key = ChainKey::from(name.clone());
         let chain = match self
             .registry

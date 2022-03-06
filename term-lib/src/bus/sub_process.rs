@@ -16,9 +16,22 @@ use crate::eval::Process;
 
 use super::*;
 
+#[derive(Clone)]
+pub struct SubProcessMultiplexer {
+    processes: Arc<Mutex<HashMap<String, Weak<SubProcess>>>>,
+}
+
+impl SubProcessMultiplexer {
+    pub fn new() -> SubProcessMultiplexer {
+        SubProcessMultiplexer {
+            processes: Arc::new(Mutex::new(HashMap::default())),
+        }
+    }
+}
+
 pub struct SubProcessFactoryInner {
     process_factory: ProcessExecFactory,
-    processes: Mutex<HashMap<String, Weak<SubProcess>>>,
+    multiplexer: SubProcessMultiplexer,
 }
 
 #[derive(Clone)]
@@ -28,18 +41,19 @@ pub struct SubProcessFactory {
 }
 
 impl SubProcessFactory {
-    pub fn new(process_factory: ProcessExecFactory) -> SubProcessFactory {
+    pub fn new(process_factory: ProcessExecFactory, multiplexer: SubProcessMultiplexer) -> SubProcessFactory {
         SubProcessFactory {
             ctx: process_factory.ctx.clone(),
             inner: Arc::new(SubProcessFactoryInner {
                 process_factory,
-                processes: Mutex::new(HashMap::default()),
+                multiplexer,
             }),
         }
     }
     pub async fn get_or_create(
         &self,
         wapm: &str,
+        env: &LaunchEnvironment,
         stdout_mode: StdioMode,
         stderr_mode: StdioMode,
     ) -> Result<Arc<SubProcess>, CallError> {
@@ -48,7 +62,7 @@ impl SubProcessFactory {
 
         // Check for any existing process of this name thats already running
         {
-            let processes = self.inner.processes.lock().unwrap();
+            let processes = self.inner.multiplexer.processes.lock().unwrap();
             if let Some(process) = processes
                 .get(&key)
                 .iter()
@@ -76,7 +90,7 @@ impl SubProcessFactory {
         let (process, process_result, thread_pool) = self
             .inner
             .process_factory
-            .create(spawn, empty_client_callbacks)
+            .create(spawn, &env, empty_client_callbacks)
             .await?;
 
         // Get the main thread
@@ -99,7 +113,7 @@ impl SubProcessFactory {
             main,
         ));
         {
-            let mut processes = self.inner.processes.lock().unwrap();
+            let mut processes = self.inner.multiplexer.processes.lock().unwrap();
             processes.insert(key, Arc::downgrade(&process));
         }
         Ok(process)
@@ -147,7 +161,8 @@ impl SubProcess {
         topic: &str,
         request: Vec<u8>,
         ctx: WasmCallerContext,
-        _client_callbacks: HashMap<String, WasmBusFeeder>,
+        _client_callbacks: HashMap<String, Arc<dyn BusFeeder + Send + Sync + 'static>>,
+        keepalive: bool,
     ) -> Result<(Box<dyn Invokable>, Option<Box<dyn Session>>), CallError> {
         let threads = match self.threads.first() {
             Some(a) => a,
@@ -157,7 +172,7 @@ impl SubProcess {
         };
 
         let topic = topic.to_string();
-        let invoker = threads.call_raw(None, topic, request, ctx.clone());
+        let invoker = threads.call_raw(None, topic, request, ctx.clone(), keepalive);
         let sub_process = self.clone();
 
         let session = SubProcessSession::new(threads.clone(), invoker.handle(), sub_process, ctx);
@@ -189,11 +204,11 @@ impl SubProcessSession {
 }
 
 impl Session for SubProcessSession {
-    fn call(&mut self, topic: &str, request: Vec<u8>) -> Box<dyn Invokable + 'static> {
+    fn call(&mut self, topic: &str, request: Vec<u8>, leak: bool) -> Box<dyn Invokable + 'static> {
         let topic = topic.to_string();
         let invoker =
             self.thread
-                .call_raw(Some(self.handle.handle()), topic, request, self.ctx.clone());
+                .call_raw(Some(self.handle.handle()), topic, request, self.ctx.clone(), leak);
         Box::new(invoker)
     }
 }

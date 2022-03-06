@@ -28,9 +28,21 @@ error_chain! {
             description("the instance was this name could not be found")
             display("the instance was this name could not be found")
         }
+        InvalidAccessToken {
+            description("the access token supplied was not valid")
+            display("the access token supplied was not valid")
+        }
+        NotExported {
+            description("the binary has not been exported on this channel")
+            display("the binary has not been exported on this channel")
+        }
         InternalError(code: u16) {
             description("an internal error has occured")
             display("an internal error has occured - code={}", code)
+        }
+        NoInput {
+            description("no input was supplied to the command")
+            display("no input was supplied to the command")
         }
         Unsupported {
             description("the operation is not yet supported")

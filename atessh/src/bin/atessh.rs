@@ -8,6 +8,7 @@ use atessh::key::*;
 use atessh::opt::*;
 use atessh::server::Server;
 use atessh::utils::*;
+use atessh::native_files::NativeFileType;
 use std::sync::Arc;
 use tokio::runtime::Builder;
 use atessh::term_lib;
@@ -42,7 +43,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         ));
 
                         // Start the system and add the native files
-                        let sys = atessh::system::System::new(sys, registry.clone(), host.db_url.clone(), host.native_files.clone()).await;
+                        let db_url = ate_auth::prelude::origin_url(&host.db_url, "db");
+                        let sys = atessh::system::System::new(sys, registry.clone(), db_url, NativeFileType::AteFileSystem(host.native_files.clone())).await;
                         let native_files = sys.native_files.clone();
                         term_lib::api::set_system_abi(sys);
 
