@@ -68,7 +68,7 @@ impl InstanceClient
             &mut rx,
             &mut tx,
             node_id,
-            "/sess".to_string(),
+            "/inst".to_string(),
             domain,
             Some(KeySize::Bit192),
         )

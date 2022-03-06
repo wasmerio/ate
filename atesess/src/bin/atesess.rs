@@ -53,7 +53,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
     let ret = runtime.clone().block_on(async move {
         match opts.subcmd {
             SubCommand::Run(solo) => {
-                let protocol = StreamProtocol::parse(&solo.sess_url)?;
+                let protocol = StreamProtocol::parse(&solo.inst_url)?;
                 let port = solo.auth_url.port().unwrap_or(protocol.default_port());
                 let domain = solo.auth_url.domain().unwrap_or("localhost").to_string();
                 let ttl = std::time::Duration::from_secs(solo.ttl);
@@ -82,7 +82,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
                 let sys = atessh::system::System::new(sys, registry.clone(), solo.db_url.clone(), native_files).await;
                 atessh::term_lib::api::set_system_abi(sys);
 
-                let mut instance_authority = solo.sess_url.domain()
+                let mut instance_authority = solo.inst_url.domain()
                     .map(|a| a.to_string())
                     .unwrap_or_else(|| "tokera.sh".to_string());
                 if instance_authority == "localhost" {
@@ -111,7 +111,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
                 
                 let route = Arc::new(instance_server);
                 router.add_socket_route("/sess", route.clone()).await;
+                router.add_socket_route("/inst", route.clone()).await;
                 router.add_web_route("/sess", route.clone()).await;
+                router.add_web_route("/inst", route.clone()).await;
 
                 let (_server, hard_exit) = main_web(&solo, conf, Some(router)).await?;
                 
