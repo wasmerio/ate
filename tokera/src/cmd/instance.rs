@@ -258,6 +258,10 @@ pub async fn main_opts_instance_export(
     inst_url: url::Url,
     name: &str,
     binary: &str,
+    pinned: bool,
+    no_http: bool,
+    no_https: bool,
+    no_bus: bool,
 ) -> Result<(), InstanceError> {
     let (service_instance, _wallet_instance) = api.instance_action(name).await?;
 
@@ -270,10 +274,10 @@ pub async fn main_opts_instance_export(
             service_instance.as_mut().exports.push(InstanceExport {
                 access_token: access_token.clone(),
                 binary: binary.to_string(),
-                distributed: true,
-                http: true,
-                https: true,
-                bus: true,
+                distributed: pinned == false,
+                http: no_http == false,
+                https: no_https == false,
+                bus: no_bus == false,
                 pinned: None,
             })?;
             dio.commit().await?;
@@ -306,7 +310,8 @@ pub async fn main_opts_instance_export(
 
     println!("Instance ({}) has exported binary ({})", name, binary);
     println!("Authorization: {}", access_token);
-    println!("POST: {}", url);
+    println!("POST: {}arg0/arg1/...", url);
+    println!("PUT: {}[request]", url);
     Ok(())
 }
 
@@ -442,7 +447,7 @@ pub async fn main_opts_instance(
         OptsInstanceAction::Export(opts_export) => {
             if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
             let name = name.unwrap();
-            main_opts_instance_export(&mut context.api, inst_url, name.as_str(), opts_export.binary.as_str()).await?;
+            main_opts_instance_export(&mut context.api, inst_url, name.as_str(), opts_export.binary.as_str(), opts_export.pinned, opts_export.no_http, opts_export.no_https, opts_export.no_bus).await?;
         }
         OptsInstanceAction::Deport(opts_deport) => {
             if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }

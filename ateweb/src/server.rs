@@ -65,8 +65,20 @@ pub trait ServerCallback: Send + Sync {
         _sock_addr: SocketAddr,
         _uri: http::Uri,
         _headers: http::HeaderMap,
-    ) -> Result<Vec<u8>, StatusCode> {
-        Err(StatusCode::BAD_REQUEST)
+    ) -> Result<Vec<u8>, (Vec<u8>, StatusCode)> {
+        let msg = format!("Bad Request (Not Implemented)").as_bytes().to_vec();
+        Err((msg, StatusCode::BAD_REQUEST))
+    }
+
+    async fn put_request(
+        &self,
+        _body: Vec<u8>,
+        _sock_addr: SocketAddr,
+        _uri: http::Uri,
+        _headers: http::HeaderMap,
+    ) -> Result<Vec<u8>, (Vec<u8>, StatusCode)> {
+        let msg = format!("Bad Request (Not Implemented)").as_bytes().to_vec();
+        Err((msg, StatusCode::BAD_REQUEST))
     }
 }
 
@@ -599,20 +611,24 @@ impl Server {
         let uri = req.uri().clone();
         let method = req.method().clone();
 
-        if method == Method::POST {
+        if method == Method::POST || method == Method::PUT {
             if let Some(callback) = &self.callback {
                 let headers = req.headers().clone();
                 if let Some(body) = hyper::body::to_bytes(req.into_body()).await.ok() {
-                    let body = body.to_vec();                
-                    match callback.post_request(body, sock_addr, uri, headers).await {
+                    let body = body.to_vec();
+                    let ret = match method {
+                        Method::POST => callback.post_request(body, sock_addr, uri, headers).await,
+                        Method::PUT => callback.put_request(body, sock_addr, uri, headers).await,
+                        _ => Err((Vec::new(), StatusCode::BAD_REQUEST))
+                    };
+                    match ret {
                         Ok(resp) => {
                             let resp = Response::new(Body::from(resp));
                             trace!("res: status={}", resp.status().as_u16());
                             return Ok(resp);
                         }
-                        Err(status) => {
-                            let err = status.as_str().to_string();
-                            let mut resp = Response::new(Body::from(err));
+                        Err((resp, status)) => {
+                            let mut resp = Response::new(Body::from(resp));
                             *resp.status_mut() = status;
                             trace!("res: status={}", resp.status().as_u16());
                             return Ok(resp);

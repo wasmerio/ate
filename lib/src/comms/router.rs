@@ -73,14 +73,23 @@ where Self: Send + Sync
 pub trait RawWebRoute
 where Self: Send + Sync
 {
-    async fn accepted_raw_web_request(
+    async fn accepted_raw_post_request(
         &self,
         uri: http::Uri,
         headers: http::HeaderMap,
         sock_addr: SocketAddr,
         server_id: NodeId,
         body: Vec<u8>,
-    ) -> Result<Vec<u8>, CommsError>;
+    ) -> Result<Vec<u8>, (Vec<u8>, StatusCode)>;
+
+    async fn accepted_raw_put_request(
+        &self,
+        uri: http::Uri,
+        headers: http::HeaderMap,
+        sock_addr: SocketAddr,
+        server_id: NodeId,
+        body: Vec<u8>,
+    ) -> Result<Vec<u8>, (Vec<u8>, StatusCode)>;
 }
 
 #[allow(dead_code)]
@@ -90,7 +99,8 @@ pub struct StreamRouter {
     server_cert: Option<PrivateEncryptKey>,
     server_id: NodeId,
     timeout: Duration,
-    request_routes: Mutex<FxHashMap<String, Arc<dyn RawWebRoute>>>,
+    post_routes: Mutex<FxHashMap<String, Arc<dyn RawWebRoute>>>,
+    put_routes: Mutex<FxHashMap<String, Arc<dyn RawWebRoute>>>,
     raw_routes: Mutex<FxHashMap<String, Arc<dyn RawStreamRoute>>>,
     routes: Mutex<FxHashMap<String, Arc<dyn StreamRoute>>>,
     default_route: Option<Arc<dyn StreamRoute>>,
@@ -104,7 +114,8 @@ impl StreamRouter {
             server_cert,
             server_id,
             timeout,
-            request_routes: Mutex::new(FxHashMap::default()),
+            post_routes: Mutex::new(FxHashMap::default()),
+            put_routes: Mutex::new(FxHashMap::default()),
             raw_routes: Mutex::new(FxHashMap::default()),
             routes: Mutex::new(FxHashMap::default()),
             default_route: None,
@@ -125,8 +136,13 @@ impl StreamRouter {
         guard.insert(path.to_string(), raw_route);
     }
 
-    pub async fn add_web_route(&mut self, path: &str, web_route: Arc<dyn RawWebRoute>) {
-        let mut guard = self.request_routes.lock().await;
+    pub async fn add_post_route(&mut self, path: &str, web_route: Arc<dyn RawWebRoute>) {
+        let mut guard = self.post_routes.lock().await;
+        guard.insert(path.to_string(), web_route);
+    }
+
+    pub async fn add_put_route(&mut self, path: &str, web_route: Arc<dyn RawWebRoute>) {
+        let mut guard = self.put_routes.lock().await;
         guard.insert(path.to_string(), web_route);
     }
 
@@ -141,7 +157,7 @@ impl StreamRouter {
 
         let path = uri.path();
         let _route = {
-            let request_routes = self.request_routes.lock().await;
+            let request_routes = self.post_routes.lock().await;
             match request_routes
                 .iter()
                 .filter(|(k, _)| path.starts_with(k.as_str()))
@@ -280,12 +296,12 @@ impl StreamRouter {
         sock_addr: SocketAddr,
         uri: http::Uri,
         headers: http::HeaderMap,
-    ) -> Result<Vec<u8>, StatusCode> {
+    ) -> Result<Vec<u8>, (Vec<u8>, StatusCode)> {
         // Get the path
         let path = uri.path();
 
         // Look for a registered route for this path
-        let routes = self.request_routes.lock().await;
+        let routes = self.post_routes.lock().await;
         for (test, route) in routes.iter() {
             if path.starts_with(test) {
                 drop(test);
@@ -297,16 +313,47 @@ impl StreamRouter {
                 drop(routes);
 
                 // Execute the accept command
-                return route.accepted_raw_web_request(uri, headers, sock_addr, self.server_id, body)
-                    .await
-                    .map_err(|err| {
-                        debug!("failed web request {}", err);
-                        StatusCode::BAD_REQUEST
-                    });
+                return route.accepted_raw_post_request(uri, headers, sock_addr, self.server_id, body)
+                    .await;
             }
         }
 
         // Fail
-        return Err(StatusCode::BAD_REQUEST);
+        let msg = format!("Bad Request (No Route)").as_bytes().to_vec();
+        return Err((msg, StatusCode::BAD_REQUEST));
+    }
+
+    #[cfg(feature = "enable_server")]
+    pub async fn put_request(
+        &self,
+        body: Vec<u8>,
+        sock_addr: SocketAddr,
+        uri: http::Uri,
+        headers: http::HeaderMap,
+    ) -> Result<Vec<u8>, (Vec<u8>, StatusCode)> {
+        // Get the path
+        let path = uri.path();
+
+        // Look for a registered route for this path
+        let routes = self.post_routes.lock().await;
+        for (test, route) in routes.iter() {
+            if path.starts_with(test) {
+                drop(test);
+                let route = {
+                    let r = route.clone();
+                    drop(route);
+                    r
+                };
+                drop(routes);
+
+                // Execute the accept command
+                return route.accepted_raw_put_request(uri, headers, sock_addr, self.server_id, body)
+                    .await;
+            }
+        }
+
+        // Fail
+        let msg = format!("Bad Request (No Route)").as_bytes().to_vec();
+        return Err((msg, StatusCode::BAD_REQUEST));
     }
 }

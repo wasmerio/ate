@@ -107,6 +107,7 @@ pub struct Fd {
     pub(crate) sender: Option<Arc<mpsc::Sender<FdMsg>>>,
     pub(crate) receiver: Option<Arc<AsyncMutex<ReactorPipeReceiver>>>,
     pub(crate) flip_to_abort: bool,
+    pub(crate) ignore_flush: bool,
 }
 
 impl Fd {
@@ -123,6 +124,7 @@ impl Fd {
             sender: tx.map(|a| Arc::new(a)),
             receiver: rx,
             flip_to_abort: false,
+            ignore_flush: false,
         }
     }
 
@@ -135,6 +137,7 @@ impl Fd {
             sender: None,
             receiver: None,
             flip_to_abort: false,
+            ignore_flush: false,
         };
 
         if let Some(a) = fd1.sender.as_ref() {
@@ -175,6 +178,10 @@ impl Fd {
     pub fn set_flag(&mut self, flag: FdFlag) -> FdFlag {
         self.flag = flag;
         flag
+    }
+
+    pub fn set_ignore_flush(&mut self, val: bool) {
+        self.ignore_flush = val;
     }
 
     pub fn is_closed(&self) -> bool {
@@ -231,6 +238,9 @@ impl Fd {
     }
 
     pub async fn flush_async(&mut self) -> io::Result<()> {
+        if self.ignore_flush {
+            return Ok(());
+        }
         let (mut rx, msg) = FdMsg::flush();
         if let Some(sender) = self.sender.as_mut() {
             if let Err(_err) = sender.send(msg).await {
@@ -415,6 +425,9 @@ impl Write for Fd {
     }
 
     fn flush(&mut self) -> io::Result<()> {
+        if self.ignore_flush {
+            return Ok(());
+        }
         let (mut rx, msg) = FdMsg::flush();
         self.blocking_send(msg)?;
         self.blocking_recv(&mut rx)?;
@@ -525,6 +538,8 @@ pub struct WeakFd {
     pub(crate) blocking: Weak<AtomicBool>,
     pub(crate) sender: Option<Weak<mpsc::Sender<FdMsg>>>,
     pub(crate) receiver: Option<Weak<AsyncMutex<ReactorPipeReceiver>>>,
+    pub(crate) flip_to_abort: bool,
+    pub(crate) ignore_flush: bool,
 }
 
 impl WeakFd {
@@ -536,6 +551,8 @@ impl WeakFd {
             blocking: Weak::new(),
             sender: None,
             receiver: None,
+            flip_to_abort: false,
+            ignore_flush: false,
         }
     }
 
@@ -565,7 +582,8 @@ impl WeakFd {
             blocking,
             sender,
             receiver,
-            flip_to_abort: false,
+            flip_to_abort: self.flip_to_abort,
+            ignore_flush: self.ignore_flush,
         })
     }
 }
@@ -584,6 +602,8 @@ impl Fd {
             blocking,
             sender,
             receiver,
+            flip_to_abort: self.flip_to_abort,
+            ignore_flush: self.ignore_flush,
         }
     }
 }

@@ -21,11 +21,14 @@ use std::task::Poll;
 use term_lib::api::ConsoleRect;
 use term_lib::bus;
 use term_lib::bus::*;
+use term_lib::eval::EvalStatus;
+use term_lib::environment::Environment;
 use term_lib::api::System;
 use term_lib::api::SystemAbiExt;
 use term_lib::common::MAX_MPSC;
 use term_lib::fd::WeakFd;
 use term_lib::api::AsyncResult;
+use term_lib::fd::Fd;
 
 use super::handler::SessionHandler;
 use super::handler::SessionTx;
@@ -244,6 +247,60 @@ impl Session
         Ok(())
     }
 
+    pub async fn eval(&mut self, binary: String, env: Environment, args: Vec<String>, stdin: Fd, stdout: Fd, stderr: Fd) -> Result<u32, Box<dyn std::error::Error>>
+    {
+        // Build the job and the environment
+        let job = self.console.new_job()
+            .await
+            .ok_or_else(|| {
+                let err: CommsError = CommsErrorKind::FatalError("no more job space".to_string()).into();
+                err
+            })?;
+
+        let mut ctx = self.console.new_spawn_context(&job);
+        ctx.stdin = stdin;
+        ctx.stdout = stdout;
+        ctx.stderr = stderr;
+        ctx.env = env;
+        ctx.extra_args = args;
+        let exec = self.console.exec_factory();
+
+        // Execute the binary
+        let mut eval = exec.eval(binary, ctx);
+
+        // Get the result and return the status code
+        let ret = eval.recv().await;
+        let ret = match ret {
+            Some(ret) => {
+                match ret.status {
+                    EvalStatus::Executed { code, .. } => code,
+                    _ => 1,
+                }
+            }
+            None => {
+                let err: CommsError = CommsErrorKind::FatalError("failed to evaluate binary".to_string()).into();
+                return Err(err.into());
+            }
+        };
+        Ok(ret)
+    }
+
+    pub async fn can_access_binary(&self, binary: &str, access_token: &str) -> bool
+    {
+        // Check the access code matches what was passed in
+        self.basics
+            .service_instance
+            .exports
+            .iter()
+            .await
+            .map_or(false, |iter| {
+                iter
+                    .filter(|e| e.binary.eq_ignore_ascii_case(binary))
+                    .any(|e| e.access_token.eq_ignore_ascii_case(access_token))
+            })
+        
+    }
+
     pub async fn call(&mut self, call: InstanceCall, request: Vec<u8>, tx_reply: mpsc::Sender<InstanceReply>) -> Result<(), Box<dyn std::error::Error>>
     {
         // Create the callbacks
@@ -260,6 +317,7 @@ impl Session
             .exports
             .iter()
             .await?
+            .filter(|e| e.binary.eq_ignore_ascii_case(call.binary.as_str()))
             .any(|e| e.access_token.eq_ignore_ascii_case(self.hello_instance.access_token.as_str()))
             == false
         {

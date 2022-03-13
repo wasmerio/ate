@@ -3,6 +3,8 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 use ate::comms::RawWebRoute;
+use atessh::term_lib::environment::Environment;
+use atessh::term_lib::fd::FdMsg;
 use error_chain::bail;
 #[allow(unused_imports)]
 use tokio::sync::mpsc;
@@ -36,10 +38,15 @@ use term_lib::fs::UnionFileSystem;
 use term_lib::bin_factory::*;
 use term_lib::reactor::Reactor;
 use term_lib::bus::SubProcessMultiplexer;
+use term_lib::pipe::pipe_in;
+use term_lib::pipe::pipe_out;
+use term_lib::fd::FdFlag;
+use term_lib::pipe::ReceiverMode;
 use ate_auth::cmd::impersonate_command;
 use ate_auth::helper::b64_to_session;
 use ttl_cache::TtlCache;
 use tokio::sync::RwLock;
+use http::StatusCode;
 
 use crate::adapter::FileAccessorAdapter;
 use crate::session::Session;
@@ -328,14 +335,14 @@ impl RawWebRoute
 for Server
 {
     #[allow(unused_variables)]
-    async fn accepted_raw_web_request(
+    async fn accepted_raw_put_request(
         &self,
         uri: http::Uri,
         headers: http::HeaderMap,
         sock_addr: SocketAddr,
         server_id: NodeId,
         body: Vec<u8>,
-    ) -> Result<Vec<u8>, CommsError>
+    ) -> Result<Vec<u8>, (Vec<u8>, StatusCode)>
     {
         // Get the chain and the topic
         let path = std::path::PathBuf::from(uri.path().to_string());
@@ -349,7 +356,8 @@ for Server
             let topic = path_iter.next();
 
             if identity.is_none() || db.is_none() || binary.is_none() || topic.is_none() {
-                bail!(CommsErrorKind::InternalError(format!("instance path is invalid - {}", uri)));
+                let msg = format!("The URL path is malformed").as_bytes().to_vec();
+                return Err((msg, StatusCode::BAD_REQUEST));
             }
 
             let identity = identity.unwrap();
@@ -364,11 +372,12 @@ for Server
         
         // Get the authorization
         if headers.contains_key(http::header::AUTHORIZATION) == false {
-            bail!(CommsErrorKind::Refused);
+            let msg = format!("Missing the Authorization header").as_bytes().to_vec();
+            return Err((msg, StatusCode::UNAUTHORIZED));
         }
         let auth = headers[http::header::AUTHORIZATION].clone();
 
-        debug!("accept-raw-web-request: uri: {}", uri);
+        debug!("accept-raw-put-request: uri: {}", uri);
 
         // Make a fake hello from the HTTP metadata
         let hello = HelloMetadata {
@@ -385,7 +394,12 @@ for Server
 
         // Get or create the basics that make up a new session
         let key = hello_instance.chain.clone();
-        let (basics, first_init) = self.get_or_create_session_basics(key.clone()).await?;
+        let (basics, first_init) = self.get_or_create_session_basics(key.clone())
+            .await
+            .map_err(|err| {
+                let msg = format!("instance call failed - {}", err).as_bytes().to_vec();
+                (msg, StatusCode::INTERNAL_SERVER_ERROR)
+            })?;
 
         // Create a fixed reader
         let rx = Box::new(FixedReader::new(Vec::new()));
@@ -403,6 +417,12 @@ for Server
             basics.clone(),
             first_init
         ).await;
+
+        // Validate we can access this binary
+        if session.can_access_binary(binary.as_str(), auth.to_str().unwrap()).await == false {
+            let msg = format!("Access Denied (Invalid Token)").as_bytes().to_vec();
+            return Err((msg, StatusCode::UNAUTHORIZED));
+        }
         
         // Invoke the call
         let (tx_reply, mut rx_reply) = mpsc::channel(1);
@@ -418,8 +438,8 @@ for Server
             )
             .await
             .map_err(|err: Box<dyn std::error::Error>| {
-                let err: CommsError = CommsErrorKind::InternalError(format!("instance call failed - {}", err)).into();
-                err
+                let msg = format!("instance call failed - {}", err).as_bytes().to_vec();
+                (msg, StatusCode::INTERNAL_SERVER_ERROR)
             })?;
 
         // Read the result and pump it
@@ -439,7 +459,8 @@ for Server
                                 trace!("{}", String::from_utf8_lossy(&data[..]));
                             },
                             err => {
-                                bail!(CommsErrorKind::InternalError(format!("instance call failed - {}", err)));
+                                let msg = format!("Instance call failed - {}", err).as_bytes().to_vec();
+                                return Err((msg, StatusCode::BAD_GATEWAY));
                             }
                         }
                     } else {
@@ -449,8 +470,157 @@ for Server
                 _ = invocations => { }
             }
         }
-        bail!(CommsErrorKind::InternalError(format!("instance call failed - exited without replying")));
+        let msg = format!("Instance call aborted before finishing").as_bytes().to_vec();
+        Err((msg, StatusCode::NOT_ACCEPTABLE))
     }
+
+    #[allow(unused_variables)]
+    async fn accepted_raw_post_request(
+        &self,
+        uri: http::Uri,
+        headers: http::HeaderMap,
+        sock_addr: SocketAddr,
+        server_id: NodeId,
+        body: Vec<u8>,
+    ) -> Result<Vec<u8>, (Vec<u8>, StatusCode)>
+    {
+        // Get the chain and the binary
+        let mut args = Vec::new();
+        let path = std::path::PathBuf::from(uri.path().to_string());
+        let (chain, binary) = {
+            let mut path_iter = path.iter().map(|a| a.to_string_lossy().to_string());
+            path_iter.next();
+            path_iter.next();
+            let identity = path_iter.next();
+            let db = path_iter.next();
+            let binary = path_iter.next();
+
+            if identity.is_none() || db.is_none() || binary.is_none() {
+                let msg = format!("The URL path is malformed").as_bytes().to_vec();
+                return Err((msg, StatusCode::BAD_REQUEST));
+            }
+
+            let identity = identity.unwrap();
+            let db = db.unwrap();
+            let binary = binary.unwrap();
+
+            while let Some(arg) = path_iter.next() {
+                args.push(arg);
+            }
+
+            let chain = format!("{}/{}", identity, db);
+            (chain, binary)
+        };
+        let chain = ChainKey::new(chain);        
+        
+        // Get the authorization
+        if headers.contains_key(http::header::AUTHORIZATION) == false {
+            let msg = format!("Missing the Authorization header").as_bytes().to_vec();
+            return Err((msg, StatusCode::UNAUTHORIZED));
+        }
+        let auth = headers[http::header::AUTHORIZATION].clone();
+
+        // Make a fake hello from the HTTP metadata
+        let hello = HelloMetadata {
+            client_id: NodeId::generate_client_id(),
+            server_id,
+            path: path.to_string_lossy().to_string(),
+            encryption: None,
+            wire_format: SerializationFormat::Json,
+        };
+        let hello_instance = InstanceHello {
+            access_token: auth.to_str().unwrap().to_string(),
+            chain: chain.clone(),
+        };
+
+        // Get or create the basics that make up a new session
+        let key = hello_instance.chain.clone();
+        let (basics, first_init) = self.get_or_create_session_basics(key.clone())
+            .await
+            .map_err(|err| {
+                debug!("instance eval failed - {}", err);
+                (Vec::new(), StatusCode::INTERNAL_SERVER_ERROR)
+            })?;
+
+        // Build the session
+        let rx = Box::new(FixedReader::new(Vec::new()));
+        let mut session = Session::new(
+            rx,
+            None,
+            hello,
+            hello_instance,
+            sock_addr,
+            None,
+            Arc::new(Mutex::new(ConsoleRect { cols: 80, rows: 25 })),
+            self.compiler.clone(),
+            basics.clone(),
+            first_init
+        ).await;
+
+        // Validate we can access this binary
+        if session.can_access_binary(binary.as_str(), auth.to_str().unwrap()).await == false {
+            let msg = format!("Access Denied (Invalid Token)").as_bytes().to_vec();
+            return Err((msg, StatusCode::UNAUTHORIZED));
+        }
+
+        debug!("accept-raw-post-request: uri: {}", uri);
+
+        // Build an environment from the query string
+        let mut env = Environment::default();
+        if let Some(query) = uri.query() {
+            for (k, v) in url::form_urlencoded::parse(query.as_bytes()) {
+                env.set_var(&k, v.to_string());
+            }
+        }
+
+        // Create the stdin pipe
+        let (stdin, body_tx) = pipe_in(ReceiverMode::Stream, FdFlag::Stdin(false));
+        let _ = body_tx.send(FdMsg::Data { data: body, flag: FdFlag::Stdin(false) }).await;
+        let _ = body_tx.send(FdMsg::Data { data: Vec::new(), flag: FdFlag::Stdin(false) }).await;
+        drop(body_tx);
+
+        // Create a stdout pipe that will gather the return data
+        let (mut stdout, ret_rx) = pipe_out(FdFlag::Stdout(false));
+        let (mut stderr, err_rx) = pipe_out(FdFlag::Stdout(false));
+        stdout.set_ignore_flush(true);
+        stderr.set_ignore_flush(true);
+
+        // Evaluate the binary until its finished
+        let exit_code = session.eval(binary, env, args, stdin, stdout, stderr)
+            .await
+            .map_err(|err: Box<dyn std::error::Error>| {
+                let msg = format!("instance eval failed - {}", err).as_bytes().to_vec();
+                (msg, StatusCode::INTERNAL_SERVER_ERROR)
+            })?;
+        drop(session);
+
+        // Read all the data
+        let ret = read_to_end(ret_rx).await;
+        debug!("eval returned {} bytes", ret.len());
+        
+        // Convert the error code to a status code
+        match exit_code {
+            0 => Ok(ret),
+            _ => {
+                let err = read_to_end(err_rx).await;
+                Err((err, StatusCode::INTERNAL_SERVER_ERROR))
+            }
+        }
+    }
+}
+
+async fn read_to_end(mut rx: mpsc::Receiver<FdMsg>) -> Vec<u8>
+{
+    let mut ret = Vec::new();
+    while let Some(msg) = rx.recv().await {
+        match msg {
+            FdMsg::Data { mut data, .. } => {
+                ret.append(&mut data);
+            }
+            FdMsg::Flush { .. } => { }
+        }
+    }
+    ret
 }
 
 struct SessionFactory

@@ -167,9 +167,14 @@ pub struct OptsInstanceExport {
     #[clap(index = 2)]
     pub binary: String,
     /// Distributed instances run all over the world concurrently on the same file system
-    /// They are started on-demand as needed and shutdown when idle.
+    /// They are started on-demand as needed and shutdown when idle. Pinned instances on
+    /// the other hand are bound to a particular location after startup until they go
+    /// idle which allows them to be stateful
     #[clap(short, long)]
-    pub distributed: bool,
+    pub pinned: bool,
+    /// Indicates if the exported endpoint will be accessible via http (API calls)
+    #[clap(long)]
+    pub no_http: bool,
     /// Indicates if the exported endpoint will be accessible via https (API calls)
     #[clap(long)]
     pub no_https: bool,

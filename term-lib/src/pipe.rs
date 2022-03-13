@@ -22,7 +22,9 @@ use crate::api::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ReceiverMode {
+    // Partial reads are allowed
     Stream,
+    // Reads will return entire messages (flag indicates if zero terminated)
     Message(bool),
 }
 

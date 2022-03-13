@@ -42,6 +42,7 @@ pub(super) async fn exec_pipeline<'a>(
                         ast::Arg::Arg(s) => eval_arg(&ctx.env, ctx.last_return, *s),
                         ast::Arg::Backquote(_quoted_args) => String::new(),
                     }));
+                    parsed_args.extend(ctx.extra_args.clone().into_iter());
                     let parsed_env: Vec<String> = assign.iter().map(|a| a.to_string()).collect();
 
                     cur_stdin = next_stdin.clone();

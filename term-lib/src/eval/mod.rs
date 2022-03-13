@@ -177,6 +177,7 @@ pub struct EvalContext {
     pub exec_factory: EvalFactory,
     pub job: Job,
     pub compiler: Compiler,
+    pub extra_args: Vec<String>,
 }
 
 impl EvalContext {

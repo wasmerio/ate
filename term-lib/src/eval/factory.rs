@@ -21,6 +21,7 @@ pub struct SpawnContext {
     pub pre_open: Vec<String>,
     pub root: UnionFileSystem,
     pub compiler: Compiler,
+    pub extra_args: Vec<String>,
 }
 
 impl SpawnContext {
@@ -49,6 +50,7 @@ impl SpawnContext {
             pre_open,
             root,
             compiler,
+            extra_args: Vec::new(),
         }
     }
 }
@@ -140,6 +142,7 @@ impl EvalFactory {
             exec_factory: self.clone(),
             job: ctx.job,
             compiler: ctx.compiler,
+            extra_args: ctx.extra_args,
         };
 
         ctx

@@ -112,8 +112,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
                 let route = Arc::new(instance_server);
                 router.add_socket_route("/sess", route.clone()).await;
                 router.add_socket_route("/inst", route.clone()).await;
-                router.add_web_route("/sess", route.clone()).await;
-                router.add_web_route("/inst", route.clone()).await;
+                router.add_post_route("/sess", route.clone()).await;
+                router.add_post_route("/inst", route.clone()).await;
+                router.add_put_route("/sess", route.clone()).await;
+                router.add_put_route("/inst", route.clone()).await;
 
                 let (_server, hard_exit) = main_web(&solo, conf, Some(router)).await?;
                 
