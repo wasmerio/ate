@@ -256,6 +256,7 @@ async fn stream_events<R>(
     range: R,
     tx: &mut Tx,
     strip_signatures: bool,
+    strip_data: usize,
 ) -> Result<(), CommsError>
 where
     R: RangeBounds<ChainTimestamp>,
@@ -283,8 +284,8 @@ where
     };
 
     // We work in batches of 2000 events releasing the lock between iterations so that the
-    // server has time to process new events (capped at 2MB of data per send)
-    let max_send: usize = 2 * 1024 * 1024;
+    // server has time to process new events (capped at 512KB of data per send)
+    let max_send: usize = 512 * 1024;
     loop {
         let mut leafs = Vec::new();
         {
@@ -292,7 +293,7 @@ where
             let mut iter = guard
                 .range((Bound::Included(start), end))
                 .skip(skip)
-                .take(2000);
+                .take(5000);
 
             let mut amount = 0usize;
             while let Some((k, v)) = iter.next() {
@@ -330,8 +331,17 @@ where
             let evt = MessageEvent {
                 meta,
                 data: match evt.data.data_bytes {
-                    Some(a) => Some(a.to_vec()),
-                    None => None,
+                    MessageBytes::Some(a) if a.len() >= strip_data => MessageData::Some(a.to_vec()),
+                    MessageBytes::Some(a) => {
+                        let data = a.to_vec();
+                        MessageData::LazySome(LazyData {
+                            record: evt.leaf.record,
+                            hash: AteHash::from_bytes(&data[..]),
+                            len: data.len(),
+                        })
+                    },
+                    MessageBytes::LazySome(l) => MessageData::LazySome(l),
+                    MessageBytes::None => MessageData::None
                 },
                 format: evt.header.format,
             };
@@ -387,6 +397,7 @@ pub(super) async fn stream_history_range<R>(
     range: R,
     tx: &mut Tx,
     strip_signatures: bool,
+    strip_data: usize,
 ) -> Result<(), CommsError>
 where
     R: RangeBounds<ChainTimestamp>,
@@ -432,7 +443,7 @@ where
     if size > 0 {
         // Sync the events
         trace!("streaming requested events");
-        stream_events(&chain, range, tx, strip_signatures).await?;
+        stream_events(&chain, range, tx, strip_signatures, strip_data).await?;
     }
 
     // Let caller know we have sent all the events that were requested

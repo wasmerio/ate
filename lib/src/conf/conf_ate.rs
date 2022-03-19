@@ -80,6 +80,8 @@ pub struct ConfAte {
     pub buffer_size_chain: usize,
     /// Timeout before an attempt to lock a data object fails
     pub lock_attempt_timeout: Duration,
+    /// Timeout before an attempt to load a data object fails
+    pub load_timeout: Duration,
 
     /// Flag that indicates if the type name should always be saved in the event log.
     /// Added the type-name consumes space but gives extra debug information
@@ -118,6 +120,7 @@ impl Default for ConfAte {
             },
             buffer_size_chain: 1,
             lock_attempt_timeout: Duration::from_secs(20),
+            load_timeout: Duration::from_secs(20),
             record_type_name: false,
         }
     }

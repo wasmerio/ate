@@ -263,8 +263,9 @@ impl Dio {
         D: DeserializeOwned,
     {
         data.data_bytes = match data.data_bytes {
-            Some(data) => Some(self.multi.data_as_overlay(&header.meta, data, session)?),
-            None => None,
+            MessageBytes::Some(data) => MessageBytes::Some(self.multi.data_as_overlay(&header.meta, data, session)?),
+            MessageBytes::LazySome(_) => bail!(LoadErrorKind::MissingData),
+            MessageBytes::None => MessageBytes::None,
         };
 
         let mut state = self.state.lock().unwrap();
@@ -541,8 +542,9 @@ impl Dio {
         data: &mut EventData,
     ) -> Result<(), TransformError> {
         data.data_bytes = match &data.data_bytes {
-            Some(d) => Some(self.multi.data_as_overlay(&data.meta, d.clone(), session)?),
-            None => None,
+            MessageBytes::Some(d) => MessageBytes::Some(self.multi.data_as_overlay(&data.meta, d.clone(), session)?),
+            MessageBytes::LazySome(_) => bail!(TransformErrorKind::MissingData),
+            MessageBytes::None => MessageBytes::None,
         };
         Ok(())
     }
@@ -559,7 +561,7 @@ impl Dio {
         D: DeserializeOwned,
     {
         evt.data.data_bytes = match &evt.data.data_bytes {
-            Some(data) => {
+            MessageBytes::Some(data) => {
                 let data = match self.multi.data_as_overlay(meta, data.clone(), session) {
                     Ok(a) => a,
                     Err(TransformError(TransformErrorKind::MissingReadKey(_hash), _))
@@ -572,9 +574,12 @@ impl Dio {
                         bail!(LoadErrorKind::TransformationError(err.0));
                     }
                 };
-                Some(data)
+                MessageBytes::Some(data)
             }
-            None => {
+            MessageBytes::LazySome(_) => {
+                bail!(LoadErrorKind::MissingData);
+            }
+            MessageBytes::None => {
                 return Ok(None);
             }
         };

@@ -7,6 +7,9 @@ use crate::meta::*;
 use async_trait::async_trait;
 use std::sync::Arc;
 use tokio::sync::mpsc;
+use bytes::Bytes;
+
+use crate::crypto::AteHash;
 
 pub enum ConnectionStatusChange {
     Disconnected,
@@ -32,6 +35,8 @@ pub(crate) trait EventPipe: Send + Sync {
     async fn on_read_only(&self) -> Result<(), CommsError> {
         Ok(())
     }
+
+    async fn load_many(&self, leafs: Vec<AteHash>) -> Result<Vec<Option<Bytes>>, LoadError>;
 
     async fn feed(&self, work: ChainWork) -> Result<(), CommitError>;
 
@@ -59,6 +64,13 @@ impl NullPipe {
 impl EventPipe for NullPipe {
     async fn feed(&self, _work: ChainWork) -> Result<(), CommitError> {
         Ok(())
+    }
+
+    async fn load_many(&self, leafs: Vec<AteHash>) -> Result<Vec<Option<Bytes>>, LoadError> {
+        Ok(leafs
+            .into_iter()
+            .map(|_| None)
+            .collect())
     }
 
     async fn try_lock(&self, _key: PrimaryKey) -> Result<bool, CommitError> {
@@ -165,6 +177,20 @@ impl EventPipe for DuelPipe {
         notify2?;
 
         Ok(())
+    }
+
+    async fn load_many(&self, leafs: Vec<AteHash>) -> Result<Vec<Option<Bytes>>, LoadError> {
+        let mut rets = self.first.load_many(leafs.clone()).await?;
+        let mut others = self.second.load_many(leafs).await?.into_iter();
+        for ret in rets.iter_mut() {
+            let other = others.next();
+            if ret.is_none() {
+                if let Some(Some(data)) = other {
+                    ret.replace(data);
+                }
+            }
+        }
+        Ok(rets)
     }
 
     async fn try_lock(&self, key: PrimaryKey) -> Result<bool, CommitError> {

@@ -9,6 +9,7 @@ use crate::crypto::AteHash;
 use crate::crypto::PublicSignKey;
 use crate::error::*;
 use crate::event::*;
+use crate::redo::LogLookup;
 use crate::header::PrimaryKey;
 use crate::pipe::EventPipe;
 use crate::session::AteSessionUser;
@@ -20,11 +21,13 @@ use crate::{
 };
 
 use super::NodeId;
+pub type MessageData = LogData;
+pub type MessageDataRef<'a> = LogDataRef<'a>;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub(super) struct MessageEvent {
     pub(crate) meta: Metadata,
-    pub(crate) data: Option<Vec<u8>>,
+    pub(crate) data: MessageData,
     pub(crate) format: MessageFormat,
 }
 
@@ -35,8 +38,9 @@ impl MessageEvent {
             let evt = MessageEvent {
                 meta: evt.meta.clone(),
                 data: match &evt.data_bytes {
-                    Some(d) => Some(d.to_vec()),
-                    None => None,
+                    MessageBytes::Some(d) => MessageData::Some(d.to_vec()),
+                    MessageBytes::LazySome(l) => MessageData::LazySome(l.clone()),
+                    MessageBytes::None => MessageData::None,
                 },
                 format: evt.format,
             };
@@ -49,8 +53,9 @@ impl MessageEvent {
         EventData {
             meta: evt.meta.clone(),
             data_bytes: match evt.data {
-                Some(d) => Some(Bytes::from(d)),
-                None => None,
+                MessageData::Some(d) => MessageBytes::Some(Bytes::from(d)),
+                MessageData::LazySome(l) => MessageBytes::LazySome(l.clone()),
+                MessageData::None => MessageBytes::None,
             },
             format: evt.format,
         }
@@ -66,8 +71,9 @@ impl MessageEvent {
 
     pub(crate) fn data_hash(&self) -> Option<AteHash> {
         match self.data.as_ref() {
-            Some(d) => Some(AteHash::from_bytes(&d[..])),
-            None => None,
+            MessageDataRef::Some(d) => Some(AteHash::from_bytes(&d[..])),
+            MessageDataRef::LazySome(l) => Some(l.hash),
+            MessageDataRef::None => None,
         }
     }
 }
@@ -118,6 +124,7 @@ pub(super) enum Message {
         chain_key: ChainKey,
         from: ChainTimestamp,
         allow_redirect: bool,
+        omit_data: bool,
     },
 
     HumanMessage {
@@ -163,17 +170,38 @@ pub(super) enum Message {
     FatalTerminate(FatalTerminate),
 
     SecuredWith(AteSessionUser),
+
+    LoadMany {
+        id: u64,
+        leafs: Vec<AteHash>,
+    },
+    LoadManyResult {
+        id: u64,
+        data: Vec<Option<Vec<u8>>>,
+    },
+    LoadManyFailed {
+        id: u64,
+        err: String,
+    }
 }
 
 impl std::fmt::Display for Message {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Message::Noop => write!(f, "noop"),
-            Message::Subscribe { chain_key, from, allow_redirect} => {
-                if *allow_redirect {
-                    write!(f, "subscribe(chain_key={}, from={}, allow_redirect)", chain_key, from)
+            Message::Subscribe { chain_key, from, allow_redirect, omit_data} => {
+                if *omit_data {
+                    if *allow_redirect {
+                        write!(f, "subscribe(chain_key={}, from={}, omit_data, allow_redirect)", chain_key, from)
+                    } else {
+                        write!(f, "subscribe(chain_key={}, from={}, omit_data)", chain_key, from)
+                    }
                 } else {
-                    write!(f, "subscribe(chain_key={}, from={})", chain_key, from)
+                    if *allow_redirect {
+                        write!(f, "subscribe(chain_key={}, from={}, allow_redirect)", chain_key, from)
+                    } else {
+                        write!(f, "subscribe(chain_key={}, from={})", chain_key, from)
+                    }
                 }
             },
             Message::HumanMessage { message } => write!(f, "human-message('{}')", message),
@@ -210,6 +238,9 @@ impl std::fmt::Display for Message {
             Message::CommitError { id, err } => write!(f, "commit-error(id={}, err='{}')", id, err),
             Message::FatalTerminate(why) => write!(f, "fatal-terminate({})", why),
             Message::SecuredWith(sess) => write!(f, "secured-with({})", sess),
+            Message::LoadMany { id, leafs } => write!(f, "load-many(id={}, cnt={})", id, leafs.len()),
+            Message::LoadManyResult { id, data } => write!(f, "load-many-result(id={}, cnt={})", id, data.len()),
+            Message::LoadManyFailed { id, err } => write!(f, "load-many-failed(id={})-{}", id, err),
         }
     }
 }

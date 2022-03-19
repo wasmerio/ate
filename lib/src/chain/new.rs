@@ -233,6 +233,7 @@ impl<'a> Chain {
         let mut pipe: Arc<Box<dyn EventPipe>> = Arc::new(Box::new(InboxPipe {
             inbox: sender,
             decache: decache_tx.clone(),
+            inside_async: inside_async.clone(),
             locks: StdMutex::new(FxHashSet::default()),
         }));
         if let Some(second) = builder.pipes {

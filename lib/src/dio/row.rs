@@ -99,7 +99,7 @@ impl<D> Row<D> {
             collections.insert(a);
         }
         match &evt.data_bytes {
-            Some(data) => {
+            MessageBytes::Some(data) => {
                 let auth = match evt.meta.get_authorization() {
                     Some(a) => a.clone(),
                     None => MetaAuthorization::default(),
@@ -134,8 +134,9 @@ impl<D> Row<D> {
                         is_new: false,
                     },
                 ))
-            }
-            None => bail!(SerializationErrorKind::NoData),
+            },
+            MessageBytes::LazySome(_) => bail!(SerializationErrorKind::MissingData),
+            MessageBytes::None => bail!(SerializationErrorKind::NoData),
         }
     }
 

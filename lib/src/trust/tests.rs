@@ -130,7 +130,7 @@ async fn test_chain() -> Result<(), AteError> {
                 .load(test_data.clone())
                 .await
                 .expect("Could not load the data for the entry");
-            assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(1; 1))));
+            assert_eq!(test_data.data.data_bytes.to_option(), Some(Bytes::from(vec!(1; 1))));
 
             // The other event we added should also still be there
             info!("checking event2 is in the chain");
@@ -139,7 +139,7 @@ async fn test_chain() -> Result<(), AteError> {
                 .await
                 .expect("Failed to find the entry after the compact");
             let test_data = lock.load(test_data.clone()).await?;
-            assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(2; 1))));
+            assert_eq!(test_data.data.data_bytes.to_option(), Some(Bytes::from(vec!(2; 1))));
         }
 
         // Fliush the chain
@@ -177,7 +177,7 @@ async fn test_chain() -> Result<(), AteError> {
                 .load(test_data.clone())
                 .await
                 .expect("Could not load the data for the entry");
-            assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(1; 1))));
+            assert_eq!(test_data.data.data_bytes.to_option(), Some(Bytes::from(vec!(1; 1))));
 
             // The other event we added should also still be there
             info!("checking event2 is in the chain");
@@ -186,7 +186,7 @@ async fn test_chain() -> Result<(), AteError> {
                 .await
                 .expect("Failed to find the entry after the reload");
             let test_data = lock.load(test_data.clone()).await.unwrap();
-            assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(2; 1))));
+            assert_eq!(test_data.data.data_bytes.to_option(), Some(Bytes::from(vec!(2; 1))));
 
             // Duplicate one of the event so the compactor has something to clean
             let evt1 = EventData::new(key1.clone(), Bytes::from(vec![10; 1]), mock_cfg.log_format);
@@ -225,7 +225,7 @@ async fn test_chain() -> Result<(), AteError> {
                 .await
                 .expect("Failed to find the entry after the compact");
             let test_data = lock.load(test_data.clone()).await?;
-            assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(10; 1))));
+            assert_eq!(test_data.data.data_bytes.to_option(), Some(Bytes::from(vec!(10; 1))));
 
             // The other event we added should also still be there
             info!("checking event2 is in the chain");
@@ -234,7 +234,7 @@ async fn test_chain() -> Result<(), AteError> {
                 .await
                 .expect("Failed to find the entry after the compact");
             let test_data = lock.load(test_data.clone()).await?;
-            assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(2; 1))));
+            assert_eq!(test_data.data.data_bytes.to_option(), Some(Bytes::from(vec!(2; 1))));
         }
 
         // Store the chain if we are in memory mode as there is no persistence
@@ -267,7 +267,7 @@ async fn test_chain() -> Result<(), AteError> {
                 .await
                 .expect("Failed to find the entry after the compact");
             let test_data = lock.load(test_data.clone()).await?;
-            assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(10; 1))));
+            assert_eq!(test_data.data.data_bytes.to_option(), Some(Bytes::from(vec!(10; 1))));
 
             // The other event we added should also still be there
             info!("checking event2 is in the chain");
@@ -276,7 +276,7 @@ async fn test_chain() -> Result<(), AteError> {
                 .await
                 .expect("Failed to find the entry after the compact");
             let test_data = lock.load(test_data.clone()).await?;
-            assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(2; 1))));
+            assert_eq!(test_data.data.data_bytes.to_option(), Some(Bytes::from(vec!(2; 1))));
         }
 
         {
@@ -354,7 +354,7 @@ async fn test_chain() -> Result<(), AteError> {
                 .await
                 .expect("Failed to find the entry after we reloaded the chain");
             let test_data = lock.load(test_data).await?;
-            assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(10; 1))));
+            assert_eq!(test_data.data.data_bytes.to_option(), Some(Bytes::from(vec!(10; 1))));
         }
 
         // Destroy the chain

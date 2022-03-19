@@ -232,18 +232,8 @@ impl LogFileLocalFs {
 
         // Deserialize the meta bytes into a metadata object
         let meta = evt.header.format.meta.deserialize(&evt.meta[..])?;
-        let data_hash = match &evt.data {
-            Some(a) => Some(AteHash::from_bytes(&a[..])),
-            None => None,
-        };
-        let data_size = match &evt.data {
-            Some(a) => a.len(),
-            None => 0,
-        };
-        let data = match evt.data {
-            Some(a) => Some(Bytes::from(a)),
-            None => None,
-        };
+        let data_hash = evt.data.hash();
+        let data_size = evt.data.size();
 
         // Record the lookup map
         let header = EventHeaderRaw::new(
@@ -258,7 +248,11 @@ impl LogFileLocalFs {
             header,
             data: EventData {
                 meta: meta,
-                data_bytes: data,
+                data_bytes: match evt.data {
+                    LogData::Some(data) => MessageBytes::Some(Bytes::from(data)),
+                    LogData::LazySome(l) => MessageBytes::LazySome(l),
+                    LogData::None => MessageBytes::None,
+                },
                 format: evt.header.format,
             },
             lookup: LogLookup {
@@ -437,7 +431,7 @@ impl LogFile for LogFileLocalFs {
         hash: AteHash,
     ) -> std::result::Result<LogLookup, LoadError> {
         // Load the data from the log file
-        let result = from_log.load(hash).await?;
+        let result = from_log.load(&hash).await?;
 
         // Write it to the local log
         let lookup = self.appender.write(&result.data, &result.header).await?;
@@ -462,27 +456,27 @@ impl LogFile for LogFileLocalFs {
         Ok(lookup)
     }
 
-    async fn load(&self, hash: AteHash) -> std::result::Result<LoadData, LoadError> {
+    async fn load(&self, hash: &AteHash) -> std::result::Result<LoadData, LoadError> {
         // Check the caches
         #[cfg(feature = "enable_caching")]
         {
             let mut cache = self.cache.lock().unwrap();
-            if let Some(result) = cache.flush.get(&hash) {
+            if let Some(result) = cache.flush.get(hash) {
                 return Ok(result.clone());
             }
-            if let Some(result) = cache.read.cache_get(&hash) {
+            if let Some(result) = cache.read.cache_get(hash) {
                 return Ok(result.clone());
             }
-            if let Some(result) = cache.write.cache_remove(&hash) {
+            if let Some(result) = cache.write.cache_remove(hash) {
                 return Ok(result);
             }
         }
 
         // Lookup the record in the redo log
-        let lookup = match self.lookup.get(&hash) {
+        let lookup = match self.lookup.get(hash) {
             Some(a) => a.clone(),
             None => {
-                bail!(LoadErrorKind::NotFoundByHash(hash));
+                bail!(LoadErrorKind::NotFoundByHash(hash.clone()));
             }
         };
         let _offset = lookup.offset;
@@ -491,7 +485,7 @@ impl LogFile for LogFileLocalFs {
         let archive = match self.archives.get(&lookup.index) {
             Some(a) => a,
             None => {
-                bail!(LoadErrorKind::NotFoundByHash(hash));
+                bail!(LoadErrorKind::NotFoundByHash(hash.clone()));
             }
         };
 
@@ -501,24 +495,14 @@ impl LogFile for LogFileLocalFs {
             match EventVersion::read(&mut loader).await? {
                 Some(a) => a,
                 None => {
-                    bail!(LoadErrorKind::NotFoundByHash(hash));
+                    bail!(LoadErrorKind::NotFoundByHash(hash.clone()));
                 }
             }
         };
 
         // Hash body
-        let data_hash = match &result.data {
-            Some(data) => Some(AteHash::from_bytes(&data[..])),
-            None => None,
-        };
-        let data_size = match &result.data {
-            Some(data) => data.len(),
-            None => 0,
-        };
-        let data = match result.data {
-            Some(data) => Some(Bytes::from(data)),
-            None => None,
-        };
+        let data_hash = result.data.hash();
+        let data_size = result.data.size();
 
         // Convert the result into a deserialized result
         let meta = result.header.format.meta.deserialize(&result.meta[..])?;
@@ -532,7 +516,11 @@ impl LogFile for LogFileLocalFs {
             ),
             data: EventData {
                 meta,
-                data_bytes: data,
+                data_bytes: match result.data {
+                    LogData::Some(data) => MessageBytes::Some(Bytes::from(data)),
+                    LogData::LazySome(l) => MessageBytes::LazySome(l),
+                    LogData::None => MessageBytes::None,
+                },
                 format: result.header.format,
             },
             lookup,

@@ -76,8 +76,11 @@ impl Service for ServiceHook {
         // Convert the data using the encryption and decryption routines
         dio.data_as_overlay(self.session.deref(), &mut evt)?;
         let req = match evt.data_bytes {
-            Some(a) => a,
-            None => {
+            MessageBytes::Some(a) => a,
+            MessageBytes::LazySome(_) => {
+                bail!(InvokeErrorKind::MissingData);
+            }
+            MessageBytes::None => {
                 bail!(InvokeErrorKind::NoData);
             }
         };

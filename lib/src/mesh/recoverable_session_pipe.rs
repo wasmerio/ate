@@ -48,6 +48,7 @@ pub(super) struct RecoverableSessionPipe {
 
     // Used to create new active pipes
     pub(super) addr: MeshAddress,
+    pub(super) lazy_data: bool,
     pub(super) hello_path: String,
     pub(super) node_id: NodeId,
     pub(super) key: ChainKey,
@@ -83,6 +84,7 @@ impl RecoverableSessionPipe {
         trace!("creating active pipe");
         let commit = Arc::new(StdMutex::new(FxHashMap::default()));
         let lock_requests = Arc::new(StdMutex::new(FxHashMap::default()));
+        let load_requests = Arc::new(StdMutex::new(FxHashMap::default()));
 
         // Create pipes to all the target root nodes
         trace!("building node cfg connect to");
@@ -104,6 +106,7 @@ impl RecoverableSessionPipe {
                     .expect("You must call the 'set_chain' before invoking this method."),
             ),
             lock_requests: Arc::clone(&lock_requests),
+            load_requests: Arc::clone(&load_requests),
             inbound_conversation: Arc::clone(&inbound_conversation),
             outbound_conversation: Arc::clone(&outbound_conversation),
             status_tx: status_tx.clone(),
@@ -168,6 +171,7 @@ impl RecoverableSessionPipe {
                 chain_key: self.key.clone(),
                 from,
                 allow_redirect: true,
+                omit_data: self.lazy_data,
             })
             .await?;
 
@@ -182,6 +186,8 @@ impl RecoverableSessionPipe {
             commit: Arc::clone(&commit),
             lock_attempt_timeout: self.builder.cfg_ate.lock_attempt_timeout,
             lock_requests: Arc::clone(&lock_requests),
+            load_timeout: self.builder.cfg_ate.load_timeout,
+            load_requests: Arc::clone(&load_requests),
             outbound_conversation: Arc::clone(&outbound_conversation),
         })
     }
@@ -389,6 +395,7 @@ impl EventPipe for RecoverableSessionPipe {
                         delayed_upload.from..delayed_upload.to,
                         pipe_tx,
                         false,
+                        usize::MAX,
                     )
                     .await?;
 
@@ -423,6 +430,30 @@ impl EventPipe for RecoverableSessionPipe {
         }
 
         Ok(status_rx)
+    }
+
+    async fn load_many(&self, leafs: Vec<AteHash>) -> Result<Vec<Option<Bytes>>, LoadError> {
+        let mut ret = self.next.load_many(leafs.clone())
+            .await?;
+
+        if ret.iter().any(|a| a.is_none()) {
+            let mut lock = self.active.write().await;
+            if let Some(active) = lock.as_mut() {
+                let mut other = active.load_many(leafs).await?.into_iter();
+                for ret in ret.iter_mut() {
+                    let other = other.next();
+                    if ret.is_none() {
+                        if let Some(Some(other)) = other {
+                            ret.replace(other);
+                        }
+                    }
+                }
+            } else {
+                bail!(LoadErrorKind::Disconnected)
+            }
+        }
+
+        Ok(ret)
     }
 
     async fn feed(&self, mut work: ChainWork) -> Result<(), CommitError> {

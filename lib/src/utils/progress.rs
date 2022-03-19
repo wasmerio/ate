@@ -9,6 +9,7 @@ use crate::error::ChainCreationError;
 use crate::event::EventData;
 use crate::loader::LoadData;
 use crate::mesh::Loader;
+use crate::event::MessageBytes;
 
 pub struct LoadProgress<T>
 where
@@ -72,8 +73,9 @@ where
             let total = 2
                 + data.header.meta_bytes.len()
                 + match data.data.data_bytes {
-                    Some(a) => a.len(),
-                    None => 0,
+                    MessageBytes::Some(a) => a.len(),
+                    MessageBytes::LazySome(l) => l.len,
+                    MessageBytes::None => 0,
                 };
             pb.add(total as u64);
         }

@@ -35,6 +35,10 @@ error_chain! {
             description("command failed as there was no data"),
             display("command failed as there was no data")
         }
+        MissingData {
+            description("command failed as the data is missing"),
+            display("command failed as the data is missing"),
+        }
     }
 }
 

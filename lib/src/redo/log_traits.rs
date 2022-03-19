@@ -36,7 +36,7 @@ where
         hash: AteHash,
     ) -> std::result::Result<LogLookup, LoadError>;
 
-    async fn load(&self, hash: AteHash) -> std::result::Result<LoadData, LoadError>;
+    async fn load(&self, hash: &AteHash) -> std::result::Result<LoadData, LoadError>;
 
     fn move_log_file(&mut self, new_path: &String) -> Result<()>;
 

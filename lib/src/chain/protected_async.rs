@@ -72,7 +72,7 @@ impl ChainProtectedAsync {
     ) -> Result<(), CommitError> {
         let data = EventData {
             meta,
-            data_bytes: None,
+            data_bytes: MessageBytes::None,
             format: MessageFormat {
                 meta: SerializationFormat::Json,
                 data: SerializationFormat::Json,

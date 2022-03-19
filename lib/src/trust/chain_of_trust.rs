@@ -36,7 +36,7 @@ impl<'a> ChainOfTrust {
         #[cfg(feature = "enable_verbose")]
         debug!("loading: {}", leaf.record);
 
-        let data = self.redo.load(leaf.record.clone()).await?;
+        let data = self.redo.load(leaf.record).await?;
         Ok(LoadResult {
             lookup: data.lookup,
             header: data.header,
@@ -53,7 +53,7 @@ impl<'a> ChainOfTrust {
 
         let mut futures = Vec::new();
         for leaf in leafs.into_iter() {
-            let data = self.redo.load(leaf.record.clone());
+            let data = self.redo.load(leaf.record);
             futures.push((data, leaf));
         }
 

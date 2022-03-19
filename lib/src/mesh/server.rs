@@ -21,6 +21,7 @@ use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 use tracing_futures::{Instrument, WithSubscriber};
+use bytes::Bytes;
 
 use super::client::MeshClient;
 use super::core::*;
@@ -417,6 +418,10 @@ impl EventPipe for ServerPipe {
     async fn conversation(&self) -> Option<Arc<ConversationSession>> {
         None
     }
+
+    async fn load_many(&self, leafs: Vec<AteHash>) -> Result<Vec<Option<Bytes>>, LoadError> {
+        self.next.load_many(leafs).await
+    }
 }
 
 async fn open_internal<'b>(
@@ -676,6 +681,38 @@ async fn inbox_lock<'b>(
     .await
 }
 
+async fn inbox_load_many<'b>(
+    context: Arc<SessionContext>,
+    id: u64,
+    leafs: Vec<AteHash>,
+    tx: &'b mut Tx,
+) -> Result<(), CommsError> {
+    trace!("load id={}, leafs={}", id, leafs.len());
+
+    let chain = context.inside.lock().unwrap().chain.clone();
+    let chain = match chain {
+        Some(a) => a,
+        None => {
+            tx.send_reply_msg(Message::FatalTerminate(FatalTerminate::NotYetSubscribed))
+                .await?;
+            bail!(CommsErrorKind::NotYetSubscribed);
+        }
+    };
+
+    let ret = match chain.pipe.load_many(leafs).await {
+        Ok(d) => Message::LoadManyResult {
+            id,
+            data: d.into_iter().map(|d| d.map(|d| d.to_vec())).collect()
+        },
+        Err(err) => Message::LoadManyFailed {
+            id,
+            err: err.to_string(),
+        }
+    };
+    tx.send_reply_msg(ret)
+    .await
+}
+
 async fn inbox_unlock<'b>(
     context: Arc<SessionContext>,
     key: PrimaryKey,
@@ -704,6 +741,7 @@ async fn inbox_subscribe<'b>(
     chain_key: ChainKey,
     from: ChainTimestamp,
     redirect: bool,
+    omit_data: bool,
     context: Arc<SessionContext>,
     tx: &'b mut Tx,
 ) -> Result<(), CommsError> {
@@ -750,6 +788,7 @@ async fn inbox_subscribe<'b>(
             let relay_tx = super::redirect::redirect::<SessionContext>(
                 root,
                 node_addr,
+                omit_data,
                 hello_path,
                 chain_key,
                 from,
@@ -828,7 +867,11 @@ async fn inbox_subscribe<'b>(
     // Stream the data back to the client
     debug!("starting the streaming process");
     let strip_signatures = opened_chain.integrity.is_centralized();
-    stream_history_range(Arc::clone(&chain), from.., tx, strip_signatures).await?;
+    let strip_data = match omit_data {
+        true => 64usize,
+        false => usize::MAX
+    };
+    stream_history_range(Arc::clone(&chain), from.., tx, strip_signatures, strip_data).await?;
 
     Ok(())
 }
@@ -888,6 +931,7 @@ async fn inbox_packet<'b>(
                 chain_key,
                 from,
                 allow_redirect: redirect,
+                omit_data,
             } => {
                 let hello_path = tx.hello_path.clone();
                 inbox_subscribe(
@@ -896,6 +940,7 @@ async fn inbox_packet<'b>(
                     chain_key,
                     from,
                     redirect,
+                    omit_data,
                     context,
                     tx,
                 )
@@ -932,6 +977,11 @@ async fn inbox_packet<'b>(
             Message::Unlock { key } => {
                 inbox_unlock(context, key, tx)
                     .instrument(span!(Level::DEBUG, "unlock"))
+                    .await?;
+            }
+            Message::LoadMany { id, leafs } => {
+                inbox_load_many(context, id, leafs, tx)
+                    .instrument(span!(Level::DEBUG, "load-many"))
                     .await?;
             }
             _ => {}

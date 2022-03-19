@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 
 use super::error::*;
+use super::crypto::AteHash;
 use async_trait::async_trait;
 use tokio::io::ErrorKind;
 
@@ -204,11 +205,94 @@ pub struct LogHeader {
     pub format: MessageFormat,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct LogLookup {
+    pub index: u32,
+    pub offset: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct LazyData
+{
+    pub record: AteHash,
+    pub hash: AteHash,
+    pub len: usize,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum LogData
+{
+    Some(Vec<u8>),
+    LazySome(LazyData),
+    None,
+}
+
+#[derive(Debug, Clone)]
+pub enum LogDataRef<'a>
+{
+    Some(&'a Vec<u8>),
+    LazySome(&'a LazyData),
+    None,
+}
+
+impl LogData
+{
+    pub fn is_none(&self) -> bool {
+        self.is_some() == false
+    }
+
+    pub fn is_some(&self) -> bool {
+        match self {
+            LogData::Some(_) => true,
+            LogData::LazySome(_) => true,
+            LogData::None => false,
+        }
+    }
+
+    pub const fn as_ref<'a>(&'a self) -> LogDataRef<'a> {
+        match self {
+            LogData::Some(ref a) => LogDataRef::Some(a),
+            LogData::LazySome(a) => LogDataRef::LazySome(a),
+            LogData::None => LogDataRef::None,
+        }
+    }
+
+    pub const fn as_option<'a>(&'a self) -> Option<&'a Vec<u8>> {
+        match *self {
+            LogData::Some(ref a) => Some(a),
+            _ => None
+        }
+    }
+
+    pub fn to_option(self) -> Option<Vec<u8>> {
+        match self {
+            LogData::Some(a) => Some(a),
+            _ => None
+        }
+    }
+
+    pub fn hash(&self) -> Option<AteHash> {
+        match self {
+            LogData::Some(a) => Some(AteHash::from_bytes(&a[..])),
+            LogData::LazySome(l) => Some(l.hash.clone()),
+            LogData::None => None,
+        }
+    }
+
+    pub fn size(&self) -> usize {
+        match self {
+            LogData::Some(a) => a.len(),
+            LogData::LazySome(l) => l.len,
+            LogData::None => 0usize,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct LogEntry {
     pub header: LogHeader,
     pub meta: Vec<u8>,
-    pub data: Option<Vec<u8>>,
+    pub data: LogData,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, IntoPrimitive, TryFromPrimitive)]
@@ -381,7 +465,10 @@ impl EventVersion {
                 },
             },
             meta,
-            data,
+            data: match data {
+                Some(a) => LogData::Some(a),
+                None => LogData::None,
+            },
         }))
     }
 

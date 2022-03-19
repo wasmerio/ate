@@ -574,7 +574,7 @@ impl DioMut {
                 // Only once all the rows are processed will we ship it to the redo log
                 let evt = EventData {
                     meta: meta,
-                    data_bytes: Some(data),
+                    data_bytes: MessageBytes::Some(data),
                     format: row.format,
                 };
                 evts.push(evt);
@@ -606,7 +606,7 @@ impl DioMut {
 
                 let evt = EventData {
                     meta: meta,
-                    data_bytes: None,
+                    data_bytes: MessageBytes::None,
                     format,
                 };
                 evts.push(evt);
@@ -633,7 +633,7 @@ impl DioMut {
                     0,
                     EventData {
                         meta: Metadata { core: meta },
-                        data_bytes: None,
+                        data_bytes: MessageBytes::None,
                         format,
                     },
                 );
@@ -799,8 +799,11 @@ impl DioMut {
         D: Serialize + DeserializeOwned,
     {
         data.data_bytes = match data.data_bytes {
-            Some(data) => Some(self.multi.data_as_overlay(&header.meta, data, session)?),
-            None => None,
+            MessageBytes::Some(data) => MessageBytes::Some(self.multi.data_as_overlay(&header.meta, data, session)?),
+            MessageBytes::LazySome(_) => {
+                bail!(LoadErrorKind::MissingData);
+            },
+            MessageBytes::None => MessageBytes::None,
         };
 
         let mut state = self.dio.state.lock().unwrap();

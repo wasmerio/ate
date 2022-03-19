@@ -54,6 +54,22 @@ error_chain! {
             description("chain has no repository thus could not load foreign object")
             display("chain has no repository thus could not load foreign object")
         }
+        MissingData {
+            description("the data is missing for this record")
+            display("the data is missing for this record")
+        }
+        Disconnected {
+            description("unable to load record as the client is currently disconnected from the server")
+            display("unable to load record as the client is currently disconnected from the server")
+        }
+        Timeout {
+            description("timeout while waiting for the data from the server")
+            display("timeout while waiting for the data from the server")
+        }
+        LoadFailed(err: String) {
+            description("failed to load the data from the server"),
+            display("failed to load the data from the server - {}", err),
+        }
         CollectionDetached {
             description("collection is detached from its parent, it must be attached before it can be used")
             display("collection is detached from its parent, it must be attached before it can be used")

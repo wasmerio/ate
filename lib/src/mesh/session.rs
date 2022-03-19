@@ -15,6 +15,7 @@ use tokio::sync::mpsc;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 use tracing_futures::{Instrument, WithSubscriber};
+use bytes::Bytes;
 
 use super::core::*;
 use super::lock_request::*;
@@ -45,6 +46,7 @@ pub struct MeshSession {
     pub(super) chain: Weak<Chain>,
     pub(super) commit: Arc<StdMutex<FxHashMap<u64, mpsc::Sender<Result<u64, CommitError>>>>>,
     pub(super) lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, LockRequest>>>,
+    pub(super) load_requests: Arc<StdMutex<FxHashMap<u64, mpsc::Sender<Result<Vec<Option<Vec<u8>>>, LoadError>>>>>,
     pub(super) inbound_conversation: Arc<ConversationSession>,
     pub(super) outbound_conversation: Arc<ConversationSession>,
     pub(crate) status_tx: mpsc::Sender<ConnectionStatusChange>,
@@ -71,6 +73,7 @@ impl MeshSession {
         }
 
         let temporal = builder.temporal;
+        let lazy_data = temporal == true;
 
         // Open the chain and make a sample of the last items so that we can
         // speed up the synchronization by skipping already loaded items
@@ -112,6 +115,7 @@ impl MeshSession {
             cfg_mesh: cfg_mesh.clone(),
             next: NullPipe::new(),
             active: RwLock::new(None),
+            lazy_data,
             mode: builder.cfg_ate.recovery_mode,
             addr,
             hello_path,
@@ -269,6 +273,22 @@ impl MeshSession {
             guard.remove(&key);
         }
         Ok(())
+    }
+
+    pub(super) fn inbox_load_result(
+        self: &Arc<MeshSession>,
+        id: u64,
+    ) -> Result<Option<mpsc::Sender<Result<Vec<Option<Vec<u8>>>, LoadError>>>, CommsError> {
+        trace!(
+            "load_result id={}",
+            id,
+        );
+
+        let mut guard = self.load_requests.lock().unwrap();
+        if let Some(result) = guard.remove(&id) {
+            return Ok(Some(result));
+        }
+        Ok(None)
     }
 
     pub(super) async fn record_delayed_upload(
@@ -511,6 +531,28 @@ impl MeshSession {
             Message::LockResult { key, is_locked } => {
                 async move { Self::inbox_lock_result(self, key, is_locked) }
                     .instrument(span!(Level::DEBUG, "lock_result"))
+                    .await?;
+            }
+            Message::LoadManyResult { id, data } => {
+                async move {
+                    let sender = Self::inbox_load_result(self, id)?;
+                    if let Some(sender) = sender {
+                        let _ = sender.send(Ok(data)).await;
+                    }
+                    Result::<(), CommsError>::Ok(())
+                }
+                    .instrument(span!(Level::DEBUG, "load_result"))
+                    .await?;
+            }
+            Message::LoadManyFailed { id, err } => {
+                async move {
+                    let sender = Self::inbox_load_result(self, id)?;
+                    if let Some(sender) = sender {
+                        let _ = sender.send(Err(LoadErrorKind::LoadFailed(err).into())).await;
+                    }
+                    Result::<(), CommsError>::Ok(())
+                }
+                    .instrument(span!(Level::DEBUG, "load_failed"))
                     .await?;
             }
             Message::EndOfHistory => {

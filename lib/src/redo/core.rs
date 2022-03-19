@@ -167,7 +167,7 @@ impl RedoLog {
     }
 
     pub async fn load(&self, hash: AteHash) -> std::result::Result<LoadData, LoadError> {
-        Ok(self.log_file.load(hash).await?)
+        Ok(self.log_file.load(&hash).await?)
     }
 
     pub fn count(&self) -> usize {

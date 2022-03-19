@@ -17,6 +17,10 @@ error_chain! {
             description("encryption error while transforming event data"),
             display("encryption error while transforming event data - {}", err),
         }
+        MissingData {
+            description("missing data for this record")
+            display("missing data for this record")
+        }
         MissingReadKey(hash: String) {
             description("missing the read key needed to encrypt/decrypt this data object"),
             display("missing the read key ({}) needed to encrypt/decrypt this data object", hash)

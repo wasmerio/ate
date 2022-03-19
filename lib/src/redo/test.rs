@@ -39,7 +39,10 @@ async fn test_write_data(
     };
     let evt = EventData {
         meta: meta,
-        data_bytes: body,
+        data_bytes: match body {
+            Some(data) => MessageBytes::Some(data),
+            None => MessageBytes::None,
+        },
         format: format,
     };
 
@@ -62,7 +65,7 @@ async fn test_read_data(
     format: MessageFormat,
 ) {
     let result = log
-        .load(read_header)
+        .load(read_header.clone())
         .await
         .expect(&format!("Failed to read the entry {:?}", read_header));
 
@@ -77,7 +80,7 @@ async fn test_read_data(
     };
 
     assert_eq!(meta_bytes, result.header.meta_bytes);
-    assert_eq!(test_body, result.data.data_bytes);
+    assert_eq!(test_body, result.data.data_bytes.to_option());
 }
 
 #[test]

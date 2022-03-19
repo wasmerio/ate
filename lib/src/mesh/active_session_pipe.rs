@@ -43,6 +43,8 @@ pub(super) struct ActiveSessionPipe {
     pub(super) commit: Arc<StdMutex<FxHashMap<u64, mpsc::Sender<Result<u64, CommitError>>>>>,
     pub(super) lock_attempt_timeout: Duration,
     pub(super) lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, LockRequest>>>,
+    pub(super) load_timeout: Duration,
+    pub(super) load_requests: Arc<StdMutex<FxHashMap<u64, mpsc::Sender<Result<Vec<Option<Vec<u8>>>, LoadError>>>>>,
     pub(super) outbound_conversation: Arc<ConversationSession>,
 }
 
@@ -135,6 +137,43 @@ impl ActiveSessionPipe {
         Ok(ret)
     }
 
+    pub(super) async fn load_many(&mut self, leafs: Vec<AteHash>) -> Result<Vec<Option<Bytes>>, LoadError> {
+        // Register a load ID that will receive the response
+        let (tx, mut rx) = mpsc::channel(1);
+        let id = fastrand::u64(..);
+        self.load_requests.lock().unwrap().insert(id, tx);
+
+        // Inform the server that we want these records
+        self.tx
+            .send_all_msg(Message::LoadMany { id, leafs: leafs })
+            .await
+            .map_err(|err| {
+                trace!("load failed: {}", err);
+                LoadErrorKind::Disconnected
+            })?;
+
+        // Wait for the response from the server (or a timeout)
+        match crate::engine::timeout(self.load_timeout, rx.recv()).await {
+            Ok(Some(a)) => {
+                self.likely_read_only = false;
+                return a
+                    .map(|r| {
+                        r.into_iter()
+                         .map(|d| d.map(|d| Bytes::from(d)))
+                         .collect()
+                    });
+            }
+            Ok(None) => {
+                self.load_requests.lock().unwrap().remove(&id);
+                bail!(LoadErrorKind::Disconnected);
+            }
+            Err(_) => {
+                self.load_requests.lock().unwrap().remove(&id);
+                bail!(LoadErrorKind::Timeout)
+            },
+        };
+    }
+
     pub(super) async fn try_lock(&mut self, key: PrimaryKey) -> Result<bool, CommitError> {
         // If we are still connecting then don't do it
         if self.connected == false {
@@ -171,7 +210,10 @@ impl ActiveSessionPipe {
                 }
                 *rx.borrow()
             }
-            Err(_) => bail!(CommitErrorKind::LockError(CommsErrorKind::Timeout.into())),
+            Err(_) => {
+                self.lock_requests.lock().unwrap().remove(&key);
+                bail!(CommitErrorKind::LockError(CommsErrorKind::Timeout.into()))
+            },
         };
         Ok(ret)
     }

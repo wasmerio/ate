@@ -17,6 +17,7 @@ use super::pipe::*;
 use super::spec::MessageFormat;
 use super::transaction::*;
 use super::trust::*;
+use super::event::MessageBytes;
 
 use bytes::Bytes;
 
@@ -69,11 +70,45 @@ impl ChainMultiUser {
     }
 
     pub async fn load(&self, leaf: EventLeaf) -> Result<LoadResult, LoadError> {
-        self.inside_async.read().await.chain.load(leaf).await
+        let mut ret = self.inside_async.read().await.chain.load(leaf).await?;
+        ret.data.data_bytes = match ret.data.data_bytes {
+            MessageBytes::Some(a) => MessageBytes::Some(a),
+            MessageBytes::LazySome(l) => {
+                let data = self.pipe.load_many(vec![ l.record ]).await?;
+                match data.into_iter().next() {
+                    Some(Some(a)) => MessageBytes::Some(a),
+                    _ => MessageBytes::None,
+                }
+            },
+            MessageBytes::None => MessageBytes::None,
+        };
+        Ok(ret)
     }
 
     pub async fn load_many(&self, leafs: Vec<EventLeaf>) -> Result<Vec<LoadResult>, LoadError> {
-        self.inside_async.read().await.chain.load_many(leafs).await
+        let mut rets = self.inside_async.read().await.chain.load_many(leafs).await?;
+        let lazy = rets
+            .iter()
+            .filter_map(|a| {
+                if let MessageBytes::LazySome(ref l) = a.data.data_bytes {
+                    Some(l.record.clone())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        if lazy.len() > 0 {
+            let mut data = self.pipe.load_many(lazy).await?.into_iter();
+            for ret in rets.iter_mut() {
+                if ret.data.data_bytes.is_lazy() {
+                    ret.data.data_bytes = match data.next() {
+                        Some(Some(a)) => MessageBytes::Some(a),
+                        _ => MessageBytes::None,
+                    }
+                }
+            }
+        }
+        Ok(rets)
     }
 
     pub async fn lookup_primary(&self, key: &PrimaryKey) -> Option<EventLeaf> {
