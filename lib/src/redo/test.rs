@@ -37,7 +37,7 @@ async fn test_write_data(
         Some(a) => Some(Bytes::from(a)),
         None => None,
     };
-    let evt = EventData {
+    let evt = EventWeakData {
         meta: meta,
         data_bytes: match body {
             Some(data) => MessageBytes::Some(data),

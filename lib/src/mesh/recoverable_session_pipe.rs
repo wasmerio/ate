@@ -433,26 +433,20 @@ impl EventPipe for RecoverableSessionPipe {
     }
 
     async fn load_many(&self, leafs: Vec<AteHash>) -> Result<Vec<Option<Bytes>>, LoadError> {
-        let mut ret = self.next.load_many(leafs.clone())
-            .await?;
-
-        if ret.iter().any(|a| a.is_none()) {
-            let mut lock = self.active.write().await;
-            if let Some(active) = lock.as_mut() {
-                let mut other = active.load_many(leafs).await?.into_iter();
-                for ret in ret.iter_mut() {
-                    let other = other.next();
-                    if ret.is_none() {
-                        if let Some(Some(other)) = other {
-                            ret.replace(other);
-                        }
-                    }
+        let ret = match self.next.load_many(leafs.clone()).await
+        {
+            Ok(a) => a,
+            Err(LoadError(LoadErrorKind::MissingData, _)) |
+            Err(LoadError(LoadErrorKind::Disconnected, _)) => {
+                let mut lock = self.active.write().await;
+                if let Some(active) = lock.as_mut() {
+                    active.load_many(leafs).await?
+                } else {
+                    bail!(LoadErrorKind::Disconnected)
                 }
-            } else {
-                bail!(LoadErrorKind::Disconnected)
-            }
-        }
-
+            },
+            Err(err) => return Err(err)
+        };
         Ok(ret)
     }
 

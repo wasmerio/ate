@@ -4,7 +4,9 @@ use std::sync::{Arc, Weak};
 use std::time::Duration;
 use tokio::sync::RwLock;
 use derivative::*;
+use error_chain::bail;
 
+use crate::event::EventStrongData;
 use crate::session::AteSession;
 
 use super::chain::*;
@@ -69,44 +71,73 @@ impl ChainMultiUser {
         }
     }
 
-    pub async fn load(&self, leaf: EventLeaf) -> Result<LoadResult, LoadError> {
-        let mut ret = self.inside_async.read().await.chain.load(leaf).await?;
-        ret.data.data_bytes = match ret.data.data_bytes {
-            MessageBytes::Some(a) => MessageBytes::Some(a),
-            MessageBytes::LazySome(l) => {
-                let data = self.pipe.load_many(vec![ l.record ]).await?;
-                match data.into_iter().next() {
-                    Some(Some(a)) => MessageBytes::Some(a),
-                    _ => MessageBytes::None,
+    pub async fn load(&self, leaf: EventLeaf) -> Result<LoadStrongResult, LoadError> {
+        let ret = self.inside_async.read().await.chain.load(leaf).await?;
+        let ret = LoadStrongResult {
+            lookup: ret.lookup,
+            header: ret.header,
+            data: EventStrongData {
+                meta: ret.data.meta,
+                format: ret.data.format,
+                data_bytes: match ret.data.data_bytes {
+                    MessageBytes::Some(a) => Some(a),
+                    MessageBytes::LazySome(l) => {
+                        let data = self.pipe.load_many(vec![ l.record ]).await?;
+                        match data.into_iter().next() {
+                            Some(Some(a)) => Some(a),
+                            _ => {
+                                bail!(LoadErrorKind::MissingData)
+                            },
+                        }
+                    },
+                    MessageBytes::None => None,
                 }
             },
-            MessageBytes::None => MessageBytes::None,
+            leaf: ret.leaf,
         };
         Ok(ret)
     }
 
-    pub async fn load_many(&self, leafs: Vec<EventLeaf>) -> Result<Vec<LoadResult>, LoadError> {
-        let mut rets = self.inside_async.read().await.chain.load_many(leafs).await?;
-        let lazy = rets
-            .iter()
-            .filter_map(|a| {
-                if let MessageBytes::LazySome(ref l) = a.data.data_bytes {
-                    Some(l.record.clone())
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
-        if lazy.len() > 0 {
-            let mut data = self.pipe.load_many(lazy).await?.into_iter();
-            for ret in rets.iter_mut() {
+    pub async fn load_many(&self, leafs: Vec<EventLeaf>) -> Result<Vec<LoadStrongResult>, LoadError> {
+        let mut data = self.inside_async.read().await.chain.load_many(leafs.clone()).await?;
+        
+        let lazy = data.iter().any(|r| r.data.data_bytes.is_lazy());
+        if lazy {
+            let leafs = leafs.into_iter().map(|l| l.record).collect();
+            let mut other = self.pipe.load_many(leafs).await?.into_iter();
+            for ret in data.iter_mut() {
+                let other = other.next();
                 if ret.data.data_bytes.is_lazy() {
-                    ret.data.data_bytes = match data.next() {
+                    ret.data.data_bytes = match other {
                         Some(Some(a)) => MessageBytes::Some(a),
-                        _ => MessageBytes::None,
+                        _ => {
+                            bail!(LoadErrorKind::MissingData)
+                        },
                     }
                 }
             }
+        }
+
+        let mut rets = Vec::new();
+        for l in data {
+            rets.push(
+                LoadStrongResult {
+                    lookup: l.lookup,
+                    header: l.header,
+                    data: EventStrongData {
+                        meta: l.data.meta,
+                        format: l.data.format,
+                        data_bytes: match l.data.data_bytes {
+                            MessageBytes::Some(a) => Some(a),
+                            MessageBytes::LazySome(_) => {
+                                bail!(LoadErrorKind::MissingData)
+                            },
+                            MessageBytes::None => None,
+                        }
+                    },
+                    leaf: l.leaf,
+                }
+            );
         }
         Ok(rets)
     }

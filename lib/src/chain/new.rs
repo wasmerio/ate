@@ -224,14 +224,14 @@ impl<'a> Chain {
         let worker_inside_sync = Arc::clone(&inside_sync);
 
         // background thread - receives events and processes them
-        let sender = ChainWorkProcessor::new(worker_inside_async, worker_inside_sync, compact_tx);
+        let processor = ChainWorkProcessor::new(worker_inside_async, worker_inside_sync, compact_tx);
 
         // decache subscription
         let (decache_tx, _) = broadcast::channel(1000);
 
         // The inbox pipe intercepts requests to and processes them
         let mut pipe: Arc<Box<dyn EventPipe>> = Arc::new(Box::new(InboxPipe {
-            inbox: sender,
+            inbox: processor,
             decache: decache_tx.clone(),
             inside_async: inside_async.clone(),
             locks: StdMutex::new(FxHashSet::default()),

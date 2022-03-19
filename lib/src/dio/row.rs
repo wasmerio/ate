@@ -81,7 +81,7 @@ where
 impl<D> Row<D> {
     pub(crate) fn from_event(
         dio: &Arc<Dio>,
-        evt: &EventData,
+        evt: &EventStrongData,
         created: u64,
         updated: u64,
     ) -> Result<(RowHeader, Row<D>), SerializationError>
@@ -99,7 +99,7 @@ impl<D> Row<D> {
             collections.insert(a);
         }
         match &evt.data_bytes {
-            MessageBytes::Some(data) => {
+            Some(data) => {
                 let auth = match evt.meta.get_authorization() {
                     Some(a) => a.clone(),
                     None => MetaAuthorization::default(),
@@ -135,8 +135,7 @@ impl<D> Row<D> {
                     },
                 ))
             },
-            MessageBytes::LazySome(_) => bail!(SerializationErrorKind::MissingData),
-            MessageBytes::None => bail!(SerializationErrorKind::NoData),
+            None => bail!(SerializationErrorKind::NoData),
         }
     }
 

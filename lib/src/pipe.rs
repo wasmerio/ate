@@ -180,16 +180,14 @@ impl EventPipe for DuelPipe {
     }
 
     async fn load_many(&self, leafs: Vec<AteHash>) -> Result<Vec<Option<Bytes>>, LoadError> {
-        let mut rets = self.first.load_many(leafs.clone()).await?;
-        let mut others = self.second.load_many(leafs).await?.into_iter();
-        for ret in rets.iter_mut() {
-            let other = others.next();
-            if ret.is_none() {
-                if let Some(Some(data)) = other {
-                    ret.replace(data);
-                }
-            }
-        }
+        let rets = match self.first.load_many(leafs.clone()).await {
+            Ok(a) => a,
+            Err(LoadError(LoadErrorKind::MissingData, _)) |
+            Err(LoadError(LoadErrorKind::Disconnected, _)) => {
+                self.second.load_many(leafs).await?
+            },
+            Err(err) => return Err(err)
+        };
         Ok(rets)
     }
 

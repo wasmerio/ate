@@ -309,7 +309,7 @@ impl RedoLog {
 impl LogWritable for RedoLog {
     async fn write(
         &mut self,
-        evt: &EventData,
+        evt: &EventWeakData,
     ) -> std::result::Result<LogLookup, SerializationError> {
         if let Some(flip) = &mut self.flip {
             flip.deferred.push(evt.clone());

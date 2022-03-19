@@ -27,7 +27,7 @@ where
 
     async fn write(
         &mut self,
-        evt: &EventData,
+        evt: &EventWeakData,
     ) -> std::result::Result<LogLookup, SerializationError>;
 
     async fn copy_event(

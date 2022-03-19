@@ -44,7 +44,7 @@ impl ServiceHook {
 
 #[async_trait]
 impl Service for ServiceHook {
-    fn filter(&self, evt: &EventData) -> bool {
+    fn filter(&self, evt: &EventWeakData) -> bool {
         if let Some(t) = evt.meta.get_type_name() {
             return t.type_name == self.handler.request_type_name();
         }
@@ -76,11 +76,8 @@ impl Service for ServiceHook {
         // Convert the data using the encryption and decryption routines
         dio.data_as_overlay(self.session.deref(), &mut evt)?;
         let req = match evt.data_bytes {
-            MessageBytes::Some(a) => a,
-            MessageBytes::LazySome(_) => {
-                bail!(InvokeErrorKind::MissingData);
-            }
-            MessageBytes::None => {
+            Some(a) => a,
+            None => {
                 bail!(InvokeErrorKind::NoData);
             }
         };

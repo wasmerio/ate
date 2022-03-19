@@ -110,7 +110,7 @@ impl LogAppender {
 
     pub(super) async fn write(
         &mut self,
-        evt: &EventData,
+        evt: &EventWeakData,
         header: &EventHeaderRaw,
     ) -> std::result::Result<LogLookup, SerializationError> {
         let log_header = crate::LOG_VERSION

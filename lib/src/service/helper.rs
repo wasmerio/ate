@@ -13,7 +13,7 @@ use super::*;
 
 pub(crate) fn callback_events_prepare(
     guard: &StdRwLockReadGuard<ChainProtectedSync>,
-    events: &Vec<EventData>,
+    events: &Vec<EventWeakData>,
 ) -> Vec<Notify> {
     let mut ret = Vec::new();
 
@@ -70,7 +70,7 @@ pub(super) struct SniffCommandHandle {
 
 pub(super) fn sniff_for_command_begin(
     chain: Weak<Chain>,
-    what: Box<dyn Fn(&EventData) -> bool + Send + Sync>,
+    what: Box<dyn Fn(&EventWeakData) -> bool + Send + Sync>,
 ) -> SniffCommandHandle {
     // Create a sniffer
     let id = fastrand::u64(..);

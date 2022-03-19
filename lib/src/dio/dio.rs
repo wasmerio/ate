@@ -33,7 +33,7 @@ use crate::spec::*;
 use crate::time::*;
 use crate::transaction::*;
 use crate::tree::*;
-use crate::trust::LoadResult;
+use crate::trust::LoadStrongResult;
 
 use crate::crypto::{EncryptedPrivateKey, PrivateSignKey};
 use crate::{
@@ -43,7 +43,7 @@ use crate::{
 
 #[derive(Debug)]
 pub(crate) struct DioState {
-    pub(super) cache_load: FxHashMap<PrimaryKey, (Arc<EventData>, EventLeaf)>,
+    pub(super) cache_load: FxHashMap<PrimaryKey, (Arc<EventStrongData>, EventLeaf)>,
 }
 
 /// Represents a series of mutations that the user is making on a particular chain-of-trust
@@ -163,14 +163,14 @@ impl Dio {
             .await
     }
 
-    pub async fn load_raw(self: &Arc<Self>, key: &PrimaryKey) -> Result<EventData, LoadError> {
+    pub async fn load_raw(self: &Arc<Self>, key: &PrimaryKey) -> Result<EventStrongData, LoadError> {
         self.run_async(self.__load_raw(key)).await
     }
 
     pub(super) async fn __load_raw(
         self: &Arc<Self>,
         key: &PrimaryKey,
-    ) -> Result<EventData, LoadError> {
+    ) -> Result<EventStrongData, LoadError> {
         let leaf = match self.multi.lookup_primary(key).await {
             Some(a) => a,
             None => bail!(LoadErrorKind::NotFound(key.clone())),
@@ -255,7 +255,7 @@ impl Dio {
     pub(crate) fn load_from_event<D>(
         self: &Arc<Self>,
         session: &'_ dyn AteSession,
-        mut data: EventData,
+        mut data: EventStrongData,
         header: EventHeader,
         leaf: EventLeaf,
     ) -> Result<Dao<D>, LoadError>
@@ -263,9 +263,8 @@ impl Dio {
         D: DeserializeOwned,
     {
         data.data_bytes = match data.data_bytes {
-            MessageBytes::Some(data) => MessageBytes::Some(self.multi.data_as_overlay(&header.meta, data, session)?),
-            MessageBytes::LazySome(_) => bail!(LoadErrorKind::MissingData),
-            MessageBytes::None => MessageBytes::None,
+            Some(data) => Some(self.multi.data_as_overlay(&header.meta, data, session)?),
+            None => None,
         };
 
         let mut state = self.state.lock().unwrap();
@@ -462,12 +461,11 @@ impl Dio {
         let mut already = FxHashSet::default();
         let mut ret = Vec::new();
 
-        let inside_async = self.multi.inside_async.read().await;
-
         // We either find existing objects in the cache or build a list of objects to load
         let to_load = {
             let mut to_load = Vec::new();
 
+            let inside_async = self.multi.inside_async.read().await;
             let state = self.state.lock().unwrap();
             for key in keys {
                 if let Some((dao, leaf)) = state.cache_load.get(&key) {
@@ -487,7 +485,7 @@ impl Dio {
         };
 
         // Load all the objects that have not yet been loaded
-        let to_load = inside_async.chain.load_many(to_load).await?;
+        let to_load = self.multi.load_many(to_load).await?;
 
         // Now process all the objects
         let ret = {
@@ -539,12 +537,11 @@ impl Dio {
     pub(crate) fn data_as_overlay(
         self: &Arc<Self>,
         session: &'_ dyn AteSession,
-        data: &mut EventData,
+        data: &mut EventStrongData,
     ) -> Result<(), TransformError> {
         data.data_bytes = match &data.data_bytes {
-            MessageBytes::Some(d) => MessageBytes::Some(self.multi.data_as_overlay(&data.meta, d.clone(), session)?),
-            MessageBytes::LazySome(_) => bail!(TransformErrorKind::MissingData),
-            MessageBytes::None => MessageBytes::None,
+            Some(d) => Some(self.multi.data_as_overlay(&data.meta, d.clone(), session)?),
+            None => None,
         };
         Ok(())
     }
@@ -552,7 +549,7 @@ impl Dio {
     pub(super) fn __process_load_row<D>(
         self: &Arc<Self>,
         session: &'_ dyn AteSession,
-        evt: &mut LoadResult,
+        evt: &mut LoadStrongResult,
         meta: &Metadata,
         allow_missing_keys: bool,
         allow_serialization_error: bool,
@@ -561,7 +558,7 @@ impl Dio {
         D: DeserializeOwned,
     {
         evt.data.data_bytes = match &evt.data.data_bytes {
-            MessageBytes::Some(data) => {
+            Some(data) => {
                 let data = match self.multi.data_as_overlay(meta, data.clone(), session) {
                     Ok(a) => a,
                     Err(TransformError(TransformErrorKind::MissingReadKey(_hash), _))
@@ -574,12 +571,9 @@ impl Dio {
                         bail!(LoadErrorKind::TransformationError(err.0));
                     }
                 };
-                MessageBytes::Some(data)
+                Some(data)
             }
-            MessageBytes::LazySome(_) => {
-                bail!(LoadErrorKind::MissingData);
-            }
-            MessageBytes::None => {
+            None => {
                 return Ok(None);
             }
         };

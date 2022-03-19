@@ -63,7 +63,7 @@ impl LogFile for LogFileMemDb {
 
     async fn write(
         &mut self,
-        evt: &EventData,
+        evt: &EventWeakData,
     ) -> std::result::Result<LogLookup, SerializationError> {
         // Write the appender
         let header = evt.as_header_raw()?;
@@ -162,7 +162,7 @@ impl LogFile for LogFileMemDb {
                 data_size,
                 result.header.format,
             ),
-            data: EventData {
+            data: EventWeakData {
                 meta,
                 data_bytes: match result.data {
                     LogData::Some(data) => MessageBytes::Some(Bytes::from(data)),

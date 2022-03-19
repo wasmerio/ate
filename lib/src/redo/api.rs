@@ -13,7 +13,7 @@ pub trait LogWritable {
     /// Writes data to the redo log and returns the new offset in bytes
     async fn write(
         &mut self,
-        evt: &EventData,
+        evt: &EventWeakData,
     ) -> std::result::Result<LogLookup, SerializationError>;
     async fn flush(&mut self) -> Result<()>;
 }

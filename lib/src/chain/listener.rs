@@ -8,5 +8,5 @@ use tokio::sync::mpsc;
 #[derive(Debug)]
 pub(crate) struct ChainListener {
     pub(crate) id: u64,
-    pub(crate) sender: mpsc::Sender<EventData>,
+    pub(crate) sender: mpsc::Sender<EventWeakData>,
 }

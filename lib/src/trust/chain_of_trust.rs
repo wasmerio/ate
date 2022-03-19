@@ -32,12 +32,12 @@ impl std::fmt::Debug for ChainOfTrust {
 }
 
 impl<'a> ChainOfTrust {
-    pub(crate) async fn load(&self, leaf: EventLeaf) -> Result<LoadResult, LoadError> {
+    pub(crate) async fn load(&self, leaf: EventLeaf) -> Result<LoadWeakResult, LoadError> {
         #[cfg(feature = "enable_verbose")]
         debug!("loading: {}", leaf.record);
 
         let data = self.redo.load(leaf.record).await?;
-        Ok(LoadResult {
+        Ok(LoadWeakResult {
             lookup: data.lookup,
             header: data.header,
             data: data.data,
@@ -48,7 +48,7 @@ impl<'a> ChainOfTrust {
     pub(crate) async fn load_many(
         &self,
         leafs: Vec<EventLeaf>,
-    ) -> Result<Vec<LoadResult>, LoadError> {
+    ) -> Result<Vec<LoadWeakResult>, LoadError> {
         let mut ret = Vec::new();
 
         let mut futures = Vec::new();
@@ -59,7 +59,7 @@ impl<'a> ChainOfTrust {
 
         for (join, leaf) in futures.into_iter() {
             let data = join.await?;
-            ret.push(LoadResult {
+            ret.push(LoadWeakResult {
                 lookup: data.lookup,
                 header: data.header,
                 data: data.data,

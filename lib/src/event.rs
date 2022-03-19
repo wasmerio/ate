@@ -166,7 +166,7 @@ impl MessageBytes
 
 /// Represents an event that has not yet been stored anywhere
 #[derive(Debug, Clone)]
-pub struct EventData
+pub struct EventWeakData
 where
     Self: Send + Sync,
 {
@@ -175,7 +175,7 @@ where
     pub format: MessageFormat,
 }
 
-impl std::fmt::Display for EventData {
+impl std::fmt::Display for EventWeakData {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if let MessageBytes::Some(data) = &self.data_bytes {
             write!(f, "format={}, meta={}, data={}", self.format, self.meta, data.len())
@@ -187,26 +187,24 @@ impl std::fmt::Display for EventData {
     }
 }
 
-impl EventData {
-    #[allow(dead_code)]
-    pub(crate) fn new(key: PrimaryKey, data: Bytes, format: MessageFormat) -> EventData {
-        EventData {
+impl EventWeakData {
+    pub fn new(key: PrimaryKey, data: Bytes, format: MessageFormat) -> EventWeakData {
+        EventWeakData {
             meta: Metadata::for_data(key),
             data_bytes: MessageBytes::Some(data),
             format,
         }
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn barebone(format: MessageFormat) -> EventData {
-        EventData {
+    pub fn barebone(format: MessageFormat) -> EventWeakData {
+        EventWeakData {
             meta: Metadata::default(),
             data_bytes: MessageBytes::None,
             format,
         }
     }
 
-    pub(crate) fn as_header_raw(&self) -> Result<EventHeaderRaw, SerializationError> {
+    pub fn as_header_raw(&self) -> Result<EventHeaderRaw, SerializationError> {
         let data_hash = match &self.data_bytes {
             MessageBytes::Some(d) => Some(AteHash::from_bytes(&d[..])),
             MessageBytes::LazySome(lazy) => Some(lazy.hash),
@@ -229,15 +227,58 @@ impl EventData {
         ))
     }
 
-    pub(crate) fn as_header(&self) -> Result<EventHeader, SerializationError> {
+    pub fn as_header(&self) -> Result<EventHeader, SerializationError> {
         Ok(EventHeader {
             raw: self.as_header_raw()?,
             meta: self.meta.clone(),
         })
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn with_core_metadata(mut self, core: CoreMetadata) -> Self {
+    pub fn with_core_metadata(mut self, core: CoreMetadata) -> Self {
+        self.meta.core.push(core);
+        self
+    }
+}
+
+/// Represents an event that has not yet been stored anywhere
+#[derive(Debug, Clone)]
+pub struct EventStrongData
+where
+    Self: Send + Sync,
+{
+    pub meta: Metadata,
+    pub data_bytes: Option<Bytes>,
+    pub format: MessageFormat,
+}
+
+impl std::fmt::Display for EventStrongData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(data) = &self.data_bytes {
+            write!(f, "format={}, meta={}, data={}", self.format, self.meta, data.len())
+        } else {
+            write!(f, "format={}, meta={}", self.format, self.meta)
+        }
+    }
+}
+
+impl EventStrongData {
+    pub fn new(key: PrimaryKey, data: Bytes, format: MessageFormat) -> EventStrongData {
+        EventStrongData {
+            meta: Metadata::for_data(key),
+            data_bytes: Some(data),
+            format,
+        }
+    }
+
+    pub fn barebone(format: MessageFormat) -> EventStrongData {
+        EventStrongData {
+            meta: Metadata::default(),
+            data_bytes: None,
+            format,
+        }
+    }
+
+    pub fn with_core_metadata(mut self, core: CoreMetadata) -> Self {
         self.meta.core.push(core);
         self
     }

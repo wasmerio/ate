@@ -246,7 +246,7 @@ impl LogFileLocalFs {
 
         Ok(Some(LoadData {
             header,
-            data: EventData {
+            data: EventWeakData {
                 meta: meta,
                 data_bytes: match evt.data {
                     LogData::Some(data) => MessageBytes::Some(Bytes::from(data)),
@@ -392,7 +392,7 @@ impl LogFile for LogFileLocalFs {
 
     async fn write(
         &mut self,
-        evt: &EventData,
+        evt: &EventWeakData,
     ) -> std::result::Result<LogLookup, SerializationError> {
         // Write the appender
         let header = evt.as_header_raw()?;
@@ -514,7 +514,7 @@ impl LogFile for LogFileLocalFs {
                 data_size,
                 result.header.format,
             ),
-            data: EventData {
+            data: EventWeakData {
                 meta,
                 data_bytes: match result.data {
                     LogData::Some(data) => MessageBytes::Some(Bytes::from(data)),

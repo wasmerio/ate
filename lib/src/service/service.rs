@@ -19,7 +19,7 @@ pub trait Service
 where
     Self: Send + Sync,
 {
-    fn filter(&self, evt: &EventData) -> bool;
+    fn filter(&self, evt: &EventWeakData) -> bool;
 
     async fn notify(&self, key: PrimaryKey) -> Result<(), InvokeError>;
 }

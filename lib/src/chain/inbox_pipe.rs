@@ -1,4 +1,5 @@
 use tokio::sync::broadcast;
+use error_chain::bail;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
@@ -11,6 +12,7 @@ use tokio::sync::RwLock;
 
 use super::workers::ChainWorkProcessor;
 use crate::error::*;
+use crate::event::MessageBytes;
 use crate::header::PrimaryKey;
 use crate::pipe::*;
 use crate::transaction::*;
@@ -59,14 +61,21 @@ impl EventPipe for InboxPipe {
             .collect();
 
         let guard = self.inside_async.read().await;
-        let ret = guard.chain.load_many(leafs).await?;
-        Ok(ret
-            .into_iter()
-            .map(|l| {
-                l.data.data_bytes.clone().to_option()
-            })
-            .collect()
-        )
+        let data = guard.chain.load_many(leafs).await?;
+        
+        let mut ret = Vec::new();
+        for l in data {
+            ret.push(
+                match l.data.data_bytes {
+                    MessageBytes::Some(a) => Some(a),
+                    MessageBytes::LazySome(_) => {
+                        bail!(LoadErrorKind::MissingData)
+                    },
+                    MessageBytes::None => None,
+                }
+            );
+        }
+        Ok(ret)
     }
 
     #[allow(dead_code)]

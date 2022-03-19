@@ -70,7 +70,7 @@ impl ChainProtectedAsync {
         sync: &Arc<StdRwLock<ChainProtectedSync>>,
         meta: Metadata,
     ) -> Result<(), CommitError> {
-        let data = EventData {
+        let data = EventWeakData {
             meta,
             data_bytes: MessageBytes::None,
             format: MessageFormat {
@@ -86,7 +86,7 @@ impl ChainProtectedAsync {
     pub(super) async fn feed_async_internal(
         &mut self,
         sync: &Arc<StdRwLock<ChainProtectedSync>>,
-        evts: &Vec<EventData>,
+        evts: &Vec<EventWeakData>,
         conversation: Option<&Arc<ConversationSession>>,
     ) -> Result<(), CommitError> {
         let mut errors = Vec::new();
@@ -184,7 +184,7 @@ impl ChainProtectedAsync {
         self.range(range).map(|e| e.1)
     }
 
-    pub(crate) async fn notify(lock: Arc<RwLock<ChainProtectedAsync>>, evts: Vec<EventData>) {
+    pub(crate) async fn notify(lock: Arc<RwLock<ChainProtectedAsync>>, evts: Vec<EventWeakData>) {
         // Build a map of event parents that will be used in the BUS notifications
         let mut notify_map = MultiMap::new();
         for evt in evts {

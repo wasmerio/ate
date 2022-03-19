@@ -331,8 +331,8 @@ where
             let evt = MessageEvent {
                 meta,
                 data: match evt.data.data_bytes {
-                    MessageBytes::Some(a) if a.len() >= strip_data => MessageData::Some(a.to_vec()),
-                    MessageBytes::Some(a) => {
+                    Some(a) if a.len() >= strip_data => MessageData::Some(a.to_vec()),
+                    Some(a) => {
                         let data = a.to_vec();
                         MessageData::LazySome(LazyData {
                             record: evt.leaf.record,
@@ -340,8 +340,7 @@ where
                             len: data.len(),
                         })
                     },
-                    MessageBytes::LazySome(l) => MessageData::LazySome(l),
-                    MessageBytes::None => MessageData::None
+                    None => MessageData::None
                 },
                 format: evt.header.format,
             };

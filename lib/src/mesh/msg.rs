@@ -32,7 +32,7 @@ pub(super) struct MessageEvent {
 }
 
 impl MessageEvent {
-    pub(crate) fn convert_to(evts: &Vec<EventData>) -> Vec<MessageEvent> {
+    pub(crate) fn convert_to(evts: &Vec<EventWeakData>) -> Vec<MessageEvent> {
         let mut feed_me = Vec::new();
         for evt in evts {
             let evt = MessageEvent {
@@ -49,8 +49,8 @@ impl MessageEvent {
         feed_me
     }
 
-    pub(crate) fn convert_from_single(evt: MessageEvent) -> EventData {
-        EventData {
+    pub(crate) fn convert_from_single(evt: MessageEvent) -> EventWeakData {
+        EventWeakData {
             meta: evt.meta.clone(),
             data_bytes: match evt.data {
                 MessageData::Some(d) => MessageBytes::Some(Bytes::from(d)),
@@ -61,7 +61,7 @@ impl MessageEvent {
         }
     }
 
-    pub(crate) fn convert_from(evts: impl Iterator<Item = MessageEvent>) -> Vec<EventData> {
+    pub(crate) fn convert_from(evts: impl Iterator<Item = MessageEvent>) -> Vec<EventWeakData> {
         let mut feed_me = Vec::new();
         for evt in evts {
             feed_me.push(MessageEvent::convert_from_single(evt));

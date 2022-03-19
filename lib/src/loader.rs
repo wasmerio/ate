@@ -11,7 +11,7 @@ use crate::redo::LogLookup;
 pub struct LoadData {
     pub(crate) lookup: LogLookup,
     pub header: EventHeaderRaw,
-    pub data: EventData,
+    pub data: EventWeakData,
 }
 
 #[async_trait]
@@ -23,7 +23,7 @@ pub trait Loader: Send + Sync {
     fn human_message(&mut self, _message: String) {}
 
     /// Events are being processed
-    fn feed_events(&mut self, _evts: &Vec<EventData>) {}
+    fn feed_events(&mut self, _evts: &Vec<EventWeakData>) {}
 
     /// Load data is being processed
     async fn feed_load_data(&mut self, _data: LoadData) {}
@@ -36,7 +36,7 @@ pub trait Loader: Send + Sync {
         Some(err)
     }
 
-    fn relevance_check(&mut self, _header: &EventData) -> bool {
+    fn relevance_check(&mut self, _header: &EventWeakData) -> bool {
         false
     }
 }
@@ -65,7 +65,7 @@ impl Loader for CompositionLoader {
         }
     }
 
-    fn feed_events(&mut self, evts: &Vec<EventData>) {
+    fn feed_events(&mut self, evts: &Vec<EventWeakData>) {
         for loader in self.loaders.iter_mut() {
             loader.feed_events(evts);
         }
@@ -94,7 +94,7 @@ impl Loader for CompositionLoader {
         Some(err)
     }
 
-    fn relevance_check(&mut self, header: &EventData) -> bool {
+    fn relevance_check(&mut self, header: &EventWeakData) -> bool {
         for loader in self.loaders.iter_mut() {
             if loader.relevance_check(header) {
                 return true;

@@ -64,7 +64,7 @@ impl ConversationSession {
 pub(crate) struct Transaction {
     pub(crate) scope: TransactionScope,
     pub(crate) transmit: bool,
-    pub(crate) events: Vec<EventData>,
+    pub(crate) events: Vec<EventWeakData>,
     pub(crate) timeout: Duration,
     pub(crate) conversation: Option<Arc<ConversationSession>>,
 }
@@ -72,7 +72,7 @@ pub(crate) struct Transaction {
 impl Transaction {
     #[allow(dead_code)]
     pub(crate) fn from_events(
-        events: Vec<EventData>,
+        events: Vec<EventWeakData>,
         scope: TransactionScope,
         transmit: bool,
         timeout: Duration,

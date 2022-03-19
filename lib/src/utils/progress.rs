@@ -6,7 +6,7 @@ use std::io::Write;
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use crate::error::ChainCreationError;
-use crate::event::EventData;
+use crate::event::EventWeakData;
 use crate::loader::LoadData;
 use crate::mesh::Loader;
 use crate::event::MessageBytes;
@@ -62,7 +62,7 @@ where
         }
     }
 
-    fn feed_events(&mut self, evts: &Vec<EventData>) {
+    fn feed_events(&mut self, evts: &Vec<EventWeakData>) {
         if let Some(pb) = &mut self.bar {
             pb.add(evts.len() as u64);
         }

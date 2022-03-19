@@ -50,6 +50,9 @@ impl ChainWorkProcessor {
         );
         let trans = work.trans;
 
+        // Convert the events to weak events
+
+
         // We lock the chain of trust while we update the local chain
         let mut lock = self.inside_async.write().await;
 
@@ -85,9 +88,9 @@ impl ChainWorkProcessor {
 
         {
             let inside_async = Arc::clone(&self.inside_async);
-            TaskEngine::spawn(async move {
-                ChainProtectedAsync::notify(inside_async, trans.events).await;
-            });
+                TaskEngine::spawn(async move {
+                    ChainProtectedAsync::notify(inside_async, trans.events).await;
+                });
         }
 
         TaskEngine::spawn(async move {

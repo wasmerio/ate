@@ -93,8 +93,8 @@ async fn test_chain() -> Result<(), AteError> {
             let lock = chain.multi().await;
             assert_eq!(0, lock.count().await);
 
-            let evt1 = EventData::new(key1.clone(), Bytes::from(vec![1; 1]), mock_cfg.log_format);
-            let evt2 = EventData::new(key2.clone(), Bytes::from(vec![2; 1]), mock_cfg.log_format);
+            let evt1 = EventWeakData::new(key1.clone(), Bytes::from(vec![1; 1]), mock_cfg.log_format);
+            let evt2 = EventWeakData::new(key2.clone(), Bytes::from(vec![2; 1]), mock_cfg.log_format);
 
             // Push the first events into the chain-of-trust
             let mut evts = Vec::new();
@@ -130,7 +130,7 @@ async fn test_chain() -> Result<(), AteError> {
                 .load(test_data.clone())
                 .await
                 .expect("Could not load the data for the entry");
-            assert_eq!(test_data.data.data_bytes.to_option(), Some(Bytes::from(vec!(1; 1))));
+            assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(1; 1))));
 
             // The other event we added should also still be there
             info!("checking event2 is in the chain");
@@ -139,7 +139,7 @@ async fn test_chain() -> Result<(), AteError> {
                 .await
                 .expect("Failed to find the entry after the compact");
             let test_data = lock.load(test_data.clone()).await?;
-            assert_eq!(test_data.data.data_bytes.to_option(), Some(Bytes::from(vec!(2; 1))));
+            assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(2; 1))));
         }
 
         // Fliush the chain
@@ -177,7 +177,7 @@ async fn test_chain() -> Result<(), AteError> {
                 .load(test_data.clone())
                 .await
                 .expect("Could not load the data for the entry");
-            assert_eq!(test_data.data.data_bytes.to_option(), Some(Bytes::from(vec!(1; 1))));
+            assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(1; 1))));
 
             // The other event we added should also still be there
             info!("checking event2 is in the chain");
@@ -186,10 +186,10 @@ async fn test_chain() -> Result<(), AteError> {
                 .await
                 .expect("Failed to find the entry after the reload");
             let test_data = lock.load(test_data.clone()).await.unwrap();
-            assert_eq!(test_data.data.data_bytes.to_option(), Some(Bytes::from(vec!(2; 1))));
+            assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(2; 1))));
 
             // Duplicate one of the event so the compactor has something to clean
-            let evt1 = EventData::new(key1.clone(), Bytes::from(vec![10; 1]), mock_cfg.log_format);
+            let evt1 = EventWeakData::new(key1.clone(), Bytes::from(vec![10; 1]), mock_cfg.log_format);
 
             info!("feeding new version of event1 into the chain");
             let mut evts = Vec::new();
@@ -225,7 +225,7 @@ async fn test_chain() -> Result<(), AteError> {
                 .await
                 .expect("Failed to find the entry after the compact");
             let test_data = lock.load(test_data.clone()).await?;
-            assert_eq!(test_data.data.data_bytes.to_option(), Some(Bytes::from(vec!(10; 1))));
+            assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(10; 1))));
 
             // The other event we added should also still be there
             info!("checking event2 is in the chain");
@@ -234,7 +234,7 @@ async fn test_chain() -> Result<(), AteError> {
                 .await
                 .expect("Failed to find the entry after the compact");
             let test_data = lock.load(test_data.clone()).await?;
-            assert_eq!(test_data.data.data_bytes.to_option(), Some(Bytes::from(vec!(2; 1))));
+            assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(2; 1))));
         }
 
         // Store the chain if we are in memory mode as there is no persistence
@@ -267,7 +267,7 @@ async fn test_chain() -> Result<(), AteError> {
                 .await
                 .expect("Failed to find the entry after the compact");
             let test_data = lock.load(test_data.clone()).await?;
-            assert_eq!(test_data.data.data_bytes.to_option(), Some(Bytes::from(vec!(10; 1))));
+            assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(10; 1))));
 
             // The other event we added should also still be there
             info!("checking event2 is in the chain");
@@ -276,7 +276,7 @@ async fn test_chain() -> Result<(), AteError> {
                 .await
                 .expect("Failed to find the entry after the compact");
             let test_data = lock.load(test_data.clone()).await?;
-            assert_eq!(test_data.data.data_bytes.to_option(), Some(Bytes::from(vec!(2; 1))));
+            assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(2; 1))));
         }
 
         {
@@ -284,7 +284,7 @@ async fn test_chain() -> Result<(), AteError> {
 
             // Now lets tombstone the second event
             info!("tombstoning event2");
-            let mut evt3 = EventData::barebone(mock_cfg.log_format);
+            let mut evt3 = EventWeakData::barebone(mock_cfg.log_format);
             evt3.meta.add_tombstone(key2);
 
             info!("feeding the tombstone into the chain");
@@ -354,7 +354,7 @@ async fn test_chain() -> Result<(), AteError> {
                 .await
                 .expect("Failed to find the entry after we reloaded the chain");
             let test_data = lock.load(test_data).await?;
-            assert_eq!(test_data.data.data_bytes.to_option(), Some(Bytes::from(vec!(10; 1))));
+            assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(10; 1))));
         }
 
         // Destroy the chain

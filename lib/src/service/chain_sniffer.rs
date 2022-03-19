@@ -9,7 +9,7 @@ use super::*;
 
 pub(crate) struct ChainSniffer {
     pub(crate) id: u64,
-    pub(crate) filter: Box<dyn Fn(&EventData) -> bool + Send + Sync>,
+    pub(crate) filter: Box<dyn Fn(&EventWeakData) -> bool + Send + Sync>,
     pub(crate) notify: mpsc::Sender<PrimaryKey>,
 }
 

@@ -7,7 +7,7 @@ use super::meta::*;
 use super::transaction::*;
 
 pub struct LintData<'a> {
-    pub data: &'a EventData,
+    pub data: &'a EventWeakData,
     pub header: EventHeader,
 }
 

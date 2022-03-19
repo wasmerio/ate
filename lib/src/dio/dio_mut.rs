@@ -33,7 +33,7 @@ use crate::spec::*;
 use crate::time::*;
 use crate::transaction::*;
 use crate::tree::*;
-use crate::trust::LoadResult;
+use crate::trust::LoadStrongResult;
 
 use crate::crypto::{EncryptedPrivateKey, PrivateSignKey};
 use crate::{
@@ -572,7 +572,7 @@ impl DioMut {
                 )?;
 
                 // Only once all the rows are processed will we ship it to the redo log
-                let evt = EventData {
+                let evt = EventWeakData {
                     meta: meta,
                     data_bytes: MessageBytes::Some(data),
                     format: row.format,
@@ -604,7 +604,7 @@ impl DioMut {
                 )?;
                 meta.core.extend(extra_meta);
 
-                let evt = EventData {
+                let evt = EventWeakData {
                     meta: meta,
                     data_bytes: MessageBytes::None,
                     format,
@@ -631,7 +631,7 @@ impl DioMut {
             if meta.len() > 0 {
                 evts.insert(
                     0,
-                    EventData {
+                    EventWeakData {
                         meta: Metadata { core: meta },
                         data_bytes: MessageBytes::None,
                         format,
@@ -791,7 +791,7 @@ impl DioMut {
     pub(crate) fn load_from_event<D>(
         self: &Arc<Self>,
         session: &'_ dyn AteSession,
-        mut data: EventData,
+        mut data: EventStrongData,
         header: EventHeader,
         leaf: EventLeaf,
     ) -> Result<DaoMut<D>, LoadError>
@@ -799,11 +799,8 @@ impl DioMut {
         D: Serialize + DeserializeOwned,
     {
         data.data_bytes = match data.data_bytes {
-            MessageBytes::Some(data) => MessageBytes::Some(self.multi.data_as_overlay(&header.meta, data, session)?),
-            MessageBytes::LazySome(_) => {
-                bail!(LoadErrorKind::MissingData);
-            },
-            MessageBytes::None => MessageBytes::None,
+            Some(data) => Some(self.multi.data_as_overlay(&header.meta, data, session)?),
+            None => None,
         };
 
         let mut state = self.dio.state.lock().unwrap();
@@ -838,7 +835,7 @@ impl DioMut {
         Ok(ret.take())
     }
 
-    pub async fn load_raw(self: &Arc<Self>, key: &PrimaryKey) -> Result<EventData, LoadError> {
+    pub async fn load_raw(self: &Arc<Self>, key: &PrimaryKey) -> Result<EventStrongData, LoadError> {
         self.run_async(self.dio.__load_raw(key)).await
     }
 
@@ -1016,12 +1013,11 @@ impl DioMut {
         let mut already = FxHashSet::default();
         let mut ret = Vec::new();
 
-        let inside_async = self.multi.inside_async.read().await;
-
         // We either find existing objects in the cache or build a list of objects to load
         let to_load = {
             let mut to_load = Vec::new();
 
+            let inside_async = self.multi.inside_async.read().await;
             let state = self.state.lock().unwrap();
             let inner_state = self.dio.state.lock().unwrap();
             let _pop1 = DioMutScope::new(self);
@@ -1057,7 +1053,7 @@ impl DioMut {
         };
 
         // Load all the objects that have not yet been loaded
-        let to_load = inside_async.chain.load_many(to_load).await?;
+        let to_load = self.multi.load_many(to_load).await?;
 
         // Now process all the objects
         let ret = {
@@ -1238,7 +1234,7 @@ impl DioMut {
     pub(crate) fn data_as_overlay(
         self: &Arc<Self>,
         session: &'_ dyn AteSession,
-        data: &mut EventData,
+        data: &mut EventStrongData,
     ) -> Result<(), TransformError> {
         self.dio.data_as_overlay(session, data)?;
         Ok(())
