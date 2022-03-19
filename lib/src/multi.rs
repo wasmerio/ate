@@ -85,8 +85,11 @@ impl ChainMultiUser {
                         let data = self.pipe.load_many(vec![ l.record ]).await?;
                         match data.into_iter().next() {
                             Some(Some(a)) => Some(a),
-                            _ => {
+                            Some(None) => {
                                 bail!(LoadErrorKind::MissingData)
+                            },
+                            _ => {
+                                bail!(LoadErrorKind::Disconnected)
                             },
                         }
                     },
@@ -110,8 +113,11 @@ impl ChainMultiUser {
                 if ret.data.data_bytes.is_lazy() {
                     ret.data.data_bytes = match other {
                         Some(Some(a)) => MessageBytes::Some(a),
-                        _ => {
+                        Some(None) => {
                             bail!(LoadErrorKind::MissingData)
+                        },
+                        _ => {
+                            bail!(LoadErrorKind::Disconnected)
                         },
                     }
                 }

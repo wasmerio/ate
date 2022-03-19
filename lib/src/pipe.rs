@@ -180,13 +180,34 @@ impl EventPipe for DuelPipe {
     }
 
     async fn load_many(&self, leafs: Vec<AteHash>) -> Result<Vec<Option<Bytes>>, LoadError> {
-        let rets = match self.first.load_many(leafs.clone()).await {
-            Ok(a) => a,
-            Err(LoadError(LoadErrorKind::MissingData, _)) |
-            Err(LoadError(LoadErrorKind::Disconnected, _)) => {
-                self.second.load_many(leafs).await?
+        let join1 = self.first.load_many(leafs.clone());
+        let join2 = self.second.load_many(leafs);
+        let (notify1, notify2) = futures::join!(join1, join2);
+
+        let rets = match (notify1, notify2) {
+            (Ok(notify1), Ok(notify2)) => {
+                let max = notify1.len().max(notify2.len());
+                
+                let mut notify1 = notify1.into_iter();
+                let mut notify2 = notify2.into_iter();
+
+                let mut rets = Vec::new();
+                for _ in 0..max {
+                    match (notify1.next(), notify2.next()) {
+                        (Some(Some(a)), _) => rets.push(Some(a)),
+                        (_, Some(Some(b))) => rets.push(Some(b)),
+                        (Some(None), _) => rets.push(None),
+                        (_, Some(None)) => rets.push(None),
+                        (_, _) => break,
+                    };
+                }                
+                rets
             },
-            Err(err) => return Err(err)
+            (Ok(notify1), Err(_)) => notify1,
+            (Err(_), Ok(notify2)) => notify2,
+            (Err(err), Err(_)) => {
+                return Err(err);
+            }
         };
         Ok(rets)
     }
