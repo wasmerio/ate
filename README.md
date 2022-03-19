@@ -139,6 +139,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>>
 ## Changelog
 
 ```
+1.2.0  -= Lazy Loading =-
+        + Subscribing to chains can now load the data in the chain on demand as its needed
+          which reduces the startup time considerably.
+        + Temporal clients will default to lazy loading
+
 1.1.1  -= Performance and Bug Fixes =-
         + Fixed an issue with the web sockets that caused sporadic disconnects
         + Improved the performance of web socket messages by reusing IV's

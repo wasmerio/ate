@@ -1,6 +1,6 @@
 [package]
 name = "atesess"
-version = "1.1.0"
+version = "1.2.0"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 description = "ATE Execution Environment Session Server that provides terminal sessions for running processes"
@@ -37,12 +37,12 @@ raw_tty = "0.1.0"
 regex = "^1"
 ttl_cache = "^0.5"
 ctrlc = { version = "^3" }
-ate = { version = "^1.1", path = "../lib", default_features = false, features = [ "client" ] }
-ate-auth = { version = "^1.8", path = "../auth", default_features = false, features = [ "client" ] }
-ate-files = { version = "^1.1", path = "../files" }
-ateweb = { version = "^1.1", path = "../ateweb" }
-atessh = { version = "^1", path = "../atessh" }
-tokera = { version = "^1.2", path = "../tokera" }
+ate = { version = "^1.2", path = "../lib", default_features = false, features = [ "client" ] }
+ate-auth = { version = "^1.9", path = "../auth", default_features = false, features = [ "client" ] }
+ate-files = { version = "^1.2", path = "../files" }
+ateweb = { version = "^1.2", path = "../ateweb" }
+atessh = { version = "^1.3", path = "../atessh" }
+tokera = { version = "^1.3", path = "../tokera" }
 wasm-bus-fuse = { version = "^1", path = "../wasm-bus-fuse",  default_features = false }
 dummy-waker = "^1"
 http = { version = "^0.2" }
