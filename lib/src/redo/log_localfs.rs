@@ -537,6 +537,28 @@ impl LogFile for LogFileLocalFs {
         Ok(ret)
     }
 
+    fn prime(&mut self, records: Vec<(AteHash, Option<Bytes>)>) {
+        // Store it in the read cache
+        #[cfg(feature = "enable_caching")]
+        {
+            let mut cache = self.cache.lock().unwrap();
+            for (record, data) in records {
+                if let Some(result) = cache.read.cache_get(&record) {
+                    let mut new_result = result.clone();
+                    new_result.data = EventWeakData {
+                        meta: result.data.meta.clone(),
+                        data_bytes: match data {
+                            Some(data) => MessageBytes::Some(data),
+                            None => MessageBytes::None,
+                        },
+                        format: result.data.format
+                    };
+                    cache.read.cache_set(record, new_result);
+                }
+            }
+        }
+    }
+
     fn move_log_file(&mut self, new_path: &String) -> Result<()> {
         if self.temp == false {
             // First rename the orginal logs as a backup

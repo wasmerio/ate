@@ -78,6 +78,12 @@ impl EventPipe for InboxPipe {
         Ok(ret)
     }
 
+    async fn prime(&self, records: Vec<(AteHash, Option<Bytes>)>) -> Result<(), CommsError> {
+        let mut guard = self.inside_async.write().await;
+        guard.chain.prime(records);
+        Ok(())
+    }
+
     #[allow(dead_code)]
     async fn try_lock(&self, key: PrimaryKey) -> Result<bool, CommitError> {
         let mut guard = self.locks.lock().unwrap();

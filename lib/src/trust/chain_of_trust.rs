@@ -2,7 +2,9 @@ use std::sync::Arc;
 use std::sync::Mutex as StdMutex;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
+use bytes::Bytes;
 
+use crate::crypto::AteHash;
 use crate::comms::Metrics;
 use crate::error::*;
 use crate::event::*;
@@ -68,6 +70,10 @@ impl<'a> ChainOfTrust {
         }
 
         Ok(ret)
+    }
+
+    pub(crate) fn prime(&mut self, records: Vec<(AteHash, Option<Bytes>)>) {
+        self.redo.prime(records);
     }
 
     pub(crate) fn lookup_primary(&self, key: &PrimaryKey) -> Option<EventLeaf> {

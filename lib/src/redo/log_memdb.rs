@@ -178,6 +178,19 @@ impl LogFile for LogFileMemDb {
         Ok(ret)
     }
 
+    fn prime(&mut self, records: Vec<(AteHash, Option<Bytes>)>) {
+        for (record, data) in records {
+            if let Some(lookup) = self.lookup.get(&record) {
+                if let Some(entry) = self.memdb.get_mut(lookup) {
+                    entry.data = match data {
+                        Some(a) => LogData::Some(a.to_vec()),
+                        None => LogData::None
+                    };
+                }
+            }
+        }
+    }
+
     async fn flush(&mut self) -> Result<()> {
         Ok(())
     }

@@ -40,6 +40,8 @@ pub(crate) trait EventPipe: Send + Sync {
 
     async fn feed(&self, work: ChainWork) -> Result<(), CommitError>;
 
+    async fn prime(&self, records: Vec<(AteHash, Option<Bytes>)>) -> Result<(), CommsError>;
+
     async fn try_lock(&self, key: PrimaryKey) -> Result<bool, CommitError>;
 
     async fn unlock(&self, key: PrimaryKey) -> Result<(), CommitError>;
@@ -71,6 +73,10 @@ impl EventPipe for NullPipe {
             .into_iter()
             .map(|_| None)
             .collect())
+    }
+
+    async fn prime(&self, _records: Vec<(AteHash, Option<Bytes>)>) -> Result<(), CommsError> {
+        Ok(())
     }
 
     async fn try_lock(&self, _key: PrimaryKey) -> Result<bool, CommitError> {
@@ -210,6 +216,17 @@ impl EventPipe for DuelPipe {
             }
         };
         Ok(rets)
+    }
+
+    async fn prime(&self, records: Vec<(AteHash, Option<Bytes>)>) -> Result<(), CommsError> {
+        let join1 = self.first.prime(records.clone());
+        let join2 = self.second.prime(records);
+        let (notify1, notify2) = futures::join!(join1, join2);
+
+        notify1?;
+        notify2?;
+
+        Ok(())
     }
 
     async fn try_lock(&self, key: PrimaryKey) -> Result<bool, CommitError> {

@@ -422,6 +422,10 @@ impl EventPipe for ServerPipe {
     async fn load_many(&self, leafs: Vec<AteHash>) -> Result<Vec<Option<Bytes>>, LoadError> {
         self.next.load_many(leafs).await
     }
+
+    async fn prime(&self, records: Vec<(AteHash, Option<Bytes>)>) -> Result<(), CommsError> {
+        self.next.prime(records).await
+    }
 }
 
 async fn open_internal<'b>(

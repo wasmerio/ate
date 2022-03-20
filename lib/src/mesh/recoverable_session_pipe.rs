@@ -450,6 +450,13 @@ impl EventPipe for RecoverableSessionPipe {
         Ok(ret)
     }
 
+    async fn prime(&self, _records: Vec<(AteHash, Option<Bytes>)>) -> Result<(), CommsError>
+    {
+        // We don't do anything here as the server is the one that send it to us in
+        // the first place so what would be the point in sending it back to them again?
+        Ok(())
+    }
+
     async fn feed(&self, mut work: ChainWork) -> Result<(), CommitError> {
         trace!(
             "feed trans(cnt={}, scope={})",

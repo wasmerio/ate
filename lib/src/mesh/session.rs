@@ -39,6 +39,12 @@ use crate::transaction::*;
 use crate::trust::*;
 use crate::{anti_replay::AntiReplayPlugin, comms::*};
 
+pub struct LoadRequest
+{
+    pub records: Vec<AteHash>,
+    pub tx: mpsc::Sender<Result<Vec<Option<Bytes>>, LoadError>>,
+}
+
 pub struct MeshSession {
     pub(super) addr: MeshAddress,
     pub(super) key: ChainKey,
@@ -46,7 +52,7 @@ pub struct MeshSession {
     pub(super) chain: Weak<Chain>,
     pub(super) commit: Arc<StdMutex<FxHashMap<u64, mpsc::Sender<Result<u64, CommitError>>>>>,
     pub(super) lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, LockRequest>>>,
-    pub(super) load_requests: Arc<StdMutex<FxHashMap<u64, mpsc::Sender<Result<Vec<Option<Vec<u8>>>, LoadError>>>>>,
+    pub(super) load_requests: Arc<StdMutex<FxHashMap<u64, LoadRequest>>>,
     pub(super) inbound_conversation: Arc<ConversationSession>,
     pub(super) outbound_conversation: Arc<ConversationSession>,
     pub(crate) status_tx: mpsc::Sender<ConnectionStatusChange>,
@@ -278,7 +284,7 @@ impl MeshSession {
     pub(super) fn inbox_load_result(
         self: &Arc<MeshSession>,
         id: u64,
-    ) -> Result<Option<mpsc::Sender<Result<Vec<Option<Vec<u8>>>, LoadError>>>, CommsError> {
+    ) -> Result<Option<LoadRequest>, CommsError> {
         trace!(
             "load_result id={}",
             id,
@@ -288,6 +294,7 @@ impl MeshSession {
         if let Some(result) = guard.remove(&id) {
             return Ok(Some(result));
         }
+
         Ok(None)
     }
 
@@ -536,8 +543,26 @@ impl MeshSession {
             Message::LoadManyResult { id, data } => {
                 async move {
                     let sender = Self::inbox_load_result(self, id)?;
-                    if let Some(sender) = sender {
-                        let _ = sender.send(Ok(data)).await;
+                    if let Some(load) = sender
+                    {
+                        // Build the records
+                        let data = data.into_iter().map(|d| d.map(|d| Bytes::from(d))).collect::<Vec<_>>();
+                        let records = load.records
+                            .into_iter()
+                            .zip(data.clone().into_iter())
+                            .collect();
+
+                        // Anything that is loaded is primed back down the pipes
+                        // so that future requests do not need to go to the server
+                        if let Some(chain) = self.chain.upgrade() {
+                            chain
+                                .pipe
+                                .prime(records)
+                                .await?;
+                        }
+
+                        // Inform the sender
+                        let _ = load.tx.send(Ok(data)).await;
                     }
                     Result::<(), CommsError>::Ok(())
                 }
@@ -547,8 +572,8 @@ impl MeshSession {
             Message::LoadManyFailed { id, err } => {
                 async move {
                     let sender = Self::inbox_load_result(self, id)?;
-                    if let Some(sender) = sender {
-                        let _ = sender.send(Err(LoadErrorKind::LoadFailed(err).into())).await;
+                    if let Some(load) = sender {
+                        let _ = load.tx.send(Err(LoadErrorKind::LoadFailed(err).into())).await;
                     }
                     Result::<(), CommsError>::Ok(())
                 }

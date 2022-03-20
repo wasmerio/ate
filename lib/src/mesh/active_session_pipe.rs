@@ -18,6 +18,7 @@ use super::lock_request::*;
 use super::msg::*;
 use super::recoverable_session_pipe::*;
 use super::*;
+use super::session::LoadRequest;
 use crate::chain::*;
 use crate::conf::*;
 use crate::crypto::*;
@@ -44,7 +45,7 @@ pub(super) struct ActiveSessionPipe {
     pub(super) lock_attempt_timeout: Duration,
     pub(super) lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, LockRequest>>>,
     pub(super) load_timeout: Duration,
-    pub(super) load_requests: Arc<StdMutex<FxHashMap<u64, mpsc::Sender<Result<Vec<Option<Vec<u8>>>, LoadError>>>>>,
+    pub(super) load_requests: Arc<StdMutex<FxHashMap<u64, LoadRequest>>>,
     pub(super) outbound_conversation: Arc<ConversationSession>,
 }
 
@@ -141,7 +142,10 @@ impl ActiveSessionPipe {
         // Register a load ID that will receive the response
         let (tx, mut rx) = mpsc::channel(1);
         let id = fastrand::u64(..);
-        self.load_requests.lock().unwrap().insert(id, tx);
+        self.load_requests.lock().unwrap().insert(id, LoadRequest {
+            records: leafs.clone(),
+            tx
+        });
 
         // Inform the server that we want these records
         self.tx
@@ -156,12 +160,7 @@ impl ActiveSessionPipe {
         match crate::engine::timeout(self.load_timeout, rx.recv()).await {
             Ok(Some(a)) => {
                 self.likely_read_only = false;
-                return a
-                    .map(|r| {
-                        r.into_iter()
-                         .map(|d| d.map(|d| Bytes::from(d)))
-                         .collect()
-                    });
+                return a;
             }
             Ok(None) => {
                 self.load_requests.lock().unwrap().remove(&id);
