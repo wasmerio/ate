@@ -19,6 +19,7 @@ members = [
     "wasm-bus-tty",
     "wasm-bus-tok",
     "wasm-bus-hello",
+    "wasm-bus-webgl",
     "term-lib",
     "tokterm",
     "tokweb",

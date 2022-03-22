@@ -10,6 +10,7 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlCanvasElement;
 use web_sys::KeyboardEvent;
+use web_sys::WebGl2RenderingContext;
 #[allow(unused_imports)]
 use xterm_js_rs::addons::fit::FitAddon;
 #[allow(unused_imports)]
