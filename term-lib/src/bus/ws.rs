@@ -229,17 +229,12 @@ pub struct WebSocketSession {
 }
 
 impl Session for WebSocketSession {
-    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Box<dyn Invokable + 'static> {
+    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), CallError> {
         if topic == type_name::<api::WebSocketSendRequest>() {
-            let data = match decode_request::<api::WebSocketSendRequest>(
+            let data = decode_request::<api::WebSocketSendRequest>(
                 SerializationFormat::Bincode,
                 request.as_ref(),
-            ) {
-                Ok(a) => a.data,
-                Err(err) => {
-                    return ErrornousInvokable::new(err);
-                }
-            };
+            )?.data;
             let data_len = data.len();
 
             let again = match self.tx_send.try_send(data) {
@@ -248,18 +243,24 @@ impl Session for WebSocketSession {
                 Err(mpsc::error::TrySendError::Full(a)) => Some(a),
             };
             if let Some(data) = again {
-                Box::new(DelayedSend {
-                    data: Some(data),
-                    tx: self.tx_send.clone(),
-                })
+                Ok((
+                    Box::new(DelayedSend {
+                        data: Some(data),
+                        tx: self.tx_send.clone(),
+                    }),
+                    None
+                ))
             } else {
-                ResultInvokable::new(
-                    SerializationFormat::Bincode,
-                    model::SendResult::Success(data_len),
-                )
+                Ok((
+                    ResultInvokable::new(
+                        SerializationFormat::Bincode,
+                        model::SendResult::Success(data_len),
+                    ),
+                    None
+                ))
             }
         } else {
-            ErrornousInvokable::new(CallError::InvalidTopic)
+            Err(CallError::InvalidTopic)
         }
     }
 }

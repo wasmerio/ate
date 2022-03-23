@@ -100,8 +100,8 @@ pub struct StdinSession {
 }
 
 impl Session for StdinSession {
-    fn call(&mut self, _topic: &str, _request: Vec<u8>, _keepalive: bool) -> Box<dyn Invokable + 'static> {
-        ErrornousInvokable::new(CallError::InvalidTopic)
+    fn call(&mut self, _topic: &str, _request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), CallError> {
+        Ok((ErrornousInvokable::new(CallError::InvalidTopic), None))
     }
 }
 
@@ -134,44 +134,47 @@ pub struct StdoutSession {
 }
 
 impl Session for StdoutSession {
-    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Box<dyn Invokable + 'static> {
-        if topic == type_name::<api::StdoutWriteRequest>() {
-            let data = match decode_request::<api::StdoutWriteRequest>(
-                SerializationFormat::Bincode,
-                request.as_ref(),
-            ) {
-                Ok(a) => a.data,
-                Err(err) => {
-                    return ErrornousInvokable::new(err);
+    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), CallError> {
+        let ret = {
+            if topic == type_name::<api::StdoutWriteRequest>() {
+                let data = match decode_request::<api::StdoutWriteRequest>(
+                    SerializationFormat::Bincode,
+                    request.as_ref(),
+                ) {
+                    Ok(a) => a.data,
+                    Err(err) => {
+                        return ErrornousInvokable::new(err);
+                    }
+                };
+                match self.stdout.try_write(&data[..]) {
+                    Ok(Some(data_len)) => {
+                        ResultInvokable::new(
+                            SerializationFormat::Bincode,
+                            api::WriteResult::Success(data_len),
+                        )
+                    },
+                    Ok(None) => {
+                        Box::new(DelayedStdoutSend {
+                            data: Some(data),
+                            stdout: self.stdout.clone(),
+                        })
+                    },
+                    Err(err) => {
+                        ResultInvokable::new(
+                            SerializationFormat::Bincode,
+                            api::WriteResult::Failed(err.to_string()),
+                        )
+                    },
                 }
-            };
-            match self.stdout.try_write(&data[..]) {
-                Ok(Some(data_len)) => {
-                    ResultInvokable::new(
-                        SerializationFormat::Bincode,
-                        api::WriteResult::Success(data_len),
-                    )
-                },
-                Ok(None) => {
-                    Box::new(DelayedStdoutSend {
-                        data: Some(data),
-                        stdout: self.stdout.clone(),
-                    })
-                },
-                Err(err) => {
-                    ResultInvokable::new(
-                        SerializationFormat::Bincode,
-                        api::WriteResult::Failed(err.to_string()),
-                    )
-                },
+            } else if topic == type_name::<api::StdoutFlushRequest>() {
+                Box::new(DelayedStdoutFlush {
+                    stdout: self.stdout.clone(),
+                })
+            } else {
+                ErrornousInvokable::new(CallError::InvalidTopic)
             }
-        } else if topic == type_name::<api::StdoutFlushRequest>() {
-            Box::new(DelayedStdoutFlush {
-                stdout: self.stdout.clone(),
-            })
-        } else {
-            ErrornousInvokable::new(CallError::InvalidTopic)
-        }
+        };
+        Ok((ret, None))
     }
 }
 
@@ -241,44 +244,47 @@ pub struct StderrSession {
 }
 
 impl Session for StderrSession {
-    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Box<dyn Invokable + 'static> {
-        if topic == type_name::<api::StderrWriteRequest>() {
-            let data = match decode_request::<api::StderrWriteRequest>(
-                SerializationFormat::Bincode,
-                request.as_ref(),
-            ) {
-                Ok(a) => a.data,
-                Err(err) => {
-                    return ErrornousInvokable::new(err);
+    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), CallError> {
+        let ret = {
+            if topic == type_name::<api::StderrWriteRequest>() {
+                let data = match decode_request::<api::StderrWriteRequest>(
+                    SerializationFormat::Bincode,
+                    request.as_ref(),
+                ) {
+                    Ok(a) => a.data,
+                    Err(err) => {
+                        return ErrornousInvokable::new(err);
+                    }
+                };
+                match self.stderr.try_write(&data[..]) {
+                    Ok(Some(data_len)) => {
+                        ResultInvokable::new(
+                            SerializationFormat::Bincode,
+                            api::WriteResult::Success(data_len),
+                        )
+                    },
+                    Ok(None) => {
+                        Box::new(DelayedStderrSend {
+                            data: Some(data),
+                            stderr: self.stderr.clone(),
+                        })
+                    },
+                    Err(err) => {
+                        ResultInvokable::new(
+                            SerializationFormat::Bincode,
+                            api::WriteResult::Failed(err.to_string()),
+                        )
+                    },
                 }
-            };
-            match self.stderr.try_write(&data[..]) {
-                Ok(Some(data_len)) => {
-                    ResultInvokable::new(
-                        SerializationFormat::Bincode,
-                        api::WriteResult::Success(data_len),
-                    )
-                },
-                Ok(None) => {
-                    Box::new(DelayedStderrSend {
-                        data: Some(data),
-                        stderr: self.stderr.clone(),
-                    })
-                },
-                Err(err) => {
-                    ResultInvokable::new(
-                        SerializationFormat::Bincode,
-                        api::WriteResult::Failed(err.to_string()),
-                    )
-                },
+            } else if topic == type_name::<api::StderrFlushRequest>() {
+                Box::new(DelayedStderrFlush {
+                    stderr: self.stderr.clone(),
+                })
+            } else {
+                ErrornousInvokable::new(CallError::InvalidTopic)
             }
-        } else if topic == type_name::<api::StderrFlushRequest>() {
-            Box::new(DelayedStderrFlush {
-                stderr: self.stderr.clone(),
-            })
-        } else {
-            ErrornousInvokable::new(CallError::InvalidTopic)
-        }
+        };
+        Ok((ret, None))
     }
 }
 

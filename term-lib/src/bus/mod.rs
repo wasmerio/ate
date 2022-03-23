@@ -13,6 +13,7 @@ mod time;
 mod util;
 mod ws;
 mod tty;
+mod webgl;
 
 pub use caller_context::*;
 pub(crate) use invokable::*;

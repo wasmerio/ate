@@ -55,6 +55,7 @@ wasm-bus-tty = { version = "^1", path = "../wasm-bus-tty", default_features = fa
 wasm-bus-time = { version = "^1", path = "../wasm-bus-time", default_features = false }
 wasm-bus-process = { version = "^1", path = "../wasm-bus-process", default_features = false }
 wasm-bus-reqwest = { version = "^1", path = "../wasm-bus-reqwest", default_features = false }
+wasm-bus-webgl = { version = "^1", path = "../wasm-bus-webgl", default_features = false }
 url = { version = "^2" }
 regex = { version = "^1.5" }
 hex = "^0.4"

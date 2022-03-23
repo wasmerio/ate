@@ -2,7 +2,7 @@ use std::sync::Arc;
 #[allow(unused_imports)]
 use wasm_bus::macros::*;
 
-mod glenum;
+pub mod glenum;
 pub use glenum::*;
 
 #[wasm_bus(format = "json")]
@@ -26,14 +26,10 @@ pub trait RenderingContext {
 #[wasm_bus(format = "bincode")]
 pub trait Buffer {
     async fn bind_buffer(&self, kind: BufferKind);
-
-    async fn delete_buffer(&self);
 }
 
 #[wasm_bus(format = "bincode")]
 pub trait Texture {
-    async fn delete_texture(&self);
-
     async fn active_texture(&self, active: u32);
 
     async fn bind_texture(&self);
@@ -108,8 +104,6 @@ pub trait Raster {
 
 #[wasm_bus(format = "json")]
 pub trait FrameBuffer {
-    async fn delete_framebuffer(&self);
-
     async fn bind_framebuffer(&self, buffer: Buffers);
 }
 
@@ -134,15 +128,11 @@ pub trait ProgramParameter {
 
 #[wasm_bus(format = "json")]
 pub trait ProgramLocation {
-    async fn is_valid(&self) -> bool;
-
-    async fn bind(&self) -> bool;
+    async fn bind_program_location(&self);
 
     async fn vertex_attrib_pointer(&self, size: AttributeSize, kind: DataType, normalized: bool, stride: u32, offset: u32);
 
     async fn enable_vertex_attrib_array(&self);
-
-    //async fn associate_vertex_array(&self, index: u32, size: i32, type_: PrimativeType, normalized: bool, stride: i32, offset: i32);
 }
 
 #[wasm_bus(format = "bincode")]
@@ -150,14 +140,10 @@ pub trait VertexArray {
     async fn bind_vertex_array(&self);
 
     async fn unbind_vertex_array(&self);
-
-    async fn delete_vertex_array(&self);
 }
 
-#[wasm_bus(format = "json")]
+#[wasm_bus(format = "bincode")]
 pub trait UniformLocation {
-    async fn is_valid(&self) -> bool;
-
     async fn uniform_matrix_4fv(&self, value: [[f32; 4]; 4]);
 
     async fn uniform_matrix_3fv(&self, value: [[f32; 3]; 3]);
@@ -177,9 +163,9 @@ pub trait UniformLocation {
 
 #[wasm_bus(format = "json")]
 pub trait Shader {
-    async fn source(&self, source: String);
+    async fn shader_source(&self, source: String);
 
-    async fn compile(&self) -> Result<(), String>;
+    async fn shader_compile(&self) -> Result<(), String>;
 
     async fn attach_shader(&self) -> Result<(), String>;
 }

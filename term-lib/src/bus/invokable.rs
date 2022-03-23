@@ -29,8 +29,8 @@ pub trait Session
 where
     Self: Send,
 {
-    fn call(&mut self, _topic: &str, _request: Vec<u8>, _keepalive: bool) -> Box<dyn Invokable + 'static> {
-        ErrornousInvokable::new(CallError::InvalidTopic)
+    fn call(&mut self, _topic: &str, _request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), CallError> {
+        Ok((ErrornousInvokable::new(CallError::InvalidTopic), None))
     }
 }
 
