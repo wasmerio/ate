@@ -56,6 +56,7 @@ pub struct ResultInvokable
 where Self: Send + 'static,
 {
     ret: Option<Result<Vec<u8>, CallError>>,
+    leak: bool,
 }
 
 impl ResultInvokable
@@ -74,7 +75,23 @@ where Self: Send + 'static,
             format,
             &value,
         );
-        Box::new(ResultInvokable { ret: Some(ret) })
+        Box::new(ResultInvokable {
+            ret: Some(ret),
+            leak: false
+        })
+    }
+
+    pub fn new_leaked<T>(format: SerializationFormat, value: T) -> Box<ResultInvokable>
+    where T: Serialize + Send,
+    {
+        let ret = encode_response(
+            format,
+            &value,
+        );
+        Box::new(ResultInvokable {
+            ret: Some(ret),
+            leak: true
+        })
     }
 }
 
@@ -84,9 +101,15 @@ where Self: Send + 'static,
 {
     async fn process(&mut self) -> Result<InvokeResult, CallError> {
         if let Some(ret) = self.ret.take() {
-            ret.map(|ret| {
-                InvokeResult::Response(ret)
-            })
+            if self.leak {
+                ret.map(|ret| {
+                    InvokeResult::ResponseThenLeak(ret)
+                })
+            } else {
+                ret.map(|ret| {
+                    InvokeResult::Response(ret)
+                })
+            }
         } else {
             Err(CallError::AlreadyConsumed)
         }

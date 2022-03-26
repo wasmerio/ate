@@ -193,7 +193,7 @@ where Self: Send + Sync
 
     fn tex_sub_image2d(&self, target: TextureBindPoint, level: u8, xoffset: u32, yoffset: u32, width: u32, height: u32, format: PixelFormat, kind: PixelType, pixels: Vec<u8>);
 
-    fn compressed_tex_image2d(&self, target: TextureBindPoint, level: u8, compression: TextureCompression, width: u32, height: u32, data: Vec<u8>);
+    fn compressed_tex_image2d(&self, target: TextureBindPoint, level: u8, compression: TextureCompression, width: u32, height: u32, pixels: Vec<u8>);
 
     fn blend_equation(&self, eq: BlendEquation);
 
@@ -205,7 +205,7 @@ where Self: Send + Sync
 
     fn tex_parameterfv(&self, kind: TextureKind, pname: TextureParameter, param: f32);
 
-    fn draw_buffer(&self, buffers: Vec<ColorBuffer>);
+    fn draw_buffers(&self, buffers: Vec<ColorBuffer>);
 
     fn create_framebuffer(&self) -> FrameBufferId;
 

@@ -5,12 +5,12 @@ use wasm_bus::macros::*;
 pub mod glenum;
 pub use glenum::*;
 
-#[wasm_bus(format = "json")]
+#[wasm_bus(format = "bincode")]
 pub trait WebGl {
     async fn context(&self) -> Arc<dyn RenderingContext>;
 }
 
-#[wasm_bus(format = "json")]
+#[wasm_bus(format = "bincode")]
 pub trait RenderingContext {
     async fn raster(&self) -> Arc<dyn Raster>;
 
@@ -79,7 +79,7 @@ pub trait Raster {
 
     async fn tex_sub_image2d(&self, target: TextureBindPoint, level: u8, xoffset: u32, yoffset: u32, width: u32, height: u32, format: PixelFormat, kind: PixelType, pixels: Vec<u8>);
 
-    async fn compressed_tex_image2d(&self, target: TextureBindPoint, level: u8, compression: TextureCompression, width: u32, height: u32, data: Vec<u8>);
+    async fn compressed_tex_image2d(&self, target: TextureBindPoint, level: u8, compression: TextureCompression, width: u32, height: u32, pixels: Vec<u8>);
 
     async fn unbind_texture(&self, active: u32);
 
@@ -95,7 +95,7 @@ pub trait Raster {
 
     async fn tex_parameterfv(&self, kind: TextureKind, pname: TextureParameter, param: f32);
 
-    async fn draw_buffer(&self, buffers: Vec<ColorBuffer>);
+    async fn draw_buffers(&self, buffers: Vec<ColorBuffer>);
 
     async fn create_framebuffer(&self) -> Arc<dyn FrameBuffer>;
 
@@ -106,12 +106,12 @@ pub trait Raster {
     async fn sync(&self);
 }
 
-#[wasm_bus(format = "json")]
+#[wasm_bus(format = "bincode")]
 pub trait FrameBuffer {
     async fn bind_framebuffer(&self, buffer: Buffers);
 }
 
-#[wasm_bus(format = "json")]
+#[wasm_bus(format = "bincode")]
 pub trait Program {
     async fn create_shader(&self, kind: ShaderKind) -> Arc<dyn Shader>;
 
@@ -126,11 +126,11 @@ pub trait Program {
     async fn get_program_parameter(&self, pname: ShaderParameter) -> Arc<dyn ProgramParameter>;
 }
 
-#[wasm_bus(format = "json")]
+#[wasm_bus(format = "bincode")]
 pub trait ProgramParameter {
 }
 
-#[wasm_bus(format = "json")]
+#[wasm_bus(format = "bincode")]
 pub trait ProgramLocation {
     async fn bind_program_location(&self);
 
@@ -165,7 +165,7 @@ pub trait UniformLocation {
     async fn uniform_4f(&self, value: (f32, f32, f32, f32));
 }
 
-#[wasm_bus(format = "json")]
+#[wasm_bus(format = "bincode")]
 pub trait Shader {
     async fn shader_source(&self, source: String);
 

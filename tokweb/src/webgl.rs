@@ -67,7 +67,7 @@ pub enum WebGlCommand {
     BlendColor { red: f32, green: f32, blue: f32, alpha: f32 },
     TexParameteri { kind: TextureKind, pname: TextureParameter, param: i32 },
     TexParameterfv { kind: TextureKind, pname: TextureParameter, param: f32 },
-    DrawBuffer { buffers: Vec<ColorBuffer> },
+    DrawBuffers { buffers: Vec<ColorBuffer> },
     CreateFramebuffer(FrameBufferId),
     DeleteFramebuffer { framebuffer: FrameBufferId },
     BindFramebuffer { framebuffer: FrameBufferId, buffer: Buffers },
@@ -97,6 +97,8 @@ pub enum WebGlCommand {
     ShaderSource { shader: ShaderId, source: String },
     ShaderCompile { shader: ShaderId, tx: mpsc::Sender<Result<(), String>> },
     AttachShader { program: ProgramId, shader: ShaderId, tx: mpsc::Sender<Result<(), String>> },
+    ShowCanvas,
+    ShowTerminal,
     Sync { tx: mpsc::Sender<()> },
 }
 
@@ -174,8 +176,7 @@ impl GlContext
     }
 
     pub fn new(tx: &mpsc::Sender<WebGlCommand>) -> GlContext {
-        show_canvas();
-
+        System::default().fork_send(&tx, WebGlCommand::ShowCanvas);
         GlContext {
             tx: tx.clone()
         }
@@ -344,7 +345,7 @@ impl GlContext
             WebGlCommand::TexParameterfv { kind, pname, param } => {
                 inner.ctx.tex_parameterf(kind as u32, pname as u32, param);
             },
-            WebGlCommand::DrawBuffer { buffers } => {
+            WebGlCommand::DrawBuffers { buffers } => {
                 let vals = js_sys::Array::new();
                 for cb in buffers {
                     let cb = cb as u32;
@@ -543,6 +544,12 @@ impl GlContext
                     let _ = tx.send(Err("The shader is not valid".to_string())).await;
                 }
             },
+            WebGlCommand::ShowCanvas => {
+                show_canvas();
+            }
+            WebGlCommand::ShowTerminal => {
+                show_terminal();
+            }
             WebGlCommand::Sync { tx } => {
                 let _ = tx.send(()).await;
             },
@@ -715,8 +722,8 @@ for GlContext
         System::default().fork_send(&self.tx, WebGlCommand::TexParameterfv { kind, pname, param });
     }
 
-    fn draw_buffer(&self, buffers: Vec<ColorBuffer>) {
-        System::default().fork_send(&self.tx, WebGlCommand::DrawBuffer { buffers });
+    fn draw_buffers(&self, buffers: Vec<ColorBuffer>) {
+        System::default().fork_send(&self.tx, WebGlCommand::DrawBuffers { buffers });
     }
 
     fn create_framebuffer(&self) -> FrameBufferId {
@@ -862,6 +869,6 @@ impl Drop
 for GlContext
 {
     fn drop(&mut self) {
-        show_terminal();
+        System::default().fork_send(&self.tx, WebGlCommand::ShowTerminal);
     }
 }

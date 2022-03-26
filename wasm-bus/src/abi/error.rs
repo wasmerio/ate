@@ -99,6 +99,13 @@ impl Into<io::Error> for CallError {
     }
 }
 
+impl Into<Box<dyn std::error::Error>> for CallError {
+    fn into(self) -> Box<dyn std::error::Error> {
+        let err: io::Error = self.into();
+        err.into()
+    }
+}
+
 impl fmt::Display for CallError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

@@ -49,12 +49,12 @@ impl BusFactory {
                     Ok((ret, session)) => {
                         // If it returns a session then start it
                         if let Some(session) = session {
-                            let mut sessions = self.sessions.lock().unwrap();
                             sessions.insert(handle, session);
                         }
                         return ret;
                     },
                     Err(err) => {
+                        debug!("session call failed (handle={}) - {}", parent, err);
                         return ErrornousInvokable::new(err);
                     }
                 }
@@ -151,7 +151,8 @@ where
             Ok((mut invoker, None)) => {
                 return invoker.process().await;
             }
-            Err(CallError::InvalidTopic) => { /* fall through */ }
+            Err(CallError::InvalidTopic) if self.wapm.as_str() != "os" => { /* fall through */ }
+            Err(CallError::InvalidTopic) => return Err(CallError::InvalidTopic),
             Err(err) => return Err(err),
         };
 

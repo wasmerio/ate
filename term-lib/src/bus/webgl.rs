@@ -1,4 +1,3 @@
-use wasm_bus_webgl::prelude::*;
 use wasm_bus_webgl::api::glenum::*;
 use std::sync::Arc;
 use wasm_bus_webgl::api;
@@ -24,7 +23,7 @@ impl WebGlInstance {
         let ctx = self.webgl.context();
         RenderingContextInstance {
             ctx: Arc::new(ctx),
-            std_ret: Arc::new(ResultInvokable::new_strong(SerializationFormat::Json, ())),
+            std_ret_leaked: Arc::new(ResultInvokable::new_leaked(SerializationFormat::Bincode, ())),
         }
     }
 }
@@ -36,7 +35,7 @@ for WebGlInstance
         match topic {
             topic if topic == type_name::<api::WebGlContextRequest>() => {
                 let session = self.context();
-                Ok((ResultInvokable::new(SerializationFormat::Json, ()), Some(Box::new(session))))
+                Ok((ResultInvokable::new_leaked(SerializationFormat::Bincode, ()), Some(Box::new(session))))
             }
             _ => Err(CallError::InvalidTopic)
         }
@@ -46,7 +45,7 @@ for WebGlInstance
 #[derive(Clone)]
 pub struct RenderingContextInstance {
     ctx: Arc<Box<dyn RenderingContextAbi>>,
-    std_ret: Arc<Box<ResultInvokable>>
+    std_ret_leaked: Arc<Box<ResultInvokable>>,
 }
 
 impl RenderingContextInstance {
@@ -54,7 +53,8 @@ impl RenderingContextInstance {
         let ctx = self.ctx.clone();
         RasterInstance {
             ctx,
-            std_ret: Arc::new(ResultInvokable::new_strong(SerializationFormat::Bincode, ()))
+            std_ret: Arc::new(ResultInvokable::new_strong(SerializationFormat::Bincode, ())),
+            std_ret_leaked: Arc::new(ResultInvokable::new_leaked(SerializationFormat::Bincode, ())),
         }
     }
 
@@ -64,7 +64,8 @@ impl RenderingContextInstance {
         ProgramInstance {
             ctx,
             program,
-            std_ret: Arc::new(ResultInvokable::new_strong(SerializationFormat::Json, ()))
+            std_ret: Arc::new(ResultInvokable::new_strong(SerializationFormat::Bincode, ())),
+            std_ret_leaked: Arc::new(ResultInvokable::new_leaked(SerializationFormat::Bincode, ())),
         }
     }
 
@@ -83,7 +84,7 @@ impl RenderingContextInstance {
         VertexArrayInstance {
             ctx,
             vertex_array,
-            std_ret: Arc::new(ResultInvokable::new_strong(SerializationFormat::Bincode, ()))
+            std_ret: Arc::new(ResultInvokable::new_strong(SerializationFormat::Bincode, ())),
         }
     }
 
@@ -93,7 +94,7 @@ impl RenderingContextInstance {
         TextureInstance {
             ctx,
             texture,
-            std_ret: Arc::new(ResultInvokable::new_strong(SerializationFormat::Bincode, ()))
+            std_ret: Arc::new(ResultInvokable::new_strong(SerializationFormat::Bincode, ())),
         }
     }
 }
@@ -102,7 +103,7 @@ impl Session
 for RenderingContextInstance
 {
     fn call(&mut self, topic: &str, _request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), CallError> {
-        let ret = self.std_ret.deref().clone();
+        let ret = self.std_ret_leaked.deref().clone();
         match topic {
             topic if topic == type_name::<api::RenderingContextRasterRequest>() => {
                 let session = self.raster();
@@ -219,7 +220,8 @@ for TextureInstance
 
 pub struct RasterInstance {
     ctx: Arc<Box<dyn RenderingContextAbi>>,
-    std_ret: Arc<Box<ResultInvokable>>
+    std_ret: Arc<Box<ResultInvokable>>,
+    std_ret_leaked: Arc<Box<ResultInvokable>>,
 }
 
 impl RasterInstance
@@ -296,8 +298,8 @@ impl RasterInstance
         self.ctx.tex_sub_image2d(target, level, xoffset, yoffset, width, height, format, kind, pixels);
     }
 
-    pub fn compressed_tex_image2d(&self, target: TextureBindPoint, level: u8, compression: TextureCompression, width: u32, height: u32, data: Vec<u8>) {
-        self.ctx.compressed_tex_image2d(target, level, compression, width, height, data);
+    pub fn compressed_tex_image2d(&self, target: TextureBindPoint, level: u8, compression: TextureCompression, width: u32, height: u32, pixels: Vec<u8>) {
+        self.ctx.compressed_tex_image2d(target, level, compression, width, height, pixels);
     }
 
     pub fn active_texture(&self, active: u32) {
@@ -324,8 +326,8 @@ impl RasterInstance
         self.ctx.tex_parameterfv(kind, pname, param);
     }
 
-    pub fn draw_buffer(&self, buffers: Vec<ColorBuffer>) {
-        self.ctx.draw_buffer(buffers);
+    pub fn draw_buffers(&self, buffers: Vec<ColorBuffer>) {
+        self.ctx.draw_buffers(buffers);
     }
 
     pub fn create_framebuffer(&self) -> FrameBufferInstance {
@@ -333,7 +335,7 @@ impl RasterInstance
         FrameBufferInstance {
             ctx: self.ctx.clone(),
             framebuffer,
-            std_ret: Arc::new(ResultInvokable::new_strong(SerializationFormat::Json, ()))
+            std_ret: Arc::new(ResultInvokable::new_strong(SerializationFormat::Bincode, ())),
         }
     }
 
@@ -457,7 +459,7 @@ for RasterInstance
             }
             topic if topic == type_name::<api::RasterCompressedTexImage2DRequest>() => {
                 let request: api::RasterCompressedTexImage2DRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
-                self.compressed_tex_image2d(request.target, request.level, request.compression, request.width, request.height, request.data);
+                self.compressed_tex_image2d(request.target, request.level, request.compression, request.width, request.height, request.pixels);
                 Ok((self.std_ret.deref().clone(), None))
             }
             topic if topic == type_name::<api::TextureActiveTextureRequest>() => {
@@ -495,14 +497,14 @@ for RasterInstance
                 self.tex_parameterfv(request.kind, request.pname, request.param);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::RasterDrawBufferRequest>() => {
-                let request: api::RasterDrawBufferRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
-                self.draw_buffer(request.buffers);
+            topic if topic == type_name::<api::RasterDrawBuffersRequest>() => {
+                let request: api::RasterDrawBuffersRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+                self.draw_buffers(request.buffers);
                 Ok((self.std_ret.deref().clone(), None))
             }
             topic if topic == type_name::<api::RasterCreateFramebufferRequest>() => {
                 let session = self.create_framebuffer();
-                Ok((self.std_ret.deref().clone(), Some(Box::new(session))))
+                Ok((self.std_ret_leaked.deref().clone(), Some(Box::new(session))))
             }
             topic if topic == type_name::<api::RasterUnbindBufferRequest>() => {
                 let request: api::RasterUnbindBufferRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
@@ -555,7 +557,7 @@ for FrameBufferInstance
     fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), CallError> {
         match topic {
             topic if topic == type_name::<api::FrameBufferBindFramebufferRequest>() => {
-                let request: api::FrameBufferBindFramebufferRequest = decode_request(SerializationFormat::Json, request.as_ref())?;
+                let request: api::FrameBufferBindFramebufferRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
                 self.bind_framebuffer(request.buffer);
                 Ok((self.std_ret.deref().clone(), None))
             }
@@ -576,6 +578,7 @@ pub struct ProgramInstance {
     ctx: Arc<Box<dyn RenderingContextAbi>>,
     program: ProgramId,
     std_ret: Arc<Box<ResultInvokable>>,
+    std_ret_leaked: Arc<Box<ResultInvokable>>,
 }
 
 impl ProgramInstance {
@@ -601,7 +604,7 @@ impl ProgramInstance {
         ProgramLocationInstance {
             ctx: self.ctx.clone(),
             location,
-            std_ret: Arc::new(ResultInvokable::new_strong(SerializationFormat::Json, ()))
+            std_ret: Arc::new(ResultInvokable::new_strong(SerializationFormat::Bincode, ())),
         }
     }
 
@@ -610,7 +613,7 @@ impl ProgramInstance {
         UniformLocationInstance {
             ctx: self.ctx.clone(),
             location,
-            std_ret: Arc::new(ResultInvokable::new_strong(SerializationFormat::Json, ()))
+            std_ret: Arc::new(ResultInvokable::new_strong(SerializationFormat::Bincode, ())),
         }
     }
 
@@ -619,7 +622,8 @@ impl ProgramInstance {
         ProgramParameterInstance {
             ctx: self.ctx.clone(),
             param,
-            std_ret: Arc::new(ResultInvokable::new_strong(SerializationFormat::Json, ()))
+            std_ret: Arc::new(ResultInvokable::new_strong(SerializationFormat::Bincode, ())),
+            std_ret_leaked: Arc::new(ResultInvokable::new_leaked(SerializationFormat::Bincode, ())),
         }
     }
 }
@@ -630,9 +634,9 @@ for ProgramInstance
     fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), CallError> {
         match topic {
             topic if topic == type_name::<api::ProgramCreateShaderRequest>() => {
-                let request: api::ProgramCreateShaderRequest = decode_request(SerializationFormat::Json, request.as_ref())?;
+                let request: api::ProgramCreateShaderRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
                 let session = self.create_shader(request.kind);
-                Ok((self.std_ret.deref().clone(), Some(Box::new(session))))
+                Ok((self.std_ret_leaked.deref().clone(), Some(Box::new(session))))
             }
             topic if topic == type_name::<api::ProgramLinkProgramRequest>() => {
                 let ret = self.link_program();
@@ -643,19 +647,19 @@ for ProgramInstance
                 Ok((self.std_ret.deref().clone(), None))
             }
             topic if topic == type_name::<api::ProgramGetAttribLocationRequest>() => {
-                let request: api::ProgramGetAttribLocationRequest = decode_request(SerializationFormat::Json, request.as_ref())?;
+                let request: api::ProgramGetAttribLocationRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
                 let session = self.get_attrib_location(request.name);
-                Ok((self.std_ret.deref().clone(), Some(Box::new(session))))
+                Ok((self.std_ret_leaked.deref().clone(), Some(Box::new(session))))
             }
             topic if topic == type_name::<api::ProgramGetUniformLocationRequest>() => {
-                let request: api::ProgramGetUniformLocationRequest = decode_request(SerializationFormat::Json, request.as_ref())?;
+                let request: api::ProgramGetUniformLocationRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
                 let session = self.get_uniform_location(request.name);
-                Ok((self.std_ret.deref().clone(), Some(Box::new(session))))
+                Ok((self.std_ret_leaked.deref().clone(), Some(Box::new(session))))
             }
             topic if topic == type_name::<api::ProgramGetProgramParameterRequest>() => {
-                let request: api::ProgramGetProgramParameterRequest = decode_request(SerializationFormat::Json, request.as_ref())?;
+                let request: api::ProgramGetProgramParameterRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
                 let session = self.get_program_parameter(request.pname);
-                Ok((self.std_ret.deref().clone(), Some(Box::new(session))))
+                Ok((self.std_ret_leaked.deref().clone(), Some(Box::new(session))))
             }
             _ => Err(CallError::InvalidTopic)
         }
@@ -674,7 +678,8 @@ for ProgramInstance
 pub struct ProgramParameterInstance {
     ctx: Arc<Box<dyn RenderingContextAbi>>,
     param: ProgramParameterId,
-    std_ret: Arc<Box<ResultInvokable>>
+    std_ret: Arc<Box<ResultInvokable>>,
+    std_ret_leaked: Arc<Box<ResultInvokable>>,
 }
 
 impl ProgramParameterInstance {
@@ -718,7 +723,7 @@ for ProgramLocationInstance
     fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), CallError> {
         match topic {
             topic if topic == type_name::<api::ProgramLocationVertexAttribPointerRequest>() => {
-                let request: api::ProgramLocationVertexAttribPointerRequest = decode_request(SerializationFormat::Json, request.as_ref())?;
+                let request: api::ProgramLocationVertexAttribPointerRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
                 self.vertex_attrib_pointer(request.size, request.kind, request.normalized, request.stride, request.offset);
                 Ok((self.std_ret.deref().clone(), None))
             }
@@ -734,7 +739,7 @@ for ProgramLocationInstance
 pub struct VertexArrayInstance {
     ctx: Arc<Box<dyn RenderingContextAbi>>,
     vertex_array: VertexArrayId,
-    std_ret: Arc<Box<ResultInvokable>>
+    std_ret: Arc<Box<ResultInvokable>>,
 }
 
 impl VertexArrayInstance {
@@ -882,9 +887,9 @@ for ShaderInstance
     fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), CallError> {
         match topic {
             topic if topic == type_name::<api::ShaderShaderSourceRequest>() => {
-                let request: api::ShaderShaderSourceRequest = decode_request(SerializationFormat::Json, request.as_ref())?;
+                let request: api::ShaderShaderSourceRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
                 self.shader_source(request.source);
-                Ok((ResultInvokable::new(SerializationFormat::Json, ()), None))
+                Ok((ResultInvokable::new(SerializationFormat::Bincode, ()), None))
             }
             topic if topic == type_name::<api::ShaderShaderCompileRequest>() => {
                 let ret = self.shader_compile();
