@@ -12,11 +12,13 @@ pub struct WebGlInstance {
 }
 
 impl WebGlInstance {
-    pub async fn new(system: System) -> WebGlInstance {
-        let webgl = system.webgl().await;
-        WebGlInstance {
-            webgl,
-        }
+    pub async fn new(system: System) -> Option<WebGlInstance> {
+        let webgl = system.webgl().await?;
+        Some(
+            WebGlInstance {
+                webgl,
+            }
+        )
     }
 
     pub fn context(&self) -> RenderingContextInstance {

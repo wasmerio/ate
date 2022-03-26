@@ -109,8 +109,16 @@ impl StandardBus {
             ("os", topic) if topic == type_name::<wasm_bus_webgl::api::WebGlContextRequest>() => {
                 let _request = decode_request(SerializationFormat::Bincode, request.as_ref())?;
                 let webgl = WebGlInstance::new(self.system).await;
-                let session = webgl.context();
-                Ok((ResultInvokable::new_leaked(SerializationFormat::Bincode, ()), Some(Box::new(session))))
+                match webgl {
+                    Some(webgl) => {
+                        let session = webgl.context();
+                        Ok((ResultInvokable::new_leaked(SerializationFormat::Bincode, ()), Some(Box::new(session))))
+                    },
+                    None => {
+                        Err(CallError::Unsupported)
+                    }
+                }
+                
             }
             ("os", topic) => {
                 error!("the os function ({}) is not supported", topic);

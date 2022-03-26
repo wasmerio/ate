@@ -1,9 +1,23 @@
-# WASM macroquad
+# WASM WebGL
 
-The WASM Bus for using macroquad on tokera.sh
+The WASM Bus for using WebGL on tokera.sh
 
-Macroquad is hosted here:
-https://github.com/not-fl3/macroquad
+# Example
+
+```rust
+use wasm_bus_webgl::prelude::*;
+
+fn main() -> Result<(), WebGlError> {
+    let context = WebGl::new()?;
+
+    context.clear_color(0.0, 0.0, 0.4, 1.0);
+    context.clear(BufferBit::Color);
+
+    std::thread::sleep(std::time::Duration::from_secs(4));
+
+    Ok(())
+}
+```
 
 # Testing
 

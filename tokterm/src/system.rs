@@ -15,6 +15,7 @@ use term_lib::api::AsyncResult;
 use term_lib::api::SerializationFormat;
 use term_lib::api::ThreadLocal;
 use term_lib::api::WebSocketAbi;
+use term_lib::api::WebGlAbi;
 use term_lib::err;
 use tokio::runtime::Builder;
 use tokio::runtime::Runtime;
@@ -248,6 +249,11 @@ impl SystemAbi for SysSystem {
 
     async fn web_socket(&self, url: &str) -> Result<Box<dyn WebSocketAbi>, String> {
         return Ok(Box::new(SysWebSocket::new(url).await));
+    }
+
+    // WebGL is not supported here
+    async fn webgl(&self) -> Option<Box<dyn WebGlAbi>> {
+        None
     }
 }
 

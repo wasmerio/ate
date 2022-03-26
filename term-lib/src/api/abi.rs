@@ -118,7 +118,7 @@ where
     async fn web_socket(&self, url: &str) -> Result<Box<dyn WebSocketAbi>, String>;
 
     /// Open the WebGL
-    async fn webgl(&self) -> Box<dyn WebGlAbi>;
+    async fn webgl(&self) -> Option<Box<dyn WebGlAbi>>;
 }
 
 // System call extensions that provide generics

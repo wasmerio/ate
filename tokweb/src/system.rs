@@ -181,8 +181,8 @@ impl SystemAbi for WebSystem {
     }
 
     /// Open the WebGL
-    async fn webgl(&self) -> Box<dyn WebGlAbi> {
-        Box::new(WebGl::new(&self.webgl_tx))
+    async fn webgl(&self) -> Option<Box<dyn WebGlAbi>> {
+        Some(Box::new(WebGl::new(&self.webgl_tx)))
     }
 }
 
