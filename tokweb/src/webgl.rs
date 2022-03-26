@@ -23,6 +23,7 @@ use term_lib::api::AsyncResult;
 use term_lib::api::SerializationFormat;
 use term_lib::common::MAX_MPSC;
 use std::collections::HashMap;
+use std::convert::*;
 use tokio::sync::mpsc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
@@ -126,6 +127,8 @@ for WebGl
         Box::new(ctx)
     }
 }
+
+type Reference = i32;
 
 pub struct GlContextInner {
     ctx: WebGl2RenderingContext,
@@ -489,29 +492,38 @@ impl GlContext
             WebGlCommand::UnbindVertexArray => {
                 inner.ctx.bind_vertex_array(None);
             },
-            WebGlCommand::UniformMatrix4fv { location, transpose, value } => {
-                let a = value[0];
-                let b = value[1];
-                let c = value[2];
-                let d = value[3];
-                let value = [a[0], a[1], a[2], a[3], b[0], b[1], b[2], b[3], c[0], c[1], c[2], c[3], d[0], d[1], d[2], d[3]];
-                let location = inner.uniform_locations.get(&location);
-                inner.ctx.uniform_matrix4fv_with_f32_array(location, transpose, &value);
+            WebGlCommand::UniformMatrix4fv { location: location_id, transpose, value } => {
+                let location = inner.uniform_locations.get(&location_id);
+                if let Some(location) = location {
+                    unsafe {
+                        let array = std::mem::transmute::<&[[f32; 4]; 4], &[f32; 16]>(&value) as &[f32];
+                        inner.ctx.uniform_matrix4fv_with_f32_array(location, transpose, array);
+                    }
+                } else {
+                    warn!("orphaned location - {}", location_id);
+                }
             },
-            WebGlCommand::UniformMatrix3fv { location, transpose, value } => {
-                let a = value[0];
-                let b = value[1];
-                let c = value[2];
-                let value = [a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]];
-                let location = inner.uniform_locations.get(&location);
-                inner.ctx.uniform_matrix3fv_with_f32_array(location, transpose, &value);
+            WebGlCommand::UniformMatrix3fv { location: location_id, transpose, value } => {
+                let location = inner.uniform_locations.get(&location_id);
+                if let Some(location) = location {
+                    unsafe {
+                        let array = mem::transmute::<&[[f32; 3]; 3], &[f32; 9]>(&value) as &[f32];
+                        inner.ctx.uniform_matrix3fv_with_f32_array(location, transpose, array);
+                    }
+                } else {
+                    warn!("orphaned location - {}", location_id);
+                }                
             },
-            WebGlCommand::UniformMatrix2fv { location, transpose, value } => {
-                let a = value[0];
-                let b = value[1];
-                let value = [a[0], a[1], b[0], b[1]];
-                let location = inner.uniform_locations.get(&location);
-                inner.ctx.uniform_matrix2fv_with_f32_array(location, transpose, &value);
+            WebGlCommand::UniformMatrix2fv { location: location_id, transpose, value } => {
+                let location = inner.uniform_locations.get(&location_id);
+                if let Some(location) = location {
+                    unsafe {
+                        let array = mem::transmute::<&[[f32; 2]; 2], &[f32; 4]>(&value) as &[f32];
+                        inner.ctx.uniform_matrix2fv_with_f32_array(location, transpose, &value);
+                    }
+                } else {
+                    warn!("orphaned location - {}", location_id);
+                }
             },
             WebGlCommand::Uniform1i { location, value } => {
                 let location = inner.uniform_locations.get(&location);
