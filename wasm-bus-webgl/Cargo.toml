@@ -5,7 +5,7 @@ authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 description = "WebAssembly WebGL Interface"
 license = "MIT OR Apache-2.0"
-keywords = [ "wasi", "wasm", "bus", "fuse" ]
+keywords = [ "wasi", "wasm", "opengl", "webgl" ]
 repository = "https://github.com/john-sharratt/ate"
 readme = "README.md"
 
@@ -16,12 +16,5 @@ backend = []
 
 [dependencies]
 wasm-bus = { version = "^1", path = "../wasm-bus", default_features = false, features = [ "rt", "macros" ] }
-tracing = { version = "^0.1", features = [ "log" ] }
 serde = { version = "^1", features = ["derive"] }
-tokio = { version = "^1", features = [ "sync", "macros" ], default_features = false }
 async-trait = "^0.1"
-
-[dev-dependencies]
-tracing = { version = "^0.1", features = [ "log" ] }
-tracing-futures = { version = "^0.2" }
-tracing-subscriber = { version = "^0.2" }

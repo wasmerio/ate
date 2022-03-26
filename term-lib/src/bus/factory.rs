@@ -45,7 +45,19 @@ impl BusFactory {
         if let Some(parent) = parent {
             let mut sessions = self.sessions.lock().unwrap();
             if let Some(session) = sessions.get_mut(&parent) {
-                return session.call(topic.as_ref(), request, keepalive);
+                match session.call(topic.as_ref(), request, keepalive) {
+                    Ok((ret, session)) => {
+                        // If it returns a session then start it
+                        if let Some(session) = session {
+                            sessions.insert(handle, session);
+                        }
+                        return ret;
+                    },
+                    Err(err) => {
+                        debug!("session call failed (handle={}) - {}", parent, err);
+                        return ErrornousInvokable::new(err);
+                    }
+                }
             } else {
                 // Session is orphaned
                 debug!("orphaned wasm-bus session (handle={})", parent);
@@ -139,7 +151,8 @@ where
             Ok((mut invoker, None)) => {
                 return invoker.process().await;
             }
-            Err(CallError::InvalidTopic) => { /* fall through */ }
+            Err(CallError::InvalidTopic) if self.wapm.as_str() != "os" => { /* fall through */ }
+            Err(CallError::InvalidTopic) => return Err(CallError::InvalidTopic),
             Err(err) => return Err(err),
         };
 

@@ -204,12 +204,12 @@ impl SubProcessSession {
 }
 
 impl Session for SubProcessSession {
-    fn call(&mut self, topic: &str, request: Vec<u8>, leak: bool) -> Box<dyn Invokable + 'static> {
+    fn call(&mut self, topic: &str, request: Vec<u8>, leak: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), CallError> {
         let topic = topic.to_string();
         let invoker =
             self.thread
                 .call_raw(Some(self.handle.handle()), topic, request, self.ctx.clone(), leak);
-        Box::new(invoker)
+        Ok((Box::new(invoker), None))
     }
 }
 

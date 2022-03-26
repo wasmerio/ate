@@ -116,6 +116,10 @@ impl term_lib::api::SystemAbi for System {
     async fn web_socket(&self, url: &str) -> Result<Box<dyn WebSocketAbi>, String> {
         self.inner.web_socket(url).await
     }
+
+    async fn webgl(&self) -> Option<Box<dyn WebGlAbi>> {
+        self.inner.webgl().await
+    }
 }
 
 fn conv_err(err: FileSystemError) -> u32 {

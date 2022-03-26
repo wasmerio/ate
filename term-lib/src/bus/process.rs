@@ -564,32 +564,35 @@ pub struct ProcessExecSession {
 }
 
 impl Session for ProcessExecSession {
-    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Box<dyn Invokable + 'static> {
-        if topic == type_name::<api::ProcessStdinRequest>() {
-            let request: api::ProcessStdinRequest =
-                match decode_request(SerializationFormat::Bincode, request.as_ref()) {
-                    Ok(a) => a,
-                    Err(err) => {
-                        return ErrornousInvokable::new(err);
-                    }
-                };
-            if let Some(stdin) = self.stdin.as_ref() {
-                let tx_send = stdin.clone();
-                let _ = tx_send.blocking_send(FdMsg::new(request.data, FdFlag::Stdin(false)));
+    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), CallError> {
+        let ret = {
+            if topic == type_name::<api::ProcessStdinRequest>() {
+                let request: api::ProcessStdinRequest =
+                    match decode_request(SerializationFormat::Bincode, request.as_ref()) {
+                        Ok(a) => a,
+                        Err(err) => {
+                            return Ok((ErrornousInvokable::new(err), None));
+                        }
+                    };
+                if let Some(stdin) = self.stdin.as_ref() {
+                    let tx_send = stdin.clone();
+                    let _ = tx_send.blocking_send(FdMsg::new(request.data, FdFlag::Stdin(false)));
+                }
+                ResultInvokable::new(SerializationFormat::Bincode, ())
+            } else if topic == type_name::<api::ProcessCloseStdinRequest>() {
+                let _request: api::ProcessCloseStdinRequest =
+                    match decode_request(SerializationFormat::Bincode, request.as_ref()) {
+                        Ok(a) => a,
+                        Err(err) => {
+                            return Ok((ErrornousInvokable::new(err), None));
+                        }
+                    };
+                self.stdin.take();
+                ResultInvokable::new(SerializationFormat::Bincode, ())
+            } else {
+                ErrornousInvokable::new(CallError::InvalidTopic)
             }
-            ResultInvokable::new(SerializationFormat::Bincode, ())
-        } else if topic == type_name::<api::ProcessCloseStdinRequest>() {
-            let _request: api::ProcessCloseStdinRequest =
-                match decode_request(SerializationFormat::Bincode, request.as_ref()) {
-                    Ok(a) => a,
-                    Err(err) => {
-                        return ErrornousInvokable::new(err);
-                    }
-                };
-            self.stdin.take();
-            ResultInvokable::new(SerializationFormat::Bincode, ())
-        } else {
-            ErrornousInvokable::new(CallError::InvalidTopic)
-        }
+        };
+        Ok((ret, None))
     }
 }

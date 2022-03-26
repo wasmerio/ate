@@ -29,8 +29,8 @@ pub trait Session
 where
     Self: Send,
 {
-    fn call(&mut self, _topic: &str, _request: Vec<u8>, _keepalive: bool) -> Box<dyn Invokable + 'static> {
-        ErrornousInvokable::new(CallError::InvalidTopic)
+    fn call(&mut self, _topic: &str, _request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), CallError> {
+        Ok((ErrornousInvokable::new(CallError::InvalidTopic), None))
     }
 }
 
@@ -51,36 +51,68 @@ impl Invokable for ErrornousInvokable {
     }
 }
 
-pub struct ResultInvokable<T>
-where
-    Self: Send + 'static,
-    T: Serialize + Send,
+#[derive(Clone)]
+pub struct ResultInvokable
+where Self: Send + 'static,
 {
-    value: T,
-    format: SerializationFormat,
+    ret: Option<Result<Vec<u8>, CallError>>,
+    leak: bool,
 }
 
-impl<T> ResultInvokable<T>
-where
-    Self: Send + 'static,
-    T: Serialize + Send,
+impl ResultInvokable
+where Self: Send + 'static,
 {
-    pub fn new(format: SerializationFormat, value: T) -> Box<dyn Invokable> {
-        Box::new(ResultInvokable { value, format })
+    pub fn new<T>(format: SerializationFormat, value: T) -> Box<dyn Invokable>
+    where T: Serialize + Send,
+    {
+        Self::new_strong(format, value)
+    }
+
+    pub fn new_strong<T>(format: SerializationFormat, value: T) -> Box<ResultInvokable>
+    where T: Serialize + Send,
+    {
+        let ret = encode_response(
+            format,
+            &value,
+        );
+        Box::new(ResultInvokable {
+            ret: Some(ret),
+            leak: false
+        })
+    }
+
+    pub fn new_leaked<T>(format: SerializationFormat, value: T) -> Box<ResultInvokable>
+    where T: Serialize + Send,
+    {
+        let ret = encode_response(
+            format,
+            &value,
+        );
+        Box::new(ResultInvokable {
+            ret: Some(ret),
+            leak: true
+        })
     }
 }
 
 #[async_trait]
-impl<T> Invokable for ResultInvokable<T>
-where
-    Self: Send + 'static,
-    T: Serialize + Send,
+impl Invokable for ResultInvokable
+where Self: Send + 'static,
 {
     async fn process(&mut self) -> Result<InvokeResult, CallError> {
-        Ok(InvokeResult::Response(encode_response(
-            self.format,
-            &self.value,
-        )?))
+        if let Some(ret) = self.ret.take() {
+            if self.leak {
+                ret.map(|ret| {
+                    InvokeResult::ResponseThenLeak(ret)
+                })
+            } else {
+                ret.map(|ret| {
+                    InvokeResult::Response(ret)
+                })
+            }
+        } else {
+            Err(CallError::AlreadyConsumed)
+        }
     }
 }
 

@@ -22,6 +22,7 @@ pub enum CallError {
     MemoryAllocationFailed = 16,
     BusInvocationFailed = 17,
     AccessDenied = 18,
+    AlreadyConsumed = 19,
     Unknown = u32::MAX,
 }
 
@@ -45,6 +46,7 @@ impl From<u32> for CallError {
             16 => CallError::MemoryAllocationFailed,
             17 => CallError::BusInvocationFailed,
             18 => CallError::AccessDenied,
+            19 => CallError::AlreadyConsumed,
             _ => CallError::Unknown,
         }
     }
@@ -70,6 +72,7 @@ impl Into<u32> for CallError {
             CallError::MemoryAllocationFailed => 16,
             CallError::BusInvocationFailed => 17,
             CallError::AccessDenied => 18,
+            CallError::AlreadyConsumed => 19,
             CallError::Unknown => u32::MAX,
         }
     }
@@ -93,6 +96,13 @@ impl Into<io::Error> for CallError {
                 format!("wasm bus error - {}", err.to_string()).as_str(),
             ),
         }
+    }
+}
+
+impl Into<Box<dyn std::error::Error>> for CallError {
+    fn into(self) -> Box<dyn std::error::Error> {
+        let err: io::Error = self.into();
+        err.into()
     }
 }
 
@@ -129,6 +139,7 @@ impl fmt::Display for CallError {
             CallError::InternalFailure => write!(f, "an internal failure has occured"),
             CallError::MemoryAllocationFailed => write!(f, "memory allocation has failed"),
             CallError::BusInvocationFailed => write!(f, "bus invocation has failed"),
+            CallError::AlreadyConsumed => write!(f, "result already consumed"),
             CallError::Unknown => write!(f, "unknown error."),
         }
     }
