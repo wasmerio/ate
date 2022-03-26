@@ -571,7 +571,7 @@ impl Session for ProcessExecSession {
                     match decode_request(SerializationFormat::Bincode, request.as_ref()) {
                         Ok(a) => a,
                         Err(err) => {
-                            return ErrornousInvokable::new(err);
+                            return Ok((ErrornousInvokable::new(err), None));
                         }
                     };
                 if let Some(stdin) = self.stdin.as_ref() {
@@ -584,7 +584,7 @@ impl Session for ProcessExecSession {
                     match decode_request(SerializationFormat::Bincode, request.as_ref()) {
                         Ok(a) => a,
                         Err(err) => {
-                            return ErrornousInvokable::new(err);
+                            return Ok((ErrornousInvokable::new(err), None));
                         }
                     };
                 self.stdin.take();

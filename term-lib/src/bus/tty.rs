@@ -143,7 +143,7 @@ impl Session for StdoutSession {
                 ) {
                     Ok(a) => a.data,
                     Err(err) => {
-                        return ErrornousInvokable::new(err);
+                        return Ok((ErrornousInvokable::new(err), None));
                     }
                 };
                 match self.stdout.try_write(&data[..]) {
@@ -253,7 +253,7 @@ impl Session for StderrSession {
                 ) {
                     Ok(a) => a.data,
                     Err(err) => {
-                        return ErrornousInvokable::new(err);
+                        return Ok((ErrornousInvokable::new(err), None));
                     }
                 };
                 match self.stderr.try_write(&data[..]) {

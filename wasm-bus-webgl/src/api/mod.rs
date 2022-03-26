@@ -32,9 +32,9 @@ pub trait Buffer {
 pub trait Texture {
     async fn active_texture(&self, active: u32);
 
-    async fn bind_texture(&self);
+    async fn bind_texture(&self, target: TextureKind);
 
-    async fn bind_texture_cube(&self);
+    async fn bind_texture_cube(&self, target: TextureKind);
 
     async fn framebuffer_texture2d(&self, target: Buffers, attachment: Buffers, textarget: TextureBindPoint, level: i32);
 }
@@ -75,15 +75,15 @@ pub trait Raster {
 
     async fn generate_mipmap_cube(&self);
 
-    async fn tex_image2d(&self, target: TextureBindPoint, level: u8, width: u16, height: u16, format: PixelFormat, kind: PixelType, pixels: Vec<u8>);
+    async fn tex_image2d(&self, target: TextureBindPoint, level: u8, width: u32, height: u32, format: PixelFormat, kind: PixelType, pixels: Vec<u8>);
 
-    async fn tex_sub_image2d(&self, target: TextureBindPoint, level: u8, xoffset: u16, yoffset: u16, width: u16, height: u16, format: PixelFormat, kind: PixelType, pixels: Vec<u8>);
+    async fn tex_sub_image2d(&self, target: TextureBindPoint, level: u8, xoffset: u32, yoffset: u32, width: u32, height: u32, format: PixelFormat, kind: PixelType, pixels: Vec<u8>);
 
-    async fn compressed_tex_image2d(&self, target: TextureBindPoint, level: u8, compression: TextureCompression, width: u16, height: u16, data: Vec<u8>);
+    async fn compressed_tex_image2d(&self, target: TextureBindPoint, level: u8, compression: TextureCompression, width: u32, height: u32, data: Vec<u8>);
 
-    async fn unbind_texture(&self);
+    async fn unbind_texture(&self, active: u32);
 
-    async fn unbind_texture_cube(&self);
+    async fn unbind_texture_cube(&self, active: u32);
 
     async fn blend_equation(&self, eq: BlendEquation);
 
@@ -100,6 +100,10 @@ pub trait Raster {
     async fn create_framebuffer(&self) -> Arc<dyn FrameBuffer>;
 
     async fn unbind_framebuffer(&self, buffer: Buffers);
+
+    async fn unbind_vertex_array(&self);
+
+    async fn sync(&self);
 }
 
 #[wasm_bus(format = "json")]
@@ -144,11 +148,11 @@ pub trait VertexArray {
 
 #[wasm_bus(format = "bincode")]
 pub trait UniformLocation {
-    async fn uniform_matrix_4fv(&self, value: [[f32; 4]; 4]);
+    async fn uniform_matrix_4fv(&self, transpose: bool, value: [[f32; 4]; 4]);
 
-    async fn uniform_matrix_3fv(&self, value: [[f32; 3]; 3]);
+    async fn uniform_matrix_3fv(&self, transpose: bool, value: [[f32; 3]; 3]);
 
-    async fn uniform_matrix_2fv(&self, value: [[f32; 2]; 2]);
+    async fn uniform_matrix_2fv(&self, transpose: bool, value: [[f32; 2]; 2]);
 
     async fn uniform_1i(&self, value: i32);
 

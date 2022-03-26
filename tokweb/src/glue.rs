@@ -115,12 +115,6 @@ pub fn start() -> Result<(), JsValue> {
         });
     }
 
-    let pool = WebThreadPool::new_with_max_threads().unwrap();
-    let web_system = WebSystem::new(pool.clone());
-    let web_console = WebConsole::new(term_tx);
-    term_lib::api::set_system_abi(web_system);
-    let system = System::default();
-
     let front_buffer = window
         .document()
         .unwrap()
@@ -130,6 +124,16 @@ pub fn start() -> Result<(), JsValue> {
         .dyn_into::<HtmlCanvasElement>()
         .map_err(|_| ())
         .unwrap();
+    let webgl2 = front_buffer
+        .get_context("webgl2")?
+        .unwrap()
+        .dyn_into::<WebGl2RenderingContext>()?;
+
+    let pool = WebThreadPool::new_with_max_threads().unwrap();
+    let web_system = WebSystem::new(pool.clone(), webgl2);
+    let web_console = WebConsole::new(term_tx);
+    term_lib::api::set_system_abi(web_system);
+    let system = System::default();
 
     let fs = term_lib::fs::create_root_fs(None);
     let mut console = Console::new(

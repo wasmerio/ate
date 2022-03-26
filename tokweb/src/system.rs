@@ -10,11 +10,15 @@ use tokio::sync::mpsc;
 use tracing::{debug, error, info, trace, warn};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::*;
+use web_sys::WebGl2RenderingContext;
 
 use super::common::*;
 use super::pool::WebThreadPool;
 use super::ws::WebSocket;
 use term_lib::api::*;
+use super::webgl::WebGl;
+use super::webgl::GlContext;
+use super::webgl::WebGlCommand;
 
 pub(crate) enum TerminalCommand {
     Print(String),
@@ -24,11 +28,17 @@ pub(crate) enum TerminalCommand {
 
 pub(crate) struct WebSystem {
     pool: WebThreadPool,
+    webgl_tx: mpsc::Sender<WebGlCommand>,
 }
 
 impl WebSystem {
-    pub(crate) fn new(pool: WebThreadPool) -> WebSystem {
-        WebSystem { pool }
+    pub(crate) fn new(pool: WebThreadPool, webgl2: WebGl2RenderingContext) -> WebSystem {
+        let webgl_tx = GlContext::init(webgl2);
+
+        WebSystem {
+            pool,
+            webgl_tx,
+        }
     }
 }
 
@@ -168,6 +178,11 @@ impl SystemAbi for WebSystem {
 
     async fn web_socket(&self, url: &str) -> Result<Box<dyn WebSocketAbi>, String> {
         WebSocket::new(url)
+    }
+
+    /// Open the WebGL
+    async fn webgl(&self) -> Box<dyn WebGlAbi> {
+        Box::new(WebGl::new(&self.webgl_tx))
     }
 }
 

@@ -51,36 +51,45 @@ impl Invokable for ErrornousInvokable {
     }
 }
 
-pub struct ResultInvokable<T>
-where
-    Self: Send + 'static,
-    T: Serialize + Send,
+#[derive(Clone)]
+pub struct ResultInvokable
+where Self: Send + 'static,
 {
-    value: T,
-    format: SerializationFormat,
+    ret: Option<Result<Vec<u8>, CallError>>,
 }
 
-impl<T> ResultInvokable<T>
-where
-    Self: Send + 'static,
-    T: Serialize + Send,
+impl ResultInvokable
+where Self: Send + 'static,
 {
-    pub fn new(format: SerializationFormat, value: T) -> Box<dyn Invokable> {
-        Box::new(ResultInvokable { value, format })
+    pub fn new<T>(format: SerializationFormat, value: T) -> Box<dyn Invokable>
+    where T: Serialize + Send,
+    {
+        Self::new_strong(format, value)
+    }
+
+    pub fn new_strong<T>(format: SerializationFormat, value: T) -> Box<ResultInvokable>
+    where T: Serialize + Send,
+    {
+        let ret = encode_response(
+            format,
+            &value,
+        );
+        Box::new(ResultInvokable { ret: Some(ret) })
     }
 }
 
 #[async_trait]
-impl<T> Invokable for ResultInvokable<T>
-where
-    Self: Send + 'static,
-    T: Serialize + Send,
+impl Invokable for ResultInvokable
+where Self: Send + 'static,
 {
     async fn process(&mut self) -> Result<InvokeResult, CallError> {
-        Ok(InvokeResult::Response(encode_response(
-            self.format,
-            &self.value,
-        )?))
+        if let Some(ret) = self.ret.take() {
+            ret.map(|ret| {
+                InvokeResult::Response(ret)
+            })
+        } else {
+            Err(CallError::AlreadyConsumed)
+        }
     }
 }
 

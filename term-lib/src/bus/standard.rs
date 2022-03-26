@@ -11,6 +11,7 @@ use crate::fs::TtyFile;
 use crate::fd::*;
 use crate::stdio::*;
 use crate::stdout::*;
+use crate::bus::webgl::WebGlInstance;
 
 use super::*;
 
@@ -106,9 +107,10 @@ impl StandardBus {
                 Ok((Box::new(invoker), None))
             }
             ("os", topic) if topic == type_name::<wasm_bus_webgl::api::WebGlContextRequest>() => {
-                let request = decode_request(SerializationFormat::Json, request.as_ref())?;
-                let invoker = webgl::context(request, &env.abi);
-                Ok((Box::new(invoker), None))
+                let _request = decode_request(SerializationFormat::Json, request.as_ref())?;
+                let webgl = WebGlInstance::new(self.system).await;
+                let session = webgl.context();
+                Ok((ResultInvokable::new(SerializationFormat::Json, ()), Some(Box::new(session))))
             }
             ("os", topic) => {
                 error!("the os function ({}) is not supported", topic);
