@@ -6,7 +6,7 @@ pub use super::api::glenum::*;
 use super::api;
 use super::error::WebGlError;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct WebGl
 {
     raster: Arc<dyn api::Raster + Send + Sync + 'static>,
@@ -195,7 +195,7 @@ impl WebGl
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Buffer
 {
     buffer: Arc<dyn api::Buffer + Send + Sync>,
@@ -208,7 +208,7 @@ impl Buffer
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct VertexArray
 {
     vertex_array: Arc<dyn api::VertexArray + Send + Sync>,
@@ -225,7 +225,7 @@ impl VertexArray
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Texture
 {
     texture: Arc<dyn api::Texture + Send + Sync>,
@@ -250,7 +250,7 @@ impl Texture
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct FrameBuffer
 {
     framebuffer: Arc<dyn api::FrameBuffer + Send + Sync>,
@@ -263,7 +263,7 @@ impl FrameBuffer
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Program
 {
     program: Arc<dyn api::Program + Send + Sync>,
@@ -300,7 +300,7 @@ impl Program
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct UniformLocation
 {
     location: Arc<dyn api::UniformLocation + Send + Sync>,
@@ -344,7 +344,7 @@ impl UniformLocation
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ProgramLocation
 {
     location: Arc<dyn api::ProgramLocation + Send + Sync>,
@@ -368,7 +368,7 @@ impl ProgramLocation
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Shader
 {
     shader: Arc<dyn api::Shader + Send + Sync>,
