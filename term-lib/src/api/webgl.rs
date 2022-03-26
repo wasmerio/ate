@@ -1,7 +1,11 @@
 use wasm_bus_webgl::api::glenum::*;
 pub use wasm_bus_webgl::api::glenum;
+use std::fmt::*;
+use std::result::Result;
+use std::fmt::Result as FmtResult;
 
 use crate::api::AsyncResult;
+use crate::api::SerializationFormat;
 
 pub trait WebGlAbi
 where Self: Send + Sync
@@ -22,6 +26,13 @@ impl ProgramId {
     }
 }
 
+impl Display
+for ProgramId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(f, "program(id={})", self.id)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BufferId {
     pub id: u64
@@ -32,6 +43,13 @@ impl BufferId {
         BufferId {
             id: fastrand::u64(..)
         }
+    }
+}
+
+impl Display
+for BufferId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(f, "buffer(id={})", self.id)
     }
 }
 
@@ -48,6 +66,13 @@ impl VertexArrayId {
     }
 }
 
+impl Display
+for VertexArrayId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(f, "vertex-array(id={})", self.id)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TextureId {
     pub id: u64
@@ -58,6 +83,13 @@ impl TextureId {
         TextureId {
             id: fastrand::u64(..)
         }
+    }
+}
+
+impl Display
+for TextureId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(f, "texture(id={})", self.id)
     }
 }
 
@@ -74,6 +106,13 @@ impl ShaderId {
     }
 }
 
+impl Display
+for ShaderId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(f, "shader(id={})", self.id)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProgramLocationId {
     pub id: u64
@@ -84,6 +123,13 @@ impl ProgramLocationId {
         ProgramLocationId {
             id: fastrand::u64(..)
         }
+    }
+}
+
+impl Display
+for ProgramLocationId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(f, "program-location(id={})", self.id)
     }
 }
 
@@ -100,6 +146,13 @@ impl UniformLocationId {
     }
 }
 
+impl Display
+for UniformLocationId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(f, "uniform-location(id={})", self.id)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProgramParameterId {
     pub id: u64
@@ -113,6 +166,13 @@ impl ProgramParameterId {
     }
 }
 
+impl Display
+for ProgramParameterId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(f, "program-parameter(id={})", self.id)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FrameBufferId {
     pub id: u64
@@ -123,6 +183,13 @@ impl FrameBufferId {
         FrameBufferId {
             id: fastrand::u64(..)
         }
+    }
+}
+
+impl Display
+for FrameBufferId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(f, "frame-buffer(id={})", self.id)
     }
 }
 
@@ -181,7 +248,7 @@ where Self: Send + Sync
 
     fn buffer_data(&self, kind: BufferKind, data: Vec<u8>, draw: DrawMode);
 
-    fn read_pixels(&self, x: u32, y: u32, width: u32, height: u32, format: PixelFormat, kind: PixelType) -> AsyncResult<Result<Vec<u8>, String>>;
+    fn read_pixels(&self, x: u32, y: u32, width: u32, height: u32, format: PixelFormat, kind: PixelType, serializer_format: SerializationFormat) -> AsyncResult<Result<Vec<u8>, String>>;
 
     fn pixel_storei(&self, storage: PixelStorageMode, value: i32);
 
@@ -217,7 +284,7 @@ where Self: Send + Sync
 
     fn delete_program(&self, program: ProgramId);
 
-    fn link_program(&self, program: ProgramId) -> AsyncResult<Result<(), String>>;
+    fn link_program(&self, program: ProgramId, serializer_format: SerializationFormat) -> AsyncResult<Result<(), String>>;
 
     fn use_program(&self, program: ProgramId);
 
@@ -261,9 +328,9 @@ where Self: Send + Sync
 
     fn shader_source(&self, shader: ShaderId, source: String);
 
-    fn shader_compile(&self, shader: ShaderId) -> AsyncResult<Result<(), String>>;
+    fn shader_compile(&self, shader: ShaderId, serializer_format: SerializationFormat) -> AsyncResult<Result<(), String>>;
 
-    fn attach_shader(&self, program: ProgramId, shader: ShaderId) -> AsyncResult<Result<(), String>>;
+    fn attach_shader(&self, program: ProgramId, shader: ShaderId, serializer_format: SerializationFormat) -> AsyncResult<Result<(), String>>;
 
-    fn sync(&self) -> AsyncResult<()>;
+    fn sync(&self, serialization_format: SerializationFormat) -> AsyncResult<()>;
 }

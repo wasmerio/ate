@@ -275,7 +275,7 @@ impl RasterInstance
     }    
 
     pub fn read_pixels(&self, x: u32, y: u32, width: u32, height: u32, format: PixelFormat, kind: PixelType) -> AsyncResult<Result<Vec<u8>, String>> {
-        self.ctx.read_pixels(x, y, width, height, format, kind)
+        self.ctx.read_pixels(x, y, width, height, format, kind, SerializationFormat::Bincode)
     }
 
     pub fn pixel_storei(&self, storage: PixelStorageMode, value: i32) {
@@ -360,7 +360,7 @@ impl RasterInstance
     }
 
     pub fn sync(&self) -> AsyncResult<()> {
-        self.ctx.sync()
+        self.ctx.sync(SerializationFormat::Bincode)
     }
 }
 
@@ -592,7 +592,7 @@ impl ProgramInstance {
     }
 
     pub fn link_program(&self) -> AsyncResult<Result<(), String>> {
-        self.ctx.link_program(self.program)
+        self.ctx.link_program(self.program, SerializationFormat::Bincode)
     }
 
     pub fn use_program(&self) {
@@ -873,11 +873,11 @@ impl ShaderInstance {
     }
 
     pub fn shader_compile(&self) -> AsyncResult<Result<(), String>> {
-        self.ctx.shader_compile(self.shader)
+        self.ctx.shader_compile(self.shader, SerializationFormat::Bincode)
     }
 
     pub fn attach_shader(&self) -> AsyncResult<Result<(), String>> {
-        self.ctx.attach_shader(self.program, self.shader)
+        self.ctx.attach_shader(self.program, self.shader, SerializationFormat::Bincode)
     }
 }
 

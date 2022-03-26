@@ -24,6 +24,8 @@ use term_lib::api::SerializationFormat;
 use term_lib::common::MAX_MPSC;
 use std::collections::HashMap;
 use tokio::sync::mpsc;
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, trace, warn};
 
 use super::glue::show_canvas;
 use super::glue::show_terminal;
@@ -187,21 +189,29 @@ impl GlContext
             WebGlCommand::CreateProgram(id) => {
                 if let Some(r) = inner.ctx.create_program() {
                     inner.programs.insert(id, r);
+                } else {
+                    warn!("failed to create program");
                 }
             },
             WebGlCommand::CreateBuffer(id) => {
                 if let Some(r) = inner.ctx.create_buffer() {
                     inner.buffers.insert(id, r);
+                } else {
+                    warn!("failed to create buffer");
                 }
             },
             WebGlCommand::CreateVertexArray(id) => {
                 if let Some(r) = inner.ctx.create_vertex_array() {
                     inner.vertex_arrays.insert(id, r);
+                } else {
+                    warn!("failed to create vertex array");
                 }
             },
             WebGlCommand::CreateTexture(id) => {
                 if let Some(r) = inner.ctx.create_texture() {
                     inner.textures.insert(id, r);
+                } else {
+                    warn!("failed to create texture");
                 }
             },
             WebGlCommand::BindBuffer { buffer, kind } => {
@@ -211,16 +221,20 @@ impl GlContext
             WebGlCommand::UnbindBuffer { kind } => {
                 inner.ctx.bind_buffer(kind as u32, None);
             },
-            WebGlCommand::DeleteBuffer { buffer } => {
-                let buffer = inner.buffers.remove(&buffer);
+            WebGlCommand::DeleteBuffer { buffer: buffer_id } => {
+                let buffer = inner.buffers.remove(&buffer_id);
                 if buffer.is_some() {
                     inner.ctx.delete_buffer(buffer.as_ref());
+                } else {
+                    warn!("orphaned buffer - {}", buffer_id);
                 }
             },
-            WebGlCommand::DeleteTexture { texture } => {
-                let texture = inner.textures.remove(&texture);
+            WebGlCommand::DeleteTexture { texture: texture_id } => {
+                let texture = inner.textures.remove(&texture_id);
                 if texture.is_some() {
                     inner.ctx.delete_texture(texture.as_ref());
+                } else {
+                    warn!("orphaned texture - {}", texture_id);
                 }
             },
             WebGlCommand::ActiveTexture { active } => {
@@ -356,12 +370,16 @@ impl GlContext
             WebGlCommand::CreateFramebuffer( id ) => {
                 if let Some(r) = inner.ctx.create_framebuffer() {
                     inner.framebuffers.insert(id, r);
+                } else {
+                    warn!("failed to create frame buffer");
                 }
             },
-            WebGlCommand::DeleteFramebuffer { framebuffer } => {
-                let framebuffer = inner.framebuffers.remove(&framebuffer);
+            WebGlCommand::DeleteFramebuffer { framebuffer: framebuffer_id } => {
+                let framebuffer = inner.framebuffers.remove(&framebuffer_id);
                 if framebuffer.is_some() {
                     inner.ctx.delete_framebuffer(framebuffer.as_ref());
+                } else {
+                    warn!("orphaned frame buffer - {}", framebuffer_id);
                 }
             },
             WebGlCommand::BindFramebuffer { framebuffer, buffer } => {
@@ -371,10 +389,12 @@ impl GlContext
             WebGlCommand::UnbindFramebuffer { buffer } => {
                 inner.ctx.bind_framebuffer(buffer as u32, None);
             },
-            WebGlCommand::DeleteProgram { program } => {
-                let program = inner.programs.remove(&program);
+            WebGlCommand::DeleteProgram { program: program_id } => {
+                let program = inner.programs.remove(&program_id);
                 if program.is_some() {
                     inner.ctx.delete_program(program.as_ref());
+                } else {
+                    warn!("orphaned program - {}", program_id);
                 }
             },
             WebGlCommand::LinkProgram { program, tx } => {
@@ -401,49 +421,65 @@ impl GlContext
                 let program = inner.programs.get(&program);
                 inner.ctx.use_program(program);
             },
-            WebGlCommand::GetAttribLocation { program, name, id } => {
-                let program = inner.programs.get(&program);
+            WebGlCommand::GetAttribLocation { program: program_id, name, id } => {
+                let program = inner.programs.get(&program_id);
                 if let Some(program) = program {
                     let location = inner.ctx.get_attrib_location(program, name.as_str());
                     inner.program_locations.insert(id, location);
+                } else {
+                    warn!("orphaned program - {}", program_id)
                 }
             },
             WebGlCommand::DeleteAttribLocation { id } => {
                 inner.program_locations.remove(&id);
             }
-            WebGlCommand::GetUniformLocation { program, name, id } => {
-                let program = inner.programs.get(&program);
+            WebGlCommand::GetUniformLocation { program: program_id, name, id } => {
+                let program = inner.programs.get(&program_id);
                 if let Some(program) = program {
                     if let Some(r) = inner.ctx.get_uniform_location(program, name.as_str()) {
                         inner.uniform_locations.insert(id, r);
+                    } else {
+                        warn!("failed to get uniform location");
                     }
+                } else {
+                    warn!("orphaned program - {}", program_id)
                 }
             },
-            WebGlCommand::GetProgramParameter { program, pname, id } => {
-                let program = inner.programs.get(&program);
+            WebGlCommand::GetProgramParameter { program: program_id, pname, id } => {
+                let program = inner.programs.get(&program_id);
                 if let Some(program) = program {
                     let r = inner.ctx.get_program_parameter(program, pname as u32);
                     if r.is_null() == false && r.is_undefined() == false {
                         inner.program_parameters.insert(id, r);
+                    } else {
+                        warn!("failed to get program parameter");
                     }
+                } else {
+                    warn!("orphaned program - {}", program_id)
                 }
             },
-            WebGlCommand::VertexAttribPointer { location, size, kind, normalized, stride, offset } => {
-                let location = inner.program_locations.get(&location);
+            WebGlCommand::VertexAttribPointer { location: location_id, size, kind, normalized, stride, offset } => {
+                let location = inner.program_locations.get(&location_id);
                 if let Some(location) = location {
                     inner.ctx.vertex_attrib_pointer_with_i32(*location as u32, size as i32, kind as u32, normalized, stride as i32, offset as i32);
+                } else {
+                    warn!("orphaned program location - {}", location_id)
                 }
             },
-            WebGlCommand::EnableVertexAttribArray { location } => {
-                let location = inner.program_locations.get(&location);
+            WebGlCommand::EnableVertexAttribArray { location: location_id } => {
+                let location = inner.program_locations.get(&location_id);
                 if let Some(location) = location {
                     inner.ctx.enable_vertex_attrib_array(*location as u32);
+                } else {
+                    warn!("orphaned program location - {}", location_id)
                 }
             },
-            WebGlCommand::DeleteVertexArray { vertex_array } => {
-                let vertex_array = inner.vertex_arrays.remove(&vertex_array);
+            WebGlCommand::DeleteVertexArray { vertex_array: vertex_array_id } => {
+                let vertex_array = inner.vertex_arrays.remove(&vertex_array_id);
                 if vertex_array.is_some() {
                     inner.ctx.delete_vertex_array(vertex_array.as_ref());
+                } else {
+                    warn!("orphaned vertex array - {}", vertex_array_id);
                 }
             },
             WebGlCommand::BindVertexArray { vertex_array } => {
@@ -500,18 +536,24 @@ impl GlContext
             WebGlCommand::CreateShader { kind, id } => {
                 if let Some(r) = inner.ctx.create_shader(kind as u32) {
                     inner.shaders.insert(id, r);
+                } else {
+                    warn!("failed to create shader");
                 }
             },
-            WebGlCommand::DeleteShader { shader } => {
-                let shader = inner.shaders.remove(&shader);
+            WebGlCommand::DeleteShader { shader: shader_id } => {
+                let shader = inner.shaders.remove(&shader_id);
                 if shader.is_some() {
                     inner.ctx.delete_shader(shader.as_ref());
+                } else {
+                    warn!("orphaned shader - {}", shader_id);
                 }
             },
-            WebGlCommand::ShaderSource { shader, source } => {
-                let shader = inner.shaders.get(&shader);
+            WebGlCommand::ShaderSource { shader: shader_id, source } => {
+                let shader = inner.shaders.get(&shader_id);
                 if let Some(shader) = shader {
                     inner.ctx.shader_source(shader, source.as_str());
+                } else {
+                    warn!("orphaned shader - {}", shader_id);
                 }
             },
             WebGlCommand::ShaderCompile { shader, tx } => {
@@ -664,10 +706,10 @@ for GlContext
         System::default().fork_send(&self.tx, WebGlCommand::UnbindBuffer { kind });
     }
 
-    fn read_pixels(&self, x: u32, y: u32, width: u32, height: u32, format: PixelFormat, kind: PixelType) -> AsyncResult<Result<Vec<u8>, String>> {
+    fn read_pixels(&self, x: u32, y: u32, width: u32, height: u32, format: PixelFormat, kind: PixelType, serialization_format: SerializationFormat) -> AsyncResult<Result<Vec<u8>, String>> {
         let (tx, rx) = mpsc::channel(1);
         System::default().fork_send(&self.tx, WebGlCommand::ReadPixels { x, y, width, height, format, kind, tx });
-        AsyncResult::new(SerializationFormat::Bincode, rx)
+        AsyncResult::new(serialization_format, rx)
     }
 
     fn pixel_storei(&self, storage: PixelStorageMode, value: i32) {
@@ -748,10 +790,10 @@ for GlContext
         System::default().fork_send(&self.tx, WebGlCommand::DeleteProgram { program });
     }
 
-    fn link_program(&self, program: ProgramId) -> AsyncResult<Result<(), String>> {
+    fn link_program(&self, program: ProgramId, serialization_format: SerializationFormat) -> AsyncResult<Result<(), String>> {
         let (tx, rx) = mpsc::channel(1);
         System::default().fork_send(&self.tx, WebGlCommand::LinkProgram { program, tx });
-        AsyncResult::new(SerializationFormat::Json, rx)
+        AsyncResult::new(serialization_format, rx)
     }
 
     fn use_program(&self, program: ProgramId) {
@@ -846,22 +888,22 @@ for GlContext
         System::default().fork_send(&self.tx, WebGlCommand::ShaderSource { shader, source });
     }
 
-    fn shader_compile(&self, shader: ShaderId) -> AsyncResult<Result<(), String>> {
+    fn shader_compile(&self, shader: ShaderId, serialization_format: SerializationFormat) -> AsyncResult<Result<(), String>> {
         let (tx, rx) = mpsc::channel(1);
         System::default().fork_send(&self.tx, WebGlCommand::ShaderCompile { shader, tx });
-        AsyncResult::new(SerializationFormat::Json, rx)
+        AsyncResult::new(serialization_format, rx)
     }
 
-    fn attach_shader(&self, program: ProgramId, shader: ShaderId) -> AsyncResult<Result<(), String>> {
+    fn attach_shader(&self, program: ProgramId, shader: ShaderId, serialization_format: SerializationFormat) -> AsyncResult<Result<(), String>> {
         let (tx, rx) = mpsc::channel(1);
         System::default().fork_send(&self.tx, WebGlCommand::AttachShader { program, shader, tx });
-        AsyncResult::new(SerializationFormat::Json, rx)
+        AsyncResult::new(serialization_format, rx)
     }
 
-    fn sync(&self) -> AsyncResult<()> {
+    fn sync(&self, serialization_format: SerializationFormat) -> AsyncResult<()> {
         let (tx, rx) = mpsc::channel(1);
         System::default().fork_send(&self.tx, WebGlCommand::Sync { tx });
-        AsyncResult::new(SerializationFormat::Bincode, rx)
+        AsyncResult::new(serialization_format, rx)
     }
 }
 
