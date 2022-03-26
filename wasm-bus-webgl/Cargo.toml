@@ -1,6 +1,6 @@
 [package]
 name = "wasm-bus-webgl"
-version = "1.0.1"
+version = "1.0.2"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 description = "WebAssembly WebGL Interface"
