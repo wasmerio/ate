@@ -1,3 +1,15 @@
+# Rationale
+
+Below is the design rationale for many of the design decisions
+
+1. It must scale out massively.
+2. It must be a shared nothing architecture.
+3. The closest node should serve network traffic
+4. Secure by design
+5. No single points of failure
+6. Run entirely in user-space
+7. Fully sandboxed
+
 # Design
 
 - MIO uses wasm-bus-mio as an interface to the operating system
@@ -105,15 +117,6 @@ will load that other vSwitch locally and feed the packet into this network using
 associated 'default router' of the secondary vSwitch after the MAC addresses are
 substituted.
 
-# DHCP Server
-
-Implementing a DHCP server should use a 'ethereal interface' and store its address
-registration table in the distributed redo log.
-
-# DNS Server
-
-DNS will simply point to 8.8.8.8 thus avoiding the need to implement this.
-
 # VPN
 
 The 'tok' binary will be enhanced to support Linux based tun/tap devices that connect
@@ -128,6 +131,15 @@ is no need for an authentication protocol.
 The default router is further enhanced so that any packets destined for Internet addresses
 are sent out on the 'atenet' public IP address using a unique source port (NAT) that
 is used to process the response.
+
+# DHCP Server
+
+Implementing a DHCP server should use a 'ethereal interface' and store its address
+registration table in the distributed redo log.
+
+# DNS Server
+
+DNS will simply point to 8.8.8.8 thus avoiding the need to implement this.
 
 # ARP Snooping
 
