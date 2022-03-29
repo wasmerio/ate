@@ -117,6 +117,32 @@ will load that other vSwitch locally and feed the packet into this network using
 associated 'default router' of the secondary vSwitch after the MAC addresses are
 substituted.
 
+# Gateway
+
+Processing of HTTP and TLS traffic for specific domains is a key requirement for
+making useful applications. Here there is a challenge with Public IP addresses and
+the management there-of.
+
+'atenet' avoids these challenges by sharing a set of public IP4/IP6 addresses for
+all HTTP and TLS traffic then redirecting these requests to the right network. To
+do this it reverse proxies the server connection and uses SNI/Http snooping to
+resolve where to forward.
+
+```
+                                 .-----.
+      .---------.       .--------| tun .--------.---------.
+      | browser --HTTPS-- ateweb ---/--- atenet | atesess |
+      '---------'       '--------| tap |--------'---------'
+                                 '-----'
+
+```
+
+Traffic moves from ateweb into the vSwitch using the 'default gateway' tun/tap
+device which sets up a hook for the real IP4/IP6 traffic on a specific source
+address and port combination (a.k.a. NAT).
+
+The TCP / TLS traffic is re-encoded using a rust library.
+
 # VPN
 
 The 'tok' binary will be enhanced to support Linux based tun/tap devices that connect
@@ -154,3 +180,9 @@ As functionality evolves and especially for IPv6 the need for multicast snooping
 be required. For this the vSwitch will also listen for ICMP packets that subscribe to
 particular multi-cast addresses. Upon which sending to a particular multi-cast address
 will mean the packets are only sent to those that subscribed.
+
+# Fun Experiments
+
+- Compile hyper to wasm32-wasi
+- Compile NGINX to wasm32-wasi (how to make wasm-bus work with c++?)
+- Compile Postgres to wasm32-wasi
