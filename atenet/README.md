@@ -129,10 +129,12 @@ do this it reverse proxies the server connection and uses SNI/Http snooping to
 resolve where to forward.
 
 ```
-                                 .-----.
-      .---------.       .--------| tun .--------.---------.
-      | browser --HTTPS-- ateweb ---/--- atenet | atesess |
-      '---------'       '--------| tap |--------'---------'
+
+                                                        .---------.
+                                 .-----.                | atesess |
+      .---------.       .--------| tun .--------.       |---------|
+      | browser --HTTPS-- ateweb ---/--- atenet --HTTPS---> hyper |
+      '---------'       '--------| tap |--------'       '---------'
                                  '-----'
 
 ```
