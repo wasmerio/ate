@@ -16,6 +16,16 @@
 
 # Fun stuff
 
+- getting this working will be cool
+  https://crates.io/crates/egui
+  https://www.egui.rs/#demo
+
+- it needs glow integrated with wasm-bus-webgl
+  https://crates.io/crates/glow
+
+- otherwise this demo is also a nice one
+  https://www.chinedufn.com/3d-webgl-basic-water-tutorial/
+
 - make this work...
   https://crates.io/crates/macroquad
 

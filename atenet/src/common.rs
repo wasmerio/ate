@@ -1,0 +1,1 @@
+pub const MAX_MPSC: usize = std::usize::MAX >> 3;

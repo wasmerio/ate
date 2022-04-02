@@ -6,6 +6,7 @@ members = [
     "atedb",
     "atessh",
     "atesess",
+    "atenet",
     "auth",
     "files",
     "wasm-bus",

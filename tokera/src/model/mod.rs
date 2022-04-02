@@ -28,6 +28,9 @@ mod wallet_instance;
 mod instance_command;
 mod instance_hello;
 mod instance_export;
+mod port_command;
+mod switch_hello;
+mod socket_error;
 
 pub use advertised_service::*;
 pub use automation_time::*;
@@ -59,6 +62,9 @@ pub use wallet_instance::*;
 pub use instance_command::*;
 pub use instance_hello::*;
 pub use instance_export::*;
+pub use port_command::*;
+pub use switch_hello::*;
+pub use socket_error::*;
 
 pub const WALLET_COLLECTION_ID: u64 = 2259995437953076879u64;
 pub const CONTRACT_COLLECTION_ID: u64 = 8278931753731734656u64;
