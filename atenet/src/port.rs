@@ -1,10 +1,11 @@
 #[allow(unused_imports)]
 use std::net::IpAddr;
 use std::net::Ipv4Addr;
-use std::net::Ipv6Addr;
 use std::sync::Arc;
 use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::net::SocketAddrV4;
+use std::net::SocketAddrV6;
 use smoltcp::time::Instant;
 use tokio::sync::mpsc;
 use derivative::*;
@@ -14,7 +15,6 @@ use tokera::model::PortCommand;
 use tokera::model::PortResponse;
 use tokera::model::SocketHandle;
 use tokera::model::SocketErrorKind;
-use smoltcp::wire;
 use smoltcp::wire::EthernetAddress;
 use smoltcp::wire::IpCidr;
 use smoltcp::iface;
@@ -33,7 +33,6 @@ use smoltcp::socket::UdpPacketMetadata;
 use managed::ManagedSlice;
 
 use super::switch::*;
-use super::socket::*;
 
 #[derive(Derivative)]
 #[derivative(Debug)]
@@ -41,6 +40,7 @@ pub struct Port
 {
     pub(crate) switch: Arc<Switch>,
     pub(crate) raw_mode: bool,
+    #[allow(dead_code)]
     #[derivative(Debug = "ignore")]
     pub(crate) mac: EthernetAddress,
     pub(crate) listen_sockets: HashMap<SocketHandle, iface::SocketHandle>,
@@ -101,7 +101,7 @@ impl Port
             } => {
                 if let Some(socket_handle) = self.udp_sockets.get(&handle) {
                     let socket = self.iface.get_socket::<UdpSocket>(*socket_handle);
-                    if let Err(err) = socket.send_slice(&data[..], addr) {
+                    if let Err(err) = socket.send_slice(&data[..], addr.into()) {
                         self.errors.push((handle, conv_err(err)));
                     }
                 } else if let Some(socket_handle) = self.tcp_sockets.get(&handle) {
@@ -139,13 +139,9 @@ impl Port
                 handle,
                 local_addr,
                 hop_limit,
-                broadcast: _,
-                multicast_loop_v4: _,
-                multicast_ttl_v4: _,
-                multicast_loop_v6: _,
             } => {
-                let rx_buffer = UdpSocketBuffer::new(meta_buf(self.buf_size), self.ip_buf());
-                let tx_buffer = UdpSocketBuffer::new(meta_buf(self.buf_size), self.ip_buf());
+                let rx_buffer = UdpSocketBuffer::new(meta_buf(self.buf_size), self.ip_buf(1));
+                let tx_buffer = UdpSocketBuffer::new(meta_buf(self.buf_size), self.ip_buf(1));
                 let mut socket = UdpSocket::new(rx_buffer, tx_buffer);
                 socket.set_hop_limit(Some(hop_limit));
                 if let Err(err) = socket.bind(local_addr) {
@@ -160,14 +156,14 @@ impl Port
                 peer_addr,
                 hop_limit,
             } => {
-                let rx_buffer = TcpSocketBuffer::new(self.ip_buf() * self.buf_size);
-                let tx_buffer = TcpSocketBuffer::new(self.ip_buf() * self.buf_size);
+                let rx_buffer = TcpSocketBuffer::new(self.ip_buf(self.buf_size));
+                let tx_buffer = TcpSocketBuffer::new(self.ip_buf(self.buf_size));
                 let mut socket = TcpSocket::new(rx_buffer, tx_buffer);
                 socket.set_hop_limit(Some(hop_limit));
-                if let Err(err) = socket.connect(&mut self.iface, peer_addr, local_addr) {
+                let socket_handle = self.iface.add_socket(socket);
+                let (socket, cx) = self.iface.get_socket_and_context::<TcpSocket>(socket_handle);
+                if let Err(err) = socket.connect(cx, peer_addr, local_addr) {
                     self.errors.push((handle, conv_err(err)));
-                } else {
-                    self.tcp_sockets.insert(handle, self.iface.add_socket(socket));
                 }
             },
             PortCommand::Listen {
@@ -176,8 +172,8 @@ impl Port
                 local_addr,
                 hop_limit,
             } => {
-                let rx_buffer = TcpSocketBuffer::new(self.ip_buf() * self.buf_size);
-                let tx_buffer = TcpSocketBuffer::new(self.ip_buf() * self.buf_size);
+                let rx_buffer = TcpSocketBuffer::new(self.ip_buf(self.buf_size));
+                let tx_buffer = TcpSocketBuffer::new(self.ip_buf(self.buf_size));
                 let mut socket = TcpSocket::new(rx_buffer, tx_buffer);
                 socket.set_hop_limit(Some(hop_limit));
                 if let Err(err) = socket.listen(local_addr) {
@@ -207,7 +203,7 @@ impl Port
                 handle,
                 duration_ms,
             } => {
-                let duration = std::time::Duration::from_millis(duration_ms);
+                let duration = smoltcp::time::Duration::from_millis(duration_ms as u64);
                 if let Some(socket_handle) = self.tcp_sockets.get(&handle) {
                     let socket = self.iface.get_socket::<TcpSocket>(*socket_handle);
                     socket.set_ack_delay(Some(duration.clone()));
@@ -235,13 +231,13 @@ impl Port
                 multiaddr,
             } => {
                 let timestamp = Instant::now();
-                self.iface.join_multicast_group(multiaddr, timestamp);
+                self.iface.join_multicast_group(multiaddr, timestamp)?;
             },
             PortCommand::LeaveMulticast {
                 multiaddr,
             } => {
                 let timestamp = Instant::now();
-                self.iface.leave_multicast_group(multiaddr, timestamp);
+                self.iface.leave_multicast_group(multiaddr, timestamp)?;
             },
             PortCommand::SetHardwareAddress {
                 mac,
@@ -253,11 +249,10 @@ impl Port
             } => {
                 self.iface.update_ip_addrs(|target| {
                     // Anything that is not a unicast will cause a panic
-                    let ips = ips.into_iter()
-                        .filter(|ip| {
+                    let mut ips = ips.into_iter()
+                        .filter(|(ip, _)| {
                             if let IpAddr::V4(ip) = ip {
-                                if ip.is_benchmarking() ||
-                                   ip.is_broadcast() ||
+                                if ip.is_broadcast() ||
                                    ip.is_documentation() ||
                                    ip.is_link_local() ||
                                    ip.is_loopback() ||
@@ -267,14 +262,9 @@ impl Port
                                 }
                             }
                             if let IpAddr::V6(ip) = ip {
-                                if ip.is_benchmarking() ||
-                                   ip.is_documentation() ||
-                                   ip.is_loopback() ||
+                                if ip.is_loopback() ||
                                    ip.is_multicast() ||
                                    ip.is_unspecified() {
-                                    return false;
-                                }
-                                if ip.is_unicast() == false {
                                     return false;
                                 }
                             }
@@ -285,9 +275,8 @@ impl Port
                             }
                             true
                         })
-                        .map(|ip| {
-                            let ip: Cidr = ip.into();
-                            ip
+                        .map(|(ip, prefix_len)| {
+                            IpCidr::new(ip.into(), prefix_len)
                         })
                         .collect();
 
@@ -318,7 +307,8 @@ impl Port
             while socket.can_recv() {
                 if let Ok((data, addr)) = socket.recv() {
                     let data = data.to_vec();
-                    ret.push(PortResponse::ReceivedFrom { handle, peer_addr: addr.into(), data });
+                    let peer_addr = conv_addr(addr);
+                    ret.push(PortResponse::ReceivedFrom { handle: *handle, peer_addr, data });
                 }
             }
         }
@@ -329,7 +319,7 @@ impl Port
                 let mut data = [0u8; 2048];
                 if let Ok(size) = socket.recv_slice(&mut data) {
                     let data = data[..size].to_vec();
-                    ret.push(PortResponse::Received { handle, data });
+                    ret.push(PortResponse::Received { handle: *handle, data });
                 }
             }
         }
@@ -338,11 +328,11 @@ impl Port
             let socket = self.iface.get_socket::<TcpSocket>(*socket_handle);
             while socket.is_listening() {
                 if socket.is_active() {
-                    let local_addr; SocketAddr = socket.local_endpoint().into();
-                    let peer_addr; SocketAddr = socket.remote_endpoint().into();
-                    ret.push(PortResponse::TcpAccepted { handle, local_addr, peer_addr });
+                    let local_addr = conv_addr(socket.local_endpoint());
+                    let peer_addr = conv_addr(socket.remote_endpoint());
+                    ret.push(PortResponse::TcpAccepted { handle: *handle, local_addr, peer_addr });
                 } else {
-                    ret.push(PortResponse::SocketError { handle, error: SocketErrorKind::ConnectionAborted });
+                    ret.push(PortResponse::SocketError { handle: *handle, error: SocketErrorKind::ConnectionAborted.into() });
                 }
             }
         }
@@ -358,8 +348,8 @@ impl Port
         self.iface.device().capabilities().ip_mtu()
     }
 
-    fn ip_buf(&self) -> Vec<u8> {
-        let mtu = self.ip_mtu();
+    fn ip_buf(&self, multiplier: usize) -> Vec<u8> {
+        let mtu = self.ip_mtu() * multiplier;
         let mut ret = Vec::with_capacity(mtu);
         ret.resize_with(mtu, Default::default);
         ret
@@ -450,6 +440,16 @@ fn meta_buf(buf_size: usize) -> Vec<UdpPacketMetadata> {
     let mut ret = Vec::with_capacity(buf_size);
     ret.resize_with(buf_size, || UdpPacketMetadata::EMPTY);
     ret
+}
+
+fn conv_addr(addr: smoltcp::wire::IpEndpoint) -> SocketAddr {
+    let port = addr.port;
+    use smoltcp::wire::IpAddress::*;
+    match addr.addr {
+        Ipv4(addr) => SocketAddr::V4(SocketAddrV4::new(addr.into(), port)),
+        Ipv6(addr) => SocketAddr::V6(SocketAddrV6::new(addr.into(), port, 0 ,0)),
+        _ => SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, port)),
+    }
 }
 
 fn conv_err(err: smoltcp::Error) -> SocketErrorKind {

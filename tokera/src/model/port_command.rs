@@ -3,8 +3,6 @@ pub use wasm_bus::prelude::CallHandle;
 pub use wasm_bus::prelude::CallError;
 use std::net::IpAddr;
 use std::net::SocketAddr;
-use std::net::Ipv4Addr;
-use std::net::Ipv6Addr;
 use std::fmt;
 
 use super::socket_error::*;
@@ -117,7 +115,8 @@ pub enum PortCommand {
         mac: [u8; 6],
     },
     SetIpAddresses {
-        ips: Vec<IpAddr>,
+        // Cidr - unicast address + prefix length
+        ips: Vec<(IpAddr, u8)>,
     }
 }
 
@@ -135,10 +134,10 @@ for PortCommand
             PortCommand::SendTo { handle, data, addr } => write!(f, "send-to(handle={},len={},addr={})", handle, data.len(), addr),
             PortCommand::SetAckDelay { handle, duration_ms } => write!(f, "set-ack-delay(handle={},duration_ms={})", handle, duration_ms),
             PortCommand::SetNoDelay { handle, no_delay } => write!(f, "set-no-delay(handle={},no_delay={})", handle, no_delay),
-            PortCommand::JoinMulticastV4 { multiaddr, interface } => write!(f, "join-multicast-v4(multiaddr={},interface={})", multiaddr, interface),
-            PortCommand::JoinMulticastV6 { multiaddr, interface } => write!(f, "join-multicast-v6(multiaddr={},interface={})", multiaddr, interface),
-            PortCommand::LeaveMulticastV4 { multiaddr, interface } => write!(f, "leave-multicast-v4(multiaddr={},interface={})", multiaddr, interface),
-            PortCommand::LeaveMulticastV6 { multiaddr, interface } => write!(f, "leave-multicast-v6(multiaddr={},interface={})", multiaddr, interface),
+            PortCommand::JoinMulticast { multiaddr } => write!(f, "join-multicast(multiaddr={})", multiaddr),
+            PortCommand::LeaveMulticast { multiaddr } => write!(f, "leave-multicast(multiaddr={})", multiaddr),
+            PortCommand::SetHardwareAddress { mac } => write!(f, "set-hardware-address(mac={:?})", mac),
+            PortCommand::SetIpAddresses { ips } => write!(f, "set-ip-addresses({:?})", ips),
         }
     }
 }

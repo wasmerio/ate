@@ -37,8 +37,11 @@ impl Session
             let action: PortCommand = bincode::deserialize(&cmd[..])?;
             trace!("port cmd ({})", action);
 
-            self.port.process(action);
+            if let Err(err) = self.port.process(action) {
+                debug!("net-session-run - process-error: {}", err)
+            }
         }
+        #[allow(unreachable_code)]
         Ok(())
     }
 

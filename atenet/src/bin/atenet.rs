@@ -1,4 +1,5 @@
 #![recursion_limit="256"]
+#![allow(unused_imports)]
 use ate::mesh::MeshHashTable;
 use atenet::server::Server;
 use tokio::sync::watch;
@@ -17,6 +18,7 @@ use ate_auth::helper::try_load_key;
 
 use atenet::opt::*;
 
+#[allow(dead_code)]
 fn ctrl_channel() -> Receiver<bool> {
     let (sender, receiver) = tokio::sync::watch::channel(false);
     ctrlc::set_handler(move || {
@@ -27,6 +29,8 @@ fn ctrl_channel() -> Receiver<bool> {
 
 fn main() -> Result<(), Box<dyn std::error::Error>>
 {
+    let ret = Ok(());
+    /*
     // Create the runtime
     let runtime = Arc::new(Builder::new_multi_thread().enable_all().build().unwrap());
 
@@ -120,22 +124,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
         }
         Ok(())
     });
+    */
 
     println!("Goodbye!");
     ret
 }
 
+/*
 #[allow(dead_code)]
-async fn main_web(solo: &OptsSessionServer, cfg_ate: ConfAte, callback: Option<StreamRouter>) -> Result<(Arc<ateweb::server::Server>, watch::Receiver<bool>), AteError>
+async fn main_web(solo: &OptsNetworkServer, cfg_ate: ConfAte, callback: Option<StreamRouter>) -> Result<(Arc<ateweb::server::Server>, watch::Receiver<bool>), AteError>
 {
     let (hard_exit_tx, hard_exit_rx) = tokio::sync::watch::channel(false);
     let server = main_web_ext(solo, cfg_ate, callback, hard_exit_tx).await?;
     Ok((server, hard_exit_rx))
 }
 
-async fn main_web_ext(solo: &OptsSessionServer, cfg_ate: ConfAte, callback: Option<StreamRouter>, hard_exit_tx: watch::Sender<bool>) -> Result<Arc<ateweb::server::Server>, AteError>
+async fn main_web_ext(solo: &OptsNetworkServer, cfg_ate: ConfAte, callback: Option<StreamRouter>, hard_exit_tx: watch::Sender<bool>) -> Result<Arc<ateweb::server::Server>, AteError>
 {
-    let mut builder = ateweb::builder::ServerBuilder::new(solo.db_url.clone(), solo.auth_url.clone())
+    let mut builder = atenet::builder::ServerBuilder::new(solo.db_url.clone(), solo.auth_url.clone())
         .add_listener(solo.listen, solo.port.unwrap_or(80u16), false)
         .add_listener(solo.listen, solo.tls_port.unwrap_or(443u16), true)
         .with_conf(&cfg_ate);
@@ -197,3 +203,4 @@ async fn __main_loop(mut hard_exit: Option<Receiver<bool>>) -> Result<(), Box<dy
     println!("Shutting down...");
     Ok(())
 }
+*/
