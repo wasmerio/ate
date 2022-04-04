@@ -254,8 +254,13 @@ for PortCommand
             PortCommand::BindUdp { handle, local_addr: addr, .. } => write!(f, "bind-udp(handle={},addr={})", handle, addr),
             PortCommand::BindIcmp { handle, local_addr: addr, .. } => write!(f, "bind-icmp(handle={},addr={})", handle, addr),
             PortCommand::BindDhcp { handle, lease_duration, ignore_naks } => {
-                let lease_duration = lease_duration.as_secs_f64() / 60.0;
-                write!(f, "bind-dhcp(handle={},lease_duration={}m,ignore_naks={})", handle, lease_duration, ignore_naks)
+                match lease_duration {
+                    Some(lease_duration) => {
+                        let lease_duration = lease_duration.as_secs_f64() / 60.0;
+                        write!(f, "bind-dhcp(handle={},lease_duration={}m,ignore_naks={})", handle, lease_duration, ignore_naks)
+                    },
+                    None => write!(f, "bind-dhcp(handle={},ignore_naks={})", handle, ignore_naks)
+                }
             },
             PortCommand::ConnectTcp { handle, local_addr, peer_addr, .. } => write!(f, "connect-tcp(handle={},local_addr={},peer_addr={})", handle, local_addr, peer_addr),
             PortCommand::DhcpReset { handle } => write!(f, "dhcp-reset(handle={})", handle),
