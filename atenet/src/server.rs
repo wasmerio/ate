@@ -236,6 +236,7 @@ for Server
         let hello_switch = SwitchHello {
             access_token: auth.to_str().unwrap().to_string(),
             chain: chain.clone(),
+            version: tokera::model::PORT_COMMAND_VERSION,
         };
 
         // Build the rx and tx

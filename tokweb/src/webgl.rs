@@ -128,6 +128,7 @@ for WebGl
     }
 }
 
+#[allow(dead_code)]
 type Reference = i32;
 
 pub struct GlContextInner {
@@ -497,7 +498,7 @@ impl GlContext
                 if let Some(location) = location {
                     unsafe {
                         let array = std::mem::transmute::<&[[f32; 4]; 4], &[f32; 16]>(&value) as &[f32];
-                        inner.ctx.uniform_matrix4fv_with_f32_array(location, transpose, array);
+                        inner.ctx.uniform_matrix4fv_with_f32_array(Some(location), transpose, array);
                     }
                 } else {
                     warn!("orphaned location - {}", location_id);
@@ -507,8 +508,8 @@ impl GlContext
                 let location = inner.uniform_locations.get(&location_id);
                 if let Some(location) = location {
                     unsafe {
-                        let array = mem::transmute::<&[[f32; 3]; 3], &[f32; 9]>(&value) as &[f32];
-                        inner.ctx.uniform_matrix3fv_with_f32_array(location, transpose, array);
+                        let array = std::mem::transmute::<&[[f32; 3]; 3], &[f32; 9]>(&value) as &[f32];
+                        inner.ctx.uniform_matrix3fv_with_f32_array(Some(location), transpose, array);
                     }
                 } else {
                     warn!("orphaned location - {}", location_id);
@@ -518,8 +519,8 @@ impl GlContext
                 let location = inner.uniform_locations.get(&location_id);
                 if let Some(location) = location {
                     unsafe {
-                        let array = mem::transmute::<&[[f32; 2]; 2], &[f32; 4]>(&value) as &[f32];
-                        inner.ctx.uniform_matrix2fv_with_f32_array(location, transpose, &value);
+                        let array = std::mem::transmute::<&[[f32; 2]; 2], &[f32; 4]>(&value) as &[f32];
+                        inner.ctx.uniform_matrix2fv_with_f32_array(Some(location), transpose, array);
                     }
                 } else {
                     warn!("orphaned location - {}", location_id);
