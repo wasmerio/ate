@@ -29,8 +29,6 @@ fn ctrl_channel() -> Receiver<bool> {
 
 fn main() -> Result<(), Box<dyn std::error::Error>>
 {
-    let ret = Ok(());
-    /*
     // Create the runtime
     let runtime = Arc::new(Builder::new_multi_thread().enable_all().build().unwrap());
 
@@ -69,36 +67,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
 
                 let registry = Arc::new(Registry::new(&conf).await);
 
-                let native_files = if let Some(path) = solo.native_files_path.clone() {
-                    NativeFileType::LocalFileSystem(path)
-                } else {
-                    NativeFileType::AteFileSystem(solo.native_files.clone())
-                };
-        
-                // Set the system
-                let (tx_exit, _) = watch::channel(false);
-                let sys = Arc::new(tokterm::system::SysSystem::new_with_runtime(
-                    tx_exit, runtime,
-                ));
-                let sys = atessh::system::System::new(sys, registry.clone(), solo.db_url.clone(), native_files).await;
-                atessh::term_lib::api::set_system_abi(sys);
-
                 let mut instance_authority = solo.inst_url.domain()
                     .map(|a| a.to_string())
                     .unwrap_or_else(|| "tokera.sh".to_string());
                 if instance_authority == "localhost" {
                     instance_authority = "tokera.sh".to_string();
                 }
-
-                let compiled_modules = Arc::new(CachedCompiledModules::new(Some(solo.compiler_cache_path.clone())));
-                let instance_server = Server::new(
-                    solo.db_url.clone(),
-                    solo.auth_url.clone(),
-                    instance_authority.clone(),
-                    solo.token_path.clone(),
-                    registry.clone(),
-                    ttl,
-                ).await?;
 
                 let mut router = ate::comms::StreamRouter::new(
                     cfg_mesh.wire_format.clone(),
@@ -107,15 +81,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
                     server_id,
                     cfg_mesh.accept_timeout,
                 );
+
+                let instance_server = Server::new(
+                    solo.db_url.clone(),
+                    solo.auth_url.clone(),
+                    instance_authority,
+                    solo.token_path.clone(),
+                    registry,
+                    ttl
+                ).await?;
                 
                 let route = Arc::new(instance_server);
-                router.add_socket_route("/sess", route.clone()).await;
-                router.add_socket_route("/inst", route.clone()).await;
-                router.add_post_route("/sess", route.clone()).await;
-                router.add_post_route("/inst", route.clone()).await;
-                router.add_put_route("/sess", route.clone()).await;
-                router.add_put_route("/inst", route.clone()).await;
-
+                router.add_socket_route("/net", route.clone()).await;
+                
                 let (_server, hard_exit) = main_web(&solo, conf, Some(router)).await?;
                 
                 main_loop(Some(hard_exit)).await?;
@@ -124,13 +102,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
         }
         Ok(())
     });
-    */
 
     println!("Goodbye!");
     ret
 }
 
-/*
 #[allow(dead_code)]
 async fn main_web(solo: &OptsNetworkServer, cfg_ate: ConfAte, callback: Option<StreamRouter>) -> Result<(Arc<ateweb::server::Server>, watch::Receiver<bool>), AteError>
 {
@@ -141,8 +117,8 @@ async fn main_web(solo: &OptsNetworkServer, cfg_ate: ConfAte, callback: Option<S
 
 async fn main_web_ext(solo: &OptsNetworkServer, cfg_ate: ConfAte, callback: Option<StreamRouter>, hard_exit_tx: watch::Sender<bool>) -> Result<Arc<ateweb::server::Server>, AteError>
 {
-    let mut builder = atenet::builder::ServerBuilder::new(solo.db_url.clone(), solo.auth_url.clone())
-        .add_listener(solo.listen, solo.port.unwrap_or(80u16), false)
+    let mut builder = ateweb::builder::ServerBuilder::new(solo.db_url.clone(), solo.auth_url.clone())
+        .add_listener(solo.listen, solo.http_port.unwrap_or(80u16), false)
         .add_listener(solo.listen, solo.tls_port.unwrap_or(443u16), true)
         .with_conf(&cfg_ate);
 
@@ -203,4 +179,3 @@ async fn __main_loop(mut hard_exit: Option<Receiver<bool>>) -> Result<(), Box<dy
     println!("Shutting down...");
     Ok(())
 }
-*/

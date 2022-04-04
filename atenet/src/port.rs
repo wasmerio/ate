@@ -450,12 +450,14 @@ impl Port
             if socket.can_recv() {
                 let mut data = Vec::new();
                 while socket.can_recv() {
-                    socket.recv(|d| {
+                    let _ = socket.recv(|d| {
                         data.extend_from_slice(d);
                         (d.len(), d.len())
                     });
                 }
-                ret.push(PortResponse::Received { handle: *handle, data });
+                if data.len() > 0 {
+                    ret.push(PortResponse::Received { handle: *handle, data });
+                }
             }
         }
 

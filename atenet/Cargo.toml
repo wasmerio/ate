@@ -21,6 +21,7 @@ default = []
 ate = { version = "^1.2", path = "../lib", features = [ "client", "server" ], default_features = false }
 ate-auth = { version = "^1.9", path = "../auth", features = [ "client", "server" ], default_features = false }
 ate-files = { version = "^1.2", path = "../files" }
+ateweb = { version = "^1.2", path = "../ateweb" }
 wasm-bus-mio = { version = "^1", path = "../wasm-bus-mio",  default_features = false }
 tokera = { version = "^1.3", path = "../tokera" }
 error-chain = { version = "^0.12", default_features = false }
