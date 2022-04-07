@@ -2,9 +2,9 @@
 #![allow(dead_code)]
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::sync::atomic::AtomicBool;
 use tokio::sync::mpsc;
 use tokio::sync::RwLock;
 #[allow(unused_imports, dead_code)]
@@ -50,9 +50,7 @@ pub struct Console {
     no_welcome: bool,
 }
 
-impl Drop
-for Console
-{
+impl Drop for Console {
     fn drop(&mut self) {
         let state = self.state.clone();
         let reactor = self.reactor.clone();
@@ -86,16 +84,10 @@ impl Console {
             compiled_modules,
         );
         let reactor = Arc::new(RwLock::new(Reactor::new()));
-        
+
         Self::new_ext(
-            location,
-            user_agent,
-            compiler,
-            abi,
-            wizard,
-            fs,
-            bins,
-            reactor)
+            location, user_agent, compiler, abi, wizard, fs, bins, reactor,
+        )
     }
 
     pub fn new_ext(
@@ -110,7 +102,7 @@ impl Console {
     ) -> Console {
         let location = url::Url::parse(&location).unwrap();
         let is_mobile = is_mobile(&user_agent);
-        
+
         let unfinished_line = Arc::new(AtomicBool::new(false));
         let mut state = ConsoleState::new(fs, unfinished_line.clone());
         if let Some(origin) = location.domain().clone() {
@@ -120,7 +112,7 @@ impl Console {
 
         let state = Arc::new(Mutex::new(state));
         let tty = Tty::channel(&abi, &unfinished_line, is_mobile);
-        
+
         let exec_factory = EvalFactory::new(
             bins.clone(),
             tty.clone(),
@@ -192,7 +184,7 @@ impl Console {
         Console::update_prompt(false, &self.state, &self.tty).await;
     }
 
-    pub async fn init(&mut self) {
+    pub async fn init(&mut self, run_command: Option<String>) {
         let mut location_file = self
             .state
             .lock()
@@ -207,13 +199,6 @@ impl Console {
         location_file
             .write_all(self.location.as_str().as_bytes())
             .unwrap();
-
-        let run_command = self
-            .location
-            .query_pairs()
-            .filter(|(key, _)| key == "run-command" || key == "init")
-            .next()
-            .map(|(_, val)| val.to_string());
 
         if let Some(run_command) = &run_command {
             let mut init_file = self
@@ -451,7 +436,9 @@ impl Console {
                             debug!("eval executed (code={})", code);
                             let should_line_feed = {
                                 let state = state.lock().unwrap();
-                                state.unfinished_line.load(std::sync::atomic::Ordering::Acquire)
+                                state
+                                    .unfinished_line
+                                    .load(std::sync::atomic::Ordering::Acquire)
                             };
 
                             if record_history {
@@ -663,13 +650,11 @@ impl Console {
             TtyMode::StdIn(job) => {
                 // Buffered input will only be sent to the process once a return key is pressed
                 // which allows the line to be 'edited' in the terminal before its submitted
-                if self.tty.is_buffering()
-                {
+                if self.tty.is_buffering() {
                     // Ctrl-C is not fed to the process and always actioned
                     if data == "\u{0003}" {
                         self.on_ctrl_c(Some(job)).await
-                    }
-                    else {
+                    } else {
                         self.on_parse(&data, Some(job)).await
                     }
 

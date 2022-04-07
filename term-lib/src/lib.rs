@@ -23,8 +23,8 @@ pub mod wasi;
 pub mod wizard_executor;
 
 // Re-exports
-pub use grammar;
-pub use grammar::ast;
+pub use tok_grammar as grammar;
+pub use tok_grammar::ast;
 pub use wasmer;
 #[cfg(feature = "wasmer-compiler")]
 pub use wasmer_compiler;
