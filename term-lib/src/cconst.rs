@@ -87,7 +87,7 @@ impl Tty {
    
     Example: mount tok /www tokera.com/wasm
    "#;
-   
+
     pub const ABOUT: &'static str = include_str!("txt/about.md");
     pub const ABOUT_TOKERA: &'static str = include_str!("txt/about_tokera.md");
     pub const ABOUT_WASMER: &'static str = include_str!("txt/about_wasmer.md");

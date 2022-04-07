@@ -9,8 +9,8 @@ use tokio::sync::mpsc;
 use tokio::sync::RwLock;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast;
 use web_sys::HtmlCanvasElement;
 use xterm_js_rs::Terminal;
 
@@ -34,7 +34,6 @@ use super::stdout::*;
 use super::tty::*;
 use crate::wasmer_vfs::FileSystem;
 
-#[wasm_bindgen]
 pub struct Console {
     terminal: Terminal,
     front_buffer: HtmlCanvasElement,
@@ -49,13 +48,6 @@ pub struct Console {
     stdout: Stdout,
     stderr: Fd,
     exec: EvalFactory,
-}
-
-#[wasm_bindgen]
-impl Console {
-    pub fn writeData(&mut self, mut data: String) {
-
-    }
 }
 
 impl Console {
@@ -136,7 +128,7 @@ impl Console {
         }
     }
 
-    pub async fn init(&mut self, init_command: Option<String>) {
+    pub async fn init(&mut self, init_command: Option<String>, on_init: Option<js_sys::Function>) {
         crate::glue::show_terminal();
 
         let mut location_file = self
@@ -176,7 +168,7 @@ impl Console {
         self.tty.draw_welcome().await;
         if init_command.is_some() {
             self.on_data("source /bin/init".to_string()).await;
-            self.on_enter().await;
+            self.on_enter_with_callback(on_init).await;
         } else {
             self.tty.draw_prompt().await;
         }
@@ -187,6 +179,10 @@ impl Console {
     }
 
     pub async fn on_enter(&mut self) {
+        self.on_enter_with_callback(None).await;
+    }
+
+    pub async fn on_enter_with_callback(&mut self, callback: Option<js_sys::Function>) {
         let mode = self.tty.mode().await;
 
         self.tty.set_cursor_to_end().await;
@@ -281,7 +277,7 @@ impl Console {
 
             // Process the result
             let mut multiline_input = false;
-            match rx {
+            let finished = match rx {
                 Some(EvalPlan::Executed {
                     code,
                     mut ctx,
@@ -309,30 +305,44 @@ impl Console {
                     } else if should_line_feed {
                         tty.draw("\r\n").await;
                     }
+                    Some(code)
                 }
                 Some(EvalPlan::InternalError) => {
                     debug!("eval internal error");
                     tty.draw("term: internal error\r\n").await;
+                    None
                 }
                 Some(EvalPlan::MoreInput) => {
                     debug!("eval more input");
                     multiline_input = true;
                     tty.add(cmd.as_str()).await;
+                    None
                 }
                 Some(EvalPlan::Invalid) => {
                     debug!("eval invalid");
                     tty.draw("term: invalid command\r\n").await;
+                    None
                 }
                 None => {
                     debug!("eval recv erro");
                     tty.draw(format!("term: command failed\r\n").as_str()).await;
+                    None
                 }
-            }
+            };
 
             // Now draw the prompt ready for the next
             tty.reset_line().await;
             Console::update_prompt(multiline_input, &state, &tty).await;
             tty.draw_prompt().await;
+
+            if let Some(code) = finished {
+                let this = JsValue::null();
+                if let Some(callback) = callback {
+                    callback
+                        .call1(&this, &code.into())
+                        .expect("Function callback failed");
+                }
+            }
         });
     }
 

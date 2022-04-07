@@ -38,30 +38,43 @@ pub fn main() {
 #[derive(Debug)]
 pub enum InputEvent {
     Key(KeyboardEvent),
-    Command(String),
+    Command(String, Option<js_sys::Function>),
     Data(String),
 }
 
 #[wasm_bindgen]
 pub struct ConsoleInput {
-    tx: mpsc::Sender<InputEvent>
+    tx: mpsc::Sender<InputEvent>,
+    terminal: Terminal,
 }
 
 #[wasm_bindgen]
 impl ConsoleInput {
     #[wasm_bindgen]
-    pub fn send_command(&self, data: String) {
-        self.tx.blocking_send(InputEvent::Command(data)).unwrap();
+    pub fn send_command(&self, data: String, func: Option<js_sys::Function>) {
+        self.tx
+            .blocking_send(InputEvent::Command(data, func))
+            .unwrap();
     }
 
     #[wasm_bindgen]
     pub fn send_data(&self, data: String) {
         self.tx.blocking_send(InputEvent::Data(data)).unwrap();
     }
+
+    #[wasm_bindgen(method, getter)]
+    pub fn terminal(&self) -> JsValue {
+        self.terminal.clone()
+    }
 }
 
 #[wasm_bindgen]
-pub fn start(terminal_element: web_sys::Element, front_buffer: HtmlCanvasElement, init_command: Option<String>) -> Result<ConsoleInput, JsValue> {
+pub fn start(
+    terminal_element: web_sys::Element,
+    front_buffer: HtmlCanvasElement,
+    init_command: Option<String>,
+    on_ready: Option<js_sys::Function>,
+) -> Result<ConsoleInput, JsValue> {
     #[wasm_bindgen]
     extern "C" {
         #[wasm_bindgen(js_namespace = navigator, js_name = userAgent)]
@@ -201,7 +214,7 @@ pub fn start(terminal_element: web_sys::Element, front_buffer: HtmlCanvasElement
     terminal.focus();
 
     system.fork_local(async move {
-        console.init(init_command).await;
+        console.init(init_command, on_ready).await;
 
         let mut last = None;
         while let Some(event) = rx.recv().await {
@@ -217,9 +230,9 @@ pub fn start(terminal_element: web_sys::Element, front_buffer: HtmlCanvasElement
                         )
                         .await;
                 }
-                InputEvent::Command(data) => {
+                InputEvent::Command(data, func) => {
                     console.on_data(data).await;
-                    console.on_enter().await
+                    console.on_enter_with_callback(func).await
                 }
                 InputEvent::Data(data) => {
                     // Due to a nasty bug in xterm.js on Android mobile it sends the keys you press
@@ -242,14 +255,12 @@ pub fn start(terminal_element: web_sys::Element, front_buffer: HtmlCanvasElement
         }
     });
 
-    Ok(ConsoleInput {
-        tx: tx
-    })
+    Ok(ConsoleInput { tx: tx, terminal })
 }
 
 #[wasm_bindgen(module = "/src/js/fit.ts")]
 extern "C" {
-#[wasm_bindgen(js_name = "termFit")]
+    #[wasm_bindgen(js_name = "termFit")]
     fn term_fit(terminal: Terminal, front: HtmlCanvasElement);
 }
 
