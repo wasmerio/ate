@@ -8,6 +8,7 @@ use crate::pipe::*;
 use crate::state::*;
 use crate::stdout::*;
 use crate::tty::*;
+use crate::grammar::ast::Redirect;
 
 pub struct SpawnContext {
     pub abi: Arc<dyn ConsoleAbi>,
@@ -22,6 +23,7 @@ pub struct SpawnContext {
     pub root: UnionFileSystem,
     pub compiler: Compiler,
     pub extra_args: Vec<String>,
+    pub extra_redirects: Vec<Redirect>,
 }
 
 impl SpawnContext {
@@ -51,6 +53,7 @@ impl SpawnContext {
             root,
             compiler,
             extra_args: Vec::new(),
+            extra_redirects: Vec::new(),
         }
     }
 }
@@ -143,6 +146,7 @@ impl EvalFactory {
             job: ctx.job,
             compiler: ctx.compiler,
             extra_args: ctx.extra_args,
+            extra_redirects: ctx.extra_redirects,
         };
 
         ctx

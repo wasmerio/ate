@@ -29,6 +29,7 @@ use term_lib::common::MAX_MPSC;
 use term_lib::fd::WeakFd;
 use term_lib::api::AsyncResult;
 use term_lib::fd::Fd;
+use term_lib::grammar::ast::Redirect;
 
 use super::handler::SessionHandler;
 use super::handler::SessionTx;
@@ -247,7 +248,7 @@ impl Session
         Ok(())
     }
 
-    pub async fn eval(&mut self, binary: String, env: Environment, args: Vec<String>, stdin: Fd, stdout: Fd, stderr: Fd) -> Result<u32, Box<dyn std::error::Error>>
+    pub async fn eval(&mut self, binary: String, env: Environment, args: Vec<String>, redirects: Vec<Redirect>, stdin: Fd, stdout: Fd, stderr: Fd) -> Result<u32, Box<dyn std::error::Error>>
     {
         // Build the job and the environment
         let job = self.console.new_job()
@@ -263,6 +264,7 @@ impl Session
         ctx.stderr = stderr;
         ctx.env = env;
         ctx.extra_args = args;
+        ctx.extra_redirects = redirects;
         let exec = self.console.exec_factory();
 
         // Execute the binary

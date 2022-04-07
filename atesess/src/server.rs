@@ -43,6 +43,8 @@ use term_lib::pipe::pipe_in;
 use term_lib::pipe::pipe_out;
 use term_lib::fd::FdFlag;
 use term_lib::pipe::ReceiverMode;
+use term_lib::grammar::ast::Redirect;
+use term_lib::grammar::ast::RedirectionType;
 use ate_auth::cmd::impersonate_command;
 use ate_auth::helper::b64_to_session;
 use ttl_cache::TtlCache;
@@ -487,6 +489,7 @@ for Server
     {
         // Get the chain and the binary
         let mut args = Vec::new();
+        let mut redirects = Vec::new();
         let path = std::path::PathBuf::from(uri.path().to_string());
         let (chain, binary) = {
             let mut path_iter = path.iter().map(|a| a.to_string_lossy().to_string());
@@ -507,7 +510,29 @@ for Server
 
             while let Some(arg) = path_iter.next() {
                 let arg = percent_decode(arg.as_bytes());
-                args.push(arg.decode_utf8_lossy().to_string());
+                let arg = arg.decode_utf8_lossy().to_string();
+
+                if let Some((lhr, mut rhs)) = arg.split_once(">") {
+                    if let Ok(fd) = i32::from_str(lhr) {
+                        let op = if rhs.starts_with(">") {
+                            rhs = &rhs[1..];
+                            RedirectionType::APPEND
+                        } else if rhs.starts_with("|") {
+                            rhs = &rhs[1..];
+                            RedirectionType::CLOBBER
+                        } else if rhs.starts_with("&") {
+                            rhs = &rhs[1..];
+                            RedirectionType::TOFD
+                        } else { RedirectionType::TO };
+                        redirects.push(Redirect {
+                            fd,
+                            op,
+                            filename: rhs.to_string(),
+                        });
+                        continue;
+                    }
+                }
+                args.push(arg);
             }
 
             let chain = format!("{}/{}", identity, db);
@@ -588,7 +613,7 @@ for Server
         stderr.set_ignore_flush(true);
 
         // Evaluate the binary until its finished
-        let exit_code = session.eval(binary, env, args, stdin, stdout, stderr)
+        let exit_code = session.eval(binary, env, args, redirects, stdin, stdout, stderr)
             .await
             .map_err(|err: Box<dyn std::error::Error>| {
                 let msg = format!("instance eval failed - {}", err).as_bytes().to_vec();

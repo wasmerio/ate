@@ -55,6 +55,7 @@ use super::reactor::*;
 use super::state::*;
 use super::stdio::*;
 use super::bus::LaunchEnvironment;
+use super::grammar::ast::Redirect;
 
 pub enum EvalStatus {
     Executed { code: u32, show_result: bool },
@@ -178,6 +179,7 @@ pub struct EvalContext {
     pub job: Job,
     pub compiler: Compiler,
     pub extra_args: Vec<String>,
+    pub extra_redirects: Vec<Redirect>,
 }
 
 impl EvalContext {
