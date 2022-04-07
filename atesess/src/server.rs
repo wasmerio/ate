@@ -25,6 +25,7 @@ use tokera::model::InstanceHello;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 use url::Url;
+use percent_encoding::{percent_decode};
 use tokera::model::MasterAuthority;
 use tokera::model::ServiceInstance;
 use tokera::model::InstanceReply;
@@ -505,8 +506,8 @@ for Server
             let binary = binary.unwrap();
 
             while let Some(arg) = path_iter.next() {
-                let arg = url::form_urlencoded::decode(arg.as_bytes());
-                args.push(arg.into_owned());
+                let arg = percent_decode(arg.as_bytes());
+                args.push(arg.decode_utf8_lossy().to_string());
             }
 
             let chain = format!("{}/{}", identity, db);

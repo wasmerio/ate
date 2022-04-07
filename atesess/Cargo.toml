@@ -25,6 +25,7 @@ tracing-subscriber = { version = "^0.2" }
 thrussh = { version = "^0.33", git = "https://github.com/john-sharratt/thrussh.git" }
 thrussh-keys = { version = "^0.21", git = "https://github.com/john-sharratt/thrussh.git" }
 url = "^2"
+percent-encoding = "^2"
 error-chain = { version = "^0.12", default_features = false }
 futures = "^0.3"
 shellexpand = "^2"
