@@ -45,8 +45,8 @@ pub(super) async fn exec_pipeline<'a>(
                     parsed_args.extend(ctx.extra_args.clone().into_iter());
                     let parsed_env: Vec<String> = assign.iter().map(|a| a.to_string()).collect();
 
-                    let mut parsed_redirects = redirect.iter().map(|r| r.clone()).collect::<Vec<_>>();
-                    parsed_redirects.extend(ctx.extra_redirects.iter().map(|r| r.clone()));
+                    let mut parsed_redirects = redirect.clone().into_iter().collect::<Vec<_>>();
+                    parsed_redirects.extend(ctx.extra_redirects.clone().into_iter());
 
                     cur_stdin = next_stdin.clone();
                     if i + 1 < pipeline.commands.len() {
