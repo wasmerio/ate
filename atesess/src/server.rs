@@ -505,7 +505,8 @@ for Server
             let binary = binary.unwrap();
 
             while let Some(arg) = path_iter.next() {
-                args.push(arg);
+                let arg = url::form_urlencoded::decode(arg.as_bytes());
+                args.push(arg.into_owned());
             }
 
             let chain = format!("{}/{}", identity, db);
