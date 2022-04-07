@@ -1,19 +1,29 @@
 use ate::{prelude::DaoVec};
+use ate::chain::ChainKey;
 use serde::*;
 
-use super::{InstanceExport};
+use super::{InstanceExport, InstanceSubnet};
 
 /// Running instance of a particular web assembly application
 /// within the hosting environment
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ServiceInstance {
-    /// Name of the instance attached to the identity
-    pub name: String,
-    /// Name of the chain-of-trust used for this instance
-    pub chain: String,
+    /// Unique ID of this instance
+    pub id: u128,
+    /// Chain key for this service instance
+    pub chain: ChainKey,
+    /// Subnet associated with this instance
+    pub subnet: InstanceSubnet,
     /// Admin token associated with an instance
     pub admin_token: String,
     /// List of all the binaries that are exposed by this instance
     /// and hence can be invoked by clients
     pub exports: DaoVec<InstanceExport>,
+}
+
+impl ServiceInstance
+{
+    pub fn id_str(&self) -> String {
+        hex::encode(&self.id.to_be_bytes())
+    }
 }

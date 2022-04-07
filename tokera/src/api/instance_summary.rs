@@ -15,7 +15,9 @@ pub struct InstanceSummary {
     pub key: PrimaryKey,
     /// Name of the instance
     pub name: String,
-    /// Chain that the instance lives at
+    /// ID of this instance within Tokera
+    pub id_str: String,
+    /// Chain that the instance is attached to
     pub chain: ChainKey,
 }
 
@@ -25,10 +27,13 @@ impl TokApi {
         let mut ret = Vec::new();
 
         for instance in self.instances().await.iter().await? {
+            let id_str = instance.id_str();
+            let chain = instance.chain.clone();
             ret.push(InstanceSummary {
                 key: instance.key().clone(),
                 name: instance.name.clone(),
-                chain: ChainKey::from(instance.chain.clone())
+                chain,
+                id_str,
             })
         }
 
@@ -98,7 +103,7 @@ impl TokApi {
 
     pub async fn instance_chain(&self, name: &str) -> Result<Arc<Chain>, InstanceError> {
         let instance = self.instance_find(name).await?;
-        let instance_key = ChainKey::from(instance.chain.clone());
+        let instance_key = instance.chain.clone();
         let db_url: Result<_, InstanceError> = self.db_url.clone().ok_or_else(|| InstanceErrorKind::Unsupported.into());
         let chain = self.registry.open(&db_url?, &instance_key).await?;
         Ok(chain.as_arc())

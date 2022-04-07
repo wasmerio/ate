@@ -4,6 +4,8 @@ use std::sync::Arc;
 use std::sync::Weak;
 use std::time::Duration;
 use error_chain::bail;
+use tokera::model::INSTANCE_ROOT_ID;
+use tokera::model::ServiceInstance;
 #[allow(unused_imports)]
 use tokio::sync::mpsc;
 
@@ -100,6 +102,12 @@ impl Server
         let accessor = self.repo.get_accessor(&key, self.instance_authority.as_str()).await
             .map_err(|err| CommsErrorKind::InternalError(err.to_string()))?;
         trace!("loaded file accessor for {}", key);
+
+        // Load the service instance object
+        let _chain = accessor.chain.clone();
+        let chain_dio = accessor.dio.clone().as_mut().await;
+        trace!("loading service instance with key {}", PrimaryKey::from(INSTANCE_ROOT_ID));
+        let service_instance = chain_dio.load::<ServiceInstance>(&PrimaryKey::from(INSTANCE_ROOT_ID)).await?;        
 
         // Enter a write lock and check again
         let mut guard = self.switches.write().await;

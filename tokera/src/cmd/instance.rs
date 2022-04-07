@@ -88,10 +88,13 @@ pub async fn main_opts_instance_details(
 
     if let Ok(service_instance) = api.instance_load(instance.deref()).await {
         if service_instance.exports.len().await? > 0 {
+            let id = service_instance.id_str();
+            let chain = service_instance.chain.clone();
+            println!("ID: {}", id);
             println!("");
             println!("Exports");
             for export in service_instance.exports.iter().await? {
-                let url = compute_export_url(&inst_url, service_instance.chain.as_str(), export.binary.as_str());
+                let url = compute_export_url(&inst_url, &chain, export.binary.as_str());
                 println!("POST {}", url);
                 println!("{}", serde_json::to_string_pretty(export.deref()).unwrap());
             }
@@ -134,7 +137,7 @@ pub async fn main_opts_instance_kill(
     let name = match service_instance {
         Ok(service_instance) => {
             let dio = service_instance.dio_mut();
-            let name = service_instance.name.clone();
+            let name = service_instance.id_str();
             debug!("deleting all the roots in the chain");
             dio.delete_all_roots().await?;
             dio.commit().await?;
@@ -185,7 +188,7 @@ pub async fn main_opts_instance_shell(
 
     client.send_hello(InstanceHello {
         access_token: instance.admin_token.clone(),
-        chain: ChainKey::from(instance.chain.clone()),
+        chain: instance.chain.clone(),
     }).await.unwrap();
 
     client.send_cmd(InstanceCommand::Shell)
@@ -231,7 +234,7 @@ pub async fn main_opts_instance_call(
 
     client.send_hello(InstanceHello {
         access_token: export.access_token.clone(),
-        chain: ChainKey::from(instance.chain.clone()),
+        chain: instance.chain.clone(),
     }).await.unwrap();
 
     client.send_cmd(InstanceCommand::Call(InstanceCall {
@@ -266,11 +269,11 @@ pub async fn main_opts_instance_export(
     let (service_instance, _wallet_instance) = api.instance_action(name).await?;
 
     let access_token = AteHash::generate().to_hex_string();
-    let (name, chain) = match service_instance {
+    let (chain, id_str) = match service_instance {
         Ok(mut service_instance) => {
             let dio = service_instance.dio_mut();
-            let name = service_instance.name.clone();
             let chain = service_instance.chain.clone();
+            let id_str = service_instance.id_str();
             service_instance.as_mut().exports.push(InstanceExport {
                 access_token: access_token.clone(),
                 binary: binary.to_string(),
@@ -282,7 +285,7 @@ pub async fn main_opts_instance_export(
             })?;
             dio.commit().await?;
             drop(dio);
-            (name, chain)
+            (chain, id_str)
         }
         Err(err) => {
             bail!(err);
@@ -290,7 +293,7 @@ pub async fn main_opts_instance_export(
     };
 
     // Build the URL that can be used to access this binary
-    let url = compute_export_url(&inst_url, chain.as_str(), binary);
+    let url = compute_export_url(&inst_url, &chain, binary);
 
     // Now add the history
     if let Err(err) = api
@@ -298,7 +301,7 @@ pub async fn main_opts_instance_export(
             activities::InstanceExported {
                 when: chrono::offset::Utc::now(),
                 by: api.user_identity(),
-                alias: Some(name.clone()),
+                alias: Some(id_str.to_string()),
                 binary: binary.to_string(),
             },
         ))
@@ -308,18 +311,18 @@ pub async fn main_opts_instance_export(
     }
     api.dio.commit().await?;
 
-    println!("Instance ({}) has exported binary ({})", name, binary);
+    println!("Instance ({}) has exported binary ({})", id_str, binary);
     println!("Authorization: {}", access_token);
     println!("POST: {}arg0/arg1/...", url);
     println!("PUT: {}[request]", url);
     Ok(())
 }
 
-fn compute_export_url(inst_url: &url::Url, chain: &str, binary: &str) -> String
+fn compute_export_url(inst_url: &url::Url, chain: &ChainKey, binary: &str) -> String
 {
     // Build the URL that can be used to access this binary
     let domain = inst_url.domain().unwrap_or_else(|| "localhost");
-    let url = format!("https://{}{}/{}/{}/", domain, inst_url.path(), chain, binary);
+    let url = format!("https://{}{}/{}/{}/", domain, inst_url.path(), chain.to_string(), binary);
     url
 }
 
@@ -331,10 +334,10 @@ pub async fn main_opts_instance_deport(
 
     let (service_instance, _wallet_instance) = api.instance_action(name).await?;
 
-    let (name, binary) = match service_instance {
+    let (id, binary) = match service_instance {
         Ok(mut service_instance) => {
             let dio = service_instance.dio_mut();
-            let name = service_instance.name.clone();
+            let id = service_instance.id_str();
 
             let export = service_instance.as_mut().exports.iter_mut().await?
                 .filter(|e| e.access_token.eq_ignore_ascii_case(access_token))
@@ -346,7 +349,7 @@ pub async fn main_opts_instance_deport(
             export.delete()?;                
             dio.commit().await?;
             drop(dio);
-            (name, binary)
+            (id, binary)
         }
         Err(err) => {
             bail!(err);
@@ -359,7 +362,7 @@ pub async fn main_opts_instance_deport(
             activities::InstanceDeported {
                 when: chrono::offset::Utc::now(),
                 by: api.user_identity(),
-                alias: Some(name.clone()),
+                alias: Some(id.clone()),
                 binary: binary.to_string(),
             },
         ))
@@ -369,7 +372,7 @@ pub async fn main_opts_instance_deport(
     }
     api.dio.commit().await?;
 
-    println!("Instance ({}) has deported binary ({})", name, binary);
+    println!("Instance ({}) has deported binary ({})", id, binary);
     Ok(())
 }
 

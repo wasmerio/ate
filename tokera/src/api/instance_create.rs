@@ -7,6 +7,9 @@ use ate::crypto::AteHash;
 use ate::chain::ChainKey;
 use std::sync::Arc;
 use ate::prelude::*;
+use std::net::IpAddr;
+use std::net::Ipv4Addr;
+use std::net::Ipv6Addr;
 
 use crate::error::*;
 use crate::model::*;
@@ -76,8 +79,8 @@ impl TokApi {
         chain_session.add_group_write_key(&AteRolePurpose::Contributor, &write_key);
         
         // Create the edge chain-of-trust
-        let token = AteHash::generate();
-        let key_name = format!("{}/{}_edge", self.session_identity(), token);
+        let instance_id = fastrand::u128(..);
+        let key_name = format!("{}/{}_edge", self.session_identity(), hex::encode(&instance_id.to_be_bytes()));
         let key = ChainKey::from(key_name.clone());
         let chain = self.registry.open(&db_url, &key).await?;
         let chain_api = Arc::new(
@@ -129,11 +132,27 @@ impl TokApi {
         master_authority.auth_mut().read = ReadOption::Everyone(None);
         master_authority.attach_orphaned(root.key())?;
 
+        // Create the network access code and select a random subnet
+        let network_token = AteHash::generate().to_hex_string();
+        let subnets = vec![ IpCidr {
+            ip: IpAddr::V4(Ipv4Addr::new(10, fastrand::u8(..), fastrand::u8(..), 0)),
+            prefix: 24
+        },
+        IpCidr {
+            ip: IpAddr::V6(Ipv6Addr::new(64512, fastrand::u16(..), fastrand::u16(..), fastrand::u16(..), 0, 0, 0, 0)),
+            prefix: 64
+        }];
+
         // Add the object directly to the chain        
         let mut instance_dao = dio.store_with_key(
             ServiceInstance {
-                name: name.clone(),
-                chain: key_name.clone(),
+                id: instance_id,
+                chain: key.clone(),
+                subnet: InstanceSubnet {
+                    network_token,
+                    cidrs: subnets,
+                    peerings: Vec::new(),
+                },
                 admin_token,
                 exports: DaoVec::new(),
             },
@@ -147,7 +166,8 @@ impl TokApi {
         debug!("adding service instance: {}", name);
         let instance = WalletInstance {
             name: name.clone(),
-            chain: key_name,
+            id: instance_id,
+            chain: key,
         };
         let mut wallet_instance_dao = self.dio.store_with_key(
             instance.clone(),
