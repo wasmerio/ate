@@ -150,6 +150,7 @@ pub(super) fn mount(
             mountpoint.as_str(),
             false,
             Box::new(fs),
+            None,
         );
 
         ExecResponse::Immediate(ctx, 0)

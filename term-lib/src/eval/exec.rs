@@ -102,6 +102,7 @@ pub async fn exec_process(
 
     // Grab the private file system for this binary (if the binary changes the private
     // file system will also change)
+    let mut mappings = Vec::new();
     let mut preopen = ctx.pre_open.clone();
     let mut envs = ctx.env.iter().filter_map(|(k, _)| ctx.env.get(k.as_str()).map(|v| (k.clone(), v))).collect::<HashMap<_,_>>();
     let mut set_pwd = false;
@@ -121,7 +122,7 @@ pub async fn exec_process(
                 }
                 envs.insert(k, v);
             }
-            preopen.extend(a.mappings.into_iter());
+            mappings.extend(a.mappings.into_iter());
 
             (a.hash, a.data, a.fs)
         }
@@ -151,9 +152,17 @@ pub async fn exec_process(
         let stdio = stdio.clone();
 
         let mut union = root.clone();
-        union.mount("proc", "/dev", true, Box::new(ProcFileSystem::new(stdio)));
-        union.mount("tmp", "/tmp", true, Box::new(TmpFileSystem::new()));
-        union.mount("private", "/.private", true, Box::new(fs_private));
+        union.mount("proc", "/dev", true, Box::new(ProcFileSystem::new(stdio)), None);
+        union.mount("tmp", "/tmp", true, Box::new(TmpFileSystem::new()), None);
+        union.mount("private", "/.private", true, Box::new(fs_private), None);
+
+        for mapping in mappings {
+            if let Some((lhs, rhs)) = mapping.split_once(":") {
+                let root = root.clone();
+                let name = format!("mapping-{}", fastrand::u64(..));
+                union.mount(name.as_str(), lhs, true, Box::new(root), Some(rhs));
+            }
+        }
 
         union.set_ctx(&caller_ctx);
 
