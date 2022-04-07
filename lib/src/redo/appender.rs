@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use std::io::SeekFrom;
 use std::mem::size_of;
+use error_chain::bail;
 use tokio::fs::File;
 use tokio::fs::OpenOptions;
 #[cfg(feature = "enable_buffered")]
@@ -109,7 +110,7 @@ impl LogAppender {
 
     pub(super) async fn write(
         &mut self,
-        evt: &EventData,
+        evt: &EventWeakData,
         header: &EventHeaderRaw,
     ) -> std::result::Result<LogLookup, SerializationError> {
         let log_header = crate::LOG_VERSION
@@ -117,8 +118,9 @@ impl LogAppender {
                 self,
                 &header.meta_bytes[..],
                 match &evt.data_bytes {
-                    Some(d) => Some(&d[..]),
-                    None => None,
+                    MessageBytes::Some(d) => Some(&d[..]),
+                    MessageBytes::LazySome(_) => bail!(SerializationErrorKind::MissingData),
+                    MessageBytes::None => None,
                 },
                 evt.format,
             )

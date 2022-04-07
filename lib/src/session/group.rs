@@ -95,6 +95,12 @@ impl std::fmt::Display for AteGroup {
             write!(f, ",")?;
             role.fmt(f)?;
         }
+        if let Some(k) = &self.broker_read {
+            write!(f, ",broker_read={}", k)?;
+        }
+        if let Some(k) = &self.broker_write {
+            write!(f, ",broker_write={}", k)?;
+        }
         write!(f, ")")
     }
 }

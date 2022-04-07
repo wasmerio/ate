@@ -8,14 +8,14 @@ use crate::wasmer_vfs::FsError;
 use tokio::select;
 
 pub(super) async fn exec_pipeline<'a>(
-    ctx: &mut EvalContext,
+    mut ctx: EvalContext,
     builtins: &Builtins,
     exec_sync: bool,
     show_result: &mut bool,
     pipeline: &'a ast::Pipeline<'a>,
-) -> i32 {
+) -> (EvalContext, u32) {
     let mut child_list = Vec::new();
-    let mut final_return: Option<i32> = None;
+    let mut final_return: Option<u32> = None;
     {
         let mut next_stdin = ctx.stdio.stdin.clone();
         let mut cur_stdin = ctx.stdio.stdin.clone();
@@ -24,6 +24,7 @@ pub(super) async fn exec_pipeline<'a>(
         let end_stdout = ctx.stdio.stdout.clone();
 
         for i in 0..pipeline.commands.len() {
+            let is_last = i == pipeline.commands.len() - 1;
             let command = &pipeline.commands[i];
             match command {
                 ast::Command::Simple {
@@ -41,11 +42,17 @@ pub(super) async fn exec_pipeline<'a>(
                         ast::Arg::Arg(s) => eval_arg(&ctx.env, ctx.last_return, *s),
                         ast::Arg::Backquote(_quoted_args) => String::new(),
                     }));
+                    parsed_args.extend(ctx.extra_args.clone().into_iter());
                     let parsed_env: Vec<String> = assign.iter().map(|a| a.to_string()).collect();
+
+                    let mut parsed_redirects = redirect.clone().into_iter().collect::<Vec<_>>();
+                    parsed_redirects.extend(ctx.extra_redirects.clone().into_iter());
 
                     cur_stdin = next_stdin.clone();
                     if i + 1 < pipeline.commands.len() {
-                        let (w, r) = pipe(ReceiverMode::Stream, end_stdout.is_tty());
+                        let (mut w, mut r) = pipe(ReceiverMode::Stream, end_stdout.flag());
+                        r.set_flag(FdFlag::Stdin(false));
+                        w.set_flag(FdFlag::Stdout(false));
                         next_stdin = r;
                         cur_stdout = w;
                     } else {
@@ -62,20 +69,26 @@ pub(super) async fn exec_pipeline<'a>(
 
                     debug!("exec {}", parsed_cmd);
                     match exec::exec(
-                        ctx,
+                        ctx.clone(),
                         builtins,
                         &parsed_cmd,
                         &parsed_args,
                         &parsed_env,
                         show_result,
                         stdio,
-                        &redirect,
+                        &parsed_redirects,
                     )
                     .await
                     {
-                        Ok(ExecResponse::Immediate(ret)) => final_return = Some(ret),
+                        Ok(ExecResponse::Immediate(c, ret)) => {
+                            ctx = c;
+                            final_return = Some(ret);
+                        }
+                        Ok(ExecResponse::OrphanedImmediate(ret)) => {
+                            final_return = Some(ret);
+                        }
                         Ok(ExecResponse::Process(process, process_result)) => {
-                            child_list.push((process, process_result));
+                            child_list.push((process, process_result, is_last));
                         }
                         Err(err) => {
                             *show_result = true;
@@ -87,7 +100,7 @@ pub(super) async fn exec_pipeline<'a>(
         }
     }
 
-    for (child, child_result) in child_list.iter() {
+    for (child, child_result, _) in child_list.iter() {
         debug!(
             "process (pid={}) added to job (id={})",
             child.pid, ctx.job.id
@@ -96,18 +109,23 @@ pub(super) async fn exec_pipeline<'a>(
     }
 
     if exec_sync {
-        for (child, child_result) in child_list.into_iter().rev() {
-            let result = child_result
-                .join()
+        for (child, child_result, is_last) in child_list.into_iter().rev() {
+            let (c, result) = child_result
                 .await
-                .unwrap_or_else(|| err::ERR_ECONNABORTED);
+                .map(|(c, r)| (Some(c), r))
+                .unwrap_or_else(|| (None, err::ERR_ECONNABORTED));
             debug!(
                 "process (pid={}) finished (exit_code={})",
                 child.pid, result
             );
             final_return.get_or_insert(result);
+            if let Some(c) = c {
+                if is_last {
+                    ctx = c;
+                }
+            }
         }
     }
 
-    final_return.map_or_else(|| 0, |a| a)
+    (ctx, final_return.map_or_else(|| 0, |a| a))
 }

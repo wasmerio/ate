@@ -4,6 +4,8 @@ use std::{net::IpAddr, str::FromStr};
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
+use crate::mesh::Registry;
+
 use super::*;
 
 pub(crate) fn mock_test_config() -> ConfAte {
@@ -30,7 +32,8 @@ pub(crate) fn mock_test_mesh(port: u16) -> ConfMesh {
     #[cfg(not(feature = "enable_dns"))]
     roots.push(MeshAddress::new("localhost", port));
 
-    let ret = ConfMesh::new("localhost", roots.iter());
+    let remote = url::Url::parse(format!("{}://localhost", Registry::guess_schema(port)).as_str()).unwrap();
+    let ret = ConfMesh::new("localhost", remote, roots.iter());
     ret
 }
 

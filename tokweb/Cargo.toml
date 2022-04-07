@@ -1,6 +1,6 @@
 [package]
 name = "tokweb"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["John Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 publish = false
@@ -11,13 +11,13 @@ repository = "https://github.com/john-sharratt/ate"
 readme = "../README.md"
 
 [dependencies]
-term-lib = { version = "^0.1", path = "../term-lib", default_features = false, features = [ "js" ] }
-wasm-bindgen = { version = "^0.2", features = [ "nightly", "serde-serialize" ] }
-#wasm-bindgen = { version = "^0.2", features = [ "serde-serialize" ] }
-wasm-bindgen-futures = "^0.4"
+term-lib = { version = "^1.0", path = "../term-lib", default_features = false, features = [ "js" ] }
+#wasm-bindgen = { version = "0.2", features = [ "nightly", "serde-serialize" ] }
+wasm-bindgen = { version = "0.2", features = [ "serde-serialize" ] }
+wasm-bindgen-futures = "0.4"
 console_error_panic_hook = "^0.1"
-js-sys = "^0.3"
-chrono = { version = "^0.4", features = [ "wasmbind" ] }
+js-sys = "0.3"
+chrono = { version = "^0.4", git = "https://github.com/john-sharratt/chrono.git", features = [ "wasmbind" ] }
 tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
 #tracing = { version = "^0.1", features = [ "log", "release_max_level_debug" ] }
 tracing-futures = { version = "^0.2" }
@@ -32,7 +32,6 @@ tokio = { version = "^1", features = [ "rt", "time", "sync", "macros" ], default
 derivative = { version = "^2" }
 base64 = { version = "^0.13" }
 sha2 = { version = "^0.9" }
-wasm-bus = { version = "^0.3", path = "../wasm-bus", features = [ "backend" ], default_features = false }
 url = { version = "^2" }
 regex = { version = "^1.5" }
 fastrand = "^1.5"
@@ -87,7 +86,39 @@ features = [
   "WebSocket",
   'Worker',
   "WorkerOptions",
-  "WorkerType",  
+  "WorkerType",
+  "WebGl2RenderingContext",
+  "WebGlActiveInfo",
+  "WebGlBuffer",
+  "WebGlContextAttributes",
+  "WebGlContextEvent",
+  "WebGlContextEventInit",
+  "WebGlFramebuffer",
+  "WebGlProgram",
+  "WebGlQuery",
+  "WebGlRenderbuffer",
+  "WebGlRenderingContext",
+  "WebGlSampler",
+  "WebGlShader",
+  "WebGlShaderPrecisionFormat",
+  "WebGlSync",
+  "WebGlTexture",
+  "WebGlTransformFeedback",
+  "WebGlUniformLocation",
+  "WebGlVertexArrayObject",
+  "WebglColorBufferFloat",
+  "WebglCompressedTextureAstc",
+  "WebglCompressedTextureAtc",
+  "WebglCompressedTextureEtc",
+  "WebglCompressedTextureEtc1",
+  "WebglCompressedTexturePvrtc",
+  "WebglCompressedTextureS3tc",
+  "WebglCompressedTextureS3tcSrgb",
+  "WebglDebugRendererInfo",
+  "WebglDebugShaders",
+  "WebglDepthTexture",
+  "WebglDrawBuffers",
+  "WebglLoseContext",
 ]
 
 [dev-dependencies]

@@ -15,6 +15,7 @@ use tokio::sync::mpsc;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 use tracing_futures::{Instrument, WithSubscriber};
+use bytes::Bytes;
 
 use super::core::*;
 use super::lock_request::*;
@@ -38,6 +39,12 @@ use crate::transaction::*;
 use crate::trust::*;
 use crate::{anti_replay::AntiReplayPlugin, comms::*};
 
+pub struct LoadRequest
+{
+    pub records: Vec<AteHash>,
+    pub tx: mpsc::Sender<Result<Vec<Option<Bytes>>, LoadError>>,
+}
+
 pub struct MeshSession {
     pub(super) addr: MeshAddress,
     pub(super) key: ChainKey,
@@ -45,6 +52,7 @@ pub struct MeshSession {
     pub(super) chain: Weak<Chain>,
     pub(super) commit: Arc<StdMutex<FxHashMap<u64, mpsc::Sender<Result<u64, CommitError>>>>>,
     pub(super) lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, LockRequest>>>,
+    pub(super) load_requests: Arc<StdMutex<FxHashMap<u64, LoadRequest>>>,
     pub(super) inbound_conversation: Arc<ConversationSession>,
     pub(super) outbound_conversation: Arc<ConversationSession>,
     pub(crate) status_tx: mpsc::Sender<ConnectionStatusChange>,
@@ -55,6 +63,7 @@ impl MeshSession {
         builder: ChainBuilder,
         cfg_mesh: &ConfMesh,
         chain_key: &ChainKey,
+        remote: url::Url,
         addr: MeshAddress,
         node_id: NodeId,
         hello_path: String,
@@ -70,6 +79,7 @@ impl MeshSession {
         }
 
         let temporal = builder.temporal;
+        let lazy_data = temporal == true;
 
         // Open the chain and make a sample of the last items so that we can
         // speed up the synchronization by skipping already loaded items
@@ -95,6 +105,7 @@ impl MeshSession {
                 TrustMode::Distributed,
             )
             .await?;
+            chain.remote = Some(remote);
             chain.remote_addr = Some(addr.clone());
             chain
         };
@@ -110,6 +121,7 @@ impl MeshSession {
             cfg_mesh: cfg_mesh.clone(),
             next: NullPipe::new(),
             active: RwLock::new(None),
+            lazy_data,
             mode: builder.cfg_ate.recovery_mode,
             addr,
             hello_path,
@@ -129,7 +141,7 @@ impl MeshSession {
 
         // Set a reference to the chain and trigger it to connect!
         chain_store.lock().unwrap().replace(Arc::downgrade(&chain));
-        let on_disconnect = chain.pipe.connect(chain.exit.clone()).await?;
+        let on_disconnect = chain.pipe.connect().await?;
 
         // Launch an automatic reconnect thread
         if temporal == false {
@@ -221,7 +233,7 @@ impl MeshSession {
         if let Some(result) = r {
             result.send(Ok(id)).await?;
         } else {
-            debug!("orphaned confirmation!");
+            trace!("orphaned confirmation!");
         }
         Ok(())
     }
@@ -267,6 +279,23 @@ impl MeshSession {
             guard.remove(&key);
         }
         Ok(())
+    }
+
+    pub(super) fn inbox_load_result(
+        self: &Arc<MeshSession>,
+        id: u64,
+    ) -> Result<Option<LoadRequest>, CommsError> {
+        trace!(
+            "load_result id={}",
+            id,
+        );
+
+        let mut guard = self.load_requests.lock().unwrap();
+        if let Some(result) = guard.remove(&id) {
+            return Ok(Some(result));
+        }
+
+        Ok(None)
     }
 
     pub(super) async fn record_delayed_upload(
@@ -446,6 +475,8 @@ impl MeshSession {
         #[cfg(feature = "enable_super_verbose")]
         trace!("packet size={}", pck.data.bytes.len());
 
+        //trace!("packet(size={} msg={:?})", pck.data.bytes.len(), pck.packet.msg);
+
         match pck.packet.msg {
             Message::StartOfHistory {
                 size,
@@ -471,12 +502,19 @@ impl MeshSession {
                 self.cancel_commits(CommitErrorKind::ReadOnly).await;
                 let _ = self.status_tx.send(ConnectionStatusChange::ReadOnly).await;
             }
-            Message::Events { commit: _, evts } => {
+            Message::Events { commit, evts } => {
                 let num_deletes = evts
                     .iter()
                     .filter(|a| a.meta.get_tombstone().is_some())
                     .count();
                 let num_data = evts.iter().filter(|a| a.data.is_some()).count();
+                let ret2 = if let Some(id) = commit {
+                    Self::inbox_confirmed(self, id)
+                        .instrument(span!(Level::DEBUG, "commit-confirmed"))
+                        .await
+                } else {
+                    Result::<_, CommsError>::Ok(())
+                };
                 Self::inbox_events(self, evts, loader)
                     .instrument(span!(
                         Level::DEBUG,
@@ -485,6 +523,7 @@ impl MeshSession {
                         data_cnt = num_data
                     ))
                     .await?;
+                ret2?;
             }
             Message::Confirmed(id) => {
                 Self::inbox_confirmed(self, id)
@@ -499,6 +538,46 @@ impl MeshSession {
             Message::LockResult { key, is_locked } => {
                 async move { Self::inbox_lock_result(self, key, is_locked) }
                     .instrument(span!(Level::DEBUG, "lock_result"))
+                    .await?;
+            }
+            Message::LoadManyResult { id, data } => {
+                async move {
+                    let sender = Self::inbox_load_result(self, id)?;
+                    if let Some(load) = sender
+                    {
+                        // Build the records
+                        let data = data.into_iter().map(|d| d.map(|d| Bytes::from(d))).collect::<Vec<_>>();
+                        let records = load.records
+                            .into_iter()
+                            .zip(data.clone().into_iter())
+                            .collect();
+
+                        // Anything that is loaded is primed back down the pipes
+                        // so that future requests do not need to go to the server
+                        if let Some(chain) = self.chain.upgrade() {
+                            chain
+                                .pipe
+                                .prime(records)
+                                .await?;
+                        }
+
+                        // Inform the sender
+                        let _ = load.tx.send(Ok(data)).await;
+                    }
+                    Result::<(), CommsError>::Ok(())
+                }
+                    .instrument(span!(Level::DEBUG, "load_result"))
+                    .await?;
+            }
+            Message::LoadManyFailed { id, err } => {
+                async move {
+                    let sender = Self::inbox_load_result(self, id)?;
+                    if let Some(load) = sender {
+                        let _ = load.tx.send(Err(LoadErrorKind::LoadFailed(err).into())).await;
+                    }
+                    Result::<(), CommsError>::Ok(())
+                }
+                    .instrument(span!(Level::DEBUG, "load_failed"))
                     .await?;
             }
             Message::EndOfHistory => {
@@ -595,7 +674,7 @@ impl InboxProcessor<Message, ()> for MeshSessionProcessor {
     }
 
     async fn shutdown(&mut self, _sock_addr: MeshConnectAddr) {
-        info!("disconnected: {}:{}", self.addr.host, self.addr.port);
+        debug!("disconnected: {}:{}", self.addr.host, self.addr.port);
         if let Some(session) = self.session.upgrade() {
             session.cancel_commits(CommitErrorKind::Aborted).await;
             session.cancel_sniffers();

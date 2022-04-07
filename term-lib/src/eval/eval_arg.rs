@@ -1,6 +1,6 @@
 use super::*;
 
-pub(super) fn eval_arg(env: &Environment, last_return: i32, arg: &str) -> String {
+pub(super) fn eval_arg(env: &Environment, last_return: u32, arg: &str) -> String {
     if arg.as_bytes()[0] == b'$' {
         let key: &str = &arg[1..];
         match key {

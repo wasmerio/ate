@@ -31,11 +31,15 @@ use super::helper::*;
 use super::key_exchange;
 use super::rx_tx::*;
 use super::stream::*;
+use super::router::*;
 use super::PacketWithContext;
 use super::Stream;
 use super::StreamProtocol;
+use super::StreamRouter;
+use super::hello::HelloMetadata;
 use crate::comms::NodeId;
 use crate::crypto::PrivateEncryptKey;
+use crate::crypto::EncryptKey;
 use crate::engine::TaskEngine;
 
 #[derive(Debug)]
@@ -50,7 +54,6 @@ where
     C: Send + Sync,
 {
     server_id: NodeId,
-    wire_protocol: StreamProtocol,
     wire_format: SerializationFormat,
     server_cert: Option<PrivateEncryptKey>,
     timeout: Duration,
@@ -115,7 +118,6 @@ where
         let listener = {
             Arc::new(StdMutex::new(Listener {
                 server_id: server_id.clone(),
-                wire_protocol: conf.cfg_mesh.wire_protocol,
                 wire_format: conf.cfg_mesh.wire_format,
                 server_cert: conf.listen_cert.clone(),
                 timeout: conf.cfg_mesh.accept_timeout,
@@ -210,8 +212,36 @@ where
 
                 setup_tcp_stream(&stream).unwrap();
 
+                // Use the listener parameters to create a stream router with a
+                // default route to the listener
+                let (
+                    wire_format,
+                    server_cert,
+                    timeout,
+                ) = {
+                    let listener = listener.lock().unwrap();
+                    (
+                        listener.wire_format.clone(),
+                        listener.server_cert.clone(),
+                        listener.timeout.clone(),
+                    )
+                };
+
+                let mut router = StreamRouter::new(
+                    wire_format,
+                    wire_protocol,
+                    server_cert,
+                    server_id,
+                    timeout
+                );
+                let adapter = Arc::new(ListenerAdapter {
+                    listener,
+                    exit: exit.clone(),
+                });
+                router.set_default_route(adapter);
+
                 let stream = Stream::Tcp(stream);
-                match Listener::accept_stream(listener, stream, sock_addr, exit.subscribe())
+                match router.accept_socket(stream, sock_addr, None, None)
                     .instrument(tracing::info_span!(
                         "server-accept",
                         id = server_id.to_short_string().as_str()
@@ -235,94 +265,40 @@ where
                         warn!("connection-failed(accept): {}", err.to_string());
                         continue;
                     }
-                };
+                }
             }
         });
     }
 
     pub(crate) async fn accept_stream(
         listener: Arc<StdMutex<Listener<M, C>>>,
-        stream: Stream,
+        rx: StreamRx,
+        tx: Upstream,
+        hello: HelloMetadata,
+        wire_encryption: Option<EncryptKey>,
         sock_addr: SocketAddr,
         exit: broadcast::Receiver<()>,
     ) -> Result<(), CommsError> {
-        info!("accept-from: {}", sock_addr.to_string());
+        debug!("accept-from: {}", sock_addr.to_string());
 
         // Grab all the data we need
-        let (server_id, wire_protocol, wire_format, server_cert, timeout, handler) = {
+        let (
+            server_id,
+            wire_format,
+            handler
+        ) = {
             let listener = listener.lock().unwrap();
             (
                 listener.server_id.clone(),
-                listener.wire_protocol.clone(),
                 listener.wire_format.clone(),
-                listener.server_cert.clone(),
-                listener.timeout.clone(),
                 listener.handler.clone(),
             )
         };
-
-        // Upgrade and split the stream
-        let stream = stream.upgrade_server(wire_protocol, timeout).await?;
-        let (mut rx, mut tx) = stream.split();
-
-        // Say hello
-        let hello_meta = super::hello::mesh_hello_exchange_receiver(
-            &mut rx,
-            &mut tx,
-            server_id,
-            server_cert.as_ref().map(|a| a.size()),
-            wire_format,
-        )
-        .await?;
-        let wire_encryption = hello_meta.encryption;
-        let node_id = hello_meta.client_id;
-        //debug!("{:?}", hello_meta);
-
-        // If wire encryption is required then make sure a certificate of sufficient size was supplied
-        if let Some(size) = &wire_encryption {
-            match server_cert.as_ref() {
-                None => {
-                    bail!(CommsErrorKind::MissingCertificate);
-                }
-                Some(a) if a.size() < *size => {
-                    bail!(CommsErrorKind::CertificateTooWeak(size.clone(), a.size()));
-                }
-                _ => {}
-            }
-        }
-
-        // If we are using wire encryption then exchange secrets
-        let ek = match server_cert {
-            Some(server_key) => {
-                Some(key_exchange::mesh_key_exchange_receiver(&mut rx, &mut tx, server_key).await?)
-            }
-            None => None,
-        };
-        let tx = StreamTxChannel::new(tx, ek);
-
-        // Now we need to check if there are any endpoints for this hello_path
-        {
-            let guard = listener.lock().unwrap();
-            match guard.routes.get(&hello_meta.path) {
-                Some(a) => a,
-                None => {
-                    error!(
-                        "There are no listener routes for this connection path ({})",
-                        hello_meta.path
-                    );
-                    return Ok(());
-                }
-            };
-        }
+        let node_id = hello.client_id;
 
         let context = Arc::new(C::default());
 
         // Create an upstream from the tx
-        let tx = Upstream {
-            id: node_id,
-            outbox: tx,
-            wire_format,
-        };
         let tx = Arc::new(Mutex::new(tx));
 
         // Create the metrics and throttles
@@ -334,7 +310,7 @@ where
         let mut group = TxGroup::default();
         group.all.insert(node_id, Arc::downgrade(&tx));
         let tx = Tx {
-            hello_path: hello_meta.path.clone(),
+            hello_path: hello.path.clone(),
             wire_format,
             direction: TxDirection::Downcast(TxGroupSpecific {
                 me_id: node_id,
@@ -365,7 +341,7 @@ where
                 sock_addr,
                 worker_context,
                 wire_format,
-                ek,
+                wire_encryption,
                 exit,
             )
             .await;
@@ -398,7 +374,7 @@ where
                 ),
                 Err(err) => warn!("connection-failed (inbox): {}", err),
             };
-            info!("disconnected");
+            debug!("disconnected");
         });
 
         // Happy days
@@ -412,7 +388,41 @@ where
     C: Send + Sync,
 {
     fn drop(&mut self) {
-        debug!("drop (Listener)");
         let _ = self.exit.send(());
+    }
+}
+
+struct ListenerAdapter<M, C>
+where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
+      C: Send + Sync,
+{
+    listener: Arc<StdMutex<Listener<M, C>>>,
+    exit: broadcast::Sender<()>,
+}
+
+#[async_trait]
+impl<M, C> StreamRoute
+for ListenerAdapter<M, C>
+where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
+      C: Send + Sync + Default + 'static,
+{
+    async fn accepted_web_socket(
+        &self,
+        rx: StreamRx,
+        tx: Upstream,
+        hello: HelloMetadata,
+        sock_addr: SocketAddr,
+        wire_encryption: Option<EncryptKey>,
+    ) -> Result<(), CommsError>
+    {
+        Listener::accept_stream(
+            self.listener.clone(),
+            rx,
+            tx,
+            hello,
+            wire_encryption,
+            sock_addr,
+            self.exit.subscribe(),
+        ).await
     }
 }

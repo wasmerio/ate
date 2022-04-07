@@ -22,7 +22,7 @@ pub async fn contract_action_command(
     // Open a command chain
     let chain = registry.open_cmd(&auth).await?;
 
-    // Now contract the request to create the contract
+    // Now build the request to perform an action on the contract
     let sign_key = session_sign_key(session, requester_identity.contains("@"))?;
     let contract_action = ContractActionRequest {
         requester_identity,

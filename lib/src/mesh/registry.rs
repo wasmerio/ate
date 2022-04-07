@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use error_chain::bail;
 use fxhash::FxHashMap;
 use once_cell::sync::Lazy;
+use derivative::*;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::net::Ipv4Addr;
 use std::net::Ipv6Addr;
@@ -31,8 +32,11 @@ use crate::service::Service;
 use crate::utils::chain_key_16hex;
 use crate::{conf::ConfAte, error::ChainCreationError};
 
+#[derive(Derivative)]
+#[derivative(Debug)]
 pub struct Registry {
     pub cfg_ate: ConfAte,
+    #[derivative(Debug = "ignore")]
     #[cfg(feature = "enable_dns")]
     dns: Mutex<DnsClient>,
     pub temporal: bool,
@@ -42,8 +46,10 @@ pub struct Registry {
     pub ignore_certificates: bool,
 
     cmd_key: StdMutex<FxHashMap<url::Url, String>>,
+    #[derivative(Debug = "ignore")]
     #[cfg(feature = "enable_client")]
     chains: Mutex<FxHashMap<url::Url, Arc<MeshClient>>>,
+    #[derivative(Debug = "ignore")]
     pub(crate) services: StdMutex<Vec<Arc<dyn Service>>>,
 }
 
@@ -258,6 +264,7 @@ impl Registry {
         };
 
         let mut ret = self.cfg_for_domain(domain, port).await?;
+        ret.remote = url.clone();
         ret.wire_protocol = protocol;
 
         // Set the fail fast
@@ -265,6 +272,8 @@ impl Registry {
 
         // Set the ignore certificates
         if self.ignore_certificates {
+            ret.certificate_validation = CertificateValidation::AllowAll;
+        } else if url.domain() == Some("localhost") {
             ret.certificate_validation = CertificateValidation::AllowAll;
         }
 
@@ -431,8 +440,17 @@ impl Registry {
         port: u16,
     ) -> Result<ConfMesh, ChainCreationError> {
         let roots = self.cfg_roots(domain_name, port).await?;
-        let ret = ConfMesh::new(domain_name, roots.iter());
+        let remote = url::Url::parse(format!("{}://{}", Self::guess_schema(port), domain_name).as_str())?;
+        let ret = ConfMesh::new(domain_name, remote, roots.iter());
         Ok(ret)
+    }
+
+    pub fn guess_schema(port: u16) -> &'static str {
+        match port {
+            80 => "ws",
+            443 => "wss",
+            _ => "tcp"
+        }
     }
 
     /// Will generate a random command key - reused for 30 seconds to improve performance
@@ -451,6 +469,7 @@ impl Registry {
     }
 }
 
+#[derive(Clone)]
 pub struct ChainGuard {
     keep_alive: Option<Duration>,
     chain: Arc<Chain>,

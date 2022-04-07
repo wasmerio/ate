@@ -1,6 +1,6 @@
 [package]
 name = "ate-files"
-version = "1.0.0"
+version = "1.2.0"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 description = "Model and helper functions for access files stored in ATEs"
@@ -16,11 +16,11 @@ web = [ "ate/client_web" ]
 sys = [ "ate/client" ]
 
 [dependencies]
-ate = { version = "^1", path = "../lib", default_features = false }
-ate-auth = { version = "^1", path = "../auth", default_features = false }
+ate = { version = "^1.2", path = "../lib", default_features = false }
+ate-auth = { version = "^1.9", path = "../auth", default_features = false }
 error-chain = { version = "^0.12", default_features = false }
 serde = { version = "^1", features = ["derive"] }
-tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
+tracing = { version = "^0.1", features = [ "log" ] }
 tracing-futures = { version = "^0.2" }
 tracing-subscriber = { version = "^0.2" }
 futures = "^0.3"
@@ -31,12 +31,15 @@ fxhash = "^0.2"
 fastrand = "^1.4"
 ctrlc-async = { version = "^3" }
 enum_dispatch = { version = "^0.3" }
-clap = "^3.0.0-beta.5"
+clap = { version = "^3.0.0-rc.7", features = [ "derive" ] }
 shellexpand = "^2"
 cached = "^0.23"
 seqlock = "^0.1"
 array-init = "^1"
 rpassword-wasi = "^5"
+url = "^2"
+ttl_cache = "^0.5"
+derivative = { version = "^2" }
 
 [target.'cfg(not(target_os = "wasi"))'.dependencies]
 tokio = { version = "^1", features = [ "rt", "io-util", "macros", "sync", "time", "fs" ], default_features = false }

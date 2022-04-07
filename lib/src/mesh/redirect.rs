@@ -60,13 +60,14 @@ where
     }
 
     async fn shutdown(&mut self, addr: SocketAddr) {
-        info!("disconnected: {}", addr.to_string());
+        debug!("disconnected: {}", addr.to_string());
     }
 }
 
 pub(super) async fn redirect<C>(
     root: Arc<MeshRoot>,
     node_addr: MeshAddress,
+    omit_data: bool,
     hello_path: &str,
     chain_key: ChainKey,
     from: ChainTimestamp,
@@ -113,6 +114,7 @@ where
             chain_key,
             from,
             allow_redirect: false,
+            omit_data,
         })
         .await?;
 

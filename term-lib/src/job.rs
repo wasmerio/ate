@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 #![allow(dead_code)]
+use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::sync::Mutex;
 use tokio::sync::mpsc;
@@ -19,12 +20,9 @@ use super::stdio::*;
 pub struct Job {
     pub id: u32,
     pub stdin: Fd,
-    pub stdin_tx: mpsc::Sender<Vec<u8>>,
+    pub stdin_tx: mpsc::Sender<FdMsg>,
     pub job_list_tx: mpsc::Sender<Pid>,
     pub job_list_rx: Arc<Mutex<mpsc::Receiver<Pid>>>,
-    pub working_dir: String,
-    pub env: Arc<Environment>,
-    pub root: UnionFileSystem,
 }
 
 impl Clone for Job {
@@ -35,16 +33,13 @@ impl Clone for Job {
             stdin_tx: self.stdin_tx.clone(),
             job_list_tx: self.job_list_tx.clone(),
             job_list_rx: self.job_list_rx.clone(),
-            working_dir: self.working_dir.clone(),
-            env: self.env.clone(),
-            root: self.root.clone(),
         }
     }
 }
 
 impl Job {
-    pub fn new(id: u32, working_dir: String, env: Environment, root: UnionFileSystem) -> Job {
-        let (stdin, stdin_tx) = pipe_in(ReceiverMode::Stream, false);
+    pub fn new(id: u32) -> Job {
+        let (stdin, stdin_tx) = pipe_in(ReceiverMode::Stream, FdFlag::Stdin(true));
         let (job_list_tx, job_list_rx) = mpsc::channel(MAX_MPSC);
         Job {
             id,
@@ -52,17 +47,14 @@ impl Job {
             stdin_tx,
             job_list_tx,
             job_list_rx: Arc::new(Mutex::new(job_list_rx)),
-            working_dir,
-            env: Arc::new(env),
-            root,
         }
     }
 
-    pub fn terminate(&self, reactor: &mut Reactor, exit_code: i32) {
+    pub fn terminate(&self, reactor: &mut Reactor, exit_code: NonZeroU32) {
         self.stdin.forced_exit(exit_code);
         let mut rx = self.job_list_rx.lock().unwrap();
         while let Ok(pid) = rx.try_recv() {
-            Reactor::close_process(reactor, pid, exit_code);
+            Reactor::close_process(reactor, pid, exit_code.into());
         }
         debug!("job terminated (id={})", self.id);
     }

@@ -82,7 +82,7 @@ This library is a way of working with data in modern distributed computing.
                       '-----------------'
 
 The easiest way to get up and running is to just build your app and point the
-database URL at ws://tokera.com/db. You will need to register an account and verify
+database URL at ws://tokera.sh/db. You will need to register an account and verify
 your identity however after this you can use the free databases and/or paid option.
 
 Alternatively, if you wish to host your own ATE servers in infrastructure that you
@@ -92,7 +92,7 @@ manage and run then follow these high-level steps.
 2. Create several records for each IP address under the same A-record in your DNS
 3. Either create your own authentication server as well using the auth-server binary
    or just use the authentication servers hosted at Tokera by pointing to
-   ws://tokera.com/auth.
+   ws://tokera.sh/auth.
 ```
 
 ## Quick Start
@@ -139,58 +139,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>>
 ## Changelog
 
 ```
+1.2.1  -= Lazy Loading =-
+        + Subscribing to chains can now load the data in the chain on demand as its needed
+          which reduces the startup time considerably.
+        + Temporal clients will default to lazy loading
+        + Data loaded via the lazy loading mechanism will now be cached client side
+
+1.1.1  -= Performance and Bug Fixes =-
+        + Fixed an issue with the web sockets that caused sporadic disconnects
+        + Improved the performance of web socket messages by reusing IV's
+        + Reduced the message overhead with a new message encoding format
+
+1.1.0  -= Comms Upgrade =-
+        + Streaming websockets are now more stable as they use length headers to delimit messages.
+        + Fixed a bug where disconnecting clients would drop neighbors on the same server.
+        + Various changes to the interfaces for stability reasons
+        (this upgrade is not backwards compatible with version 1.0.6)
+
+1.0.6  -= Bug Fixes =-
+        + Modified the interface slightly but most users should not be impacted
+        + Fixed a bug around validators rejecting events during the subscribe
+          process that re-reads them from disk - these validators should not be running
+        + Added the ability to list all root objects
+        + Added the ability to delete all root objects (and hence wipe a chain)
+        + Fixed a serious deadlock situation when commiting transactions that was causing timeouts
+
 1.0.2  -= WASM BUS =-
        + Integrated with the WASM bus (wasm-bus) which allows for ATE to use
          the web sockets while running in a controlled sandbox.
 
 1.0.0  -= Major Release =-
-
-       + Major compatibility breaking refactor of the code to bring it up to
-         production grade. All future changes will be fully forwards compatible
-         for all versions within this major.
-       + Added support for WASM with wasm32-wasi as a build target. This will
-         allow ATE to be compiled and used directly within WebAssembly. More on
-         this new feature coming soon!
-       + Added full support for multiplexed WebSockets (ws://) which allows ATE
-         to be consumed via HTTP calls including directly from the browser.
-       + Added 'path' awareness to the hello messages so that multiple ATE servers
-         can listen on the same port.
-       + Implemented full support for async single threaded clients and servers
-         which will allow ATE to run at high performance in a browser sandbox.
-       + Commands will now reuse connects thus lowering the connection negotiation
-         frequence and improving performance.
-       + Registries will now keep chains alive for a fixed period of time (60s)
-         after closed to improve responsiveness and performance when reused.
-       + Added the ability to throttle or rate-limit connections.
-       + Major improvements to the DAO and DIO access objects that make them much
-         easier to use and provide a full feature set.
-       + Implemented DaoMap that allows for fast access to hashed map objects.
-       + Improved the serialization code to produce smaller log files and improve
-         the performance during loading of chains.
-       + Switched from SHA3 to Blade3 as the default hasher to improve performance
-         but retain strong cryptographic security.
-       + Added Client and Server certificates so that chains running in centralized
-         trust mode are resistant to man-in-the-middle denial of service attacks.
-       + Implemented an automatic backup and restore capability.
-       + Implemented a redo file dump helper utility useful for debugging purposes.
-       + Added a user account recovery process for when users lose their password.
-         This recovery process does not compromising on the core values of ATE.
-       + All user accounts created now include an email verification step for
-         proof of ownership.
-       + Creating (domain) groups they are now validated against TXT DNS records
-         for proof of ownership.
-       + Linked in Tokera functionality that allows for Wallets and Contracts to
-         be used that facilitates a secure way to pay for Tokera services.
-       + Implemented free and paid hosting of ATE databases on http://tokera.com
-       + Switched to a new error handling framework (crate error_chain) to reduce
-         code bloat and make better errors.
-       + Switched to a new logging framework (crate:tracing) which allows for much
-         better debugging and operations support.
-       + Chain compacting no longer breaks the trust chains on centralized trees
-       + Authentication server is now using compacting chains.
-       + Many significant performance enhancements.
-       + Fixed quite a number of major and minor bugs and improved the overal
-         stability to the point that this is now a major release.
+       + See [README.md](https://github.com/tokera-com/ate/blob/e0beedbbbd84f95cd6c7a9a45b8903058f65b6fd/README.md)
 
 <=0.8.0 See commit history
 ```

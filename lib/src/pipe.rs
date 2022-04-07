@@ -6,8 +6,10 @@ use crate::header::PrimaryKey;
 use crate::meta::*;
 use async_trait::async_trait;
 use std::sync::Arc;
-use tokio::sync::broadcast;
 use tokio::sync::mpsc;
+use bytes::Bytes;
+
+use crate::crypto::AteHash;
 
 pub enum ConnectionStatusChange {
     Disconnected,
@@ -22,7 +24,6 @@ pub(crate) trait EventPipe: Send + Sync {
 
     async fn connect(
         &self,
-        _exit: broadcast::Sender<()>,
     ) -> Result<mpsc::Receiver<ConnectionStatusChange>, ChainCreationError> {
         Err(ChainCreationErrorKind::NotImplemented.into())
     }
@@ -35,7 +36,11 @@ pub(crate) trait EventPipe: Send + Sync {
         Ok(())
     }
 
+    async fn load_many(&self, leafs: Vec<AteHash>) -> Result<Vec<Option<Bytes>>, LoadError>;
+
     async fn feed(&self, work: ChainWork) -> Result<(), CommitError>;
+
+    async fn prime(&self, records: Vec<(AteHash, Option<Bytes>)>) -> Result<(), CommsError>;
 
     async fn try_lock(&self, key: PrimaryKey) -> Result<bool, CommitError>;
 
@@ -60,6 +65,17 @@ impl NullPipe {
 #[async_trait]
 impl EventPipe for NullPipe {
     async fn feed(&self, _work: ChainWork) -> Result<(), CommitError> {
+        Ok(())
+    }
+
+    async fn load_many(&self, leafs: Vec<AteHash>) -> Result<Vec<Option<Bytes>>, LoadError> {
+        Ok(leafs
+            .into_iter()
+            .map(|_| None)
+            .collect())
+    }
+
+    async fn prime(&self, _records: Vec<(AteHash, Option<Bytes>)>) -> Result<(), CommsError> {
         Ok(())
     }
 
@@ -136,9 +152,8 @@ impl EventPipe for DuelPipe {
 
     async fn connect(
         &self,
-        exit: broadcast::Sender<()>,
     ) -> Result<mpsc::Receiver<ConnectionStatusChange>, ChainCreationError> {
-        match self.first.connect(exit.clone()).await {
+        match self.first.connect().await {
             Ok(a) => {
                 return Ok(a);
             }
@@ -147,7 +162,7 @@ impl EventPipe for DuelPipe {
                 return Err(err);
             }
         }
-        match self.second.connect(exit.clone()).await {
+        match self.second.connect().await {
             Ok(a) => {
                 return Ok(a);
             }
@@ -162,6 +177,50 @@ impl EventPipe for DuelPipe {
     async fn feed(&self, work: ChainWork) -> Result<(), CommitError> {
         let join1 = self.first.feed(work.clone());
         let join2 = self.second.feed(work);
+        let (notify1, notify2) = futures::join!(join1, join2);
+
+        notify1?;
+        notify2?;
+
+        Ok(())
+    }
+
+    async fn load_many(&self, leafs: Vec<AteHash>) -> Result<Vec<Option<Bytes>>, LoadError> {
+        let join1 = self.first.load_many(leafs.clone());
+        let join2 = self.second.load_many(leafs);
+        let (notify1, notify2) = futures::join!(join1, join2);
+
+        let rets = match (notify1, notify2) {
+            (Ok(notify1), Ok(notify2)) => {
+                let max = notify1.len().max(notify2.len());
+                
+                let mut notify1 = notify1.into_iter();
+                let mut notify2 = notify2.into_iter();
+
+                let mut rets = Vec::new();
+                for _ in 0..max {
+                    match (notify1.next(), notify2.next()) {
+                        (Some(Some(a)), _) => rets.push(Some(a)),
+                        (_, Some(Some(b))) => rets.push(Some(b)),
+                        (Some(None), _) => rets.push(None),
+                        (_, Some(None)) => rets.push(None),
+                        (_, _) => break,
+                    };
+                }                
+                rets
+            },
+            (Ok(notify1), Err(_)) => notify1,
+            (Err(_), Ok(notify2)) => notify2,
+            (Err(err), Err(_)) => {
+                return Err(err);
+            }
+        };
+        Ok(rets)
+    }
+
+    async fn prime(&self, records: Vec<(AteHash, Option<Bytes>)>) -> Result<(), CommsError> {
+        let join1 = self.first.prime(records.clone());
+        let join2 = self.second.prime(records);
         let (notify1, notify2) = futures::join!(join1, join2);
 
         notify1?;

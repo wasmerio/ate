@@ -1,29 +1,29 @@
 use std::future::Future;
 use std::pin::Pin;
 
-use super::CommandResult;
 use crate::eval::EvalContext;
 use crate::eval::ExecResponse;
 use crate::stdio::*;
 
 pub(super) fn pwd(
     args: &[String],
-    ctx: &mut EvalContext,
+    ctx: EvalContext,
     mut stdio: Stdio,
-) -> Pin<Box<dyn Future<Output = CommandResult>>> {
+) -> Pin<Box<dyn Future<Output = ExecResponse> + Send>> {
     if args.len() > 1 {
         return Box::pin(async move {
             let _ = stdio
                 .stderr
                 .write(format!("pwd: too many arguments\r\n").as_bytes())
                 .await;
-            ExecResponse::Immediate(0).into()
+            ExecResponse::Immediate(ctx, 0)
         });
     }
-
-    let dir = ctx.working_dir.clone();
     Box::pin(async move {
-        let _ = stdio.stdout.write(format!("{}\r\n", dir).as_bytes()).await;
-        ExecResponse::Immediate(0).into()
+        let _ = stdio
+            .stdout
+            .write(format!("{}\r\n", ctx.working_dir).as_bytes())
+            .await;
+        ExecResponse::Immediate(ctx, 0)
     })
 }

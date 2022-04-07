@@ -6,7 +6,7 @@ pub struct WebConf {
     /// Forces the host to be redirected to a new URL
     #[serde(default)]
     pub redirect: Option<String>,
-    /// Hosts the ATE web sockets on this site
+    /// Hosts the ATE web sockets and other end-points such as HTTP on this site
     #[serde(default)]
     pub ate_proxy: bool,
     /// Enable COOP (Cross-Origin-Opener-Policy: same-origin)
@@ -21,6 +21,9 @@ pub struct WebConf {
     /// Redirects certain status codes to specific pages
     #[serde(default)]
     pub status_pages: FxHashMap<u16, String>,
+    /// List of the domains that this domain will reverse proxy for cors
+    #[serde(default)]
+    pub cors_proxy: Vec<String>,
 }
 
 impl Default for WebConf {
@@ -32,6 +35,7 @@ impl Default for WebConf {
             force_https: false,
             default_page: None,
             status_pages: FxHashMap::default(),
+            cors_proxy: Vec::new(),
         }
     }
 }

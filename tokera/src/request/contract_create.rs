@@ -14,6 +14,7 @@ pub struct ContractCreateRequestParams {
     pub broker_unlock_key: EncryptKey,
     pub broker_key: PublicEncryptedSecureData<EncryptKey>,
     pub limited_duration: Option<Duration>,
+    pub force: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

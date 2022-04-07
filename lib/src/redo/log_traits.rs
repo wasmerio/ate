@@ -4,6 +4,7 @@ use std::pin::Pin;
 use tracing::{debug, error, info, warn};
 
 use tokio::io::Result;
+use bytes::Bytes;
 
 use crate::error::*;
 use crate::event::*;
@@ -27,7 +28,7 @@ where
 
     async fn write(
         &mut self,
-        evt: &EventData,
+        evt: &EventWeakData,
     ) -> std::result::Result<LogLookup, SerializationError>;
 
     async fn copy_event(
@@ -36,7 +37,7 @@ where
         hash: AteHash,
     ) -> std::result::Result<LogLookup, LoadError>;
 
-    async fn load(&self, hash: AteHash) -> std::result::Result<LoadData, LoadError>;
+    async fn load(&self, hash: &AteHash) -> std::result::Result<LoadData, LoadError>;
 
     fn move_log_file(&mut self, new_path: &String) -> Result<()>;
 
@@ -45,6 +46,8 @@ where
     async fn flush(&mut self) -> Result<()>;
 
     fn count(&self) -> usize;
+
+    fn prime(&mut self, records: Vec<(AteHash, Option<Bytes>)>);
 
     fn size(&self) -> u64;
 

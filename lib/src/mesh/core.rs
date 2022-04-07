@@ -1,6 +1,7 @@
 use crate::{header::PrimaryKey, meta::Metadata, pipe::EventPipe};
 use async_trait::async_trait;
 use bytes::Bytes;
+use error_chain::bail;
 use serde::{Deserialize, Serialize};
 use std::ops::*;
 use std::{collections::BTreeMap, sync::Arc};
@@ -8,7 +9,7 @@ use tokio::sync::mpsc;
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use crate::chain::*;
-use crate::comms::PacketData;
+use crate::comms::{PacketData, NodeId};
 use crate::comms::StreamTx;
 use crate::comms::StreamTxChannel;
 use crate::comms::Tx;
@@ -155,7 +156,7 @@ pub struct MeshHashTable {
 }
 
 impl MeshHashTable {
-    pub(crate) fn lookup(&self, key: &ChainKey) -> Option<(MeshAddress, u32)> {
+    pub fn lookup(&self, key: &ChainKey) -> Option<(MeshAddress, u32)> {
         let hash = key.hash();
 
         let mut pointer: Option<usize> = None;
@@ -184,7 +185,7 @@ impl MeshHashTable {
         None
     }
 
-    pub(crate) fn derive_id(&self, addr: &MeshAddress) -> Option<u32> {
+    pub fn derive_id(&self, addr: &MeshAddress) -> Option<u32> {
         let mut n = 0usize;
         while n < self.address_lookup.len() {
             let test = &self.address_lookup[n];
@@ -213,8 +214,27 @@ impl MeshHashTable {
         None
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn new(cfg_mesh: &ConfMesh) -> MeshHashTable {
+    pub fn compute_node_id(&self, force_node_id: Option<u32>) -> Result<NodeId, CommsError> {
+        let node_id = match force_node_id {
+            Some(a) => a,
+            None => {
+                match self.address_lookup
+                    .iter()
+                    .filter_map(|a| self.derive_id(a))
+                    .next()
+                {
+                    Some(a) => a,
+                    None => {
+                        bail!(CommsErrorKind::RequredExplicitNodeId);
+                    }
+                }
+            }
+        };
+        let node_id = NodeId::generate_server_id(node_id);
+        Ok(node_id)
+    }
+
+    pub fn new(cfg_mesh: &ConfMesh) -> MeshHashTable {
         let mut index: usize = 0;
 
         let mut addresses = Vec::new();
@@ -236,6 +256,7 @@ async fn stream_events<R>(
     range: R,
     tx: &mut Tx,
     strip_signatures: bool,
+    strip_data: usize,
 ) -> Result<(), CommsError>
 where
     R: RangeBounds<ChainTimestamp>,
@@ -263,8 +284,8 @@ where
     };
 
     // We work in batches of 2000 events releasing the lock between iterations so that the
-    // server has time to process new events (capped at 2MB of data per send)
-    let max_send: usize = 2 * 1024 * 1024;
+    // server has time to process new events (capped at 512KB of data per send)
+    let max_send: usize = 512 * 1024;
     loop {
         let mut leafs = Vec::new();
         {
@@ -272,7 +293,7 @@ where
             let mut iter = guard
                 .range((Bound::Included(start), end))
                 .skip(skip)
-                .take(2000);
+                .take(5000);
 
             let mut amount = 0usize;
             while let Some((k, v)) = iter.next() {
@@ -310,8 +331,16 @@ where
             let evt = MessageEvent {
                 meta,
                 data: match evt.data.data_bytes {
-                    Some(a) => Some(a.to_vec()),
-                    None => None,
+                    Some(a) if a.len() >= strip_data => MessageData::Some(a.to_vec()),
+                    Some(a) => {
+                        let data = a.to_vec();
+                        MessageData::LazySome(LazyData {
+                            record: evt.leaf.record,
+                            hash: AteHash::from_bytes(&data[..]),
+                            len: data.len(),
+                        })
+                    },
+                    None => MessageData::None
                 },
                 format: evt.header.format,
             };
@@ -367,6 +396,7 @@ pub(super) async fn stream_history_range<R>(
     range: R,
     tx: &mut Tx,
     strip_signatures: bool,
+    strip_data: usize,
 ) -> Result<(), CommsError>
 where
     R: RangeBounds<ChainTimestamp>,
@@ -412,7 +442,7 @@ where
     if size > 0 {
         // Sync the events
         trace!("streaming requested events");
-        stream_events(&chain, range, tx, strip_signatures).await?;
+        stream_events(&chain, range, tx, strip_signatures, strip_data).await?;
     }
 
     // Let caller know we have sent all the events that were requested

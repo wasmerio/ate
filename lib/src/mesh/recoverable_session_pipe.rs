@@ -2,6 +2,8 @@ use crate::engine::timeout;
 use async_trait::async_trait;
 use error_chain::bail;
 use fxhash::FxHashMap;
+use std::ops::Deref;
+use std::ops::DerefMut;
 use std::ops::Rem;
 use std::sync::Mutex as StdMutex;
 use std::sync::RwLock as StdRwLock;
@@ -46,6 +48,7 @@ pub(super) struct RecoverableSessionPipe {
 
     // Used to create new active pipes
     pub(super) addr: MeshAddress,
+    pub(super) lazy_data: bool,
     pub(super) hello_path: String,
     pub(super) node_id: NodeId,
     pub(super) key: ChainKey,
@@ -81,6 +84,7 @@ impl RecoverableSessionPipe {
         trace!("creating active pipe");
         let commit = Arc::new(StdMutex::new(FxHashMap::default()));
         let lock_requests = Arc::new(StdMutex::new(FxHashMap::default()));
+        let load_requests = Arc::new(StdMutex::new(FxHashMap::default()));
 
         // Create pipes to all the target root nodes
         trace!("building node cfg connect to");
@@ -102,6 +106,7 @@ impl RecoverableSessionPipe {
                     .expect("You must call the 'set_chain' before invoking this method."),
             ),
             lock_requests: Arc::clone(&lock_requests),
+            load_requests: Arc::clone(&load_requests),
             inbound_conversation: Arc::clone(&inbound_conversation),
             outbound_conversation: Arc::clone(&outbound_conversation),
             status_tx: status_tx.clone(),
@@ -166,6 +171,7 @@ impl RecoverableSessionPipe {
                 chain_key: self.key.clone(),
                 from,
                 allow_redirect: true,
+                omit_data: self.lazy_data,
             })
             .await?;
 
@@ -180,6 +186,8 @@ impl RecoverableSessionPipe {
             commit: Arc::clone(&commit),
             lock_attempt_timeout: self.builder.cfg_ate.lock_attempt_timeout,
             lock_requests: Arc::clone(&lock_requests),
+            load_timeout: self.builder.cfg_ate.load_timeout,
+            load_requests: Arc::clone(&load_requests),
             outbound_conversation: Arc::clone(&outbound_conversation),
         })
     }
@@ -194,14 +202,14 @@ impl RecoverableSessionPipe {
             // Upgrade to a full reference long enough to get a channel clone
             // if we can not get a full reference then the chain has been destroyed
             // and we should exit
-            let (pipe, exit) = {
+            let pipe = {
                 let chain = match Weak::upgrade(&chain) {
                     Some(a) => a,
                     None => {
                         break;
                     }
                 };
-                (Arc::clone(&chain.pipe), chain.exit.clone())
+                Arc::clone(&chain.pipe)
             };
 
             // Wait on it to disconnect
@@ -234,7 +242,7 @@ impl RecoverableSessionPipe {
                 }
 
                 // Reconnect
-                status_change = match pipe.connect(exit.clone()).await {
+                status_change = match pipe.connect().await {
                     Ok(a) => a,
                     Err(ChainCreationError(
                         ChainCreationErrorKind::CommsError(CommsErrorKind::Refused),
@@ -292,7 +300,6 @@ impl EventPipe for RecoverableSessionPipe {
 
     async fn connect(
         &self,
-        exit: broadcast::Sender<()>,
     ) -> Result<mpsc::Receiver<ConnectionStatusChange>, ChainCreationError> {
         trace!("connecting to {}", self.addr);
 
@@ -332,9 +339,9 @@ impl EventPipe for RecoverableSessionPipe {
         // Set the pipe and drop the lock so that events can be fed correctly
         let (status_tx, status_rx) = mpsc::channel(1);
         let pipe = self
-            .create_active_pipe(composite_loader, status_tx, exit.subscribe())
+            .create_active_pipe(composite_loader, status_tx, self.exit.subscribe())
             .await?;
-
+        
         // We replace the new pipe which will mean the chain becomes active again
         // before its completed all the load operations however this is required
         // as otherwise when events are received on the inbox they will not feed
@@ -388,6 +395,7 @@ impl EventPipe for RecoverableSessionPipe {
                         delayed_upload.from..delayed_upload.to,
                         pipe_tx,
                         false,
+                        usize::MAX,
                     )
                     .await?;
 
@@ -424,23 +432,78 @@ impl EventPipe for RecoverableSessionPipe {
         Ok(status_rx)
     }
 
+    async fn load_many(&self, leafs: Vec<AteHash>) -> Result<Vec<Option<Bytes>>, LoadError> {
+        let ret = match self.next.load_many(leafs.clone()).await
+        {
+            Ok(a) => a,
+            Err(LoadError(LoadErrorKind::MissingData, _)) |
+            Err(LoadError(LoadErrorKind::Disconnected, _)) => {
+                let mut lock = self.active.write().await;
+                if let Some(active) = lock.as_mut() {
+                    active.load_many(leafs).await?
+                } else {
+                    bail!(LoadErrorKind::Disconnected)
+                }
+            },
+            Err(err) => return Err(err)
+        };
+        Ok(ret)
+    }
+
+    async fn prime(&self, _records: Vec<(AteHash, Option<Bytes>)>) -> Result<(), CommsError>
+    {
+        // We don't do anything here as the server is the one that send it to us in
+        // the first place so what would be the point in sending it back to them again?
+        Ok(())
+    }
+
     async fn feed(&self, mut work: ChainWork) -> Result<(), CommitError> {
         trace!(
             "feed trans(cnt={}, scope={})",
             work.trans.events.len(),
             work.trans.scope
         );
-        {
+
+        let timeout = work.trans.timeout.clone();
+        let receiver = {
             let mut lock = self.active.write().await;
             if let Some(pipe) = lock.as_mut() {
-                pipe.feed(&mut work.trans).await?;
+                pipe.feed(&mut work.trans).await?
             } else if self.mode.should_error_out() {
                 bail!(CommitErrorKind::CommsError(CommsErrorKind::Disconnected));
             } else if self.mode.should_go_readonly() {
                 bail!(CommitErrorKind::CommsError(CommsErrorKind::ReadOnly));
+            } else {
+                None
             }
+        };
+
+        // If we need to wait for the transaction to commit then do so
+        if let Some(mut receiver) = receiver {
+            trace!("waiting for transaction to commit");
+            match crate::engine::timeout(timeout, receiver.recv()).await {
+                Ok(Some(result)) => {
+                    {
+                        let mut lock = self.active.write().await;
+                        if let Some(pipe) = lock.as_mut() {
+                            pipe.likely_read_only = false;
+                        }
+                    }
+                    let commit_id = result?;
+                    trace!("transaction committed: {}", commit_id);
+                }
+                Ok(None) => {
+                    debug!("transaction has aborted");
+                    bail!(CommitErrorKind::Aborted);
+                }
+                Err(elapsed) => {
+                    debug!("transaction has timed out");
+                    bail!(CommitErrorKind::Timeout(elapsed.to_string()));
+                }
+            };
         }
 
+        // Now we pass on the transaction work to the local chain
         self.next.feed(work).await
     }
 

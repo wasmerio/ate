@@ -56,6 +56,11 @@ mod raw {
             topic,
             request_len
         );
+
+        // The blocking guard is to prevent blocking as the loop that called
+        // this function is already blocking hence it would deadlock.
+        let _blocking_guard = crate::task::blocking_guard();
+
         unsafe {
             let request = Vec::from_raw_parts(
                 request_ptr as *mut u8,
@@ -69,19 +74,19 @@ mod raw {
             }
         }
 
+        // This function is the one that actually processing the call but it will
+        // not nessasarily complete the call in one go - if it idles then thats
+        // because its waiting for something else from the wasm_bus hence we return
         #[cfg(feature = "rt")]
         crate::task::wake();
+        #[cfg(feature = "rt")]
+        crate::task::work_it();
     }
 
     // Invoked by the operating system when a call has finished
     // This call includes the data that was returned
     #[no_mangle]
     pub extern "C" fn wasm_bus_finish(handle: u32, data: u32, data_len: u32) {
-        trace!(
-            "wasm_bus_finish (handle={}, response={} bytes)",
-            handle,
-            data_len
-        );
         unsafe {
             let response =
                 Vec::from_raw_parts(data as *mut u8, data_len as usize, data_len as usize);
@@ -91,30 +96,55 @@ mod raw {
 
         #[cfg(feature = "rt")]
         crate::task::wake();
+        #[cfg(feature = "rt")]
+        crate::task::work_it();
     }
 
     // Invoked by the operating system when the call this program made has failed
     #[no_mangle]
     pub extern "C" fn wasm_bus_error(handle: u32, error: u32) {
-        trace!("wasm_bus_err (handle={}, error={})", handle, error);
         crate::engine::BusEngine::error(handle.into(), error.into());
 
         #[cfg(feature = "rt")]
         crate::task::wake();
+        #[cfg(feature = "rt")]
+        crate::task::work_it();
+    }
+
+    // Invoked by the operating system when a call has been terminated by the caller
+    #[no_mangle]
+    pub extern "C" fn wasm_bus_drop(handle: u32) {
+        let handle: CallHandle = handle.into();
+        crate::engine::BusEngine::remove(&handle, "os_notification");
+
+        #[cfg(feature = "rt")]
+        crate::task::wake();
+        #[cfg(feature = "rt")]
+        crate::task::work_it();
     }
 
     #[link(wasm_import_module = "wasm-bus")]
     extern "C" {
-        // Returns a handle 32-bit number which is used while generating
+        // Returns a handle 64-bit number which is used while generating
         // handles for calls and receive hooks
-        pub(crate) fn rand() -> u32;
+        pub(crate) fn handle() -> u32;
 
         // Indicates that a fault has occured while processing a call
         pub(crate) fn fault(handle: u32, error: u32);
 
         // Returns the response of a listen invokation to a program
         // from the operating system
-        pub(crate) fn reply(handle: u32, response: i32, response_len: i32);
+        pub(crate) fn reply(handle: u32, response: u32, response_len: u32);
+
+        // Call thats made when a sub-process is making a callback of
+        // a particular type
+        pub(crate) fn reply_callback(
+            handle: u32,
+            topic: u32,
+            topic_len: u32,
+            request: u32,
+            request_len: u32,
+        );
 
         // Drops a handle used by calls or callbacks
         pub(crate) fn drop(handle: u32);
@@ -126,25 +156,49 @@ mod raw {
         pub(crate) fn call(
             parent: u32,
             handle: u32,
-            wapm: i32,
-            wapm_len: i32,
-            topic: i32,
-            topic_len: i32,
-            request: i32,
-            request_len: i32,
+            keepalive: u32,
+            wapm: u32,
+            wapm_len: u32,
+            topic: u32,
+            topic_len: u32,
+            request: u32,
+            request_len: u32,
+        ) -> u32;
+
+        // Calls a function within a hosted instance 
+        // The operating system will respond with either a 'wasm_bus_finish'
+        // or a 'wasm_bus_error' message.
+        pub(crate) fn call_instance(
+            parent: u32,
+            handle: u32,
+            keepalive: u32,
+            instance: u32,
+            instance_len: u32,
+            access_token: u32,
+            access_token_len: u32,
+            wapm: u32,
+            wapm_len: u32,
+            topic: u32,
+            topic_len: u32,
+            request: u32,
+            request_len: u32,
         ) -> u32;
 
         // Incidates that a call that will be made should invoke a callback
         // back to this process under the designated handle.
-        pub(crate) fn callback(parent: u32, handle: u32, topic: i32, topic_len: i32);
+        pub(crate) fn callback(parent: u32, handle: u32, topic: u32, topic_len: u32);
 
         // Tells the operating system that this program is ready to respond
         // to calls on a particular topic name.
-        pub(crate) fn listen(topic: i32, topic_len: i32);
+        pub(crate) fn listen(topic: u32, topic_len: u32);
 
-        // Polls the operating system for messages which will be returned via
-        // the 'wasm_bus_start' function call.
+        // Polls the operating system for result messages that are the completion
+        // events for the calls we made out to the wasm_bus
         pub(crate) fn poll();
+
+        // Forks the process (after the main thread exists) so that it can process
+        // any inbound work via 'wasm_bus_start' function call.
+        pub(crate) fn fork();
 
         // Returns a unqiue ID for the thread
         pub(crate) fn thread_id() -> u32;
@@ -155,8 +209,8 @@ pub fn drop(handle: CallHandle) {
     unsafe { raw::drop(handle.id) }
 }
 
-pub fn rand() -> u32 {
-    unsafe { raw::rand() }
+pub fn handle() -> CallHandle {
+    unsafe { raw::handle().into() }
 }
 
 pub fn fault(handle: CallHandle, error: u32) {
@@ -169,11 +223,15 @@ pub fn poll() {
     unsafe { raw::poll() }
 }
 
+pub fn fork() {
+    unsafe { raw::fork() }
+}
+
 pub fn listen(topic: &str) {
     unsafe {
         let topic_len = topic.len();
         let topic = topic.as_ptr();
-        raw::listen(topic as i32, topic_len as i32)
+        raw::listen(topic as u32, topic_len as u32)
     }
 }
 
@@ -181,19 +239,37 @@ pub fn reply(handle: CallHandle, response: &[u8]) {
     unsafe {
         let response_len = response.len();
         let response = response.as_ptr();
-        raw::reply(handle.id, response as i32, response_len as i32);
+        raw::reply(handle.id, response as u32, response_len as u32);
+    }
+}
+
+pub fn reply_callback(handle: CallHandle, topic: &str, response: &[u8]) {
+    unsafe {
+        let topic_len = topic.len();
+        let topic = topic.as_ptr();
+        let response_len = response.len();
+        let response = response.as_ptr();
+        raw::reply_callback(
+            handle.id,
+            topic as u32,
+            topic_len as u32,
+            response as u32,
+            response_len as u32,
+        );
     }
 }
 
 pub fn call(
     parent: Option<CallHandle>,
     handle: CallHandle,
+    keepalive: bool,
     wapm: &str,
     topic: &str,
     request: &[u8],
 ) {
     let ret = unsafe {
         let parent = parent.map(|a| a.id).unwrap_or_else(|| u32::MAX);
+        let keepalive = if keepalive { 1 } else { 0 };
         let wapm_len = wapm.len();
         let wapm = wapm.as_ptr();
         let topic_len = topic.len();
@@ -203,12 +279,58 @@ pub fn call(
         raw::call(
             parent,
             handle.id,
-            wapm as i32,
-            wapm_len as i32,
-            topic as i32,
-            topic_len as i32,
-            request as i32,
-            request_len as i32,
+            keepalive,
+            wapm as u32,
+            wapm_len as u32,
+            topic as u32,
+            topic_len as u32,
+            request as u32,
+            request_len as u32,
+        )
+    };
+
+    if CallError::Success as u32 != ret {
+        raw::wasm_bus_error(handle.id, ret);
+    }
+}
+
+pub fn call_instance(
+    parent: Option<CallHandle>,
+    handle: CallHandle,
+    keepalive: bool,
+    instance: &str,
+    access_token: &str,
+    wapm: &str,
+    topic: &str,
+    request: &[u8],
+) {
+    let ret = unsafe {
+        let parent = parent.map(|a| a.id).unwrap_or_else(|| u32::MAX);
+        let keepalive = if keepalive { 1 } else { 0 };
+        let instance_len = instance.len();
+        let instance = instance.as_ptr();
+        let access_token_len = access_token.len();
+        let access_token = access_token.as_ptr();
+        let wapm_len = wapm.len();
+        let wapm = wapm.as_ptr();
+        let topic_len = topic.len();
+        let topic = topic.as_ptr();
+        let request_len = request.len();
+        let request = request.as_ptr();
+        raw::call_instance(
+            parent,
+            handle.id,
+            keepalive,
+            instance as u32,
+            instance_len as u32,
+            access_token as u32,
+            access_token_len as u32,
+            wapm as u32,
+            wapm_len as u32,
+            topic as u32,
+            topic_len as u32,
+            request as u32,
+            request_len as u32,
         )
     };
 
@@ -221,7 +343,7 @@ pub fn callback(parent: CallHandle, handle: CallHandle, topic: &str) {
     unsafe {
         let topic_len = topic.len();
         let topic = topic.as_ptr();
-        raw::callback(parent.id, handle.id, topic as i32, topic_len as i32)
+        raw::callback(parent.id, handle.id, topic as u32, topic_len as u32)
     }
 }
 

@@ -30,8 +30,15 @@ impl DerefMut for Stdout {
 }
 
 impl Stdout {
-    pub fn new(fd: Fd) -> Stdout {
-        Stdout { fd }
+    pub fn new(mut fd: Fd) -> Stdout {
+        fd.flag = FdFlag::Stdout(fd.is_tty());
+        Stdout {
+            fd
+        }
+    }
+
+    pub fn fd(&self) -> Fd {
+        self.fd.clone()
     }
 
     pub async fn draw(&mut self, data: &str) {

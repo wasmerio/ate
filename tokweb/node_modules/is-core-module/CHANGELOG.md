@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.8.1](https://github.com/inspect-js/is-core-module/compare/v2.8.0...v2.8.1) - 2022-01-05
+
+### Commits
+
+- [actions] reuse common workflows [`cd2cf9b`](https://github.com/inspect-js/is-core-module/commit/cd2cf9b3b66c8d328f65610efe41e9325db7716d)
+- [Fix] update node 0.4 results [`062195d`](https://github.com/inspect-js/is-core-module/commit/062195d89f0876a88b95d378b43f7fcc1205bc5b)
+- [Dev Deps] update `eslint`, `@ljharb/eslint-config`, `safe-publish-latest`, `tape` [`0790b62`](https://github.com/inspect-js/is-core-module/commit/0790b6222848c6167132f9f73acc3520fa8d1298)
+- [Dev Deps] update `eslint`, `@ljharb/eslint-config`, `tape` [`7d139a6`](https://github.com/inspect-js/is-core-module/commit/7d139a6d767709eabf0a0251e074ec1fb230c06e)
+- [Tests] run `nyc` in `tests-only`, not `test` [`780e8a0`](https://github.com/inspect-js/is-core-module/commit/780e8a049951c71cf78b1707f0871c48a28bde14)
+
 ## [v2.8.0](https://github.com/inspect-js/is-core-module/compare/v2.7.0...v2.8.0) - 2021-10-14
 
 ### Commits

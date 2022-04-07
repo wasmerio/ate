@@ -11,7 +11,7 @@ use std::net::SocketAddr;
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 #[derive(Debug)]
-pub(crate) struct Upstream {
+pub struct Upstream {
     #[allow(dead_code)]
     pub id: NodeId,
     pub outbox: StreamTxChannel,
@@ -37,10 +37,13 @@ pub(crate) struct MeshConfig {
     pub listen_on: Vec<SocketAddr>,
     #[cfg(feature = "enable_server")]
     pub listen_cert: Option<PrivateEncryptKey>,
+    #[allow(dead_code)]
     #[cfg(feature = "enable_dns")]
     pub connect_to: Option<SocketAddr>,
+    #[allow(dead_code)]
     #[cfg(not(feature = "enable_dns"))]
     pub connect_to: Option<MeshAddress>,
+    #[allow(dead_code)]
     pub cfg_mesh: ConfMesh,
 }
 
@@ -96,5 +99,9 @@ impl Upstream {
     #[allow(dead_code)]
     pub fn wire_encryption(&self) -> Option<EncryptKey> {
         self.outbox.wire_encryption.clone()
+    }
+
+    pub async fn close(&mut self) -> Result<(), tokio::io::Error> {
+        self.outbox.close().await
     }
 }

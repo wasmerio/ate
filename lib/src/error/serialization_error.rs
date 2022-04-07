@@ -26,6 +26,10 @@ error_chain! {
             description("data object has no actual data")
             display("data object has no actual data")
         }
+        MissingData {
+            description("the data for this record is missing")
+            display("the data for this record is missing")
+        }
         InvalidSerializationFormat {
             description("data is stored in an unknown serialization format")
             display("data is stored in an unknown serialization format")

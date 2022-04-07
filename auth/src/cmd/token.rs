@@ -60,7 +60,13 @@ pub async fn main_opts_token(
             }
 
             let session: AteSessionType = session.into();
-            println!("{}", session_to_b64(session).unwrap());
+            if action.summary {
+                println!("{}", session);
+            } else if action.human {
+                println!("{}", serde_json::to_string_pretty(&session).unwrap());
+            } else {
+                println!("{}", session_to_b64(session).unwrap());
+            }
         }
         TokenAction::View(_action) => {
             let session =

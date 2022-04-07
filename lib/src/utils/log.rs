@@ -19,10 +19,12 @@ pub fn log_init(verbose: i32, debug: bool) {
 
     if let Some(log_level) = log_level {
         SubscriberBuilder::default()
+            .with_writer(std::io::stderr)
             .with_max_level(log_level)
             .init();
     } else {
         SubscriberBuilder::default()
+            .with_writer(std::io::stderr)
             .with_env_filter(EnvFilter::from_default_env())
             .init();
     }

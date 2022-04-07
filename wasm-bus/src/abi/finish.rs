@@ -11,12 +11,15 @@ where
     Self: Send + Sync,
 {
     fn process(&self, data: Vec<u8>) -> Result<Vec<u8>, CallError>;
+
+    fn topic(&self) -> &str;
 }
 
 #[derive(Derivative, Clone)]
 #[derivative(Debug)]
 #[must_use = "you must 'wait' or 'await' to receive any calls from other modules"]
 pub struct Finish {
+    pub(crate) topic: Cow<'static, str>,
     pub(crate) handle: CallHandle,
     #[derivative(Debug = "ignore")]
     pub(crate) callback: Arc<Mutex<Box<dyn FnMut(Vec<u8>) -> Result<Vec<u8>, CallError> + Send>>>,
@@ -27,11 +30,9 @@ impl FinishOps for Finish {
         let mut callback = self.callback.lock().unwrap();
         callback.as_mut()(data)
     }
-}
 
-impl Drop for Finish {
-    fn drop(&mut self) {
-        super::drop(self.handle);
+    fn topic(&self) -> &str {
+        self.topic.as_ref()
     }
 }
 

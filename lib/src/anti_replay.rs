@@ -96,7 +96,7 @@ impl EventPlugin for AntiReplayPlugin {
 }
 
 impl Loader for AntiReplayPlugin {
-    fn relevance_check(&mut self, header: &EventData) -> bool {
+    fn relevance_check(&mut self, header: &EventWeakData) -> bool {
         match header.as_header_raw() {
             Ok(a) => {
                 let ret = self.seen.contains(&a.event_hash);

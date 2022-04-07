@@ -8,9 +8,10 @@ use crate::pipe::*;
 use crate::state::*;
 use crate::stdout::*;
 use crate::tty::*;
+use crate::grammar::ast::Redirect;
 
 pub struct SpawnContext {
-    pub cmd: String,
+    pub abi: Arc<dyn ConsoleAbi>,
     pub env: Environment,
     pub job: Job,
     pub stdin: Fd,
@@ -20,11 +21,14 @@ pub struct SpawnContext {
     pub working_dir: String,
     pub pre_open: Vec<String>,
     pub root: UnionFileSystem,
+    pub compiler: Compiler,
+    pub extra_args: Vec<String>,
+    pub extra_redirects: Vec<Redirect>,
 }
 
 impl SpawnContext {
     pub fn new(
-        cmd: String,
+        abi: Arc<dyn ConsoleAbi>,
         env: Environment,
         job: Job,
         stdin: Fd,
@@ -34,9 +38,10 @@ impl SpawnContext {
         working_dir: String,
         pre_open: Vec<String>,
         root: UnionFileSystem,
+        compiler: Compiler,
     ) -> SpawnContext {
         SpawnContext {
-            cmd,
+            abi,
             env,
             job,
             stdin,
@@ -46,6 +51,9 @@ impl SpawnContext {
             working_dir,
             pre_open,
             root,
+            compiler,
+            extra_args: Vec::new(),
+            extra_redirects: Vec::new(),
         }
     }
 }
@@ -85,6 +93,32 @@ impl EvalFactory {
         }
     }
 
+    pub fn tty(&self) -> Tty {
+        self.state.tty.clone()
+    }
+
+    pub fn stdout(&self) -> Stdout {
+        self.state.stdout.clone()
+    }
+
+    pub fn stderr(&self) -> Fd {
+        self.state.stderr.clone()
+    }
+
+    pub fn log(&self) -> Fd {
+        self.state.log.clone()
+    }
+
+    pub fn stdio(&self, stdin: Fd) -> Stdio {
+        Stdio {
+            stdin,
+            stdout: self.stdout().fd.clone(),
+            stderr: self.stderr(),
+            log: self.log(),
+            tty: self.tty(),
+        }
+    }
+
     pub fn create_context(&self, ctx: SpawnContext) -> crate::eval::EvalContext {
         // Build the standard IO
         let stdio = Stdio {
@@ -98,26 +132,27 @@ impl EvalFactory {
         // Create the evaluation context
         let ctx = crate::eval::EvalContext {
             system: System::default(),
+            abi: ctx.abi.clone(),
             env: ctx.env,
             bins: self.state.bins.clone(),
-            last_return: 0i32,
             reactor: self.state.reactor.clone(),
             chroot: ctx.chroot,
             working_dir: ctx.working_dir,
-            new_pwd: None,
+            last_return: 0u32,
             pre_open: ctx.pre_open,
-            input: ctx.cmd,
             stdio,
             root: ctx.root,
-            new_mounts: Vec::new(),
             exec_factory: self.clone(),
             job: ctx.job,
+            compiler: ctx.compiler,
+            extra_args: ctx.extra_args,
+            extra_redirects: ctx.extra_redirects,
         };
 
         ctx
     }
 
-    pub fn eval(&self, ctx: SpawnContext) -> mpsc::Receiver<EvalPlan> {
-        crate::eval::eval(self.create_context(ctx))
+    pub fn eval(&self, cmd: String, ctx: SpawnContext) -> mpsc::Receiver<EvalResult> {
+        crate::eval::eval(cmd, self.create_context(ctx))
     }
 }

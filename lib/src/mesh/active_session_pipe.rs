@@ -18,6 +18,7 @@ use super::lock_request::*;
 use super::msg::*;
 use super::recoverable_session_pipe::*;
 use super::*;
+use super::session::LoadRequest;
 use crate::chain::*;
 use crate::conf::*;
 use crate::crypto::*;
@@ -43,6 +44,8 @@ pub(super) struct ActiveSessionPipe {
     pub(super) commit: Arc<StdMutex<FxHashMap<u64, mpsc::Sender<Result<u64, CommitError>>>>>,
     pub(super) lock_attempt_timeout: Duration,
     pub(super) lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, LockRequest>>>,
+    pub(super) load_timeout: Duration,
+    pub(super) load_requests: Arc<StdMutex<FxHashMap<u64, LoadRequest>>>,
     pub(super) outbound_conversation: Arc<ConversationSession>,
 }
 
@@ -105,9 +108,9 @@ impl ActiveSessionPipe {
 }
 
 impl ActiveSessionPipe {
-    pub(super) async fn feed(&mut self, trans: &mut Transaction) -> Result<(), CommitError> {
+    pub(super) async fn feed(&mut self, trans: &mut Transaction) -> Result<Option<mpsc::Receiver<Result<u64, CommitError>>>, CommitError> {
         // Only transmit the packet if we are meant to
-        if trans.transmit == true {
+        let ret = if trans.transmit == true {
             // If we are likely in a read only situation then all transactions
             // should go to the server in synchronous mode until we can confirm
             // normal writability is restored
@@ -122,36 +125,52 @@ impl ActiveSessionPipe {
                 } else if self.mode.should_go_readonly() {
                     return Err(CommitErrorKind::CommsError(CommsErrorKind::ReadOnly).into());
                 } else {
-                    return Ok(());
+                    return Ok(None);
                 }
             }
 
             // Feed the transaction into the pipe
-            let timeout = trans.timeout;
-            let receiver = self.feed_internal(trans).await?;
+            self.feed_internal(trans).await?
+        } else {
+            None
+        };
 
-            // If we need to wait for the transaction to commit then do so
-            if let Some(mut receiver) = receiver {
-                trace!("waiting for transaction to commit");
-                match crate::engine::timeout(timeout, receiver.recv()).await {
-                    Ok(Some(result)) => {
-                        self.likely_read_only = false;
-                        let commit_id = result?;
-                        trace!("transaction committed: {}", commit_id);
-                    }
-                    Ok(None) => {
-                        debug!("transaction has aborted");
-                        bail!(CommitErrorKind::Aborted);
-                    }
-                    Err(elapsed) => {
-                        debug!("transaction has timed out");
-                        bail!(CommitErrorKind::Timeout(elapsed.to_string()));
-                    }
-                };
+        Ok(ret)
+    }
+
+    pub(super) async fn load_many(&mut self, leafs: Vec<AteHash>) -> Result<Vec<Option<Bytes>>, LoadError> {
+        // Register a load ID that will receive the response
+        let (tx, mut rx) = mpsc::channel(1);
+        let id = fastrand::u64(..);
+        self.load_requests.lock().unwrap().insert(id, LoadRequest {
+            records: leafs.clone(),
+            tx
+        });
+
+        // Inform the server that we want these records
+        self.tx
+            .send_all_msg(Message::LoadMany { id, leafs: leafs })
+            .await
+            .map_err(|err| {
+                trace!("load failed: {}", err);
+                LoadErrorKind::Disconnected
+            })?;
+
+        // Wait for the response from the server (or a timeout)
+        match crate::engine::timeout(self.load_timeout, rx.recv()).await {
+            Ok(Some(a)) => {
+                self.likely_read_only = false;
+                return a;
             }
-        }
-
-        Ok(())
+            Ok(None) => {
+                self.load_requests.lock().unwrap().remove(&id);
+                bail!(LoadErrorKind::Disconnected);
+            }
+            Err(_) => {
+                self.load_requests.lock().unwrap().remove(&id);
+                bail!(LoadErrorKind::Timeout)
+            },
+        };
     }
 
     pub(super) async fn try_lock(&mut self, key: PrimaryKey) -> Result<bool, CommitError> {
@@ -190,7 +209,10 @@ impl ActiveSessionPipe {
                 }
                 *rx.borrow()
             }
-            Err(_) => bail!(CommitErrorKind::LockError(CommsErrorKind::Timeout.into())),
+            Err(_) => {
+                self.lock_requests.lock().unwrap().remove(&key);
+                bail!(CommitErrorKind::LockError(CommsErrorKind::Timeout.into()))
+            },
         };
         Ok(ret)
     }

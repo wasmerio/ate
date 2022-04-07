@@ -33,7 +33,7 @@ use crate::spec::*;
 use crate::time::*;
 use crate::transaction::*;
 use crate::tree::*;
-use crate::trust::LoadResult;
+use crate::trust::LoadStrongResult;
 
 use crate::crypto::{EncryptedPrivateKey, PrivateSignKey};
 use crate::{
@@ -572,9 +572,9 @@ impl DioMut {
                 )?;
 
                 // Only once all the rows are processed will we ship it to the redo log
-                let evt = EventData {
+                let evt = EventWeakData {
                     meta: meta,
-                    data_bytes: Some(data),
+                    data_bytes: MessageBytes::Some(data),
                     format: row.format,
                 };
                 evts.push(evt);
@@ -604,9 +604,9 @@ impl DioMut {
                 )?;
                 meta.core.extend(extra_meta);
 
-                let evt = EventData {
+                let evt = EventWeakData {
                     meta: meta,
-                    data_bytes: None,
+                    data_bytes: MessageBytes::None,
                     format,
                 };
                 evts.push(evt);
@@ -631,9 +631,9 @@ impl DioMut {
             if meta.len() > 0 {
                 evts.insert(
                     0,
-                    EventData {
+                    EventWeakData {
                         meta: Metadata { core: meta },
-                        data_bytes: None,
+                        data_bytes: MessageBytes::None,
                         format,
                     },
                 );
@@ -791,7 +791,7 @@ impl DioMut {
     pub(crate) fn load_from_event<D>(
         self: &Arc<Self>,
         session: &'_ dyn AteSession,
-        mut data: EventData,
+        mut data: EventStrongData,
         header: EventHeader,
         leaf: EventLeaf,
     ) -> Result<DaoMut<D>, LoadError>
@@ -835,7 +835,7 @@ impl DioMut {
         Ok(ret.take())
     }
 
-    pub async fn load_raw(self: &Arc<Self>, key: &PrimaryKey) -> Result<EventData, LoadError> {
+    pub async fn load_raw(self: &Arc<Self>, key: &PrimaryKey) -> Result<EventStrongData, LoadError> {
         self.run_async(self.dio.__load_raw(key)).await
     }
 
@@ -862,6 +862,18 @@ impl DioMut {
 
     pub async fn unlock(self: &Arc<Self>, key: PrimaryKey) -> Result<(), CommitError> {
         self.multi.pipe.unlock(key).await
+    }
+
+    pub async fn delete_all_roots(self: &Arc<Self>) -> Result<(), CommitError> {
+        self.run_async(self.__delete_all_roots())
+            .await
+    }
+
+    async fn __delete_all_roots(self: &Arc<Self>) -> Result<(), CommitError> {
+        for key in self.__root_keys().await {
+            self.delete(&key).await?;
+        }
+        Ok(())
     }
 
     pub async fn children<D>(
@@ -1001,12 +1013,11 @@ impl DioMut {
         let mut already = FxHashSet::default();
         let mut ret = Vec::new();
 
-        let inside_async = self.multi.inside_async.read().await;
-
         // We either find existing objects in the cache or build a list of objects to load
         let to_load = {
             let mut to_load = Vec::new();
 
+            let inside_async = self.multi.inside_async.read().await;
             let state = self.state.lock().unwrap();
             let inner_state = self.dio.state.lock().unwrap();
             let _pop1 = DioMutScope::new(self);
@@ -1042,7 +1053,7 @@ impl DioMut {
         };
 
         // Load all the objects that have not yet been loaded
-        let to_load = inside_async.chain.load_many(to_load).await?;
+        let to_load = self.multi.load_many(to_load).await?;
 
         // Now process all the objects
         let ret = {
@@ -1112,10 +1123,118 @@ impl DioMut {
             .collect::<Vec<_>>())
     }
 
+    pub async fn roots<D>(
+        self: &Arc<Self>,
+    ) -> Result<Vec<DaoMut<D>>, LoadError>
+    where
+        D: Serialize + DeserializeOwned,
+    {
+        self.roots_ext(false, false)
+            .await
+    }
+
+    pub async fn roots_ext<D>(
+        self: &Arc<Self>,
+        allow_missing_keys: bool,
+        allow_serialization_error: bool,
+    ) -> Result<Vec<DaoMut<D>>, LoadError>
+    where
+        D: Serialize + DeserializeOwned,
+    {
+        // Build a list of keys
+        let keys = self.multi.roots_raw().await;
+
+        // Perform the lower level calls
+        let mut ret: Vec<DaoMut<D>> = self
+            .__load_many_ext(
+                keys.into_iter(),
+                allow_missing_keys,
+                allow_serialization_error,
+            )
+            .await?;
+
+        // Build an already loaded list
+        let mut already = FxHashSet::default();
+        for a in ret.iter() {
+            already.insert(a.key().clone());
+        }
+
+        // Now we search the secondary local index so any objects we have
+        // added in this transaction scope are returned
+        let state = self.state.lock().unwrap();
+        let _pop1 = DioMutScope::new(self);
+        for a in state.store_ordered.iter().filter(|a| a.parent.is_none()).map(|a| a.key) {
+            // This is an OR of two lists so its likely that the object
+            // may already be in the return list
+            if already.contains(&a) {
+                continue;
+            }
+            if state.deleted.contains(&a) {
+                continue;
+            }
+
+            // If its still locked then that is a problem
+            if state.is_locked(&a) {
+                bail!(LoadErrorKind::ObjectStillLocked(a.clone()));
+            }
+
+            if let Some(dao) = state.rows.get(&a) {
+                let (row_header, row) = Row::from_row_data(&self.dio, dao.deref())?;
+
+                already.insert(row.key.clone());
+                let dao: Dao<D> = Dao::new(&self.dio, row_header, row);
+                ret.push(DaoMut::new(Arc::clone(self), dao));
+            }
+        }
+
+        Ok(ret)
+    }
+
+    pub async fn root_keys(
+        self: &Arc<Self>,
+    ) -> Vec<PrimaryKey>
+    {
+        self.run_async(self.__root_keys())
+            .await
+    }
+
+    async fn __root_keys(
+        self: &Arc<Self>,
+    ) -> Vec<PrimaryKey>
+    {
+        // Build a list of keys
+        let keys = self.multi
+            .roots_raw()
+            .await;
+
+        // Remove anythign thats deleted and return it
+        let state = self.state.lock().unwrap();
+        let mut ret: Vec<PrimaryKey> = keys.into_iter()
+            .filter(|k| state.deleted.contains(k))
+            .collect();
+
+        // Build an already loaded list
+        let mut already = FxHashSet::default();
+        for a in ret.iter() {
+            already.insert(a.clone());
+        }
+
+        for a in state.store_ordered.iter().filter(|a| a.parent.is_none()).map(|a| a.key) {
+            if already.contains(&a) {
+                continue;
+            }
+            if state.deleted.contains(&a) {
+                continue;
+            }
+            ret.push(a);
+        }
+        ret
+    }
+
     pub(crate) fn data_as_overlay(
         self: &Arc<Self>,
         session: &'_ dyn AteSession,
-        data: &mut EventData,
+        data: &mut EventStrongData,
     ) -> Result<(), TransformError> {
         self.dio.data_as_overlay(session, data)?;
         Ok(())
@@ -1127,5 +1246,9 @@ impl DioMut {
 
     pub fn session_mut<'a>(&'a self) -> DioSessionGuardMut<'a> {
         self.dio.session_mut()
+    }
+
+    pub fn remote<'a>(&'a self) -> Option<&'a url::Url> {
+        self.dio.remote()
     }
 }

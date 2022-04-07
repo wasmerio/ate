@@ -13,6 +13,19 @@ where
     },
 }
 
+impl<A> Purpose<A>
+where
+    A: Clone,
+{
+    pub fn is_personal(&self) -> bool {
+        if let Purpose::Personal { .. } = self {
+            true
+        } else {
+            false
+        }
+    }
+}
+
 pub trait OptsPurpose<A>
 where
     A: Clone,
@@ -78,5 +91,9 @@ where
                 action,
             } => action,
         }
+    }
+
+    pub fn is_personal(&'a self) -> bool {
+        self.purpose().is_personal()
     }
 }

@@ -1,0 +1,21 @@
+[package]
+name = "wasm-bus-hello"
+version = "1.0.0"
+authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
+edition = "2018"
+description = "WebAssembly Bus Hello World"
+license = "MIT OR Apache-2.0"
+keywords = [ "wasi", "wasm", "bus", "time" ]
+repository = "https://github.com/john-sharratt/ate"
+readme = "README.md"
+
+[features]
+default = [ "frontend" ]
+frontend = [ "wasm-bus/syscalls" ]
+
+[dependencies]
+wasm-bus = { version = "^1", path = "../wasm-bus", default_features = false, features = [ "rt", "macros" ] }
+tracing = { version = "^0.1", features = [ "log" ] }
+serde = { version = "^1", features = ["derive"] }
+tokio = { version = "^1", features = [ "sync", "macros" ], default_features = false }
+async-trait = "^0.1"

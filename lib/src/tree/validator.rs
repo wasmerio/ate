@@ -80,7 +80,7 @@ impl EventValidator for TreeAuthorityPlugin {
                 } else {
                     // Otherwise fail
                     if let Some(sig) = header.meta.get_sign_with() {
-                        debug!("rejected event ({}) as it is missing signautre [{}] no signatures ({})", sig_hash, sig, self.integrity);
+                        debug!("rejected event ({}) as it is missing signature [{}] no signatures ({})", sig_hash, sig, self.integrity);
                     } else {
                         debug!(
                             "rejected event ({}) as it has no signatures ({})",

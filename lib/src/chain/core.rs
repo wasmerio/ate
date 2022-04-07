@@ -3,6 +3,7 @@ use std::time::Duration;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 use tracing_futures::Instrument;
+use derivative::*;
 
 use crate::error::*;
 
@@ -48,16 +49,20 @@ use super::*;
 /// Chains also allow subscribe/publish models to be applied to
 /// particular vectors (see the examples for details)
 ///
-#[derive(Clone)]
+#[derive(Derivative, Clone)]
+#[derivative(Debug)]
 pub struct Chain {
     pub(crate) key: ChainKey,
     #[allow(dead_code)]
     pub(crate) node_id: NodeId,
     pub(crate) cfg_ate: ConfAte,
+    pub(crate) remote: Option<url::Url>,
     pub(crate) remote_addr: Option<MeshAddress>,
     pub(crate) default_format: MessageFormat,
+    #[derivative(Debug = "ignore")]
     pub(crate) inside_sync: Arc<StdRwLock<ChainProtectedSync>>,
     pub(crate) inside_async: Arc<RwLock<ChainProtectedAsync>>,
+    #[derivative(Debug = "ignore")]
     pub(crate) pipe: Arc<Box<dyn EventPipe>>,
     pub(crate) time: Arc<TimeKeeper>,
     pub(crate) exit: broadcast::Sender<()>,
@@ -75,6 +80,10 @@ impl<'a> Chain {
 
     pub fn key(&'a self) -> &'a ChainKey {
         &self.key
+    }
+
+    pub fn remote(&'a self) -> Option<&'a url::Url> {
+        self.remote.as_ref()
     }
 
     pub fn remote_addr(&'a self) -> Option<&'a MeshAddress> {

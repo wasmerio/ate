@@ -193,7 +193,11 @@ impl<'a> Chain {
         }
 
         // Process all the events in the chain-of-trust
-        let conversation = Arc::new(ConversationSession::default());
+        let mut conversation = ConversationSession::default();
+        if let TrustMode::Centralized(_) = load_integrity {
+            conversation.weaken_validation = true;
+        }
+        let conversation = Arc::new(conversation);
         if let Err(err) =
             inside_async.process(inside_sync.write().unwrap(), headers, Some(&conversation))
         {
@@ -220,15 +224,16 @@ impl<'a> Chain {
         let worker_inside_sync = Arc::clone(&inside_sync);
 
         // background thread - receives events and processes them
-        let sender = ChainWorkProcessor::new(worker_inside_async, worker_inside_sync, compact_tx);
+        let processor = ChainWorkProcessor::new(worker_inside_async, worker_inside_sync, compact_tx);
 
         // decache subscription
         let (decache_tx, _) = broadcast::channel(1000);
 
         // The inbox pipe intercepts requests to and processes them
         let mut pipe: Arc<Box<dyn EventPipe>> = Arc::new(Box::new(InboxPipe {
-            inbox: sender,
+            inbox: processor,
             decache: decache_tx.clone(),
+            inside_async: inside_async.clone(),
             locks: StdMutex::new(FxHashSet::default()),
         }));
         if let Some(second) = builder.pipes {
@@ -244,6 +249,7 @@ impl<'a> Chain {
             key: key.clone(),
             node_id: builder.node_id.clone(),
             cfg_ate: builder.cfg_ate.clone(),
+            remote: None,
             remote_addr: None,
             default_format: builder.cfg_ate.log_format,
             inside_sync,

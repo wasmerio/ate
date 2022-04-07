@@ -11,3 +11,4 @@ pub use crate::cmd::main_session_user;
 pub use crate::helper::conf_auth;
 pub use crate::helper::conf_cmd;
 pub use crate::helper::DioBuilder;
+pub use crate::util::origin_url;

@@ -59,15 +59,18 @@ impl TaskEngine {
 
 #[cfg(target_arch = "wasm32")]
 pub async fn sleep(duration: Duration) {
-    wasm_bus::time::sleep(duration).await;
+    wasm_bus_time::prelude::sleep(duration).await;
 }
 
 #[cfg(target_arch = "wasm32")]
-pub async fn timeout<T>(duration: Duration, future: T) -> Result<T::Output, wasm_bus::time::Elapsed>
+pub async fn timeout<T>(
+    duration: Duration,
+    future: T,
+) -> Result<T::Output, wasm_bus_time::prelude::Elapsed>
 where
     T: Future,
 {
-    wasm_bus::time::timeout(duration, future).await
+    wasm_bus_time::prelude::timeout(duration, future).await
 }
 
 #[cfg(not(target_arch = "wasm32"))]

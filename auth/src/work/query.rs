@@ -26,7 +26,7 @@ impl AuthService {
         self: Arc<Self>,
         request: QueryRequest,
     ) -> Result<QueryResponse, QueryFailed> {
-        info!("query user/group: {}", request.identity);
+        debug!("query user/group: {}", request.identity);
 
         // Compute which chain the user should exist within
         let chain_key = chain_key_4hex(&request.identity, Some("redo"));

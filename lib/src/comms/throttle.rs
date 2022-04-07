@@ -2,5 +2,5 @@
 pub struct Throttle {
     pub download_per_second: Option<u64>,
     pub upload_per_second: Option<u64>,
-    pub read_only: bool,
+    pub delete_only: bool,
 }

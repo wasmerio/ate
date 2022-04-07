@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 #[allow(unused_imports)]
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use super::dao::*;
 use super::dao_mut::*;
@@ -21,7 +21,7 @@ pub struct Bus<D> {
     dio: Arc<Dio>,
     chain: Arc<Chain>,
     vec: MetaCollection,
-    receiver: mpsc::Receiver<EventData>,
+    receiver: mpsc::Receiver<EventWeakData>,
     _marker: PhantomData<D>,
 }
 
@@ -73,6 +73,30 @@ impl<D> Bus<D> {
                 .get_data_key()
                 .as_ref()
                 .map(|a| PrimaryKeyScope::new(a.clone()));
+
+            let evt = EventStrongData {
+                meta: evt.meta,
+                data_bytes: match evt.data_bytes {
+                    MessageBytes::Some(a) => Some(a),
+                    MessageBytes::LazySome(l) => {
+                        match self.chain.pipe.load_many(vec![l.record]).await {
+                            Ok(data) => {
+                                if let Some(data) =  data.into_iter().next() {
+                                    data
+                                } else {
+                                    continue;
+                                }
+                            }
+                            Err(err) => {
+                                trace!("bus recv failed to load - {}", err);
+                                continue;
+                            }
+                        }
+                    },
+                    MessageBytes::None => None,
+                },
+                format: evt.format,
+            };
 
             let (row_header, row) = super::row::Row::from_event(&self.dio, &evt, when, when)?;
             return Ok(Dao::new(&self.dio, row_header, row));

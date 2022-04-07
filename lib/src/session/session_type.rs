@@ -2,11 +2,12 @@ use super::*;
 use crate::crypto::*;
 use serde::*;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum AteSessionType {
     User(AteSessionUser),
     Sudo(AteSessionSudo),
     Group(AteSessionGroup),
+    Nothing
 }
 
 impl AteSession for AteSessionType {
@@ -15,6 +16,7 @@ impl AteSession for AteSessionType {
             AteSessionType::User(a) => a.role(purpose),
             AteSessionType::Sudo(a) => a.role(purpose),
             AteSessionType::Group(a) => a.role(purpose),
+            AteSessionType::Nothing => None,
         }
     }
 
@@ -26,6 +28,7 @@ impl AteSession for AteSessionType {
             AteSessionType::User(a) => a.read_keys(category),
             AteSessionType::Sudo(a) => a.read_keys(category),
             AteSessionType::Group(a) => a.read_keys(category),
+            AteSessionType::Nothing => Box::new(std::iter::empty())
         }
     }
 
@@ -37,6 +40,7 @@ impl AteSession for AteSessionType {
             AteSessionType::User(a) => a.write_keys(category),
             AteSessionType::Sudo(a) => a.write_keys(category),
             AteSessionType::Group(a) => a.write_keys(category),
+            AteSessionType::Nothing => Box::new(std::iter::empty())
         }
     }
 
@@ -48,6 +52,7 @@ impl AteSession for AteSessionType {
             AteSessionType::User(a) => a.public_read_keys(category),
             AteSessionType::Sudo(a) => a.public_read_keys(category),
             AteSessionType::Group(a) => a.public_read_keys(category),
+            AteSessionType::Nothing => Box::new(std::iter::empty())
         }
     }
 
@@ -59,6 +64,7 @@ impl AteSession for AteSessionType {
             AteSessionType::User(a) => a.private_read_keys(category),
             AteSessionType::Sudo(a) => a.private_read_keys(category),
             AteSessionType::Group(a) => a.private_read_keys(category),
+            AteSessionType::Nothing => Box::new(std::iter::empty())
         }
     }
 
@@ -67,6 +73,7 @@ impl AteSession for AteSessionType {
             AteSessionType::User(a) => a.broker_read(),
             AteSessionType::Sudo(a) => a.broker_read(),
             AteSessionType::Group(a) => a.broker_read(),
+            AteSessionType::Nothing => None
         }
     }
 
@@ -75,6 +82,7 @@ impl AteSession for AteSessionType {
             AteSessionType::User(a) => a.broker_write(),
             AteSessionType::Sudo(a) => a.broker_write(),
             AteSessionType::Group(a) => a.broker_write(),
+            AteSessionType::Nothing => None
         }
     }
 
@@ -83,6 +91,7 @@ impl AteSession for AteSessionType {
             AteSessionType::User(a) => a.identity(),
             AteSessionType::Sudo(a) => a.identity(),
             AteSessionType::Group(a) => a.identity(),
+            AteSessionType::Nothing => "nothing"
         }
     }
 
@@ -91,6 +100,7 @@ impl AteSession for AteSessionType {
             AteSessionType::User(a) => a.user(),
             AteSessionType::Sudo(a) => a.user(),
             AteSessionType::Group(a) => a.user(),
+            AteSessionType::Nothing => &super::session_inner::EMPTY_SESSION_USER
         }
     }
 
@@ -99,6 +109,8 @@ impl AteSession for AteSessionType {
             AteSessionType::User(a) => a.user_mut(),
             AteSessionType::Sudo(a) => a.user_mut(),
             AteSessionType::Group(a) => a.user_mut(),
+            AteSessionType::Nothing => panic!("orphaned user sessions can not be mutated")
+            
         }
     }
 
@@ -107,6 +119,7 @@ impl AteSession for AteSessionType {
             AteSessionType::User(a) => a.uid(),
             AteSessionType::Sudo(a) => a.uid(),
             AteSessionType::Group(a) => a.uid(),
+            AteSessionType::Nothing => None
         }
     }
 
@@ -115,6 +128,7 @@ impl AteSession for AteSessionType {
             AteSessionType::User(a) => a.gid(),
             AteSessionType::Sudo(a) => a.gid(),
             AteSessionType::Group(a) => a.gid(),
+            AteSessionType::Nothing => None
         }
     }
 
@@ -127,6 +141,7 @@ impl AteSession for AteSessionType {
             AteSessionType::User(a) => a.clone_inner(),
             AteSessionType::Sudo(a) => a.clone_inner(),
             AteSessionType::Group(a) => a.clone_inner(),
+            AteSessionType::Nothing => AteSessionInner::Nothing
         }
     }
 
@@ -135,6 +150,7 @@ impl AteSession for AteSessionType {
             AteSessionType::User(a) => a.properties(),
             AteSessionType::Sudo(a) => a.properties(),
             AteSessionType::Group(a) => a.properties(),
+            AteSessionType::Nothing => Box::new(std::iter::empty())
         }
     }
 
@@ -146,6 +162,7 @@ impl AteSession for AteSessionType {
             AteSessionType::User(a) => a.append(properties),
             AteSessionType::Sudo(a) => a.append(properties),
             AteSessionType::Group(a) => a.append(properties),
+            AteSessionType::Nothing => { }
         }
     }
 }
@@ -157,6 +174,7 @@ impl std::fmt::Display for AteSessionType {
             AteSessionType::User(a) => write!(f, "user: {}", a),
             AteSessionType::Sudo(a) => write!(f, "sudo: {}", a),
             AteSessionType::Group(a) => write!(f, "group: {}", a),
+            AteSessionType::Nothing => write!(f, "nothing"),
         }?;
         write!(f, "]")
     }
@@ -167,6 +185,7 @@ impl From<AteSessionInner> for AteSessionType {
         match a {
             AteSessionInner::User(a) => AteSessionType::User(a),
             AteSessionInner::Sudo(a) => AteSessionType::Sudo(a),
+            AteSessionInner::Nothing => AteSessionType::Nothing
         }
     }
 }

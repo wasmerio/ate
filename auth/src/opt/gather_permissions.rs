@@ -9,4 +9,10 @@ pub struct GatherPermissions {
     /// Determines if sudo permissions should be sought
     #[clap(long)]
     pub sudo: bool,
+    /// Display the token in human readable format
+    #[clap(long)]
+    pub human: bool,
+    /// Summarises the token rather than returning it
+    #[clap(long)]
+    pub summary: bool,
 }

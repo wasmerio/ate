@@ -181,11 +181,11 @@ async fn mesh_connect_prepare(
             // If we have a factory then use it
             #[allow(unused_mut)]
             let mut stream = {
-                let mut factory = crate::mesh::GLOBAL_COMM_FACTORY.lock().unwrap();
+                let mut factory = crate::mesh::GLOBAL_COMM_FACTORY.lock().await;
                 if let Some(factory) = factory.as_mut() {
                     let create_client = Arc::clone(&factory);
                     drop(factory);
-                    create_client(addr.clone())
+                    create_client(addr.clone()).await
                 } else {
                     None
                 }
@@ -347,5 +347,5 @@ async fn mesh_connect_worker<M, C>(
     let _span = span.enter();
 
     //#[cfg(feature = "enable_verbose")]
-    debug!("disconnected-inbox: {}", connect.addr.to_string());
+    debug!("disconnected-inbox: node-id={} addr={}", node_id.to_short_string().as_str(), connect.addr.to_string());
 }

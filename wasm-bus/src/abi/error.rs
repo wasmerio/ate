@@ -1,8 +1,9 @@
+use serde::*;
 use std::fmt;
 use std::io;
 
 #[repr(u32)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum CallError {
     Success = 0,
     SerializationFailed = 1,
@@ -16,6 +17,12 @@ pub enum CallError {
     InvalidTopic = 9,
     MissingCallbacks = 10,
     Unsupported = 11,
+    BadRequest = 12,
+    InternalFailure = 14,
+    MemoryAllocationFailed = 16,
+    BusInvocationFailed = 17,
+    AccessDenied = 18,
+    AlreadyConsumed = 19,
     Unknown = u32::MAX,
 }
 
@@ -34,6 +41,12 @@ impl From<u32> for CallError {
             9 => CallError::InvalidTopic,
             10 => CallError::MissingCallbacks,
             11 => CallError::Unsupported,
+            12 => CallError::BadRequest,
+            14 => CallError::InternalFailure,
+            16 => CallError::MemoryAllocationFailed,
+            17 => CallError::BusInvocationFailed,
+            18 => CallError::AccessDenied,
+            19 => CallError::AlreadyConsumed,
             _ => CallError::Unknown,
         }
     }
@@ -54,6 +67,12 @@ impl Into<u32> for CallError {
             CallError::InvalidTopic => 9,
             CallError::MissingCallbacks => 10,
             CallError::Unsupported => 11,
+            CallError::BadRequest => 12,
+            CallError::InternalFailure => 14,
+            CallError::MemoryAllocationFailed => 16,
+            CallError::BusInvocationFailed => 17,
+            CallError::AccessDenied => 18,
+            CallError::AlreadyConsumed => 19,
             CallError::Unknown => u32::MAX,
         }
     }
@@ -77,6 +96,13 @@ impl Into<io::Error> for CallError {
                 format!("wasm bus error - {}", err.to_string()).as_str(),
             ),
         }
+    }
+}
+
+impl Into<Box<dyn std::error::Error>> for CallError {
+    fn into(self) -> Box<dyn std::error::Error> {
+        let err: io::Error = self.into();
+        err.into()
     }
 }
 
@@ -105,6 +131,15 @@ impl fmt::Display for CallError {
             CallError::Unsupported => {
                 write!(f, "this operation is not supported on this platform.")
             }
+            CallError::BadRequest => write!(
+                f,
+                "invalid input was supplied in the call resulting in a bad request."
+            ),
+            CallError::AccessDenied => write!(f, "access denied"),
+            CallError::InternalFailure => write!(f, "an internal failure has occured"),
+            CallError::MemoryAllocationFailed => write!(f, "memory allocation has failed"),
+            CallError::BusInvocationFailed => write!(f, "bus invocation has failed"),
+            CallError::AlreadyConsumed => write!(f, "result already consumed"),
             CallError::Unknown => write!(f, "unknown error."),
         }
     }

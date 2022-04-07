@@ -15,6 +15,7 @@ impl TokApi {
     pub async fn contract_create(
         &mut self,
         service: AdvertisedService,
+        force: bool,
     ) -> Result<ContractCreateResponse, ContractError> {
         // Make the session
         let session = self.dio.session().clone_session();
@@ -45,6 +46,7 @@ impl TokApi {
             self.wallet.key().clone(),
             broker_key,
             self.wallet.broker_unlock_key.clone(),
+            force
         )
         .await?;
 

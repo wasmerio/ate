@@ -38,24 +38,28 @@ impl TokApi {
                 .children_ext::<Contract>(parent_id, CONTRACT_COLLECTION_ID, true, true)
                 .await?;
             for contract in contracts {
-                let metrics = contract
-                    .metrics
-                    .iter()
-                    .await?
-                    .map(|a| a.take())
-                    .collect::<Vec<_>>();
-
-                ret.push(ContractSummary {
-                    key: contract.key().clone(),
-                    reference_number: contract.reference_number.clone(),
-                    service: contract.service.clone(),
-                    status: contract.status.clone(),
-                    expires: contract.expires,
-                    metrics,
-                })
+                ret.push(self.get_contract_summary(contract.as_immutable()).await?)
             }
         }
 
         Ok(ret)
+    }
+
+    pub(super) async fn get_contract_summary(&self, contract: &Dao<Contract>) -> Result<ContractSummary, ContractError> {
+        let metrics = contract
+            .metrics
+            .iter()
+            .await?
+            .map(|a| a.take())
+            .collect::<Vec<_>>();
+
+        Ok(ContractSummary {
+            key: contract.key().clone(),
+            reference_number: contract.reference_number.clone(),
+            service: contract.service.clone(),
+            status: contract.status.clone(),
+            expires: contract.expires,
+            metrics,
+        })
     }
 }

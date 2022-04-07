@@ -21,6 +21,7 @@ mod service_find;
 mod transfer;
 mod wallet;
 mod withdraw;
+mod instance;
 
 pub use ate_auth::cmd::*;
 
@@ -47,3 +48,4 @@ pub use service_find::*;
 pub use transfer::*;
 pub use wallet::*;
 pub use withdraw::*;
+pub use instance::*;

@@ -63,7 +63,7 @@ impl LogFile for LogFileMemDb {
 
     async fn write(
         &mut self,
-        evt: &EventData,
+        evt: &EventWeakData,
     ) -> std::result::Result<LogLookup, SerializationError> {
         // Write the appender
         let header = evt.as_header_raw()?;
@@ -90,7 +90,7 @@ impl LogFile for LogFileMemDb {
                     format: evt.format,
                 },
                 meta: header.meta_bytes.to_vec(),
-                data: evt.data_bytes.as_ref().map(|a| a.to_vec()),
+                data: evt.data_bytes.clone().to_log_data(),
             },
         );
 
@@ -104,7 +104,7 @@ impl LogFile for LogFileMemDb {
         hash: AteHash,
     ) -> std::result::Result<LogLookup, LoadError> {
         // Load the data from the log file
-        let result = from_log.load(hash).await?;
+        let result = from_log.load(&hash).await?;
 
         // Write it to the local log
         let lookup = LogLookup {
@@ -125,19 +125,19 @@ impl LogFile for LogFileMemDb {
                     format: result.data.format,
                 },
                 meta: result.header.meta_bytes.to_vec(),
-                data: result.data.data_bytes.as_ref().map(|a| a.to_vec()),
+                data: result.data.data_bytes.clone().to_log_data(),
             },
         );
 
         Ok(lookup)
     }
 
-    async fn load(&self, hash: AteHash) -> std::result::Result<LoadData, LoadError> {
+    async fn load(&self, hash: &AteHash) -> std::result::Result<LoadData, LoadError> {
         // Lookup the record in the redo log
-        let lookup = match self.lookup.get(&hash) {
+        let lookup = match self.lookup.get(hash) {
             Some(a) => a.clone(),
             None => {
-                bail!(LoadErrorKind::NotFoundByHash(hash));
+                bail!(LoadErrorKind::NotFoundByHash(hash.clone()));
             }
         };
         let _offset = lookup.offset;
@@ -145,22 +145,12 @@ impl LogFile for LogFileMemDb {
         // If we are running as a memory datachain then just lookup the value
         let result = match self.memdb.get(&lookup) {
             Some(a) => std::result::Result::<LogEntry, LoadError>::Ok(a.clone()),
-            None => Err(LoadErrorKind::NotFoundByHash(hash).into()),
+            None => Err(LoadErrorKind::NotFoundByHash(hash.clone()).into()),
         }?;
 
         // Hash body
-        let data_hash = match &result.data {
-            Some(data) => Some(AteHash::from_bytes(&data[..])),
-            None => None,
-        };
-        let data_size = match &result.data {
-            Some(data) => data.len(),
-            None => 0,
-        };
-        let data = match result.data {
-            Some(data) => Some(Bytes::from(data)),
-            None => None,
-        };
+        let data_hash = result.data.hash();
+        let data_size = result.data.size();
 
         // Convert the result into a deserialized result
         let meta = result.header.format.meta.deserialize(&result.meta[..])?;
@@ -172,9 +162,13 @@ impl LogFile for LogFileMemDb {
                 data_size,
                 result.header.format,
             ),
-            data: EventData {
+            data: EventWeakData {
                 meta,
-                data_bytes: data,
+                data_bytes: match result.data {
+                    LogData::Some(data) => MessageBytes::Some(Bytes::from(data)),
+                    LogData::LazySome(l) => MessageBytes::LazySome(l),
+                    LogData::None => MessageBytes::None,
+                },
                 format: result.header.format,
             },
             lookup,
@@ -182,6 +176,19 @@ impl LogFile for LogFileMemDb {
         assert_eq!(hash.to_string(), ret.header.event_hash.to_string());
 
         Ok(ret)
+    }
+
+    fn prime(&mut self, records: Vec<(AteHash, Option<Bytes>)>) {
+        for (record, data) in records {
+            if let Some(lookup) = self.lookup.get(&record) {
+                if let Some(entry) = self.memdb.get_mut(lookup) {
+                    entry.data = match data {
+                        Some(a) => LogData::Some(a.to_vec()),
+                        None => LogData::None
+                    };
+                }
+            }
+        }
     }
 
     async fn flush(&mut self) -> Result<()> {

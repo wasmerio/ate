@@ -1,5 +1,4 @@
 pub mod api;
-#[cfg(feature = "bus")]
 pub mod bus;
 pub mod cmd;
 pub mod error;

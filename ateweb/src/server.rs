@@ -12,13 +12,15 @@ use std::time::Instant;
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 #[allow(unused_imports, dead_code)]
-use tracing::{debug, error, info, instrument, span, trace, warn, Level};
+use tracing::{debug, error, info, instrument, span, trace, warn, event, Level};
+use ate_auth::service::AuthService;
+use ate_auth::cmd::gather_command;
 
 use hyper;
 use hyper::header::HeaderValue;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::upgrade::Upgraded;
-use hyper::Body;
+pub use hyper::Body;
 use hyper::Method;
 use hyper::Request;
 use hyper::Response;
@@ -27,6 +29,7 @@ use hyper_tungstenite::WebSocketStream;
 
 use ate::prelude::*;
 use ate_files::prelude::*;
+use ate_files::repo::*;
 
 use crate::model::WebConf;
 
@@ -37,7 +40,6 @@ use super::conf::*;
 use super::error::WebServerError;
 use super::error::WebServerErrorKind;
 use super::model::*;
-use super::repo::*;
 use super::stream::*;
 
 pub struct ServerWebConf {
@@ -51,8 +53,32 @@ pub trait ServerCallback: Send + Sync {
         &self,
         _ws: WebSocketStream<Upgraded>,
         _sock_addr: SocketAddr,
+        _uri: Option<http::Uri>,
+        _headers: Option<http::HeaderMap>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         Ok(())
+    }
+
+    async fn post_request(
+        &self,
+        _body: Vec<u8>,
+        _sock_addr: SocketAddr,
+        _uri: http::Uri,
+        _headers: http::HeaderMap,
+    ) -> Result<Vec<u8>, (Vec<u8>, StatusCode)> {
+        let msg = format!("Bad Request (Not Implemented)").as_bytes().to_vec();
+        Err((msg, StatusCode::BAD_REQUEST))
+    }
+
+    async fn put_request(
+        &self,
+        _body: Vec<u8>,
+        _sock_addr: SocketAddr,
+        _uri: http::Uri,
+        _headers: http::HeaderMap,
+    ) -> Result<Vec<u8>, (Vec<u8>, StatusCode)> {
+        let msg = format!("Bad Request (Not Implemented)").as_bytes().to_vec();
+        Err((msg, StatusCode::BAD_REQUEST))
     }
 }
 
@@ -60,7 +86,7 @@ pub struct Server {
     repo: Arc<Repository>,
     web_conf: Mutex<FxHashMap<String, ServerWebConf>>,
     server_conf: ServerConf,
-    callback: Option<Arc<dyn ServerCallback>>,
+    callback: Option<Arc<dyn ServerCallback + 'static>>,
     mime: FxHashMap<String, String>,
 }
 
@@ -98,14 +124,22 @@ async fn process(
 impl Server {
     pub(crate) async fn new(builder: ServerBuilder) -> Result<Arc<Server>, AteError> {
         let registry = Arc::new(Registry::new(&builder.conf.cfg_ate).await);
+
+        let session_factory = SessionFactory {
+            auth_url: builder.auth_url.clone(),
+            registry: registry.clone(),
+            master_key: builder.web_master_key.clone(),
+        };
+
         let repo = Repository::new(
             &registry,
             builder.remote.clone(),
             builder.auth_url.clone(),
-            builder.web_key.clone(),
+            Box::new(session_factory),
             builder.conf.ttl,
         )
         .await?;
+
         Ok(Arc::new(Server {
             repo,
             web_conf: Mutex::new(FxHashMap::default()),
@@ -220,10 +254,11 @@ impl Server {
             }
         };
         if trigger {
+            let key = ChainKey::from(format!("{}/www", host));
             conf.web_conf_when = Some(Instant::now());
             conf.web_conf = match self
                 .repo
-                .get_file(host.as_str(), WEB_CONF_FILES_CONF)
+                .get_file(&key, host.as_str(), WEB_CONF_FILES_CONF)
                 .await
                 .ok()
                 .flatten()
@@ -244,10 +279,10 @@ impl Server {
                     if let Some(ret_str) = serde_yaml::to_string(&ret).ok() {
                         let err = self
                             .repo
-                            .set_file(host.as_str(), WEB_CONF_FILES_CONF, ret_str.as_bytes())
+                            .set_file(&key, host.as_str(), WEB_CONF_FILES_CONF, ret_str.as_bytes())
                             .await;
                         if let Err(err) = err {
-                            warn!("failed to save default web.yaml - {}", err);
+                            info!("failed to save default web.yaml - {}", err);
                         }
                     }
                     ret
@@ -358,7 +393,8 @@ impl Server {
         conf: &WebConf,
     ) -> Result<Option<Response<Body>>, WebServerError> {
         self.sanitize(path)?;
-        if let Some(data) = self.repo.get_file(host, path).await? {
+        let key = ChainKey::from(format!("{}/www", host));
+        if let Some(data) = self.repo.get_file(&key, host, path).await? {
             let len_str = data.len().to_string();
 
             let mut resp = if is_head {
@@ -572,14 +608,55 @@ impl Server {
             return self.process_upgrade(req, sock_addr).await;
         }
 
-        let is_head = req.method() == Method::HEAD;
+        let uri = req.uri().clone();
+        let method = req.method().clone();
+
+        if method == Method::POST || method == Method::PUT {
+            if let Some(callback) = &self.callback {
+                let headers = req.headers().clone();
+                if let Some(body) = hyper::body::to_bytes(req.into_body()).await.ok() {
+                    let body = body.to_vec();
+                    let ret = match method {
+                        Method::POST => callback.post_request(body, sock_addr, uri, headers).await,
+                        Method::PUT => callback.put_request(body, sock_addr, uri, headers).await,
+                        _ => Err((Vec::new(), StatusCode::BAD_REQUEST))
+                    };
+                    match ret {
+                        Ok(resp) => {
+                            let resp = Response::new(Body::from(resp));
+                            trace!("res: status={}", resp.status().as_u16());
+                            return Ok(resp);
+                        }
+                        Err((resp, status)) => {
+                            let mut resp = Response::new(Body::from(resp));
+                            *resp.status_mut() = status;
+                            trace!("res: status={}", resp.status().as_u16());
+                            return Ok(resp);
+                        }
+                    };
+                } else {
+                    let status = StatusCode::BAD_REQUEST;
+                    let err = status.as_str().to_string();
+                    let mut resp = Response::new(Body::from(err));
+                    *resp.status_mut() = status;
+                    trace!("res: status={}", resp.status().as_u16());
+                    return Ok(resp);
+                }
+            }
+        }
+
+        let is_head = method == Method::HEAD;
         let host = self.get_host(&req)?;
         let conf = self.get_conf(host.as_str()).await?;
 
         let ret = self.process_internal(req, listen, &conf).await;
         match ret {
-            Ok(a) => Ok(a),
+            Ok(a) => {
+                info!("http peer={} method={} path={} - {}", sock_addr, method, uri, a.status());
+                Ok(a)
+            },
             Err(err) => {
+                info!("http peer={} method={} path={} err={}", sock_addr, method, uri, err);
                 let page = conf
                     .status_pages
                     .get(&err.status_code().as_u16())
@@ -603,18 +680,20 @@ impl Server {
         sock_addr: SocketAddr,
     ) -> Result<Response<Body>, WebServerError> {
         if let Some(callback) = &self.callback {
+            let uri = req.uri().clone();
+            let headers = req.headers().clone();
             let callback = Arc::clone(callback);
             let (response, websocket) = hyper_tungstenite::upgrade(req, None)?;
             TaskEngine::spawn(async move {
                 match websocket.await {
                     Ok(websocket) => {
-                        let ret = callback.web_socket(websocket, sock_addr).await;
+                        let ret = callback.web_socket(websocket, sock_addr, Some(uri), Some(headers)).await;
                         if let Err(err) = ret {
-                            error!("web socket failed - {}", err);
+                            error!("web socket failed(1) - {}", err);
                         }
                     }
                     Err(err) => {
-                        error!("web socket failed - {}", err);
+                        error!("web socket failed(2) - {}", err);
                     }
                 }
             });
@@ -622,6 +701,94 @@ impl Server {
         } else {
             Err(WebServerErrorKind::BadRequest("websockets are not supported".to_string()).into())
         }
+    }
+
+    pub(crate) async fn process_cors(
+        &self,
+        req: Request<Body>,
+        _listen: &ServerListen,
+        conf: &WebConf,
+        target: String
+    ) -> Result<Response<Body>, StatusCode> {
+        let mut uri = format!("https://{}", target);
+        if let Some(query) = req.uri().query() {
+            uri += "?";
+            uri += query;
+        }
+        if let Ok(uri) = http::uri::Uri::from_str(uri.as_str())
+        {
+            // Check if its allowed
+            if conf.cors_proxy
+                .iter()
+                .map(|cors| Some(cors.as_str()))
+                .any(|cors| cors == uri.authority().map(|a| a.as_str()))
+            {
+                let method = req.method().clone();
+                let client = reqwest::ClientBuilder::default().build().map_err(|err| {
+                    debug!("failed to build reqwest client - {}", err);
+                    StatusCode::BAD_REQUEST
+                })?;
+
+                let mut builder = client.request(method, uri.to_string().as_str());
+                for (header, val) in req.headers() {
+                    builder = builder.header(header, val);
+                }
+                let body = hyper::body::to_bytes(req.into_body()).await
+                    .map_err(|err| {
+                    debug!("failed to build reqwest body - {}", err);
+                    StatusCode::BAD_REQUEST
+                })?;
+                builder = builder.body(reqwest::Body::from(body));
+
+                let request = builder.build().map_err(|err| {
+                    debug!("failed to convert request (url={}) - {}", uri, err);
+                    StatusCode::BAD_REQUEST
+                })?;
+
+                let response = client.execute(request).await.map_err(|err| {
+                    debug!("failed to execute reqest - {}", err);
+                    StatusCode::BAD_REQUEST
+                })?;
+
+                let status = response.status();
+                let headers = response.headers().clone();
+                let data = response.bytes().await.map_err(|err| {
+                    debug!("failed to read response bytes - {}", err);
+                    StatusCode::BAD_REQUEST
+                })?;
+                let data = data.to_vec();
+
+                let mut resp = Response::new(Body::from(data));
+                for (header, val) in headers {
+                    if let Some(header) = header {
+                        resp.headers_mut()
+                            .append(header, val);
+                    }
+                }
+                if resp.headers().contains_key(http::header::ACCESS_CONTROL_ALLOW_ORIGIN) == false {
+                    resp.headers_mut()
+                        .append(http::header::ACCESS_CONTROL_ALLOW_ORIGIN, "*".parse().unwrap());
+                }
+                if resp.headers().contains_key(http::header::ACCESS_CONTROL_ALLOW_METHODS) == false {
+                    resp.headers_mut()
+                        .append(http::header::ACCESS_CONTROL_ALLOW_METHODS, "*".parse().unwrap());
+                }
+                if resp.headers().contains_key(http::header::ACCESS_CONTROL_ALLOW_HEADERS) == false {
+                    resp.headers_mut()
+                        .append(http::header::ACCESS_CONTROL_ALLOW_HEADERS, "*".parse().unwrap());
+                }
+                if resp.headers().contains_key(http::header::ACCESS_CONTROL_MAX_AGE) == false {
+                    resp.headers_mut()
+                        .append(http::header::ACCESS_CONTROL_MAX_AGE, "86400".parse().unwrap());
+                }
+                *resp.status_mut() = status;
+                return Ok(resp);
+            } else {
+                return Err(StatusCode::UNAUTHORIZED);
+            }
+        }
+            
+        return Err(StatusCode::BAD_REQUEST);
     }
 
     pub(crate) async fn process_internal(
@@ -638,12 +805,24 @@ impl Server {
             return self.force_https(req).await;
         }
 
-        let host = self.get_host(&req)?;
-        let is_head = req.method() == Method::HEAD;
+        let mut cors_proxy = req.uri().path().split("https://");
+        cors_proxy.next();
+        if let Some(next) = cors_proxy.next() {
+            let next = next.to_string();
+            return Ok(self.process_cors(req, listen, conf, next).await
+                .unwrap_or_else(|code| {
+                    let mut resp = Response::new(Body::from(code.as_str().to_string()));
+                    *resp.status_mut() = code;
+                    resp
+                }));
+        }
 
+        let host = self.get_host(&req)?;
+        let is_head = req.method() == Method::HEAD || req.method() == Method::OPTIONS;
+
+        let path = req.uri().path();
         match req.method() {
-            &Method::HEAD | &Method::GET => {
-                let path = req.uri().path();
+            &Method::OPTIONS | &Method::HEAD | &Method::GET => {
                 self.sanitize(path)?;
                 self.process_get_with_default(host.as_str(), path, is_head, conf)
                     .await
@@ -654,5 +833,44 @@ impl Server {
                 Ok(resp)
             }
         }
+    }
+}
+
+struct SessionFactory
+{
+    master_key: Option<EncryptKey>,
+    registry: Arc<Registry>,
+    auth_url: url::Url,
+}
+
+#[async_trait]
+impl RepositorySessionFactory
+for SessionFactory
+{
+    async fn create(&self, sni: String, _key: ChainKey) -> Result<AteSessionType, AteError>
+    {
+        // Create the session
+        let key_entropy = format!("{}:{}", "web-read", sni);
+        let key_entropy = AteHash::from_bytes(key_entropy.as_bytes());
+        let mut session = AteSessionUser::default();
+
+        // If we have a master key then add it
+        if let Some(master_key) = &self.master_key {
+            let read_key = AuthService::compute_super_key_from_hash(master_key, &key_entropy);
+            session.add_user_read_key(&read_key);
+        }
+
+        // Now attempt to gather permissions to the chain
+        let registry = self.registry.clone();
+        let auth_url = self.auth_url.clone();
+        
+        // Now we gather the rights to the particular domain this website is running under
+        Ok(AteSessionType::Group(gather_command(
+            &registry,
+            sni,
+            AteSessionInner::User(session),
+            auth_url.clone(),
+        )
+        .await?))
     }
 }

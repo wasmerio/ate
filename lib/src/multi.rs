@@ -3,7 +3,10 @@ use std::sync::RwLock as StdRwLock;
 use std::sync::{Arc, Weak};
 use std::time::Duration;
 use tokio::sync::RwLock;
+use derivative::*;
+use error_chain::bail;
 
+use crate::event::EventStrongData;
 use crate::session::AteSession;
 
 use super::chain::*;
@@ -16,6 +19,7 @@ use super::pipe::*;
 use super::spec::MessageFormat;
 use super::transaction::*;
 use super::trust::*;
+use super::event::MessageBytes;
 
 use bytes::Bytes;
 
@@ -32,10 +36,13 @@ impl<'a> std::ops::Deref for ChainMultiUserLock<'a> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Derivative, Clone)]
+#[derivative(Debug)]
 pub struct ChainMultiUser {
     pub(super) inside_async: Arc<RwLock<ChainProtectedAsync>>,
+    #[derivative(Debug = "ignore")]
     pub(super) inside_sync: Arc<StdRwLock<ChainProtectedSync>>,
+    #[derivative(Debug = "ignore")]
     pub(super) pipe: Arc<Box<dyn EventPipe>>,
     pub(super) default_format: MessageFormat,
 }
@@ -64,12 +71,81 @@ impl ChainMultiUser {
         }
     }
 
-    pub async fn load(&self, leaf: EventLeaf) -> Result<LoadResult, LoadError> {
-        self.inside_async.read().await.chain.load(leaf).await
+    pub async fn load(&self, leaf: EventLeaf) -> Result<LoadStrongResult, LoadError> {
+        let ret = self.inside_async.read().await.chain.load(leaf).await?;
+        let ret = LoadStrongResult {
+            lookup: ret.lookup,
+            header: ret.header,
+            data: EventStrongData {
+                meta: ret.data.meta,
+                format: ret.data.format,
+                data_bytes: match ret.data.data_bytes {
+                    MessageBytes::Some(a) => Some(a),
+                    MessageBytes::LazySome(l) => {
+                        let data = self.pipe.load_many(vec![ l.record ]).await?;
+                        match data.into_iter().next() {
+                            Some(Some(a)) => Some(a),
+                            Some(None) => {
+                                bail!(LoadErrorKind::MissingData)
+                            },
+                            _ => {
+                                bail!(LoadErrorKind::Disconnected)
+                            },
+                        }
+                    },
+                    MessageBytes::None => None,
+                }
+            },
+            leaf: ret.leaf,
+        };
+        Ok(ret)
     }
 
-    pub async fn load_many(&self, leafs: Vec<EventLeaf>) -> Result<Vec<LoadResult>, LoadError> {
-        self.inside_async.read().await.chain.load_many(leafs).await
+    pub async fn load_many(&self, leafs: Vec<EventLeaf>) -> Result<Vec<LoadStrongResult>, LoadError> {
+        let mut data = self.inside_async.read().await.chain.load_many(leafs.clone()).await?;
+        
+        let lazy = data.iter().any(|r| r.data.data_bytes.is_lazy());
+        if lazy {
+            let leafs = leafs.into_iter().map(|l| l.record).collect();
+            let mut other = self.pipe.load_many(leafs).await?.into_iter();
+            for ret in data.iter_mut() {
+                let other = other.next();
+                if ret.data.data_bytes.is_lazy() {
+                    ret.data.data_bytes = match other {
+                        Some(Some(a)) => MessageBytes::Some(a),
+                        Some(None) => {
+                            bail!(LoadErrorKind::MissingData)
+                        },
+                        _ => {
+                            bail!(LoadErrorKind::Disconnected)
+                        },
+                    }
+                }
+            }
+        }
+
+        let mut rets = Vec::new();
+        for l in data {
+            rets.push(
+                LoadStrongResult {
+                    lookup: l.lookup,
+                    header: l.header,
+                    data: EventStrongData {
+                        meta: l.data.meta,
+                        format: l.data.format,
+                        data_bytes: match l.data.data_bytes {
+                            MessageBytes::Some(a) => Some(a),
+                            MessageBytes::LazySome(_) => {
+                                bail!(LoadErrorKind::MissingData)
+                            },
+                            MessageBytes::None => None,
+                        }
+                    },
+                    leaf: l.leaf,
+                }
+            );
+        }
+        Ok(rets)
     }
 
     pub async fn lookup_primary(&self, key: &PrimaryKey) -> Option<EventLeaf> {
@@ -90,6 +166,14 @@ impl ChainMultiUser {
 
     pub async fn lookup_parent(&self, key: &PrimaryKey) -> Option<MetaParent> {
         self.inside_async.read().await.chain.lookup_parent(key)
+    }
+
+    pub async fn roots_raw(&self) -> Vec<PrimaryKey> {
+        self.inside_async
+            .read()
+            .await
+            .chain
+            .roots_raw()
     }
 
     #[allow(dead_code)]

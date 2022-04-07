@@ -143,51 +143,12 @@ where
                     }
                 }
 
-                match wire_encryption {
-                    Some(key) => {
-                        // Read the initialization vector
-                        let iv_bytes = rx.read_8bit().await?;
-                        total_read += 1u64;
-                        match iv_bytes.len() {
-                            0 => Err(TError::new(ErrorKind::BrokenPipe, "iv_bytes-len is zero")),
-                            l => {
-                                total_read += l as u64;
-                                let iv = InitializationVector::from(iv_bytes);
-
-                                // Read the cipher text and decrypt it
-                                let cipher_bytes = rx.read_32bit().await?;
-                                total_read += 4u64;
-                                match cipher_bytes.len() {
-                                    0 => Err(TError::new(
-                                        ErrorKind::BrokenPipe,
-                                        "cipher_bytes-len is zero",
-                                    )),
-                                    l => {
-                                        total_read += l as u64;
-                                        Ok(key.decrypt(&iv, &cipher_bytes))
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    None => {
-                        // Read the next message
-                        let buf = rx.read_32bit().await?;
-                        total_read += 4u64;
-                        match buf.len() {
-                            0 => Err(TError::new(ErrorKind::BrokenPipe, "buf-len is zero")),
-                            l => {
-                                total_read += l as u64;
-                                Ok(buf)
-                            }
-                        }
-                    }
-                }
+                rx.read_buf_with_header(&wire_encryption, &mut total_read).await
             };
             let buf = {
                 select! {
                     _ = exit.recv() => {
-                        debug!("received exit broadcast - {}", sock_addr);
+                        debug!("received exit broadcast - {} - id={} peer={}", sock_addr, id.to_short_string().as_str(), peer_id.to_short_string().as_str());
                         break;
                     },
                     a = buf => a

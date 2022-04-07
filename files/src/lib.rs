@@ -10,3 +10,4 @@ pub mod handle;
 pub mod model;
 pub mod prelude;
 pub mod symlink;
+pub mod repo;

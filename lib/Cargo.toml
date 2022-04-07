@@ -1,6 +1,6 @@
 [package]
 name = "ate"
-version = "1.0.2"
+version = "1.2.1"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 description = "Distributed immutable data store with strong encryption and authentication"
@@ -28,8 +28,9 @@ enable_mt = [ "tokio/rt-multi-thread" ]
 enable_dns = [ "trust-dns-proto", "trust-dns-client", "pnet" ]
 enable_full = [ "tokio/net", "tokio-tungstenite", "enable_buffered", "enable_local_fs", "enable_rotate", "enable_caching", "enable_ntp", "enable_dns", "tokio/rt", "tokio/io-util", "tokio/time", "tokio/fs" ]
 client_web = [ "enable_client", "enable_web_sys" ]
-client = [ "enable_full", "enable_client" ]
-server = [ "enable_full", "enable_server", "enable_client" ]
+client = [ "sys", "enable_full", "enable_client" ]
+server = [ "sys", "enable_full", "enable_server", "enable_client" ]
+sys = [ "wasm-bus-ws/sys" ]
 
 [dependencies]
 error-chain = { version = "^0.12", default_features = false }
@@ -54,9 +55,9 @@ sha3 = "^0.9"
 blake3 = "0.3.8"
 multimap = "^0.8"
 hex = "^0.4"
-chrono = "^0.4"
+chrono = { version = "^0.4", git = "https://github.com/john-sharratt/chrono.git" }
 pbr = "^1"
-tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
+tracing = { version = "^0.1", features = [ "log" ] }
 tracing-futures = { version = "^0.2" }
 tracing-subscriber = { version = "^0.2" }
 cached = "^0.23"
@@ -75,20 +76,23 @@ http = { version = "^0.2" }
 aes = { version = "^0.7" }
 ctr = { version = "^0.8" }
 tokio = { version = "^1", features = [ "macros", "sync" ], default_features = false }
+derivative = { version = "^2" }
+wasm-bus-ws = { version = "^1", path = "../wasm-bus-ws" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 pnet = { version = "^0.27", optional = true }
-tokio-tungstenite = { version = "^0.15", optional = true }
+tokio-tungstenite = { version = "^0.16", optional = true }
 hyper-tungstenite = { version = "^0.4", optional = true }
 trust-dns-proto = { version = "^0.20", optional = true }
 trust-dns-client = { version = "^0.20", features = ["dnssec"], optional = true }
 backtrace = { version = "^0.3" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-bus = { version = "^0.3", path = "../wasm-bus" }
+wasm-bus = { version = "^1", path = "../wasm-bus" }
+wasm-bus-time = { version = "^1", path = "../wasm-bus-time" }
 
 [dev-dependencies]
 ctor = "0.1.*"
 rust_decimal = "1.10.*"
 names = "0.11.*"
-clap = "^3.0.0-beta.5"
+clap = { version = "^3.0.0-rc.7", features = [ "derive" ] }

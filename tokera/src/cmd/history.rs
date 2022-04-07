@@ -47,7 +47,7 @@ pub async fn main_opts_transaction_history(
                 println!("{:11} {:3}: {}", amount, a.currency, event.summary());
             }
             None => {
-                println!("........... ...: {}", event.summary());
+                println!("            ...: {}", event.summary());
             }
         }
 

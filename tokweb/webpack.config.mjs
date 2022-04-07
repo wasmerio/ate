@@ -7,7 +7,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export default {
   mode: 'production',
-  entry: resolve(__dirname, './src/js/index.js'),
+  entry: resolve(__dirname, './js/index.js'),
   plugins: [
     new CopyPlugin({
       patterns: [

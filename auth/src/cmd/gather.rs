@@ -15,12 +15,32 @@ use crate::request::*;
 
 use super::*;
 
+pub async fn impersonate_command(
+    registry: &Registry,
+    group: String,
+    session: AteSessionInner,
+    auth: Url,
+) -> Result<AteSessionGroup, GatherError> {
+    let ret = gather_command(registry, group, session, auth).await?;
+    let ret = AteSessionGroup {
+        inner: AteSessionInner::Nothing,
+        group: ret.group
+    };
+    Ok(ret)
+}
+
 pub async fn gather_command(
     registry: &Registry,
     group: String,
     session: AteSessionInner,
     auth: Url,
 ) -> Result<AteSessionGroup, GatherError> {
+
+    // If the group is localhost then obviously don't try and gather for it
+    if group == "localhost" {
+        bail!(GatherErrorKind::NotFound(group));
+    }
+
     // Open a command chain
     let chain = registry.open_cmd(&auth).await?;
 
@@ -45,7 +65,20 @@ pub async fn main_session_group(
     auth_url: Option<url::Url>,
     hint_group: &str,
 ) -> Result<AteSessionGroup, GatherError> {
-    let session = main_session_start(token_string, token_file_path, auth_url.clone()).await?;
+    main_session_group_ext(token_string, token_file_path, group, sudo, code, auth_url, hint_group, false).await
+}
+
+pub async fn main_session_group_ext(
+    token_string: Option<String>,
+    token_file_path: Option<String>,
+    group: String,
+    sudo: bool,
+    code: Option<String>,
+    auth_url: Option<url::Url>,
+    hint_group: &str,
+    save: bool,
+) -> Result<AteSessionGroup, GatherError> {
+    let session = main_session_start(token_string, token_file_path.clone(), auth_url.clone()).await?;
 
     let mut session = match session {
         AteSessionType::Group(a) => {
@@ -56,6 +89,7 @@ pub async fn main_session_group(
         }
         AteSessionType::User(a) => AteSessionInner::User(a),
         AteSessionType::Sudo(a) => AteSessionInner::Sudo(a),
+        AteSessionType::Nothing => AteSessionInner::Nothing,
     };
 
     if sudo {
@@ -69,6 +103,13 @@ pub async fn main_session_group(
             }
             a => a,
         };
+    }
+
+    if save {
+        if let Some(token_file_path) = token_file_path.clone() {
+            let token = session_to_b64(session.clone().into())?;
+            save_token(token, token_file_path)?;
+        }
     }
 
     if let Some(auth) = auth_url {

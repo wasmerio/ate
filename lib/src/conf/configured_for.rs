@@ -36,9 +36,9 @@ pub enum ConfiguredFor {
 impl ConfiguredFor {
     pub fn ntp_tolerance(&self) -> u32 {
         match self {
-            ConfiguredFor::BestPerformance => 4000u32,
-            ConfiguredFor::BestSecurity => 1000u32,
-            _ => 2000u32,
+            ConfiguredFor::BestPerformance => 60000u32,
+            ConfiguredFor::BestSecurity => 30000u32,
+            _ => 40000u32,
         }
     }
 }

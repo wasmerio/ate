@@ -9,6 +9,7 @@ use serde::*;
 #[derive(Debug, Clone)]
 pub struct FixedFile {
     ino: u64,
+    #[allow(dead_code)]
     kind: FileKind,
     uid: u32,
     gid: u32,

@@ -53,6 +53,9 @@ pub struct OptsSubscribe {
     /// (refer to the list command for available services)
     #[clap(index = 1)]
     pub service_name: String,
+    /// Forces the contract to be created even if one already exists
+    #[clap(short, long)]
+    pub force: bool,
 }
 
 #[derive(Parser, Clone)]

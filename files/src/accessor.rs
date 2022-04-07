@@ -5,6 +5,7 @@ use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 use bytes::Bytes;
 use std::sync::Arc;
 use std::sync::Mutex;
+use tokio::sync::Mutex as AsyncMutex;
 
 use crate::fixed::FixedFile;
 use ::ate::chain::*;
@@ -27,6 +28,7 @@ use super::prelude::*;
 
 use fxhash::FxHashMap;
 
+#[derive(Debug)]
 pub struct FileAccessor
 where
     Self: Send + Sync,
@@ -35,7 +37,6 @@ where
     pub dio: Arc<Dio>,
     pub no_auth: bool,
     pub is_www: bool,
-    pub is_edge: bool,
     pub scope_meta: TransactionScope,
     pub scope_io: TransactionScope,
     pub group: Option<String>,
@@ -45,6 +46,8 @@ where
     pub last_elapsed: seqlock::SeqLock<u64>,
     pub commit_lock: tokio::sync::Mutex<()>,
     pub impersonate_uid: bool,
+    pub force_sudo: bool,
+    pub init_flag: AsyncMutex<bool>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -73,7 +76,6 @@ impl FileAccessor {
         impersonate_uid: bool,
     ) -> FileAccessor {
         let is_www = chain.key().to_string().ends_with("/www");
-        let is_edge = chain.key().to_string().ends_with("/edge");
         let dio = chain.dio(&session).await;
 
         FileAccessor {
@@ -81,7 +83,6 @@ impl FileAccessor {
             dio,
             no_auth,
             is_www,
-            is_edge,
             group,
             session,
             scope_meta,
@@ -91,27 +92,49 @@ impl FileAccessor {
             last_elapsed: seqlock::SeqLock::new(0),
             commit_lock: tokio::sync::Mutex::new(()),
             impersonate_uid,
+            force_sudo: false,
+            init_flag: AsyncMutex::new(false),
         }
     }
 
-    pub async fn init(&self, req: &RequestContext) -> Result<()> {
-        let dio = self.dio_mut_meta().await;
-        if let Err(LoadError(LoadErrorKind::NotFound(_), _)) =
-            self.dio.load::<Inode>(&PrimaryKey::from(1)).await
-        {
-            info!("creating-root-node");
+    pub fn with_force_sudo(mut self, val: bool) -> Self {
+        self.force_sudo = val;
+        self
+    }
 
-            let mode = 0o770;
-            let uid = self.translate_uid(req.uid, req);
-            let gid = self.translate_gid(req.gid, req);
-            let root = Inode::new("/".to_string(), mode, uid, gid, FileKind::Directory);
-            match dio.store_with_key(root, PrimaryKey::from(1)) {
-                Ok(mut root) => {
-                    self.update_auth(mode, uid, gid, root.auth_mut())?;
+    pub fn session_context(&self) -> RequestContext
+    {
+        RequestContext {
+            uid: self.session.uid().unwrap_or_default(),
+            gid: self.session.gid().unwrap_or_default(),
+        }
+    }
+
+    pub async fn init(&self, req: &RequestContext) -> Result<DaoMut<Inode>> {
+        let dio = self.dio_mut_meta().await;
+        let root = match dio.load::<Inode>(&PrimaryKey::from(1)).await
+        {
+            Ok(a) => a,
+            Err(LoadError(LoadErrorKind::NotFound(_), _)) => {
+                info!("creating-root-node");
+
+                let mode = 0o770;
+                let uid = self.translate_uid(req.uid, req);
+                let gid = self.translate_gid(req.gid, req);
+                let root = Inode::new("/".to_string(), mode, uid, gid, FileKind::Directory);
+                match dio.store_with_key(root, PrimaryKey::from(1)) {
+                    Ok(mut root) => {
+                        self.update_auth(mode, uid, gid, root.auth_mut())?;
+                        root
+                    }
+                    Err(err) => {
+                        error!("{}", err);
+                        bail!(FileSystemErrorKind::InvalidArguments);
+                    }
                 }
-                Err(err) => {
-                    error!("{}", err);
-                }
+            }
+            Err(err) => {
+                bail!(err);
             }
         };
         debug!("init");
@@ -123,14 +146,12 @@ impl FileAccessor {
 
         // Disable any more root nodes from being created (only the single root node is allowed)
         self.chain.single().await.disable_new_roots();
-        Ok(())
+        Ok(root)
     }
 
     pub fn get_group_read_key<'a>(&'a self, gid: u32) -> Option<&'a EncryptKey> {
         let purpose = if self.is_www {
             AteRolePurpose::WebServer
-        } else if self.is_edge {
-            AteRolePurpose::EdgeCompute
         } else {
             AteRolePurpose::Observer
         };
@@ -145,8 +166,6 @@ impl FileAccessor {
     pub fn get_group_write_key<'a>(&'a self, gid: u32) -> Option<&'a PrivateSignKey> {
         let purpose = if self.is_www {
             AteRolePurpose::WebServer
-        } else if self.is_edge {
-            AteRolePurpose::EdgeCompute
         } else {
             AteRolePurpose::Contributor
         };
@@ -160,13 +179,19 @@ impl FileAccessor {
 
     pub fn get_user_read_key<'a>(&'a self, uid: u32) -> Option<&'a EncryptKey> {
         if self.session.uid() == Some(uid) {
-            match &self.session {
-                AteSessionType::User(a) => a.user.read_keys().next(),
-                AteSessionType::Sudo(a) => a.inner.user.read_keys().next(),
-                AteSessionType::Group(a) => match &a.inner {
-                    AteSessionInner::User(a) => a.user.read_keys().next(),
-                    AteSessionInner::Sudo(a) => a.inner.user.read_keys().next(),
-                },
+            if self.force_sudo {
+                self.session.read_keys(AteSessionKeyCategory::SudoKeys).next()
+            } else {
+                match &self.session {
+                    AteSessionType::User(a) => a.user.read_keys().next(),
+                    AteSessionType::Sudo(a) => a.inner.user.read_keys().next(),
+                    AteSessionType::Group(a) => match &a.inner {
+                        AteSessionInner::User(a) => a.user.read_keys().next(),
+                        AteSessionInner::Sudo(a) => a.inner.user.read_keys().next(),
+                        AteSessionInner::Nothing => None,
+                    },
+                    AteSessionType::Nothing => None,
+                }
             }
         } else {
             None
@@ -175,13 +200,19 @@ impl FileAccessor {
 
     pub fn get_user_write_key<'a>(&'a self, uid: u32) -> Option<&'a PrivateSignKey> {
         if self.session.uid() == Some(uid) {
-            match &self.session {
-                AteSessionType::User(a) => a.user.write_keys().next(),
-                AteSessionType::Sudo(a) => a.inner.user.write_keys().next(),
-                AteSessionType::Group(a) => match &a.inner {
-                    AteSessionInner::User(a) => a.user.write_keys().next(),
-                    AteSessionInner::Sudo(a) => a.inner.user.write_keys().next(),
-                },
+            if self.force_sudo {
+                self.session.write_keys(AteSessionKeyCategory::SudoKeys).next()
+            } else {
+                match &self.session {
+                    AteSessionType::User(a) => a.user.write_keys().next(),
+                    AteSessionType::Sudo(a) => a.inner.user.write_keys().next(),
+                    AteSessionType::Group(a) => match &a.inner {
+                        AteSessionInner::User(a) => a.user.write_keys().next(),
+                        AteSessionInner::Sudo(a) => a.inner.user.write_keys().next(),
+                        AteSessionInner::Nothing => None,
+                    },
+                    AteSessionType::Nothing => None,
+                }
             }
         } else {
             None
@@ -454,6 +485,7 @@ impl FileAccessor {
             let new_key = {
                 if mode & 0o040 != 0 {
                     self.get_group_read_key(gid)
+                        .or_else(|| self.get_user_read_key(uid))
                 } else {
                     self.get_user_read_key(uid)
                 }
@@ -470,7 +502,7 @@ impl FileAccessor {
             } else if self.no_auth == false {
                 if mode & 0o040 != 0 {
                     error!(
-                        "Session does not have the required group ({}) read key embedded within it",
+                        "Session does not have the required group or user ({}) read key embedded within it",
                         gid
                     );
                 } else {
@@ -492,6 +524,7 @@ impl FileAccessor {
             let new_key = {
                 if mode & 0o020 != 0 {
                     self.get_group_write_key(gid)
+                        .or_else(|| self.get_user_write_key(uid))
                 } else {
                     self.get_user_write_key(uid)
                 }
@@ -500,7 +533,7 @@ impl FileAccessor {
                 auth.write = WriteOption::Specific(key.hash());
             } else if self.no_auth == false {
                 if mode & 0o020 != 0 {
-                    error!("Session does not have the required group ({}) write key embedded within it", gid);
+                    error!("Session does not have the required group or user ({}) write key embedded within it", gid);
                 } else {
                     error!(
                         "Session does not have the required user ({}) write key embedded within it",
@@ -1170,6 +1203,22 @@ impl FileAccessor {
             }
         };
         open.spec.read(offset, size as u64).await
+    }
+
+    pub async fn read_all(&self, req: &RequestContext, inode: u64, fh: u64) -> Result<Vec<u8>> {
+        let mut ret = Vec::new();
+        loop {
+            let offset = ret.len();
+            let read_ahead = 128u32 * 1024u32;
+
+            let read = self.read(req, inode, fh, offset as u64, read_ahead).await?;
+            if read.len() <= 0 {
+                break;
+            }
+            let mut read = read.to_vec();
+            ret.append(&mut read);
+        }
+        Ok(ret)
     }
 
     pub async fn write(

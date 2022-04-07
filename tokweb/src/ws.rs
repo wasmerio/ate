@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use std::ops::*;
 use std::sync::Arc;
 use term_lib::api::*;
@@ -14,16 +15,17 @@ pub struct WebSocket {
 }
 
 impl WebSocket {
-    pub fn new(url: &str) -> Result<Arc<dyn WebSocketAbi>, String> {
+    pub fn new(url: &str) -> Result<Box<dyn WebSocketAbi>, String> {
         // Open the web socket
         let ws_sys = WebSocketSys::new(url).map_err(|err| format!("{:?}", err))?;
 
-        Ok(Arc::new(WebSocket { sys: ws_sys }))
+        Ok(Box::new(WebSocket { sys: ws_sys }))
     }
 }
 
+#[async_trait]
 impl WebSocketAbi for WebSocket {
-    fn set_onopen(&self, mut callback: Box<dyn FnMut()>) {
+    fn set_onopen(&mut self, mut callback: Box<dyn FnMut()>) {
         let callback = Closure::wrap(Box::new(move |_e: web_sys::ProgressEvent| {
             callback.deref_mut()();
         }) as Box<dyn FnMut(web_sys::ProgressEvent)>);
@@ -31,7 +33,7 @@ impl WebSocketAbi for WebSocket {
         callback.forget();
     }
 
-    fn set_onclose(&self, callback: Box<dyn Fn()>) {
+    fn set_onclose(&mut self, callback: Box<dyn Fn() + Send + 'static>) {
         let callback = Closure::wrap(Box::new(move |_e: web_sys::ProgressEvent| {
             callback.deref()();
         }) as Box<dyn FnMut(web_sys::ProgressEvent)>);
@@ -40,7 +42,7 @@ impl WebSocketAbi for WebSocket {
         callback.forget();
     }
 
-    fn set_onmessage(&self, callback: Box<dyn Fn(Vec<u8>)>) {
+    fn set_onmessage(&mut self, callback: Box<dyn Fn(Vec<u8>) + Send + 'static>) {
         let callback = Arc::new(callback);
 
         let fr = web_sys::FileReader::new().unwrap();
@@ -78,7 +80,7 @@ impl WebSocketAbi for WebSocket {
         onmessage_callback.forget();
     }
 
-    fn send(&self, data: Vec<u8>) -> Result<(), String> {
+    fn send(&mut self, data: Vec<u8>) -> Result<(), String> {
         let data_len = data.len();
         let array = js_sys::Uint8Array::new_with_length(data_len as u32);
         array.copy_from(&data[..]);

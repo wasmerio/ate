@@ -1,9 +1,12 @@
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
+use derivative::*;
 
 use super::api::*;
 use super::attr::*;
 
+#[derive(Derivative)]
+#[derivative(Debug)]
 pub struct OpenHandle
 where
     Self: Send + Sync,
@@ -12,6 +15,7 @@ where
 
     pub inode: u64,
     pub fh: u64,
+    #[derivative(Debug = "ignore")]
     pub spec: FileSpec,
     pub kind: FileKind,
     pub attr: FileAttr,
@@ -20,6 +24,7 @@ where
     pub children: Vec<DirectoryEntry>,
 }
 
+#[derive(Debug)]
 pub struct DirectoryEntry
 where
     Self: Send + Sync,

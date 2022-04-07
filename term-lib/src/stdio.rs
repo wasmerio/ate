@@ -23,14 +23,12 @@ pub struct Stdio {
 }
 
 impl Stdio {
-    pub fn println(&self, fmt: fmt::Arguments) -> impl Future<Output = io::Result<usize>> {
-        let data = format!("{}", fmt);
+    pub fn println(&self, data: String) -> impl Future<Output = io::Result<usize>> {
         let mut stdout = self.stdout.clone();
         async move { stdout.write(data.as_bytes()).await }
     }
 
-    pub fn eprintln(&self, fmt: fmt::Arguments) -> impl Future<Output = io::Result<usize>> {
-        let data = format!("{}", fmt);
+    pub fn eprintln(&self, data: String) -> impl Future<Output = io::Result<usize>> {
         let mut stderr = self.stderr.clone();
         async move { stderr.write(data.as_bytes()).await }
     }

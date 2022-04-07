@@ -22,6 +22,8 @@ use bytes::Bytes;
 use fxhash::FxHashMap;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Mutex as StdMutex;
 use std::sync::RwLock as StdRwLock;
 use std::sync::Weak;
@@ -58,6 +60,7 @@ pub(crate) use crate::mesh::client::MeshClient;
 
 pub(crate) use session::MeshSession;
 
+pub use crate::mesh::core::MeshHashTable;
 pub use self::core::BackupMode;
 pub use self::core::RecoveryMode;
 pub use self::msg::FatalTerminate;
@@ -170,17 +173,34 @@ pub fn create_temporal_client(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Arc<Mes
     MeshClient::new(&cfg_ate, &cfg_mesh, client_id, true)
 }
 
-pub(crate) static GLOBAL_CERTIFICATES: Lazy<StdRwLock<Vec<AteHash>>> =
+pub static GLOBAL_CERTIFICATES: Lazy<StdRwLock<Vec<AteHash>>> =
     Lazy::new(|| StdRwLock::new(Vec::new()));
 
 pub(crate) static GLOBAL_COMM_FACTORY: Lazy<
-    StdMutex<Option<Arc<dyn Fn(MeshConnectAddr) -> Option<Stream> + Send + Sync + 'static>>>,
-> = Lazy::new(|| StdMutex::new(None));
+    Mutex<
+        Option<
+            Arc<
+                dyn Fn(
+                        MeshConnectAddr,
+                    )
+                        -> Pin<Box<dyn Future<Output = Option<Stream>> + Send + Sync + 'static>>
+                    + Send
+                    + Sync
+                    + 'static,
+            >,
+        >,
+    >,
+> = Lazy::new(|| Mutex::new(None));
 
 pub fn add_global_certificate(cert: &AteHash) {
     GLOBAL_CERTIFICATES.write().unwrap().push(cert.clone());
 }
 
-pub fn set_comm_factory(funct: impl Fn(MeshConnectAddr) -> Option<Stream> + Send + Sync + 'static) {
-    GLOBAL_COMM_FACTORY.lock().unwrap().replace(Arc::new(funct));
+pub async fn set_comm_factory(
+    funct: impl Fn(MeshConnectAddr) -> Pin<Box<dyn Future<Output = Option<Stream>> + Send + Sync + 'static>>
+        + Send
+        + Sync
+        + 'static,
+) {
+    GLOBAL_COMM_FACTORY.lock().await.replace(Arc::new(funct));
 }

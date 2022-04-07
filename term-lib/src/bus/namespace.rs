@@ -10,12 +10,15 @@ pub(super) fn generate_import_object_wasm_bus(store: &Store, env: WasmBusThread)
     imports! {
         "wasm-bus" => {
             "drop" => Function::new_native_with_env(store, env.clone(), raw::wasm_bus_drop),
-            "rand" => Function::new_native_with_env(store, env.clone(), raw::wasm_bus_rand),
+            "handle" => Function::new_native_with_env(store, env.clone(), raw::wasm_bus_handle),
             "fault" => Function::new_native_with_env(store, env.clone(), raw::wasm_bus_fault),
             "poll" => Function::new_native_with_env(store, env.clone(), raw::wasm_bus_poll),
+            "fork" => Function::new_native_with_env(store, env.clone(), raw::wasm_bus_fork),
             "listen" => Function::new_native_with_env(store, env.clone(), raw::wasm_bus_listen),
             "reply" => Function::new_native_with_env(store, env.clone(), raw::wasm_bus_reply),
+            "reply_callback" => Function::new_native_with_env(store, env.clone(), raw::wasm_bus_reply_callback),
             "call" => Function::new_native_with_env(store, env.clone(), raw::wasm_bus_call),
+            "call_instance" => Function::new_native_with_env(store, env.clone(), raw::wasm_bus_call_instance),
             "callback" => Function::new_native_with_env(store, env.clone(), raw::wasm_bus_callback),
             "thread_id" => Function::new_native_with_env(store, env.clone(), raw::wasm_bus_thread_id),
         }

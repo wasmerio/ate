@@ -1,0 +1,21 @@
+[package]
+name = "wasm-bus-macros"
+version = "1.1.0"
+authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
+edition = "2018"
+description = "WebAssembly Bus Macros"
+license = "MIT OR Apache-2.0"
+keywords = [ "wasi", "wasm", "bus" ]
+repository = "https://github.com/john-sharratt/ate"
+readme = "README.md"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "^1.0"
+quote = "^1.0"
+syn = { version = "^1.0", features = [ "full", "visit-mut", "parsing", "printing" ] }
+convert_case = "^0.5"
+wasm-bus-types = { version = "^1", path = "../wasm-bus-types" }
+derivative = { version = "^2" }

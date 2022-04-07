@@ -164,6 +164,14 @@ export interface IInstantiationService {
   createInstance<Ctor extends new (...args: any[]) => any, R extends InstanceType<Ctor>>(t: Ctor, ...args: GetLeadingNonServiceArgs<ConstructorParameters<Ctor>>): R;
 }
 
+export enum LogLevelEnum {
+  DEBUG = 0,
+  INFO = 1,
+  WARN = 2,
+  ERROR = 3,
+  OFF = 4
+}
+
 export const ILogService = createDecorator<ILogService>('LogService');
 export interface ILogService {
   serviceBrand: undefined;
@@ -180,8 +188,13 @@ export const IOptionsService = createDecorator<IOptionsService>('OptionsService'
 export interface IOptionsService {
   serviceBrand: undefined;
 
+  /**
+   * Read only access to the raw options object, this is an internal-only fast path for accessing
+   * single options without any validation as we trust TypeScript to enforce correct usage
+   * internally.
+   */
+  readonly rawOptions: Readonly<ITerminalOptions>;
   readonly options: ITerminalOptions;
-  readonly publicOptions: ITerminalOptions;
 
   readonly onOptionChange: IEvent<string>;
 
@@ -191,13 +204,7 @@ export interface IOptionsService {
 
 export type FontWeight = 'normal' | 'bold' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900' | number;
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'off';
-export enum LogLevelEnum {
-  DEBUG = 0,
-  INFO = 1,
-  WARN = 2,
-  ERROR = 3,
-  OFF = 4
-}
+
 export type RendererType = 'dom' | 'canvas';
 
 export interface ITerminalOptions {
@@ -207,6 +214,7 @@ export interface ITerminalOptions {
   bellSound: string;
   bellStyle: 'none' | 'sound' /* | 'visual' | 'both' */;
   cols: number;
+  convertEol: boolean;
   cursorBlink: boolean;
   cursorStyle: 'block' | 'underline' | 'bar';
   cursorWidth: number;
@@ -240,7 +248,6 @@ export interface ITerminalOptions {
 
   [key: string]: any;
   cancelEvents: boolean;
-  convertEol: boolean;
   termName: string;
 }
 

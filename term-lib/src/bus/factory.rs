@@ -6,9 +6,10 @@ use std::sync::Mutex;
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::CallError;
 use wasm_bus::abi::CallHandle;
-use wasm_bus::backend::process::StdioMode;
+use wasm_bus_process::api::StdioMode;
 
 use super::*;
+use crate::bus::WasmCallerContext;
 
 // A BUS factory is created for every running process and allows them
 // to spawn operating system commands and/or other sub processes
@@ -19,10 +20,10 @@ pub struct BusFactory {
 }
 
 impl BusFactory {
-    pub fn new(process_factory: ProcessExecFactory) -> BusFactory {
+    pub fn new(process_factory: ProcessExecFactory, multiplexer: SubProcessMultiplexer) -> BusFactory {
         BusFactory {
             standard: StandardBus::new(process_factory.clone()),
-            sub_processes: SubProcessFactory::new(process_factory),
+            sub_processes: SubProcessFactory::new(process_factory, multiplexer),
             sessions: Arc::new(Mutex::new(HashMap::default())),
         }
     }
@@ -34,32 +35,61 @@ impl BusFactory {
         wapm: String,
         topic: String,
         request: Vec<u8>,
-        client_callbacks: HashMap<String, WasmBusCallback>,
-    ) -> Box<dyn Invokable> {
+        this_callback: Arc<dyn BusFeeder + Send + Sync + 'static>,
+        client_callbacks: HashMap<String, Arc<dyn BusFeeder + Send + Sync + 'static>>,
+        ctx: WasmCallerContext,
+        keepalive: bool,
+        env: LaunchEnvironment,
+    ) -> Box<dyn Invokable + 'static> {
         // If it has a parent then we need to make the call relative to this parents session
         if let Some(parent) = parent {
             let mut sessions = self.sessions.lock().unwrap();
             if let Some(session) = sessions.get_mut(&parent) {
-                return session.call(topic.as_ref(), request);
+                match session.call(topic.as_ref(), request, keepalive) {
+                    Ok((ret, session)) => {
+                        // If it returns a session then start it
+                        if let Some(session) = session {
+                            sessions.insert(handle, session);
+                        }
+                        return ret;
+                    },
+                    Err(err) => {
+                        debug!("session call failed (handle={}) - {}", parent, err);
+                        return ErrornousInvokable::new(err);
+                    }
+                }
+            } else {
+                // Session is orphaned
+                debug!("orphaned wasm-bus session (handle={})", parent);
+                return ErrornousInvokable::new(CallError::InvalidHandle);
             }
         }
 
         // Push this into an asynchronous operation
         Box::new(BusStartInvokable {
             standard: self.standard.clone(),
+            env: env.clone(),
             handle,
             sub_processes: self.sub_processes.clone(),
             sessions: self.sessions.clone(),
             wapm,
             topic,
             request: Some(request),
+            this_callback,
             client_callbacks,
+            ctx,
+            keepalive,
         })
     }
 
     pub fn close(&mut self, handle: CallHandle) -> Option<Box<dyn Session>> {
         let mut sessions = self.sessions.lock().unwrap();
+        trace!("closing handle={}", handle);
         sessions.remove(&handle)
+    }
+
+    pub fn sessions(&self) -> Arc<Mutex<HashMap<CallHandle, Box<dyn Session>>>> {
+        self.sessions.clone()
     }
 }
 
@@ -68,13 +98,17 @@ where
     Self: Send + 'static,
 {
     standard: StandardBus,
+    env: LaunchEnvironment,
     handle: CallHandle,
     sub_processes: SubProcessFactory,
     sessions: Arc<Mutex<HashMap<CallHandle, Box<dyn Session>>>>,
     wapm: String,
     topic: String,
     request: Option<Vec<u8>>,
-    client_callbacks: HashMap<String, WasmBusCallback>,
+    this_callback: Arc<dyn BusFeeder + Send + Sync + 'static>,
+    client_callbacks: HashMap<String, Arc<dyn BusFeeder + Send + Sync + 'static>>,
+    ctx: WasmCallerContext,
+    keepalive: bool,
 }
 
 #[async_trait]
@@ -82,7 +116,7 @@ impl Invokable for BusStartInvokable
 where
     Self: Send + 'static,
 {
-    async fn process(&mut self) -> Result<Vec<u8>, CallError> {
+    async fn process(&mut self) -> Result<InvokeResult, CallError> {
         // Get the client callbacks
         let client_callbacks = self.client_callbacks.clone();
 
@@ -101,7 +135,9 @@ where
                 self.wapm.as_str(),
                 self.topic.as_str(),
                 &request,
+                &self.this_callback,
                 &client_callbacks,
+                &self.env,
             )
             .await
         {
@@ -115,25 +151,40 @@ where
             Ok((mut invoker, None)) => {
                 return invoker.process().await;
             }
-            Err(CallError::InvalidTopic) => { /* fall through */ }
+            Err(CallError::InvalidTopic) if self.wapm.as_str() != "os" => { /* fall through */ }
+            Err(CallError::InvalidTopic) => return Err(CallError::InvalidTopic),
             Err(err) => return Err(err),
         };
 
         // First we get or start the sub_process that will handle the requests
         let sub_process = self
             .sub_processes
-            .get_or_create(self.wapm.as_str(), StdioMode::Log)
+            .get_or_create(
+                self.wapm.as_str(),
+                &self.env,
+                StdioMode::Log,
+                StdioMode::Log)
             .await?;
 
-        // Next we kick all the call itself into the process (with assocated callbacks)
-        let call = sub_process.create(self.topic.as_str(), request, client_callbacks)?;
+        // Next we kick off the call itself into the process (with assocated callbacks)
+        let call = sub_process.create(
+            self.topic.as_str(),
+            request,
+            self.ctx.clone(),
+            client_callbacks,
+            self.keepalive,
+        )?;
         let mut invoker = match call {
             (invoker, Some(session)) => {
                 let mut sessions = self.sessions.lock().unwrap();
+                trace!("adding session handle={}", self.handle);
                 sessions.insert(self.handle, session);
                 invoker
             }
-            (invoker, None) => invoker,
+            (invoker, None) => {
+                trace!("no session for handle={}", self.handle);
+                invoker
+            },
         };
 
         // Now invoke it

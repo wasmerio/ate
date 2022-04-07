@@ -2,7 +2,9 @@ use std::sync::Arc;
 use std::sync::Mutex as StdMutex;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
+use bytes::Bytes;
 
+use crate::crypto::AteHash;
 use crate::comms::Metrics;
 use crate::error::*;
 use crate::event::*;
@@ -32,12 +34,12 @@ impl std::fmt::Debug for ChainOfTrust {
 }
 
 impl<'a> ChainOfTrust {
-    pub(crate) async fn load(&self, leaf: EventLeaf) -> Result<LoadResult, LoadError> {
+    pub(crate) async fn load(&self, leaf: EventLeaf) -> Result<LoadWeakResult, LoadError> {
         #[cfg(feature = "enable_verbose")]
         debug!("loading: {}", leaf.record);
 
-        let data = self.redo.load(leaf.record.clone()).await?;
-        Ok(LoadResult {
+        let data = self.redo.load(leaf.record).await?;
+        Ok(LoadWeakResult {
             lookup: data.lookup,
             header: data.header,
             data: data.data,
@@ -48,18 +50,18 @@ impl<'a> ChainOfTrust {
     pub(crate) async fn load_many(
         &self,
         leafs: Vec<EventLeaf>,
-    ) -> Result<Vec<LoadResult>, LoadError> {
+    ) -> Result<Vec<LoadWeakResult>, LoadError> {
         let mut ret = Vec::new();
 
         let mut futures = Vec::new();
         for leaf in leafs.into_iter() {
-            let data = self.redo.load(leaf.record.clone());
+            let data = self.redo.load(leaf.record);
             futures.push((data, leaf));
         }
 
         for (join, leaf) in futures.into_iter() {
             let data = join.await?;
-            ret.push(LoadResult {
+            ret.push(LoadWeakResult {
                 lookup: data.lookup,
                 header: data.header,
                 data: data.data,
@@ -68,6 +70,10 @@ impl<'a> ChainOfTrust {
         }
 
         Ok(ret)
+    }
+
+    pub(crate) fn prime(&mut self, records: Vec<(AteHash, Option<Bytes>)>) {
+        self.redo.prime(records);
     }
 
     pub(crate) fn lookup_primary(&self, key: &PrimaryKey) -> Option<EventLeaf> {
@@ -84,6 +90,10 @@ impl<'a> ChainOfTrust {
 
     pub(crate) fn lookup_secondary_raw(&self, key: &MetaCollection) -> Option<Vec<PrimaryKey>> {
         self.timeline.lookup_secondary_raw(key)
+    }
+
+    pub(crate) fn roots_raw(&self) -> Vec<PrimaryKey> {
+        self.timeline.roots_raw()
     }
 
     pub(crate) fn invalidate_caches(&mut self) {

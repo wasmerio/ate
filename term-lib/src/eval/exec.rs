@@ -3,13 +3,19 @@
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use sha2::digest::generic_array::sequence::Lengthen;
+use std::collections::HashMap;
+use std::future::Future;
 use std::io::Read;
 use std::ops::Deref;
+use std::ops::DerefMut;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::AtomicI32;
+use std::pin::Pin;
+use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::task::Context;
+use std::task::Poll;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tokio::sync::watch;
@@ -41,12 +47,13 @@ use crate::wasmer_wasi::Stdin;
 use crate::wasmer_wasi::{Stdout, WasiError, WasiState};
 
 pub enum ExecResponse {
-    Immediate(i32),
-    Process(Process, AsyncResult<i32>),
+    Immediate(EvalContext, u32),
+    OrphanedImmediate(u32),
+    Process(Process, AsyncResult<(EvalContext, u32)>),
 }
 
 pub async fn exec(
-    ctx: &mut EvalContext,
+    ctx: EvalContext,
     builtins: &Builtins,
     cmd: &String,
     args: &Vec<String>,
@@ -54,20 +61,11 @@ pub async fn exec(
     show_result: &mut bool,
     mut stdio: Stdio,
     redirect: &Vec<Redirect>,
-) -> Result<ExecResponse, i32> {
+) -> Result<ExecResponse, u32> {
     // If there is a built in then use it
     if let Some(builtin) = builtins.get(cmd) {
         *show_result = true;
-        let mut ret = builtin(&args, ctx, stdio).await;
-        if let Some(mut new_ctx) = ret.ctx {
-            ctx.working_dir = new_ctx.working_dir;
-            ctx.new_pwd = new_ctx.new_pwd;
-            ctx.new_mounts.append(&mut new_ctx.new_mounts);
-        }
-        return Ok(match ret.result {
-            Ok(a) => a,
-            Err(err) => ExecResponse::Immediate(err),
-        });
+        return Ok(builtin(&args, ctx, stdio).await);
     }
 
     let (process, process_result, _) =
@@ -77,17 +75,24 @@ pub async fn exec(
 }
 
 pub async fn exec_process(
-    ctx: &mut EvalContext,
+    mut ctx: EvalContext,
     cmd: &String,
     args: &Vec<String>,
     env_vars: &Vec<String>,
     show_result: &mut bool,
     mut stdio: Stdio,
     redirect: &Vec<Redirect>,
-) -> Result<(Process, AsyncResult<i32>, Arc<WasmBusThreadPool>), i32> {
+) -> Result<
+    (
+        Process,
+        AsyncResult<(EvalContext, u32)>,
+        Arc<WasmBusThreadPool>,
+    ),
+    u32,
+> {
     // Make an error message function
     let mut early_stderr = stdio.stderr.clone();
-    let on_early_exit = |msg: Option<String>, err: i32| async move {
+    let on_early_exit = |msg: Option<String>, err: u32| async move {
         *show_result = true;
         if let Some(msg) = msg {
             let _ = early_stderr.write(msg.as_bytes()).await;
@@ -97,14 +102,27 @@ pub async fn exec_process(
 
     // Grab the private file system for this binary (if the binary changes the private
     // file system will also change)
+    let mut mappings = Vec::new();
     let mut preopen = ctx.pre_open.clone();
+    let mut envs = ctx.env.iter().filter_map(|(k, _)| ctx.env.get(k.as_str()).map(|v| (k.clone(), v))).collect::<HashMap<_,_>>();
+    let mut set_pwd = false;
+    let mut base_dir = None;
     let mut chroot = ctx.chroot;
-    let (data_hash, data, fs_private) = match load_bin(ctx, cmd, &mut stdio).await {
+    let (data_hash, data, mut fs_private) = match load_bin(&ctx, cmd, &mut stdio).await {
         Some(a) => {
             if a.chroot {
                 chroot = true;
             }
-            preopen.extend(a.mappings.into_iter());
+            if let Some(d) = a.base_dir {
+                base_dir = Some(d);
+            }
+            for (k, v) in a.envs {
+                if k == "PWD" {
+                    set_pwd = true;
+                }
+                envs.insert(k, v);
+            }
+            mappings.extend(a.mappings.into_iter());
 
             (a.hash, a.data, a.fs)
         }
@@ -112,27 +130,53 @@ pub async fn exec_process(
             return on_early_exit(None, err::ERR_ENOENT).await;
         }
     };
+    if set_pwd == false {
+        if let Some(ref base_dir) = base_dir {
+            envs.insert("PWD".to_string(), base_dir.clone());
+        } else {
+            envs.insert("PWD".to_string(), ctx.working_dir.clone());
+        }
+    }
+
+    // If compile caching is enabled the load the module
+    #[cfg(feature = "cached_compiling")]
+    let mut module = { ctx.bins.get_compiled_module(&data_hash, ctx.compiler).await };
+
+    // We listen for any forced exits using this channel
+    let caller_ctx = WasmCallerContext::default();
+    fs_private.set_ctx(&caller_ctx);
 
     // Create the filesystem
     let (fs, union) = {
         let root = ctx.root.clone();
         let stdio = stdio.clone();
 
-        let mut union = UnionFileSystem::new();
-        union.mount("root", Path::new("/"), Box::new(root));
-        union.mount(
-            "proc",
-            Path::new("/dev"),
-            Box::new(ProcFileSystem::new(stdio)),
-        );
-        union.mount("tmp", Path::new("/tmp"), Box::new(TmpFileSystem::default()));
-        union.mount("private", Path::new("/.private"), Box::new(fs_private));
+        let mut union = root.clone();
+        union.mount("proc", "/dev", true, Box::new(ProcFileSystem::new(stdio)), None);
+        union.mount("tmp", "/tmp", true, Box::new(TmpFileSystem::new()), None);
+        union.mount("private", "/.private", true, Box::new(fs_private), None);
+
+        for mapping in mappings {
+            if let Some((lhs, rhs)) = mapping.split_once(":") {
+                let root = root.clone();
+                let name = format!("mapping-{}", fastrand::u64(..));
+                union.mount(name.as_str(), lhs, true, Box::new(root), Some(rhs));
+            }
+        }
+
+        union.set_ctx(&caller_ctx);
 
         (AsyncifyFileSystem::new(union.clone()), union)
     };
 
     // Perform all the redirects
     for redirect in redirect.iter() {
+        // If its not an absolutely path then make it one
+        let mut filename = redirect.filename.clone();
+        if filename.starts_with("/") == false {
+            filename = format!("{}{}", ctx.working_dir, filename);
+        }
+
         // Attempt to open the file
         let file = fs
             .new_open_options()
@@ -143,34 +187,51 @@ pub async fn exec_process(
             .append(redirect.op.append())
             .read(redirect.op.read())
             .write(redirect.op.write())
-            .open(redirect.filename.clone())
+            .open(filename)
             .await;
         match file {
             Ok(mut file) => {
                 // Open a new file description
-                let (tx, mut rx) = {
-                    let (fd, tx, rx) = bidirectional_with_defaults(false);
+                let (tx, mut rx, flag) = {
+                    let (fd, tx, rx) = bidirectional_with_defaults(FdFlag::None);
 
                     // We now connect the newly opened file descriptor with the read file
+                    let mut flag = FdFlag::None;
                     match redirect.fd {
                         -1 => {
                             if redirect.op.read() {
-                                stdio.stdin = fd.clone();
+                                let mut fd = fd.clone();
+                                flag = fd.set_flag(FdFlag::Stdin(false));
+                                stdio.stdin = fd;
                             }
                             if redirect.op.write() {
+                                let mut fd = fd.clone();
+                                flag = fd.set_flag(FdFlag::Stdout(false));
                                 stdio.stdout = fd;
                             }
                         }
-                        0 => stdio.stdin = fd,
-                        1 => stdio.stdout = fd,
-                        2 => stdio.stderr = fd,
+                        0 => {
+                            let mut fd = fd.clone();
+                            flag = fd.set_flag(FdFlag::Stdin(false));
+                            stdio.stdin = fd
+                        }
+                        1 => {
+                            let mut fd = fd.clone();
+                            flag = fd.set_flag(FdFlag::Stdout(false));
+                            stdio.stdout = fd
+                        }
+                        2 => {
+                            let mut fd = fd.clone();
+                            flag = fd.set_flag(FdFlag::Stderr(false));
+                            stdio.stderr = fd
+                        }
                         _ => {
                             return on_early_exit(Some(format!("redirecting non-standard file descriptors is not yet supported")), err::ERR_EINVAL).await;
                         }
                     };
 
                     // Now we need to hook up the receiver and sender
-                    (tx, rx)
+                    (tx, rx, flag)
                 };
 
                 // Now hook up the sender and receiver on a shared task
@@ -180,13 +241,22 @@ pub async fn exec_process(
                 system.fork_shared(move || async move {
                     if is_read {
                         while let Ok(read) = file.read(4096).await {
-                            let _ = tx.send(read).await;
+                            let _ = tx.send(FdMsg::new(read, flag)).await;
                         }
                     }
                     if is_write {
-                        while let Some(data) = rx.recv().await {
-                            let _ = file.write_all(data).await;
+                        while let Some(msg) = rx.recv().await {
+                            match msg {
+                                FdMsg::Data { data, .. } => {
+                                    let _ = file.write_all(data).await;
+                                }
+                                FdMsg::Flush { tx } => {
+                                    file.flush().await;
+                                    let _ = tx.send(()).await;
+                                }
+                            }
                         }
+                        file.flush().await;
                     }
                 });
             }
@@ -206,215 +276,276 @@ pub async fn exec_process(
         }
     }
 
+    // Extract the bits we need from the eval context
+    // as we will move it soon
+    let sys = ctx.system;
+    let mut stderr = ctx.stdio.stderr.clone();
+    let bins = ctx.bins.clone();
+    let compiler = ctx.compiler;
+    let reactor = ctx.reactor.clone();
+    let chroot = if chroot {
+        if let Some(ref base_dir) = base_dir {
+            Some(base_dir.clone())
+        } else {
+            Some(ctx.working_dir.clone())
+        }
+    } else {
+        None
+    };
+
     // Create the process factory that used by this process to create sub-processes
+    let launch_env = LaunchEnvironment {
+        abi: ctx.abi.clone(),
+        inherit_stdin: stdio.stdin.downgrade(),
+        inherit_stdout: stdio.stdout.downgrade(),
+        inherit_stderr: stdio.stderr.downgrade(),
+        inherit_log: stdio.log.downgrade(),
+    };
     let sub_process_factory = ProcessExecFactory::new(
         ctx.reactor.clone(),
+        compiler,
         ctx.exec_factory.clone(),
-        stdio.stdin.downgrade(),
-        stdio.stdout.downgrade(),
-        stdio.stderr.downgrade(),
-        stdio.log.downgrade(),
+        ctx,
     );
+    
+    let forced_exit = caller_ctx.get_forced_exit();
 
     // The BUS pool is what gives this WASM process its syscall and operation system
     // functions and services
-    let bus_thread_pool = WasmBusThreadPool::new(sub_process_factory);
+    let bus_thread_pool = WasmBusThreadPool::new(sub_process_factory, caller_ctx.clone());
     let bus_thread_pool_ret = Arc::clone(&bus_thread_pool);
-
-    // We listen for any forced exits using this channel
-    let forced_exit = Arc::new(AtomicI32::new(0));
 
     // This wait point is so that the main thread is created before it returns
     let (checkpoint_tx, mut checkpoint_rx) = mpsc::channel(1);
 
     // Spawn the process on a background thread
-    let mut stderr = ctx.stdio.stderr.clone();
-    let reactor = ctx.reactor.clone();
     let cmd = cmd.clone();
     let args = args.clone();
-    let chroot = if chroot {
-        Some(ctx.working_dir.clone())
-    } else {
-        None
-    };
     let process_result = {
         let forced_exit = Arc::clone(&forced_exit);
-        ctx.system
-            .spawn_stateful(move |mut thread_local| async move {
-                let mut thread_local = thread_local.borrow_mut();
+        sys.spawn_stateful(move |mut thread_local| async move {
+            let mut thread_local = thread_local.borrow_mut();
 
-                // Load or compile the module (they are cached in therad local storage)
-                let mut module = thread_local.modules.get_mut(&data_hash);
-                if module.is_none() {
-                    if stderr.is_tty() {
-                        let _ = stderr.write("Compiling...".as_bytes()).await;
-                    } else {
-                        let _ = stderr
-                            .write(format!("[console] compiling WASM module ({})", cmd).as_bytes())
-                            .await;
-                    }
+            // TODO: This caching of the modules was disabled as there is a bug within
+            //       wasmer Module and JsValue that causes a panic in certain race conditions
+            // Load or compile the module (they are cached in therad local storage)
+            //let mut module = thread_local.modules.get_mut(&data_hash);
+            #[cfg(not(feature = "cached_compiling"))]
+            let mut module = None;
 
-                    // Cache miss - compile the module
-                    let store = Store::default();
-                    let compiled_module = match Module::new(&store, &data[..]) {
-                        Ok(a) => a,
-                        Err(err) => {
-                            if stderr.is_tty() {
-                                stderr.write_clear_line().await;
-                            }
-                            let _ = stderr
-                                .write(format!("compile-error: {}\n", err).as_bytes())
-                                .await;
-                            return ERR_ENOEXEC;
-                        }
-                    };
-                    if stderr.is_tty() {
-                        stderr.write_clear_line().await;
-                    }
-                    info!(
-                        "compiled {}",
-                        compiled_module.name().unwrap_or_else(|| cmd.as_str())
-                    );
-
-                    thread_local
-                        .modules
-                        .insert(data_hash.clone(), compiled_module);
-                    module = thread_local.modules.get_mut(&data_hash);
-                }
-                let module = module.unwrap();
-
-                // Build the list of arguments
-                let args = args.iter().skip(1).map(|a| a.as_str()).collect::<Vec<_>>();
-
-                // Create the `WasiEnv`.
-                let mut wasi_env = WasiState::new(cmd.as_str());
-                let mut wasi_env = wasi_env
-                    .args(&args)
-                    .stdin(Box::new(stdio.stdin.clone()))
-                    .stdout(Box::new(stdio.stdout.clone()))
-                    .stderr(Box::new(stdio.stderr.clone()));
-
-                // Add the extra pre-opens
-                if preopen.len() > 0 {
-                    for pre_open in preopen {
-                        let res = if let Some((alias, po_dir)) = pre_open.split_once(":") {
-                            wasi_env.map_dir(alias, po_dir).is_ok()
-                        } else {
-                            wasi_env.preopen_dir(Path::new(pre_open.as_str())).is_ok()
-                        };
-                        if res == false {
-                            if stderr.is_tty() {
-                                stderr.write_clear_line().await;
-                            }
-                            let _ = stderr
-                                .write(format!("pre-open error (path={})\n", pre_open).as_bytes())
-                                .await;
-                            return ERR_ENOEXEC;
-                        }
-                    }
-
-                // Or we default and open the current directory
-                } else if let Some(chroot) = chroot {
-                    wasi_env
-                        .preopen_dir(Path::new(chroot.as_str()))
-                        .unwrap()
-                        .map_dir(".", Path::new(chroot.as_str()));
-                } else {
-                    wasi_env.preopen_dir(Path::new("/")).unwrap();
+            if module.is_none() {
+                if stderr.is_tty() {
+                    let _ = stderr.write("Compiling...".as_bytes()).await;
                 }
 
-                // Add the tick callback that will invoke the WASM bus background
-                // operations on the current thread
-                {
-                    let bus_pool = Arc::clone(&bus_thread_pool);
-                    wasi_env.on_yield(move |thread| {
-                        let forced_exit = forced_exit.load(Ordering::Acquire);
-                        if forced_exit != 0 {
-                            wasmer::RuntimeError::raise(Box::new(wasmer_wasi::WasiError::Exit(
-                                forced_exit as u32,
-                            )));
-                        }
-                        let thread = bus_pool.get_or_create(thread);
-                        unsafe {
-                            crate::bus::syscalls::raw::wasm_bus_tick(&thread);
-                        }
-                    });
-                }
+                // Choose the right compiler
+                let store = compiler.new_store();
 
-                // Finish off the WasiEnv
-                let mut wasi_env = match wasi_env.set_fs(Box::new(union)).finalize() {
+                // Cache miss - compile the module
+                debug!("compiling {}", cmd);
+                let compiled_module = match Module::new(&store, &data[..]) {
                     Ok(a) => a,
                     Err(err) => {
-                        drop(module);
                         if stderr.is_tty() {
                             stderr.write_clear_line().await;
                         }
                         let _ = stderr
-                            .write(format!("exec error: {}\n", err.to_string()).as_bytes())
+                            .write(format!("compile-error: {}\n", err).as_bytes())
                             .await;
-                        return ERR_ENOEXEC;
+                        let ctx = bus_thread_pool.take_context().unwrap();
+                        return (ctx, ERR_ENOEXEC);
                     }
                 };
-
-                // List all the exports
-                for ns in module.exports() {
-                    trace!("module::export - {}", ns.name());
+                if stderr.is_tty() {
+                    stderr.write_clear_line().await;
                 }
-                for ns in module.imports() {
-                    trace!("module::import - {}::{}", ns.module(), ns.name());
-                }
+                info!(
+                    "compiled {}",
+                    compiled_module.name().unwrap_or_else(|| cmd.as_str())
+                );
 
-                // Create the WASI thread
-                let mut wasi_thread = wasi_env.new_thread();
+                #[cfg(feature = "cached_compiling")]
+                bins.set_compiled_module(data_hash.clone(), compiler, compiled_module.clone())
+                    .await;
 
-                // Generate an `ImportObject`.
-                let wasi_import = wasi_thread.import_object(&module).unwrap();
-                let mut wasm_thread = bus_thread_pool.get_or_create(&wasi_thread);
-                let wasm_bus_import = wasm_thread.import_object(&module);
-                let import = wasi_import.chain_front(wasm_bus_import);
+                thread_local
+                    .modules
+                    .insert(data_hash.clone(), compiled_module);
 
-                // Let's instantiate the module with the imports.
-                let instance = Instance::new(&module, &import).unwrap();
+                module = thread_local.modules.get(&data_hash).map(|m| m.clone());
+            }
+            drop(thread_local);
+            let mut module = module.unwrap();
 
-                // Let's call the `_start` function, which is our `main` function in Rust.
-                let start = instance
-                    .exports
-                    .get_native_function::<(), ()>("_start")
-                    .ok();
+            // Build the list of arguments
+            let args = args.iter().skip(1).map(|a| a.as_str()).collect::<Vec<_>>();
+            let envs = envs.iter().map(|(a, b)| (a.as_str(), b.as_str())).collect::<HashMap<_,_>>();
+            
+            // Create the `WasiEnv`.
+            let mut wasi_env = WasiState::new(cmd.as_str());
+            let mut wasi_env = wasi_env
+                .args(&args)
+                .envs(&envs)
+                .stdin(Box::new(stdio.stdin.clone()))
+                .stdout(Box::new(stdio.stdout.clone()))
+                .stderr(Box::new(stdio.stderr.clone()));
 
-                // We are ready for the checkpoint
-                checkpoint_tx.send(()).await;
-
-                // If there is a start function
-                debug!("called main() on {}", cmd);
-                let ret = if let Some(start) = start {
-                    match start.call() {
-                        Ok(a) => err::ERR_OK,
-                        Err(e) => match e.downcast::<WasiError>() {
-                            Ok(WasiError::Exit(code)) => code as i32,
-                            Ok(WasiError::UnknownWasiVersion) => {
-                                let _ = stdio
-                                    .stderr
-                                    .write(
-                                        &format!("exec-failed: unknown wasi version\n").as_bytes()
-                                            [..],
-                                    )
-                                    .await;
-                                err::ERR_ENOEXEC
-                            }
-                            Err(err) => err::ERR_PANIC,
-                        },
+            // Add the extra pre-opens
+            if preopen.len() > 0 {
+                for pre_open in preopen {
+                    let res = if let Some((alias, po_dir)) = pre_open.split_once(":") {
+                        wasi_env.map_dir(alias, po_dir).is_ok()
+                    } else {
+                        wasi_env.preopen_dir(Path::new(pre_open.as_str())).is_ok()
+                    };
+                    if res == false {
+                        if stderr.is_tty() {
+                            stderr.write_clear_line().await;
+                        }
+                        let _ = stderr
+                            .write(format!("pre-open error (path={})\n", pre_open).as_bytes())
+                            .await;
+                        let ctx = bus_thread_pool.take_context().unwrap();
+                        return (ctx, ERR_ENOEXEC);
                     }
-                } else {
-                    let _ = stdio
-                        .stderr
-                        .write(&format!("exec-failed: missing _start function\n").as_bytes()[..])
+                }
+
+            // Or we default and open the current directory
+            } else if let Some(chroot) = chroot {
+                wasi_env
+                    .preopen_dir(Path::new(chroot.as_str()))
+                    .unwrap()
+                    .map_dir(".", Path::new(chroot.as_str()));
+            } else {
+                wasi_env.preopen_dir(Path::new("/")).unwrap();
+            }
+            
+            // Add the tick callback that will invoke the WASM bus background
+            // operations on the current thread
+            wasi_env.on_yield(move |thread| {
+                let forced_exit = forced_exit.load(Ordering::Acquire);
+                if forced_exit != 0 {
+                    return Err(WasiError::Exit(forced_exit));
+                }
+                Ok(())
+            });
+
+            // Finish off the WasiEnv
+            let mut wasi_env = match wasi_env.set_fs(Box::new(union)).finalize() {
+                Ok(a) => a,
+                Err(err) => {
+                    drop(module);
+                    if stderr.is_tty() {
+                        stderr.write_clear_line().await;
+                    }
+                    let _ = stderr
+                        .write(format!("exec error: {}\n", err.to_string()).as_bytes())
                         .await;
-                    err::ERR_ENOEXEC
-                };
-                info!("exited (name={}) with code {}", cmd, ret);
-                ret
-            })
+                    let ctx = bus_thread_pool.take_context().unwrap();
+                    return (ctx, ERR_ENOEXEC);
+                }
+            };
+
+            // List all the exports
+            for ns in module.exports() {
+                trace!("module::export - {}", ns.name());
+            }
+            for ns in module.imports() {
+                trace!("module::import - {}::{}", ns.module(), ns.name());
+            }
+
+            // Create the WASI thread
+            let mut wasi_thread = wasi_env.new_thread();
+
+            // Generate an `ImportObject`.
+            let wasi_import = wasi_thread.import_object(&module).unwrap();
+            let mut wasm_thread = bus_thread_pool.get_or_create(&wasi_thread, &launch_env);
+            let wasm_bus_import = wasm_thread.import_object(&module);
+            let import = wasi_import.chain_front(wasm_bus_import);
+            let bus_thread_pool = bus_thread_pool.to_take_context();
+
+            // Let's instantiate the module with the imports.
+            let instance = Instance::new(&module, &import).unwrap();
+
+            // Pre-init a bunch of the functions
+            if let Ok(mem) = instance.exports.get_memory("memory") {
+                wasm_thread.memory.initialize(mem.clone());
+            }
+            if let Ok(funct) = instance.exports.get_native_function("wasm_bus_malloc") {
+                wasm_thread.wasm_bus_malloc.initialize(funct);
+            }
+            if let Ok(funct) = instance.exports.get_native_function("wasm_bus_free") {
+                wasm_thread.wasm_bus_free.initialize(funct);
+            }
+            if let Ok(funct) = instance.exports.get_native_function("wasm_bus_start") {
+                wasm_thread.wasm_bus_start.initialize(funct);
+            }
+            if let Ok(funct) = instance.exports.get_native_function("wasm_bus_finish") {
+                wasm_thread.wasm_bus_finish.initialize(funct);
+            }
+            if let Ok(funct) = instance.exports.get_native_function("wasm_bus_error") {
+                wasm_thread.wasm_bus_error.initialize(funct);
+            }
+            if let Ok(funct) = instance.exports.get_native_function("wasm_bus_drop") {
+                wasm_thread.wasm_bus_drop.initialize(funct);
+            }
+
+            // Let's call the `_start` function, which is our `main` function in Rust.
+            let start = instance
+                .exports
+                .get_native_function::<(), ()>("_start")
+                .ok();
+
+            // We are ready for the checkpoint
+            checkpoint_tx.send(()).await;
+
+            // If there is a start function
+            debug!("called main() on {}", cmd);
+            let mut ret = if let Some(start) = start {
+                match start.call() {
+                    Ok(a) => err::ERR_OK,
+                    Err(e) => match e.downcast::<WasiError>() {
+                        Ok(WasiError::Exit(code)) => code,
+                        Ok(WasiError::UnknownWasiVersion) => {
+                            let _ = stderr
+                                .write(
+                                    &format!("exec-failed: unknown wasi version\n").as_bytes()[..],
+                                )
+                                .await;
+                            err::ERR_ENOEXEC
+                        }
+                        Err(err) => err::ERR_PANIC,
+                    },
+                }
+            } else {
+                let _ = stderr
+                    .write(&format!("exec-failed: missing _start function\n").as_bytes()[..])
+                    .await;
+                err::ERR_ENOEXEC
+            };
+
+            // If there is a polling worker that got registered then its time to consume
+            // it which will effectively bring up a reactor based WASM module
+            let worker = unsafe {
+                let mut inner = wasm_thread.inner.lock();
+                inner.poll_thread.take()
+            };
+            if let Some(worker) = worker {
+                // Running this in a select ensures any finished callbacks
+                // are also processed whenever the worker thread goes idle.
+                // The wasm_thread.await never finishes by design.
+                ret = ExecInterlacer {
+                    poll_thread: worker,
+                    wasm_thread,
+                }
+                .await;
+            }
+
+            // Ok we are done
+            debug!("exited (name={}) with code {}", cmd, ret);
+            let ctx = bus_thread_pool.take_context().unwrap();
+            (ctx, ret)
+        })
     };
 
     // Wait for the checkpoint (either it triggers or it fails because its never reached
@@ -423,8 +554,8 @@ pub async fn exec_process(
 
     // Generate a PID for this process
     let (pid, process) = {
-        let mut guard = ctx.reactor.write().await;
-        let pid = guard.generate_pid(bus_thread_pool_ret.clone(), forced_exit)?;
+        let mut guard = reactor.write().await;
+        let pid = guard.generate_pid(bus_thread_pool_ret.clone(), caller_ctx)?;
         let process = match guard.get_process(pid) {
             Some(a) => a,
             None => {
@@ -436,4 +567,35 @@ pub async fn exec_process(
     debug!("process created (pid={})", pid);
 
     Ok((process, process_result, bus_thread_pool_ret))
+}
+
+struct ExecInterlacer {
+    poll_thread: Pin<Box<dyn Future<Output = u32> + Send + 'static>>,
+    wasm_thread: WasmBusThread,
+}
+
+impl Future for ExecInterlacer {
+    type Output = u32;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        // Run the wasm thread
+        let mut wasm_thread = Pin::new(&mut self.wasm_thread);
+        if let Poll::Ready(ret) = wasm_thread.poll(cx) {
+            return Poll::Ready(err::ERR_ECONNABORTED);
+        }
+
+        let mut poll_thread = self.poll_thread.as_mut();
+        if let Poll::Ready(ret) = poll_thread.poll(cx) {
+            return Poll::Ready(ret);
+        }
+
+        // Run the wasm thread
+        let mut wasm_thread = Pin::new(&mut self.wasm_thread);
+        if let Poll::Ready(ret) = wasm_thread.poll(cx) {
+            return Poll::Ready(err::ERR_ECONNABORTED);
+        }
+
+        // We are pending
+        return Poll::Pending;
+    }
 }

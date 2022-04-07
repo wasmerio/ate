@@ -1,27 +1,25 @@
 use std::future::Future;
 use std::path::Path;
 use std::pin::Pin;
-use std::sync::Arc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use wasm_bus::backend::process::StdioMode;
+use wasm_bus_process::prelude::StdioMode;
 use wasmer_vfs::FileSystem;
 
-use super::CommandResult;
 use crate::bus::ProcessExecFactory;
 use crate::bus::SubProcessFactory;
+use crate::bus::SubProcessMultiplexer;
 use crate::eval::EvalContext;
 use crate::eval::ExecResponse;
 use crate::fs::FuseFileSystem;
-use crate::fs::MountPoint;
 use crate::stdio::*;
 use crate::tty::*;
 
 pub(super) fn mount(
     args: &[String],
-    ctx: &mut EvalContext,
+    mut ctx: EvalContext,
     mut stdio: Stdio,
-) -> Pin<Box<dyn Future<Output = CommandResult>>> {
+) -> Pin<Box<dyn Future<Output = ExecResponse> + Send>> {
     let wapm: String;
     let mountpoint: String;
     let target: String;
@@ -38,91 +36,134 @@ pub(super) fn mount(
         }
         a if a > 4 => {
             return Box::pin(async move {
-                let _ = stdio
-                    .stderr
-                    .write(format!("mount: too many arguments\r\n").as_bytes())
-                    .await;
-                ExecResponse::Immediate(0).into()
+                print(format!("mount: too many arguments\r\n"), &mut stdio, true).await;
+                ExecResponse::Immediate(ctx, 0)
             });
         }
         _ => {
+            let mounts = ctx.root.mounts.clone();
             return Box::pin(async move {
-                let _ = stdio
-                    .stderr
-                    .write(Tty::MOUNT_USAGE.to_string().as_bytes())
-                    .await;
-                ExecResponse::Immediate(0).into()
+                print(Tty::MOUNT_USAGE.to_string(), &mut stdio, false).await;
+
+                // Display the existing mounts
+                if mounts.len() > 0 {
+                    print("\r\nCurrent Mounts:\r\n".to_string(), &mut stdio, false).await;
+                    for mount in mounts.iter() {
+                        print(
+                            format!("{}\twith\t{}\r\n", mount.path, mount.name),
+                            &mut stdio,
+                            false,
+                        )
+                        .await;
+                    }
+                }
+
+                ExecResponse::Immediate(ctx, 0)
             });
         }
     }
 
+    let multiplexer = SubProcessMultiplexer::new();
     let factory = ProcessExecFactory::new(
         ctx.reactor.clone(),
+        ctx.compiler,
         ctx.exec_factory.clone(),
-        stdio.stdin.downgrade(),
-        stdio.stdout.downgrade(),
-        stdio.stderr.downgrade(),
-        stdio.log.downgrade(),
+        ctx.clone(),
     );
 
-    let mut ctx = ctx.clone();
     return Box::pin(async move {
         let path_mountpoint = Path::new(mountpoint.as_str());
         if let Err(err) = ctx.root.read_dir(path_mountpoint) {
-            let _ = stdio
-                .stderr
-                .write(format!("mount: the mountpoint is invalid: {}\r\n", err).as_bytes())
-                .await;
-            return ExecResponse::Immediate(1).into();
+            print(
+                format!("mount: the mountpoint is invalid: {}\r\n", err),
+                &mut stdio,
+                true,
+            )
+            .await;
+            return ExecResponse::Immediate(ctx, 1);
         }
 
-        let _ = stdio
-            .stdout
-            .write(format!("Mounting {}@{} at {}\r\n", target, wapm, mountpoint).as_bytes())
-            .await;
+        print(
+            format!("Mounting {}@{} at {}\r\n", target, wapm, mountpoint),
+            &mut stdio,
+            false,
+        )
+        .await;
 
-        let factory = SubProcessFactory::new(factory);
-        let mut sub_process = match factory.get_or_create(wapm.as_str(), StdioMode::Log).await {
+        let launch_env = ctx.launch_env();
+        let factory = SubProcessFactory::new(factory, multiplexer);
+        let sub_process = match factory
+            .get_or_create(wapm.as_str(), &launch_env, StdioMode::Inherit, StdioMode::Log)
+            .await
+        {
             Ok(a) => a,
             Err(_) => {
-                let _ = stdio
-                    .stderr
-                    .write(format!("mount: wapm program not found\r\n").as_bytes())
-                    .await;
-                return ExecResponse::Immediate(1).into();
+                print(
+                    format!("mount: wapm program not found\r\n"),
+                    &mut stdio,
+                    true,
+                )
+                .await;
+                return ExecResponse::Immediate(ctx, 1);
             }
         };
 
-        let _ = stdio
-            .stdout
-            .write(format!("Waiting for poll\r\n").as_bytes())
+        print(format!("Waiting for poll\r\n"), &mut stdio, false).await;
+
+        let mut ready = false;
+        tokio::select! {
+            _ = ctx.system.sleep(5000) => { },
+            r = sub_process.main.async_wait_for_poll() => {
+                ready = r;
+            }
+        }
+        if ready == false {
+            print(
+                format!("mount: wapm program failed to poll\r\n"),
+                &mut stdio,
+                true,
+            )
             .await;
+            return ExecResponse::Immediate(ctx, 1);
+        }
 
-        sub_process.main.async_wait_for_poll().await;
+        print(format!("Executing the mount\r\n"), &mut stdio, false).await;
 
-        let fs = match FuseFileSystem::new(sub_process, target.as_str()) {
+        let fs = match FuseFileSystem::new(sub_process, target.as_str(), stdio.clone()).await {
             Ok(a) => a,
             Err(err) => {
-                let _ = stdio
-                    .stderr
-                    .write(format!("mount: mount call failed ({})\r\n", err).as_bytes())
-                    .await;
-                return ExecResponse::Immediate(1).into();
+                print(
+                    format!("mount: mount call failed ({})\r\n", err),
+                    &mut stdio,
+                    true,
+                )
+                .await;
+                return ExecResponse::Immediate(ctx, 1);
             }
         };
+        let _ = stdio.stdout.flush_async().await;
 
-        let _ = stdio
-            .stdout
-            .write(format!("Successfully mounted\r\n").as_bytes())
-            .await;
+        print(format!("\rSuccessfully mounted\r\n"), &mut stdio, false).await;
 
-        let mut ret: CommandResult = ExecResponse::Immediate(0).into();
-        ctx.new_mounts.push(MountPoint {
-            name: wapm,
-            path: mountpoint,
-            fs: Arc::new(Box::new(fs)),
-        });
-        ret.ctx = Some(ctx);
-        ret
+        ctx.root.mount(
+            format!("{}({})", wapm, target).as_str(),
+            mountpoint.as_str(),
+            false,
+            Box::new(fs),
+            None,
+        );
+
+        ExecResponse::Immediate(ctx, 0)
     });
+}
+
+async fn print(msg: String, stdio: &mut Stdio, is_err: bool) {
+    if is_err {
+        error!("{}", msg);
+        let _ = stdio.stdout.write(msg.as_bytes()).await;
+        let _ = stdio.stdout.flush_async().await;
+    } else {
+        let _ = stdio.stderr.write(msg.as_bytes()).await;
+        let _ = stdio.stderr.flush_async().await;
+    }
 }

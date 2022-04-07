@@ -1,3 +1,4 @@
+mod api;
 mod asyncify;
 mod ext;
 mod fuse;
@@ -6,6 +7,7 @@ mod tmp;
 mod union;
 mod utils;
 
+pub use api::*;
 pub use asyncify::*;
 pub use ext::*;
 pub use fuse::*;

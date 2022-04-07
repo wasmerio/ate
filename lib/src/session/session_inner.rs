@@ -1,11 +1,16 @@
 use super::*;
 use crate::crypto::*;
 use serde::*;
+use once_cell::sync::Lazy;
+
+pub(super) static EMPTY_SESSION_USER: Lazy<AteSessionUser> = 
+    Lazy::new(|| AteSessionUser::new());
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum AteSessionInner {
     User(AteSessionUser),
     Sudo(AteSessionSudo),
+    Nothing,
 }
 
 impl AteSession for AteSessionInner {
@@ -13,6 +18,7 @@ impl AteSession for AteSessionInner {
         match self {
             AteSessionInner::User(a) => a.role(purpose),
             AteSessionInner::Sudo(a) => a.role(purpose),
+            AteSessionInner::Nothing => None,
         }
     }
 
@@ -23,6 +29,7 @@ impl AteSession for AteSessionInner {
         match self {
             AteSessionInner::User(a) => a.read_keys(category),
             AteSessionInner::Sudo(a) => a.read_keys(category),
+            AteSessionInner::Nothing => Box::new(std::iter::empty())
         }
     }
 
@@ -33,6 +40,7 @@ impl AteSession for AteSessionInner {
         match self {
             AteSessionInner::User(a) => a.write_keys(category),
             AteSessionInner::Sudo(a) => a.write_keys(category),
+            AteSessionInner::Nothing => Box::new(std::iter::empty())
         }
     }
 
@@ -43,6 +51,7 @@ impl AteSession for AteSessionInner {
         match self {
             AteSessionInner::User(a) => a.public_read_keys(category),
             AteSessionInner::Sudo(a) => a.public_read_keys(category),
+            AteSessionInner::Nothing => Box::new(std::iter::empty())
         }
     }
 
@@ -53,6 +62,7 @@ impl AteSession for AteSessionInner {
         match self {
             AteSessionInner::User(a) => a.private_read_keys(category),
             AteSessionInner::Sudo(a) => a.private_read_keys(category),
+            AteSessionInner::Nothing => Box::new(std::iter::empty())
         }
     }
 
@@ -60,6 +70,7 @@ impl AteSession for AteSessionInner {
         match self {
             AteSessionInner::User(a) => a.broker_read(),
             AteSessionInner::Sudo(a) => a.broker_read(),
+            AteSessionInner::Nothing => None
         }
     }
 
@@ -67,6 +78,7 @@ impl AteSession for AteSessionInner {
         match self {
             AteSessionInner::User(a) => a.broker_write(),
             AteSessionInner::Sudo(a) => a.broker_write(),
+            AteSessionInner::Nothing => None
         }
     }
 
@@ -74,6 +86,7 @@ impl AteSession for AteSessionInner {
         match self {
             AteSessionInner::User(a) => a.identity(),
             AteSessionInner::Sudo(a) => a.identity(),
+            AteSessionInner::Nothing => "nothing"
         }
     }
 
@@ -81,6 +94,7 @@ impl AteSession for AteSessionInner {
         match self {
             AteSessionInner::User(a) => a.user(),
             AteSessionInner::Sudo(a) => a.user(),
+            AteSessionInner::Nothing => &EMPTY_SESSION_USER
         }
     }
 
@@ -88,6 +102,7 @@ impl AteSession for AteSessionInner {
         match self {
             AteSessionInner::User(a) => a.user_mut(),
             AteSessionInner::Sudo(a) => a.user_mut(),
+            AteSessionInner::Nothing => panic!("nothing user sessions can not be mutated")
         }
     }
 
@@ -95,6 +110,7 @@ impl AteSession for AteSessionInner {
         match self {
             AteSessionInner::User(a) => a.uid(),
             AteSessionInner::Sudo(a) => a.uid(),
+            AteSessionInner::Nothing => None,
         }
     }
 
@@ -114,6 +130,7 @@ impl AteSession for AteSessionInner {
         match self {
             AteSessionInner::User(a) => a.properties(),
             AteSessionInner::Sudo(a) => a.properties(),
+            AteSessionInner::Nothing => Box::new(std::iter::empty())
         }
     }
 
@@ -124,6 +141,7 @@ impl AteSession for AteSessionInner {
         match self {
             AteSessionInner::User(a) => a.append(properties),
             AteSessionInner::Sudo(a) => a.append(properties),
+            AteSessionInner::Nothing => { }
         }
     }
 }
@@ -134,6 +152,7 @@ impl std::fmt::Display for AteSessionInner {
         match self {
             AteSessionInner::User(a) => write!(f, "user: {}", a),
             AteSessionInner::Sudo(a) => write!(f, "sudo: {}", a),
+            AteSessionInner::Nothing => write!(f, "nothing"),
         }?;
         write!(f, "]")
     }

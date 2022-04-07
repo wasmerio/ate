@@ -22,6 +22,15 @@ mod national_currency;
 mod ownership;
 mod rate_card;
 mod wallet;
+mod service_instance;
+mod master_authority;
+mod wallet_instance;
+mod instance_command;
+mod instance_hello;
+mod instance_export;
+mod port_command;
+mod switch_hello;
+mod socket_error;
 
 pub use advertised_service::*;
 pub use automation_time::*;
@@ -47,9 +56,21 @@ pub use national_currency::*;
 pub use ownership::*;
 pub use rate_card::*;
 pub use wallet::*;
+pub use service_instance::*;
+pub use master_authority::*;
+pub use wallet_instance::*;
+pub use instance_command::*;
+pub use instance_hello::*;
+pub use instance_export::*;
+pub use port_command::*;
+pub use switch_hello::*;
+pub use socket_error::*;
 
 pub const WALLET_COLLECTION_ID: u64 = 2259995437953076879u64;
 pub const CONTRACT_COLLECTION_ID: u64 = 8278931753731734656u64;
+pub const INSTANCE_COLLECTION_ID: u64 = 5476918267819474034u64;
 pub const INVOICE_COLLECTION_ID: u64 = 1234960345778345782u64;
+pub const MASTER_AUTHORITY_ID: u64 = 12743381463764637636u64;
+pub const INSTANCE_ROOT_ID: u64 = 9384758237459681256u64;
 
 pub const COINS_PER_STACK_TO_BE_COMBINED: usize = 10usize;

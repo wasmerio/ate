@@ -3,6 +3,7 @@ use crate::error::*;
 use std::result::Result;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
+use serde::{Serialize, Deserialize};
 
 use rand::RngCore;
 
@@ -93,6 +94,8 @@ fn test_ntru_encapsulate() -> Result<(), AteError> {
         let (iv, ek1) = pk.encapsulate();
         let ek2 = sk.decapsulate(&iv).unwrap();
 
+        assert_eq!(ek1.hash(), ek2.hash());
+
         let plain_text1 = "the cat ran up the wall".to_string();
         let cipher_text = ek1.encrypt(plain_text1.as_bytes());
         let plain_test2 =
@@ -167,6 +170,29 @@ fn test_derived_keys() -> Result<(), AteError> {
             .unwrap();
             assert_eq!(plain_text1, plain_text2);
         }
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_public_secure_data() -> Result<(), AteError> {
+    crate::utils::bootstrap_test_env();
+
+    #[derive(Debug, Serialize, Deserialize, Clone)]
+    struct TestClass {
+        data: String,
+    }
+
+    static KEY_SIZES: [KeySize; 3] = [KeySize::Bit128, KeySize::Bit192, KeySize::Bit256];
+    for key_size in KEY_SIZES.iter() {
+        let key = PrivateEncryptKey::generate(key_size.clone());
+        let container = PublicEncryptedSecureData::<TestClass>::new(key.as_public_key(), TestClass {
+            data: "the cat ran up the wall".to_string()
+        }).unwrap();
+
+        let out = container.unwrap(&key).unwrap();
+        assert_eq!(out.data.as_str(), "the cat ran up the wall");
     }
 
     Ok(())

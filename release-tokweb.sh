@@ -3,7 +3,12 @@
 echo "Mounting Tokera"
 umount -l /mnt/tok 2>/dev/null || true
 killall atefs 2>/dev/null || true
+#atefs mount --log-path ~/ate/fs /mnt/tok tokera.sh/www --non-empty &
 atefs mount /mnt/tok tokera.sh/www --non-empty &
+#cd atefs
+#cargo build
+#cargo run -- mount /mnt/tok tokera.sh/www --non-empty &
+#cd ..
 PID_MNT=$1
 
 function finish {
@@ -36,6 +41,10 @@ cp -r -f tokweb/public/* target/release/www
 
 echo "Synchronizing the files"
 rsync target/release/www/ /mnt/tok --verbose --exclude '.conf' --checksum --recursive --whole-file --links --delete --human-readable
+chmod o+r /mnt/tok
+chmod o+x /mnt/tok
+chmod -R o+r /mnt/tok/bin
+chmod o+x /mnt/tok/bin
 
 echo "Sync the files"
 cd /mnt/tok

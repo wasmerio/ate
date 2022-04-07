@@ -124,48 +124,81 @@ impl AnimationFrameCallbackWrapper /*<'a>*/ {
     }
 }
 
+fn fetch_internal(
+    request: &Request
+) -> JsFuture
+{
+    if is_worker() {
+        let global = js_sys::global();
+        JsFuture::from(
+            global
+                .dyn_into::<WorkerGlobalScope>()
+                .unwrap()
+                .fetch_with_request(request),
+        )
+    } else {
+        JsFuture::from(web_sys::window().unwrap().fetch_with_request(request))
+    }
+}
+
 pub async fn fetch(
     url: &str,
     method: &str,
+    _gzip: bool,
+    cors_proxy: Option<String>,
     headers: Vec<(String, String)>,
     data: Option<Vec<u8>>,
-) -> Result<Response, i32> {
+) -> Result<Response, u32> {
+    let mut opts = RequestInit::new();
+    opts.method(method);
+    opts.mode(RequestMode::Cors);
+
+    if let Some(data) = data {
+        let data_len = data.len();
+        let array = js_sys::Uint8Array::new_with_length(data_len as u32);
+        array.copy_from(&data[..]);
+
+        opts.body(Some(&array));
+    }
+
     let request = {
-        let mut opts = RequestInit::new();
-        opts.method(method);
-        opts.mode(RequestMode::Cors);
-
-        if let Some(data) = data {
-            let data_len = data.len();
-            let array = js_sys::Uint8Array::new_with_length(data_len as u32);
-            array.copy_from(&data[..]);
-
-            opts.body(Some(&array));
-        }
-
         let request = Request::new_with_str_and_init(&url, &opts).map_err(|_| err::ERR_EIO)?;
 
         let set_headers = request.headers();
-        for (name, val) in headers {
+        for (name, val) in headers.iter() {
             set_headers
                 .set(name.as_str(), val.as_str())
                 .map_err(|_| err::ERR_EIO)?;
         }
-
-        if is_worker() {
-            let global = js_sys::global();
-            JsFuture::from(
-                global
-                    .dyn_into::<WorkerGlobalScope>()
-                    .unwrap()
-                    .fetch_with_request(&request),
-            )
-        } else {
-            JsFuture::from(web_sys::window().unwrap().fetch_with_request(&request))
-        }
+        request
     };
 
-    let resp_value = request.await.map_err(|_| err::ERR_EIO)?;
+    let resp_value = match fetch_internal(&request).await.ok()
+    {
+        Some(a) => a,
+        None => {
+            // If the request failed it may be because of CORS so if a cors proxy
+            // is configured then try again with the cors proxy
+            let url_store;
+            let url = if let Some(cors_proxy) = cors_proxy {
+                url_store = format!("https://{}/{}", cors_proxy, url);
+                url_store.as_str()
+            } else {
+                return Err(err::ERR_EIO);
+            };
+            
+            let request = Request::new_with_str_and_init(url, &opts).map_err(|_| err::ERR_EIO)?;
+
+            let set_headers = request.headers();
+            for (name, val) in headers.iter() {
+                set_headers
+                    .set(name.as_str(), val.as_str())
+                    .map_err(|_| err::ERR_EIO)?;
+            }
+        
+            fetch_internal(&request).await.map_err(|_| err::ERR_EIO)?
+        }
+    };
     assert!(resp_value.is_instance_of::<Response>());
     let resp: Response = resp_value.dyn_into().unwrap();
 
@@ -183,13 +216,15 @@ pub async fn fetch(
 pub async fn fetch_data(
     url: &str,
     method: &str,
+    gzip: bool,
+    cors_proxy: Option<String>,
     headers: Vec<(String, String)>,
     data: Option<Vec<u8>>,
-) -> Result<Vec<u8>, i32> {
-    Ok(get_response_data(fetch(url, method, headers, data).await?).await?)
+) -> Result<Vec<u8>, u32> {
+    Ok(get_response_data(fetch(url, method, gzip, cors_proxy, headers, data).await?).await?)
 }
 
-pub async fn get_response_data(resp: Response) -> Result<Vec<u8>, i32> {
+pub async fn get_response_data(resp: Response) -> Result<Vec<u8>, u32> {
     let resp = { JsFuture::from(resp.array_buffer().unwrap()) };
 
     let arrbuff_value = resp.await.map_err(|_| err::ERR_ENOEXEC)?;
@@ -199,22 +234,6 @@ pub async fn get_response_data(resp: Response) -> Result<Vec<u8>, i32> {
     let typebuff: js_sys::Uint8Array = js_sys::Uint8Array::new(&arrbuff_value);
     let ret = typebuff.to_vec();
     Ok(ret)
-}
-
-pub fn is_cleared_line(text: &str) -> bool {
-    // returns true if the displayed line is all blank on the screen
-    text.ends_with("\r\x1b[0K") || text.ends_with("\x1b[0K\r") || text.ends_with("\n")
-}
-
-pub fn is_mobile(user_agent: &str) -> bool {
-    user_agent.contains("Android")
-        || user_agent.contains("BlackBerry")
-        || user_agent.contains("iPhone")
-        || user_agent.contains("iPad")
-        || user_agent.contains("iPod")
-        || user_agent.contains("Open Mini")
-        || user_agent.contains("IEMobile")
-        || user_agent.contains("WPDesktop")
 }
 
 #[wasm_bindgen(module = "/public/worker.js")]

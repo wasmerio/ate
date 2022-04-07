@@ -33,7 +33,7 @@ use crate::spec::*;
 use crate::time::*;
 use crate::transaction::*;
 use crate::tree::*;
-use crate::trust::LoadResult;
+use crate::trust::LoadStrongResult;
 
 use crate::crypto::{EncryptedPrivateKey, PrivateSignKey};
 use crate::{
@@ -43,7 +43,7 @@ use crate::{
 
 #[derive(Debug)]
 pub(crate) struct DioState {
-    pub(super) cache_load: FxHashMap<PrimaryKey, (Arc<EventData>, EventLeaf)>,
+    pub(super) cache_load: FxHashMap<PrimaryKey, (Arc<EventStrongData>, EventLeaf)>,
 }
 
 /// Represents a series of mutations that the user is making on a particular chain-of-trust
@@ -59,6 +59,7 @@ pub(crate) struct DioState {
 ///
 /// When setting the scope for the DIO it will behave differently when the commit function
 /// is invoked based on what scope you set for the transaction.
+#[derive(Debug)]
 pub struct Dio {
     pub(super) chain: Arc<Chain>,
     pub(super) multi: ChainMultiUser,
@@ -149,6 +150,10 @@ impl Dio {
         &self.chain
     }
 
+    pub fn remote<'a>(&'a self) -> Option<&'a url::Url> {
+        self.chain.remote()
+    }
+
     async fn run_async<F>(&self, future: F) -> F::Output
     where
         F: std::future::Future,
@@ -158,14 +163,14 @@ impl Dio {
             .await
     }
 
-    pub async fn load_raw(self: &Arc<Self>, key: &PrimaryKey) -> Result<EventData, LoadError> {
+    pub async fn load_raw(self: &Arc<Self>, key: &PrimaryKey) -> Result<EventStrongData, LoadError> {
         self.run_async(self.__load_raw(key)).await
     }
 
     pub(super) async fn __load_raw(
         self: &Arc<Self>,
         key: &PrimaryKey,
-    ) -> Result<EventData, LoadError> {
+    ) -> Result<EventStrongData, LoadError> {
         let leaf = match self.multi.lookup_primary(key).await {
             Some(a) => a,
             None => bail!(LoadErrorKind::NotFound(key.clone())),
@@ -250,7 +255,7 @@ impl Dio {
     pub(crate) fn load_from_event<D>(
         self: &Arc<Self>,
         session: &'_ dyn AteSession,
-        mut data: EventData,
+        mut data: EventStrongData,
         header: EventHeader,
         leaf: EventLeaf,
     ) -> Result<Dao<D>, LoadError>
@@ -299,6 +304,19 @@ impl Dio {
             None => return Ok(Vec::new()),
         };
         Ok(keys)
+    }
+
+    pub async fn root_keys(
+        self: &Arc<Self>,
+    ) -> Vec<PrimaryKey> {
+        self.run_async(self.__root_keys())
+            .await
+    }
+
+    pub async fn __root_keys(
+        self: &Arc<Self>,
+    ) -> Vec<PrimaryKey> {
+        self.multi.roots_raw().await
     }
 
     pub async fn all_keys(self: &Arc<Self>) -> Vec<PrimaryKey> {
@@ -363,6 +381,50 @@ impl Dio {
             .await?)
     }
 
+    pub async fn roots<D>(
+        self: &Arc<Self>,
+    ) -> Result<Vec<Dao<D>>, LoadError>
+    where
+        D: DeserializeOwned,
+    {
+        self.roots_ext(false, false)
+            .await
+    }
+
+    pub async fn roots_ext<D>(
+        self: &Arc<Self>,
+        allow_missing_keys: bool,
+        allow_serialization_error: bool,
+    ) -> Result<Vec<Dao<D>>, LoadError>
+    where
+        D: DeserializeOwned,
+    {
+        self.run_async(self.__roots_ext(
+            allow_missing_keys,
+            allow_serialization_error,
+        ))
+        .await
+    }
+
+    pub(super) async fn __roots_ext<D>(
+        self: &Arc<Self>,
+        allow_missing_keys: bool,
+        allow_serialization_error: bool,
+    ) -> Result<Vec<Dao<D>>, LoadError>
+    where
+        D: DeserializeOwned,
+    {
+        // Load all the objects
+        let keys = self.__root_keys().await;
+        Ok(self
+            .__load_many_ext(
+                keys.into_iter(),
+                allow_missing_keys,
+                allow_serialization_error,
+            )
+            .await?)
+    }
+
     pub async fn load_many<D>(
         self: &Arc<Self>,
         keys: impl Iterator<Item = PrimaryKey>,
@@ -399,12 +461,11 @@ impl Dio {
         let mut already = FxHashSet::default();
         let mut ret = Vec::new();
 
-        let inside_async = self.multi.inside_async.read().await;
-
         // We either find existing objects in the cache or build a list of objects to load
         let to_load = {
             let mut to_load = Vec::new();
 
+            let inside_async = self.multi.inside_async.read().await;
             let state = self.state.lock().unwrap();
             for key in keys {
                 if let Some((dao, leaf)) = state.cache_load.get(&key) {
@@ -424,7 +485,7 @@ impl Dio {
         };
 
         // Load all the objects that have not yet been loaded
-        let to_load = inside_async.chain.load_many(to_load).await?;
+        let to_load = self.multi.load_many(to_load).await?;
 
         // Now process all the objects
         let ret = {
@@ -476,7 +537,7 @@ impl Dio {
     pub(crate) fn data_as_overlay(
         self: &Arc<Self>,
         session: &'_ dyn AteSession,
-        data: &mut EventData,
+        data: &mut EventStrongData,
     ) -> Result<(), TransformError> {
         data.data_bytes = match &data.data_bytes {
             Some(d) => Some(self.multi.data_as_overlay(&data.meta, d.clone(), session)?),
@@ -488,7 +549,7 @@ impl Dio {
     pub(super) fn __process_load_row<D>(
         self: &Arc<Self>,
         session: &'_ dyn AteSession,
-        evt: &mut LoadResult,
+        evt: &mut LoadStrongResult,
         meta: &Metadata,
         allow_missing_keys: bool,
         allow_serialization_error: bool,
@@ -549,7 +610,7 @@ impl Dio {
         TaskEngine::spawn(async move {
             loop {
                 let recv =
-                    crate::engine::timeout(std::time::Duration::from_secs(1), decache.recv()).await;
+                    crate::engine::timeout(std::time::Duration::from_secs(5), decache.recv()).await;
                 let dio = match Weak::upgrade(&dio) {
                     Some(a) => a,
                     None => {
@@ -564,14 +625,29 @@ impl Dio {
                 };
                 let recv = match recv {
                     Ok(a) => a,
-                    Err(_) => {
+                    Err(broadcast::error::RecvError::Closed) => {
                         break;
+                    }
+                    Err(broadcast::error::RecvError::Lagged(_)) => {
+                        continue;
                     }
                 };
 
                 let mut state = dio.state.lock().unwrap();
                 for key in recv {
                     state.cache_load.remove(&key);
+                }
+                loop {
+                    match decache.try_recv() {
+                        Ok(recv) => {
+                            for key in recv {
+                                state.cache_load.remove(&key);
+                            }
+                        }
+                        Err(_) => {
+                            break;
+                        }
+                    }
                 }
             }
         });

@@ -99,13 +99,13 @@ pub async fn main_mount(
     let builder = ChainBuilder::new(&conf).await.temporal(mount.temp);
 
     // Create a progress bar loader
-    let mut progress_local = LoadProgress::default();
-    let mut progress_remote = LoadProgress::default();
+    let mut progress_local = LoadProgress::new(std::io::stdout());
+    let mut progress_remote = LoadProgress::new(std::io::stdout());
     progress_local.units = pbr::Units::Bytes;
     progress_local.msg_done = "Downloading latest events from server...".to_string();
     progress_remote.msg_done =
         "Loaded the remote chain-of-trust, proceeding to mount the file system.".to_string();
-    eprint!("Loading the chain-of-trust...");
+    print!("Loading the chain-of-trust...");
 
     // We create a chain with a specific key (this is used for the file name it creates)
     debug!("chain-init");
@@ -151,9 +151,9 @@ pub async fn main_mount(
         Err(ChainCreationError(ChainCreationErrorKind::ServerRejected(reason), _)) => {
             match reason {
                 FatalTerminate::Denied { reason } => {
-                    eprintln!("Access to this file system was denied by the server");
-                    eprintln!("---");
-                    eprintln!("{}", reason);
+                    println!("Access to this file system was denied by the server");
+                    println!("---");
+                    println!("{}", reason);
                     std::process::exit(1);
                 }
                 _ => {
@@ -211,12 +211,12 @@ pub async fn main_mount(
     }
 
     // Main loop
-    eprintln!("Press ctrl-c to exit");
+    println!("Press ctrl-c to exit");
     select! {
         // Wait for a ctrl-c
         _ = ctrl_c.changed() => {
             umount::unmount(std::path::Path::new(mount_path.as_str()))?;
-            eprintln!("Goodbye!");
+            println!("Goodbye!");
             return Ok(());
         }
 
@@ -229,16 +229,18 @@ pub async fn main_mount(
                         return Ok(())
                     }
                     error!("{}", err);
+                    println!("Mount failed");
                     let _ = umount::unmount(std::path::Path::new(mount_path.as_str()));
                     std::process::exit(1);
                 }
                 Err(err) => {
                     error!("{}", err);
+                    println!("Mount failed");
                     let _ = umount::unmount(std::path::Path::new(mount_path.as_str()));
                     std::process::exit(1);
                 }
                 _ => {
-                    eprintln!("Shutdown");
+                    println!("Mount shutdown");
                     let _ = umount::unmount(std::path::Path::new(mount_path.as_str()));
                     return Ok(());
                 }

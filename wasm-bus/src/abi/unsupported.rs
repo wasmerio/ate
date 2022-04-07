@@ -7,7 +7,7 @@ pub fn drop(_handle: CallHandle) {
     panic!("unsupported on this platform");
 }
 
-pub fn rand() -> u32 {
+pub fn handle() -> CallHandle {
     panic!("unsupported on this platform");
 }
 
@@ -19,6 +19,10 @@ pub fn poll() {
     panic!("unsupported on this platform");
 }
 
+pub fn fork() {
+    panic!("unsupported on this platform");
+}
+
 pub fn listen(_topic: &str) {
     panic!("unsupported on this platform");
 }
@@ -27,9 +31,27 @@ pub fn reply(_handle: CallHandle, _response: &[u8]) {
     panic!("unsupported on this platform");
 }
 
+pub fn reply_callback(_handle: CallHandle, _topic: &str, _response: &[u8]) {
+    panic!("unsupported on this platform");
+}
+
 pub fn call(
     _parent: Option<CallHandle>,
     _handle: CallHandle,
+    _leak: bool,
+    _wapm: &str,
+    _topic: &str,
+    _request: &[u8],
+) {
+    panic!("unsupported on this platform");
+}
+
+pub fn call_instance(
+    _parent: Option<CallHandle>,
+    _handle: CallHandle,
+    _leak: bool,
+    _instance: &str,
+    _access_token: &str,
     _wapm: &str,
     _topic: &str,
     _request: &[u8],

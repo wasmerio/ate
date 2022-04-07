@@ -81,7 +81,7 @@ where
 impl<D> Row<D> {
     pub(crate) fn from_event(
         dio: &Arc<Dio>,
-        evt: &EventData,
+        evt: &EventStrongData,
         created: u64,
         updated: u64,
     ) -> Result<(RowHeader, Row<D>), SerializationError>
@@ -134,7 +134,7 @@ impl<D> Row<D> {
                         is_new: false,
                     },
                 ))
-            }
+            },
             None => bail!(SerializationErrorKind::NoData),
         }
     }

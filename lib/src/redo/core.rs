@@ -7,6 +7,7 @@ use tokio::io::Error;
 use tokio::io::ErrorKind;
 use tokio::io::Result;
 use tracing::{debug, error, info, trace, warn};
+use bytes::Bytes;
 
 #[cfg(feature = "enable_local_fs")]
 use crate::chain::*;
@@ -69,7 +70,7 @@ impl RedoLog {
                     .await?;
 
                     let cnt = log_file.read_all(loader).await?;
-                    info!(
+                    debug!(
                         "redo-log: loaded {} events from {} files",
                         cnt,
                         log_file.archives.len()
@@ -167,7 +168,11 @@ impl RedoLog {
     }
 
     pub async fn load(&self, hash: AteHash) -> std::result::Result<LoadData, LoadError> {
-        Ok(self.log_file.load(hash).await?)
+        Ok(self.log_file.load(&hash).await?)
+    }
+
+    pub fn prime(&mut self, records: Vec<(AteHash, Option<Bytes>)>) {
+        self.log_file.prime(records);
     }
 
     pub fn count(&self) -> usize {
@@ -309,7 +314,7 @@ impl RedoLog {
 impl LogWritable for RedoLog {
     async fn write(
         &mut self,
-        evt: &EventData,
+        evt: &EventWeakData,
     ) -> std::result::Result<LogLookup, SerializationError> {
         if let Some(flip) = &mut self.flip {
             flip.deferred.push(evt.clone());

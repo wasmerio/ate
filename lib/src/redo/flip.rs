@@ -21,7 +21,7 @@ impl LogWritable for FlippedLogFile {
     #[allow(dead_code)]
     async fn write(
         &mut self,
-        evt: &EventData,
+        evt: &EventWeakData,
     ) -> std::result::Result<LogLookup, SerializationError> {
         let ret = self.log_file.write(evt).await?;
         self.event_summary.push(evt.as_header_raw()?);
@@ -66,5 +66,5 @@ impl FlippedLogFile {
 }
 
 pub(super) struct RedoLogFlip {
-    pub deferred: Vec<EventData>,
+    pub deferred: Vec<EventWeakData>,
 }

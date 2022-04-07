@@ -100,6 +100,7 @@ impl MeshClientSession {
             builder,
             &client.cfg_mesh,
             &self.key,
+            client.cfg_mesh.remote.clone(),
             addr,
             client.node_id.clone(),
             hello_path,

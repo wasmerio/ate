@@ -142,7 +142,8 @@ impl fuse::Filesystem for AteFS {
 
     async fn init(&self, req: fuse::Request) -> fuse::Result<()> {
         let req = req_ctx(&req);
-        conv_result(self.accessor.init(&req).await)
+        conv_result(self.accessor.init(&req).await)?;
+        Ok(())
     }
 
     async fn destroy(&self, req: fuse::Request) {

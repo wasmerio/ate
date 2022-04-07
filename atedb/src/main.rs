@@ -21,7 +21,7 @@ struct Opts {
     #[clap(short, long)]
     debug: bool,
     /// URL where the user is authenticated
-    #[clap(short, long, default_value = "ws://tokera.com/auth")]
+    #[clap(short, long, default_value = "ws://tokera.sh/auth")]
     auth: Url,
     /// Indicates no authentication server will be used meaning all new chains
     /// created by clients allow anyone to write new root nodes.
@@ -172,7 +172,7 @@ async fn main_solo(
     server.add_route(Box::new(flow), &cfg_ate).await?;
 
     // Wait for ctrl-c
-    eprintln!("Press ctrl-c to exit");
+    println!("Press ctrl-c to exit");
     let mut exit = ctrl_channel();
     while *exit.borrow() == false {
         exit.changed().await.unwrap();

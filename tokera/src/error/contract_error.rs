@@ -19,12 +19,12 @@ error_chain! {
     }
     errors {
         InvalidService {
-            description("the service was this code could not be found")
-            display("the service was this code could not be found")
+            description("service with this code could not be found")
+            display("service with this code could not be found")
         }
         UnsupportedCurrency(currency: NationalCurrency) {
-            description("the service does not support your currency")
-            display("the service does not support your currency ({})", currency)
+            description("service does not support this currency")
+            display("service does not support this currency ({})", currency)
         }
         AlreadyExists(msg: String) {
             description("the contract already exists")

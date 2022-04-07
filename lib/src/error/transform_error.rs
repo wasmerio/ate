@@ -1,4 +1,3 @@
-use crate::crypto::AteHash;
 use error_chain::error_chain;
 
 error_chain! {
@@ -18,9 +17,13 @@ error_chain! {
             description("encryption error while transforming event data"),
             display("encryption error while transforming event data - {}", err),
         }
-        MissingReadKey(hash: AteHash) {
+        MissingData {
+            description("missing data for this record")
+            display("missing data for this record")
+        }
+        MissingReadKey(hash: String) {
             description("missing the read key needed to encrypt/decrypt this data object"),
-            display("missing the read key ({}) needed to encrypt/decrypt this data object", hash.to_string())
+            display("missing the read key ({}) needed to encrypt/decrypt this data object", hash)
         }
         UnspecifiedReadability {
             description("the readability for this data object has not been specified")

@@ -2,15 +2,17 @@ use super::*;
 use crate::ast;
 
 pub(super) async fn andor_list<'a>(
-    ctx: &mut EvalContext,
+    mut ctx: EvalContext,
     builtins: &Builtins,
     exec_sync: bool,
     show_result: &mut bool,
     list: &'a ast::AndOr<'a>,
-) -> i32 {
+) -> (EvalContext, u32) {
     let mut ret = 0;
     for (op, pipeline) in &list.pipelines {
-        ret = exec_pipeline(ctx, builtins, exec_sync, show_result, pipeline).await;
+        let (c, r) = exec_pipeline(ctx, builtins, exec_sync, show_result, pipeline).await;
+        ctx = c;
+        ret = r;
         ctx.last_return = ret;
 
         match op {
@@ -26,5 +28,5 @@ pub(super) async fn andor_list<'a>(
             }
         }
     }
-    ret
+    (ctx, ret)
 }

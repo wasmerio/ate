@@ -46,6 +46,10 @@ impl MeshAddress {
         #[cfg(not(feature = "enable_dns"))]
         AteHash::from_bytes_twice(self.host.as_bytes(), &self.port.to_be_bytes())
     }
+
+    pub fn port(&self) -> u16 {
+        self.port
+    }
 }
 
 impl std::fmt::Display for MeshAddress {

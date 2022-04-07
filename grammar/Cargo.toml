@@ -1,6 +1,6 @@
 [package]
 name = "tok-grammar"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["John Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 publish = true

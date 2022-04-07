@@ -64,6 +64,36 @@ pub mod activities {
         pub by: String,
         pub invoice: Invoice,
     }
+
+    #[derive(Serialize, Deserialize, Debug, Clone)]
+    pub struct InstanceCreated {
+        pub when: DateTime<Utc>,
+        pub by: String,
+        pub alias: Option<String>,
+    }
+
+    #[derive(Serialize, Deserialize, Debug, Clone)]
+    pub struct InstanceDestroyed {
+        pub when: DateTime<Utc>,
+        pub by: String,
+        pub alias: Option<String>,
+    }
+
+    #[derive(Serialize, Deserialize, Debug, Clone)]
+    pub struct InstanceExported {
+        pub when: DateTime<Utc>,
+        pub by: String,
+        pub alias: Option<String>,
+        pub binary: String,
+    }
+
+    #[derive(Serialize, Deserialize, Debug, Clone)]
+    pub struct InstanceDeported {
+        pub when: DateTime<Utc>,
+        pub by: String,
+        pub alias: Option<String>,
+        pub binary: String,
+    }
 }
 
 use chrono::prelude::*;
@@ -85,6 +115,10 @@ pub enum HistoricActivity {
     ContractCreated(ContractCreated),
     ContractCharge(ContractInvoice),
     ContractIncome(ContractInvoice),
+    InstanceCreated(InstanceCreated),
+    InstanceDestroyed(InstanceDestroyed),
+    InstanceExported(InstanceExported),
+    InstanceDeported(InstanceDeported),
 }
 
 impl HistoricActivity {
@@ -99,6 +133,10 @@ impl HistoricActivity {
             HistoricActivity::ContractCreated(a) => &a.when,
             HistoricActivity::ContractCharge(a) => &a.when,
             HistoricActivity::ContractIncome(a) => &a.when,
+            HistoricActivity::InstanceCreated(a) => &a.when,
+            HistoricActivity::InstanceDestroyed(a) => &a.when,
+            HistoricActivity::InstanceExported(a) => &a.when,
+            HistoricActivity::InstanceDeported(a) => &a.when,
         }
     }
 
@@ -113,6 +151,10 @@ impl HistoricActivity {
             HistoricActivity::ContractCreated(a) => a.by.as_str(),
             HistoricActivity::ContractCharge(a) => a.by.as_str(),
             HistoricActivity::ContractIncome(a) => a.by.as_str(),
+            HistoricActivity::InstanceCreated(a) => a.by.as_str(),
+            HistoricActivity::InstanceDestroyed(a) => a.by.as_str(),
+            HistoricActivity::InstanceExported(a) => a.by.as_str(),
+            HistoricActivity::InstanceDeported(a) => a.by.as_str(),
         }
     }
 
@@ -120,6 +162,10 @@ impl HistoricActivity {
         match self {
             HistoricActivity::WalletCreated(_) => None,
             HistoricActivity::DepositCreated(_) => None,
+            HistoricActivity::InstanceCreated(_) => None,
+            HistoricActivity::InstanceDestroyed(_) => None,
+            HistoricActivity::InstanceExported(_) => None,
+            HistoricActivity::InstanceDeported(_) => None,
             HistoricActivity::ContractCreated(_) => None,
             HistoricActivity::ContractCharge(a) => Some(HistoricFinancialActivity {
                 activity: self,
@@ -182,6 +228,34 @@ impl HistoricActivity {
             }
             HistoricActivity::FundsWithdrawn(_) => {
                 format!("Funds withdrawn")
+            }
+            HistoricActivity::InstanceCreated(a) => {
+                if let Some(alias) = &a.alias {
+                    format!("Instance created ({})", alias)
+                } else {
+                    format!("Instance created")
+                }
+            }
+            HistoricActivity::InstanceDestroyed(a) => {
+                if let Some(alias) = &a.alias {
+                    format!("Instance destroyed ({})", alias)
+                } else {
+                    format!("Instance destroyed")
+                }
+            }
+            HistoricActivity::InstanceExported(a) => {
+                if let Some(alias) = &a.alias {
+                    format!("Instance ({}) exported binary ({})", alias, a.binary)
+                } else {
+                    format!("Instance exported binary ({})", a.binary)
+                }
+            }
+            HistoricActivity::InstanceDeported(a) => {
+                if let Some(alias) = &a.alias {
+                    format!("Instance ({}) deported binary ({})", alias, a.binary)
+                } else {
+                    format!("Instance deported binary ({})", a.binary)
+                }
             }
         }
     }

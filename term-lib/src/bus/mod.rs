@@ -1,3 +1,4 @@
+mod caller_context;
 mod factory;
 mod feeder;
 mod invokable;
@@ -10,11 +11,11 @@ pub(crate) mod syscalls;
 mod thread;
 mod time;
 mod util;
-mod waker;
 mod ws;
+mod tty;
+mod webgl;
 
-pub(crate) use factory::*;
-pub(crate) use feeder::*;
+pub use caller_context::*;
 pub(crate) use invokable::*;
 use namespace::*;
 pub(crate) use process::*;
@@ -22,4 +23,17 @@ use standard::*;
 pub(crate) use sub_process::*;
 pub(crate) use thread::*;
 use util::*;
-pub(crate) use waker::*;
+
+pub use factory::BusFactory;
+pub use process::ProcessExecFactory;
+pub use process::LaunchEnvironment;
+pub use feeder::WasmBusFeeder;
+pub use feeder::FeedData;
+pub use feeder::BusFeeder;
+pub use feeder::BusFeederUtils;
+pub use feeder::CallHandle;
+pub use feeder::CallError;
+pub use sub_process::SubProcessMultiplexer;
+pub use invokable::Invokable;
+pub use invokable::InvokeResult;
+pub use invokable::Session;

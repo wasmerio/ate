@@ -51,7 +51,13 @@ where
     }
 
     pub fn unwrap(&self, key: &PrivateEncryptKey) -> Result<T, std::io::Error> {
-        let data = key.decrypt(&self.sd_iv, &self.sd_encrypted[..])?;
+        if key.hash() != self.ek_hash {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("The decryption key is not valid for this cipher data ({} vs {}).", key.hash(), self.ek_hash).as_str(),
+            ));
+        }
+        let data = key.decrypt(&self.sd_iv, &self.sd_encrypted[..]).unwrap();
         Ok(match self.format.deserialize(&data[..]) {
             Ok(a) => a,
             Err(err) => {
@@ -62,6 +68,16 @@ where
 
     pub fn ek_hash(&self) -> AteHash {
         self.ek_hash
+    }
+}
+
+impl<T> std::fmt::Display
+for PublicEncryptedSecureData<T>
+where
+    T: serde::Serialize + serde::de::DeserializeOwned
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "secure_data(format={},ek_hash={},size={})", self.format, self.ek_hash, self.sd_encrypted.len())
     }
 }
 

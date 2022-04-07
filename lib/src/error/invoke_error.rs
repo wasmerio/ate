@@ -35,6 +35,10 @@ error_chain! {
             description("command failed as there was no data"),
             display("command failed as there was no data")
         }
+        MissingData {
+            description("command failed as the data is missing"),
+            display("command failed as the data is missing"),
+        }
     }
 }
 
@@ -51,8 +55,8 @@ impl From<tokio::time::error::Elapsed> for InvokeError {
 }
 
 #[cfg(target_arch = "wasm32")]
-impl From<wasm_bus::time::Elapsed> for InvokeError {
-    fn from(_elapsed: wasm_bus::time::Elapsed) -> InvokeError {
+impl From<wasm_bus_time::prelude::Elapsed> for InvokeError {
+    fn from(_elapsed: wasm_bus_time::prelude::Elapsed) -> InvokeError {
         InvokeErrorKind::Timeout.into()
     }
 }

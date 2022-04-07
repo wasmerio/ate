@@ -28,7 +28,6 @@ impl AsyncifyFileSystem {
         let fs = self.fs.clone();
         self.system
             .spawn_dedicated(move || async move { funct(fs.deref()) })
-            .join()
             .await
             .unwrap()
     }
@@ -187,7 +186,6 @@ impl AsyncifyFileOpener {
                     file: Arc::new(Mutex::new(file)),
                 })
             })
-            .join()
             .await
             .unwrap()
     }
@@ -195,11 +193,14 @@ impl AsyncifyFileOpener {
 
 pub struct AsyncifyVirtualFile {
     system: System,
-    file: Arc<Mutex<Box<dyn VirtualFile>>>,
+    file: Arc<Mutex<Box<dyn VirtualFile + Sync>>>,
 }
 
 impl AsyncifyVirtualFile {
-    async fn asyncify<T>(&self, funct: impl FnOnce(&mut dyn VirtualFile) -> T + Send + 'static) -> T
+    async fn asyncify<T>(
+        &self,
+        funct: impl FnOnce(&mut (dyn VirtualFile + Sync)) -> T + Send + 'static,
+    ) -> T
     where
         T: Send,
     {
@@ -210,7 +211,6 @@ impl AsyncifyVirtualFile {
                 let file = file.deref_mut().deref_mut();
                 funct(file)
             })
-            .join()
             .await
             .unwrap()
     }
@@ -295,6 +295,14 @@ impl AsyncifyVirtualFile {
     pub async fn write_all(&mut self, buf: Vec<u8>) -> Result<()> {
         self.asyncify(move |file| {
             file.write_all(&buf[..])?;
+            Ok(())
+        })
+        .await
+    }
+
+    pub async fn flush(&mut self) -> Result<()> {
+        self.asyncify(move |file| {
+            file.flush()?;
             Ok(())
         })
         .await

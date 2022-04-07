@@ -182,6 +182,10 @@ where
         }
     }
 
+    pub fn dio_mut(&self) -> Arc<DioMut> {
+        self.trans()
+    }
+
     pub fn attach(
         &mut self,
         parent: &dyn DaoObj,
@@ -325,6 +329,10 @@ where
 
     pub fn as_immutable(&self) -> &Dao<D> {
         &self.inner
+    }
+
+    pub fn to_immutable(self) -> Dao<D> {
+        self.inner
     }
 
     pub fn as_mut_owned(self) -> DaoMutGuardOwned<D> {

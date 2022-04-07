@@ -1,88 +1,170 @@
 use serde::*;
 use std::sync::Arc;
+use std::sync::Mutex;
+use std::collections::HashMap;
+use tokio::sync::mpsc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use wasm_bus::abi::CallError;
+pub use wasm_bus::abi::CallError;
+pub use wasm_bus::abi::CallHandle;
 
 use super::*;
-use crate::wasmer::Array;
-use crate::wasmer::Memory;
-use crate::wasmer::NativeFunc;
-use crate::wasmer::WasmPtr;
+use crate::common::MAX_MPSC;
+use crate::api::System;
+use crate::api::SystemAbiExt;
+use crate::api::SerializationFormat;
 
-#[derive(Clone)]
-pub struct WasmBusCallback {
-    memory: Memory,
-    native_finish: NativeFunc<(u32, WasmPtr<u8, Array>, u32), ()>,
-    native_malloc: NativeFunc<u32, WasmPtr<u8, Array>>,
-    native_error: NativeFunc<(u32, u32), ()>,
-    waker: Arc<ThreadWaker>,
-    handle: u32,
+pub trait BusFeeder {
+    fn feed_bytes(&self, data: Vec<u8>);
+
+    fn error(&self, err: CallError);
+
+    fn terminate(&self);
+
+    fn handle(&self) -> CallHandle;
 }
 
-impl WasmBusCallback {
-    pub fn new(thread: &WasmBusThread, handle: u32) -> Result<WasmBusCallback, CallError> {
-        let memory = thread.memory().clone();
-        let native_data = thread.wasm_bus_finish_ref();
-        let native_malloc = thread.wasm_bus_malloc_ref();
-        let native_error = thread.wasm_bus_error_ref();
+pub struct BusFeederUtils { }
+impl BusFeederUtils {
+    pub fn process(
+        feeder: &dyn BusFeeder,
+        result: Result<InvokeResult, CallError>,
+        sessions: &Arc<Mutex<HashMap<CallHandle, Box<dyn Session>>>>,
+    ) {
+        let handle = feeder.handle();
+        match result {
+            Ok(InvokeResult::Response(response)) => {
+                Self::feed_bytes_or_error(feeder, Ok(response));
+                trace!("closing handle={} with response", handle);
+                sessions.lock().unwrap().remove(&handle);
+            }
+            Ok(InvokeResult::ResponseThenWork(response, work)) => {
+                Self::feed_bytes_or_error(feeder, Ok(response));
 
-        if native_data.is_none() || native_malloc.is_none() || native_error.is_none() {
-            debug!("wasm-bus::feeder (incorrect abi)");
-            return Err(CallError::IncorrectAbi.into());
+                let sessions = sessions.clone();
+                System::default().task_shared(Box::new(move || {
+                    Box::pin(async move {
+                        work.await;
+                        trace!("closing handle={} after some work", handle);
+                        sessions.lock().unwrap().remove(&handle);
+                    })
+                }));
+            }
+            Ok(InvokeResult::ResponseThenLeak(response)) => {
+                Self::feed_bytes_or_error(feeder, Ok(response));
+            }
+            Err(err) => {
+                Self::feed_bytes_or_error(feeder, Err(err));
+                trace!("closing handle={} - due to an error - {}", handle, err);
+                sessions.lock().unwrap().remove(&handle);
+            }
         }
-
-        Ok(WasmBusCallback {
-            memory,
-            native_finish: native_data.unwrap().clone(),
-            native_malloc: native_malloc.unwrap().clone(),
-            native_error: native_error.unwrap().clone(),
-            waker: thread.waker.clone(),
-            handle,
-        })
     }
 
-    pub(crate) fn waker(&self) -> Arc<ThreadWaker> {
-        self.waker.clone()
-    }
-
-    pub fn feed<T>(&self, data: T)
+    pub fn feed<T>(
+        feeder: &dyn BusFeeder,
+        format: SerializationFormat,
+        data: T)
     where
         T: Serialize,
     {
-        self.feed_bytes_or_error(super::encode_response(&data));
+        Self::feed_bytes_or_error(feeder, super::encode_response(format, &data));
     }
 
-    pub fn feed_bytes(&self, data: Vec<u8>) {
-        trace!(
-            "wasm-bus::call-reply (handle={}, response={} bytes)",
-            self.handle,
-            data.len()
-        );
-
-        let buf_len = data.len() as u32;
-        let buf = self.native_malloc.call(buf_len).unwrap();
-
-        self.memory
-            .uint8view_with_byte_offset_and_length(buf.offset(), buf_len)
-            .copy_from(&data[..]);
-
-        self.native_finish.call(self.handle, buf, buf_len).unwrap();
+    pub fn feed_or_error<T>(
+        feeder: &dyn BusFeeder,
+        format: SerializationFormat,
+        data: Result<T, CallError>)
+    where
+        T: Serialize,
+    {
+        let data = match data.map(|a| super::encode_response(format, &a)) {
+            Ok(a) => a,
+            Err(err) => Err(err),
+        };
+        Self::feed_bytes_or_error(feeder, data);
     }
 
-    pub fn feed_bytes_or_error(&self, data: Result<Vec<u8>, CallError>) {
+    pub fn feed_bytes_or_error(
+        feeder: &dyn BusFeeder,
+        data: Result<Vec<u8>, CallError>) {
         match data {
-            Ok(a) => self.feed_bytes(a),
-            Err(err) => self.error(err),
+            Ok(a) => feeder.feed_bytes(a),
+            Err(err) => feeder.error(err),
         };
     }
+}
 
-    pub fn error(&self, err: CallError) {
-        trace!(
-            "wasm-bus::call-reply (handle={}, error={})",
-            self.handle,
-            err
-        );
-        self.native_error.call(self.handle, err.into()).unwrap();
+#[derive(Clone)]
+pub struct WasmBusFeeder {
+    system: System,
+    tx: mpsc::Sender<FeedData>,
+    handle: CallHandle,
+}
+
+impl WasmBusFeeder {
+    pub fn new(thread: &WasmBusThread, handle: CallHandle) -> WasmBusFeeder {
+        WasmBusFeeder {
+            system: thread.system,
+            tx: thread.feed_data.clone(),
+            handle,
+        }
     }
+
+    pub fn new_detached(handle: CallHandle) -> (WasmBusFeeder, mpsc::Receiver<FeedData>) {
+        let system = System::default();
+        let (tx, rx) = mpsc::channel(MAX_MPSC);
+        
+        let feeder = WasmBusFeeder {
+            system,
+            tx,
+            handle,
+        };
+
+        (feeder, rx)
+    }
+}
+
+impl BusFeeder
+for WasmBusFeeder
+{
+    fn feed_bytes(&self, data: Vec<u8>) {
+        self.system.fork_send(
+            &self.tx,
+            FeedData::Finish {
+                handle: self.handle.clone(),
+                data,
+            },
+        );
+    }
+
+    fn error(&self, err: CallError) {
+        self.system.fork_send(
+            &self.tx,
+            FeedData::Error {
+                handle: self.handle.clone(),
+                err,
+            },
+        );
+    }
+
+    fn terminate(&self) {
+        self.system.fork_send(
+            &self.tx,
+            FeedData::Terminate {
+                handle: self.handle.clone(),
+            },
+        );
+    }
+
+    fn handle(&self) -> CallHandle {
+        self.handle
+    }
+}
+
+#[derive(Debug)]
+pub enum FeedData {
+    Finish { handle: CallHandle, data: Vec<u8> },
+    Error { handle: CallHandle, err: CallError },
+    Terminate { handle: CallHandle },
 }

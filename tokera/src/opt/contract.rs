@@ -36,7 +36,7 @@ pub struct OptsContractForPersonal {
     /// Name of the personal wallet to use in this context (if required)
     #[clap(index = 1, default_value = "default")]
     pub wallet_name: String,
-    /// Action to perform on the wallet
+    /// Action to perform on the contract
     #[clap(subcommand)]
     pub action: OptsContractAction,
 }
@@ -50,7 +50,7 @@ pub struct OptsContractForDomain {
     /// Name of the group wallet to use in this context (if required)
     #[clap(index = 2, default_value = "default")]
     pub wallet_name: String,
-    /// Action to perform on the wallet
+    /// Action to perform on the contract
     #[clap(subcommand)]
     pub action: OptsContractAction,
 }
