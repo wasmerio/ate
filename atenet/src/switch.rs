@@ -11,6 +11,14 @@ use tokera::model::MeshNode;
 use super::port::*;
 use super::common::*;
 
+#[derive(Debug)]
+pub enum Destination
+{
+    Local(SwitchPort),
+    PeerSwitch(IpAddr)
+}
+
+#[derive(Debug)]
 pub struct SwitchPort {
     tx: mpsc::Sender<Vec<u8>>,
     #[allow(dead_code)]
@@ -18,15 +26,18 @@ pub struct SwitchPort {
 }
 
 #[derive(Derivative)]
-#[derivative(Debug)]
+#[derivative(Debug, Default)]
+pub struct SwitchState {
+    pub(crate) ports: HashMap<EthernetAddress, Destination>,
+    pub(crate) peers: Vec<IpAddr>,
+}
+
+#[derive(Debug)]
 pub struct Switch
 {
     #[allow(dead_code)]
     pub(crate) accessor: Arc<FileAccessor>,
-    #[derivative(Debug = "ignore")]
-    pub(crate) ports: RwLock<HashMap<EthernetAddress, SwitchPort>>,
-    #[derivative(Debug = "ignore")]
-    pub(crate) bus: RwLock<Bus<MeshNode>>,
+    pub(crate) state: RwLock<SwitchState>,
 }
 
 impl Switch
@@ -40,35 +51,65 @@ impl Switch
         };
 
         {
-            let mut ports = self.ports.write().unwrap();
-            ports.insert(mac, switch_port);
+            let mut state = self.state.write().unwrap();
+            state.ports.insert(mac, Destination::Local(switch_port));
         }
 
-        Port::new(self, mac, rx)
+        let ret = Port::new(self, mac, rx);
+
+        // Update the chain with the new record
+        todo;
+
+        ret
     }
     
     pub fn broadcast(&self, src: &EthernetAddress, pck: Vec<u8>) {
-        let ports = self.ports.read().unwrap();
-        for (dst, port) in ports.iter() {
-            if src != dst {
-                let _ = port.tx.blocking_send(pck.clone());
+        let state = self.state.read().unwrap();
+        for (mac, dst) in state.ports.iter() {
+            if let Destination::Local(port) = dst {
+                if src != mac {
+                    let _ = port.tx.blocking_send(pck.clone());
+                }
             }
+        }
+        for peer in state.peers.iter() {
+            todo;
         }
     }
 
-    pub fn unicast(&self, dst: &EthernetAddress, pck: Vec<u8>) {
-        let ports = self.ports.read().unwrap();
-        for (dst2, port) in ports.iter() {
-            if dst != dst2 {
-                let _ = port.tx.blocking_send(pck);
-                break;
+    pub fn unicast(&self, src: &EthernetAddress, dst_mac: &EthernetAddress, pck: Vec<u8>) {
+
+        // If the destination is the default gateway then we need to take a
+        // look at this packet and route it somewhere (either the internet or
+        // anothe switch network)
+        todo;
+
+        let state = self.state.read().unwrap();
+        if let Some(dst) = state.ports.get(&dst_mac) {
+            match dst {
+                Destination::Local(port) => {
+                    let _ = port.tx.blocking_send(pck);    
+                },
+                Destination::PeerSwitch(peer) => {
+                    todo;
+                }
             }
+        } else {
+            self.broadcast(src, pck);
         }
     }
 
     pub async fn run(&self, mut bus: Bus<MeshNode>) {
-        while let Ok(node) = bus.recv().await {
-
+        while let Ok(evt) = bus.recv().await {
+            match evt {
+                BusEvent::Updated(node) => {
+                    todo;
+                },
+                BusEvent::Deleted(key) => {
+                    todo;
+                },
+                _ => { }
+            }
         }
     }
 }

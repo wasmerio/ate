@@ -124,8 +124,7 @@ impl Server
         // Build the basics
         let switch = Arc::new(Switch {
             accessor,
-            ports: Default::default(),
-            bus,
+            state: Default::default(),
         });
 
         // Cache and and return it

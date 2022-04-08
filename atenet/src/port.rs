@@ -362,7 +362,7 @@ impl Port
             PortCommand::SetHardwareAddress {
                 mac,
             } => {
-                self.iface.set_hardware_addr(EthernetAddress::from_bytes(&mac).into());
+                self.iface.set_hardware_addr(EthernetAddress::from_bytes(mac.as_bytes()).into());
             },
             PortCommand::SetIpAddresses {
                 ips,
@@ -589,7 +589,12 @@ impl phy::TxToken for TxToken {
     {
         let mut buffer = vec![0; len];
         let result = f(&mut buffer);
+        
+        // This should use unicast for destination MAC's that are unicast - other
+        // MAC addresses such as multicast and broadcast should use broadcast
+        todo;
         let _ = self.switch.broadcast(&self.src, buffer);
+
         result
     }
 }

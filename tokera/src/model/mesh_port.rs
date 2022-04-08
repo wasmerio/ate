@@ -14,7 +14,7 @@ impl HardwareAddress {
 
 
     /// The broadcast address.
-    pub const BROADCAST: HardwareAddress = Address([0xff; 6]);
+    pub const BROADCAST: HardwareAddress = HardwareAddress([0xff; 6]);
 
     /// Construct an Ethernet address from a sequence of octets, in big-endian.
     ///

@@ -11,4 +11,7 @@ pub struct MeshNode {
     pub addr: IpAddr,
     /// List of all the ports that are in this mesh node
     pub ports: DaoVec<MeshPort>,
+    /// The version number increments everytime the ports are updated
+    /// (this is so that the BUS events only need to listen to one stream)
+    pub version: u64,
 }

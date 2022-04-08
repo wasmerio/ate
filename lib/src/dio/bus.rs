@@ -23,7 +23,6 @@ pub enum BusEvent<D>
     Updated(Dao<D>),
     Deleted(PrimaryKey),
     LoadError(PrimaryKey, LoadError),
-    NoData,
 }
 
 impl<D> BusEvent<D>
@@ -53,10 +52,6 @@ where D: fmt::Debug
             BusEvent::LoadError(key, err) => {
                 write!(f, "load-error(key={},err={})", key, err)
             },
-            BusEvent::NoData => {
-                write!(f, "no-data")
-            }
-
         }
     }
 }
@@ -80,10 +75,6 @@ where D: PartialEq<D>,
                 BusEvent::LoadError(key2, err2) => key1.eq(key2) && err1.to_string().eq(&err2.to_string()),
                 _ => false
             }
-            BusEvent::NoData => match other {
-                BusEvent::NoData => true,
-                _ => false
-            },
         }
     }
 }
@@ -91,6 +82,82 @@ where D: PartialEq<D>,
 impl<D> Eq
 for BusEvent<D>
 where D: Eq + PartialEq<BusEvent<D>>,
+      Dao<D>: PartialEq<Dao<D>>
+{ }
+
+pub enum TryBusEvent<D>
+{
+    Updated(Dao<D>),
+    Deleted(PrimaryKey),
+    LoadError(PrimaryKey, LoadError),
+    NoData,
+}
+
+impl<D> TryBusEvent<D>
+{
+    pub fn data(self) -> Option<D> {
+        match self {
+            TryBusEvent::Updated(data) => Some(data.take()),
+            _ => None,
+        }
+    }
+}
+
+impl<D> fmt::Debug
+for TryBusEvent<D>
+where D: fmt::Debug
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TryBusEvent::Updated(dao) => {
+                write!(f, "updated(")?;
+                dao.fmt(f)?;
+                write!(f, ")")
+            },
+            TryBusEvent::Deleted(key) => {
+                write!(f, "deleted({})", key)
+            },
+            TryBusEvent::LoadError(key, err) => {
+                write!(f, "load-error(key={},err={})", key, err)
+            },
+            TryBusEvent::NoData => {
+                write!(f, "no-data")
+            }
+
+        }
+    }
+}
+
+impl<D> PartialEq<TryBusEvent<D>>
+for TryBusEvent<D>
+where D: PartialEq<D>,
+      Dao<D>: PartialEq<Dao<D>>
+{
+    fn eq(&self, other: &TryBusEvent<D>) -> bool {
+        match self {
+            TryBusEvent::Updated(dao1) => match other {
+                TryBusEvent::Updated(dao2) => dao1.eq(dao2),
+                _ => false
+            },
+            TryBusEvent::Deleted(key1) => match other {
+                TryBusEvent::Deleted(key2) => key1.eq(key2),
+                _ => false
+            },
+            TryBusEvent::LoadError(key1, err1) => match other {
+                TryBusEvent::LoadError(key2, err2) => key1.eq(key2) && err1.to_string().eq(&err2.to_string()),
+                _ => false
+            }
+            TryBusEvent::NoData => match other {
+                TryBusEvent::NoData => true,
+                _ => false
+            },
+        }
+    }
+}
+
+impl<D> Eq
+for TryBusEvent<D>
+where D: Eq + PartialEq<TryBusEvent<D>>,
       Dao<D>: PartialEq<Dao<D>>
 { }
 
@@ -136,13 +203,13 @@ impl<D> Bus<D> {
     {
         while let Some(evt) = self.receiver.recv().await {
             match self.ret_evt(evt).await? {
-                BusEvent::Updated(dao) => {
+                TryBusEvent::Updated(dao) => {
                     return Ok(BusEvent::Updated(dao));
                 },
-                BusEvent::Deleted(key) => {
+                TryBusEvent::Deleted(key) => {
                     return Ok(BusEvent::Deleted(key));
                 },
-                BusEvent::LoadError(key, err) => {
+                TryBusEvent::LoadError(key, err) => {
                     return Ok(BusEvent::LoadError(key, err));
                 },
                 _ => { continue; }
@@ -151,14 +218,14 @@ impl<D> Bus<D> {
         Err(BusErrorKind::ChannelClosed.into())
     }
 
-    pub async fn try_recv(&mut self) -> Result<BusEvent<D>, BusError>
+    pub async fn try_recv(&mut self) -> Result<TryBusEvent<D>, BusError>
     where
         D: DeserializeOwned,
     {
         TaskEngine::run_until(self.__try_recv()).await
     }
 
-    pub async fn __try_recv(&mut self) -> Result<BusEvent<D>, BusError>
+    pub async fn __try_recv(&mut self) -> Result<TryBusEvent<D>, BusError>
     where
         D: DeserializeOwned,
     {
@@ -166,22 +233,22 @@ impl<D> Bus<D> {
             match self.receiver.try_recv() {
                 Ok(evt) => {
                     match self.ret_evt(evt).await? {
-                        BusEvent::Updated(dao) => {
-                            return Ok(BusEvent::Updated(dao));
+                        TryBusEvent::Updated(dao) => {
+                            return Ok(TryBusEvent::Updated(dao));
                         },
-                        BusEvent::Deleted(key) => {
-                            return Ok(BusEvent::Deleted(key));
+                        TryBusEvent::Deleted(key) => {
+                            return Ok(TryBusEvent::Deleted(key));
                         },
-                        BusEvent::LoadError(key, err) => {
-                            return Ok(BusEvent::LoadError(key, err));
+                        TryBusEvent::LoadError(key, err) => {
+                            return Ok(TryBusEvent::LoadError(key, err));
                         },
-                        BusEvent::NoData => {
-                            return Ok(BusEvent::NoData);
+                        TryBusEvent::NoData => {
+                            return Ok(TryBusEvent::NoData);
                         }
                     }
                 },
                 Err(mpsc::error::TryRecvError::Empty) => {
-                    return Ok(BusEvent::NoData);
+                    return Ok(TryBusEvent::NoData);
                 },
                 Err(mpsc::error::TryRecvError::Disconnected) => {
                     return Err(BusErrorKind::ChannelClosed.into());
@@ -190,15 +257,15 @@ impl<D> Bus<D> {
         }
     }
 
-    async fn ret_evt(&self, evt: EventWeakData) -> Result<BusEvent<D>, BusError>
+    async fn ret_evt(&self, evt: EventWeakData) -> Result<TryBusEvent<D>, BusError>
     where
         D: DeserializeOwned,
     {
         if let Some(key) = evt.meta.get_tombstone() {
-            return Ok(BusEvent::Deleted(key));
+            return Ok(TryBusEvent::Deleted(key));
         }
         if evt.data_bytes.is_none() {
-            return Ok(BusEvent::NoData);
+            return Ok(TryBusEvent::NoData);
         }
 
         let when = evt.meta.get_timestamp();
@@ -224,12 +291,12 @@ impl<D> Bus<D> {
                             if let Some(data) =  data.into_iter().next() {
                                 data
                             } else {
-                                return Ok(BusEvent::NoData);
+                                return Ok(TryBusEvent::NoData);
                             }
                         }
                         Err(err) => {
                             trace!("bus recv failed to load - {}", err);
-                            return Ok(BusEvent::NoData);
+                            return Ok(TryBusEvent::NoData);
                         }
                     }
                 },
@@ -239,7 +306,7 @@ impl<D> Bus<D> {
         };
 
         let (row_header, row) = super::row::Row::from_event(&self.dio, &evt, when, when)?;
-        return Ok(BusEvent::Updated(Dao::new(&self.dio, row_header, row)));
+        return Ok(TryBusEvent::Updated(Dao::new(&self.dio, row_header, row)));
     }
 
     pub async fn process(&mut self, trans: &Arc<DioMut>) -> Result<DaoMut<D>, BusError>
