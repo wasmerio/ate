@@ -24,7 +24,7 @@
     "parcel-bundler": "^1.12",
     "typescript": "^3.9",
     "webpack": "^5.51",
-    "webpack-cli": "^4.8",
+    "webpack-cli": "^4.9.2",
     "webpack-dev-server": "^4.4.0"
   }
 }

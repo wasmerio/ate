@@ -268,7 +268,20 @@ pub fn start(
     terminal.focus();
 
     system.fork_local(async move {
-        console.init(init_command, on_ready).await;
+        console
+            .init(
+                init_command,
+                Some(Box::new(move |code: u32| {
+                    let this = JsValue::null();
+                    // println!("{:?}", on_ready);
+                    // my_onready
+                    //     .lock()
+                    //     .unwrap()
+                    //     .borrow()
+                    //     .map(|f| f.call1(&this, &code.into()));
+                })),
+            )
+            .await;
 
         crate::glue::show_terminal();
 
@@ -286,9 +299,16 @@ pub fn start(
                         )
                         .await;
                 }
-                InputEvent::Command(data, func) => {
+                InputEvent::Command(data, _func) => {
                     console.on_data(data).await;
-                    console.on_enter_with_callback(func).await
+                    console
+                        .on_enter_with_callback(Some(Box::new(move |code: u32| {
+                            let this = JsValue::null();
+                            // if let Some(func) = func {
+                            //     func.call1(&this, &code.into());
+                            // }
+                        })))
+                        .await
                 }
                 InputEvent::Data(data) => {
                     // Due to a nasty bug in xterm.js on Android mobile it sends the keys you press

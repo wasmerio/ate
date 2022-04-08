@@ -184,7 +184,11 @@ impl Console {
         Console::update_prompt(false, &self.state, &self.tty).await;
     }
 
-    pub async fn init(&mut self, run_command: Option<String>) {
+    pub async fn init(
+        &mut self,
+        run_command: Option<String>,
+        callback: Option<Box<dyn FnOnce(u32) + Send + 'static>>,
+    ) {
         let mut location_file = self
             .state
             .lock()
@@ -219,11 +223,11 @@ impl Console {
         if self.wizard.is_some() {
             self.on_wizard(None).await;
         } else {
-            self.start_shell().await;
+            self.start_shell(callback).await;
         }
     }
 
-    pub async fn start_shell(&mut self) {
+    pub async fn start_shell(&mut self, callback: Option<Box<dyn FnOnce(u32) + Send + 'static>>) {
         if self.whitelabel == false && self.no_welcome == false {
             self.tty.draw_welcome().await;
         }
@@ -242,9 +246,9 @@ impl Console {
             } else {
                 format!("login --token {}", token)
             };
-            self.on_enter_internal(cmd, false).await;
+            self.on_enter_internal(cmd, false, callback).await;
         } else if has_init {
-            self.on_enter_internal("source /bin/init".to_string(), false)
+            self.on_enter_internal("source /bin/init".to_string(), false, callback)
                 .await;
         } else {
             self.tty.draw_prompt().await;
@@ -344,7 +348,7 @@ impl Console {
                         }
                     }
 
-                    self.start_shell().await;
+                    self.start_shell(None).await;
                     return;
                 }
             }
@@ -352,6 +356,13 @@ impl Console {
     }
 
     pub async fn on_enter(&mut self) {
+        self.on_enter_with_callback(None).await;
+    }
+
+    pub async fn on_enter_with_callback(
+        &mut self,
+        callback: Option<Box<dyn FnOnce(u32) + Send + 'static>>,
+    ) {
         self.tty.set_cursor_to_end().await;
         let cmd = self.tty.get_paragraph().await;
 
@@ -362,10 +373,14 @@ impl Console {
 
         self.tty.draw("\r\n").await;
 
-        self.on_enter_internal(cmd, true).await
+        self.on_enter_internal(cmd, true, callback).await
     }
-
-    pub async fn on_enter_internal(&mut self, mut cmd: String, record_history: bool) {
+    pub async fn on_enter_internal(
+        &mut self,
+        mut cmd: String,
+        record_history: bool,
+        callback: Option<Box<dyn FnOnce(u32) + Send + 'static>>,
+    ) {
         let mode = self.tty.mode().await;
         if let TtyMode::StdIn(job) = mode {
             cmd += "\n";
@@ -430,8 +445,8 @@ impl Console {
 
                 // Process the result
                 let mut multiline_input = false;
-                if let Some(rx) = rx {
-                    match rx.status {
+                let finished = if let Some(rx) = rx {
+                    let code = match rx.status {
                         EvalStatus::Executed { code, show_result } => {
                             debug!("eval executed (code={})", code);
                             let should_line_feed = {
@@ -453,21 +468,25 @@ impl Console {
                             } else if should_line_feed {
                                 tty.draw("\r\n").await;
                             }
+                            Some(code)
                         }
                         EvalStatus::InternalError => {
                             debug!("eval internal error");
                             tty.draw("term: internal error\r\n").await;
+                            None
                         }
                         EvalStatus::MoreInput => {
                             debug!("eval more input");
                             multiline_input = true;
                             tty.add(cmd.as_str()).await;
+                            None
                         }
                         EvalStatus::Invalid => {
                             debug!("eval invalid");
                             tty.draw("term: invalid command\r\n").await;
+                            None
                         }
-                    }
+                    };
 
                     // Process any changes to the global state
                     {
@@ -478,15 +497,23 @@ impl Console {
                         state.path = ctx.working_dir;
                         state.last_return = ctx.last_return;
                     }
+                    code
                 } else {
                     debug!("eval recv erro");
                     tty.draw(format!("term: command failed\r\n").as_str()).await;
-                }
+                    None
+                };
 
                 // Now draw the prompt ready for the next
                 tty.reset_line().await;
                 Console::update_prompt(multiline_input, &state, &tty).await;
                 tty.draw_prompt().await;
+
+                if let Some(code) = finished {
+                    if let Some(callback) = callback {
+                        callback(code);
+                    }
+                }
             }
         });
     }
