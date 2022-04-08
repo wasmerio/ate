@@ -123,13 +123,7 @@ pub fn start(
     let is_mobile = term_lib::common::is_mobile(&user_agent);
     debug!("user_agent: {}", user_agent);
 
-    let elem = window
-        .document()
-        .unwrap()
-        .get_element_by_id("terminal")
-        .unwrap();
-
-    terminal.open(elem.clone().dyn_into()?);
+    terminal.open(terminal_element.dyn_into()?);
 
     let (term_tx, mut term_rx) = mpsc::channel(MAX_MPSC);
     {
@@ -156,15 +150,6 @@ pub fn start(
         });
     }
 
-    let front_buffer = window
-        .document()
-        .unwrap()
-        .get_element_by_id("frontBuffer")
-        .unwrap();
-    let front_buffer: HtmlCanvasElement = front_buffer
-        .dyn_into::<HtmlCanvasElement>()
-        .map_err(|_| ())
-        .unwrap();
     let webgl2 = front_buffer
         .get_context("webgl2")?
         .unwrap()
