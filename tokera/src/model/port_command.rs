@@ -9,6 +9,7 @@ use std::net::SocketAddr;
 use std::fmt;
 
 use super::socket_error::*;
+use super::mesh_port::*;
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SocketHandle(pub i32);
@@ -233,7 +234,7 @@ pub enum PortCommand {
         multiaddr: IpAddr,
     },
     SetHardwareAddress {
-        mac: [u8; 6],
+        mac: HardwareAddress,
     },
     SetIpAddresses {
         // Cidr - unicast address + prefix length
@@ -290,7 +291,7 @@ for PortCommand
             },
             PortCommand::JoinMulticast { multiaddr } => write!(f, "join-multicast(multiaddr={})", multiaddr),
             PortCommand::LeaveMulticast { multiaddr } => write!(f, "leave-multicast(multiaddr={})", multiaddr),
-            PortCommand::SetHardwareAddress { mac } => write!(f, "set-hardware-address(mac={:?})", mac),
+            PortCommand::SetHardwareAddress { mac } => write!(f, "set-hardware-address(mac={})", mac),
             PortCommand::SetIpAddresses { ips } => write!(f, "set-ip-addresses({:?})", ips),
             PortCommand::SetRoutes { routes } => write!(f, "set-routes({:?})", routes),
         }

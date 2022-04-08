@@ -5,6 +5,8 @@ use tokio::sync::mpsc;
 use smoltcp::wire::EthernetAddress;
 use derivative::*;
 use std::sync::RwLock;
+use ate::prelude::*;
+use tokera::model::MeshNode;
 
 use super::port::*;
 use super::common::*;
@@ -23,6 +25,8 @@ pub struct Switch
     pub(crate) accessor: Arc<FileAccessor>,
     #[derivative(Debug = "ignore")]
     pub(crate) ports: RwLock<HashMap<EthernetAddress, SwitchPort>>,
+    #[derivative(Debug = "ignore")]
+    pub(crate) bus: RwLock<Bus<MeshNode>>,
 }
 
 impl Switch
@@ -59,6 +63,12 @@ impl Switch
                 let _ = port.tx.blocking_send(pck);
                 break;
             }
+        }
+    }
+
+    pub async fn run(&self, mut bus: Bus<MeshNode>) {
+        while let Ok(node) = bus.recv().await {
+
         }
     }
 }

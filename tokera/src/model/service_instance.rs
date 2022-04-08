@@ -2,7 +2,7 @@ use ate::{prelude::DaoVec};
 use ate::chain::ChainKey;
 use serde::*;
 
-use super::{InstanceExport, InstanceSubnet};
+use super::{InstanceExport, InstanceSubnet, MeshNode};
 
 /// Running instance of a particular web assembly application
 /// within the hosting environment
@@ -19,6 +19,8 @@ pub struct ServiceInstance {
     /// List of all the binaries that are exposed by this instance
     /// and hence can be invoked by clients
     pub exports: DaoVec<InstanceExport>,
+    /// List of active nodes currently partipating in the mesh
+    pub mesh_nodes: DaoVec<MeshNode>,
 }
 
 impl ServiceInstance

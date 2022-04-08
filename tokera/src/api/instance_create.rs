@@ -155,6 +155,7 @@ impl TokApi {
                 },
                 admin_token,
                 exports: DaoVec::new(),
+                mesh_nodes: DaoVec::new(),
             },
             PrimaryKey::from(INSTANCE_ROOT_ID),
         )?;

@@ -206,14 +206,14 @@ async fn test_mesh_internal(centralized: bool, proto: StreamProtocol) {
             .recv()
             .await
             .expect("Should have received the result on the BUS");
-        assert_eq!(*task_ret, "test_string1".to_string());
+        assert_eq!(task_ret, BusEvent::Updated("test_string1".to_string()));
 
         info!("wait for an event on the BUS (other)");
         let task_ret = bus_b
             .recv()
             .await
             .expect("Should have received the result on the BUS");
-        assert_eq!(*task_ret, "test_string1".to_string());
+        assert_eq!(task_ret, BusEvent::Updated("test_string1".to_string()));
 
         {
             info!("new DIO session for client A");
@@ -270,4 +270,6 @@ async fn test_mesh_internal(centralized: bool, proto: StreamProtocol) {
 
     info!("shutting down");
     //std::process::exit(0);
+
+    use crate::dio::bus::BusEvent;
 }

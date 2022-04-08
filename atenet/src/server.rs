@@ -107,7 +107,11 @@ impl Server
         let _chain = accessor.chain.clone();
         let chain_dio = accessor.dio.clone().as_mut().await;
         trace!("loading service instance with key {}", PrimaryKey::from(INSTANCE_ROOT_ID));
-        let service_instance = chain_dio.load::<ServiceInstance>(&PrimaryKey::from(INSTANCE_ROOT_ID)).await?;        
+        let service_instance = chain_dio.load::<ServiceInstance>(&PrimaryKey::from(INSTANCE_ROOT_ID)).await?;
+
+        // Open a BUS to the service instance to listen for mesh nodes that join or leave the switch
+        let bus = service_instance.mesh_nodes.bus().await
+            .map_err(|err| CommsErrorKind::InternalError(err.to_string()))?;
 
         // Enter a write lock and check again
         let mut guard = self.switches.write().await;
@@ -121,6 +125,7 @@ impl Server
         let switch = Arc::new(Switch {
             accessor,
             ports: Default::default(),
+            bus,
         });
 
         // Cache and and return it
