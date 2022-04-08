@@ -1,11 +1,13 @@
 #![allow(unused_imports)]
 #![allow(dead_code)]
+use futures::FutureExt;
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::sync::Mutex;
 use tokio::sync::mpsc;
+use tokio::sync::oneshot;
 use tokio::sync::RwLock;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
@@ -187,7 +189,7 @@ impl Console {
     pub async fn init(
         &mut self,
         run_command: Option<String>,
-        callback: Option<Box<dyn FnOnce(u32) + Send + 'static>>,
+        callback: Option<Box<dyn FnOnce(u32)>>,
     ) {
         let mut location_file = self
             .state
@@ -227,7 +229,7 @@ impl Console {
         }
     }
 
-    pub async fn start_shell(&mut self, callback: Option<Box<dyn FnOnce(u32) + Send + 'static>>) {
+    pub async fn start_shell(&mut self, callback: Option<Box<dyn FnOnce(u32)>>) {
         if self.whitelabel == false && self.no_welcome == false {
             self.tty.draw_welcome().await;
         }
@@ -359,10 +361,7 @@ impl Console {
         self.on_enter_with_callback(None).await;
     }
 
-    pub async fn on_enter_with_callback(
-        &mut self,
-        callback: Option<Box<dyn FnOnce(u32) + Send + 'static>>,
-    ) {
+    pub async fn on_enter_with_callback(&mut self, callback: Option<Box<dyn FnOnce(u32)>>) {
         self.tty.set_cursor_to_end().await;
         let cmd = self.tty.get_paragraph().await;
 
@@ -379,7 +378,7 @@ impl Console {
         &mut self,
         mut cmd: String,
         record_history: bool,
-        callback: Option<Box<dyn FnOnce(u32) + Send + 'static>>,
+        callback: Option<Box<dyn FnOnce(u32)>>,
     ) {
         let mode = self.tty.mode().await;
         if let TtyMode::StdIn(job) = mode {
@@ -425,6 +424,9 @@ impl Console {
         let state = self.state.clone();
         let mut stdout = ctx.stdout.clone();
         let mut stderr = ctx.stderr.clone();
+
+        let (code_sender, code_receiver) = oneshot::channel::<u32>();
+
         system.fork_dedicated(move || {
             let mut process = exec.eval(cmd.clone(), ctx);
             async move {
@@ -510,12 +512,18 @@ impl Console {
                 tty.draw_prompt().await;
 
                 if let Some(code) = finished {
-                    if let Some(callback) = callback {
-                        callback(code);
-                    }
+                    code_sender.send(code).unwrap();
                 }
             }
         });
+
+        if let Some(callback) = callback {
+            code_receiver
+                .map(|code| {
+                    callback(code.unwrap());
+                })
+                .await;
+        }
     }
 
     async fn update_prompt(multiline_input: bool, state: &Arc<Mutex<ConsoleState>>, tty: &Tty) {

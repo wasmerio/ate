@@ -253,17 +253,15 @@ pub fn start(
     terminal.focus();
 
     system.fork_local(async move {
+        let x = on_ready.clone();
         console
             .init(
                 init_command,
                 Some(Box::new(move |code: u32| {
-                    let this = JsValue::null();
-                    // println!("{:?}", on_ready);
-                    // my_onready
-                    //     .lock()
-                    //     .unwrap()
-                    //     .borrow()
-                    //     .map(|f| f.call1(&this, &code.into()));
+                    if let Some(on_ready) = on_ready {
+                        let this = JsValue::null();
+                        on_ready.call1(&this, &code.into());
+                    }
                 })),
             )
             .await;
@@ -284,14 +282,14 @@ pub fn start(
                         )
                         .await;
                 }
-                InputEvent::Command(data, _func) => {
+                InputEvent::Command(data, func) => {
                     console.on_data(data).await;
                     console
                         .on_enter_with_callback(Some(Box::new(move |code: u32| {
                             let this = JsValue::null();
-                            // if let Some(func) = func {
-                            //     func.call1(&this, &code.into());
-                            // }
+                            if let Some(func) = func {
+                                func.call1(&this, &code.into());
+                            }
                         })))
                         .await
                 }

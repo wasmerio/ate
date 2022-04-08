@@ -45,6 +45,7 @@ serde = { version = "^1", features = ["derive"] }
 serde_derive = "^1"
 serde_json = "^1"
 tokio = { version = "^1", features = [ "rt", "time", "sync", "macros" ], default_features = false }
+futures = "0.3"
 derivative = { version = "^2" }
 base64 = { version = "^0.13" }
 sha2 = { version = "^0.9" }
