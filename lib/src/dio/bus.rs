@@ -26,6 +26,16 @@ pub enum BusEvent<D>
     NoData,
 }
 
+impl<D> BusEvent<D>
+{
+    pub fn data(self) -> Option<D> {
+        match self {
+            BusEvent::Updated(data) => Some(data.take()),
+            _ => None,
+        }
+    }
+}
+
 impl<D> fmt::Debug
 for BusEvent<D>
 where D: fmt::Debug
@@ -50,6 +60,39 @@ where D: fmt::Debug
         }
     }
 }
+
+impl<D> PartialEq<BusEvent<D>>
+for BusEvent<D>
+where D: PartialEq<D>,
+      Dao<D>: PartialEq<Dao<D>>
+{
+    fn eq(&self, other: &BusEvent<D>) -> bool {
+        match self {
+            BusEvent::Updated(dao1) => match other {
+                BusEvent::Updated(dao2) => dao1.eq(dao2),
+                _ => false
+            },
+            BusEvent::Deleted(key1) => match other {
+                BusEvent::Deleted(key2) => key1.eq(key2),
+                _ => false
+            },
+            BusEvent::LoadError(key1, err1) => match other {
+                BusEvent::LoadError(key2, err2) => key1.eq(key2) && err1.to_string().eq(&err2.to_string()),
+                _ => false
+            }
+            BusEvent::NoData => match other {
+                BusEvent::NoData => true,
+                _ => false
+            },
+        }
+    }
+}
+
+impl<D> Eq
+for BusEvent<D>
+where D: Eq + PartialEq<BusEvent<D>>,
+      Dao<D>: PartialEq<Dao<D>>
+{ }
 
 #[allow(dead_code)]
 pub struct Bus<D> {
@@ -135,7 +178,6 @@ impl<D> Bus<D> {
                         BusEvent::NoData => {
                             return Ok(BusEvent::NoData);
                         }
-                        _ => { continue; }
                     }
                 },
                 Err(mpsc::error::TryRecvError::Empty) => {

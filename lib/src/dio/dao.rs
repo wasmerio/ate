@@ -81,6 +81,29 @@ where
     }
 }
 
+impl<D> PartialEq<Dao<D>>
+for Dao<D>
+where D: PartialEq<D>
+{
+    fn eq(&self, other: &Dao<D>) -> bool {
+        if self.row.key.ne(&other.row.key) {
+            return false;
+        }
+        if self.row_header.auth.ne(&other.row_header.auth) {
+            return false;
+        }
+        if self.row_header.parent.ne(&other.row_header.parent) {
+            return false;
+        }
+        self.row.data.eq(&other.row.data)
+    }
+}
+
+impl<D> Eq
+for Dao<D>
+where D: Eq + PartialEq<Dao<D>>
+{ }
+
 impl<D> Dao<D> {
     pub(super) fn new(dio: &Arc<Dio>, row_header: RowHeader, row: Row<D>) -> Dao<D> {
         Dao {
