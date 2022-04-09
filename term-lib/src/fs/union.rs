@@ -111,6 +111,9 @@ impl UnionFileSystem {
     ) {
         self.unmount(path);
         let mut path = path.to_string();
+        if path.starts_with("/") == false {
+            path.insert(0, '/');
+        }
         if path.ends_with("/") == false {
             path += "/";
         }
