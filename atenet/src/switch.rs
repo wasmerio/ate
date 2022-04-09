@@ -77,11 +77,14 @@ impl Switch
         }
     }
 
-    pub fn unicast(&self, src: &EthernetAddress, dst_mac: &EthernetAddress, pck: Vec<u8>) {
+    pub fn unicast(&self, src: &EthernetAddress, dst_mac: &EthernetAddress, pck: Vec<u8>, allow_forward: bool) {
 
         // If the destination is the default gateway then we need to take a
         // look at this packet and route it somewhere (either the internet or
         // anothe switch network)
+        //
+        // This is also where outbound firewalls should be checked before the packets
+        // are actually routed anywhere.
         todo;
 
         let state = self.state.read().unwrap();
@@ -91,10 +94,12 @@ impl Switch
                     let _ = port.tx.blocking_send(pck);    
                 },
                 Destination::PeerSwitch(peer) => {
-                    todo;
+                    if allow_forward {
+                        todo;
+                    }
                 }
             }
-        } else {
+        } else if allow_forward {
             self.broadcast(src, pck);
         }
     }
