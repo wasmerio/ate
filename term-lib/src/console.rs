@@ -427,6 +427,12 @@ impl Console {
 
         let (code_sender, code_receiver) = oneshot::channel::<u32>();
 
+        if let Some(callback) = callback {
+            system.fork_local(code_receiver.map(|code| {
+                callback(code.unwrap());
+            }));
+        }
+
         system.fork_dedicated(move || {
             let mut process = exec.eval(cmd.clone(), ctx);
             async move {
@@ -516,14 +522,6 @@ impl Console {
                 }
             }
         });
-
-        if let Some(callback) = callback {
-            code_receiver
-                .map(|code| {
-                    callback(code.unwrap());
-                })
-                .await;
-        }
     }
 
     async fn update_prompt(multiline_input: bool, state: &Arc<Mutex<ConsoleState>>, tty: &Tty) {
