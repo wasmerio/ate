@@ -102,7 +102,6 @@ pub async fn exec_process(
 
     // Grab the private file system for this binary (if the binary changes the private
     // file system will also change)
-    let mut mappings = Vec::new();
     let mut preopen = ctx.pre_open.clone();
     let mut envs = ctx.env.iter().filter_map(|(k, _)| ctx.env.get(k.as_str()).map(|v| (k.clone(), v))).collect::<HashMap<_,_>>();
     let mut set_pwd = false;
@@ -122,7 +121,9 @@ pub async fn exec_process(
                 }
                 envs.insert(k, v);
             }
-            mappings.extend(a.mappings.into_iter());
+            for mapping in a.mappings {
+                preopen.push(mapping);
+            }
 
             (a.hash, a.data, a.fs)
         }
@@ -130,13 +131,10 @@ pub async fn exec_process(
             return on_early_exit(None, err::ERR_ENOENT).await;
         }
     };
+    let pwd = ctx.working_dir.clone();
     if set_pwd == false {
-        if let Some(ref base_dir) = base_dir {
-            envs.insert("PWD".to_string(), base_dir.clone());
-        } else {
-            envs.insert("PWD".to_string(), ctx.working_dir.clone());
-        }
-    }
+        envs.insert("PWD".to_string(), pwd.clone());
+    };
 
     // If compile caching is enabled the load the module
     #[cfg(feature = "cached_compiling")]
@@ -147,27 +145,31 @@ pub async fn exec_process(
     fs_private.set_ctx(&caller_ctx);
 
     // Create the filesystem
-    let (fs, union) = {
-        let root = ctx.root.clone();
+    let (fs, union_base) = {
         let stdio = stdio.clone();
-
-        let mut union = root.clone();
+        let mut union = ctx.root.clone();
         union.mount("proc", "/dev", true, Box::new(ProcFileSystem::new(stdio)), None);
         union.mount("tmp", "/tmp", true, Box::new(TmpFileSystem::new()), None);
         union.mount("private", "/.private", true, Box::new(fs_private), None);
-
-        for mapping in mappings {
-            if let Some((lhs, rhs)) = mapping.split_once(":") {
-                let root = root.clone();
-                let name = format!("mapping-{}", fastrand::u64(..));
-                union.mount(name.as_str(), lhs, true, Box::new(root), Some(rhs));
-            }
-        }
-
         union.set_ctx(&caller_ctx);
-
+        
         (AsyncifyFileSystem::new(union.clone()), union)
     };
+
+    // Extra preopens that should in-fact be file system mappings
+    let mut union = UnionFileSystem::new();
+    if ctx.chroot == false && preopen.len() > 0 {
+        union.mount("root", "/", true, Box::new(union_base.clone()), None);
+        for pre_open in preopen.iter() {
+            if let Some((alias, po_dir)) = pre_open.split_once(":") {
+                if alias.starts_with("./") { continue; }
+                let name = format!("mapping{}", fastrand::u64(..));
+                union.mount(name.as_str(), alias, true, Box::new(union_base.clone()), Some(po_dir));
+            }
+        }
+    } else {
+        union = union_base;
+    }
 
     // Perform all the redirects
     for redirect in redirect.iter() {
@@ -284,11 +286,7 @@ pub async fn exec_process(
     let compiler = ctx.compiler;
     let reactor = ctx.reactor.clone();
     let chroot = if chroot {
-        if let Some(ref base_dir) = base_dir {
-            Some(base_dir.clone())
-        } else {
-            Some(ctx.working_dir.clone())
-        }
+        Some(ctx.working_dir.clone())
     } else {
         None
     };
@@ -390,11 +388,32 @@ pub async fn exec_process(
                 .stdout(Box::new(stdio.stdout.clone()))
                 .stderr(Box::new(stdio.stderr.clone()));
 
+            // We default and open the current directory
+            let mut is_chroot = false;
+            if let Some(chroot) = chroot {
+                is_chroot = true;
+                wasi_env
+                    .preopen_dir(Path::new(chroot.as_str()))
+                    .unwrap()
+                    .map_dir(".", Path::new(chroot.as_str()));
+            } else {
+                wasi_env
+                    .preopen_dir(Path::new("/"))
+                    .unwrap()
+                    .map_dir(".", "/");
+            }
+
             // Add the extra pre-opens
             if preopen.len() > 0 {
                 for pre_open in preopen {
                     let res = if let Some((alias, po_dir)) = pre_open.split_once(":") {
-                        wasi_env.map_dir(alias, po_dir).is_ok()
+                        if alias.starts_with("./") || is_chroot == true {
+                            wasi_env.map_dir(alias, po_dir).is_ok()
+                        } else {
+                            // in certain scenarios the map_dir doesnt appear to work properly thus we
+                            // avoid it and apply the mappings at the virtual file system
+                            continue;
+                        }
                     } else {
                         wasi_env.preopen_dir(Path::new(pre_open.as_str())).is_ok()
                     };
@@ -409,15 +428,6 @@ pub async fn exec_process(
                         return (ctx, ERR_ENOEXEC);
                     }
                 }
-
-            // Or we default and open the current directory
-            } else if let Some(chroot) = chroot {
-                wasi_env
-                    .preopen_dir(Path::new(chroot.as_str()))
-                    .unwrap()
-                    .map_dir(".", Path::new(chroot.as_str()));
-            } else {
-                wasi_env.preopen_dir(Path::new("/")).unwrap();
             }
             
             // Add the tick callback that will invoke the WASM bus background
@@ -458,14 +468,28 @@ pub async fn exec_process(
             let mut wasi_thread = wasi_env.new_thread();
 
             // Generate an `ImportObject`.
-            let wasi_import = wasi_thread.import_object(&module).unwrap();
+            let wasi_import = match wasi_thread.import_object(&module) {
+                Ok(a) => a,
+                Err(err) => {
+                    let _ = stderr.write(format!("wasi error ({})\n", err.to_string()).as_bytes()).await;
+                    let ctx = bus_thread_pool.take_context().unwrap();
+                    return (ctx, ERR_ENOEXEC);
+                }
+            };
             let mut wasm_thread = bus_thread_pool.get_or_create(&wasi_thread, &launch_env);
             let wasm_bus_import = wasm_thread.import_object(&module);
             let import = wasi_import.chain_front(wasm_bus_import);
             let bus_thread_pool = bus_thread_pool.to_take_context();
 
             // Let's instantiate the module with the imports.
-            let instance = Instance::new(&module, &import).unwrap();
+            let instance = match Instance::new(&module, &import) {
+                Ok(a) => a,
+                Err(err) => {
+                    let _ = stderr.write(format!("instantiate error ({})\n", err.to_string()).as_bytes()).await;
+                    let ctx = bus_thread_pool.take_context().unwrap();
+                    return (ctx, ERR_ENOEXEC);
+                }
+            };
 
             // Pre-init a bunch of the functions
             if let Ok(mem) = instance.exports.get_memory("memory") {
