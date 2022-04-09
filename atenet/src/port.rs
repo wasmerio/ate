@@ -17,6 +17,7 @@ use derivative::*;
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 use tokera::model::PortCommand;
 use tokera::model::PortResponse;
+use tokera::model::HardwareAddress;
 use tokera::model::SocketHandle;
 use tokera::model::SocketErrorKind;
 use smoltcp::wire::EthernetAddress;
@@ -43,6 +44,7 @@ use smoltcp::socket::TcpSocketBuffer;
 use smoltcp::socket::UdpSocket;
 use smoltcp::socket::UdpSocketBuffer;
 use smoltcp::socket::UdpPacketMetadata;
+use smoltcp::wire::EthernetFrame;
 use managed::ManagedSlice;
 use managed::ManagedMap;
 
@@ -57,6 +59,7 @@ pub struct Port
     #[allow(dead_code)]
     #[derivative(Debug = "ignore")]
     pub(crate) mac: EthernetAddress,
+    pub(crate) mac_drop: mpsc::Sender<HardwareAddress>,
     pub(crate) listen_sockets: HashMap<SocketHandle, iface::SocketHandle>,
     pub(crate) tcp_sockets: HashMap<SocketHandle, iface::SocketHandle>,
     pub(crate) udp_sockets: HashMap<SocketHandle, iface::SocketHandle>,
@@ -71,7 +74,8 @@ pub struct Port
 
 impl Port
 {
-    pub fn new(switch: &Arc<Switch>, mac: EthernetAddress, rx: mpsc::Receiver<Vec<u8>>) -> Port {
+    pub fn new(switch: &Arc<Switch>, mac: HardwareAddress, rx: mpsc::Receiver<Vec<u8>>, mac_drop: mpsc::Sender<HardwareAddress>) -> Port {
+        let mac = EthernetAddress::from_bytes(mac.as_bytes());
         let device = PortDevice {
             rx, 
             mac,
@@ -88,6 +92,7 @@ impl Port
             switch: Arc::clone(switch),
             raw_mode: false,
             mac,
+            mac_drop,
             udp_sockets: Default::default(),
             tcp_sockets: Default::default(),
             listen_sockets: Default::default(),
@@ -514,6 +519,18 @@ impl Port
     }
 }
 
+impl Drop
+for Port
+{
+    fn drop(&mut self) {
+        let tx = self.mac_drop.clone();
+        let mac = HardwareAddress::from_bytes(self.mac.as_bytes());
+        tokio::task::spawn(async move {
+            let _ = tx.send(mac).await;
+        });
+    }
+}
+
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct PortDevice {
@@ -592,8 +609,13 @@ impl phy::TxToken for TxToken {
         
         // This should use unicast for destination MAC's that are unicast - other
         // MAC addresses such as multicast and broadcast should use broadcast
-        todo;
-        let _ = self.switch.broadcast(&self.src, buffer);
+        let frame = EthernetFrame::new_checked(&buffer[..])?;
+        let dst = frame.dst_addr();
+        if dst.is_unicast() {
+            let _ = self.switch.unicast(&self.src, &dst, buffer, true);
+        } else {
+            let _ = self.switch.broadcast(&self.src, buffer);
+        }        
 
         result
     }

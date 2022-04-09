@@ -33,7 +33,7 @@ mod port_command;
 mod switch_hello;
 mod socket_error;
 mod mesh_node;
-mod mesh_port;
+mod hardware_address;
 
 pub use advertised_service::*;
 pub use automation_time::*;
@@ -70,7 +70,7 @@ pub use port_command::*;
 pub use switch_hello::*;
 pub use socket_error::*;
 pub use mesh_node::*;
-pub use mesh_port::*;
+pub use hardware_address::*;
 
 pub const WALLET_COLLECTION_ID: u64 = 2259995437953076879u64;
 pub const CONTRACT_COLLECTION_ID: u64 = 8278931753731734656u64;

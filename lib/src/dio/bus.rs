@@ -13,7 +13,6 @@ use super::dio_mut::*;
 use super::vec::DaoVecState;
 use super::*;
 use crate::chain::*;
-use crate::engine::*;
 use crate::header::PrimaryKey;
 use crate::header::PrimaryKeyScope;
 use crate::{error::*, event::*, meta::MetaCollection};
@@ -22,7 +21,6 @@ pub enum BusEvent<D>
 {
     Updated(Dao<D>),
     Deleted(PrimaryKey),
-    LoadError(PrimaryKey, LoadError),
 }
 
 impl<D> BusEvent<D>
@@ -49,9 +47,6 @@ where D: fmt::Debug
             BusEvent::Deleted(key) => {
                 write!(f, "deleted({})", key)
             },
-            BusEvent::LoadError(key, err) => {
-                write!(f, "load-error(key={},err={})", key, err)
-            },
         }
     }
 }
@@ -71,10 +66,6 @@ where D: PartialEq<D>,
                 BusEvent::Deleted(key2) => key1.eq(key2),
                 _ => false
             },
-            BusEvent::LoadError(key1, err1) => match other {
-                BusEvent::LoadError(key2, err2) => key1.eq(key2) && err1.to_string().eq(&err2.to_string()),
-                _ => false
-            }
         }
     }
 }
@@ -89,7 +80,6 @@ pub enum TryBusEvent<D>
 {
     Updated(Dao<D>),
     Deleted(PrimaryKey),
-    LoadError(PrimaryKey, LoadError),
     NoData,
 }
 
@@ -117,9 +107,6 @@ where D: fmt::Debug
             TryBusEvent::Deleted(key) => {
                 write!(f, "deleted({})", key)
             },
-            TryBusEvent::LoadError(key, err) => {
-                write!(f, "load-error(key={},err={})", key, err)
-            },
             TryBusEvent::NoData => {
                 write!(f, "no-data")
             }
@@ -143,10 +130,6 @@ where D: PartialEq<D>,
                 TryBusEvent::Deleted(key2) => key1.eq(key2),
                 _ => false
             },
-            TryBusEvent::LoadError(key1, err1) => match other {
-                TryBusEvent::LoadError(key2, err2) => key1.eq(key2) && err1.to_string().eq(&err2.to_string()),
-                _ => false
-            }
             TryBusEvent::NoData => match other {
                 TryBusEvent::NoData => true,
                 _ => false
@@ -194,13 +177,6 @@ impl<D> Bus<D> {
     where
         D: DeserializeOwned,
     {
-        TaskEngine::run_until(self.__recv()).await
-    }
-
-    async fn __recv(&mut self) -> Result<BusEvent<D>, BusError>
-    where
-        D: DeserializeOwned,
-    {
         while let Some(evt) = self.receiver.recv().await {
             match self.ret_evt(evt).await? {
                 TryBusEvent::Updated(dao) => {
@@ -209,9 +185,6 @@ impl<D> Bus<D> {
                 TryBusEvent::Deleted(key) => {
                     return Ok(BusEvent::Deleted(key));
                 },
-                TryBusEvent::LoadError(key, err) => {
-                    return Ok(BusEvent::LoadError(key, err));
-                },
                 _ => { continue; }
             }
         }
@@ -219,13 +192,6 @@ impl<D> Bus<D> {
     }
 
     pub async fn try_recv(&mut self) -> Result<TryBusEvent<D>, BusError>
-    where
-        D: DeserializeOwned,
-    {
-        TaskEngine::run_until(self.__try_recv()).await
-    }
-
-    pub async fn __try_recv(&mut self) -> Result<TryBusEvent<D>, BusError>
     where
         D: DeserializeOwned,
     {
@@ -238,10 +204,7 @@ impl<D> Bus<D> {
                         },
                         TryBusEvent::Deleted(key) => {
                             return Ok(TryBusEvent::Deleted(key));
-                        },
-                        TryBusEvent::LoadError(key, err) => {
-                            return Ok(TryBusEvent::LoadError(key, err));
-                        },
+                        },                        
                         TryBusEvent::NoData => {
                             return Ok(TryBusEvent::NoData);
                         }
@@ -274,13 +237,6 @@ impl<D> Bus<D> {
             None => 0,
         };
 
-        let _pop1 = DioScope::new(&self.dio);
-        let _pop2 = evt
-            .meta
-            .get_data_key()
-            .as_ref()
-            .map(|a| PrimaryKeyScope::new(a.clone()));
-
         let evt = EventStrongData {
             meta: evt.meta,
             data_bytes: match evt.data_bytes {
@@ -305,24 +261,23 @@ impl<D> Bus<D> {
             format: evt.format,
         };
 
+        let _pop1 = DioScope::new(&self.dio);
+        let _pop2 = evt
+            .meta
+            .get_data_key()
+            .as_ref()
+            .map(|a| PrimaryKeyScope::new(a.clone()));
+
         let (row_header, row) = super::row::Row::from_event(&self.dio, &evt, when, when)?;
         return Ok(TryBusEvent::Updated(Dao::new(&self.dio, row_header, row)));
     }
-
+    
     pub async fn process(&mut self, trans: &Arc<DioMut>) -> Result<DaoMut<D>, BusError>
     where
         D: Serialize + DeserializeOwned,
     {
-        let trans = Arc::clone(&trans);
-        TaskEngine::run_until(self.__process(&trans)).await
-    }
-
-    async fn __process(&mut self, trans: &Arc<DioMut>) -> Result<DaoMut<D>, BusError>
-    where
-        D: Serialize + DeserializeOwned,
-    {
         loop {
-            let dao = self.__recv().await?;
+            let dao = self.recv().await?;
             if let BusEvent::Updated(dao) = dao {
                 let mut dao = DaoMut::new(Arc::clone(trans), dao);
                 if dao.try_lock_then_delete().await? == true {

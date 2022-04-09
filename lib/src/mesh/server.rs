@@ -133,17 +133,16 @@ impl MeshRoot {
         };
         let server_id = format!("n{}", node_id);
 
-        TaskEngine::run_until(
-            Self::__new(cfg, lookup, node_id, listen_addrs).instrument(span!(
+        Self::new_ext(cfg, lookup, node_id, listen_addrs)
+            .instrument(span!(
                 Level::INFO,
                 "server",
                 id = server_id.as_str()
-            )),
-        )
-        .await
+            ))
+            .await
     }
 
-    async fn __new(
+    pub async fn new_ext(
         cfg: &ConfMesh,
         lookup: MeshHashTable,
         node_id: u32,
@@ -229,22 +228,6 @@ impl MeshRoot {
     where
         F: OpenFlow + 'static,
     {
-        TaskEngine::run_until(
-            self.__add_route(open_flow, cfg_ate)
-                .instrument(span!(Level::INFO, "add_route"))
-                .instrument(span!(Level::INFO, "server")),
-        )
-        .await
-    }
-
-    async fn __add_route<F>(
-        self: &Arc<Self>,
-        open_flow: Box<F>,
-        cfg_ate: &ConfAte,
-    ) -> Result<(), CommsError>
-    where
-        F: OpenFlow + 'static,
-    {
         let hello_path = open_flow.hello_path().to_string();
 
         let route = MeshRoute {
@@ -272,15 +255,6 @@ impl MeshRoot {
     }
 
     pub async fn clean(self: &Arc<Self>) {
-        TaskEngine::run_until(
-            self.__clean()
-                .instrument(span!(Level::INFO, "clean"))
-                .instrument(span!(Level::INFO, "server")),
-        )
-        .await
-    }
-
-    pub async fn __clean(self: &Arc<Self>) {
         let mut shutdown_me = Vec::new();
         {
             let mut guard = self.chains.lock().await;
@@ -305,15 +279,6 @@ impl MeshRoot {
     }
 
     pub async fn shutdown(self: &Arc<Self>) {
-        TaskEngine::run_until(
-            self.__shutdown()
-                .instrument(span!(Level::INFO, "shutdown"))
-                .instrument(span!(Level::INFO, "server")),
-        )
-        .await
-    }
-
-    pub async fn __shutdown(self: &Arc<Self>) {
         {
             let mut guard = self.listener.lock().unwrap();
             guard.take();
@@ -439,7 +404,7 @@ async fn open_internal<'b>(
     );
 
     // Perform a clean of any chains that are out of scope
-    root.__clean().await;
+    root.clean().await;
 
     // Determine the route (if any)
     let route = {

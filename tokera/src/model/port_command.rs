@@ -9,7 +9,7 @@ use std::net::SocketAddr;
 use std::fmt;
 
 use super::socket_error::*;
-use super::mesh_port::*;
+use super::hardware_address::*;
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SocketHandle(pub i32);

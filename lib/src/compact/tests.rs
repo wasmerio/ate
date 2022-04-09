@@ -14,7 +14,7 @@ use super::*;
 async fn test_compact_state_machine() -> Result<(), AteError> {
     crate::utils::bootstrap_test_env();
 
-    TaskEngine::run_until(async move {
+    async move {
         // Test the never trigger (negative)
         let (tx, mut rx) = CompactState::new(CompactMode::Never, 0);
         let wait = rx.wait_for_compact();
@@ -152,6 +152,6 @@ async fn test_compact_state_machine() -> Result<(), AteError> {
         );
 
         Ok(())
-    })
+    }
     .await
 }

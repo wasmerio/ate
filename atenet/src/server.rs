@@ -4,8 +4,6 @@ use std::sync::Arc;
 use std::sync::Weak;
 use std::time::Duration;
 use error_chain::bail;
-use tokera::model::INSTANCE_ROOT_ID;
-use tokera::model::ServiceInstance;
 #[allow(unused_imports)]
 use tokio::sync::mpsc;
 
@@ -33,11 +31,13 @@ use tokio::sync::RwLock;
 
 use super::switch::*;
 use super::session::*;
+use super::udp::*;
 
 pub struct Server
 {
     pub registry: Arc<Registry>,
     pub repo: Arc<Repository>,
+    pub udp: UdpPeer,
     pub db_url: url::Url,
     pub auth_url: url::Url,
     pub instance_authority: String,
@@ -53,6 +53,7 @@ impl Server
         token_path: String,
         registry: Arc<Registry>,
         ttl: Duration,
+        udp_port: u16,
     ) -> Result<Self, Box<dyn std::error::Error>>
     {
         // Build a switch factory that will connect clients to the current switch
@@ -75,6 +76,7 @@ impl Server
         .await?;
 
         let switches = RwLock::new(HashMap::default());
+        let udp = UdpPeer::new(udp_port);
 
         Ok(Self {
             db_url,
@@ -83,6 +85,7 @@ impl Server
             repo,
             instance_authority,
             switches,
+            udp,
         })
     }
 
@@ -103,16 +106,6 @@ impl Server
             .map_err(|err| CommsErrorKind::InternalError(err.to_string()))?;
         trace!("loaded file accessor for {}", key);
 
-        // Load the service instance object
-        let _chain = accessor.chain.clone();
-        let chain_dio = accessor.dio.clone().as_mut().await;
-        trace!("loading service instance with key {}", PrimaryKey::from(INSTANCE_ROOT_ID));
-        let service_instance = chain_dio.load::<ServiceInstance>(&PrimaryKey::from(INSTANCE_ROOT_ID)).await?;
-
-        // Open a BUS to the service instance to listen for mesh nodes that join or leave the switch
-        let bus = service_instance.mesh_nodes.bus().await
-            .map_err(|err| CommsErrorKind::InternalError(err.to_string()))?;
-
         // Enter a write lock and check again
         let mut guard = self.switches.write().await;
         if let Some(ret) = guard.get(&key) {
@@ -121,11 +114,10 @@ impl Server
             }
         }
         
-        // Build the basics
-        let switch = Arc::new(Switch {
-            accessor,
-            state: Default::default(),
-        });
+        // Build the switch
+        let addr = self.udp.local_ip();
+        let switch = Switch::new(accessor, addr).await
+            .map_err(|err| CommsErrorKind::InternalError(err.to_string()))?;
 
         // Cache and and return it
         guard.insert(key.clone(), Arc::downgrade(&switch));
@@ -145,7 +137,8 @@ impl Server
         // Get or create the switch
         let key = hello_switch.chain.clone();
         let (switch, _) = self.get_or_create_switch(key).await?;
-        let port = switch.new_port();
+        let port = switch.new_port().await
+            .map_err(|err| CommsErrorKind::InternalError(err.to_string()))?;
 
         // Create the session that will process packets for this switch
         let session = Session {
