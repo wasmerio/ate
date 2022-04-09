@@ -167,6 +167,85 @@ impl EncryptKey {
         data
     }
 
+    #[cfg(not(feature = "enable_openssl"))]
+    pub fn encrypt_with_hash_iv(&self, hash: &AteHash, data: &[u8]) -> Vec<u8> {
+        let iv: &[u8; 16] = hash.as_bytes();
+        
+        let mut data = data.to_vec();
+        match self.size() {
+            KeySize::Bit128 => {
+                let mut cipher = Aes128Ctr::new(self.value().into(), iv.into());
+                cipher.apply_keystream(data.as_mut_slice());
+            }
+            KeySize::Bit192 => {
+                let mut cipher = Aes192Ctr::new(self.value().into(), iv.into());
+                cipher.apply_keystream(data.as_mut_slice());
+            }
+            KeySize::Bit256 => {
+                let mut cipher = Aes256Ctr::new(self.value().into(), iv.into());
+                cipher.apply_keystream(data.as_mut_slice());
+            }
+        }
+
+        data
+    }
+
+    #[cfg(not(feature = "enable_openssl"))]
+    pub fn encrypt_with_hash_iv_with_capacity(&self, hash: &AteHash, data: &[u8], capacity: usize) -> Vec<u8> {
+        let iv: &[u8; 16] = hash.as_bytes();
+        
+        let mut ret: Vec<u8> = Vec::with_capacity(capacity);
+        ret.extend_from_slice(data);
+
+        let e = data.len();
+        let data = &mut ret[..e];
+
+        match self.size() {
+            KeySize::Bit128 => {
+                let mut cipher = Aes128Ctr::new(self.value().into(), iv.into());
+                cipher.apply_keystream(data);
+            }
+            KeySize::Bit192 => {
+                let mut cipher = Aes192Ctr::new(self.value().into(), iv.into());
+                cipher.apply_keystream(data);
+            }
+            KeySize::Bit256 => {
+                let mut cipher = Aes256Ctr::new(self.value().into(), iv.into());
+                cipher.apply_keystream(data);
+            }
+        }
+        ret
+    }
+
+    #[cfg(not(feature = "enable_openssl"))]
+    pub fn encrypt_with_hash_iv_with_capacity_and_prefix(&self, hash: &AteHash, data: &[u8], capacity: usize, prefix: &[u8]) -> Vec<u8> {
+        let iv: &[u8; 16] = hash.as_bytes();
+
+        let mut ret: Vec<u8> = Vec::with_capacity(capacity);
+        ret.extend_from_slice(prefix);
+        ret.extend_from_slice(data);
+        
+        let b = prefix.len();
+        let e = b + data.len();
+        let data = &mut ret[b..e];
+
+        match self.size() {
+            KeySize::Bit128 => {
+                let mut cipher = Aes128Ctr::new(self.value().into(), iv.into());
+                cipher.apply_keystream(data);
+            }
+            KeySize::Bit192 => {
+                let mut cipher = Aes192Ctr::new(self.value().into(), iv.into());
+                cipher.apply_keystream(data);
+            }
+            KeySize::Bit256 => {
+                let mut cipher = Aes256Ctr::new(self.value().into(), iv.into());
+                cipher.apply_keystream(data);
+            }
+        }
+        ret
+    }
+
     pub fn encrypt(&self, data: &[u8]) -> EncryptResult {
         let iv = InitializationVector::generate();
         let data = self.encrypt_with_iv(&iv, data);
@@ -220,6 +299,30 @@ impl EncryptKey {
             }
             KeySize::Bit256 => {
                 let mut cipher = Aes256Ctr::new(self.value().into(), (&iv.bytes[..]).into());
+                cipher.apply_keystream(data.as_mut_slice());
+            }
+        }
+
+        data
+    }
+
+    #[cfg(not(feature = "enable_openssl"))]
+    pub fn decrypt_with_hash_iv(&self, hash: &AteHash, data: &[u8]) -> Vec<u8> {
+        let iv: &[u8; 16] = hash.as_bytes();
+
+        let mut data = data.to_vec();
+
+        match self.size() {
+            KeySize::Bit128 => {
+                let mut cipher = Aes128Ctr::new(self.value().into(), iv.into());
+                cipher.apply_keystream(data.as_mut_slice());
+            }
+            KeySize::Bit192 => {
+                let mut cipher = Aes192Ctr::new(self.value().into(), iv.into());
+                cipher.apply_keystream(data.as_mut_slice());
+            }
+            KeySize::Bit256 => {
+                let mut cipher = Aes256Ctr::new(self.value().into(), iv.into());
                 cipher.apply_keystream(data.as_mut_slice());
             }
         }

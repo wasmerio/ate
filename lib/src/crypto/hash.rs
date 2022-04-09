@@ -7,6 +7,8 @@ use std::convert::TryInto;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
+use super::InitializationVector;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum HashRoutine {
     Sha3,
@@ -23,6 +25,8 @@ pub struct AteHash {
 }
 
 impl AteHash {
+    pub const LEN: usize = 16;
+
     pub fn generate() -> AteHash {
         RandomGeneratorAccessor::generate_hash()
     }
@@ -125,8 +129,18 @@ impl AteHash {
         base64::encode(&self.val[..])
     }
 
-    pub fn to_bytes(&self) -> &[u8; 16] {
+    pub fn as_bytes(&self) -> &[u8; 16] {
         &self.val
+    }
+
+    pub fn to_iv(&self) -> InitializationVector {
+        InitializationVector {
+            bytes: self.as_bytes().to_vec()
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.val.len()
     }
 }
 

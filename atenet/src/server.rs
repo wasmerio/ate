@@ -27,7 +27,7 @@ use tokera::model::InstanceCall;
 use tokera::model::SwitchHello;
 use ate_auth::cmd::impersonate_command;
 use ate_auth::helper::b64_to_session;
-use tokio::sync::RwLock;
+use std::sync::RwLock;
 
 use super::switch::*;
 use super::session::*;
@@ -41,7 +41,7 @@ pub struct Server
     pub db_url: url::Url,
     pub auth_url: url::Url,
     pub instance_authority: String,
-    pub switches: RwLock<HashMap<ChainKey, Weak<Switch>>>,
+    pub switches: Arc<RwLock<HashMap<u128, Weak<Switch>>>>,
 }
 
 impl Server
@@ -75,8 +75,8 @@ impl Server
         )
         .await?;
 
-        let switches = RwLock::new(HashMap::default());
-        let udp = UdpPeer::new(udp_port);
+        let switches = Arc::new(RwLock::new(HashMap::default()));
+        let udp = UdpPeer::new(udp_port, switches.clone());
 
         Ok(Self {
             db_url,
@@ -89,11 +89,11 @@ impl Server
         })
     }
 
-    pub async fn get_or_create_switch(&self, key: ChainKey) -> Result<(Arc<Switch>, bool), CommsError> {
+    pub async fn get_or_create_switch(&self, id: u128, key: ChainKey) -> Result<(Arc<Switch>, bool), CommsError> {
         // Check the cache
         {
-            let guard = self.switches.read().await;
-            if let Some(ret) = guard.get(&key) {
+            let guard = self.switches.read().unwrap();
+            if let Some(ret) = guard.get(&id) {
                 if let Some(ret) = ret.upgrade() {
                     return Ok((ret, false));
                 }
@@ -106,21 +106,20 @@ impl Server
             .map_err(|err| CommsErrorKind::InternalError(err.to_string()))?;
         trace!("loaded file accessor for {}", key);
 
+        // Build the switch
+        let switch = Switch::new(accessor, self.udp.clone()).await
+            .map_err(|err| CommsErrorKind::InternalError(err.to_string()))?;
+
         // Enter a write lock and check again
-        let mut guard = self.switches.write().await;
-        if let Some(ret) = guard.get(&key) {
+        let mut guard = self.switches.write().unwrap();
+        if let Some(ret) = guard.get(&id) {
             if let Some(ret) = ret.upgrade() {
                 return Ok((ret, false));
             }
         }
-        
-        // Build the switch
-        let addr = self.udp.local_ip();
-        let switch = Switch::new(accessor, addr).await
-            .map_err(|err| CommsErrorKind::InternalError(err.to_string()))?;
 
         // Cache and and return it
-        guard.insert(key.clone(), Arc::downgrade(&switch));
+        guard.insert(id, Arc::downgrade(&switch));
         Ok((switch, true))
     }
 
@@ -135,8 +134,9 @@ impl Server
     ) -> Result<(), CommsError>
     {
         // Get or create the switch
+        let id = hello_switch.id.clone();
         let key = hello_switch.chain.clone();
-        let (switch, _) = self.get_or_create_switch(key).await?;
+        let (switch, _) = self.get_or_create_switch(id, key).await?;
         let port = switch.new_port().await
             .map_err(|err| CommsErrorKind::InternalError(err.to_string()))?;
 
@@ -211,14 +211,19 @@ for Server
     {
         // Get the chain and the topic
         let path = std::path::PathBuf::from(uri.path().to_string());
-        let chain = {
+        let (id, chain) = {
             let mut path_iter = path.iter();
             path_iter.next();
-            path_iter.next()
+            
+            let switch = path_iter.next()
                 .map(|a| a.to_string_lossy().to_string())
                 .ok_or_else(|| {
                     CommsErrorKind::InternalError(format!("instance web_socket path is invalid - {}", uri))
-                })?
+                })?;
+            let id = u128::from_str(switch.as_str())
+                .map_err(|err| CommsErrorKind::InternalError(format!("failed to parse the switch id - {}", err)))?;
+            let chain = format!("{}_edge", id);
+            (id, chain)
         };
         let chain = ChainKey::new(chain.clone());
         
@@ -239,8 +244,9 @@ for Server
             wire_format: tx.wire_format,
         };
         let hello_switch = SwitchHello {
-            access_token: auth.to_str().unwrap().to_string(),
+            id,
             chain: chain.clone(),
+            access_token: auth.to_str().unwrap().to_string(),
             version: tokera::model::PORT_COMMAND_VERSION,
         };
 

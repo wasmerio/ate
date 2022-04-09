@@ -615,7 +615,7 @@ impl phy::TxToken for TxToken {
             let _ = self.switch.unicast(&self.src, &dst, buffer, true);
         } else {
             let _ = self.switch.broadcast(&self.src, buffer);
-        }        
+        }
 
         result
     }

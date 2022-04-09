@@ -26,6 +26,12 @@ impl InitializationVector {
         rng.fill_bytes(&mut iv.bytes);
         iv
     }
+    pub fn len(&self) -> usize {
+        self.bytes.len()
+    }
+    pub fn as_bytes<'a>(&'a self) -> &'a [u8] {
+        &self.bytes[..]
+    }
 }
 
 impl From<Vec<u8>> for InitializationVector {

@@ -55,3 +55,4 @@ http = { version = "^0.2" }
 derivative = { version = "^2" }
 managed = "0.8.0"
 pnet = "^0.27"
+byteorder = "^1"

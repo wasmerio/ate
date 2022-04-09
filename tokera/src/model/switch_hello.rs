@@ -4,6 +4,7 @@ use std::fmt;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SwitchHello {
+    pub id: u128,
     pub chain: ChainKey,
     pub access_token: String,    
     pub version: u32,
