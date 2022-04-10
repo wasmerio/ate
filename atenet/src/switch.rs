@@ -21,6 +21,7 @@ use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 use super::port::*;
 use super::common::*;
 use super::udp::*;
+use super::gateway::*;
 
 #[derive(Debug)]
 pub enum Destination
@@ -62,11 +63,13 @@ pub struct Switch
     pub(crate) control_plane: RwLock<ControlPlane>,
     pub(crate) mac_drop: mpsc::Sender<HardwareAddress>,
     pub(crate) me_node_key: PrimaryKey,
+    #[allow(dead_code)]
+    pub(crate) gateway: Arc<Gateway>,
 }
 
 impl Switch
 {
-    pub async fn new(accessor: Arc<FileAccessor>, udp: UdpPeer) -> Result<Arc<Switch>, AteError> {
+    pub async fn new(accessor: Arc<FileAccessor>, udp: UdpPeer, gateway: Arc<Gateway>) -> Result<Arc<Switch>, AteError> {
         let (inst, bus, me_node) = {
             let chain_dio = accessor.dio.clone().as_mut().await;
             
@@ -125,6 +128,7 @@ impl Switch
                 }
             ),
             mac_drop: mac_drop_tx,
+            gateway,
         });
 
         {

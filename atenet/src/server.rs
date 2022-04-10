@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::sync::Weak;
 use std::time::Duration;
 use error_chain::bail;
 #[allow(unused_imports)]
@@ -29,7 +28,7 @@ use ate_auth::cmd::impersonate_command;
 use ate_auth::helper::b64_to_session;
 use std::sync::RwLock;
 
-use super::switch::*;
+use super::factory::*;
 use super::session::*;
 use super::udp::*;
 
@@ -41,7 +40,7 @@ pub struct Server
     pub db_url: url::Url,
     pub auth_url: url::Url,
     pub instance_authority: String,
-    pub switches: Arc<RwLock<HashMap<u128, Weak<Switch>>>>,
+    pub factory: Arc<SwitchFactory>,
 }
 
 impl Server
@@ -57,7 +56,7 @@ impl Server
     ) -> Result<Self, Box<dyn std::error::Error>>
     {
         // Build a switch factory that will connect clients to the current switch
-        let switch_factory = SwitchFactory {
+        let session_factory = SessionFactory {
             db_url: db_url.clone(),
             auth_url: auth_url.clone(),
             registry: registry.clone(),
@@ -70,7 +69,7 @@ impl Server
             &registry,
             db_url.clone(),
             auth_url.clone(),
-            Box::new(switch_factory),
+            Box::new(session_factory),
             ttl,
         )
         .await?;
@@ -78,49 +77,19 @@ impl Server
         let switches = Arc::new(RwLock::new(HashMap::default()));
         let udp = UdpPeer::new(udp_port, switches.clone());
 
+        let factory = Arc::new(
+            SwitchFactory::new(repo.clone(), udp.clone(), instance_authority.clone())
+        );
+
         Ok(Self {
             db_url,
             auth_url,
             registry,
             repo,
             instance_authority,
-            switches,
             udp,
+            factory,
         })
-    }
-
-    pub async fn get_or_create_switch(&self, id: u128, key: ChainKey) -> Result<(Arc<Switch>, bool), CommsError> {
-        // Check the cache
-        {
-            let guard = self.switches.read().unwrap();
-            if let Some(ret) = guard.get(&id) {
-                if let Some(ret) = ret.upgrade() {
-                    return Ok((ret, false));
-                }
-            }
-        }
-
-        // Open the instance chain that backs this particular instance
-        // (this will reuse accessors across threads and calls)
-        let accessor = self.repo.get_accessor(&key, self.instance_authority.as_str()).await
-            .map_err(|err| CommsErrorKind::InternalError(err.to_string()))?;
-        trace!("loaded file accessor for {}", key);
-
-        // Build the switch
-        let switch = Switch::new(accessor, self.udp.clone()).await
-            .map_err(|err| CommsErrorKind::InternalError(err.to_string()))?;
-
-        // Enter a write lock and check again
-        let mut guard = self.switches.write().unwrap();
-        if let Some(ret) = guard.get(&id) {
-            if let Some(ret) = ret.upgrade() {
-                return Ok((ret, false));
-            }
-        }
-
-        // Cache and and return it
-        guard.insert(id, Arc::downgrade(&switch));
-        Ok((switch, true))
     }
 
     async fn accept_internal(
@@ -136,7 +105,7 @@ impl Server
         // Get or create the switch
         let id = hello_switch.id.clone();
         let key = hello_switch.chain.clone();
-        let (switch, _) = self.get_or_create_switch(id, key).await?;
+        let (switch, _) = self.factory.get_or_create_switch(id, key).await?;
         let port = switch.new_port().await
             .map_err(|err| CommsErrorKind::InternalError(err.to_string()))?;
 
@@ -265,7 +234,7 @@ for Server
     }
 }
 
-struct SwitchFactory
+struct SessionFactory
 {
     db_url: url::Url,
     auth_url: url::Url,
@@ -277,7 +246,7 @@ struct SwitchFactory
 
 #[async_trait]
 impl RepositorySessionFactory
-for SwitchFactory
+for SessionFactory
 {
     async fn create(&self, sni: String, key: ChainKey) -> Result<AteSessionType, AteError>
     {
