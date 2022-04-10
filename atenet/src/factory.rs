@@ -4,6 +4,8 @@ use std::sync::RwLock;
 use std::collections::HashMap;
 use ate::prelude::*;
 use ate_files::repo::Repository;
+use tokera::model::ServiceInstance;
+use tokera::model::INSTANCE_ROOT_ID;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
@@ -49,7 +51,11 @@ impl SwitchFactory
         trace!("loaded file accessor for {}", key);
 
         // Create the gateway
-        let gateway = Arc::new(Gateway::new(id, self));
+        let inst = accessor.dio.load::<ServiceInstance>(&PrimaryKey::from(INSTANCE_ROOT_ID)).await?;
+        let gateway_ips = inst.subnet.cidrs.iter()
+            .map(|cidr| cidr.gateway().into())
+            .collect();
+        let gateway = Arc::new(Gateway::new(id, gateway_ips, self));
 
         // Build the switch
         let switch = Switch::new(accessor, self.udp.clone(), gateway).await

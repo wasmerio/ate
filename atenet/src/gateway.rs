@@ -1,15 +1,20 @@
 use std::sync::Arc;
 use std::sync::Weak;
+use std::sync::MutexGuard;
 use std::sync::RwLock;
 use smoltcp::wire::EthernetAddress;
 use smoltcp::wire::EthernetFrame;
+use smoltcp::wire::Ipv4Address;
 use smoltcp::wire::Ipv4Packet;
 use smoltcp::wire::Ipv6Packet;
 use smoltcp::wire::EthernetProtocol;
 use smoltcp::wire::IpCidr;
 use smoltcp::wire::IpAddress;
+use smoltcp::wire::ArpPacket;
+use smoltcp::wire::ArpHardware;
 
 use super::switch::Switch;
+use super::switch::DataPlane;
 use super::factory::SwitchFactory;
 
 #[allow(dead_code)]
@@ -33,18 +38,20 @@ pub struct GatewayState
 #[derive(Debug)]
 pub struct Gateway
 {
-    id: u128,
-    state: RwLock<GatewayState>,
-    factory: Arc<SwitchFactory>,
+    pub(crate) id: u128,
+    pub(crate) ips: Vec<IpAddress>,
+    pub(crate) state: RwLock<GatewayState>,
+    pub(crate) factory: Arc<SwitchFactory>,
 }
 
 impl Gateway
 {
     pub const MAC: EthernetAddress = EthernetAddress([6u8, 0u8, 0u8, 0u8, 0u8, 1u8]);
     
-    pub fn new(id: u128, factory: &Arc<SwitchFactory>) -> Gateway {
+    pub fn new(id: u128, ips: Vec<IpAddress>, factory: &Arc<SwitchFactory>) -> Gateway {
         Gateway {
             id,
+            ips: ips.into_iter().map(|a| a.into()).collect(),
             state: Default::default(),
             factory: factory.clone(),
         }
@@ -97,7 +104,38 @@ impl Gateway
         }
     }
 
-    pub fn process_inbound(&self, _pck: &[u8]) {
+    pub fn process_arp_reply(&self, pck: &[u8], switch: &Switch, state: &mut MutexGuard<DataPlane>)
+    {
+        if let Ok(frame_mac) = EthernetFrame::new_checked(pck) {
+            if frame_mac.dst_addr() == EthernetAddress::BROADCAST &&
+               frame_mac.ethertype() == EthernetProtocol::Arp
+            {
+                let src_mac = frame_mac.src_addr();
 
+                if let Ok(frame_arp) = ArpPacket::new_checked(frame_mac.payload())
+                {
+                    if frame_arp.hardware_type() == ArpHardware::Ethernet &&
+                       frame_arp.protocol_type() == EthernetProtocol::Ipv4
+                    {
+                        let ip = IpAddress::Ipv4(Ipv4Address::from_bytes(frame_arp.target_protocol_addr()));
+                        for gateway_ip in self.ips.iter().filter(|i| *i == &ip) {
+                            let mut pck = pck.to_vec();
+
+                            let mut frame_mac = EthernetFrame::new_unchecked(&mut pck[..]);
+                            frame_mac.set_src_addr(Self::MAC);
+                            frame_mac.set_dst_addr(src_mac);
+                            
+                            let mut frame_arp = ArpPacket::new_unchecked(frame_mac.payload_mut());
+                            frame_arp.set_source_hardware_addr(src_mac.as_bytes());
+                            frame_arp.set_source_protocol_addr(gateway_ip.as_bytes());
+
+                            drop(frame_arp);
+                            drop(frame_mac);
+                            switch.__unicast(state, &Self::MAC, &src_mac, pck, true);
+                        }
+                    }
+                }
+            }
+        }
     }
 }

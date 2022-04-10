@@ -2,7 +2,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::ops::*;
-use std::sync::RwLockReadGuard;
+use std::sync::MutexGuard;
 use std::time::Duration;
 use ate_files::prelude::FileAccessor;
 use tokio::sync::mpsc;
@@ -18,7 +18,7 @@ use smoltcp::wire::Ipv6Address;
 use smoltcp::wire::Ipv6Packet;
 use derivative::*;
 use tokio::sync::RwLock;
-use std::sync::RwLock as StdRwLock;
+use std::sync::Mutex;
 use ate::prelude::*;
 use ttl_cache::TtlCache;
 use tokera::model::MeshNode;
@@ -77,7 +77,7 @@ pub struct Switch
     pub(crate) encrypt: EncryptKey,
     #[allow(dead_code)]
     pub(crate) accessor: Arc<FileAccessor>,
-    pub(crate) data_plane: StdRwLock<DataPlane>,
+    pub(crate) data_plane: Mutex<DataPlane>,
     pub(crate) control_plane: RwLock<ControlPlane>,
     pub(crate) mac_drop: mpsc::Sender<HardwareAddress>,
     pub(crate) me_node_key: PrimaryKey,
@@ -136,7 +136,7 @@ impl Switch
             udp,
             encrypt: encrypt_key,
             me_node_key: me_node.key().clone(),
-            data_plane: StdRwLock::new(
+            data_plane: Mutex::new(
                 DataPlane {
                     ports: Default::default(),
                     peers: Default::default(),
@@ -176,7 +176,7 @@ impl Switch
 
         // Update the data plane so that it can start receiving data
         {
-            let mut state = self.data_plane.write().unwrap();
+            let mut state = self.data_plane.lock().unwrap();
             state.ports.insert(EthernetAddress::from_bytes(mac.as_bytes()), Destination::Local(switch_port));
         }
 
@@ -198,11 +198,17 @@ impl Switch
     }
 
     pub fn broadcast(&self, src: &EthernetAddress, pck: Vec<u8>) {
-        let state = self.data_plane.read().unwrap();
-        self.__broadcast(&state, src, &pck[..]);
+        let mut state = self.data_plane.lock().unwrap();
+        self.__broadcast(&mut state, src, &pck[..]);
     }
     
-    fn __broadcast(&self, state: &RwLockReadGuard<DataPlane>, src: &EthernetAddress, pck: &[u8]) {
+    fn __broadcast(&self, state: &mut MutexGuard<DataPlane>, src: &EthernetAddress, pck: &[u8])
+    {
+        // If its an ARP packet then maybe its for the gateway and
+        // we should send a reply ARP
+        self.gateway.process_arp_reply(pck, self, state);
+
+        // Process the packet
         for (mac, dst) in state.ports.iter() {
             if let Destination::Local(port) = dst {
                 if src != mac {
@@ -227,15 +233,19 @@ impl Switch
             return;
         }
 
+        let mut state = self.data_plane.lock().unwrap();
+        self.__unicast(&mut state, src, dst_mac, pck, allow_forward);
+    }
+
+    pub(crate) fn __unicast(&self, state: &mut MutexGuard<DataPlane>, src: &EthernetAddress, dst_mac: &EthernetAddress, pck: Vec<u8>, allow_forward: bool)
+    {
         // Next we lookup if this destination address is known either
         // on this switch node or another one
-        let state = self.data_plane.read().unwrap();
         if let Some(dst) = state.ports.get(&dst_mac) {
             match dst {
                 Destination::Local(port) => {
                     let tx = port.tx.clone();
-
-                    self.snoop(state, &pck);
+                    self.snoop(state, &pck[..]);
                     let _ = tx.blocking_send(pck);
                     return;
                 },
@@ -252,14 +262,14 @@ impl Switch
         // could be that we just dont know about it yet or it could
         // be that its multicast/broadcast traffic.
         else if allow_forward {
-            self.__broadcast(&state, src, &pck);
+            self.__broadcast(state, src, &pck[..]);
         }
 
         // Snoop the packet
-        self.snoop(state, &pck);
+        self.snoop(state, &pck[..]);
     }
 
-    pub fn snoop(&self, state: RwLockReadGuard<DataPlane>, pck: &[u8]) {
+    pub fn snoop(&self, state: &mut MutexGuard<DataPlane>, pck: &[u8]) {
         if let Ok(frame_mac) = EthernetFrame::new_checked(&pck[..]) {
             let mac = frame_mac.src_addr();
             if mac.is_unicast() {
@@ -268,12 +278,10 @@ impl Switch
                         if let Ok(frame_ip) = Ipv4Packet::new_checked(frame_mac.payload()) {
                             let ip = frame_ip.src_addr();
 
-                            let update_mac4 = state.mac4.contains_key(&mac);
-                            let update_ip4 = state.ip4.contains_key(&ip);
-                            drop(state);
-
+                            let update_mac4 = state.mac4.contains_key(&mac) == false;
+                            let update_ip4 = state.ip4.contains_key(&ip) == false;
+                            
                             if update_mac4 || update_ip4 {
-                                let mut state = self.data_plane.write().unwrap();
                                 state.mac4.insert(mac, ip, Self::MAC_SNOOP_TTL);
                                 state.ip4.insert(ip, mac, Self::MAC_SNOOP_TTL);
                             }
@@ -284,12 +292,10 @@ impl Switch
                         if let Ok(frame_ip) = Ipv6Packet::new_checked(frame_mac.payload()) {
                             let ip = frame_ip.src_addr();
 
-                            let update_mac6 = state.mac6.contains_key(&mac);
-                            let update_ip6 = state.ip6.contains_key(&ip);
-                            drop(state);
-
+                            let update_mac6 = state.mac6.contains_key(&mac) == false;
+                            let update_ip6 = state.ip6.contains_key(&ip) == false;
+                            
                             if update_mac6 || update_ip6 {
-                                let mut state = self.data_plane.write().unwrap();
                                 state.mac6.insert(mac, ip, Self::MAC_SNOOP_TTL);
                                 state.ip6.insert(ip, mac, Self::MAC_SNOOP_TTL);
                             }
@@ -304,8 +310,6 @@ impl Switch
                                 let mac = EthernetAddress::from_bytes(frame_arp.source_hardware_addr());
                                 let ip = Ipv4Address::from_bytes(frame_arp.source_protocol_addr());
 
-                                drop(state);
-                                let mut state = self.data_plane.write().unwrap();
                                 state.mac4.insert(mac, ip, Self::MAC_SNOOP_TTL);
                                 state.ip4.insert(ip, mac, Self::MAC_SNOOP_TTL);
                                 return;
@@ -329,13 +333,13 @@ impl Switch
 
     pub fn lookup_ipv4(&self, ip: &Ipv4Address) -> Option<EthernetAddress>
     {
-        let state = self.data_plane.read().unwrap();
+        let state = self.data_plane.lock().unwrap();
         state.ip4.get(ip).map(|mac| mac.clone())
     }
 
     pub fn lookup_ipv6(&self, ip: &Ipv6Address) -> Option<EthernetAddress>
     {
-        let state = self.data_plane.read().unwrap();
+        let state = self.data_plane.lock().unwrap();
         state.ip6.get(ip).map(|mac| mac.clone())
     }
 
@@ -376,7 +380,7 @@ impl Switch
             return;
         }
 
-        let mut state = self.data_plane.write().unwrap();
+        let mut state = self.data_plane.lock().unwrap();
         if let Some(node_addr) = state.peers.remove(node_key) {
             state.ports.retain(|_, v| {
                 match v {
@@ -393,7 +397,7 @@ impl Switch
             return;
         }
 
-        let mut state = self.data_plane.write().unwrap();
+        let mut state = self.data_plane.lock().unwrap();
         state.ports.retain(|_, v| {
             match v {
                 Destination::PeerSwitch(s) => s == &node.node_addr,
@@ -458,7 +462,7 @@ impl Switch
 
         // Clear the data plane as we are going offline
         {
-            let mut state = self.data_plane.write().unwrap();
+            let mut state = self.data_plane.lock().unwrap();
             state.peers.clear();
             state.ports.clear();
         }
