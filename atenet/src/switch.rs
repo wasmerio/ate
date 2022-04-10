@@ -6,6 +6,7 @@ use std::sync::MutexGuard;
 use std::time::Duration;
 use ate_files::prelude::FileAccessor;
 use tokio::sync::mpsc;
+use smoltcp::wire::IpCidr;
 use smoltcp::wire::EthernetAddress;
 use smoltcp::wire::EthernetFrame;
 use smoltcp::wire::EthernetProtocol;
@@ -50,6 +51,7 @@ pub struct SwitchPort {
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct DataPlane {
+    pub(crate) cidrs: Vec<IpCidr>,
     pub(crate) ports: HashMap<EthernetAddress, Destination>,
     pub(crate) peers: HashMap<PrimaryKey, IpAddr>,
     #[derivative(Debug = "ignore")]
@@ -83,6 +85,7 @@ pub struct Switch
     pub(crate) me_node_key: PrimaryKey,
     #[allow(dead_code)]
     pub(crate) gateway: Arc<Gateway>,
+    pub(crate) access_tokens: Vec<String>,
 }
 
 impl Switch
@@ -90,7 +93,7 @@ impl Switch
     pub const MAC_SNOOP_MAX: usize = u16::MAX as usize;
     pub const MAC_SNOOP_TTL: Duration = Duration::from_secs(14400); // 4 hours (CISCO default)
 
-    pub async fn new(accessor: Arc<FileAccessor>, udp: UdpPeer, gateway: Arc<Gateway>) -> Result<Arc<Switch>, AteError> {
+    pub async fn new(accessor: Arc<FileAccessor>, cidrs: Vec<IpCidr>, udp: UdpPeer, gateway: Arc<Gateway>) -> Result<Arc<Switch>, AteError> {
         let (inst, bus, me_node) = {
             let chain_dio = accessor.dio.clone().as_mut().await;
             
@@ -128,6 +131,9 @@ impl Switch
         let id = inst.id;
 
         let encrypt_key = EncryptKey::from_seed_string(inst.subnet.network_token.clone(), KeySize::Bit128);
+        
+        let mut access_tokens = Vec::new();
+        access_tokens.push(inst.subnet.network_token.clone());
 
         let (mac_drop_tx, mac_drop_rx) = mpsc::channel(100);
         let switch = Arc::new(Switch {
@@ -138,6 +144,7 @@ impl Switch
             me_node_key: me_node.key().clone(),
             data_plane: Mutex::new(
                 DataPlane {
+                    cidrs,
                     ports: Default::default(),
                     peers: Default::default(),
                     mac4: TtlCache::new(Self::MAC_SNOOP_MAX),
@@ -154,6 +161,7 @@ impl Switch
             ),
             mac_drop: mac_drop_tx,
             gateway,
+            access_tokens,
         });
 
         {
@@ -195,6 +203,12 @@ impl Switch
         Ok(
             Port::new(self, mac, rx, mac_drop)
         )
+    }
+
+    pub fn cidrs(&self) -> Vec<IpCidr>
+    {
+        let state = self.data_plane.lock().unwrap();
+        state.cidrs.clone()
     }
 
     pub fn broadcast(&self, src: &EthernetAddress, pck: Vec<u8>) {
@@ -374,6 +388,12 @@ impl Switch
         }
     }
 
+    pub fn has_access(&self, access_token: &str) -> bool {
+        self.access_tokens
+            .iter()
+            .any(|a| a == access_token)
+    }
+
     pub async fn remove_node(&self, node_key: &PrimaryKey)
     {
         if node_key == &self.me_node_key {
@@ -419,6 +439,7 @@ impl Switch
         // to prevent race conditions missing the updates
         {
             let state = self.control_plane.read().await;
+            self.gateway.update(state.inst.subnet.peerings.clone()).await;
             for node in state.inst.mesh_nodes.iter().await.unwrap() {
                 self.update_node(node.key(), node.deref()).await;
             }

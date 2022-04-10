@@ -103,9 +103,15 @@ impl Server
     ) -> Result<(), CommsError>
     {
         // Get or create the switch
-        let id = hello_switch.id.clone();
         let key = hello_switch.chain.clone();
-        let (switch, _) = self.factory.get_or_create_switch(id, key).await?;
+        let (switch, _) = self.factory.get_or_create_switch(key).await?;
+
+        // Check to make sure the caller has rights to this switch
+        if switch.has_access(hello_switch.access_token.as_str()) == false {
+            return Err(CommsErrorKind::Refused.into());
+        }
+
+        // Create the port into the switch
         let port = switch.new_port().await
             .map_err(|err| CommsErrorKind::InternalError(err.to_string()))?;
 
@@ -180,19 +186,14 @@ for Server
     {
         // Get the chain and the topic
         let path = std::path::PathBuf::from(uri.path().to_string());
-        let (id, chain) = {
+        let chain = {
             let mut path_iter = path.iter();
             path_iter.next();
-            
-            let switch = path_iter.next()
+            path_iter.next()
                 .map(|a| a.to_string_lossy().to_string())
                 .ok_or_else(|| {
                     CommsErrorKind::InternalError(format!("instance web_socket path is invalid - {}", uri))
-                })?;
-            let id = u128::from_str(switch.as_str())
-                .map_err(|err| CommsErrorKind::InternalError(format!("failed to parse the switch id - {}", err)))?;
-            let chain = format!("{}_edge", id);
-            (id, chain)
+                })?
         };
         let chain = ChainKey::new(chain.clone());
         
@@ -213,7 +214,6 @@ for Server
             wire_format: tx.wire_format,
         };
         let hello_switch = SwitchHello {
-            id,
             chain: chain.clone(),
             access_token: auth.to_str().unwrap().to_string(),
             version: tokera::model::PORT_COMMAND_VERSION,

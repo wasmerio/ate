@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::sync::Weak;
 use std::sync::MutexGuard;
 use std::sync::RwLock;
 use smoltcp::wire::EthernetAddress;
@@ -12,6 +11,10 @@ use smoltcp::wire::IpCidr;
 use smoltcp::wire::IpAddress;
 use smoltcp::wire::ArpPacket;
 use smoltcp::wire::ArpHardware;
+use tokera::model::InstancePeering;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
+use async_recursion::async_recursion;
 
 use super::switch::Switch;
 use super::switch::DataPlane;
@@ -21,10 +24,8 @@ use super::factory::SwitchFactory;
 #[derive(Debug)]
 pub struct Route
 {
-    id: u128,
-    cidr: IpCidr,
-    switch: Weak<Switch>,
-    access_code: String,
+    cidrs: Vec<IpCidr>,
+    switch: Arc<Switch>,
 }
 
 #[allow(dead_code)]
@@ -57,6 +58,40 @@ impl Gateway
         }
     }
 
+    #[async_recursion]
+    pub async fn update(&self, peerings: Vec<InstancePeering>)
+    {
+        // Loop through all the peerings with other switches
+        let mut routes = Vec::new();
+        for peering in peerings
+        {
+            // Get the switch this is referring to  
+            match self.factory.get_or_create_switch(peering.chain.clone()).await {
+                Ok((peer_switch, _)) =>
+                {
+                    // Check to make sure the caller has rights to this switch
+                    if peer_switch.has_access(peering.access_token.as_str()) == false {
+                        warn!("access to peered switch denied - {}", peering.chain);
+                        return;
+                    }
+                    
+                    // Add the route
+                    routes.push(Route {
+                        cidrs: peer_switch.cidrs(),
+                        switch: peer_switch,
+                    });
+                }
+                Err(err) => {
+                    warn!("failed to load peered switch - {}", err);
+                }
+            }
+        }
+
+        // Set the routes in the data plane
+        let mut state = self.state.write().unwrap();
+        state.routes = routes;
+    }
+
     pub fn process_outbound(&self, mut pck: Vec<u8>)
     {
         // Packets going to another switch that we have a routing table entry
@@ -87,14 +122,14 @@ impl Gateway
 
             if let Some(dst_ip) = dst_ip {
                 for route in state.routes.iter() {
-                    if route.cidr.contains_addr(&dst_ip) {
-                        if let Some(switch) = route.switch.upgrade() {
-                            if let Some(dst_mac) = switch.lookup_ip(&dst_ip) {
+                    for cidr in route.cidrs.iter() {
+                        if cidr.contains_addr(&dst_ip) {
+                            if let Some(dst_mac) = route.switch.lookup_ip(&dst_ip) {
                                 frame_mac.set_src_addr(Self::MAC);
                                 frame_mac.set_dst_addr(dst_mac);
                                 drop(frame_mac);
                                 
-                                switch.unicast(&Self::MAC, &dst_mac, pck, true);
+                                route.switch.unicast(&Self::MAC, &dst_mac, pck, true);
                                 return;
                             }
                         }

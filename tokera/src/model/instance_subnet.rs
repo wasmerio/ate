@@ -1,4 +1,5 @@
 use serde::*;
+use ate::prelude::*;
 
 use super::IpCidr;
 
@@ -17,8 +18,8 @@ pub struct InstanceSubnet {
 /// networks
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct InstancePeering {
-    /// Id of the instance this is peered with
-    pub id: u128,
+    /// Chain key for this switch
+    pub chain: ChainKey,
     /// Access token used to connect with the peered network
     pub access_token: String,
 }

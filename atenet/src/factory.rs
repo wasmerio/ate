@@ -17,7 +17,7 @@ use super::gateway::Gateway;
 #[derive(Debug)]
 pub struct SwitchFactory
 {
-    switches: RwLock<HashMap<u128, Weak<Switch>>>,
+    switches: RwLock<HashMap<ChainKey, Weak<Switch>>>,
     repo: Arc<Repository>,
     udp: UdpPeer,
     instance_authority: String,
@@ -33,11 +33,11 @@ impl SwitchFactory
             instance_authority
         }
     }
-    pub async fn get_or_create_switch(self: &Arc<SwitchFactory>, id: u128, key: ChainKey) -> Result<(Arc<Switch>, bool), CommsError> {
+    pub async fn get_or_create_switch(self: &Arc<SwitchFactory>, key: ChainKey) -> Result<(Arc<Switch>, bool), CommsError> {
         // Check the cache
         {
             let guard = self.switches.read().unwrap();
-            if let Some(ret) = guard.get(&id) {
+            if let Some(ret) = guard.get(&key) {
                 if let Some(ret) = ret.upgrade() {
                     return Ok((ret, false));
                 }
@@ -52,25 +52,29 @@ impl SwitchFactory
 
         // Create the gateway
         let inst = accessor.dio.load::<ServiceInstance>(&PrimaryKey::from(INSTANCE_ROOT_ID)).await?;
+        let id = inst.id;
         let gateway_ips = inst.subnet.cidrs.iter()
             .map(|cidr| cidr.gateway().into())
             .collect();
         let gateway = Arc::new(Gateway::new(id, gateway_ips, self));
 
         // Build the switch
-        let switch = Switch::new(accessor, self.udp.clone(), gateway).await
+        let cidrs = inst.subnet.cidrs.iter()
+            .map(|cidr| smoltcp::wire::IpCidr::new(cidr.ip.into(), cidr.prefix))
+            .collect();
+        let switch = Switch::new(accessor, cidrs, self.udp.clone(), gateway).await
             .map_err(|err| CommsErrorKind::InternalError(err.to_string()))?;
 
         // Enter a write lock and check again
         let mut guard = self.switches.write().unwrap();
-        if let Some(ret) = guard.get(&id) {
+        if let Some(ret) = guard.get(&key) {
             if let Some(ret) = ret.upgrade() {
                 return Ok((ret, false));
             }
         }
 
         // Cache and and return it
-        guard.insert(id, Arc::downgrade(&switch));
+        guard.insert(key, Arc::downgrade(&switch));
         Ok((switch, true))
     }
 }

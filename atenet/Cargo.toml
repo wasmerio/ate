@@ -56,3 +56,4 @@ derivative = { version = "^2" }
 managed = "0.8.0"
 pnet = "^0.27"
 byteorder = "^1"
+async-recursion = "^1"
