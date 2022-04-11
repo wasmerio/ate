@@ -2,5 +2,7 @@ mod common;
 
 #[test]
 fn ping() {
-    common::setup();
+    common::run(async move {
+        let _servers = common::setup().await;
+    })
 }

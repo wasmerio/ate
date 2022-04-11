@@ -21,9 +21,13 @@ pub struct UdpPeer
 
 impl UdpPeer
 {
-    pub fn new(port: u16, switches: Arc<RwLock<HashMap<u128, Weak<Switch>>>>) -> UdpPeer
+    pub fn new(ip: IpAddr, port: u16, switches: Arc<RwLock<HashMap<u128, Weak<Switch>>>>) -> UdpPeer
     {
-        let addr = get_local_ip();
+        let addr = if ip.is_loopback() {
+            ip
+        } else {
+            get_local_ip()
+        };
         let addr = SocketAddr::new(addr, port); 
         let socket = UdpSocket::bind(addr).unwrap();
 

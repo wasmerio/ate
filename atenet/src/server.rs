@@ -52,6 +52,7 @@ impl Server
         token_path: String,
         registry: Arc<Registry>,
         ttl: Duration,
+        udp_listen: IpAddr,
         udp_port: u16,
     ) -> Result<Self, Box<dyn std::error::Error>>
     {
@@ -75,7 +76,7 @@ impl Server
         .await?;
 
         let switches = Arc::new(RwLock::new(HashMap::default()));
-        let udp = UdpPeer::new(udp_port, switches.clone());
+        let udp = UdpPeer::new(udp_listen, udp_port, switches.clone());
 
         let factory = Arc::new(
             SwitchFactory::new(repo.clone(), udp.clone(), instance_authority.clone())
