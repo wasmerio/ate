@@ -1,7 +1,6 @@
 use ate::chain::ChainKey;
 use ate::crypto::EncryptKey;
 use std::io;
-use std::time::Duration;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::collections::BTreeMap;
@@ -29,8 +28,6 @@ pub struct SocketState
     recv_from: mpsc::Sender<EventRecvFrom>,
     error: mpsc::Sender<EventError>,
     accept: mpsc::Sender<EventAccept>,
-    deconfigure: mpsc::Sender<EventDhcpDeconfigured>,
-    configure: mpsc::Sender<EventDhcpConfigured>,
 }
 
 pub struct Port
@@ -43,7 +40,7 @@ pub struct Port
 
 impl Port
 {
-    pub async fn new(url: url::Url, chain: ChainKey, access_token: String,) -> io::Result<Port>
+    pub async fn connect(url: url::Url, chain: ChainKey, access_token: String,) -> io::Result<Port>
     {
         let client = InstanceClient::new(url).await
             .map_err(|err| io::Error::new(io::ErrorKind::Other, err.to_string()))?;
@@ -78,16 +75,12 @@ impl Port
         let (tx_recv_from, rx_recv_from) = mpsc::channel(MAX_MPSC);
         let (tx_error, rx_error) = mpsc::channel(MAX_MPSC);
         let (tx_accept, rx_accept) = mpsc::channel(MAX_MPSC);
-        let (tx_deconfigure, rx_deconfigure) = mpsc::channel(MAX_MPSC);
-        let (tx_configure, rx_configure) = mpsc::channel(MAX_MPSC);
-
+        
         sockets.insert(handle, SocketState{
             recv: tx_recv,
             recv_from: tx_recv_from,
             error: tx_error,
             accept: tx_accept,
-            deconfigure: tx_deconfigure,
-            configure: tx_configure,
         });
 
         let handle = SocketHandle(handle);
@@ -99,8 +92,6 @@ impl Port
             recv_from: rx_recv_from,
             error: rx_error,
             accept: rx_accept,
-            deconfigure: rx_deconfigure,
-            configure: rx_configure,
         }
     }
 
@@ -135,18 +126,6 @@ impl Port
             handle: socket.handle,
             local_addr,
             hop_limit: Socket::HOP_LIMIT,
-        }).await?;
-
-        Ok(socket)
-    }
-
-    pub async fn bind_dhcp(&self, lease_duration: Option<Duration>, ignore_naks: bool) -> io::Result<Socket> {
-        let socket = self.new_socket().await;
-
-        socket.tx(PortCommand::BindDhcp {
-            handle: socket.handle,
-            lease_duration,
-            ignore_naks,
         }).await?;
 
         Ok(socket)
@@ -219,21 +198,15 @@ impl Port
                         }
                     }
                     PortResponse::DhcpDeconfigured {
-                        handle,
-                    } => {
-                        if let Some(socket) = sockets.get(&handle.0) {
-                            let _ = socket.deconfigure.send(EventDhcpDeconfigured { }).await;
-                        }
+                        handle: _,
+                    } => {                        
                     }
                     PortResponse::DhcpConfigured {
-                        handle,
-                        address,
-                        router,
-                        dns_servers,
+                        handle: _,
+                        address: _,
+                        router: _,
+                        dns_servers: _,
                     } => {
-                        if let Some(socket) = sockets.get(&handle.0) {
-                            let _ = socket.configure.send(EventDhcpConfigured { address, router, dns_servers }).await;
-                        }
                     }
                 }
             }

@@ -5,6 +5,7 @@ use std::future::Future;
 use ate::prelude::*;
 use atenet::opt::OptsNetworkServer;
 use tokio::runtime::Builder;
+use tokera::mio::Port;
 
 
 fn create_solo(ip: IpAddr, node_id: u32) -> OptsNetworkServer
@@ -49,4 +50,21 @@ pub async fn setup() -> Vec<Arc<ateweb::server::Server>> {
     let s2 = create_node(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 3)), 2).await;
 
     vec![s1, s2]
+}
+
+pub async fn client1(ip: IpAddr, chain: &ChainKey, access_token: &str) -> Port
+{
+    let node = url::Url::parse("ws://127.0.0.2:8080/net").unwrap();
+    client(node, ip, chain.clone(), access_token.to_string()).await
+}
+
+pub async fn client2(ip: IpAddr, chain: &ChainKey, access_token: &str) -> Port
+{
+    let node = url::Url::parse("ws://127.0.0.3:8080/net").unwrap();
+    client(node, ip, chain.clone(), access_token.to_string()).await
+}
+
+pub async fn client(node: url::Url, ip: IpAddr, chain: ChainKey, access_token: String) -> Port
+{
+    Port::connect(node, chain, access_token).await.unwrap()
 }

@@ -20,10 +20,6 @@ pub struct Socket
     pub(super) recv_from: mpsc::Receiver<EventRecvFrom>,
     pub(super) error: mpsc::Receiver<EventError>,
     pub(super) accept: mpsc::Receiver<EventAccept>,
-    #[allow(dead_code)]
-    pub(super) deconfigure: mpsc::Receiver<EventDhcpDeconfigured>,
-    #[allow(dead_code)]
-    pub(super) configure: mpsc::Receiver<EventDhcpConfigured>,
 }
 
 impl Socket
