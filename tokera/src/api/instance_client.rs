@@ -97,6 +97,15 @@ impl InstanceClient
         )
     }
 
+    pub fn split(self) -> (StreamTx, StreamRx, Option<EncryptKey>)
+    {
+        (
+            self.tx,
+            self.rx,
+            self.ek,
+        )
+    }
+
     pub async fn send_hello(&mut self, hello: InstanceHello) -> Result<(), Box<dyn std::error::Error>> {
         let data = serde_json::to_vec(&hello)?;
         self.send_data(data).await?;

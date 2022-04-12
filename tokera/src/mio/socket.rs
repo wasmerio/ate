@@ -1,7 +1,10 @@
 use std::io;
+use std::sync::Arc;
 use std::net::SocketAddr;
+use ate::crypto::EncryptKey;
 use tokio::sync::mpsc;
-use wasm_bus_ws::ws::SendHalf;
+use tokio::sync::Mutex;
+use ate::comms::StreamTx;
 
 use crate::model::PortCommand;
 use crate::model::SocketHandle;
@@ -11,7 +14,8 @@ use super::evt::*;
 pub struct Socket
 {
     pub(super) handle: SocketHandle,
-    pub(super) tx: SendHalf,
+    pub(super) tx: Arc<Mutex<StreamTx>>,
+    pub(super) ek: Option<EncryptKey>,
     pub(super) recv: mpsc::Receiver<EventRecv>,
     pub(super) recv_from: mpsc::Receiver<EventRecvFrom>,
     pub(super) error: mpsc::Receiver<EventError>,
@@ -76,9 +80,10 @@ impl Socket
     }
 
     pub(super) async fn tx(&self, cmd: PortCommand) -> io::Result<()> {
+        let mut tx = self.tx.lock().await;
         let cmd = bincode::serialize(&cmd)
             .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
-        self.tx.send(cmd).await?;
+        tx.send(&self.ek, &cmd[..]).await?;
         Ok(())
     }
 }

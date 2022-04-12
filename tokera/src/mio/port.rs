@@ -1,6 +1,5 @@
-use wasm_bus_ws::ws::SocketBuilder;
-use wasm_bus_ws::ws::RecvHalf;
-use wasm_bus_ws::ws::SendHalf;
+use ate::chain::ChainKey;
+use ate::crypto::EncryptKey;
 use std::io;
 use std::time::Duration;
 use std::net::SocketAddr;
@@ -8,12 +7,16 @@ use std::sync::Arc;
 use std::collections::BTreeMap;
 use tokio::sync::Mutex;
 use tokio::sync::mpsc;
+use ate::comms::StreamTx;
+use ate::comms::StreamRx;
 
+use crate::api::InstanceClient;
 use crate::model::IpVersion;
 use crate::model::IpProtocol;
 use crate::model::PortCommand;
 use crate::model::PortResponse;
 use crate::model::SocketHandle;
+use crate::model::SwitchHello;
 
 use super::evt::*;
 use super::socket::*;
@@ -32,20 +35,33 @@ pub struct SocketState
 
 pub struct Port
 {
-    tx: SendHalf,
-    rx: Arc<Mutex<RecvHalf>>,
+    tx: Arc<Mutex<StreamTx>>,
+    rx: Arc<Mutex<StreamRx>>,
+    ek: Option<EncryptKey>,
     sockets: Arc<Mutex<BTreeMap<i32, SocketState>>>,
 }
 
 impl Port
 {
-    pub async fn new(url: url::Url) -> io::Result<Port> {
-        let builder = SocketBuilder::new(url);
-        let ws = builder.open().await?;
-        let (tx, rx) = ws.split();
+    pub async fn new(url: url::Url, chain: ChainKey, access_token: String,) -> io::Result<Port>
+    {
+        let client = InstanceClient::new(url).await
+            .map_err(|err| io::Error::new(io::ErrorKind::Other, err.to_string()))?;
+        let (mut tx, rx, ek) = client.split();
+
+        let hello = SwitchHello {
+            chain,
+            access_token,
+            version: crate::model::PORT_COMMAND_VERSION,
+        };
+
+        let data = serde_json::to_vec(&hello)?;
+        tx.send(&ek, &data[..]).await?;
+
         Ok(Port {
-            tx,
+            tx: Arc::new(Mutex::new(tx)),
             rx: Arc::new(Mutex::new(rx)),
+            ek,
             sockets: Default::default(),
         })
     }
@@ -78,6 +94,7 @@ impl Port
         Socket {
             handle,
             tx: self.tx.clone(),
+            ek: self.ek.clone(),
             recv: rx_recv,
             recv_from: rx_recv_from,
             error: rx_error,
@@ -162,8 +179,9 @@ impl Port
     }
 
     pub async fn run(&self) {
+        let mut total_read = 0u64;
         let mut rx = self.rx.lock().await;
-        while let Some(evt) = rx.recv().await {
+        while let Ok(evt) = rx.read_buf_with_header(&self.ek, &mut total_read).await {
             if let Ok(evt) = bincode::deserialize::<PortResponse>(&evt[..]) {
                 let sockets = self.sockets.lock().await;
                 match evt {
