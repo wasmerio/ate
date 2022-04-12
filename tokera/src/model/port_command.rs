@@ -249,7 +249,6 @@ pub enum PortCommand {
     },
     Listen {
         handle: SocketHandle,
-        backlog: u32,
         local_addr: SocketAddr,
         hop_limit: u8
     },
@@ -311,7 +310,7 @@ for PortCommand
             },
             PortCommand::ConnectTcp { handle, local_addr, peer_addr, .. } => write!(f, "connect-tcp(handle={},local_addr={},peer_addr={})", handle, local_addr, peer_addr),
             PortCommand::DhcpReset { handle } => write!(f, "dhcp-reset(handle={})", handle),
-            PortCommand::Listen { handle, backlog, .. } => write!(f, "listen(handle={},backlog={})", handle, backlog),
+            PortCommand::Listen { handle, .. } => write!(f, "listen(handle={})", handle),
             PortCommand::SetHopLimit { handle, hop_limit: ttl } => write!(f, "set-ttl(handle={},ttl={})", handle, ttl),
             PortCommand::Send { handle, data } => write!(f, "send(handle={},len={})", handle, data.len()),
             PortCommand::SendTo { handle, data, addr } => write!(f, "send-to(handle={},len={},addr={})", handle, data.len(), addr),
@@ -357,7 +356,6 @@ pub enum PortResponse {
     },
     TcpAccepted {
         handle: SocketHandle,
-        local_addr: SocketAddr,
         peer_addr: SocketAddr,
     },
     SocketError {
@@ -391,9 +389,8 @@ for PortResponse
             } => write!(f, "received(handle={},len={},peer_addr={})", handle, data.len(), peer_addr),
             PortResponse::TcpAccepted {
                 handle,
-                local_addr,
                 peer_addr,
-            } => write!(f, "tcp_accepted(handle={},local_addr={},peer_addr={})", handle, local_addr, peer_addr),
+            } => write!(f, "tcp_accepted(handle={},peer_addr={})", handle, peer_addr),
             PortResponse::SocketError {
                 handle,
                 error,

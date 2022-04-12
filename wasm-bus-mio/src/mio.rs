@@ -15,7 +15,9 @@ pub struct AsyncTcpListener {
 impl AsyncTcpListener {
     pub async fn bind(addr: SocketAddr) -> io::Result<AsyncTcpListener> {
         let factory = api::MioClient::new("os");
-        let listener = factory.bind_tcp(addr).await
+        let listener = factory
+            .bind_tcp(addr)
+            .await
             .map_err(conv_err)?;
         listener.take_error().await.map_err(conv_err)?.map_err(conv_err2)?;
         Ok(
@@ -26,7 +28,9 @@ impl AsyncTcpListener {
     }
 
     pub async fn accept(&self) -> io::Result<AsyncTcpStream> {
-        let tcp = self.listener.accept().await
+        let tcp = self.listener
+            .accept()
+            .await
             .map_err(conv_err)?;
         tcp.take_error().await.map_err(conv_err)?.map_err(conv_err2)?;
         Ok(
@@ -37,31 +41,41 @@ impl AsyncTcpListener {
     }
 
     pub async fn listen(&self, backlog: u32) -> io::Result<()> {
-        self.listener.listen(backlog).await
+        self.listener
+            .listen(backlog)
+            .await
             .map_err(conv_err)?
             .map_err(conv_err2)
     }
 
     pub async fn local_addr(&self) -> io::Result<SocketAddr> {
-        self.listener.local_addr().await
+        self.listener
+            .local_addr()
+            .await
             .map_err(conv_err)?
             .map_err(conv_err2)
     }
 
     pub async fn set_ttl(&self, ttl: u32) -> io::Result<()> {
-        self.listener.set_ttl(ttl).await
+        self.listener
+            .set_ttl(ttl)
+            .await
             .map_err(conv_err)?
             .map_err(conv_err2)
     }
 
     pub async fn ttl(&self) -> io::Result<u32> {
-        self.listener.ttl().await
+        self.listener
+            .ttl()
+            .await
             .map_err(conv_err)?
             .map_err(conv_err2)
     }
 
     pub async fn take_error(&self) -> io::Result<Option<io::Error>> {
-        self.listener.take_error().await
+        self.listener
+            .take_error()
+            .await
             .map_err(conv_err)?
             .map_err(conv_err2)
             .map(|a| a.map(conv_err2))

@@ -265,7 +265,6 @@ impl Port
             },
             PortCommand::Listen {
                 handle,
-                backlog: _,
                 local_addr,
                 hop_limit,
             } => {
@@ -480,9 +479,8 @@ impl Port
             let socket = self.iface.get_socket::<TcpSocket>(*socket_handle);
             while socket.is_listening() {
                 if socket.is_active() {
-                    let local_addr = conv_addr(socket.local_endpoint());
                     let peer_addr = conv_addr(socket.remote_endpoint());
-                    ret.push(PortResponse::TcpAccepted { handle: *handle, local_addr, peer_addr });
+                    ret.push(PortResponse::TcpAccepted { handle: *handle, peer_addr });
                 } else {
                     ret.push(PortResponse::SocketError { handle: *handle, error: SocketErrorKind::ConnectionAborted.into() });
                 }

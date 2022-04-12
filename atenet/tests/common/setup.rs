@@ -7,7 +7,6 @@ use atenet::opt::OptsNetworkServer;
 use tokio::runtime::Builder;
 
 
-
 fn create_solo(ip: IpAddr, node_id: u32) -> OptsNetworkServer
 {
     OptsNetworkServer {
