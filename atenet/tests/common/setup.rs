@@ -66,5 +66,5 @@ pub async fn client2(ip: IpAddr, chain: &ChainKey, access_token: &str) -> Port
 
 pub async fn client(node: url::Url, ip: IpAddr, chain: ChainKey, access_token: String) -> Port
 {
-    Port::connect(node, chain, access_token).await.unwrap()
+    Port::new(node, chain, access_token).await.unwrap()
 }

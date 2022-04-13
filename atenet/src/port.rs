@@ -70,6 +70,7 @@ pub struct Port
     pub(crate) iface: Interface<'static, PortDevice>,
     pub(crate) buf_size: usize,
     pub(crate) errors: Vec<(SocketHandle, SocketErrorKind)>,
+    pub(crate) nops: Vec<SocketHandle>,
 }
 
 impl Port
@@ -102,6 +103,7 @@ impl Port
             buf_size: 16,
             iface,
             errors: Vec::new(),
+            nops: Vec::new(),
         }
     }
 
@@ -185,6 +187,7 @@ impl Port
                 if let Some(socket_handle) = self.dhcp_sockets.remove(&handle) {
                     self.iface.remove_socket(socket_handle);
                 }
+                self.nops.push(handle);
             },
             PortCommand::BindRaw {
                 handle,
@@ -195,6 +198,7 @@ impl Port
                 let tx_buffer = RawSocketBuffer::new(raw_meta_buf(self.buf_size), self.raw_buf(1));
                 let socket = RawSocket::new(conv_ip_version(ip_version), conv_ip_protocol(ip_protocol), rx_buffer, tx_buffer);
                 self.raw_sockets.insert(handle, self.iface.add_socket(socket));
+                self.nops.push(handle);
             },
             PortCommand::BindIcmp {
                 handle,
@@ -210,6 +214,7 @@ impl Port
                 } else {
                     self.icmp_sockets.insert(handle, self.iface.add_socket(socket));
                 }
+                self.nops.push(handle);
             },
             PortCommand::BindDhcp {
                 handle,
@@ -223,6 +228,7 @@ impl Port
                 socket.set_ignore_naks(ignore_naks);
                 socket.reset();
                 self.dhcp_sockets.insert(handle, self.iface.add_socket(socket));
+                self.nops.push(handle);
             },
             PortCommand::DhcpReset {
                 handle,
@@ -231,6 +237,7 @@ impl Port
                     let socket = self.iface.get_socket::<Dhcpv4Socket>(*socket_handle);
                     socket.reset();
                 }
+                self.nops.push(handle);
             },
             PortCommand::BindUdp {
                 handle,
@@ -246,6 +253,7 @@ impl Port
                 } else {
                     self.udp_sockets.insert(handle, self.iface.add_socket(socket));
                 }
+                self.nops.push(handle);
             },
             PortCommand::ConnectTcp {
                 handle,
@@ -262,6 +270,7 @@ impl Port
                 if let Err(err) = socket.connect(cx, peer_addr, local_addr) {
                     self.errors.push((handle, conv_err(err)));
                 }
+                self.nops.push(handle);
             },
             PortCommand::Listen {
                 handle,
@@ -277,6 +286,7 @@ impl Port
                 } else {
                     self.listen_sockets.insert(handle, self.iface.add_socket(socket));
                 }
+                self.nops.push(handle);
             },
             PortCommand::SetHopLimit {
                 handle,
@@ -294,6 +304,7 @@ impl Port
                     let socket = self.iface.get_socket::<TcpSocket>(*socket_handle);
                     socket.set_hop_limit(Some(hop_limit));
                 }
+                self.nops.push(handle);
             },
             PortCommand::SetAckDelay {
                 handle,
@@ -308,6 +319,7 @@ impl Port
                     let socket = self.iface.get_socket::<TcpSocket>(*socket_handle);
                     socket.set_ack_delay(Some(duration.clone()));
                 }
+                self.nops.push(handle);
             },
             PortCommand::SetNoDelay {
                 handle,
@@ -322,6 +334,7 @@ impl Port
                     let socket = self.iface.get_socket::<TcpSocket>(*socket_handle);
                     socket.set_nagle_enabled(nagle_enable);
                 }
+                self.nops.push(handle);
             },
             PortCommand::SetKeepAlive {
                 handle,
@@ -336,6 +349,7 @@ impl Port
                     let socket = self.iface.get_socket::<TcpSocket>(*socket_handle);
                     socket.set_keep_alive(interval.into())
                 }
+                self.nops.push(handle);
             },
             PortCommand::SetTimeout {
                 handle,
@@ -350,6 +364,7 @@ impl Port
                     let socket = self.iface.get_socket::<TcpSocket>(*socket_handle);
                     socket.set_timeout(timeout.into())
                 }
+                self.nops.push(handle);
             },
             PortCommand::JoinMulticast {
                 multiaddr,
@@ -489,6 +504,10 @@ impl Port
 
         for (handle, err) in self.errors.drain(..) {
             ret.push(PortResponse::SocketError { handle, error: err.into() });
+        }
+
+        for handle in self.nops.drain(..) {
+            ret.push(PortResponse::Nop { handle });
         }
 
         ret

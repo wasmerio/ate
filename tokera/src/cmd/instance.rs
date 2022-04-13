@@ -183,7 +183,7 @@ pub async fn main_opts_instance_shell(
 ) -> Result<(), InstanceError> {
     let (instance, _) = api.instance_action(name).await?;
     let instance = instance?;
-    let mut client = InstanceClient::new_ext(inst_url, ignore_certificate).await
+    let mut client = InstanceClient::new_ext(inst_url, InstanceClient::PATH_INST, ignore_certificate).await
         .unwrap();
 
     client.send_hello(InstanceHello {
@@ -221,7 +221,7 @@ pub async fn main_opts_instance_call(
 
     let (instance, _) = api.instance_action(name).await?;
     let instance = instance?;
-    let mut client = InstanceClient::new_ext(inst_url, ignore_certificate).await
+    let mut client = InstanceClient::new_ext(inst_url, InstanceClient::PATH_INST, ignore_certificate).await
         .unwrap();
 
     // Search for an export that matches this binary

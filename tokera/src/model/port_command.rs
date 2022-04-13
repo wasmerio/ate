@@ -75,6 +75,16 @@ pub enum IpProtocol {
     Unknown(u8),
 }
 
+impl IpProtocol
+{
+    pub fn is_connection_oriented(&self) -> bool {
+        match self {
+            IpProtocol::Tcp => true,
+            _ => false,
+        }
+    }
+}
+
 impl fmt::Display
 for IpProtocol {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -345,6 +355,9 @@ for PortCommand
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum PortResponse {
+    Nop {
+        handle: SocketHandle,
+    },
     Received {
         handle: SocketHandle,
         data: Vec<u8>
@@ -378,6 +391,9 @@ for PortResponse
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            PortResponse::Nop {
+                handle,
+            } => write!(f, "nop(handle={})", handle),
             PortResponse::Received {
                 handle,
                 data
@@ -386,7 +402,7 @@ for PortResponse
                 handle,
                 data,
                 peer_addr
-            } => write!(f, "received(handle={},len={},peer_addr={})", handle, data.len(), peer_addr),
+            } => write!(f, "received_from(handle={},len={},peer_addr={})", handle, data.len(), peer_addr),
             PortResponse::TcpAccepted {
                 handle,
                 peer_addr,

@@ -105,16 +105,19 @@ impl Server
     {
         // Get or create the switch
         let key = hello_switch.chain.clone();
+        debug!("atenet - accept_internal(chain={})", key);
         let (switch, _) = self.factory.get_or_create_switch(key).await?;
 
         // Check to make sure the caller has rights to this switch
         if switch.has_access(hello_switch.access_token.as_str()) == false {
+            debug!("atenet - access denied (id={})", switch.id);
             return Err(CommsErrorKind::Refused.into());
         }
 
         // Create the port into the switch
         let port = switch.new_port().await
             .map_err(|err| CommsErrorKind::InternalError(err.to_string()))?;
+        let mac = port.mac;
 
         // Create the session that will process packets for this switch
         let session = Session {
@@ -126,6 +129,8 @@ impl Server
             wire_encryption,
             port,
         };
+
+        info!("switch port established (switch={}, mac={}, peer_addr={})", session.hello_switch.chain, mac, sock_addr);
         
         // Start the background thread that will process events on the session
         tokio::task::spawn(async move {
@@ -260,6 +265,7 @@ for SessionFactory
                 let session = if let Ok(token) = std::fs::read_to_string(path) {
                     b64_to_session(token)
                 } else {
+                    warn!("token is missing - {}", self.token_path);
                     let err: ate_auth::error::GatherError = ate_auth::error::GatherErrorKind::NoMasterKey.into();
                     return Err(err.into());
                 };

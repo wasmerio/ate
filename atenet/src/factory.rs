@@ -48,7 +48,7 @@ impl SwitchFactory
         // (this will reuse accessors across threads and calls)
         let accessor = self.repo.get_accessor(&key, self.instance_authority.as_str()).await
             .map_err(|err| CommsErrorKind::InternalError(err.to_string()))?;
-        trace!("loaded file accessor for {}", key);
+        debug!("loaded file accessor for {}", key);
 
         // Create the gateway
         let inst = accessor.dio.load::<ServiceInstance>(&PrimaryKey::from(INSTANCE_ROOT_ID)).await?;

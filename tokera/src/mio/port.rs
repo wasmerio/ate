@@ -24,6 +24,7 @@ const MAX_MPSC: usize = std::usize::MAX >> 3;
 
 pub struct SocketState
 {
+    nop: mpsc::Sender<()>,
     recv: mpsc::Sender<EventRecv>,
     recv_from: mpsc::Sender<EventRecvFrom>,
     error: mpsc::Sender<EventError>,
@@ -40,9 +41,9 @@ pub struct Port
 
 impl Port
 {
-    pub async fn connect(url: url::Url, chain: ChainKey, access_token: String,) -> io::Result<Port>
+    pub async fn new(url: url::Url, chain: ChainKey, access_token: String,) -> io::Result<Port>
     {
-        let client = InstanceClient::new(url).await
+        let client = InstanceClient::new_ext(url, "/net", true).await
             .map_err(|err| io::Error::new(io::ErrorKind::Other, err.to_string()))?;
         let (mut tx, rx, ek) = client.split();
 
@@ -63,7 +64,7 @@ impl Port
         })
     }
 
-    async fn new_socket(&self) -> Socket {
+    async fn new_socket(&self, proto: IpProtocol) -> Socket {
         let mut sockets = self.sockets.lock().await;
         let handle = sockets.iter()
             .rev()
@@ -71,12 +72,14 @@ impl Port
             .map(|e| e.0.clone() + 1)
             .unwrap_or_else(|| 1i32);
         
+        let (tx_nop, rx_nop) = mpsc::channel(MAX_MPSC);
         let (tx_recv, rx_recv) = mpsc::channel(MAX_MPSC);
         let (tx_recv_from, rx_recv_from) = mpsc::channel(MAX_MPSC);
         let (tx_error, rx_error) = mpsc::channel(MAX_MPSC);
         let (tx_accept, rx_accept) = mpsc::channel(MAX_MPSC);
         
         sockets.insert(handle, SocketState{
+            nop: tx_nop,
             recv: tx_recv,
             recv_from: tx_recv_from,
             error: tx_error,
@@ -86,8 +89,11 @@ impl Port
         let handle = SocketHandle(handle);
         Socket {
             handle,
+            proto,
+            peer_addr: None,
             tx: self.tx.clone(),
             ek: self.ek.clone(),
+            nop: rx_nop,
             recv: rx_recv,
             recv_from: rx_recv_from,
             error: rx_error,
@@ -96,43 +102,46 @@ impl Port
     }
 
     pub async fn bind_raw(&self, ip_version: IpVersion, ip_protocol: IpProtocol) -> io::Result<Socket> {
-        let socket = self.new_socket().await;
+        let mut socket = self.new_socket(ip_protocol).await;
 
         socket.tx(PortCommand::BindRaw {
             handle: socket.handle,
             ip_version,
             ip_protocol,
         }).await?;
+        socket.nop().await?;
 
         Ok(socket)
     }
 
     pub async fn bind_udp(&self, local_addr: SocketAddr) -> io::Result<Socket> {
-        let socket = self.new_socket().await;
+        let mut socket = self.new_socket(IpProtocol::Udp).await;
 
         socket.tx(PortCommand::BindUdp {
             handle: socket.handle,
             local_addr,
             hop_limit: Socket::HOP_LIMIT,
         }).await?;
+        socket.nop().await?;
 
         Ok(socket)
     }
 
     pub async fn bind_icmp(&self, local_addr: SocketAddr) -> io::Result<Socket> {
-        let socket = self.new_socket().await;
+        let mut socket = self.new_socket(IpProtocol::Icmp).await;
 
         socket.tx(PortCommand::BindIcmp {
             handle: socket.handle,
             local_addr,
             hop_limit: Socket::HOP_LIMIT,
         }).await?;
+        socket.nop().await?;
 
         Ok(socket)
     }
 
     pub async fn connect_tcp(&self, local_addr: SocketAddr, peer_addr: SocketAddr) -> io::Result<Socket> {
-        let socket = self.new_socket().await;
+        let mut socket = self.new_socket(IpProtocol::Tcp).await;
 
         socket.tx(PortCommand::ConnectTcp {
             handle: socket.handle,
@@ -140,21 +149,22 @@ impl Port
             peer_addr,
             hop_limit: Socket::HOP_LIMIT,
         }).await?;
+        socket.nop().await?;
 
         Ok(socket)
     }
 
-    pub async fn accept_tcp(&self, listen_addr: SocketAddr) -> io::Result<(Socket, SocketAddr)> {
-        let mut socket = self.new_socket().await;
+    pub async fn listen_tcp(&self, listen_addr: SocketAddr) -> io::Result<Socket> {
+        let mut socket = self.new_socket(IpProtocol::Tcp).await;
 
         socket.tx(PortCommand::Listen {
             handle: socket.handle,
             local_addr: listen_addr,
             hop_limit: Socket::HOP_LIMIT,
         }).await?;
+        socket.nop().await?;
 
-        let peer_addr = socket.accept().await?;
-        Ok((socket, peer_addr))
+        Ok(socket)
     }
 
     pub async fn run(&self) {
@@ -164,6 +174,13 @@ impl Port
             if let Ok(evt) = bincode::deserialize::<PortResponse>(&evt[..]) {
                 let sockets = self.sockets.lock().await;
                 match evt {
+                    PortResponse::Nop {
+                        handle,
+                    } => {
+                        if let Some(socket) = sockets.get(&handle.0) {
+                            let _ = socket.nop.send(()).await;
+                        }
+                    }
                     PortResponse::Received {
                         handle,
                         data
