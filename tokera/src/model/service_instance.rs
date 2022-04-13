@@ -1,5 +1,4 @@
 use ate::{prelude::DaoVec};
-use ate::chain::ChainKey;
 use serde::*;
 
 use super::{InstanceExport, InstanceSubnet, MeshNode};
@@ -11,7 +10,7 @@ pub struct ServiceInstance {
     /// Unique ID of this instance
     pub id: u128,
     /// Chain key for this service instance
-    pub chain: ChainKey,
+    pub chain: String,
     /// Subnet associated with this instance
     pub subnet: InstanceSubnet,
     /// Admin token associated with an instance

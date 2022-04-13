@@ -1,5 +1,4 @@
 use serde::*;
-use ate::chain::ChainKey;
 
 /// Running instance of a particular web assembly application
 /// within the hosting environment
@@ -8,9 +7,10 @@ pub struct WalletInstance {
     /// Name of the instance attached to the identity
     pub name: String,
     /// ID of this instance within Tokera
+    #[serde(skip)]
     pub id: u128,
     /// Chain key for this service instance
-    pub chain: ChainKey,
+    pub chain: String,
 }
 
 impl WalletInstance

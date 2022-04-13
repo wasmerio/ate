@@ -11,8 +11,8 @@ fn ping() {
     common::run(async move {
         let _servers = common::setup().await;
 
-        let chain = ChainKey::from("johnathan.sharratt@gmail.com/17ccd5c3d5eb84c56c717ef7fbd7c4ae_edge");
-        let access_token = "409454760a1d4f0fbad6cb1edc15e6ac";
+        let chain = ChainKey::from("tokera.com/4932a508739386ec3c4d76d269fc30eb_edge");
+        let access_token = "4d6d309c1e9c58d3b3493c0fd00554f1";
         
         let c1_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(10, 0, 0, 2), 3000));
         let c1 = common::client1(c1_addr.ip().clone(), &chain, access_token).await;

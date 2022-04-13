@@ -155,6 +155,9 @@ pub struct OptsInstanceCreate {
     /// Name of the new instance (which will be generated if you dont supply one)
     #[clap(index = 1)]
     pub name: Option<String>,
+    /// Forces the creation of this instance even if there is a duplicate
+    #[clap(short, long)]
+    pub force: bool,
 }
 
 #[derive(Parser, Clone)]

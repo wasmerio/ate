@@ -20,7 +20,7 @@ impl TokApi {
         };
 
         // First we load the chain which we need to get the master authority object
-        let instance_key = wallet_instance.chain.clone();
+        let instance_key = ChainKey::from(wallet_instance.chain.clone());
         let db_url: Result<_, LoadError> = self.db_url.clone().ok_or_else(|| LoadErrorKind::IO("the db_url is not set which is required to access instances".to_string()).into());
         let chain = self.registry.open(&db_url?, &instance_key).await?;
         let dio = chain.dio(self.session().deref()).await;

@@ -23,6 +23,7 @@ impl TokApi {
         group: Option<String>,
         db_url: url::Url,
         instance_authority: String,
+        force: bool,
     ) -> Result<WalletInstance, InstanceError>
     {
         // Get the sudo rights from the session (as we will use these for the wallet)
@@ -50,14 +51,16 @@ impl TokApi {
         // If it already exists then fail
         let instance_key_entropy = format!("instance://{}/{}", self.session_identity(), name);
         let instance_key = PrimaryKey::from(instance_key_entropy);
-        if self.dio.exists(&instance_key).await {
-            bail!(InstanceErrorKind::AlreadyExists);
-        }
+        if force == false {
+            if self.dio.exists(&instance_key).await {
+                bail!(InstanceErrorKind::AlreadyExists);
+            }
 
-        // Check if the instance already exists
-        let instances = self.instances().await;
-        if instances.iter().await?.any(|i| i.name.eq_ignore_ascii_case(name.as_str())) {
-            bail!(InstanceErrorKind::AlreadyExists);
+            // Check if the instance already exists
+            let instances = self.instances().await;
+            if instances.iter().await?.any(|i| i.name.eq_ignore_ascii_case(name.as_str())) {
+                bail!(InstanceErrorKind::AlreadyExists);
+            }
         }
 
         // Generate encryption keys and modify the root of the tree so that it
@@ -147,7 +150,7 @@ impl TokApi {
         let mut instance_dao = dio.store_with_key(
             ServiceInstance {
                 id: instance_id,
-                chain: key.clone(),
+                chain: key.name.clone(),
                 subnet: InstanceSubnet {
                     network_token,
                     cidrs: subnets,
@@ -168,7 +171,7 @@ impl TokApi {
         let instance = WalletInstance {
             name: name.clone(),
             id: instance_id,
-            chain: key,
+            chain: key.name.clone(),
         };
         let mut wallet_instance_dao = self.dio.store_with_key(
             instance.clone(),

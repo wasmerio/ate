@@ -87,9 +87,11 @@ pub async fn main_opts_instance_details(
     println!("{}", serde_json::to_string_pretty(instance.deref()).unwrap());
 
     if let Ok(service_instance) = api.instance_load(instance.deref()).await {
+        println!("{}", serde_json::to_string_pretty(&service_instance.subnet).unwrap());
+
         if service_instance.exports.len().await? > 0 {
             let id = service_instance.id_str();
-            let chain = service_instance.chain.clone();
+            let chain = ChainKey::from(service_instance.chain.clone());
             println!("ID: {}", id);
             println!("");
             println!("Exports");
@@ -110,6 +112,7 @@ pub async fn main_opts_instance_create(
     group: Option<String>,
     db_url: url::Url,
     instance_authority: String,
+    force: bool,
 ) -> Result<(), InstanceError> {
 
     let name = match name {
@@ -119,7 +122,7 @@ pub async fn main_opts_instance_create(
         }
     };
 
-    if let Err(err) = api.instance_create(name.clone(), group, db_url, instance_authority).await {
+    if let Err(err) = api.instance_create(name.clone(), group, db_url, instance_authority, force).await {
         bail!(err);
     };
 
@@ -188,7 +191,7 @@ pub async fn main_opts_instance_shell(
 
     client.send_hello(InstanceHello {
         access_token: instance.admin_token.clone(),
-        chain: instance.chain.clone(),
+        chain: ChainKey::from(instance.chain.clone()),
     }).await.unwrap();
 
     client.send_cmd(InstanceCommand::Shell)
@@ -234,7 +237,7 @@ pub async fn main_opts_instance_call(
 
     client.send_hello(InstanceHello {
         access_token: export.access_token.clone(),
-        chain: instance.chain.clone(),
+        chain: ChainKey::from(instance.chain.clone()),
     }).await.unwrap();
 
     client.send_cmd(InstanceCommand::Call(InstanceCall {
@@ -291,6 +294,7 @@ pub async fn main_opts_instance_export(
             bail!(err);
         }
     };
+    let chain = ChainKey::from(chain);
 
     // Build the URL that can be used to access this binary
     let url = compute_export_url(&inst_url, &chain, binary);
@@ -430,7 +434,7 @@ pub async fn main_opts_instance(
             main_opts_instance_details(&mut context.api, inst_url, opts).await?;
         }
         OptsInstanceAction::Create(opts) => {
-            main_opts_instance_create(&mut context.api, opts.name, purpose.group_name(), db_url, instance_authority).await?;
+            main_opts_instance_create(&mut context.api, opts.name, purpose.group_name(), db_url, instance_authority, opts.force).await?;
         }
         OptsInstanceAction::Kill(opts_kill) => {
             if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
