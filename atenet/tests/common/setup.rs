@@ -7,7 +7,6 @@ use atenet::opt::OptsNetworkServer;
 use tokio::runtime::Builder;
 use tokera::mio::Port;
 
-
 fn create_solo(ip: IpAddr, node_id: u32) -> OptsNetworkServer
 {
     OptsNetworkServer {
@@ -68,5 +67,7 @@ pub async fn client2(ip: IpAddr, chain: &ChainKey, access_token: &str) -> Port
 
 pub async fn client(node: url::Url, ip: IpAddr, chain: ChainKey, access_token: String) -> Port
 {
-    Port::new(node, chain, access_token).await.unwrap()
+    let mut port = Port::new(node, chain, access_token).await.unwrap();
+    port.add_ip( ip, 24).await.unwrap();
+    port
 }

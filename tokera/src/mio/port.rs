@@ -1,6 +1,7 @@
 use ate::chain::ChainKey;
 use ate::crypto::EncryptKey;
 use std::io;
+use std::net::IpAddr;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::collections::BTreeMap;
@@ -12,6 +13,7 @@ use ate::comms::StreamRx;
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use crate::api::InstanceClient;
+use crate::model::IpCidr;
 use crate::model::IpVersion;
 use crate::model::IpProtocol;
 use crate::model::PortCommand;
@@ -40,6 +42,7 @@ pub struct Port
     chain: ChainKey,
     tx: Arc<Mutex<StreamTx>>,
     ek: Option<EncryptKey>,
+    ips: Vec<IpCidr>,
     sockets: Arc<Mutex<BTreeMap<i32, SocketState>>>,
 }
 
@@ -75,6 +78,7 @@ impl Port
             chain,
             tx: Arc::new(Mutex::new(tx)),
             ek,
+            ips: Default::default(),
             sockets,
         })
     }
@@ -182,6 +186,25 @@ impl Port
         socket.nop(PortNopType::Listen).await?;
 
         Ok(socket)
+    }
+
+    pub async fn add_ip(&mut self, ip: IpAddr, prefix: u8) -> io::Result<()> {
+        self.ips.push(IpCidr {
+            ip,
+            prefix,
+        });
+        self.update_ips().await?;
+        Ok(())
+    }
+
+    async fn update_ips(&mut self) -> io::Result<()> {
+        let ips = self.ips.clone();
+        let cmd = bincode::serialize(&PortCommand::SetIpAddresses { ips })
+        .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
+
+        let mut tx = self.tx.lock().await;
+        tx.send(&self.ek, &cmd[..]).await?;
+        Ok(())
     }
 
     async fn run(mut rx: StreamRx, ek: Option<EncryptKey>, sockets: Arc<Mutex<BTreeMap<i32, SocketState>>>, chain: ChainKey) {

@@ -175,12 +175,10 @@ impl Port
                     if let Some(socket_handle) = self.tcp_sockets.get(&handle) {
                         let socket = self.iface.get_socket::<TcpSocket>(*socket_handle);
                         socket.may_send()
-                    } else if let Some(socket_handle) = self.udp_sockets.get(&handle) {
-                        let socket = self.iface.get_socket::<UdpSocket>(*socket_handle);
-                        socket.can_send()
-                    } else if let Some(socket_handle) = self.icmp_sockets.get(&handle) {
-                        let socket = self.iface.get_socket::<IcmpSocket>(*socket_handle);
-                        socket.can_send()
+                    } else if let Some(_) = self.udp_sockets.get(&handle) {
+                        true
+                    } else if let Some(_) = self.icmp_sockets.get(&handle) {
+                        true
                     } else {
                         err = SocketErrorKind::NotConnected;
                         false
@@ -200,12 +198,10 @@ impl Port
                     if let Some(socket_handle) = self.tcp_sockets.get(&handle) {
                         let socket = self.iface.get_socket::<TcpSocket>(*socket_handle);
                         socket.may_recv()
-                    } else if let Some(socket_handle) = self.udp_sockets.get(&handle) {
-                        let socket = self.iface.get_socket::<UdpSocket>(*socket_handle);
-                        socket.can_recv()
-                    } else if let Some(socket_handle) = self.icmp_sockets.get(&handle) {
-                        let socket = self.iface.get_socket::<IcmpSocket>(*socket_handle);
-                        socket.can_recv()
+                    } else if let Some(_) = self.udp_sockets.get(&handle) {
+                        true
+                    } else if let Some(_) = self.icmp_sockets.get(&handle) {
+                        true
                     } else {
                         err = SocketErrorKind::NotConnected;
                         false
