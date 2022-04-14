@@ -105,18 +105,22 @@ impl Server
     {
         // Get or create the switch
         let key = hello_switch.chain.clone();
-        debug!("atenet - accept_internal(chain={})", key);
+        debug!("accept_internal(chain={})", key);
         let (switch, _) = self.factory.get_or_create_switch(key).await?;
 
         // Check to make sure the caller has rights to this switch
         if switch.has_access(hello_switch.access_token.as_str()) == false {
-            debug!("atenet - access denied (id={})", switch.id);
+            warn!("access denied (id={})", switch.id);
             return Err(CommsErrorKind::Refused.into());
         }
 
         // Create the port into the switch
-        let port = switch.new_port().await
-            .map_err(|err| CommsErrorKind::InternalError(err.to_string()))?;
+        let port = switch.new_port()
+            .await
+            .map_err(|err| {
+                warn!("switch port creation failed - {}", err);
+                CommsErrorKind::InternalError(err.to_string())
+            })?;
         let mac = port.mac;
 
         // Create the session that will process packets for this switch

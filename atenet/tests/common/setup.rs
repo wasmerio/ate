@@ -25,7 +25,9 @@ fn create_solo(ip: IpAddr, node_id: u32) -> OptsNetworkServer
 }
 
 async fn create_node(ip: IpAddr, node_id: u32) -> Arc<ateweb::server::Server> {
-    let conf = AteConfig::default();
+    let mut conf = AteConfig::default();
+    conf.record_type_name = true;
+
     let solo = create_solo(ip, node_id);
     
     let (server, _exit) = atenet::common::setup_server(
@@ -39,7 +41,7 @@ async fn create_node(ip: IpAddr, node_id: u32) -> Arc<ateweb::server::Server> {
 }
 
 pub fn run<F: Future>(future: F) -> F::Output {
-    let runtime = Arc::new(Builder::new_multi_thread().enable_all().build().unwrap());
+    let runtime = Arc::new(Builder::new_current_thread().enable_all().build().unwrap());
     runtime.clone().block_on(future)
 }
 

@@ -49,6 +49,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
     let mut conf = AteConfig::default();
     conf.dns_sec = opts.dns_sec.clone();
     conf.dns_server = opts.dns_server.clone();
+    conf.record_type_name = true;
     
     let ret = runtime.clone().block_on(async move {
         match opts.subcmd {

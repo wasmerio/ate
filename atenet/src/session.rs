@@ -31,16 +31,39 @@ impl Session
             if ret.len() > 0 {
                 self.send_response(ret).await;
             }
-            let cmd = self.rx.read_buf_with_header(&wire_encryption, &mut total_read).await?;
-            trace!("port read (len={})", cmd.len());
+            tokio::select! {
+                cmd = self.rx.read_buf_with_header(&wire_encryption, &mut total_read) => {
+                    let cmd = match cmd {
+                        Ok(a) => a,
+                        Err(err) => {
+                            debug!("port read failed - {}", err);
+                            break;
+                        }
+                    };
+                    trace!("port read (len={})", cmd.len());
 
-            let action: PortCommand = bincode::deserialize(&cmd[..])?;
-            trace!("port cmd ({})", action);
+                    match bincode::deserialize::<PortCommand>(&cmd[..]) {
+                        Ok(action) => {
+                            trace!("port cmd ({})", action);
 
-            if let Err(err) = self.port.process(action) {
-                debug!("net-session-run - process-error: {}", err)
+                            if let Err(err) = self.port.process(action) {
+                                debug!("net-session-run - process-error: {}", err);
+                            }
+                        }
+                        Err(err) => {
+                            debug!("port failed deserialization - {}", err);
+                        }
+                    }
+                },
+                e = self.port.wake.changed() => {
+                    if e.is_err() {
+                        info!("port closed (mac={}, addr={})", self.port.mac, self.sock_addr);
+                        break;
+                    }
+                }
             }
         }
+        let _ = self.tx.close().await;
         #[allow(unreachable_code)]
         Ok(())
     }

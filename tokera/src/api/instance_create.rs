@@ -171,7 +171,7 @@ impl TokApi {
         let instance = WalletInstance {
             name: name.clone(),
             id: instance_id,
-            chain: key.name.clone(),
+            chain: ChainKey::from(key.name.clone()),
         };
         let mut wallet_instance_dao = self.dio.store_with_key(
             instance.clone(),

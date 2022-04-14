@@ -6,6 +6,7 @@ use std::sync::MutexGuard;
 use std::time::Duration;
 use ate_files::prelude::FileAccessor;
 use tokio::sync::mpsc;
+use tokio::sync::watch;
 use smoltcp::wire::IpCidr;
 use smoltcp::wire::EthernetAddress;
 use smoltcp::wire::EthernetFrame;
@@ -22,6 +23,7 @@ use tokio::sync::RwLock;
 use std::sync::Mutex;
 use ate::prelude::*;
 use ttl_cache::TtlCache;
+use crossbeam::queue::SegQueue;
 use tokera::model::MeshNode;
 use tokera::model::HardwareAddress;
 use tokera::model::ServiceInstance;
@@ -30,7 +32,6 @@ use tokera::model::INSTANCE_ROOT_ID;
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use super::port::*;
-use super::common::*;
 use super::udp::*;
 use super::gateway::*;
 
@@ -43,7 +44,8 @@ pub enum Destination
 
 #[derive(Debug)]
 pub struct SwitchPort {
-    tx: mpsc::Sender<Vec<u8>>,
+    data: Arc<SegQueue<Vec<u8>>>,
+    wake: Arc<watch::Sender<()>>,
     #[allow(dead_code)]
     mac: EthernetAddress,
 }
@@ -109,13 +111,16 @@ impl Switch
                     .next()
                 {
                     Some(mut a) => {
+                        let key = a.key().clone();
                         {
                             let mut a = a.as_mut();
                             a.switch_ports.clear();
+                            debug!("clearing existing switch node id={} for {}", key, udp.local_ip());
                         }
                         a
                     },
                     None => {
+                        debug!("creating new switch for {}", udp.local_ip());
                         inst.mesh_nodes.push(MeshNode {
                             node_addr: udp.local_ip(),
                             switch_ports: Default::default(),
@@ -176,9 +181,11 @@ impl Switch
 
     pub async fn new_port(self: &Arc<Switch>) -> Result<Port, AteError> {
         let mac = HardwareAddress::new();
-        let (tx, rx) = mpsc::channel(MAX_MPSC);
+        let (tx_wake, rx_wake) = watch::channel(());
+        let data = Arc::new(SegQueue::new());
         let switch_port = SwitchPort {
-            tx,
+            data: data.clone(),
+            wake: Arc::new(tx_wake),
             mac: EthernetAddress::from_bytes(mac.as_bytes()),
         };
 
@@ -201,7 +208,7 @@ impl Switch
 
         let mac_drop = self.mac_drop.clone();
         Ok(
-            Port::new(self, mac, rx, mac_drop)
+            Port::new(self, mac, data, rx_wake, mac_drop)
         )
     }
 
@@ -226,7 +233,8 @@ impl Switch
         for (mac, dst) in state.ports.iter() {
             if let Destination::Local(port) = dst {
                 if src != mac {
-                    let _ = port.tx.blocking_send(pck.to_vec());
+                    port.data.push(pck.to_vec());
+                    let _ = port.wake.send(());
                 }
             }
         }
@@ -257,10 +265,12 @@ impl Switch
         // on this switch node or another one
         if let Some(dst) = state.ports.get(&dst_mac) {
             match dst {
-                Destination::Local(port) => {
-                    let tx = port.tx.clone();
+                Destination::Local(_) => {
                     self.snoop(state, &pck[..]);
-                    let _ = tx.blocking_send(pck);
+                    if let Some(Destination::Local(port)) = state.ports.get(&dst_mac) {
+                        port.data.push(pck);
+                        let _ = port.wake.send(());
+                    }
                     return;
                 },
                 Destination::PeerSwitch(peer) => {
@@ -450,17 +460,21 @@ impl Switch
         loop {
             tokio::select! {
                 evt = bus.recv() => {
-                    if let Ok(evt) = evt {
-                        match evt {
-                            BusEvent::Updated(node) => {
-                                self.update_node(node.key(), node.deref()).await;
-                            },
-                            BusEvent::Deleted(key) => {
-                                self.remove_node(&key).await;
-                            },
+                    match evt {
+                        Ok(evt) => {
+                            match evt {
+                                BusEvent::Updated(node) => {
+                                    self.update_node(node.key(), node.deref()).await;
+                                },
+                                BusEvent::Deleted(key) => {
+                                    self.remove_node(&key).await;
+                                },
+                            }
                         }
-                    } else {
-                        break;
+                        Err(err) => {
+                            warn!("control thread closing (1) - {:}", err);
+                            break;
+                        }
                     }
                 },
                 mac = mac_drop.recv() => {
@@ -473,13 +487,12 @@ impl Switch
                         }
                         let _ = dio.commit().await;
                     } else {
+                        debug!("control thread closing (2)");
                         break;
                     }
                 }
             }
         }
-
-        debug!("control thread closing");
 
         // Clear the data plane as we are going offline
         {

@@ -3,6 +3,8 @@ use std::net::Ipv4Addr;
 use std::net::SocketAddr;
 use std::net::SocketAddrV4;
 use ate::chain::ChainKey;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 mod common;
 
@@ -23,7 +25,6 @@ fn ping() {
         let mut s1 = c1.listen_tcp(c1_addr).await.unwrap();
         let s2 = c2.connect_tcp(c2_addr, c1_addr).await.unwrap();
         s1.accept().await.unwrap();
-
         s2.send(vec![1,2,3]).await.unwrap();
         let test = s1.recv().await.unwrap();
         

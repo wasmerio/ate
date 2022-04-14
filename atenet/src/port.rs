@@ -7,11 +7,14 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::net::SocketAddrV4;
 use std::net::SocketAddrV6;
+use smoltcp::iface::NeighborCache;
 use smoltcp::iface::Routes;
 use smoltcp::time::Instant;
 use tokera::model::IpProtocol;
 use tokera::model::IpVersion;
 use tokio::sync::mpsc;
+use tokio::sync::watch;
+use crossbeam::queue::SegQueue;
 use derivative::*;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
@@ -55,6 +58,7 @@ use super::switch::*;
 pub struct Port
 {
     pub(crate) switch: Arc<Switch>,
+    pub(crate) wake: watch::Receiver<()>,
     pub(crate) raw_mode: bool,
     #[allow(dead_code)]
     #[derivative(Debug = "ignore")]
@@ -75,22 +79,25 @@ pub struct Port
 
 impl Port
 {
-    pub fn new(switch: &Arc<Switch>, mac: HardwareAddress, rx: mpsc::Receiver<Vec<u8>>, mac_drop: mpsc::Sender<HardwareAddress>) -> Port {
+    pub fn new(switch: &Arc<Switch>, mac: HardwareAddress, data: Arc<SegQueue<Vec<u8>>>, wake: watch::Receiver<()>, mac_drop: mpsc::Sender<HardwareAddress>) -> Port {
         let mac = EthernetAddress::from_bytes(mac.as_bytes());
         let device = PortDevice {
-            rx, 
+            data,
             mac,
             mtu: 1500,
             switch: Arc::clone(switch)
         };
+        let neighbor_cache = NeighborCache::new(BTreeMap::new());
         let iface = InterfaceBuilder::new(device, vec![])
             .hardware_addr(mac.into())
+            .neighbor_cache(neighbor_cache)
             .ip_addrs(Vec::new())
             .routes(Routes::new(BTreeMap::<IpCidr, Route>::new()))
-            .random_seed(fastrand::u64(..))
-            .finalize();
+            .random_seed(fastrand::u64(..));
+        let iface = iface.finalize();
         Port {
             switch: Arc::clone(switch),
+            wake,
             raw_mode: false,
             mac,
             mac_drop,
@@ -551,7 +558,7 @@ for Port
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct PortDevice {
-    rx: mpsc::Receiver<Vec<u8>>,
+    data: Arc<SegQueue<Vec<u8>>>,
     #[derivative(Debug = "ignore")]
     mac: EthernetAddress,
     mtu: usize,
@@ -563,8 +570,8 @@ impl<'a> Device<'a> for PortDevice {
     type TxToken = TxToken;
 
     fn receive(&'a mut self) -> Option<(Self::RxToken, Self::TxToken)> {
-        self.rx.try_recv()
-            .ok()
+        self.data
+            .pop()
             .map(|buffer| {
                 (
                     RxToken {

@@ -237,6 +237,10 @@ impl<D> Bus<D> {
             None => 0,
         };
 
+        let data_key = evt
+            .meta
+            .get_data_key();
+
         let evt = EventStrongData {
             meta: evt.meta,
             data_bytes: match evt.data_bytes {
@@ -262,9 +266,7 @@ impl<D> Bus<D> {
         };
 
         let _pop1 = DioScope::new(&self.dio);
-        let _pop2 = evt
-            .meta
-            .get_data_key()
+        let _pop2 = data_key
             .as_ref()
             .map(|a| PrimaryKeyScope::new(a.clone()));
 

@@ -53,7 +53,7 @@ impl TokApi {
     {
         let instance = self.instances()
             .await
-            .iter_mut()
+            .iter_mut_ext(true, true)
             .await?
             .filter(|i| i.name.eq_ignore_ascii_case(name))
             .next();
@@ -80,7 +80,7 @@ impl TokApi {
         // Find the instance that best matches the name supplied
         let mut instances = self.instances().await;
         let instances = instances
-            .iter_mut()
+            .iter_mut_ext(true, true)
             .await?
             .filter(|i| i.name.to_lowercase().starts_with(name))
             .collect::<Vec<_>>();

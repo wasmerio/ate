@@ -20,21 +20,36 @@ pub async fn main_opts_instance_list(api: &mut TokApi) -> Result<(), InstanceErr
     println!("|-------name-------|-------created-------|-exports");
     let instances = api.instances().await;
 
-    let instances = instances.iter().await?;
+    let instances = instances.iter_ext(true, true).await?;
     let instances_ext = {
         let api = api.clone();
         stream! {
             for instance in instances {
-                yield api.instance_chain(instance.name.as_str())
-                    .await
-                    .map(|chain| (instance, chain));
+                let name = instance.name.clone();
+                yield
+                (
+                    api.instance_chain(instance.name.as_str())
+                        .await
+                        .map(|chain| (instance, chain)),
+                    name,
+                )
             }
         }
     };
     pin_mut!(instances_ext);
 
-    while let Some(res) = instances_ext.next().await {
-        let (wallet_instance, _) = res?;
+    while let Some((res, name)) = instances_ext.next().await {
+        let (wallet_instance, _) = match res {
+            Ok(a) => a,
+            Err(err) => {
+                debug!("error loading wallet instance - {} - {}", name, err);
+                println!(
+                    "- {:<16} - {:<19} - {}",
+                    name, "error", err
+                );
+                continue;
+            }
+        };
         match api.instance_load(&wallet_instance).await {
             Ok(instance) => {
                 let secs = instance.when_created() / 1000;
@@ -49,14 +64,14 @@ pub async fn main_opts_instance_list(api: &mut TokApi) -> Result<(), InstanceErr
                     }
                 }
                 println!(
-                    "- {:<16} - {:<18} - {}",
+                    "- {:<16} - {:<19} - {}",
                     wallet_instance.name, when.format("%Y-%m-%d %H:%M:%S"), exports
                 );
             }
             Err(err) => {
                 debug!("error loading service chain - {}", err);
                 println!(
-                    "- {:<16} - {:<18} - {}",
+                    "- {:<16} - {:<19} - {}",
                     wallet_instance.name, "error", err
                 );
             }
