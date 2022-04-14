@@ -464,15 +464,17 @@ impl Switch
                         Ok(evt) => {
                             match evt {
                                 BusEvent::Updated(node) => {
+                                    info!("switch node updated (id={}, node_addr={})", self.id, node.node_addr);
                                     self.update_node(node.key(), node.deref()).await;
                                 },
                                 BusEvent::Deleted(key) => {
+                                    info!("switch node deleted (id={}, key={})", self.id, key);
                                     self.remove_node(&key).await;
                                 },
                             }
                         }
                         Err(err) => {
-                            warn!("control thread closing (1) - {:}", err);
+                            warn!("control thread closing (1) - {:?}", err);
                             break;
                         }
                     }

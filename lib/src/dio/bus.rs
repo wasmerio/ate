@@ -2,6 +2,7 @@ use error_chain::bail;
 use serde::{de::DeserializeOwned, Serialize};
 use std::marker::PhantomData;
 use std::sync::Arc;
+use std::ops::Deref;
 use tokio::sync::mpsc;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
@@ -241,7 +242,7 @@ impl<D> Bus<D> {
             .meta
             .get_data_key();
 
-        let evt = EventStrongData {
+        let mut evt = EventStrongData {
             meta: evt.meta,
             data_bytes: match evt.data_bytes {
                 MessageBytes::Some(a) => Some(a),
@@ -249,6 +250,7 @@ impl<D> Bus<D> {
                     match self.chain.pipe.load_many(vec![l.record]).await {
                         Ok(data) => {
                             if let Some(data) =  data.into_iter().next() {
+                                error!("BLAH BLAH!!!!");
                                 data
                             } else {
                                 return Ok(TryBusEvent::NoData);
@@ -263,6 +265,12 @@ impl<D> Bus<D> {
                 MessageBytes::None => None,
             },
             format: evt.format,
+        };
+
+        let session = self.dio.session();
+        evt.data_bytes = match evt.data_bytes {
+            Some(data) => Some(self.dio.multi.data_as_overlay(&evt.meta, data, session.deref())?),
+            None => None,
         };
 
         let _pop1 = DioScope::new(&self.dio);
