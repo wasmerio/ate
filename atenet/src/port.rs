@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use std::net::IpAddr;
 use std::net::Ipv4Addr;
 use std::sync::Arc;
+use std::time::Duration;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::net::SocketAddrV4;
@@ -20,6 +21,7 @@ use derivative::*;
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 use tokera::model::PortCommand;
 use tokera::model::PortResponse;
+use tokera::model::PortNopType;
 use tokera::model::HardwareAddress;
 use tokera::model::SocketHandle;
 use tokera::model::SocketErrorKind;
@@ -74,7 +76,7 @@ pub struct Port
     pub(crate) iface: Interface<'static, PortDevice>,
     pub(crate) buf_size: usize,
     pub(crate) errors: Vec<(SocketHandle, SocketErrorKind)>,
-    pub(crate) nops: Vec<SocketHandle>,
+    pub(crate) nops: Vec<(SocketHandle, PortNopType)>,
 }
 
 impl Port
@@ -115,6 +117,7 @@ impl Port
     }
 
     pub fn process(&mut self, action: PortCommand) -> Result<(), Box<dyn std::error::Error>> {
+        error!("BLAH ACTION: mac={} {:?}", self.mac, action);
         match action {
             PortCommand::Send {
                 handle,
@@ -164,6 +167,56 @@ impl Port
                     self.errors.push((handle, SocketErrorKind::NotConnected));
                 }
             },
+            PortCommand::MaySend {
+                handle,
+            } => {
+                let mut err = SocketErrorKind::WouldBlock;
+                let may_send = {
+                    if let Some(socket_handle) = self.tcp_sockets.get(&handle) {
+                        let socket = self.iface.get_socket::<TcpSocket>(*socket_handle);
+                        socket.may_send()
+                    } else if let Some(socket_handle) = self.udp_sockets.get(&handle) {
+                        let socket = self.iface.get_socket::<UdpSocket>(*socket_handle);
+                        socket.can_send()
+                    } else if let Some(socket_handle) = self.icmp_sockets.get(&handle) {
+                        let socket = self.iface.get_socket::<IcmpSocket>(*socket_handle);
+                        socket.can_send()
+                    } else {
+                        err = SocketErrorKind::NotConnected;
+                        false
+                    }
+                };
+                if may_send {
+                    self.nops.push((handle, PortNopType::MaySend));
+                } else {
+                    self.errors.push((handle, err));
+                }
+            },
+            PortCommand::MayReceive {
+                handle,
+            } => {
+                let mut err = SocketErrorKind::WouldBlock;
+                let may_receive = {
+                    if let Some(socket_handle) = self.tcp_sockets.get(&handle) {
+                        let socket = self.iface.get_socket::<TcpSocket>(*socket_handle);
+                        socket.may_recv()
+                    } else if let Some(socket_handle) = self.udp_sockets.get(&handle) {
+                        let socket = self.iface.get_socket::<UdpSocket>(*socket_handle);
+                        socket.can_recv()
+                    } else if let Some(socket_handle) = self.icmp_sockets.get(&handle) {
+                        let socket = self.iface.get_socket::<IcmpSocket>(*socket_handle);
+                        socket.can_recv()
+                    } else {
+                        err = SocketErrorKind::NotConnected;
+                        false
+                    }
+                };
+                if may_receive {
+                    self.nops.push((handle, PortNopType::MayReceive));
+                } else {
+                    self.errors.push((handle, err));
+                }
+            },
             PortCommand::CloseHandle {
                 handle,
             } => {
@@ -194,7 +247,7 @@ impl Port
                 if let Some(socket_handle) = self.dhcp_sockets.remove(&handle) {
                     self.iface.remove_socket(socket_handle);
                 }
-                self.nops.push(handle);
+                self.nops.push((handle, PortNopType::CloseHandle));
             },
             PortCommand::BindRaw {
                 handle,
@@ -205,7 +258,7 @@ impl Port
                 let tx_buffer = RawSocketBuffer::new(raw_meta_buf(self.buf_size), self.raw_buf(1));
                 let socket = RawSocket::new(conv_ip_version(ip_version), conv_ip_protocol(ip_protocol), rx_buffer, tx_buffer);
                 self.raw_sockets.insert(handle, self.iface.add_socket(socket));
-                self.nops.push(handle);
+                self.nops.push((handle, PortNopType::BindRaw));
             },
             PortCommand::BindIcmp {
                 handle,
@@ -220,8 +273,8 @@ impl Port
                     self.errors.push((handle, conv_err(err)));
                 } else {
                     self.icmp_sockets.insert(handle, self.iface.add_socket(socket));
+                    self.nops.push((handle, PortNopType::BindIcmp));
                 }
-                self.nops.push(handle);
             },
             PortCommand::BindDhcp {
                 handle,
@@ -235,7 +288,7 @@ impl Port
                 socket.set_ignore_naks(ignore_naks);
                 socket.reset();
                 self.dhcp_sockets.insert(handle, self.iface.add_socket(socket));
-                self.nops.push(handle);
+                self.nops.push((handle, PortNopType::BindDhcp));
             },
             PortCommand::DhcpReset {
                 handle,
@@ -244,7 +297,7 @@ impl Port
                     let socket = self.iface.get_socket::<Dhcpv4Socket>(*socket_handle);
                     socket.reset();
                 }
-                self.nops.push(handle);
+                self.nops.push((handle, PortNopType::DhcpReset));
             },
             PortCommand::BindUdp {
                 handle,
@@ -259,8 +312,8 @@ impl Port
                     self.errors.push((handle, conv_err(err)));
                 } else {
                     self.udp_sockets.insert(handle, self.iface.add_socket(socket));
+                    self.nops.push((handle, PortNopType::BindUdp));
                 }
-                self.nops.push(handle);
             },
             PortCommand::ConnectTcp {
                 handle,
@@ -276,8 +329,10 @@ impl Port
                 let (socket, cx) = self.iface.get_socket_and_context::<TcpSocket>(socket_handle);
                 if let Err(err) = socket.connect(cx, peer_addr, local_addr) {
                     self.errors.push((handle, conv_err(err)));
+                } else {
+                    self.tcp_sockets.insert(handle, socket_handle);
+                    self.nops.push((handle, PortNopType::ConnectTcp));
                 }
-                self.nops.push(handle);
             },
             PortCommand::Listen {
                 handle,
@@ -292,8 +347,8 @@ impl Port
                     self.errors.push((handle, conv_err(err)));
                 } else {
                     self.listen_sockets.insert(handle, self.iface.add_socket(socket));
+                    self.nops.push((handle, PortNopType::Listen));
                 }
-                self.nops.push(handle);
             },
             PortCommand::SetHopLimit {
                 handle,
@@ -311,7 +366,7 @@ impl Port
                     let socket = self.iface.get_socket::<TcpSocket>(*socket_handle);
                     socket.set_hop_limit(Some(hop_limit));
                 }
-                self.nops.push(handle);
+                self.nops.push((handle, PortNopType::SetHopLimit));
             },
             PortCommand::SetAckDelay {
                 handle,
@@ -326,7 +381,7 @@ impl Port
                     let socket = self.iface.get_socket::<TcpSocket>(*socket_handle);
                     socket.set_ack_delay(Some(duration.clone()));
                 }
-                self.nops.push(handle);
+                self.nops.push((handle, PortNopType::SetAckDelay));
             },
             PortCommand::SetNoDelay {
                 handle,
@@ -341,7 +396,7 @@ impl Port
                     let socket = self.iface.get_socket::<TcpSocket>(*socket_handle);
                     socket.set_nagle_enabled(nagle_enable);
                 }
-                self.nops.push(handle);
+                self.nops.push((handle, PortNopType::SetNoDelay));
             },
             PortCommand::SetKeepAlive {
                 handle,
@@ -356,7 +411,7 @@ impl Port
                     let socket = self.iface.get_socket::<TcpSocket>(*socket_handle);
                     socket.set_keep_alive(interval.into())
                 }
-                self.nops.push(handle);
+                self.nops.push((handle, PortNopType::SetKeepAlive));
             },
             PortCommand::SetTimeout {
                 handle,
@@ -371,7 +426,7 @@ impl Port
                     let socket = self.iface.get_socket::<TcpSocket>(*socket_handle);
                     socket.set_timeout(timeout.into())
                 }
-                self.nops.push(handle);
+                self.nops.push((handle, PortNopType::SetTimeout));
             },
             PortCommand::JoinMulticast {
                 multiaddr,
@@ -444,22 +499,14 @@ impl Port
         Ok(())
     }
 
-    pub fn poll(&mut self) -> Vec<PortResponse> {
+    pub fn poll(&mut self) -> (Vec<PortResponse>, Duration) {
         let timestamp = Instant::now();
-        let readiness = match self.iface.poll(timestamp) {
-            Ok(a) => a,
-            Err(e) => {
-                debug!("poll error: {}", e);
-                false
-            }
-        };
-
-        if readiness == false {
-            return Vec::new();
-        }
+        let wait_time = self.iface
+            .poll_delay(timestamp)
+            .unwrap_or(smoltcp::time::Duration::ZERO);
 
         let mut ret = Vec::new();
-
+        
         for (handle, socket_handle) in self.udp_sockets.iter() {
             let socket = self.iface.get_socket::<UdpSocket>(*socket_handle);
             while socket.can_recv() {
@@ -467,6 +514,8 @@ impl Port
                     let data = data.to_vec();
                     let peer_addr = conv_addr(addr);
                     ret.push(PortResponse::ReceivedFrom { handle: *handle, peer_addr, data });
+                } else {
+                    break;
                 }
             }
         }
@@ -476,10 +525,12 @@ impl Port
             if socket.can_recv() {
                 let mut data = Vec::new();
                 while socket.can_recv() {
-                    let _ = socket.recv(|d| {
+                    if socket.recv(|d| {
                         data.extend_from_slice(d);
                         (d.len(), d.len())
-                    });
+                    }).is_err() {
+                        break;
+                    }
                 }
                 if data.len() > 0 {
                     ret.push(PortResponse::Received { handle: *handle, data });
@@ -493,13 +544,15 @@ impl Port
                 if let Ok(d) = socket.recv() {
                     let data = d.to_vec();
                     ret.push(PortResponse::Received { handle: *handle, data });
+                } else {
+                    break;
                 }
             }
         }
 
         for (handle, socket_handle) in self.listen_sockets.iter() {
             let socket = self.iface.get_socket::<TcpSocket>(*socket_handle);
-            while socket.is_listening() {
+            if socket.is_listening() == false {
                 if socket.is_active() {
                     let peer_addr = conv_addr(socket.remote_endpoint());
                     ret.push(PortResponse::TcpAccepted { handle: *handle, peer_addr });
@@ -513,11 +566,11 @@ impl Port
             ret.push(PortResponse::SocketError { handle, error: err.into() });
         }
 
-        for handle in self.nops.drain(..) {
-            ret.push(PortResponse::Nop { handle });
+        for (handle, ty) in self.nops.drain(..) {
+            ret.push(PortResponse::Nop { handle, ty });
         }
 
-        ret
+        (ret, wait_time.into())
     }
 
     fn ip_mtu(&self) -> usize {
@@ -613,7 +666,16 @@ impl phy::RxToken for RxToken {
     where
         F: FnOnce(&mut [u8]) -> smoltcp::Result<R>,
     {
-        f(&mut self.buffer[..])
+        let len = self.buffer.len();
+        let result = f(&mut self.buffer[..]);
+
+        if result.is_ok() {
+            error!("BLAH RX: len={}", len);
+        } else {
+            error!("BLAH RX-DROP: len={}", len);
+        }
+
+        result
     }
 }
 
@@ -631,14 +693,19 @@ impl phy::TxToken for TxToken {
         let mut buffer = vec![0; len];
         let result = f(&mut buffer);
         
-        // This should use unicast for destination MAC's that are unicast - other
-        // MAC addresses such as multicast and broadcast should use broadcast
-        let frame = EthernetFrame::new_checked(&buffer[..])?;
-        let dst = frame.dst_addr();
-        if dst.is_unicast() {
-            let _ = self.switch.unicast(&self.src, &dst, buffer, true);
+        if result.is_ok() {
+            error!("BLAH TX: len={}", len);
+            // This should use unicast for destination MAC's that are unicast - other
+            // MAC addresses such as multicast and broadcast should use broadcast
+            let frame = EthernetFrame::new_checked(&buffer[..])?;
+            let dst = frame.dst_addr();
+            if dst.is_unicast() {
+                let _ = self.switch.unicast(&self.src, &dst, buffer, true);
+            } else {
+                let _ = self.switch.broadcast(&self.src, buffer);
+            }
         } else {
-            let _ = self.switch.broadcast(&self.src, buffer);
+            error!("BLAH TX-DROP: len={}", len);
         }
 
         result

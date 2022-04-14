@@ -7,6 +7,7 @@ use tokio::sync::Mutex;
 use ate::comms::StreamTx;
 
 use crate::model::PortCommand;
+use crate::model::PortNopType;
 use crate::model::SocketHandle;
 use crate::model::IpProtocol;
 
@@ -19,7 +20,7 @@ pub struct Socket
     pub(super) peer_addr: Option<SocketAddr>,
     pub(super) tx: Arc<Mutex<StreamTx>>,
     pub(super) ek: Option<EncryptKey>,
-    pub(super) nop: mpsc::Receiver<()>,
+    pub(super) nop: mpsc::Receiver<PortNopType>,
     pub(super) recv: mpsc::Receiver<EventRecv>,
     pub(super) recv_from: mpsc::Receiver<EventRecvFrom>,
     pub(super) error: mpsc::Receiver<EventError>,
@@ -141,16 +142,77 @@ impl Socket
         }
     }
 
-    pub(super) async fn nop(&mut self) -> io::Result<()> {
-        tokio::select! {
-            evt = self.nop.recv() => {
-                evt.ok_or_else(|| io::Error::from(io::ErrorKind::ConnectionAborted))?;
-                Ok(())
-            },
-            evt = self.error.recv() => {
-                let evt = evt.ok_or_else(|| io::Error::from(io::ErrorKind::ConnectionAborted))?;
-                Err(evt.error.into())
+    pub async fn may_send(&mut self) -> io::Result<bool> {
+        self.tx(PortCommand::MaySend {
+            handle: self.handle,
+        }).await?;
+        match self.nop(PortNopType::MaySend).await {
+            Ok(()) => Ok(true),
+            Err(err) if err.kind() == io::ErrorKind::WouldBlock => Ok(false),
+            Err(err) => Err(err)
+        }
+    }
+
+    pub async fn may_receive(&mut self) -> io::Result<bool> {
+        self.tx(PortCommand::MayReceive {
+            handle: self.handle,
+        }).await?;
+        match self.nop(PortNopType::MayReceive).await {
+            Ok(()) => Ok(true),
+            Err(err) if err.kind() == io::ErrorKind::WouldBlock => Ok(false),
+            Err(err) => Err(err)
+        }
+    }
+
+    pub(super) async fn nop(&mut self, ty: PortNopType) -> io::Result<()> {
+        loop {
+            tokio::select! {
+                tst = self.nop.recv() => {
+                    let tst = tst.ok_or_else(|| io::Error::from(io::ErrorKind::ConnectionAborted))?;
+                    if tst != ty {
+                        continue;
+                    }
+                    return Ok(());
+                },
+                evt = self.error.recv() => {
+                    let evt = evt.ok_or_else(|| io::Error::from(io::ErrorKind::ConnectionAborted))?;
+                    return Err(evt.error.into());
+                }
             }
+        }
+    }
+
+    pub async fn wait_till_may_send(&mut self) -> io::Result<()> {
+        let mut time = 0u64;
+        loop {
+            time = time * 2;
+            time += 1;
+            if time > 50 {
+                time = 50;
+            }
+
+            if self.may_send().await? == true {
+                return Ok(());
+            }
+
+            tokio::time::sleep(std::time::Duration::from_millis(time)).await;
+        }
+    }
+
+    pub async fn wait_till_may_receive(&mut self) -> io::Result<()> {
+        let mut time = 0u64;
+        loop {
+            time = time * 2;
+            time += 1;
+            if time > 50 {
+                time = 50;
+            }
+
+            if self.may_receive().await? == true {
+                return Ok(());
+            }
+
+            tokio::time::sleep(std::time::Duration::from_millis(time)).await;
         }
     }
 

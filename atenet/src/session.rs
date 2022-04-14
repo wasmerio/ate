@@ -1,4 +1,5 @@
 use std::net::SocketAddr;
+use std::time::Duration;
 use ate::prelude::*;
 use ate::comms::*;
 use tokera::model::PortCommand;
@@ -27,11 +28,19 @@ impl Session
         let wire_encryption = self.wire_encryption.clone();
         let mut total_read = 0u64;
         loop {
-            let ret = self.port.poll();
+            let (ret, wait_time) = self.port.poll();
             if ret.len() > 0 {
+                for r in ret.iter() {
+                    error!("BLAH REPLY: {:?}", r);
+                }
                 self.send_response(ret).await;
             }
+
+            let wait_time = Duration::max(wait_time, Duration::from_millis(5));
+            let wait = tokio::time::sleep(wait_time);
+
             tokio::select! {
+                _ = wait => { },
                 cmd = self.rx.read_buf_with_header(&wire_encryption, &mut total_read) => {
                     let cmd = match cmd {
                         Ok(a) => a,

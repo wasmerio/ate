@@ -16,6 +16,7 @@ use crate::model::IpVersion;
 use crate::model::IpProtocol;
 use crate::model::PortCommand;
 use crate::model::PortResponse;
+use crate::model::PortNopType;
 use crate::model::SocketHandle;
 use crate::model::SwitchHello;
 
@@ -26,7 +27,7 @@ const MAX_MPSC: usize = std::usize::MAX >> 3;
 
 pub struct SocketState
 {
-    nop: mpsc::Sender<()>,
+    nop: mpsc::Sender<PortNopType>,
     recv: mpsc::Sender<EventRecv>,
     recv_from: mpsc::Sender<EventRecvFrom>,
     error: mpsc::Sender<EventError>,
@@ -123,7 +124,7 @@ impl Port
             ip_version,
             ip_protocol,
         }).await?;
-        socket.nop().await?;
+        socket.nop(PortNopType::BindRaw).await?;
 
         Ok(socket)
     }
@@ -136,7 +137,7 @@ impl Port
             local_addr,
             hop_limit: Socket::HOP_LIMIT,
         }).await?;
-        socket.nop().await?;
+        socket.nop(PortNopType::BindUdp).await?;
 
         Ok(socket)
     }
@@ -149,7 +150,7 @@ impl Port
             local_addr,
             hop_limit: Socket::HOP_LIMIT,
         }).await?;
-        socket.nop().await?;
+        socket.nop(PortNopType::BindIcmp).await?;
 
         Ok(socket)
     }
@@ -163,7 +164,9 @@ impl Port
             peer_addr,
             hop_limit: Socket::HOP_LIMIT,
         }).await?;
-        socket.nop().await?;
+        socket.nop(PortNopType::ConnectTcp).await?;
+
+        socket.wait_till_may_send().await?;
 
         Ok(socket)
     }
@@ -176,7 +179,7 @@ impl Port
             local_addr: listen_addr,
             hop_limit: Socket::HOP_LIMIT,
         }).await?;
-        socket.nop().await?;
+        socket.nop(PortNopType::Listen).await?;
 
         Ok(socket)
     }
@@ -189,9 +192,10 @@ impl Port
                 match evt {
                     PortResponse::Nop {
                         handle,
+                        ty
                     } => {
                         if let Some(socket) = sockets.get(&handle.0) {
-                            let _ = socket.nop.send(()).await;
+                            let _ = socket.nop.send(ty).await;
                         }
                     }
                     PortResponse::Received {

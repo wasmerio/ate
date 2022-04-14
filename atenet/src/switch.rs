@@ -233,6 +233,7 @@ impl Switch
         for (mac, dst) in state.ports.iter() {
             if let Destination::Local(port) = dst {
                 if src != mac {
+                    error!("BLAH BROADCAST: mac={} len={}", mac, pck.len());
                     port.data.push(pck.to_vec());
                     let _ = port.wake.send(());
                 }
@@ -242,6 +243,7 @@ impl Switch
         // Encrypt and sign the packet before we send it
         let pck = self.encrypt_packet(pck);
         for peer in state.peers.values() {
+            error!("BLAH BROADCAST: mac=[all] len={} peer={}", pck.len(), peer);
             self.udp.send(&pck[..], peer.clone());
         }
     }
@@ -268,6 +270,7 @@ impl Switch
                 Destination::Local(_) => {
                     self.snoop(state, &pck[..]);
                     if let Some(Destination::Local(port)) = state.ports.get(&dst_mac) {
+                        error!("BLAH UNICAST: mac={} len={}", dst_mac, pck.len());
                         port.data.push(pck);
                         let _ = port.wake.send(());
                     }
@@ -275,6 +278,7 @@ impl Switch
                 },
                 Destination::PeerSwitch(peer) => {
                     if allow_forward {
+                        error!("BLAH UNICAST: mac={} len={} peer={}", dst_mac, pck.len(), peer);
                         let pck = self.encrypt_packet(&pck[..]);
                         self.udp.send(&pck[..], peer.clone());
                     }
@@ -409,6 +413,7 @@ impl Switch
         if node_key == &self.me_node_key {
             return;
         }
+        info!("switch node deleted (id={}, key={})", self.id, node_key);
 
         let mut state = self.data_plane.lock().unwrap();
         if let Some(node_addr) = state.peers.remove(node_key) {
@@ -426,6 +431,7 @@ impl Switch
         if node_key == &self.me_node_key {
             return;
         }
+        info!("switch node updated (id={}, node_addr={})", self.id, node.node_addr);
 
         let mut state = self.data_plane.lock().unwrap();
         state.ports.retain(|_, v| {
@@ -434,9 +440,11 @@ impl Switch
                 _ => true
             }
         });
+        debug!("adding switch peer (node_key={}, addr={})", node_key, node.node_addr);
         state.peers.insert(node_key.clone(), node.node_addr);
         for mac in node.switch_ports.iter() {
             let mac = EthernetAddress::from_bytes(mac.as_bytes());
+            debug!("adding switch port (mac={}, addr={})", mac, node.node_addr);
             state.ports.insert(mac, Destination::PeerSwitch(node.node_addr));
         }
     }
@@ -464,11 +472,9 @@ impl Switch
                         Ok(evt) => {
                             match evt {
                                 BusEvent::Updated(node) => {
-                                    info!("switch node updated (id={}, node_addr={})", self.id, node.node_addr);
                                     self.update_node(node.key(), node.deref()).await;
                                 },
                                 BusEvent::Deleted(key) => {
-                                    info!("switch node deleted (id={}, key={})", self.id, key);
                                     self.remove_node(&key).await;
                                 },
                             }

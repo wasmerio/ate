@@ -225,6 +225,12 @@ pub enum PortCommand {
         data: Vec<u8>,
         addr: SocketAddr,
     },
+    MaySend {
+        handle: SocketHandle,
+    },
+    MayReceive {
+        handle: SocketHandle,
+    },
     CloseHandle {
         handle: SocketHandle,
     },
@@ -324,6 +330,8 @@ for PortCommand
             PortCommand::SetHopLimit { handle, hop_limit: ttl } => write!(f, "set-ttl(handle={},ttl={})", handle, ttl),
             PortCommand::Send { handle, data } => write!(f, "send(handle={},len={})", handle, data.len()),
             PortCommand::SendTo { handle, data, addr } => write!(f, "send-to(handle={},len={},addr={})", handle, data.len(), addr),
+            PortCommand::MaySend { handle } => write!(f, "may-send(handle={})", handle),
+            PortCommand::MayReceive { handle } => write!(f, "may-receive(handle={})", handle),
             PortCommand::SetAckDelay { handle, duration_ms } => write!(f, "set-ack-delay(handle={},duration_ms={})", handle, duration_ms),
             PortCommand::SetNoDelay { handle, no_delay } => write!(f, "set-keep-alive(handle={},interval={})", handle, no_delay),
             PortCommand::SetTimeout { handle, timeout } => {
@@ -353,10 +361,31 @@ for PortCommand
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PortNopType
+{
+    MaySend,
+    MayReceive,
+    CloseHandle,
+    BindRaw,
+    BindIcmp,
+    BindDhcp,
+    DhcpReset,
+    BindUdp,
+    ConnectTcp,
+    Listen,
+    SetHopLimit,
+    SetAckDelay,
+    SetNoDelay,
+    SetTimeout,
+    SetKeepAlive,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum PortResponse {
     Nop {
         handle: SocketHandle,
+        ty: PortNopType,
     },
     Received {
         handle: SocketHandle,
@@ -393,7 +422,8 @@ for PortResponse
         match self {
             PortResponse::Nop {
                 handle,
-            } => write!(f, "nop(handle={})", handle),
+                ty,
+            } => write!(f, "nop(handle={}, ty={:?})", handle, ty),
             PortResponse::Received {
                 handle,
                 data

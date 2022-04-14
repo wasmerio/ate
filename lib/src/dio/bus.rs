@@ -250,7 +250,6 @@ impl<D> Bus<D> {
                     match self.chain.pipe.load_many(vec![l.record]).await {
                         Ok(data) => {
                             if let Some(data) =  data.into_iter().next() {
-                                error!("BLAH BLAH!!!!");
                                 data
                             } else {
                                 return Ok(TryBusEvent::NoData);
