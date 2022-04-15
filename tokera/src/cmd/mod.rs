@@ -23,6 +23,7 @@ mod wallet;
 mod withdraw;
 mod instance;
 mod cidr;
+mod peering;
 
 pub use ate_auth::cmd::*;
 
@@ -51,3 +52,4 @@ pub use wallet::*;
 pub use withdraw::*;
 pub use instance::*;
 pub use cidr::*;
+pub use peering::*;

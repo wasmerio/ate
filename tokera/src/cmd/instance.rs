@@ -424,6 +424,19 @@ pub async fn main_opts_instance_cidr(
     Ok(())
 }
 
+pub async fn main_opts_instance_peering(
+    api: &mut TokApi,
+    name: &str,
+    action: OptsPeeringAction,
+) -> Result<(), InstanceError> {
+    let (instance, wallet_instance) = api.instance_action(name).await?;
+    let instance = instance?;
+    
+    main_opts_peering(api, instance, wallet_instance, action).await?;
+
+    Ok(())
+}
+
 pub async fn main_opts_instance(
     opts: OptsInstanceFor,
     token_path: String,
@@ -503,6 +516,11 @@ pub async fn main_opts_instance(
             if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
             let name = name.unwrap();
             main_opts_instance_cidr(&mut context.api, name.as_str(), opts_cidr.action).await?;
+        }
+        OptsInstanceAction::Peering(opts_peering) => {
+            if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
+            let name = name.unwrap();
+            main_opts_instance_peering(&mut context.api, name.as_str(), opts_peering.action).await?;
         }
     }
 

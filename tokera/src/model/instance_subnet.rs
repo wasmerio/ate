@@ -18,6 +18,10 @@ pub struct InstanceSubnet {
 /// networks
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct InstancePeering {
+    /// ID of the instance this is peered with
+    pub id: u128,
+    /// Name of the instance this is paired with
+    pub name: String,
     /// Chain key for this switch
     pub chain: ChainKey,
     /// Access token used to connect with the peered network

@@ -108,9 +108,12 @@ pub enum OptsInstanceAction {
     /// Clones a particular instance
     #[clap()]
     Clone(OptsInstanceClone),
-    /// Performs CIDR actions on the instance
+    /// List, add or remove a CIDR (subnet) from the instance
     #[clap()]
     Cidr(OptsInstanceCidr),
+    /// List, add or remove a network peering from the instance
+    #[clap()]
+    Peering(OptsInstancePeering),
 }
 
 impl OptsInstanceAction
@@ -143,6 +146,7 @@ impl OptsInstanceAction
             OptsInstanceAction::Deport(opts) => Some(opts.name.clone()),
             OptsInstanceAction::Mount(opts) => Some(opts.name.clone()),
             OptsInstanceAction::Cidr(opts) => Some(opts.name.clone()),
+            OptsInstanceAction::Peering(opts) => Some(opts.name.clone()),
         }
     }
 }
@@ -260,7 +264,7 @@ pub struct OptsInstanceMount {
 #[derive(Parser, Clone)]
 #[clap()]
 pub struct OptsInstanceCidr {
-    /// Name of the instance to mounted
+    /// Name of the instance
     #[clap(index = 1)]
     pub name: String,
     /// Action to perform on the cidr
@@ -277,7 +281,7 @@ pub enum OptsCidrAction {
     /// Adds a new cidr to this instance
     #[clap()]
     Add(OptsCidrAdd),
-    /// Removes a new cidr from this instance
+    /// Removes a cidr from this instance
     #[clap()]
     Remove(OptsCidrRemove),
 }
@@ -299,6 +303,47 @@ pub struct OptsCidrRemove {
     /// IP address of the CIDR to be removed
     #[clap(index = 1)]
     pub ip: IpAddr,
+}
+
+#[derive(Parser, Clone)]
+#[clap()]
+pub struct OptsInstancePeering {
+    /// Name of the instance
+    #[clap(index = 1)]
+    pub name: String,
+    /// Action to perform on the peerings
+    #[clap(subcommand)]
+    pub action: OptsPeeringAction,
+}
+
+#[derive(Parser, Clone)]
+#[clap()]
+pub enum OptsPeeringAction {
+    /// Lists all the cidrs for this instance
+    #[clap()]
+    List,
+    /// Adds a new peering for this instance
+    #[clap()]
+    Add(OptsPeeringAdd),
+    /// Removes a peering from this instance
+    #[clap()]
+    Remove(OptsPeeringRemove),
+}
+
+#[derive(Parser, Clone)]
+#[clap()]
+pub struct OptsPeeringAdd {
+    /// Name of the other instance to be peered against
+    #[clap(index = 1)]
+    pub peer: String
+}
+
+#[derive(Parser, Clone)]
+#[clap()]
+pub struct OptsPeeringRemove {
+    /// Name of the other instance to be unpeered from
+    #[clap(index = 1)]
+    pub peer: String
 }
 
 impl OptsPurpose<OptsInstanceAction> for OptsInstanceFor {
