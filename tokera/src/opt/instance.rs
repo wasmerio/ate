@@ -1,3 +1,5 @@
+use std::net::IpAddr;
+
 use clap::Parser;
 use url::Url;
 
@@ -106,6 +108,9 @@ pub enum OptsInstanceAction {
     /// Clones a particular instance
     #[clap()]
     Clone(OptsInstanceClone),
+    /// Performs CIDR actions on the instance
+    #[clap()]
+    Cidr(OptsInstanceCidr),
 }
 
 impl OptsInstanceAction
@@ -137,6 +142,7 @@ impl OptsInstanceAction
             OptsInstanceAction::Export(opts) => Some(opts.name.clone()),
             OptsInstanceAction::Deport(opts) => Some(opts.name.clone()),
             OptsInstanceAction::Mount(opts) => Some(opts.name.clone()),
+            OptsInstanceAction::Cidr(opts) => Some(opts.name.clone()),
         }
     }
 }
@@ -249,6 +255,50 @@ pub struct OptsInstanceMount {
     /// Path that the instance will be mounted at
     #[clap(index = 2)]
     pub path: String,
+}
+
+#[derive(Parser, Clone)]
+#[clap()]
+pub struct OptsInstanceCidr {
+    /// Name of the instance to mounted
+    #[clap(index = 1)]
+    pub name: String,
+    /// Action to perform on the cidr
+    #[clap(subcommand)]
+    pub action: OptsCidrAction,
+}
+
+#[derive(Parser, Clone)]
+#[clap()]
+pub enum OptsCidrAction {
+    /// Lists all the cidrs for this instance
+    #[clap()]
+    List,
+    /// Adds a new cidr to this instance
+    #[clap()]
+    Add(OptsCidrAdd),
+    /// Removes a new cidr from this instance
+    #[clap()]
+    Remove(OptsCidrRemove),
+}
+
+#[derive(Parser, Clone)]
+#[clap()]
+pub struct OptsCidrAdd {
+    /// IP address of the new CIDR
+    #[clap(index = 1)]
+    pub ip: IpAddr,
+    /// Prefix of the cidr
+    #[clap(index = 2)]
+    pub prefix: u8,
+}
+
+#[derive(Parser, Clone)]
+#[clap()]
+pub struct OptsCidrRemove {
+    /// IP address of the CIDR to be removed
+    #[clap(index = 1)]
+    pub ip: IpAddr,
 }
 
 impl OptsPurpose<OptsInstanceAction> for OptsInstanceFor {

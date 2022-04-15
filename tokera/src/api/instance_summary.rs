@@ -26,7 +26,7 @@ impl TokApi {
         // Query all the instances for this wallet
         let mut ret = Vec::new();
 
-        for instance in self.instances().await.iter().await? {
+        for instance in self.instances().await.iter_ext(true, true).await? {
             let id_str = instance.id_str();
             let chain = ChainKey::from(instance.chain.clone());
             ret.push(InstanceSummary {

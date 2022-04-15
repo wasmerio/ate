@@ -411,6 +411,19 @@ pub async fn main_opts_instance_mount(
     Err(InstanceErrorKind::Unsupported.into())
 }
 
+pub async fn main_opts_instance_cidr(
+    api: &mut TokApi,
+    name: &str,
+    action: OptsCidrAction,
+) -> Result<(), InstanceError> {
+    let (instance, _) = api.instance_action(name).await?;
+    let instance = instance?;
+    
+    main_opts_cidr(instance, action).await?;
+
+    Ok(())
+}
+
 pub async fn main_opts_instance(
     opts: OptsInstanceFor,
     token_path: String,
@@ -485,6 +498,11 @@ pub async fn main_opts_instance(
             if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
             let name = name.unwrap();
             main_opts_instance_mount(&mut context.api, name.as_str()).await?;
+        }
+        OptsInstanceAction::Cidr(opts_cidr) => {
+            if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
+            let name = name.unwrap();
+            main_opts_instance_cidr(&mut context.api, name.as_str(), opts_cidr.action).await?;
         }
     }
 

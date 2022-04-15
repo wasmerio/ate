@@ -58,7 +58,7 @@ impl TokApi {
 
             // Check if the instance already exists
             let instances = self.instances().await;
-            if instances.iter().await?.any(|i| i.name.eq_ignore_ascii_case(name.as_str())) {
+            if instances.iter_ext(true, true).await?.any(|i| i.name.eq_ignore_ascii_case(name.as_str())) {
                 bail!(InstanceErrorKind::AlreadyExists);
             }
         }
