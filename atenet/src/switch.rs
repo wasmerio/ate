@@ -471,7 +471,7 @@ impl Switch
         if node_key == &self.me_node_key {
             return;
         }
-        info!("switch node updated (id={}, node_addr={})", self.id, node.node_addr);
+        debug!("switch node updated (id={}, node_addr={})", self.id, node.node_addr);
 
         let mut state = self.data_plane.lock().unwrap();
         state.ports.retain(|_, v| {
