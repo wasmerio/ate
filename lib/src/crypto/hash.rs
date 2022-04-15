@@ -162,6 +162,14 @@ impl From<u64> for AteHash {
     }
 }
 
+impl From<[u8; 16]> for AteHash {
+    fn from(val: [u8; 16]) -> AteHash {
+        AteHash {
+            val,
+        }
+    }
+}
+
 impl std::fmt::Display for AteHash {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.to_string())

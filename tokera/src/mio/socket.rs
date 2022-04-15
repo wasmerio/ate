@@ -5,6 +5,7 @@ use ate::crypto::EncryptKey;
 use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use ate::comms::StreamTx;
+use mpsc::error::TryRecvError;
 
 use crate::model::PortCommand;
 use crate::model::PortNopType;
@@ -98,6 +99,42 @@ impl Socket
         }
     }
 
+    pub fn try_recv(&mut self) -> io::Result<Option<Vec<u8>>> {
+        if self.proto.is_connection_oriented()
+        {
+            match self.error.try_recv() {
+                Ok(evt) => { return Err(evt.error.into()); },
+                Err(TryRecvError::Disconnected) => { return Err(io::Error::from(io::ErrorKind::ConnectionAborted)); }
+                Err(TryRecvError::Empty) => { }
+            }
+            match self.recv.try_recv() {
+                Ok(evt) => Ok(Some(evt.data)),
+                Err(TryRecvError::Disconnected) => Err(io::Error::from(io::ErrorKind::ConnectionAborted)),
+                Err(TryRecvError::Empty) => Ok(None)
+            }
+        } else if let Some(peer_addr) = self.peer_addr {
+            loop {
+                match self.error.try_recv() {
+                    Ok(evt) => { return Err(evt.error.into()); },
+                    Err(TryRecvError::Disconnected) => { return Err(io::Error::from(io::ErrorKind::ConnectionAborted)); }
+                    Err(TryRecvError::Empty) => { }
+                }
+                return match self.recv_from.try_recv() {
+                    Ok(evt) => {
+                        if evt.peer_addr != peer_addr {
+                            continue;
+                        }
+                        Ok(Some(evt.data))
+                    },
+                    Err(TryRecvError::Disconnected) => Err(io::Error::from(io::ErrorKind::ConnectionAborted)),
+                    Err(TryRecvError::Empty) => Ok(None)
+                };
+            }
+        } else {
+            Err(io::Error::from(io::ErrorKind::NotConnected))
+        }
+    }
+
     pub async fn recv_from(&mut self) -> io::Result<(Vec<u8>, SocketAddr)> {
         if let Some(peer_addr) = self.peer_addr {
             tokio::select! {
@@ -124,6 +161,37 @@ impl Socket
                     let evt = evt.ok_or_else(|| io::Error::from(io::ErrorKind::ConnectionAborted))?;
                     Err(evt.error.into())
                 }
+            }
+        }
+    }
+
+    pub fn try_recv_from(&mut self) -> io::Result<Option<(Vec<u8>, SocketAddr)>> {
+        if let Some(peer_addr) = self.peer_addr {
+            match self.error.try_recv() {
+                Ok(evt) => { return Err(evt.error.into()); },
+                Err(TryRecvError::Disconnected) => { return Err(io::Error::from(io::ErrorKind::ConnectionAborted)); }
+                Err(TryRecvError::Empty) => { }
+            }
+            match self.recv.try_recv() {
+                Ok(evt) => { return Ok(Some((evt.data, peer_addr))); },
+                Err(TryRecvError::Disconnected) => { return Err(io::Error::from(io::ErrorKind::ConnectionAborted)); },
+                Err(TryRecvError::Empty) => { }
+            }
+            match self.recv_from.try_recv() {
+                Ok(evt) => Ok(Some((evt.data, evt.peer_addr))),
+                Err(TryRecvError::Disconnected) => Err(io::Error::from(io::ErrorKind::ConnectionAborted)),
+                Err(TryRecvError::Empty) => Ok(None)
+            }
+        } else {
+            match self.error.try_recv() {
+                Ok(evt) => { return Err(evt.error.into()); },
+                Err(TryRecvError::Disconnected) => { return Err(io::Error::from(io::ErrorKind::ConnectionAborted)); }
+                Err(TryRecvError::Empty) => { }
+            }
+            match self.recv_from.try_recv() {
+                Ok(evt) => Ok(Some((evt.data, evt.peer_addr))),
+                Err(TryRecvError::Disconnected) => Err(io::Error::from(io::ErrorKind::ConnectionAborted)),
+                Err(TryRecvError::Empty) => Ok(None)
             }
         }
     }

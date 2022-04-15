@@ -9,7 +9,7 @@ use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 mod common;
 
 #[test]
-fn ping() {
+fn test_tcp_mesh() {
     common::run(async move {
         let _servers = common::setup().await;
 
@@ -24,10 +24,10 @@ fn ping() {
         
         let mut s1 = c1.listen_tcp(c1_addr).await.unwrap();
         tokio::task::spawn(async move {
-            s1.accept().await.unwrap();        
+            s1.accept().await.unwrap();
             let test = s1.recv().await.unwrap();
             assert_eq!(test, vec![1,2,3]);
-            s1.send(vec![4,5,6]).await.unwrap();    
+            s1.send(vec![4,5,6]).await.unwrap();
         });
         
         let mut s2 = c2.connect_tcp(c2_addr, c1_addr).await.unwrap();

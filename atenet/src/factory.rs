@@ -10,24 +10,26 @@ use tokera::model::INSTANCE_ROOT_ID;
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use super::switch::Switch;
-use super::udp::UdpPeer;
+use super::udp::UdpPeerHandle;
 use super::gateway::Gateway;
 
 /// Factory that gets and creates switches
 #[derive(Debug)]
 pub struct SwitchFactory
 {
-    switches: RwLock<HashMap<ChainKey, Weak<Switch>>>,
+    switches_by_key: Arc<RwLock<HashMap<ChainKey, Weak<Switch>>>>,
+    switches_by_id: Arc<RwLock<HashMap<u128, Weak<Switch>>>>,
     repo: Arc<Repository>,
-    udp: UdpPeer,
+    udp: UdpPeerHandle,
     instance_authority: String,
 }
 
 impl SwitchFactory
 {
-    pub fn new(repo: Arc<Repository>, udp: UdpPeer, instance_authority: String) -> SwitchFactory {
+    pub fn new(repo: Arc<Repository>, udp: UdpPeerHandle, instance_authority: String, switches: Arc<RwLock<HashMap<u128, Weak<Switch>>>>) -> SwitchFactory {
         SwitchFactory {
-            switches: Default::default(),
+            switches_by_key: Default::default(),
+            switches_by_id: switches,
             repo,
             udp,
             instance_authority
@@ -36,7 +38,7 @@ impl SwitchFactory
     pub async fn get_or_create_switch(self: &Arc<SwitchFactory>, key: ChainKey) -> Result<(Arc<Switch>, bool), CommsError> {
         // Check the cache
         {
-            let guard = self.switches.read().unwrap();
+            let guard = self.switches_by_key.read().unwrap();
             if let Some(ret) = guard.get(&key) {
                 if let Some(ret) = ret.upgrade() {
                     return Ok((ret, false));
@@ -65,15 +67,26 @@ impl SwitchFactory
         let switch = Switch::new(accessor, cidrs, self.udp.clone(), gateway).await
             .map_err(|err| CommsErrorKind::InternalError(err.to_string()))?;
 
+        // Every one thousand or so switches we will clean the orphans
+        let clean = fastrand::u16(0..1000) == 1;
+
         // Enter a write lock and check again
-        let mut guard = self.switches.write().unwrap();
+        let mut guard = self.switches_by_key.write().unwrap();
         if let Some(ret) = guard.get(&key) {
             if let Some(ret) = ret.upgrade() {
                 return Ok((ret, false));
             }
         }
 
+        // We also need to write the switch to the ID referenced one
+        {
+            let mut guard = self.switches_by_id.write().unwrap();
+            if clean { guard.retain(|_, v| v.strong_count() >= 1); }
+            guard.insert(id, Arc::downgrade(&switch));
+        }
+
         // Cache and and return it
+        if clean { guard.retain(|_, v| v.strong_count() >= 1); }
         guard.insert(key, Arc::downgrade(&switch));
         Ok((switch, true))
     }

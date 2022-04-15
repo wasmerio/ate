@@ -36,7 +36,7 @@ pub struct Server
 {
     pub registry: Arc<Registry>,
     pub repo: Arc<Repository>,
-    pub udp: UdpPeer,
+    pub udp: UdpPeerHandle,
     pub db_url: url::Url,
     pub auth_url: url::Url,
     pub instance_authority: String,
@@ -76,10 +76,10 @@ impl Server
         .await?;
 
         let switches = Arc::new(RwLock::new(HashMap::default()));
-        let udp = UdpPeer::new(udp_listen, udp_port, switches.clone());
+        let udp = UdpPeer::new(udp_listen, udp_port, switches.clone()).await;
 
         let factory = Arc::new(
-            SwitchFactory::new(repo.clone(), udp.clone(), instance_authority.clone())
+            SwitchFactory::new(repo.clone(), udp.clone(), instance_authority.clone(), switches)
         );
 
         Ok(Self {

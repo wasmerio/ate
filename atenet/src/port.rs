@@ -117,7 +117,6 @@ impl Port
     }
 
     pub fn process(&mut self, action: PortCommand) -> Result<(), Box<dyn std::error::Error>> {
-        error!("BLAH ACTION: mac={} {:?}", self.mac, action);
         match action {
             PortCommand::Send {
                 handle,
@@ -496,64 +495,76 @@ impl Port
     }
 
     pub fn poll(&mut self) -> (Vec<PortResponse>, Duration) {
-        let timestamp = Instant::now();
+        let readiness = self.iface
+            .poll(Instant::now())
+            .unwrap_or(false);
+
         let wait_time = self.iface
-            .poll_delay(timestamp)
+            .poll_delay(Instant::now())
             .unwrap_or(smoltcp::time::Duration::ZERO);
 
         let mut ret = Vec::new();
         
-        for (handle, socket_handle) in self.udp_sockets.iter() {
-            let socket = self.iface.get_socket::<UdpSocket>(*socket_handle);
-            while socket.can_recv() {
-                if let Ok((data, addr)) = socket.recv() {
-                    let data = data.to_vec();
-                    let peer_addr = conv_addr(addr);
-                    ret.push(PortResponse::ReceivedFrom { handle: *handle, peer_addr, data });
-                } else {
-                    break;
-                }
-            }
-        }
-
-        for (handle, socket_handle) in self.tcp_sockets.iter() {
-            let socket = self.iface.get_socket::<TcpSocket>(*socket_handle);
-            if socket.can_recv() {
-                let mut data = Vec::new();
+        if readiness {
+            for (handle, socket_handle) in self.udp_sockets.iter() {
+                let socket = self.iface.get_socket::<UdpSocket>(*socket_handle);
                 while socket.can_recv() {
-                    if socket.recv(|d| {
-                        data.extend_from_slice(d);
-                        (d.len(), d.len())
-                    }).is_err() {
+                    if let Ok((data, addr)) = socket.recv() {
+                        let data = data.to_vec();
+                        let peer_addr = conv_addr(addr);
+                        ret.push(PortResponse::ReceivedFrom { handle: *handle, peer_addr, data });
+                    } else {
                         break;
                     }
                 }
-                if data.len() > 0 {
-                    ret.push(PortResponse::Received { handle: *handle, data });
+            }
+
+            for (handle, socket_handle) in self.tcp_sockets.iter() {
+                let socket = self.iface.get_socket::<TcpSocket>(*socket_handle);
+                if socket.can_recv() {
+                    let mut data = Vec::new();
+                    while socket.can_recv() {
+                        if socket.recv(|d| {
+                            data.extend_from_slice(d);
+                            (d.len(), d.len())
+                        }).is_err() {
+                            break;
+                        }
+                    }
+                    if data.len() > 0 {
+                        ret.push(PortResponse::Received { handle: *handle, data });
+                    }
                 }
             }
-        }
 
-        for (handle, socket_handle) in self.raw_sockets.iter() {
-            let socket = self.iface.get_socket::<RawSocket>(*socket_handle);
-            while socket.can_recv() {
-                if let Ok(d) = socket.recv() {
-                    let data = d.to_vec();
-                    ret.push(PortResponse::Received { handle: *handle, data });
-                } else {
-                    break;
+            for (handle, socket_handle) in self.raw_sockets.iter() {
+                let socket = self.iface.get_socket::<RawSocket>(*socket_handle);
+                while socket.can_recv() {
+                    if let Ok(d) = socket.recv() {
+                        let data = d.to_vec();
+                        ret.push(PortResponse::Received { handle: *handle, data });
+                    } else {
+                        break;
+                    }
                 }
             }
-        }
 
-        for (handle, socket_handle) in self.listen_sockets.iter() {
-            let socket = self.iface.get_socket::<TcpSocket>(*socket_handle);
-            if socket.is_listening() == false {
-                if socket.is_active() {
-                    let peer_addr = conv_addr(socket.remote_endpoint());
-                    ret.push(PortResponse::TcpAccepted { handle: *handle, peer_addr });
-                } else {
-                    ret.push(PortResponse::SocketError { handle: *handle, error: SocketErrorKind::ConnectionAborted.into() });
+            let mut move_me = Vec::new();
+            for (handle, socket_handle) in self.listen_sockets.iter() {
+                let socket = self.iface.get_socket::<TcpSocket>(*socket_handle);
+                if socket.is_listening() == false {
+                    if socket.is_active() {
+                        let peer_addr = conv_addr(socket.remote_endpoint());
+                        ret.push(PortResponse::TcpAccepted { handle: *handle, peer_addr });
+                    } else {
+                        ret.push(PortResponse::SocketError { handle: *handle, error: SocketErrorKind::ConnectionAborted.into() });
+                    }
+                    move_me.push(*handle);
+                }
+            }
+            for handle in move_me {
+                if let Some(socket_handle) = self.listen_sockets.remove(&handle) {
+                    self.tcp_sockets.insert(handle, socket_handle);
                 }
             }
         }
@@ -662,16 +673,7 @@ impl phy::RxToken for RxToken {
     where
         F: FnOnce(&mut [u8]) -> smoltcp::Result<R>,
     {
-        let len = self.buffer.len();
-        let result = f(&mut self.buffer[..]);
-
-        if result.is_ok() {
-            error!("BLAH RX: len={}", len);
-        } else {
-            error!("BLAH RX-DROP: len={}", len);
-        }
-
-        result
+        f(&mut self.buffer[..])
     }
 }
 
@@ -690,18 +692,15 @@ impl phy::TxToken for TxToken {
         let result = f(&mut buffer);
         
         if result.is_ok() {
-            error!("BLAH TX: len={}", len);
             // This should use unicast for destination MAC's that are unicast - other
             // MAC addresses such as multicast and broadcast should use broadcast
             let frame = EthernetFrame::new_checked(&buffer[..])?;
             let dst = frame.dst_addr();
             if dst.is_unicast() {
-                let _ = self.switch.unicast(&self.src, &dst, buffer, true);
+                let _ = self.switch.unicast(&self.src, &dst, buffer, true, None);
             } else {
-                let _ = self.switch.broadcast(&self.src, buffer);
+                let _ = self.switch.broadcast_and_arps(&self.src, buffer, true, None);
             }
-        } else {
-            error!("BLAH TX-DROP: len={}", len);
         }
 
         result

@@ -195,11 +195,11 @@ impl EncryptKey {
         let iv: &[u8; 16] = hash.as_bytes();
         
         let mut ret: Vec<u8> = Vec::with_capacity(capacity);
+        ret.extend_from_slice(hash.as_bytes());
+        let s = ret.len();
         ret.extend_from_slice(data);
 
-        let e = data.len();
-        let data = &mut ret[..e];
-
+        let data = &mut ret[s..];
         match self.size() {
             KeySize::Bit128 => {
                 let mut cipher = Aes128Ctr::new(self.value().into(), iv.into());
@@ -223,12 +223,11 @@ impl EncryptKey {
 
         let mut ret: Vec<u8> = Vec::with_capacity(capacity);
         ret.extend_from_slice(prefix);
+        ret.extend_from_slice(hash.as_bytes());
+        let s = ret.len();
         ret.extend_from_slice(data);
         
-        let b = prefix.len();
-        let e = b + data.len();
-        let data = &mut ret[b..e];
-
+        let data = &mut ret[s..];
         match self.size() {
             KeySize::Bit128 => {
                 let mut cipher = Aes128Ctr::new(self.value().into(), iv.into());

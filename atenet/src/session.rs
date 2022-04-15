@@ -30,9 +30,6 @@ impl Session
         loop {
             let (ret, wait_time) = self.port.poll();
             if ret.len() > 0 {
-                for r in ret.iter() {
-                    error!("BLAH REPLY: {:?}", r);
-                }
                 self.send_response(ret).await;
             }
 

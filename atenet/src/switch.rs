@@ -5,6 +5,7 @@ use std::ops::*;
 use std::sync::MutexGuard;
 use std::time::Duration;
 use ate_files::prelude::FileAccessor;
+use bytes::Bytes;
 use tokio::sync::mpsc;
 use tokio::sync::watch;
 use smoltcp::wire::IpCidr;
@@ -77,7 +78,7 @@ pub struct ControlPlane {
 pub struct Switch
 {
     pub(crate) id: u128,
-    pub(crate) udp: UdpPeer,
+    pub(crate) udp: UdpPeerHandle,
     pub(crate) encrypt: EncryptKey,
     #[allow(dead_code)]
     pub(crate) accessor: Arc<FileAccessor>,
@@ -95,7 +96,7 @@ impl Switch
     pub const MAC_SNOOP_MAX: usize = u16::MAX as usize;
     pub const MAC_SNOOP_TTL: Duration = Duration::from_secs(14400); // 4 hours (CISCO default)
 
-    pub async fn new(accessor: Arc<FileAccessor>, cidrs: Vec<IpCidr>, udp: UdpPeer, gateway: Arc<Gateway>) -> Result<Arc<Switch>, AteError> {
+    pub async fn new(accessor: Arc<FileAccessor>, cidrs: Vec<IpCidr>, udp: UdpPeerHandle, gateway: Arc<Gateway>) -> Result<Arc<Switch>, AteError> {
         let (inst, bus, me_node) = {
             let chain_dio = accessor.dio.clone().as_mut().await;
             
@@ -218,12 +219,24 @@ impl Switch
         state.cidrs.clone()
     }
 
-    pub fn broadcast(&self, src: &EthernetAddress, pck: Vec<u8>) {
+    pub fn arps(&self, pck: Vec<u8>) {
         let mut state = self.data_plane.lock().unwrap();
-        self.__broadcast(&mut state, src, &pck[..]);
+        self.__arps(&mut state, &pck[..]);
+    }
+
+    fn __arps(&self, state: &mut MutexGuard<DataPlane>, pck: &[u8]) -> bool
+    {
+        // If its an ARP packet then maybe its for the gateway and
+        // we should send a reply ARP
+        self.gateway.process_arp_reply(pck, self, state)
+    }
+
+    pub fn broadcast(&self, src: &EthernetAddress, pck: Vec<u8>, allow_forward: bool, set_peer: Option<&IpAddr>) {
+        let mut state = self.data_plane.lock().unwrap();
+        self.__broadcast(&mut state, src, &pck[..], allow_forward, set_peer);
     }
     
-    fn __broadcast(&self, state: &mut MutexGuard<DataPlane>, src: &EthernetAddress, pck: &[u8])
+    fn __broadcast(&self, state: &mut MutexGuard<DataPlane>, src: &EthernetAddress, pck: &[u8], allow_forward: bool, set_peer: Option<&IpAddr>)
     {
         // If its an ARP packet then maybe its for the gateway and
         // we should send a reply ARP
@@ -233,22 +246,35 @@ impl Switch
         for (mac, dst) in state.ports.iter() {
             if let Destination::Local(port) = dst {
                 if src != mac {
-                    error!("BLAH BROADCAST: mac={} len={}", mac, pck.len());
                     port.data.push(pck.to_vec());
                     let _ = port.wake.send(());
                 }
             }
         }
 
-        // Encrypt and sign the packet before we send it
-        let pck = self.encrypt_packet(pck);
-        for peer in state.peers.values() {
-            error!("BLAH BROADCAST: mac=[all] len={} peer={}", pck.len(), peer);
-            self.udp.send(&pck[..], peer.clone());
+        // Only if we allow forwarding
+        if allow_forward
+        {
+            // Encrypt and sign the packet before we send it
+            let pck = self.encrypt_packet(pck);
+            for peer in state.peers.values() {
+                let pck = pck.clone();
+                let _ = self.udp.send(pck, peer.clone());
+            }
+        }
+
+        // Snoop the packet
+        self.snoop(state, &pck[..], set_peer);
+    }
+
+    pub fn broadcast_and_arps(&self, src: &EthernetAddress, pck: Vec<u8>, allow_forward: bool, set_peer: Option<&IpAddr>) {
+        let mut state = self.data_plane.lock().unwrap();
+        if self.__arps(&mut state, &pck[..]) == false {
+            self.__broadcast(&mut state, src, &pck[..], allow_forward, set_peer);
         }
     }
 
-    pub fn unicast(&self, src: &EthernetAddress, dst_mac: &EthernetAddress, pck: Vec<u8>, allow_forward: bool)
+    pub fn unicast(&self, src: &EthernetAddress, dst_mac: &EthernetAddress, pck: Vec<u8>, allow_forward: bool, set_peer: Option<&IpAddr>)
     {
         // If the packet is going to the default gateway then we
         // should pass it to our dateway engine to process instead
@@ -258,46 +284,39 @@ impl Switch
         }
 
         let mut state = self.data_plane.lock().unwrap();
-        self.__unicast(&mut state, src, dst_mac, pck, allow_forward);
+        self.__unicast(&mut state, src, dst_mac, pck, allow_forward, set_peer);
     }
 
-    pub(crate) fn __unicast(&self, state: &mut MutexGuard<DataPlane>, src: &EthernetAddress, dst_mac: &EthernetAddress, pck: Vec<u8>, allow_forward: bool)
+    pub(crate) fn __unicast(&self, state: &mut MutexGuard<DataPlane>, src: &EthernetAddress, dst_mac: &EthernetAddress, pck: Vec<u8>, allow_forward: bool, set_peer: Option<&IpAddr>)
     {
         // Next we lookup if this destination address is known either
         // on this switch node or another one
         if let Some(dst) = state.ports.get(&dst_mac) {
             match dst {
                 Destination::Local(_) => {
-                    self.snoop(state, &pck[..]);
+                    self.snoop(state, &pck[..], set_peer);
                     if let Some(Destination::Local(port)) = state.ports.get(&dst_mac) {
-                        error!("BLAH UNICAST: mac={} len={}", dst_mac, pck.len());
                         port.data.push(pck);
                         let _ = port.wake.send(());
                     }
-                    return;
                 },
                 Destination::PeerSwitch(peer) => {
                     if allow_forward {
-                        error!("BLAH UNICAST: mac={} len={} peer={}", dst_mac, pck.len(), peer);
                         let pck = self.encrypt_packet(&pck[..]);
-                        self.udp.send(&pck[..], peer.clone());
+                        let _ = self.udp.send(pck, peer.clone());
                     }
                 }
             }
+            return;
         }
 
         // Otherwise we broadcast it to all the other nodes as it
         // could be that we just dont know about it yet or it could
         // be that its multicast/broadcast traffic.
-        else if allow_forward {
-            self.__broadcast(state, src, &pck[..]);
-        }
-
-        // Snoop the packet
-        self.snoop(state, &pck[..]);
+        self.__broadcast(state, src, &pck[..], allow_forward, set_peer);
     }
 
-    pub fn snoop(&self, state: &mut MutexGuard<DataPlane>, pck: &[u8]) {
+    pub fn snoop(&self, state: &mut MutexGuard<DataPlane>, pck: &[u8], set_peer: Option<&IpAddr>) {
         if let Ok(frame_mac) = EthernetFrame::new_checked(&pck[..]) {
             let mac = frame_mac.src_addr();
             if mac.is_unicast() {
@@ -312,6 +331,10 @@ impl Switch
                             if update_mac4 || update_ip4 {
                                 state.mac4.insert(mac, ip, Self::MAC_SNOOP_TTL);
                                 state.ip4.insert(ip, mac, Self::MAC_SNOOP_TTL);
+
+                                if let Some(set_peer) = set_peer {
+                                    state.ports.insert(mac, Destination::PeerSwitch(set_peer.clone()));
+                                }
                             }
                             return;
                         }
@@ -326,6 +349,10 @@ impl Switch
                             if update_mac6 || update_ip6 {
                                 state.mac6.insert(mac, ip, Self::MAC_SNOOP_TTL);
                                 state.ip6.insert(ip, mac, Self::MAC_SNOOP_TTL);
+
+                                if let Some(set_peer) = set_peer {
+                                    state.ports.insert(mac, Destination::PeerSwitch(set_peer.clone()));
+                                }
                             }
                             return;
                         }
@@ -340,6 +367,10 @@ impl Switch
 
                                 state.mac4.insert(mac, ip, Self::MAC_SNOOP_TTL);
                                 state.ip4.insert(ip, mac, Self::MAC_SNOOP_TTL);
+
+                                if let Some(set_peer) = set_peer {
+                                    state.ports.insert(mac, Destination::PeerSwitch(set_peer.clone()));
+                                }
                                 return;
                             }
                         }
@@ -371,13 +402,12 @@ impl Switch
         state.ip6.get(ip).map(|mac| mac.clone())
     }
 
-    pub fn encrypt_packet(&self, pck: &[u8]) -> Vec<u8> {
+    pub fn encrypt_packet(&self, pck: &[u8]) -> Bytes {
         let prefix = self.id.to_be_bytes();
         let hash = AteHash::from_bytes(&pck[..]);
         let capacity = prefix.len() + pck.len() + hash.len();
-        let mut pck = self.encrypt.encrypt_with_hash_iv_with_capacity_and_prefix(&hash, &pck[..], capacity, &prefix);
-        pck.extend_from_slice(hash.as_bytes());
-        pck
+        let pck = self.encrypt.encrypt_with_hash_iv_with_capacity_and_prefix(&hash, &pck[..], capacity, &prefix);
+        Bytes::from(pck)
     }
 
     pub fn decrypt_packet(&self, data: &[u8], hash: AteHash) -> Option<Vec<u8>> {
@@ -386,18 +416,28 @@ impl Switch
         if test == hash {
             Some(pck)
         } else {
+            debug!("packet dropped - invalid hash {} vs {}", test, hash);
             None
         }
     }
 
-    pub fn process_peer_packet(&self, pck: &[u8], hash: AteHash) {
+    pub fn process_peer_packet(&self, pck: &[u8], hash: AteHash, peer: IpAddr) {
         if let Some(pck) = self.decrypt_packet(pck, hash) {
             // This should use unicast for destination MAC's that are unicast - other
             // MAC addresses such as multicast and broadcast should use broadcast
-            if let Ok(frame) = EthernetFrame::new_checked(&pck[..]) {
-                let src = frame.src_addr();
-                let dst = frame.dst_addr();
-                let _ = self.unicast(&src, &dst, pck, false);
+            match EthernetFrame::new_checked(&pck[..]) {
+                Ok(frame) => {
+                    let src = frame.src_addr();
+                    let dst = frame.dst_addr();
+                    if dst.is_unicast() {
+                        let _ = self.unicast(&src, &dst, pck, false, Some(&peer));
+                    } else {
+                        let _ = self.broadcast(&src, pck, false, Some(&peer));
+                    }
+                }
+                Err(err) => {
+                    debug!("packet dropped - {}", err);
+                }
             }
         }
     }

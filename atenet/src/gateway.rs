@@ -129,7 +129,7 @@ impl Gateway
                                 frame_mac.set_dst_addr(dst_mac);
                                 drop(frame_mac);
                                 
-                                route.switch.unicast(&Self::MAC, &dst_mac, pck, true);
+                                route.switch.unicast(&Self::MAC, &dst_mac, pck, true, None);
                                 return;
                             }
                         }
@@ -139,7 +139,7 @@ impl Gateway
         }
     }
 
-    pub fn process_arp_reply(&self, pck: &[u8], switch: &Switch, state: &mut MutexGuard<DataPlane>)
+    pub fn process_arp_reply(&self, pck: &[u8], switch: &Switch, state: &mut MutexGuard<DataPlane>) -> bool
     {
         if let Ok(frame_mac) = EthernetFrame::new_checked(pck) {
             if frame_mac.dst_addr() == EthernetAddress::BROADCAST &&
@@ -166,11 +166,14 @@ impl Gateway
 
                             drop(frame_arp);
                             drop(frame_mac);
-                            switch.__unicast(state, &Self::MAC, &src_mac, pck, true);
+                            switch.__unicast(state, &Self::MAC, &src_mac, pck, true, None);
+                            return true;
                         }
                     }
                 }
             }
         }
+
+        false
     }
 }
