@@ -13,13 +13,13 @@ fn test_udp_mesh() {
     common::run(async move {
         let _servers = common::setup().await;
 
-        let chain = ChainKey::from("tokera.com/4932a508739386ec3c4d76d269fc30eb_edge");
-        let access_token = "4d6d309c1e9c58d3b3493c0fd00554f1";
+        let chain = ChainKey::from("tokera.com/e7cc8d8528b79d6975bcf438f7308f78_edge");
+        let access_token = "27801ccc9ada31487c5fce7dc2d41078";
         
-        let s1_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(10, 0, 0, 2), 3000));
+        let s1_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(10, 180, 41, 2), 3000));
         let c1 = common::client1(s1_addr.ip().clone(), &chain, access_token).await;
         
-        let s2_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(10, 0, 0, 3), 3000));
+        let s2_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(10, 180, 41, 3), 3000));
         let c2 = common::client2(s2_addr.ip().clone(), &chain, access_token).await;
         
         let mut s1 = c1.bind_udp(s1_addr).await.unwrap();
