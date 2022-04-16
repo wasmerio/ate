@@ -15,7 +15,8 @@ repository = "https://github.com/john-sharratt/ate/tree/master/atefs"
 readme = "README.md"
 
 [features]
-default = []
+default = [ "tcpdump" ]
+tcpdump = []
 
 [dependencies]
 ate = { version = "^1.2", path = "../lib", features = [ "client", "server" ], default_features = false }
@@ -49,7 +50,7 @@ url = "^2"
 ttl_cache = "^0.5"
 x509-parser = "^0.12"
 chrono = "^0.4"
-smoltcp = { version = "0.8.0", features = [ "async" ] }
+smoltcp = { version = "0.8.0", git = "https://github.com/john-sharratt/smoltcp.git", features = [ "async" ] }
 ctrlc = { version = "^3" }
 http = { version = "^0.2" }
 derivative = { version = "^2" }

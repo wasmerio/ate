@@ -4,6 +4,7 @@ use std::sync::RwLock;
 use std::collections::HashMap;
 use ate::prelude::*;
 use ate_files::repo::Repository;
+use smoltcp::wire::IpAddress;
 use tokera::model::ServiceInstance;
 use tokera::model::INSTANCE_ROOT_ID;
 #[allow(unused_imports)]
@@ -55,8 +56,12 @@ impl SwitchFactory
         // Create the gateway
         let inst = accessor.dio.load::<ServiceInstance>(&PrimaryKey::from(INSTANCE_ROOT_ID)).await?;
         let id = inst.id;
-        let gateway_ips = inst.subnet.cidrs.iter()
-            .map(|cidr| cidr.gateway().into())
+        let gateway_ips= inst.subnet.cidrs.iter()
+            .map(|cidr| {
+                let ip: IpAddress = cidr.gateway().into();
+                ip
+            })
+            .filter(|ip| ip.is_unicast())
             .collect();
         let gateway = Arc::new(Gateway::new(id, gateway_ips, self));
 

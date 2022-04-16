@@ -297,13 +297,14 @@ pub enum PortCommand {
     SetHardwareAddress {
         mac: HardwareAddress,
     },
-    SetIpAddresses {
+    SetAddresses {
         // Cidr - unicast address + prefix length
-        ips: Vec<IpCidr>,
+        addrs: Vec<IpCidr>,
     },
     SetRoutes {
         routes: Vec<IpRoute>,
-    }
+    },
+    Init,
 }
 
 impl fmt::Display
@@ -355,8 +356,9 @@ for PortCommand
             PortCommand::JoinMulticast { multiaddr } => write!(f, "join-multicast(multiaddr={})", multiaddr),
             PortCommand::LeaveMulticast { multiaddr } => write!(f, "leave-multicast(multiaddr={})", multiaddr),
             PortCommand::SetHardwareAddress { mac } => write!(f, "set-hardware-address(mac={})", mac),
-            PortCommand::SetIpAddresses { ips } => write!(f, "set-ip-addresses({:?})", ips),
+            PortCommand::SetAddresses { addrs: ips } => write!(f, "set-ip-addresses({:?})", ips),
             PortCommand::SetRoutes { routes } => write!(f, "set-routes({:?})", routes),
+            PortCommand::Init => write!(f ,"init"),
         }
     }
 }
@@ -374,6 +376,7 @@ pub enum PortNopType
     BindUdp,
     ConnectTcp,
     Listen,
+    DhcpAcquire,
     SetHopLimit,
     SetAckDelay,
     SetNoDelay,
@@ -412,7 +415,14 @@ pub enum PortResponse {
         address: IpCidr,
         router: Option<IpAddr>,
         dns_servers: Vec<IpAddr>,
-    }
+    },
+    CidrTable {
+        cidrs: Vec<IpCidr>,
+    },
+    RouteTable {
+        routes: Vec<IpRoute>,
+    },
+    Inited,
 }
 
 impl fmt::Display
@@ -450,7 +460,7 @@ for PortResponse
                 router,
                 dns_servers,
             } => {
-                write!(f, "dhcp-configured(handle={},address={})", handle, address)?;
+                write!(f, "dhcp-configured(handle={},address={}", handle, address)?;
                 if let Some(router) = router {
                     write!(f, ",router={}", router)?;
                 }
@@ -463,6 +473,27 @@ for PortResponse
                 }
                 write!(f, ")")
             },
+            PortResponse::CidrTable {
+                cidrs,
+            } => {
+                write!(f, "cidr-table(")?;
+                for cidr in cidrs {
+                    write!(f, "{}/{}", cidr.ip, cidr.prefix)?;
+                }
+                write!(f, ")")
+            },
+            PortResponse::RouteTable {
+                routes,
+            } => {
+                write!(f, "route-table(")?;
+                for route in routes {
+                    write!(f, "{}/{}->{}", route.cidr.ip, route.cidr.prefix, route.via_router)?;
+                }
+                write!(f, ")")
+            },
+            PortResponse::Inited => {
+                write!(f, "initialized")
+            }
         }
     }
 }

@@ -1,26 +1,38 @@
 #![allow(unused_variables)]
-use std::net::Ipv4Addr;
 use std::net::SocketAddr;
 use std::net::SocketAddrV4;
-use ate::chain::ChainKey;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 mod common;
 
 #[test]
-fn test_udp_mesh() {
+fn udp_simple_static() {
+    run_udp(false, false);
+}
+
+#[test]
+fn udp_mesh_static() {
+    run_udp(true, false);
+}
+
+#[test]
+fn udp_simple_dhcp() {
+    run_udp(false, true);
+}
+
+#[test]
+fn udp_mesh_dhcp() {
+    run_udp(true, true);
+}
+
+fn run_udp(cross_switch: bool, use_dhcp: bool) {
     common::run(async move {
         let _servers = common::setup().await;
 
-        let chain = ChainKey::from("tokera.com/e7cc8d8528b79d6975bcf438f7308f78_edge");
-        let access_token = "27801ccc9ada31487c5fce7dc2d41078";
-        
-        let s1_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(10, 180, 41, 2), 3000));
-        let c1 = common::client1(s1_addr.ip().clone(), &chain, access_token).await;
-        
-        let s2_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(10, 180, 41, 3), 3000));
-        let c2 = common::client2(s2_addr.ip().clone(), &chain, access_token).await;
+        let (c1, c2) = common::clients(cross_switch, use_dhcp).await;
+        let s1_addr = SocketAddr::V4(SocketAddrV4::new(c1.addr_ipv4().await.unwrap(), 3000));
+        let s2_addr = SocketAddr::V4(SocketAddrV4::new(c2.addr_ipv4().await.unwrap(), 3000));
         
         let mut s1 = c1.bind_udp(s1_addr).await.unwrap();
         let mut s2 = c2.bind_udp(s2_addr).await.unwrap();

@@ -11,6 +11,7 @@ use std::net::SocketAddrV6;
 use smoltcp::iface::NeighborCache;
 use smoltcp::iface::Routes;
 use smoltcp::time::Instant;
+use smoltcp::socket::Dhcpv4Event;
 use tokera::model::IpProtocol;
 use tokera::model::IpVersion;
 use tokio::sync::mpsc;
@@ -24,6 +25,7 @@ use tokera::model::PortResponse;
 use tokera::model::PortNopType;
 use tokera::model::HardwareAddress;
 use tokera::model::SocketHandle;
+use tokera::model::SocketError;
 use tokera::model::SocketErrorKind;
 use smoltcp::wire::EthernetAddress;
 use smoltcp::wire::IpCidr;
@@ -75,8 +77,7 @@ pub struct Port
     #[derivative(Debug = "ignore")]
     pub(crate) iface: Interface<'static, PortDevice>,
     pub(crate) buf_size: usize,
-    pub(crate) errors: Vec<(SocketHandle, SocketErrorKind)>,
-    pub(crate) nops: Vec<(SocketHandle, PortNopType)>,
+    pub(crate) tx_queue: Vec<PortResponse>,
 }
 
 impl Port
@@ -89,6 +90,8 @@ impl Port
             mtu: 1500,
             switch: Arc::clone(switch)
         };
+        
+        // Create the neighbor cache and add the broadcast address which will expire in 100 years (i.e. never).
         let neighbor_cache = NeighborCache::new(BTreeMap::new());
         let iface = InterfaceBuilder::new(device, vec![])
             .hardware_addr(mac.into())
@@ -97,6 +100,7 @@ impl Port
             .routes(Routes::new(BTreeMap::<IpCidr, Route>::new()))
             .random_seed(fastrand::u64(..));
         let iface = iface.finalize();
+        
         Port {
             switch: Arc::clone(switch),
             wake,
@@ -111,9 +115,26 @@ impl Port
             dhcp_sockets: Default::default(),
             buf_size: 16,
             iface,
-            errors: Vec::new(),
-            nops: Vec::new(),
+            tx_queue: Vec::new(),
         }
+    }
+
+    fn queue_error(&mut self, handle: SocketHandle, error: SocketErrorKind) {
+        self.queue_tx(
+            PortResponse::SocketError
+            {
+                handle,
+                error: SocketError::Simple(error)
+            }
+        );
+    }
+
+    fn queue_nop(&mut self, handle: SocketHandle, ty: PortNopType) {
+        self.queue_tx(PortResponse::Nop { handle, ty });
+    }
+
+    fn queue_tx(&mut self, msg: PortResponse) {
+        self.tx_queue.push(msg);
     }
 
     pub fn process(&mut self, action: PortCommand) -> Result<(), Box<dyn std::error::Error>> {
@@ -125,19 +146,19 @@ impl Port
                 if let Some(socket_handle) = self.tcp_sockets.get(&handle) {
                     let socket = self.iface.get_socket::<TcpSocket>(*socket_handle);
                     if let Err(err) = socket.send_slice(&data[..]) {
-                        self.errors.push((handle, conv_err(err)));
+                        self.queue_error(handle, conv_err(err));
                     }
                 } else if let Some(socket_handle) = self.raw_sockets.get(&handle) {
                     let socket = self.iface.get_socket::<RawSocket>(*socket_handle);
                     if let Err(err) = socket.send_slice(&data[..]) {
-                        self.errors.push((handle, conv_err(err)));
+                        self.queue_error(handle, conv_err(err));
                     }
                 } else if self.udp_sockets.contains_key(&handle) {
-                    self.errors.push((handle, SocketErrorKind::Unsupported));
+                    self.queue_error(handle, SocketErrorKind::Unsupported);
                 } else if self.icmp_sockets.contains_key(&handle) {
-                    self.errors.push((handle, SocketErrorKind::Unsupported));
+                    self.queue_error(handle, SocketErrorKind::Unsupported);
                 } else {
-                    self.errors.push((handle, SocketErrorKind::NotConnected));
+                    self.queue_error(handle, SocketErrorKind::NotConnected);
                 }
             },
             PortCommand::SendTo {
@@ -145,25 +166,29 @@ impl Port
                 data,
                 addr,
             } => {
+                if unicast_good(addr.ip()) == false {
+                    self.queue_error(handle, SocketErrorKind::HostUnreachable);
+                    return Ok(());
+                }
                 if let Some(socket_handle) = self.udp_sockets.get(&handle) {
                     let socket = self.iface.get_socket::<UdpSocket>(*socket_handle);
                     if let Err(err) = socket.send_slice(&data[..], addr.into()) {
-                        self.errors.push((handle, conv_err(err)));
+                        self.queue_error(handle, conv_err(err));
                     }
                 } else if let Some(socket_handle) = self.tcp_sockets.get(&handle) {
                     let socket = self.iface.get_socket::<TcpSocket>(*socket_handle);
                     if let Err(err) = socket.send_slice(&data[..]) {
-                        self.errors.push((handle, conv_err(err)));
+                        self.queue_error(handle, conv_err(err));
                     }
                 } else if let Some(socket_handle) = self.icmp_sockets.get(&handle) {
                     let socket = self.iface.get_socket::<IcmpSocket>(*socket_handle);
                     if let Err(err) = socket.send_slice(&data[..], addr.ip().into()) {
-                        self.errors.push((handle, conv_err(err)));
+                        self.queue_error(handle, conv_err(err));
                     }
                 } else if self.raw_sockets.contains_key(&handle) {
-                    self.errors.push((handle, SocketErrorKind::Unsupported));
+                    self.queue_error(handle, SocketErrorKind::Unsupported);
                 } else {
-                    self.errors.push((handle, SocketErrorKind::NotConnected));
+                    self.queue_error(handle, SocketErrorKind::NotConnected);
                 }
             },
             PortCommand::MaySend {
@@ -184,9 +209,9 @@ impl Port
                     }
                 };
                 if may_send {
-                    self.nops.push((handle, PortNopType::MaySend));
+                    self.queue_nop(handle, PortNopType::MaySend);
                 } else {
-                    self.errors.push((handle, err));
+                    self.queue_error(handle, err);
                 }
             },
             PortCommand::MayReceive {
@@ -207,9 +232,9 @@ impl Port
                     }
                 };
                 if may_receive {
-                    self.nops.push((handle, PortNopType::MayReceive));
+                    self.queue_nop(handle, PortNopType::MayReceive);
                 } else {
-                    self.errors.push((handle, err));
+                    self.queue_error(handle, err);
                 }
             },
             PortCommand::CloseHandle {
@@ -242,7 +267,7 @@ impl Port
                 if let Some(socket_handle) = self.dhcp_sockets.remove(&handle) {
                     self.iface.remove_socket(socket_handle);
                 }
-                self.nops.push((handle, PortNopType::CloseHandle));
+                self.queue_nop(handle, PortNopType::CloseHandle);
             },
             PortCommand::BindRaw {
                 handle,
@@ -253,22 +278,26 @@ impl Port
                 let tx_buffer = RawSocketBuffer::new(raw_meta_buf(self.buf_size), self.raw_buf(1));
                 let socket = RawSocket::new(conv_ip_version(ip_version), conv_ip_protocol(ip_protocol), rx_buffer, tx_buffer);
                 self.raw_sockets.insert(handle, self.iface.add_socket(socket));
-                self.nops.push((handle, PortNopType::BindRaw));
+                self.queue_nop(handle, PortNopType::BindRaw);
             },
             PortCommand::BindIcmp {
                 handle,
                 local_addr,
                 hop_limit,
             } => {
+                if unicast_good(local_addr.ip()) == false {
+                    self.queue_error(handle, SocketErrorKind::AddrNotAvailable);
+                    return Ok(());
+                }
                 let rx_buffer = IcmpSocketBuffer::new(icmp_meta_buf(self.buf_size), self.raw_buf(1));
                 let tx_buffer = IcmpSocketBuffer::new(icmp_meta_buf(self.buf_size), self.raw_buf(1));
                 let mut socket = IcmpSocket::new(rx_buffer, tx_buffer);
                 socket.set_hop_limit(Some(hop_limit));
                 if let Err(err) = socket.bind(IcmpEndpoint::Udp(local_addr.into())) {
-                    self.errors.push((handle, conv_err(err)));
+                    self.queue_error(handle, conv_err(err));
                 } else {
                     self.icmp_sockets.insert(handle, self.iface.add_socket(socket));
-                    self.nops.push((handle, PortNopType::BindIcmp));
+                    self.queue_nop(handle, PortNopType::BindIcmp);
                 }
             },
             PortCommand::BindDhcp {
@@ -283,7 +312,7 @@ impl Port
                 socket.set_ignore_naks(ignore_naks);
                 socket.reset();
                 self.dhcp_sockets.insert(handle, self.iface.add_socket(socket));
-                self.nops.push((handle, PortNopType::BindDhcp));
+                self.queue_nop(handle, PortNopType::BindDhcp);
             },
             PortCommand::DhcpReset {
                 handle,
@@ -292,22 +321,26 @@ impl Port
                     let socket = self.iface.get_socket::<Dhcpv4Socket>(*socket_handle);
                     socket.reset();
                 }
-                self.nops.push((handle, PortNopType::DhcpReset));
+                self.queue_nop(handle, PortNopType::DhcpReset);
             },
             PortCommand::BindUdp {
                 handle,
                 local_addr,
                 hop_limit,
             } => {
+                if unicast_good(local_addr.ip()) == false {
+                    self.queue_error(handle, SocketErrorKind::AddrNotAvailable);
+                    return Ok(());
+                }
                 let rx_buffer = UdpSocketBuffer::new(udp_meta_buf(self.buf_size), self.ip_buf(1));
                 let tx_buffer = UdpSocketBuffer::new(udp_meta_buf(self.buf_size), self.ip_buf(1));
                 let mut socket = UdpSocket::new(rx_buffer, tx_buffer);
                 socket.set_hop_limit(Some(hop_limit));
                 if let Err(err) = socket.bind(local_addr) {
-                    self.errors.push((handle, conv_err(err)));
+                    self.queue_error(handle, conv_err(err));
                 } else {
                     self.udp_sockets.insert(handle, self.iface.add_socket(socket));
-                    self.nops.push((handle, PortNopType::BindUdp));
+                    self.queue_nop(handle, PortNopType::BindUdp);
                 }
             },
             PortCommand::ConnectTcp {
@@ -316,6 +349,14 @@ impl Port
                 peer_addr,
                 hop_limit,
             } => {
+                if unicast_good(local_addr.ip()) == false {
+                    self.queue_error(handle, SocketErrorKind::AddrNotAvailable);
+                    return Ok(());
+                }
+                if unicast_good(peer_addr.ip()) == false {
+                    self.queue_error(handle, SocketErrorKind::HostUnreachable);
+                    return Ok(());
+                }
                 let rx_buffer = TcpSocketBuffer::new(self.ip_buf(self.buf_size));
                 let tx_buffer = TcpSocketBuffer::new(self.ip_buf(self.buf_size));
                 let mut socket = TcpSocket::new(rx_buffer, tx_buffer);
@@ -323,10 +364,10 @@ impl Port
                 let socket_handle = self.iface.add_socket(socket);
                 let (socket, cx) = self.iface.get_socket_and_context::<TcpSocket>(socket_handle);
                 if let Err(err) = socket.connect(cx, peer_addr, local_addr) {
-                    self.errors.push((handle, conv_err(err)));
+                    self.queue_error(handle, conv_err(err));
                 } else {
                     self.tcp_sockets.insert(handle, socket_handle);
-                    self.nops.push((handle, PortNopType::ConnectTcp));
+                    self.queue_nop(handle, PortNopType::ConnectTcp);
                 }
             },
             PortCommand::Listen {
@@ -334,15 +375,19 @@ impl Port
                 local_addr,
                 hop_limit,
             } => {
+                if unicast_good(local_addr.ip()) == false {
+                    self.queue_error(handle, SocketErrorKind::AddrNotAvailable);
+                    return Ok(());
+                }
                 let rx_buffer = TcpSocketBuffer::new(self.ip_buf(self.buf_size));
                 let tx_buffer = TcpSocketBuffer::new(self.ip_buf(self.buf_size));
                 let mut socket = TcpSocket::new(rx_buffer, tx_buffer);
                 socket.set_hop_limit(Some(hop_limit));
                 if let Err(err) = socket.listen(local_addr) {
-                    self.errors.push((handle, conv_err(err)));
+                    self.queue_error(handle, conv_err(err));
                 } else {
                     self.listen_sockets.insert(handle, self.iface.add_socket(socket));
-                    self.nops.push((handle, PortNopType::Listen));
+                    self.queue_nop(handle, PortNopType::Listen);
                 }
             },
             PortCommand::SetHopLimit {
@@ -361,7 +406,7 @@ impl Port
                     let socket = self.iface.get_socket::<TcpSocket>(*socket_handle);
                     socket.set_hop_limit(Some(hop_limit));
                 }
-                self.nops.push((handle, PortNopType::SetHopLimit));
+                self.queue_nop(handle, PortNopType::SetHopLimit);
             },
             PortCommand::SetAckDelay {
                 handle,
@@ -376,7 +421,7 @@ impl Port
                     let socket = self.iface.get_socket::<TcpSocket>(*socket_handle);
                     socket.set_ack_delay(Some(duration.clone()));
                 }
-                self.nops.push((handle, PortNopType::SetAckDelay));
+                self.queue_nop(handle, PortNopType::SetAckDelay);
             },
             PortCommand::SetNoDelay {
                 handle,
@@ -391,7 +436,7 @@ impl Port
                     let socket = self.iface.get_socket::<TcpSocket>(*socket_handle);
                     socket.set_nagle_enabled(nagle_enable);
                 }
-                self.nops.push((handle, PortNopType::SetNoDelay));
+                self.queue_nop(handle, PortNopType::SetNoDelay);
             },
             PortCommand::SetKeepAlive {
                 handle,
@@ -406,7 +451,7 @@ impl Port
                     let socket = self.iface.get_socket::<TcpSocket>(*socket_handle);
                     socket.set_keep_alive(interval.into())
                 }
-                self.nops.push((handle, PortNopType::SetKeepAlive));
+                self.queue_nop(handle, PortNopType::SetKeepAlive);
             },
             PortCommand::SetTimeout {
                 handle,
@@ -421,7 +466,7 @@ impl Port
                     let socket = self.iface.get_socket::<TcpSocket>(*socket_handle);
                     socket.set_timeout(timeout.into())
                 }
-                self.nops.push((handle, PortNopType::SetTimeout));
+                self.queue_nop(handle, PortNopType::SetTimeout);
             },
             PortCommand::JoinMulticast {
                 multiaddr,
@@ -440,8 +485,8 @@ impl Port
             } => {
                 self.iface.set_hardware_addr(EthernetAddress::from_bytes(mac.as_bytes()).into());
             },
-            PortCommand::SetIpAddresses {
-                ips,
+            PortCommand::SetAddresses {
+                addrs: ips,
             } => {
                 self.iface.update_ip_addrs(|target| {
                     // Anything that is not a unicast will cause a panic
@@ -489,6 +534,9 @@ impl Port
                         map.append(&mut routes);
                     }
                 });
+            },
+            PortCommand::Init => {
+                self.queue_tx(PortResponse::Inited);
             },
         }
         Ok(())
@@ -567,15 +615,36 @@ impl Port
                     self.tcp_sockets.insert(handle, socket_handle);
                 }
             }
+
+            for (handle, socket_handle) in self.dhcp_sockets.iter() {
+                let socket = self.iface.get_socket::<Dhcpv4Socket>(*socket_handle);
+                if let Some(evt) = socket.poll() {
+                    match evt {
+                        Dhcpv4Event::Configured(config) => {
+                            ret.push(PortResponse::DhcpConfigured {
+                                handle: *handle,
+                                address: tokera::model::IpCidr {
+                                    ip: IpAddr::V4(config.address.address().into()),
+                                    prefix: config.address.prefix_len(),
+                                },
+                                router: config.router.map(|a| IpAddr::V4(a.into())),
+                                dns_servers: config.dns_servers
+                                    .to_vec()
+                                    .into_iter()
+                                    .filter_map(|a| a.map(|a| IpAddr::V4(a.into())))
+                                    .collect(),
+                            });
+                            ret.push(PortResponse::Nop { handle: *handle, ty: PortNopType::DhcpAcquire });
+                        },
+                        Dhcpv4Event::Deconfigured => {
+                            ret.push(PortResponse::DhcpDeconfigured { handle: *handle });
+                        }
+                    }
+                }
+            }
         }
 
-        for (handle, err) in self.errors.drain(..) {
-            ret.push(PortResponse::SocketError { handle, error: err.into() });
-        }
-
-        for (handle, ty) in self.nops.drain(..) {
-            ret.push(PortResponse::Nop { handle, ty });
-        }
+        ret.append(&mut self.tx_queue);
 
         (ret, wait_time.into())
     }
@@ -751,6 +820,11 @@ fn conv_err(err: smoltcp::Error) -> SocketErrorKind {
         NotSupported => SocketErrorKind::Unsupported,
         _ => SocketErrorKind::Unsupported
     }
+}
+
+fn unicast_good(ip: IpAddr) -> bool {
+    let ip: smoltcp::wire::IpAddress = ip.into();
+    ip.is_unicast()
 }
 
 fn cidr_good(ip: IpAddr) -> bool {

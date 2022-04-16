@@ -45,7 +45,7 @@ pub fn run<F: Future>(future: F) -> F::Output {
 }
 
 pub async fn setup() -> Vec<Arc<ateweb::server::Server>> {
-    ate::log_init(1, false);
+    ate::log_init(3, false);
 
     let s1 = create_node(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 2)), 1).await;
     let s2 = create_node(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 3)), 2).await;
@@ -53,21 +53,59 @@ pub async fn setup() -> Vec<Arc<ateweb::server::Server>> {
     vec![s1, s2]
 }
 
-pub async fn client1(ip: IpAddr, chain: &ChainKey, access_token: &str) -> Port
+pub async fn client1(chain: &ChainKey, access_token: &str, static_ip: Option<IpAddr>) -> Port
 {
     let node = url::Url::parse("ws://127.0.0.2:8080/net").unwrap();
-    client(node, ip, chain.clone(), access_token.to_string()).await
+    client(node, chain.clone(), access_token.to_string(), static_ip).await
 }
 
-pub async fn client2(ip: IpAddr, chain: &ChainKey, access_token: &str) -> Port
+pub async fn client2(chain: &ChainKey, access_token: &str, static_ip: Option<IpAddr>) -> Port
 {
     let node = url::Url::parse("ws://127.0.0.3:8080/net").unwrap();
-    client(node, ip, chain.clone(), access_token.to_string()).await
+    client(node, chain.clone(), access_token.to_string(), static_ip).await
 }
 
-pub async fn client(node: url::Url, ip: IpAddr, chain: ChainKey, access_token: String) -> Port
+pub async fn client(node: url::Url, chain: ChainKey, access_token: String, static_ip: Option<IpAddr>) -> Port
 {
     let mut port = Port::new(node, chain, access_token).await.unwrap();
-    port.add_ip( ip, 24).await.unwrap();
+    if let Some(static_ip) = static_ip {
+        port.add_ip(static_ip, 24).await.unwrap();
+    } else {
+        port.dhcp_acquire().await.unwrap();
+    }
     port
+}
+
+pub async fn clients(cross_switch: bool, use_dhcp: bool) -> (Port, Port)
+{
+    let chain1 = ChainKey::from("tokera.com/e7cc8d8528b79d6975bcf438f7308f78_edge");
+    let access_token1 = "27801ccc9ada31487c5fce7dc2d41078";
+    let addr1 = if use_dhcp == false {
+        Some(IpAddr::V4(Ipv4Addr::new(10, 180, 41, 2)))
+    } else {
+        None
+    };
+
+    let (chain2, access_token2, addr2) = if cross_switch == true {
+        let chain2 = ChainKey::from("tokera.com/c23a55096856cc316fb4da3f7a878192_edge");
+        let access_token2 = "6ac4fcf2716b1a22fc298c6d526f031e";
+        let addr2 = if use_dhcp == false {
+            Some(IpAddr::V4(Ipv4Addr::new(10, 164, 156, 2)))
+        } else {
+            None
+        };
+        (chain2, access_token2, addr2)
+    } else {
+        let addr2 = if use_dhcp == false {
+            Some(IpAddr::V4(Ipv4Addr::new(10, 180, 41, 3)))
+        } else {
+            None
+        };
+        (chain1.clone(), access_token1.clone(), addr2)
+    };    
+
+    let c1 = client1(&chain1, access_token1, addr1).await;
+    let c2 = client2(&chain2, access_token2, addr2).await;
+
+    (c1, c2)
 }

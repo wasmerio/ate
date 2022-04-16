@@ -78,6 +78,7 @@ pub struct ControlPlane {
 pub struct Switch
 {
     pub(crate) id: u128,
+    pub(crate) name: String,
     pub(crate) udp: UdpPeerHandle,
     pub(crate) encrypt: EncryptKey,
     #[allow(dead_code)]
@@ -86,6 +87,7 @@ pub struct Switch
     pub(crate) control_plane: RwLock<ControlPlane>,
     pub(crate) mac_drop: mpsc::Sender<HardwareAddress>,
     pub(crate) me_node_key: PrimaryKey,
+    pub(crate) me_node_addr: IpAddr,
     #[allow(dead_code)]
     pub(crate) gateway: Arc<Gateway>,
     pub(crate) access_tokens: Vec<String>,
@@ -135,6 +137,7 @@ impl Switch
             (inst, bus, me_node)
         };
         let id = inst.id;
+        let name = inst.id_str();
 
         let encrypt_key = EncryptKey::from_seed_string(inst.subnet.network_token.clone(), KeySize::Bit128);
         
@@ -144,10 +147,12 @@ impl Switch
         let (mac_drop_tx, mac_drop_rx) = mpsc::channel(100);
         let switch = Arc::new(Switch {
             id,
+            name,
             accessor,
             udp,
             encrypt: encrypt_key,
             me_node_key: me_node.key().clone(),
+            me_node_addr: me_node.node_addr.clone(),
             data_plane: Mutex::new(
                 DataPlane {
                     cidrs,
@@ -232,6 +237,9 @@ impl Switch
     }
 
     pub fn broadcast(&self, src: &EthernetAddress, pck: Vec<u8>, allow_forward: bool, set_peer: Option<&IpAddr>) {
+        #[cfg(feature="tcpdump")]
+        tcpdump(self.me_node_addr, self.name.as_str(), "BROADCAST", &pck[..]);
+
         let mut state = self.data_plane.lock().unwrap();
         self.__broadcast(&mut state, src, &pck[..], allow_forward, set_peer);
     }
@@ -268,6 +276,9 @@ impl Switch
     }
 
     pub fn broadcast_and_arps(&self, src: &EthernetAddress, pck: Vec<u8>, allow_forward: bool, set_peer: Option<&IpAddr>) {
+        #[cfg(feature="tcpdump")]
+        tcpdump(self.me_node_addr, self.name.as_str(), "BROADCAST", &pck[..]);
+
         let mut state = self.data_plane.lock().unwrap();
         if self.__arps(&mut state, &pck[..]) == false {
             self.__broadcast(&mut state, src, &pck[..], allow_forward, set_peer);
@@ -276,6 +287,9 @@ impl Switch
 
     pub fn unicast(&self, src: &EthernetAddress, dst_mac: &EthernetAddress, pck: Vec<u8>, allow_forward: bool, set_peer: Option<&IpAddr>)
     {
+        #[cfg(feature="tcpdump")]
+        tcpdump(self.me_node_addr, self.name.as_str(), "UNICAST  ", &pck[..]);
+
         // If the packet is going to the default gateway then we
         // should pass it to our dateway engine to process instead
         if dst_mac == &Gateway::MAC {
@@ -558,4 +572,11 @@ impl Switch
 
         debug!("control thread exited");
     }
+}
+
+#[cfg(feature="tcpdump")]
+fn tcpdump(node_ip: IpAddr, sw: &str, ty: &str, pck: &[u8])
+{
+    let pck = smoltcp::wire::PrettyPrinter::<EthernetFrame<&[u8]>>::new("", &pck);
+    info!("{}@{}: {} {}", &sw[..4], node_ip, ty, pck);
 }
