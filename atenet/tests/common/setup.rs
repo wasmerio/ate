@@ -6,6 +6,8 @@ use ate::prelude::*;
 use atenet::opt::OptsNetworkServer;
 use tokio::runtime::Builder;
 use tokera::mio::Port;
+#[allow(unused_imports)]
+use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 fn create_solo(ip: IpAddr, node_id: u32) -> OptsNetworkServer
 {

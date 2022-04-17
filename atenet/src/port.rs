@@ -619,8 +619,16 @@ impl Port
             for (handle, socket_handle) in self.dhcp_sockets.iter() {
                 let socket = self.iface.get_socket::<Dhcpv4Socket>(*socket_handle);
                 if let Some(evt) = socket.poll() {
+                    drop(socket);
                     match evt {
                         Dhcpv4Event::Configured(config) => {
+                            self.iface.update_ip_addrs(|target| {
+                                if let ManagedSlice::Owned(vec) = target {
+                                    if vec.iter().any(|cidr| cidr == &IpCidr::Ipv4(config.address)) == false {
+                                        vec.push(IpCidr::Ipv4(config.address));
+                                    }
+                                }
+                            });
                             ret.push(PortResponse::DhcpConfigured {
                                 handle: *handle,
                                 address: tokera::model::IpCidr {
@@ -637,6 +645,11 @@ impl Port
                             ret.push(PortResponse::Nop { handle: *handle, ty: PortNopType::DhcpAcquire });
                         },
                         Dhcpv4Event::Deconfigured => {
+                            self.iface.update_ip_addrs(|target| {
+                                if let ManagedSlice::Owned(vec) = target {
+                                    vec.clear();
+                                }
+                            });
                             ret.push(PortResponse::DhcpDeconfigured { handle: *handle });
                         }
                     }
