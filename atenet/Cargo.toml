@@ -15,7 +15,7 @@ repository = "https://github.com/john-sharratt/ate/tree/master/atefs"
 readme = "README.md"
 
 [features]
-default = [ "tcpdump" ]
+default = []
 tcpdump = []
 
 [dependencies]
@@ -60,3 +60,6 @@ byteorder = "^1"
 async-recursion = "^1"
 crossbeam = "^0.8"
 hex = "^0.4"
+
+[dev-dependencies]
+serial_test = "0.6.0"

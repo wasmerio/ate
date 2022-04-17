@@ -3,25 +3,30 @@ use std::net::SocketAddr;
 use std::net::SocketAddrV4;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
+use serial_test::serial;
 
 mod common;
 
 #[test]
+#[serial]
 fn tcp_simple_static() {
     run_tcp(false, false);
 }
 
 #[test]
+#[serial]
 fn tcp_mesh_static() {
     run_tcp(true, false);
 }
 
 #[test]
+#[serial]
 fn tcp_simple_dhcp() {
     run_tcp(false, true);
 }
 
 #[test]
+#[serial]
 fn tcp_mesh_dhcp() {
     run_tcp(true, true);
 }

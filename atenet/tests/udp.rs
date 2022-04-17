@@ -3,25 +3,30 @@ use std::net::SocketAddr;
 use std::net::SocketAddrV4;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
+use serial_test::serial;
 
 mod common;
 
 #[test]
+#[serial]
 fn udp_simple_static() {
     run_udp(false, false);
 }
 
 #[test]
+#[serial]
 fn udp_mesh_static() {
     run_udp(true, false);
 }
 
 #[test]
+#[serial]
 fn udp_simple_dhcp() {
     run_udp(false, true);
 }
 
 #[test]
+#[serial]
 fn udp_mesh_dhcp() {
     run_udp(true, true);
 }
