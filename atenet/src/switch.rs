@@ -120,6 +120,7 @@ pub struct DhcpMessage
 pub struct Switch
 {
     pub(crate) id: u128,
+    #[allow(dead_code)]
     pub(crate) name: String,
     pub(crate) udp: UdpPeerHandle,
     pub(crate) encrypt: EncryptKey,
@@ -130,6 +131,7 @@ pub struct Switch
     pub(crate) mac_drop: mpsc::Sender<HardwareAddress>,
     pub(crate) dhcp_msg: mpsc::Sender<DhcpMessage>,
     pub(crate) me_node_key: PrimaryKey,
+    #[allow(dead_code)]
     pub(crate) me_node_addr: IpAddr,
     #[allow(dead_code)]
     pub(crate) gateway: Arc<Gateway>,
