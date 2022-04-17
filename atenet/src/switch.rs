@@ -22,6 +22,8 @@ use smoltcp::wire::EthernetFrame;
 use smoltcp::wire::EthernetProtocol;
 use smoltcp::wire::ArpPacket;
 use smoltcp::wire::ArpHardware;
+use smoltcp::wire::ArpRepr;
+use smoltcp::wire::ArpOperation;
 use smoltcp::wire::IpAddress;
 use smoltcp::wire::IpProtocol;
 use smoltcp::wire::Ipv4Address;
@@ -70,6 +72,8 @@ pub struct DataPlane {
     pub(crate) cidrs: Vec<IpCidr>,
     pub(crate) ports: HashMap<EthernetAddress, Destination>,
     pub(crate) peers: HashMap<PrimaryKey, IpAddr>,
+    #[derivative(Debug = "ignore")]
+    pub(crate) arp_throttle: HashMap<Ipv4Address, chrono::DateTime<chrono::Utc>>,
     #[derivative(Debug = "ignore")]
     pub(crate) mac4: TtlCache<EthernetAddress, Ipv4Address>,
     #[derivative(Debug = "ignore")]
@@ -195,6 +199,7 @@ impl Switch
             data_plane: Mutex::new(
                 DataPlane {
                     cidrs,
+                    arp_throttle: Default::default(),
                     ports: Default::default(),
                     peers: Default::default(),
                     mac4: TtlCache::new(Self::MAC_SNOOP_MAX),
@@ -444,6 +449,60 @@ impl Switch
         data_plane.cidrs = super::common::subnet_to_cidrs(&subnet);
     }
 
+    pub fn arp_request(self: &Arc<Self>, src_mac: EthernetAddress, src_ip: Ipv4Address, dst_ip: Ipv4Address)
+    {
+        // Check its in the CIDR and the backoff window
+        let mut data_plane = self.data_plane.lock().unwrap();
+        for cidr in data_plane.cidrs.iter()
+        {
+            if cidr.contains_addr(&IpAddress::Ipv4(dst_ip))
+            {
+                // Check the throttle
+                let now = chrono::Utc::now();
+                let last_send = data_plane.arp_throttle.get(&dst_ip).map(|a| a.clone());
+                if let Some(last_send) = last_send {
+                    let diff = now - last_send;
+                    if diff.num_seconds() < 5 {
+                        return;
+                    }
+                }
+
+                // Record it so we can throttle
+                data_plane.arp_throttle.insert(dst_ip, now);
+
+                // Send the ARP
+                let arp_repr = ArpRepr::EthernetIpv4 {
+                    operation: ArpOperation::Request,
+                    source_hardware_addr: src_mac,
+                    source_protocol_addr: src_ip,
+                    target_hardware_addr: EthernetAddress::BROADCAST,
+                    target_protocol_addr: dst_ip,
+                };
+                let mut arp_bytes = vec![0xff; arp_repr.buffer_len()];
+                let mut arp_packet = ArpPacket::new_unchecked(&mut arp_bytes[..]);
+                arp_repr.emit(&mut arp_packet);
+
+                // Build the Ethernet payload
+                let eth_repr = EthernetRepr {
+                    src_addr: src_mac,
+                    dst_addr: EthernetAddress::BROADCAST,
+                    ethertype: EthernetProtocol::Arp,
+                };
+                let mut eth_bytes = vec![0x00; eth_repr.buffer_len() + arp_repr.buffer_len()];
+                let mut eth_packet = EthernetFrame::new_unchecked(&mut eth_bytes[..]);
+                eth_repr.emit(&mut eth_packet);
+                eth_packet.payload_mut().copy_from_slice(&arp_bytes[..]);
+
+                #[cfg(feature="tcpdump")]
+                tcpdump(self.me_node_addr, self.name.as_str(), "BROADCAST", &eth_bytes[..]);
+
+                // Broadcast it
+                self.__broadcast(&mut data_plane, &src_mac, &eth_bytes[..], true, None);
+                return;
+            }
+        }
+    }
+
     async fn __dhcp_process_internal(self: &Arc<Switch>, msg: DhcpMessage)
     {
         // Determine the IP address for this particular MAC address
@@ -594,18 +653,22 @@ impl Switch
         }
 
         // Only if we allow forwarding
-        if allow_forward
-        {
-            // Encrypt and sign the packet before we send it
-            let pck = self.encrypt_packet(pck);
-            for peer in state.peers.values() {
-                let pck = pck.clone();
-                let _ = self.udp.send(pck, peer.clone());
-            }
+        if allow_forward {
+            self.__broadcast_to_peers(state, pck);
         }
 
         // Snoop the packet
         self.snoop(state, &pck[..], set_peer);
+    }
+
+    fn __broadcast_to_peers(self: &Arc<Switch>, state: &mut MutexGuard<DataPlane>, pck: &[u8])
+    {
+        // Encrypt and sign the packet before we send it
+        let pck = self.encrypt_packet(pck);
+        for peer in state.peers.values() {
+            let pck = pck.clone();
+            let _ = self.udp.send(pck, peer.clone());
+        }
     }
 
     pub fn broadcast_and_arps(self: &Arc<Switch>, src: &EthernetAddress, pck: Vec<u8>, allow_forward: bool, set_peer: Option<&IpAddr>) {
@@ -625,8 +688,29 @@ impl Switch
 
         // If the packet is going to the default gateway then we
         // should pass it to our dateway engine to process instead
-        if dst_mac == &Gateway::MAC {
-            self.gateway.process_outbound(pck);
+        if dst_mac == &Gateway::MAC
+        {
+            {
+                // We should snoop all the packets
+                let mut state = self.data_plane.lock().unwrap();
+                self.snoop(&mut state, &pck[..], None);
+                
+                // There are certain situations where we forward to the peers (namely if an ARP
+                // reply goes back to the gateway - this is so that all the gateways can update
+                // there internal state)
+                if allow_forward
+                {
+                    // If this is an ARP packet then we should broadcast it
+                    if let Ok(frame_mac) = EthernetFrame::new_checked(&pck[..]) {
+                        if frame_mac.ethertype() == EthernetProtocol::Arp {
+                            self.__broadcast_to_peers(&mut state, &pck[..]);
+                        }
+                    }
+                }
+            }
+
+            // Process the outbound packet which will do some IP routing
+            self.gateway.process_outbound(pck);            
             return;
         }
 
@@ -666,12 +750,14 @@ impl Switch
     pub fn snoop(&self, state: &mut MutexGuard<DataPlane>, pck: &[u8], set_peer: Option<&IpAddr>) {
         if let Ok(frame_mac) = EthernetFrame::new_checked(&pck[..]) {
             let mac = frame_mac.src_addr();
-            if mac.is_unicast() {
-                match frame_mac.ethertype() {
-                    EthernetProtocol::Ipv4 => {
-                        if let Ok(frame_ip) = Ipv4Packet::new_checked(frame_mac.payload()) {
-                            let ip = frame_ip.src_addr();
+            match frame_mac.ethertype() {
+                EthernetProtocol::Ipv4 => {
+                    if let Ok(frame_ip) = Ipv4Packet::new_checked(frame_mac.payload()) {
+                        let ip = frame_ip.src_addr();
 
+                        if mac.is_unicast() &&
+                           ip.is_unicast()
+                        {
                             let update_mac4 = state.mac4.contains_key(&mac) == false;
                             let update_ip4 = state.ip4.contains_key(&ip) == false;
                             
@@ -683,13 +769,16 @@ impl Switch
                                     state.ports.insert(mac, Destination::PeerSwitch(set_peer.clone()));
                                 }
                             }
-                            return;
                         }
-                    },
-                    EthernetProtocol::Ipv6 => {
-                        if let Ok(frame_ip) = Ipv6Packet::new_checked(frame_mac.payload()) {
-                            let ip = frame_ip.src_addr();
+                    }
+                },
+                EthernetProtocol::Ipv6 => {
+                    if let Ok(frame_ip) = Ipv6Packet::new_checked(frame_mac.payload()) {
+                        let ip = frame_ip.src_addr();
 
+                        if mac.is_unicast() &&
+                           ip.is_unicast()
+                        {
                             let update_mac6 = state.mac6.contains_key(&mac) == false;
                             let update_ip6 = state.ip6.contains_key(&ip) == false;
                             
@@ -701,29 +790,33 @@ impl Switch
                                     state.ports.insert(mac, Destination::PeerSwitch(set_peer.clone()));
                                 }
                             }
-                            return;
                         }
-                    },
-                    EthernetProtocol::Arp => {
-                        if let Ok(frame_arp) = ArpPacket::new_checked(frame_mac.payload()) {
-                            if frame_arp.hardware_type() == ArpHardware::Ethernet &&
-                               frame_arp.protocol_type() == EthernetProtocol::Ipv4
-                            {
-                                let mac = EthernetAddress::from_bytes(frame_arp.source_hardware_addr());
-                                let ip = Ipv4Address::from_bytes(frame_arp.source_protocol_addr());
+                    }
+                },
+                EthernetProtocol::Arp => {
+                    if let Ok(frame_arp) = ArpPacket::new_checked(frame_mac.payload()) {
+                        if frame_arp.hardware_type() == ArpHardware::Ethernet &&
+                            frame_arp.protocol_type() == EthernetProtocol::Ipv4
+                        {
+                            let mac = EthernetAddress::from_bytes(frame_arp.source_hardware_addr());
+                            let ip = Ipv4Address::from_bytes(frame_arp.source_protocol_addr());
 
+                            if mac != EthernetAddress::BROADCAST &&
+                               mac != Gateway::MAC &&
+                               ip != Ipv4Address::BROADCAST &&
+                               ip != Ipv4Address::UNSPECIFIED
+                            {
                                 state.mac4.insert(mac, ip, Self::MAC_SNOOP_TTL);
                                 state.ip4.insert(ip, mac, Self::MAC_SNOOP_TTL);
 
                                 if let Some(set_peer) = set_peer {
                                     state.ports.insert(mac, Destination::PeerSwitch(set_peer.clone()));
                                 }
-                                return;
                             }
                         }
-                    },
-                    _ => { }
-                }
+                    }
+                },
+                _ => { }
             }
         }
     }

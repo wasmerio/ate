@@ -98,21 +98,23 @@ impl Gateway
         // to need to have their MAC address modified then transmitted
         let state = self.state.read().unwrap();
         if let Ok(mut frame_mac) = EthernetFrame::new_checked(&mut pck[..]) {
-            let dst_ip = match frame_mac.ethertype() {
+            let ip_pair = match frame_mac.ethertype() {
                 EthernetProtocol::Ipv4 => {
                     if let Ok(frame_ip) = Ipv4Packet::new_checked(frame_mac.payload_mut()) {
+                        let src_ip = IpAddress::Ipv4(frame_ip.src_addr());
                         let dst_ip = IpAddress::Ipv4(frame_ip.dst_addr());
                         drop(frame_ip);
-                        Some(dst_ip)
+                        Some((src_ip, dst_ip))
                     } else {
                         None
                     }
                 }
                 EthernetProtocol::Ipv6 => {
                     if let Ok(frame_ip) = Ipv6Packet::new_checked(frame_mac.payload_mut()) {
+                        let src_ip = IpAddress::Ipv6(frame_ip.src_addr());
                         let dst_ip = IpAddress::Ipv6(frame_ip.dst_addr());
                         drop(frame_ip);
-                        Some(dst_ip)
+                        Some((src_ip, dst_ip))
                     } else {
                         None
                     }
@@ -120,9 +122,11 @@ impl Gateway
                 _ => None
             };
 
-            if let Some(dst_ip) = dst_ip {
+            if let Some((_src_ip, dst_ip)) = ip_pair {
                 for route in state.routes.iter() {
-                    for cidr in route.cidrs.iter() {
+                    for cidr in route.cidrs.iter()
+                    {
+                        let gw = super::common::cidr_to_gw(cidr);
                         if cidr.contains_addr(&dst_ip) {
                             if let Some(dst_mac) = route.switch.lookup_ip(&dst_ip) {
                                 frame_mac.set_src_addr(Self::MAC);
@@ -130,6 +134,19 @@ impl Gateway
                                 drop(frame_mac);
                                 
                                 route.switch.unicast(&Self::MAC, &dst_mac, pck, true, None);
+                                return;
+                            } else {
+                                frame_mac.set_src_addr(Self::MAC);
+                                frame_mac.set_dst_addr(EthernetAddress::BROADCAST);
+                                drop(frame_mac);
+                                
+                                if let IpAddress::Ipv4(gw) = gw {
+                                    if let IpAddress::Ipv4(dst_ip) = dst_ip {
+                                        route.switch.arp_request(Self::MAC, gw, dst_ip);
+                                        return;
+                                    }
+                                }
+                                route.switch.broadcast(&Self::MAC, pck, true, None);
                                 return;
                             }
                         }

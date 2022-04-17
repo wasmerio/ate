@@ -5,6 +5,8 @@ use std::net::Ipv6Addr;
 use ate::prelude::*;
 use ate::comms::StreamRouter;
 use ate::mesh::MeshHashTable;
+use smoltcp::wire::IpCidr;
+use smoltcp::wire::IpAddress;
 use tokio::sync::watch;
 #[allow(unused_imports, dead_code)]
 use tracing::{info, error, debug, trace, warn};
@@ -212,9 +214,30 @@ pub async fn setup_server
     )
 }
 
-pub fn subnet_to_cidrs(subnet: &tokera::model::InstanceSubnet) -> Vec<smoltcp::wire::IpCidr>
+pub fn subnet_to_cidrs(subnet: &tokera::model::InstanceSubnet) -> Vec<IpCidr>
 {
     subnet.cidrs.iter()
-            .map(|cidr| smoltcp::wire::IpCidr::new(cidr.ip.into(), cidr.prefix))
+            .map(|cidr| IpCidr::new(cidr.ip.into(), cidr.prefix))
             .collect()
+}
+
+pub fn cidr_to_gw(cidr: &IpCidr) -> IpAddress
+{
+    match cidr.address() {
+        IpAddress::Ipv4(ip) => {
+            let ip: Ipv4Addr = ip.into();
+            let mut ip: u32 = ip.into();
+            ip += 1;
+            IpAddr::V4(ip.into()).into()
+        },
+        IpAddress::Ipv6(ip) => {
+            let ip: Ipv6Addr = ip.into();
+            let mut ip: u128 = ip.into();
+            ip += 1;
+            IpAddr::V6(ip.into()).into()
+        },
+        _ => {
+            IpAddress::Unspecified
+        }
+    }
 }
