@@ -519,6 +519,10 @@ impl Switch
         let mut dhcp_packet = DhcpPacket::new_unchecked(&mut dhcp_payload);
         dhcp_repr.emit(&mut dhcp_packet).unwrap();
 
+        // Set the IP addresses
+        let src_addr = msg.gw_addr;
+        let dst_addr = Ipv4Address::BROADCAST;
+
         // Build the UDP payload
         let udp_repr = UdpRepr {
             src_port: smoltcp::wire::DHCP_SERVER_PORT,
@@ -534,11 +538,12 @@ impl Switch
             |buf| buf.copy_from_slice(&dhcp_payload[..]),
             &ChecksumCapabilities::default(),
         );
-
+        udp_packet.fill_checksum(&IpAddress::Ipv4(src_addr), &IpAddress::Ipv4(dst_addr));
+        
         // Build the IPv4 payload
         let ipv4_repr = Ipv4Repr {
-            src_addr: msg.gw_addr,
-            dst_addr: Ipv4Address::BROADCAST,
+            src_addr,
+            dst_addr,
             next_header: IpProtocol::Udp,
             payload_len: udp_bytes.len(),
             hop_limit: 64,
@@ -547,6 +552,7 @@ impl Switch
         let mut ip_packet = Ipv4Packet::new_unchecked(&mut ip_bytes[..]);
         ipv4_repr.emit(&mut ip_packet, &ChecksumCapabilities::default());
         ip_packet.payload_mut().copy_from_slice(&udp_bytes[..]);
+        ip_packet.fill_checksum();
 
         // Build the Ethernet payload
         let eth_repr = EthernetRepr {

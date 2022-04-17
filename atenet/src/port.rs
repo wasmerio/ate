@@ -752,7 +752,7 @@ impl<'a> Device<'a> for PortDevice {
         caps.max_transmission_unit = self.mtu;
         caps.medium = Medium::Ethernet;
         caps.max_burst_size = None;
-        caps.checksum = ChecksumCapabilities::ignored();
+        caps.checksum = ChecksumCapabilities::default();
         caps
     }
 }
