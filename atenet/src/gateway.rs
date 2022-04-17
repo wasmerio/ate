@@ -141,7 +141,8 @@ impl Gateway
 
     pub fn process_arp_reply(&self, pck: &[u8], switch: &Arc<Switch>, state: &mut MutexGuard<DataPlane>) -> bool
     {
-        if let Ok(frame_mac) = EthernetFrame::new_checked(pck) {
+        if let Ok(frame_mac) = EthernetFrame::new_checked(pck)
+        {
             if frame_mac.dst_addr() == EthernetAddress::BROADCAST &&
                frame_mac.ethertype() == EthernetProtocol::Arp
             {
@@ -152,8 +153,9 @@ impl Gateway
                     if frame_arp.hardware_type() == ArpHardware::Ethernet &&
                        frame_arp.protocol_type() == EthernetProtocol::Ipv4
                     {
-                        let ip = IpAddress::Ipv4(Ipv4Address::from_bytes(frame_arp.target_protocol_addr()));
-                        for gateway_ip in self.ips.iter().filter(|i| *i == &ip) {
+                        let sender_ip = IpAddress::Ipv4(Ipv4Address::from_bytes(frame_arp.source_protocol_addr()));
+                        let request_ip = IpAddress::Ipv4(Ipv4Address::from_bytes(frame_arp.target_protocol_addr()));
+                        for gateway_ip in self.ips.iter().filter(|i| *i == &request_ip) {
                             let mut pck = pck.to_vec();
 
                             let mut frame_mac = EthernetFrame::new_unchecked(&mut pck[..]);
@@ -161,8 +163,11 @@ impl Gateway
                             frame_mac.set_dst_addr(src_mac);
                             
                             let mut frame_arp = ArpPacket::new_unchecked(frame_mac.payload_mut());
-                            frame_arp.set_source_hardware_addr(src_mac.as_bytes());
+                            frame_arp.set_operation(smoltcp::wire::ArpOperation::Reply);
+                            frame_arp.set_source_hardware_addr(Gateway::MAC.as_bytes());
                             frame_arp.set_source_protocol_addr(gateway_ip.as_bytes());
+                            frame_arp.set_target_hardware_addr(src_mac.as_bytes());
+                            frame_arp.set_target_protocol_addr(sender_ip.as_bytes());
 
                             drop(frame_arp);
                             drop(frame_mac);
