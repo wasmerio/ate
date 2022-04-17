@@ -433,6 +433,17 @@ impl Switch
         None
     }
 
+    async fn __tick(&self)
+    {
+        let subnet = {
+            let control_plane = self.control_plane.read().await;
+            control_plane.inst.subnet.clone()
+        };
+
+        let mut data_plane = self.data_plane.lock().unwrap();
+        data_plane.cidrs = super::common::subnet_to_cidrs(&subnet);
+    }
+
     async fn __dhcp_process_internal(self: &Arc<Switch>, msg: DhcpMessage)
     {
         // Determine the IP address for this particular MAC address
@@ -835,8 +846,12 @@ impl Switch
 
         debug!("control thread running");
 
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(20));
         loop {
             tokio::select! {
+                _ = interval.tick() => {
+                    self.__tick().await;
+                },
                 evt = bus.recv() => {
                     match evt {
                         Ok(evt) => {

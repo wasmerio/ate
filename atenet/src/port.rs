@@ -12,6 +12,7 @@ use smoltcp::iface::NeighborCache;
 use smoltcp::iface::Routes;
 use smoltcp::time::Instant;
 use smoltcp::socket::Dhcpv4Event;
+use smoltcp::wire::Ipv4Cidr;
 use tokera::model::IpProtocol;
 use tokera::model::IpVersion;
 use tokio::sync::mpsc;
@@ -90,14 +91,14 @@ impl Port
             mtu: 1500,
             switch: Arc::clone(switch)
         };
-        
+
         // Create the neighbor cache and add the broadcast address which will expire in 100 years (i.e. never).
         let neighbor_cache = NeighborCache::new(BTreeMap::new());
         let iface = InterfaceBuilder::new(device, vec![])
             .hardware_addr(mac.into())
             .neighbor_cache(neighbor_cache)
             .ip_addrs(Vec::new())
-            .routes(Routes::new(BTreeMap::<IpCidr, Route>::new()))
+            .routes(Routes::new(BTreeMap::default()))
             .random_seed(fastrand::u64(..));
         let iface = iface.finalize();
         
@@ -626,6 +627,17 @@ impl Port
                                 if let ManagedSlice::Owned(vec) = target {
                                     if vec.iter().any(|cidr| cidr == &IpCidr::Ipv4(config.address)) == false {
                                         vec.push(IpCidr::Ipv4(config.address));
+                                    }
+                                }
+                            });
+                            self.iface.routes_mut().update(|target| {
+                                if let ManagedMap::Owned(map) = target {
+                                    if let Some(gw) = config.router.clone() {
+                                        map.insert(
+                                            IpCidr::Ipv4(Ipv4Cidr::new(Ipv4Addr::new(0, 0, 0, 0).into(), 0)),
+                                            Route::new_ipv4_gateway(gw));
+                                    } else {
+                                        map.clear();
                                     }
                                 }
                             });

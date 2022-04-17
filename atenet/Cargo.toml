@@ -15,7 +15,7 @@ repository = "https://github.com/john-sharratt/ate/tree/master/atefs"
 readme = "README.md"
 
 [features]
-default = []
+default = [ "tcpdump" ]
 tcpdump = []
 
 [dependencies]

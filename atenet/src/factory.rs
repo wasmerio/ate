@@ -66,9 +66,7 @@ impl SwitchFactory
         let gateway = Arc::new(Gateway::new(id, gateway_ips, self));
 
         // Build the switch
-        let cidrs = inst.subnet.cidrs.iter()
-            .map(|cidr| smoltcp::wire::IpCidr::new(cidr.ip.into(), cidr.prefix))
-            .collect();
+        let cidrs = super::common::subnet_to_cidrs(&inst.subnet);
         let switch = Switch::new(accessor, cidrs, self.udp.clone(), gateway).await
             .map_err(|err| CommsErrorKind::InternalError(err.to_string()))?;
 

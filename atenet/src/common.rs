@@ -211,3 +211,10 @@ pub async fn setup_server
         setup_web(&solo, conf, Some(router)).await?
     )
 }
+
+pub fn subnet_to_cidrs(subnet: &tokera::model::InstanceSubnet) -> Vec<smoltcp::wire::IpCidr>
+{
+    subnet.cidrs.iter()
+            .map(|cidr| smoltcp::wire::IpCidr::new(cidr.ip.into(), cidr.prefix))
+            .collect()
+}

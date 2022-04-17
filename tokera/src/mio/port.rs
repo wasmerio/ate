@@ -292,6 +292,15 @@ impl Port
         self.tx(PortCommand::SetAddresses { addrs }).await
     }
 
+    pub async fn add_default_route(&mut self, gateway: IpAddr) -> io::Result<IpRoute> {
+        let cidr = IpCidr {
+            ip: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
+            prefix: 0
+        };
+        self.add_route(cidr, gateway, None, None).await
+    }
+
+
     pub async fn add_route(&mut self, cidr: IpCidr, via_router: IpAddr, preferred_until: Option<DateTime<Utc>>, expires_at: Option<DateTime<Utc>>) -> io::Result<IpRoute> {
         let route = IpRoute {
             cidr,
