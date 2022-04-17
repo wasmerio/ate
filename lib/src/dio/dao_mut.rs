@@ -527,8 +527,10 @@ where
     D: Serialize,
 {
     fn drop(&mut self) {
-        self.commit()
-            .expect("Failed to commit the data after accessing it");
+        if let Err(err) = self.commit() {
+            error!("failed to commit the data after accessing it - {}", err);
+            panic!("failed to commit the data after accessing it - {}", err);
+        }
     }
 }
 

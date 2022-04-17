@@ -114,6 +114,9 @@ pub enum OptsInstanceAction {
     /// List, add or remove a network peering from the instance
     #[clap()]
     Peering(OptsInstancePeering),
+    /// Resets an instance
+    #[clap()]
+    Reset(OptsInstanceReset),
 }
 
 impl OptsInstanceAction
@@ -147,6 +150,7 @@ impl OptsInstanceAction
             OptsInstanceAction::Mount(opts) => Some(opts.name.clone()),
             OptsInstanceAction::Cidr(opts) => Some(opts.name.clone()),
             OptsInstanceAction::Peering(opts) => Some(opts.name.clone()),
+            OptsInstanceAction::Reset(opts) => Some(opts.name.clone()),
         }
     }
 }
@@ -314,6 +318,14 @@ pub struct OptsInstancePeering {
     /// Action to perform on the peerings
     #[clap(subcommand)]
     pub action: OptsPeeringAction,
+}
+
+#[derive(Parser, Clone)]
+#[clap()]
+pub struct OptsInstanceReset {
+    /// Name of the instance
+    #[clap(index = 1)]
+    pub name: String,
 }
 
 #[derive(Parser, Clone)]

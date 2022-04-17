@@ -116,6 +116,26 @@ pub async fn main_opts_instance_details(
                 println!("{}", serde_json::to_string_pretty(export.deref()).unwrap());
             }
         }
+
+        for node in service_instance.mesh_nodes.iter().await? {
+            println!("");
+            println!("Mesh Node");
+            println!("Key: {}", node.key());
+            println!("Address: {}", node.node_addr);
+            
+            if node.switch_ports.len() > 0 {
+                println!("Switch Ports:");
+                for switch_port in node.switch_ports.iter() {
+                    println!("- {}", switch_port);
+                }
+            }
+            if node.dhcp_reservation.len() > 0 {
+                println!("DHCP");
+                for (mac, ip) in node.dhcp_reservation.iter() {
+                    println!("- {} - {},", mac, ip.addr4);
+                }
+            }
+        }
     }
 
     Ok(())
@@ -437,6 +457,23 @@ pub async fn main_opts_instance_peering(
     Ok(())
 }
 
+pub async fn main_opts_instance_reset(
+    api: &mut TokApi,
+    name: &str,
+) -> Result<(), InstanceError> {
+    let (instance, _) = api.instance_action(name).await?;
+    let mut instance = instance?;
+    
+    let dio = instance.dio_mut();
+    {
+        let mut instance = instance.as_mut();
+        let _ = instance.mesh_nodes.clear().await;
+    }
+    dio.commit().await?;
+
+    Ok(())
+}
+
 pub async fn main_opts_instance(
     opts: OptsInstanceFor,
     token_path: String,
@@ -521,6 +558,11 @@ pub async fn main_opts_instance(
             if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
             let name = name.unwrap();
             main_opts_instance_peering(&mut context.api, name.as_str(), opts_peering.action).await?;
+        }
+        OptsInstanceAction::Reset(_opts_reset) => {
+            if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
+            let name = name.unwrap();
+            main_opts_instance_reset(&mut context.api, name.as_str()).await?;
         }
     }
 

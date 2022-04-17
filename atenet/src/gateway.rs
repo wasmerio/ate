@@ -139,7 +139,7 @@ impl Gateway
         }
     }
 
-    pub fn process_arp_reply(&self, pck: &[u8], switch: &Switch, state: &mut MutexGuard<DataPlane>) -> bool
+    pub fn process_arp_reply(&self, pck: &[u8], switch: &Arc<Switch>, state: &mut MutexGuard<DataPlane>) -> bool
     {
         if let Ok(frame_mac) = EthernetFrame::new_checked(pck) {
             if frame_mac.dst_addr() == EthernetAddress::BROADCAST &&
