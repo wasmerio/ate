@@ -1,6 +1,6 @@
 mod port;
-mod socket;
-mod evt;
 
 pub use port::*;
-pub use socket::*;
+pub use ate_mio::mio::PortState;
+pub use ate_mio::mio::Socket;
+pub use ate_mio::mio::SocketState;

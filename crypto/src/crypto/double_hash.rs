@@ -5,7 +5,7 @@ use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 use super::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, Eq, PartialEq)]
-pub(crate) struct DoubleHash {
+pub struct DoubleHash {
     hash1: AteHash,
     hash2: AteHash,
 }

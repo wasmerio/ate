@@ -8,8 +8,6 @@
 /// - feature = "use_version1"
 /// - feature = "use_version2"
 
-pub const HASH_ROUTINE: crypto::HashRoutine = crypto::HashRoutine::Blake3;
-
 pub const LOG_VERSION: spec::EventVersion = spec::EventVersion::V2;
 
 pub mod anti_replay;
@@ -17,7 +15,6 @@ pub mod chain;
 pub mod comms;
 pub mod compact;
 pub mod conf;
-pub mod crypto;
 pub mod dio;
 #[cfg(feature = "enable_dns")]
 pub mod dns;
@@ -51,4 +48,5 @@ pub mod trust;
 pub mod utils;
 pub mod validator;
 
-pub use utils::log_init;
+pub use ate_crypto::crypto;
+pub use ate_crypto::utils::log_init;

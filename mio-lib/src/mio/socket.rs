@@ -1,10 +1,9 @@
 use std::io;
 use std::sync::Arc;
 use std::net::SocketAddr;
-use ate::crypto::EncryptKey;
+use ate_crypto::EncryptKey;
 use tokio::sync::mpsc;
 use tokio::sync::Mutex;
-use ate::comms::StreamTx;
 use mpsc::error::TryRecvError;
 
 use crate::model::PortCommand;
@@ -12,6 +11,7 @@ use crate::model::PortNopType;
 use crate::model::SocketHandle;
 use crate::model::IpProtocol;
 
+use super::port::StreamTx;
 use super::evt::*;
 
 pub struct Socket

@@ -15,9 +15,8 @@ pub mod sign_key;
 pub mod signed_protected_data;
 pub mod tests;
 
-pub(crate) use double_hash::*;
-pub(crate) use random_generator_accessor::*;
-
+pub use double_hash::*;
+pub use random_generator_accessor::*;
 pub use self::hash::*;
 pub use derived_encrypt_key::*;
 pub use encrypt_key::*;

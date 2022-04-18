@@ -27,6 +27,7 @@ enable_ntp = []
 ate = { version = "^1.2", path = "../lib", default_features = false }
 ate-auth = { version = "^1.9", path = "../auth", default_features = false }
 ate-files = { version = "^1.2", path = "../files", default_features = false }
+ate-mio = { version = "^1.0", path = "../mio-lib" }
 error-chain = { version = "^0.12", default_features = false }
 serde = { version = "^1", features = ["derive"] }
 serde_json = "^1"

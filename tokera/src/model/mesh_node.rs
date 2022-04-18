@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use std::collections::HashMap;
 use std::fmt;
 
-use super::hardware_address::*;
+use ate_mio::model::HardwareAddress;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DhcpReservation
