@@ -56,6 +56,12 @@ impl MioServer {
 
 #[async_trait]
 impl api::MioSimplified for MioServer {
+    async fn bind_raw(
+        &self,
+    ) -> Result<Arc<dyn api::TcpListener + Send + Sync + 'static>, CallError> {
+        Err(CallError::Unsupported)
+    }
+
     async fn bind_tcp(
         &self,
         addr: SocketAddr
@@ -74,6 +80,19 @@ impl api::MioSimplified for MioServer {
         &self,
         addr: SocketAddr
     ) -> Result<Arc<dyn api::TcpStream + Send + Sync + 'static>, CallError> {
+        Err(CallError::Unsupported)
+    }
+
+    async fn peer(
+        &self,
+        network: String
+    ) -> Result<Arc<dyn api::TcpListener + Send + Sync + 'static>, CallError> {
+        Err(CallError::Unsupported)
+    }
+
+    async fn disconnect(
+        &self,
+    ) -> Result<Arc<dyn api::TcpListener + Send + Sync + 'static>, CallError> {
         Err(CallError::Unsupported)
     }
 }

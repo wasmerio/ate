@@ -9,7 +9,6 @@ mod port_response;
 mod socket_error;
 mod socket_handle;
 mod socket_shutdown;
-mod switch_hello;
 
 pub use hardware_address::*;
 pub use ip_cidr::*;
@@ -22,4 +21,3 @@ pub use port_response::*;
 pub use socket_error::*;
 pub use socket_handle::*;
 pub use socket_shutdown::*;
-pub use switch_hello::*;

@@ -8,6 +8,117 @@ pub use std::net::Ipv6Addr;
 
 use super::api;
 
+pub struct NetworkManagement
+{
+    wapm: String,
+    factory: api::MioClient,
+}
+
+impl NetworkManagement
+{
+    pub async fn new(wapm: &str) -> io::Result<NetworkManagement> {
+        let factory = api::MioClient::new(wapm);
+        Ok(
+            NetworkManagement {
+                wapm: wapm.to_string(),
+                factory
+            }
+        )
+    }
+
+    pub async fn peer(&self, network: &str) -> io::Result<()> {
+        self.factory.peer(network.to_string())
+            .await
+            .map_err(conv_err)?
+            .map_err(conv_err2)?;
+        Ok(())
+    }
+
+    pub async fn blocking_peer(&self, network: &str) -> io::Result<()> {
+        self.factory.blocking_peer(network.to_string())
+            .map_err(conv_err)?
+            .map_err(conv_err2)?;
+        Ok(())
+    }
+
+    pub async fn disconnect(&self) -> io::Result<()> {
+        self.factory.disconnect()
+            .await
+            .map_err(conv_err)?
+            .map_err(conv_err2)?;
+        Ok(())
+    }
+
+    pub async fn blocking_disconnect(&self) -> io::Result<()> {
+        self.factory.blocking_disconnect()
+            .map_err(conv_err)?
+            .map_err(conv_err2)?;
+        Ok(())
+    }
+
+    pub async fn bind_raw(&self) -> io::Result<AsyncRawSocket> {
+        AsyncRawSocket::bind(self.wapm.as_str()).await
+    }
+
+    pub async fn bind_tcp(&self, addr: SocketAddr) -> io::Result<AsyncTcpListener> {
+        AsyncTcpListener::bind(self.wapm.as_str(), addr).await
+    }
+
+    pub async fn connect_tcp(&self, addr: SocketAddr) -> io::Result<AsyncTcpStream> {
+        AsyncTcpStream::connect(self.wapm.as_str(), addr).await
+    }
+
+    pub async fn bind_udp(&self, addr: SocketAddr) -> io::Result<AsyncUdpSocket> {
+        AsyncUdpSocket::bind(self.wapm.as_str(), addr).await
+    }
+
+    pub fn blocking_bind_raw(&self) -> io::Result<RawSocket> {
+        RawSocket::bind(self.wapm.as_str())
+    }
+
+    pub fn blocking_bind_tcp(&self, addr: SocketAddr) -> io::Result<TcpListener> {
+        TcpListener::bind(self.wapm.as_str(), addr)
+    }
+
+    pub fn blocking_connect_tcp(&self, addr: SocketAddr) -> io::Result<TcpStream> {
+        TcpStream::connect(self.wapm.as_str(), addr)
+    }
+
+    pub fn blocking_bind_udp(&self, addr: SocketAddr) -> io::Result<UdpSocket> {
+        UdpSocket::bind(self.wapm.as_str(), addr)
+    }
+}
+
+pub struct AsyncRawSocket {
+    raw: Arc<dyn api::RawSocket + Send + Sync + 'static>,
+}
+
+impl AsyncRawSocket {
+    pub async fn bind(wapm: &str) -> io::Result<AsyncRawSocket> {
+        let factory = api::MioClient::new(wapm);
+        let raw = factory.bind_raw().await
+            .map_err(|err| err.into_io_error())?;
+        raw.take_error().await.map_err(conv_err)?.map_err(conv_err2)?;
+        Ok(
+            AsyncRawSocket {
+                raw
+            }
+        )        
+    }
+
+    pub async fn send(&self, buf: Vec<u8>) -> io::Result<usize> {
+        self.raw.send(buf).await
+            .map_err(conv_err)?
+            .map_err(conv_err2)
+    }
+
+    pub async fn recv(&self, max: usize) -> io::Result<Vec<u8>> {
+        self.raw.recv(max).await
+            .map_err(conv_err)?
+            .map_err(conv_err2)
+    }
+}
+
 pub struct AsyncTcpListener {
     listener: Arc<dyn api::TcpListener + Send + Sync + 'static>,
 }
@@ -383,6 +494,36 @@ impl AsyncUdpSocket {
 
     pub async fn as_raw_fd(&self) -> io::Result<i32> {
         self.udp.as_raw_fd().await
+            .map_err(conv_err)?
+            .map_err(conv_err2)
+    }
+}
+
+pub struct RawSocket {
+    raw: Arc<dyn api::RawSocket + Send + Sync + 'static>,
+}
+
+impl RawSocket {
+    pub fn bind(wapm: &str) -> io::Result<RawSocket> {
+        let factory = api::MioClient::new(wapm);
+        let raw = factory.blocking_bind_raw()
+            .map_err(|err| err.into_io_error())?;
+        raw.blocking_take_error().map_err(conv_err)?.map_err(conv_err2)?;
+        Ok(
+            RawSocket {
+                raw
+            }
+        )        
+    }
+
+    pub fn send(&self, buf: Vec<u8>) -> io::Result<usize> {
+        self.raw.blocking_send(buf)
+            .map_err(conv_err)?
+            .map_err(conv_err2)
+    }
+
+    pub fn recv(&self, max: usize) -> io::Result<Vec<u8>> {
+        self.raw.blocking_recv(max)
             .map_err(conv_err)?
             .map_err(conv_err2)
     }

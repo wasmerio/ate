@@ -47,11 +47,26 @@ for Shutdown
 
 #[wasm_bus(format = "bincode")]
 pub trait Mio {
-    async fn bind_tcp(&self, addr: SocketAddr) -> Arc<dyn TcpListener>;
+    async fn bind_raw(&self) -> Arc<dyn RawSocket>;
 
     async fn bind_udp(&self, addr: SocketAddr) -> Arc<dyn UdpSocket>;
 
+    async fn bind_tcp(&self, addr: SocketAddr) -> Arc<dyn TcpListener>;
+
     async fn connect_tcp(&self, addr: SocketAddr) -> Arc<dyn TcpStream>;
+
+    async fn peer(&self, network: String) -> MioResult<()>;
+
+    async fn disconnect(&self) -> MioResult<()>;
+}
+
+#[wasm_bus(format = "bincode")]
+pub trait RawSocket {
+    async fn send(&self, buf: Vec<u8>) -> MioResult<usize>;
+
+    async fn recv(&self, max: usize) -> MioResult<Vec<u8>>;
+
+    async fn take_error(&self) -> MioResult<Option<MioError>>;
 }
 
 #[wasm_bus(format = "bincode")]
