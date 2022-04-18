@@ -13,8 +13,8 @@ pub struct AsyncTcpListener {
 }
 
 impl AsyncTcpListener {
-    pub async fn bind(addr: SocketAddr) -> io::Result<AsyncTcpListener> {
-        let factory = api::MioClient::new("os");
+    pub async fn bind(wapm: &str, addr: SocketAddr) -> io::Result<AsyncTcpListener> {
+        let factory = api::MioClient::new(wapm);
         let listener = factory
             .bind_tcp(addr)
             .await
@@ -87,8 +87,8 @@ pub struct AsyncTcpStream {
 }
 
 impl AsyncTcpStream {
-    pub async fn connect(addr: SocketAddr) -> io::Result<AsyncTcpStream> {
-        let factory = api::MioClient::new("os");
+    pub async fn connect(wapm: &str, addr: SocketAddr) -> io::Result<AsyncTcpStream> {
+        let factory = api::MioClient::new(wapm);
         let tcp = factory.connect_tcp(addr).await
             .map_err(conv_err)?;
         tcp.take_error().await.map_err(conv_err)?.map_err(conv_err2)?;
@@ -184,8 +184,8 @@ pub struct AsyncUdpSocket {
 }
 
 impl AsyncUdpSocket {
-    pub async fn bind(addr: SocketAddr) -> io::Result<AsyncUdpSocket> {
-        let factory = api::MioClient::new("os");
+    pub async fn bind(wapm: &str, addr: SocketAddr) -> io::Result<AsyncUdpSocket> {
+        let factory = api::MioClient::new(wapm);
         let udp = factory.bind_udp(addr).await
             .map_err(|err| err.into_io_error())?;
         udp.take_error().await.map_err(conv_err)?.map_err(conv_err2)?;
@@ -393,8 +393,8 @@ pub struct TcpListener {
 }
 
 impl TcpListener {
-    pub fn bind(addr: SocketAddr) -> io::Result<TcpListener> {
-        let factory = api::MioClient::new("os");
+    pub fn bind(wapm: &str, addr: SocketAddr) -> io::Result<TcpListener> {
+        let factory = api::MioClient::new(wapm);
         let listener = factory.blocking_bind_tcp(addr)
             .map_err(conv_err)?;
         listener.blocking_take_error().map_err(conv_err)?.map_err(conv_err2)?;
@@ -453,8 +453,8 @@ pub struct TcpStream {
 }
 
 impl TcpStream {
-    pub fn connect(addr: SocketAddr) -> io::Result<TcpStream> {
-        let factory = api::MioClient::new("os");
+    pub fn connect(wapm: &str, addr: SocketAddr) -> io::Result<TcpStream> {
+        let factory = api::MioClient::new(wapm);
         let tcp = factory.blocking_connect_tcp(addr)
             .map_err(conv_err)?;
         tcp.blocking_take_error().map_err(conv_err)?.map_err(conv_err2)?;
@@ -550,8 +550,8 @@ pub struct UdpSocket {
 }
 
 impl UdpSocket {
-    pub fn bind(addr: SocketAddr) -> io::Result<UdpSocket> {
-        let factory = api::MioClient::new("os");
+    pub fn bind(wapm: &str, addr: SocketAddr) -> io::Result<UdpSocket> {
+        let factory = api::MioClient::new(wapm);
         let udp = factory.blocking_bind_udp(addr)
             .map_err(|err| err.into_io_error())?;
         udp.blocking_take_error().map_err(conv_err)?.map_err(conv_err2)?;

@@ -14,7 +14,6 @@ mod util;
 mod ws;
 mod tty;
 mod webgl;
-mod mio;
 
 pub use caller_context::*;
 pub(crate) use invokable::*;

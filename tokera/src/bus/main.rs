@@ -22,6 +22,7 @@ use wasm_bus_fuse::prelude::*;
 
 use super::fuse::FuseServer;
 use super::tok::TokServer;
+use super::mio::MioServer;
 
 pub async fn main_opts_bus(
     opts: OptsBus,
@@ -60,7 +61,8 @@ pub async fn main_opts_bus(
 
     // Start the fuse and tok implementations
     TokServer::listen(opts.clone(), registry.clone(), session_user.clone(), conf.clone(), auth_url.clone()).await?;
-    FuseServer::listen(opts, registry, session_user, conf, auth_url).await?;
+    FuseServer::listen(opts.clone(), registry.clone(), session_user.clone(), conf.clone(), auth_url.clone()).await?;
+    MioServer::listen(opts.clone(), registry.clone(), session_user.clone(), conf.clone(), auth_url.clone()).await?;
     wasm_bus::task::serve();
     Ok(())
 }

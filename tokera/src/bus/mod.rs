@@ -1,6 +1,7 @@
 pub mod file_io;
 pub mod file_system;
 mod fuse;
+mod mio;
 mod tok;
 mod main;
 pub mod opened_file;

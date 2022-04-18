@@ -57,6 +57,7 @@ wasm-bus-process = { version = "^1", path = "../wasm-bus-process", default_featu
 wasm-bus-reqwest = { version = "^1", path = "../wasm-bus-reqwest", default_features = false }
 wasm-bus-webgl = { version = "^1", path = "../wasm-bus-webgl", default_features = false }
 wasm-bus-mio = { version = "^1", path = "../wasm-bus-mio", default_features = false }
+ate-mio = { version = "^1.0", path = "../mio-lib" }
 url = { version = "^2" }
 regex = { version = "^1.5" }
 hex = "^0.4"

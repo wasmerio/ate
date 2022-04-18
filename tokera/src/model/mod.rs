@@ -29,7 +29,6 @@ mod instance_command;
 mod instance_hello;
 mod instance_export;
 mod instance_subnet;
-mod switch_hello;
 mod mesh_node;
 
 pub use advertised_service::*;
@@ -63,9 +62,8 @@ pub use instance_command::*;
 pub use instance_hello::*;
 pub use instance_export::*;
 pub use instance_subnet::*;
-pub use ate_mio::model::*;
-pub use switch_hello::*;
 pub use mesh_node::*;
+
 pub use ate_mio::model::*;
 
 pub const WALLET_COLLECTION_ID: u64 = 2259995437953076879u64;
