@@ -11,6 +11,7 @@ error_chain! {
         QueryError(super::QueryError, super::QueryErrorKind);
         ContractError(super::ContractError, super::ContractErrorKind);
         FileSystemError(ate_files::error::FileSystemError, ate_files::error::FileSystemErrorKind);
+        MioError(wasm_bus_mio::error::MioError, wasm_bus_mio::error::MioErrorKind);
     }
     foreign_links {
         IO(tokio::io::Error);

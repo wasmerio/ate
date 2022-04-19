@@ -92,6 +92,12 @@ enum SubCommand {
     /// anywhere via API calls and/or the wasm-bus.
     #[clap()]
     Instance(OptsInstance),
+    /// Connects the networking stack to a particular network.
+    #[clap()]
+    Connect(OptsConnect),
+    /// Disconnects the networking stack from any networks
+    #[clap()]
+    Disconnect(OptsDisconnect),
     /// Wallets are directly attached to groups and users - they hold a balance,
     /// store transaction history and facilitate transfers, deposits and withdraws.
     #[clap()]
@@ -302,13 +308,25 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
         SubCommand::Service(opts_service) => {
             main_opts_service(opts_service.purpose, opts.token_path, auth).await?;
         }
+        SubCommand::Connect(opts_connect) => {
+            let db_url = ate_auth::prelude::origin_url(&opts_connect.db_url, "db");
+            let net_url = ate_auth::prelude::origin_url(&opts_connect.net_url, "net");
+            main_opts_connect(opts_connect.purpose, opts.token_path, auth, db_url, net_url, opts_connect.ignore_certificate).await?;
+        }
+        SubConnect::Disconnect(opts_disconnect) => {
+            main_opts_disconnect().await?;
+        }
         SubCommand::Instance(opts_instance) => {
             let db_url = ate_auth::prelude::origin_url(&opts_instance.db_url, "db");
             let inst_url = ate_auth::prelude::origin_url(&opts_instance.inst_url, "inst");
             main_opts_instance(opts_instance.purpose, opts.token_path, auth, db_url, inst_url, opts_instance.ignore_certificate).await?;
         }
-        SubCommand::Login(opts_login) => main_opts_login(opts_login, opts.token_path, auth).await?,
-        SubCommand::Logout(opts_logout) => main_opts_logout(opts_logout, opts.token_path).await?,
+        SubCommand::Login(opts_login) => {
+            main_opts_login(opts_login, opts.token_path, auth).await?
+        },
+        SubCommand::Logout(opts_logout) => {
+            main_opts_logout(opts_logout, opts.token_path).await?
+        },
     }
 
     // We are done

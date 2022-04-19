@@ -24,6 +24,8 @@ mod withdraw;
 mod instance;
 mod cidr;
 mod peering;
+mod connect;
+mod disconnect;
 
 pub use ate_auth::cmd::*;
 
@@ -53,3 +55,5 @@ pub use withdraw::*;
 pub use instance::*;
 pub use cidr::*;
 pub use peering::*;
+pub use connect::*;
+pub use disconnect::*;
