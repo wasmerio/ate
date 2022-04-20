@@ -1,7 +1,4 @@
 use clap::Parser;
-use url::Url;
-
-use super::purpose::*;
 
 #[allow(dead_code)]
 #[derive(Parser, Clone)]

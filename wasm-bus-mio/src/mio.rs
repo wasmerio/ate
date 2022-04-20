@@ -26,16 +26,16 @@ impl NetworkManagement
         )
     }
 
-    pub async fn peer(&self, network: &str) -> io::Result<()> {
-        self.factory.peer(network.to_string())
+    pub async fn peer(&self, net_url: url::Url, network_chain: &str, access_token: &str) -> io::Result<()> {
+        self.factory.peer(net_url, network_chain.to_string(), access_token.to_string())
             .await
             .map_err(conv_err)?
             .map_err(conv_err2)?;
         Ok(())
     }
 
-    pub async fn blocking_peer(&self, network: &str) -> io::Result<()> {
-        self.factory.blocking_peer(network.to_string())
+    pub async fn blocking_peer(&self, net_url: url::Url, network_chain: &str, access_token: &str) -> io::Result<()> {
+        self.factory.blocking_peer(net_url, network_chain.to_string(), access_token.to_string())
             .map_err(conv_err)?
             .map_err(conv_err2)?;
         Ok(())
@@ -72,8 +72,8 @@ impl NetworkManagement
         AsyncUdpSocket::bind(self.wapm.as_str(), addr).await
     }
 
-    pub fn blocking_bind_raw(&self) -> io::Result<RawSocket> {
-        RawSocket::bind(self.wapm.as_str())
+    pub fn blocking_bind_raw(&self) -> io::Result<RawSocketServer> {
+        RawSocketServer::bind(self.wapm.as_str())
     }
 
     pub fn blocking_bind_tcp(&self, addr: SocketAddr) -> io::Result<TcpListener> {
@@ -499,18 +499,18 @@ impl AsyncUdpSocket {
     }
 }
 
-pub struct RawSocket {
+pub struct RawSocketServer {
     raw: Arc<dyn api::RawSocket + Send + Sync + 'static>,
 }
 
-impl RawSocket {
-    pub fn bind(wapm: &str) -> io::Result<RawSocket> {
+impl RawSocketServer {
+    pub fn bind(wapm: &str) -> io::Result<RawSocketServer> {
         let factory = api::MioClient::new(wapm);
         let raw = factory.blocking_bind_raw()
             .map_err(|err| err.into_io_error())?;
         raw.blocking_take_error().map_err(conv_err)?.map_err(conv_err2)?;
         Ok(
-            RawSocket {
+            RawSocketServer {
                 raw
             }
         )        

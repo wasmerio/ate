@@ -39,6 +39,13 @@ impl OptsConnectFor {
             false
         }
     }
+
+    pub fn network_name(&self) -> &str {
+        match self {
+            OptsConnectFor::Personal(opts) => opts.network_name.as_str(),
+            OptsConnectFor::Domain(opts) => opts.network_name.as_str()
+        }
+    }
 }
 
 #[derive(Parser, Clone)]
@@ -47,6 +54,9 @@ pub struct OptsConnectForPersonal {
     /// Name of the personal wallet to use for this network (if required)
     #[clap(index = 1, default_value = "default")]
     pub wallet_name: String,
+    /// Name of the network (a.k.a. instance) to connect to
+    #[clap(index = 2)]
+    pub network_name: String,
 }
 
 #[derive(Parser, Clone)]
@@ -58,6 +68,9 @@ pub struct OptsConnectForDomain {
     /// Name of the group wallet to use in this context (if required)
     #[clap(index = 2, default_value = "default")]
     pub wallet_name: String,
+    /// Name of the network (a.k.a. instance) to connect to
+    #[clap(index = 3)]
+    pub network_name: String,
 }
 
 impl OptsPurpose<()> for OptsConnectFor {

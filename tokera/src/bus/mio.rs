@@ -50,7 +50,7 @@ pub async fn peer_with_network(
 #[derive(Default)]
 pub struct MioServerState
 {
-    port: Option<Port>,
+    pub(super) port: Option<Port>,
 }
 
 impl MioServerState
@@ -59,11 +59,12 @@ impl MioServerState
         &mut self,
         net_url: url::Url,
         network_chain: String,
-        access_code: String,
+        access_token: String,
     ) -> MioResult<()>
     {
         // Create the port and attach it
-        let port = Port::new(net_url, chain, access_token).await
+        let network_chain= ChainKey::from(network_chain);
+        let port = Port::new(net_url, network_chain, access_token).await
             .map_err(|err| {
                 let err: MioError = err.into();
                 err
@@ -119,7 +120,7 @@ for MioServer {
         access_token: String,
     ) -> MioResult<()> {
         let mut guard = GLOBAL_PORT.lock().await;
-        guard.peer(net_url, network_chain, access_code).await?;
+        guard.peer(net_url, network_chain, access_token).await?;
 
         // Success
         Ok(())
@@ -137,19 +138,23 @@ for MioServer {
         &self,
     ) -> Result<Arc<dyn api::RawSocket + Send + Sync + 'static>, CallError> {
         let guard = GLOBAL_PORT.lock().await;
-        let port = guard.port.ok_or(CallError::BadRequest)?;
+        let port = guard.port.as_ref().ok_or(CallError::BadRequest)?;
 
-        Err(CallError::Unsupported)
+        let socket = port.bind_raw().await
+            .map(|s| Arc::new(s))
+            .map_err(|err| {
+                debug!("bind_raw failed: {}", err);
+                CallError::InternalFailure
+            })?;
+
+        Ok(Arc::new(RawSocketServer::new(socket)))
     }
 
     async fn bind_tcp(
         &self,
         addr: SocketAddr
     ) -> Result<Arc<dyn api::TcpListener + Send + Sync + 'static>, CallError> {
-        let guard = GLOBAL_PORT.lock().await;
-        let port = guard.port.ok_or(CallError::BadRequest)?;
-
-        Err(CallError::Unsupported)
+        Ok(Arc::new(TcpListenerServer::new(addr)))
     }
 
     async fn bind_udp(
@@ -157,18 +162,33 @@ for MioServer {
         addr: SocketAddr
     ) -> Result<Arc<dyn api::UdpSocket + Send + Sync + 'static>, CallError> {
         let guard = GLOBAL_PORT.lock().await;
-        let port = guard.port.ok_or(CallError::BadRequest)?;
+        let port = guard.port.as_ref().ok_or(CallError::BadRequest)?;
 
-        Err(CallError::Unsupported)
+        let socket = port
+            .bind_udp(addr).await
+            .map_err(|err| {
+                debug!("bind_raw failed: {}", err);
+                CallError::InternalFailure
+            })?;
+
+        Ok(Arc::new(UdpSocketServer::new(socket, addr)))
     }
 
     async fn connect_tcp(
         &self,
-        addr: SocketAddr
+        addr: SocketAddr,
+        peer: SocketAddr,
     ) -> Result<Arc<dyn api::TcpStream + Send + Sync + 'static>, CallError> {
         let guard = GLOBAL_PORT.lock().await;
-        let port = guard.port.ok_or(CallError::BadRequest)?;
+        let port = guard.port.as_ref().ok_or(CallError::BadRequest)?;
 
-        Err(CallError::Unsupported)
+        let socket = port
+            .connect_tcp(addr, peer).await
+            .map_err(|err| {
+                debug!("bind_raw failed: {}", err);
+                CallError::InternalFailure
+            })?;
+
+        Ok(Arc::new(TcpStreamServer::new(socket, addr, peer)))
     }
 }

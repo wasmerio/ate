@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use std::net::IpAddr;
 use std::net::Ipv4Addr;
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::time::Duration;
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -17,6 +18,7 @@ use tokera::model::IpProtocol;
 use tokera::model::IpVersion;
 use tokio::sync::mpsc;
 use tokio::sync::watch;
+use tokio::sync::broadcast;
 use crossbeam::queue::SegQueue;
 use derivative::*;
 #[allow(unused_imports)]
@@ -57,6 +59,7 @@ use managed::ManagedSlice;
 use managed::ManagedMap;
 
 use super::switch::*;
+use super::raw::*;
 
 #[derive(Derivative)]
 #[derivative(Debug)]
@@ -64,6 +67,7 @@ pub struct Port
 {
     pub(crate) switch: Arc<Switch>,
     pub(crate) wake: watch::Receiver<()>,
+    pub(crate) raw_tx: broadcast::Sender<Vec<u8>>,
     pub(crate) raw_mode: bool,
     #[allow(dead_code)]
     #[derivative(Debug = "ignore")]
@@ -72,7 +76,7 @@ pub struct Port
     pub(crate) listen_sockets: HashMap<SocketHandle, iface::SocketHandle>,
     pub(crate) tcp_sockets: HashMap<SocketHandle, iface::SocketHandle>,
     pub(crate) udp_sockets: HashMap<SocketHandle, iface::SocketHandle>,
-    pub(crate) raw_sockets: HashMap<SocketHandle, iface::SocketHandle>,
+    pub(crate) raw_sockets: HashMap<SocketHandle, TapSocket>,
     pub(crate) icmp_sockets: HashMap<SocketHandle, iface::SocketHandle>,
     pub(crate) dhcp_sockets: HashMap<SocketHandle, iface::SocketHandle>,
     #[derivative(Debug = "ignore")]
@@ -83,7 +87,7 @@ pub struct Port
 
 impl Port
 {
-    pub fn new(switch: &Arc<Switch>, mac: HardwareAddress, data: Arc<SegQueue<Vec<u8>>>, wake: watch::Receiver<()>, mac_drop: mpsc::Sender<HardwareAddress>) -> Port {
+    pub fn new(switch: &Arc<Switch>, mac: HardwareAddress, data: Arc<SegQueue<Vec<u8>>>, wake: watch::Receiver<()>, mac_drop: mpsc::Sender<HardwareAddress>, raw_tx: broadcast::Sender<Vec<u8>>) -> Port {
         let mac = EthernetAddress::from_bytes(mac.as_bytes());
         let device = PortDevice {
             data,
@@ -104,6 +108,7 @@ impl Port
         
         Port {
             switch: Arc::clone(switch),
+            raw_tx, 
             wake,
             raw_mode: false,
             mac,
@@ -149,11 +154,8 @@ impl Port
                     if let Err(err) = socket.send_slice(&data[..]) {
                         self.queue_error(handle, conv_err(err));
                     }
-                } else if let Some(socket_handle) = self.raw_sockets.get(&handle) {
-                    let socket = self.iface.get_socket::<RawSocket>(*socket_handle);
-                    if let Err(err) = socket.send_slice(&data[..]) {
-                        self.queue_error(handle, conv_err(err));
-                    }
+                } else if let Some(raw_socket) = self.raw_sockets.get(&handle) {
+                    raw_socket.send(data);
                 } else if self.udp_sockets.contains_key(&handle) {
                     self.queue_error(handle, SocketErrorKind::Unsupported);
                 } else if self.icmp_sockets.contains_key(&handle) {
@@ -204,6 +206,8 @@ impl Port
                         true
                     } else if let Some(_) = self.icmp_sockets.get(&handle) {
                         true
+                    } else if let Some(_) = self.raw_sockets.get(&handle) {
+                        true
                     } else {
                         err = SocketErrorKind::NotConnected;
                         false
@@ -226,6 +230,8 @@ impl Port
                     } else if let Some(_) = self.udp_sockets.get(&handle) {
                         true
                     } else if let Some(_) = self.icmp_sockets.get(&handle) {
+                        true
+                    } else if let Some(_) = self.raw_sockets.get(&handle) {
                         true
                     } else {
                         err = SocketErrorKind::NotConnected;
@@ -262,8 +268,7 @@ impl Port
                 if let Some(socket_handle) = self.icmp_sockets.remove(&handle) {
                     self.iface.remove_socket(socket_handle);
                 }
-                if let Some(socket_handle) = self.raw_sockets.remove(&handle) {
-                    self.iface.remove_socket(socket_handle);
+                if let Some(_) = self.raw_sockets.remove(&handle) {
                 }
                 if let Some(socket_handle) = self.dhcp_sockets.remove(&handle) {
                     self.iface.remove_socket(socket_handle);
@@ -272,13 +277,10 @@ impl Port
             },
             PortCommand::BindRaw {
                 handle,
-                ip_version,
-                ip_protocol,
             } => {
-                let rx_buffer = RawSocketBuffer::new(raw_meta_buf(self.buf_size), self.raw_buf(1));
-                let tx_buffer = RawSocketBuffer::new(raw_meta_buf(self.buf_size), self.raw_buf(1));
-                let socket = RawSocket::new(conv_ip_version(ip_version), conv_ip_protocol(ip_protocol), rx_buffer, tx_buffer);
-                self.raw_sockets.insert(handle, self.iface.add_socket(socket));
+                let rx = self.raw_tx.subscribe();
+                let raw_socket = TapSocket::new(&self.switch, rx);
+                self.raw_sockets.insert(handle, raw_socket);
                 self.queue_nop(handle, PortNopType::BindRaw);
             },
             PortCommand::BindIcmp {
@@ -586,18 +588,6 @@ impl Port
                 }
             }
 
-            for (handle, socket_handle) in self.raw_sockets.iter() {
-                let socket = self.iface.get_socket::<RawSocket>(*socket_handle);
-                while socket.can_recv() {
-                    if let Ok(d) = socket.recv() {
-                        let data = d.to_vec();
-                        ret.push(PortResponse::Received { handle: *handle, data });
-                    } else {
-                        break;
-                    }
-                }
-            }
-
             let mut move_me = Vec::new();
             for (handle, socket_handle) in self.listen_sockets.iter() {
                 let socket = self.iface.get_socket::<TcpSocket>(*socket_handle);
@@ -669,6 +659,12 @@ impl Port
             }
         }
 
+        for (handle, raw) in self.raw_sockets.iter() {
+            while let Some(data) = raw.recv() {
+                ret.push(PortResponse::Received { handle: handle.clone(), data })
+            }
+        }
+
         ret.append(&mut self.tx_queue);
 
         (ret, wait_time.into())
@@ -724,9 +720,8 @@ impl<'a> Device<'a> for PortDevice {
     type TxToken = TxToken;
 
     fn receive(&'a mut self) -> Option<(Self::RxToken, Self::TxToken)> {
-        self.data
-            .pop()
-            .map(|buffer| {
+        if let Some(buffer) = self.data.pop() {
+            Some(
                 (
                     RxToken {
                         buffer,
@@ -736,7 +731,10 @@ impl<'a> Device<'a> for PortDevice {
                         switch: self.switch.clone()
                     }
                 )
-            })
+            )
+        } else {
+            None
+        }
     }
 
     fn transmit(&'a mut self) -> Option<Self::TxToken> {

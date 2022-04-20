@@ -311,7 +311,7 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
         SubCommand::Connect(opts_connect) => {
             let db_url = ate_auth::prelude::origin_url(&opts_connect.db_url, "db");
             let net_url = ate_auth::prelude::origin_url(&opts_connect.net_url, "net");
-            main_opts_connect(opts_connect.purpose, opts.token_path, auth, db_url, net_url, opts_connect.ignore_certificate).await?;
+            main_opts_connect(opts_connect.purpose, opts.token_path, auth, db_url, net_url).await?;
         }
         SubConnect::Disconnect(opts_disconnect) => {
             main_opts_disconnect().await?;

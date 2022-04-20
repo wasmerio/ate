@@ -16,7 +16,7 @@ use super::evt::*;
 
 pub struct Socket
 {
-    pub(super) proto: IpProtocol,
+    pub(super) proto: Option<IpProtocol>,
     pub(super) handle: SocketHandle,
     pub(super) peer_addr: Option<SocketAddr>,
     pub(super) tx: Arc<Mutex<StreamTx>>,
@@ -34,7 +34,7 @@ impl Socket
 
     pub async fn send(&self, data: Vec<u8>) -> io::Result<usize> {
         let len = data.len();
-        if self.proto.is_connection_oriented() {
+        if self.proto.map(|p| p.is_connection_oriented()).unwrap_or(true) {
             self.tx(PortCommand::Send {
                 handle: self.handle,
                 data,
@@ -53,7 +53,7 @@ impl Socket
 
     pub async fn send_to(&self, data: Vec<u8>, peer_addr: SocketAddr) -> io::Result<usize> {
         let len = data.len();
-        if self.proto.is_connection_oriented() {
+        if self.proto.map(|p| p.is_connection_oriented()).unwrap_or(true) {
             return Err(io::Error::from(io::ErrorKind::Unsupported));
         } else {
             self.tx(PortCommand::SendTo {
@@ -66,7 +66,7 @@ impl Socket
     }
 
     pub async fn recv(&mut self) -> io::Result<Vec<u8>> {
-        if self.proto.is_connection_oriented()
+        if self.proto.map(|p| p.is_connection_oriented()).unwrap_or(true)
         {
             tokio::select! {
                 evt = self.recv.recv() => {
@@ -100,7 +100,7 @@ impl Socket
     }
 
     pub fn try_recv(&mut self) -> io::Result<Option<Vec<u8>>> {
-        if self.proto.is_connection_oriented()
+        if self.proto.map(|p| p.is_connection_oriented()).unwrap_or(true)
         {
             match self.error.try_recv() {
                 Ok(evt) => { return Err(evt.error.into()); },
@@ -210,6 +210,30 @@ impl Socket
         }
     }
 
+    pub async fn set_ttl(&mut self, ttl: u8) -> io::Result<bool> {
+        self.tx(PortCommand::SetHopLimit {
+            handle: self.handle,
+            hop_limit: ttl,
+        }).await?;
+        match self.nop(PortNopType::SetHopLimit).await {
+            Ok(()) => Ok(true),
+            Err(err) if err.kind() == io::ErrorKind::WouldBlock => Ok(false),
+            Err(err) => Err(err)
+        }
+    }
+
+    pub async fn set_no_delay(&mut self, no_delay: bool) -> io::Result<bool> {
+        self.tx(PortCommand::SetNoDelay {
+            handle: self.handle,
+            no_delay,
+        }).await?;
+        match self.nop(PortNopType::SetNoDelay).await {
+            Ok(()) => Ok(true),
+            Err(err) if err.kind() == io::ErrorKind::WouldBlock => Ok(false),
+            Err(err) => Err(err)
+        }
+    }
+
     pub async fn may_send(&mut self) -> io::Result<bool> {
         self.tx(PortCommand::MaySend {
             handle: self.handle,
@@ -293,7 +317,7 @@ impl Socket
     }
 
     pub fn is_connected(&self) -> bool {
-        self.proto.is_connection_oriented() ||
+        self.proto.map(|p| p.is_connection_oriented()).unwrap_or(true) ||
         self.peer_addr.is_some()
     }
 

@@ -15,7 +15,6 @@ use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use crate::model::IpCidr;
 use crate::model::IpRoute;
-use crate::model::IpVersion;
 use crate::model::IpProtocol;
 use crate::model::PortCommand;
 use crate::model::PortResponse;
@@ -85,7 +84,7 @@ impl Port
         Ok(port)
     }
 
-    async fn new_socket(&self, proto: IpProtocol) -> Socket {
+    async fn new_socket(&self, proto: Option<IpProtocol>) -> Socket {
         let mut state = self.state.lock().await;
         let sockets = &mut state.sockets;
         let handle = sockets.iter()
@@ -123,13 +122,11 @@ impl Port
         }
     }
 
-    pub async fn bind_raw(&self, ip_version: IpVersion, ip_protocol: IpProtocol) -> io::Result<Socket> {
-        let mut socket = self.new_socket(ip_protocol).await;
+    pub async fn bind_raw(&self) -> io::Result<Socket> {
+        let mut socket = self.new_socket(None).await;
 
         socket.tx(PortCommand::BindRaw {
             handle: socket.handle,
-            ip_version,
-            ip_protocol,
         }).await?;
         socket.nop(PortNopType::BindRaw).await?;
 
@@ -137,7 +134,7 @@ impl Port
     }
 
     pub async fn bind_udp(&self, local_addr: SocketAddr) -> io::Result<Socket> {
-        let mut socket = self.new_socket(IpProtocol::Udp).await;
+        let mut socket = self.new_socket(Some(IpProtocol::Udp)).await;
 
         socket.tx(PortCommand::BindUdp {
             handle: socket.handle,
@@ -150,7 +147,7 @@ impl Port
     }
 
     pub async fn bind_icmp(&self, local_addr: SocketAddr) -> io::Result<Socket> {
-        let mut socket = self.new_socket(IpProtocol::Icmp).await;
+        let mut socket = self.new_socket(Some(IpProtocol::Icmp)).await;
 
         socket.tx(PortCommand::BindIcmp {
             handle: socket.handle,
@@ -163,7 +160,7 @@ impl Port
     }
 
     pub async fn bind_dhcp(&self) -> io::Result<Socket> {
-        let mut socket = self.new_socket(IpProtocol::Icmp).await;
+        let mut socket = self.new_socket(Some(IpProtocol::Icmp)).await;
 
         socket.tx(PortCommand::BindDhcp {
             handle: socket.handle,
@@ -176,7 +173,7 @@ impl Port
     }
 
     pub async fn connect_tcp(&self, local_addr: SocketAddr, peer_addr: SocketAddr) -> io::Result<Socket> {
-        let mut socket = self.new_socket(IpProtocol::Tcp).await;
+        let mut socket = self.new_socket(Some(IpProtocol::Tcp)).await;
 
         socket.tx(PortCommand::ConnectTcp {
             handle: socket.handle,
@@ -192,7 +189,7 @@ impl Port
     }
 
     pub async fn listen_tcp(&self, listen_addr: SocketAddr) -> io::Result<Socket> {
-        let mut socket = self.new_socket(IpProtocol::Tcp).await;
+        let mut socket = self.new_socket(Some(IpProtocol::Tcp)).await;
 
         socket.tx(PortCommand::Listen {
             handle: socket.handle,

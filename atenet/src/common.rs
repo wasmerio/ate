@@ -15,6 +15,7 @@ use crate::opt::*;
 use crate::server::Server;
 
 pub const MAX_MPSC: usize = std::usize::MAX >> 3;
+pub const MAX_BROADCAST: usize = std::usize::MAX >> 2;
 
 pub fn get_local_ip() -> IpAddr
 {

@@ -32,8 +32,6 @@ pub enum PortCommand {
     },
     BindRaw {
         handle: SocketHandle,
-        ip_version: IpVersion,
-        ip_protocol: IpProtocol,
     },
     BindUdp {
         handle: SocketHandle,
@@ -109,7 +107,7 @@ for PortCommand
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             PortCommand::CloseHandle { handle } => write!(f, "close(handle={})", handle),
-            PortCommand::BindRaw { handle, ip_version, ip_protocol, .. } => write!(f, "bind-raw(handle={},ip_version={},ip_protocol={})", handle, ip_version, ip_protocol),
+            PortCommand::BindRaw { handle, .. } => write!(f, "bind-raw(handle={})", handle),
             PortCommand::BindUdp { handle, local_addr: addr, .. } => write!(f, "bind-udp(handle={},addr={})", handle, addr),
             PortCommand::BindIcmp { handle, local_addr: addr, .. } => write!(f, "bind-icmp(handle={},addr={})", handle, addr),
             PortCommand::BindDhcp { handle, lease_duration, ignore_naks } => {

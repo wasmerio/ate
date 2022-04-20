@@ -18,3 +18,4 @@ backend = []
 wasm-bus = { version = "^1", path = "../wasm-bus", default_features = false, features = [ "rt", "macros" ] }
 serde = { version = "^1", features = ["derive"] }
 async-trait = "^0.1"
+url = "^2"

@@ -1,5 +1,6 @@
 use serde::*;
 use std::fmt;
+use ate::prelude::ChainKey;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SwitchHello {

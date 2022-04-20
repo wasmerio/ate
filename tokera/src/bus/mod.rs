@@ -5,6 +5,10 @@ mod mio;
 mod tok;
 mod main;
 pub mod opened_file;
+mod raw_socket;
+mod tcp_listener;
+mod tcp_stream;
+mod udp_socket;
 
 pub use main::*;
 pub(crate) use mio::peer_with_network;

@@ -36,6 +36,7 @@ use smoltcp::wire::DHCP_MAX_DNS_SERVER_COUNT;
 use derivative::*;
 use tokio::sync::RwLock;
 use std::sync::Mutex;
+use tokio::sync::broadcast;
 use ate::prelude::*;
 use ttl_cache::TtlCache;
 use crossbeam::queue::SegQueue;
@@ -47,6 +48,7 @@ use tokera::model::INSTANCE_ROOT_ID;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
+use super::common::*;
 use super::port::*;
 use super::udp::*;
 use super::gateway::*;
@@ -62,6 +64,7 @@ pub enum Destination
 pub struct SwitchPort {
     data: Arc<SegQueue<Vec<u8>>>,
     wake: Arc<watch::Sender<()>>,
+    raw: broadcast::Sender<Vec<u8>>,
     #[allow(dead_code)]
     mac: EthernetAddress,
 }
@@ -232,10 +235,12 @@ impl Switch
 
     pub async fn new_port(self: &Arc<Switch>) -> Result<Port, AteError> {
         let mac = HardwareAddress::new();
+        let (tx_broadcast, _) = broadcast::channel(MAX_BROADCAST);
         let (tx_wake, rx_wake) = watch::channel(());
         let data = Arc::new(SegQueue::new());
         let switch_port = SwitchPort {
             data: data.clone(),
+            raw: tx_broadcast,
             wake: Arc::new(tx_wake),
             mac: EthernetAddress::from_bytes(mac.as_bytes()),
         };
@@ -259,7 +264,7 @@ impl Switch
 
         let mac_drop = self.mac_drop.clone();
         Ok(
-            Port::new(self, mac, data, rx_wake, mac_drop)
+            Port::new(self, mac, data, rx_wake, mac_drop, tx_broadcast)
         )
     }
 
@@ -646,7 +651,9 @@ impl Switch
         for (mac, dst) in state.ports.iter() {
             if let Destination::Local(port) = dst {
                 if src != mac {
-                    port.data.push(pck.to_vec());
+                    let pck = pck.to_vec();
+                    port.data.push(pck.clone());
+                    let _ = port.raw.send(pck);
                     let _ = port.wake.send(());
                 }
             }
@@ -727,7 +734,8 @@ impl Switch
                 Destination::Local(_) => {
                     self.snoop(state, &pck[..], set_peer);
                     if let Some(Destination::Local(port)) = state.ports.get(&dst_mac) {
-                        port.data.push(pck);
+                        port.data.push(pck.clone());
+                        let _ = port.raw.send(pck);
                         let _ = port.wake.send(());
                     }
                 },
