@@ -64,24 +64,24 @@ impl NetworkManagement
         AsyncTcpListener::bind(self.wapm.as_str(), addr).await
     }
 
-    pub async fn connect_tcp(&self, addr: SocketAddr) -> io::Result<AsyncTcpStream> {
-        AsyncTcpStream::connect(self.wapm.as_str(), addr).await
+    pub async fn connect_tcp(&self, addr: SocketAddr, peer: SocketAddr) -> io::Result<AsyncTcpStream> {
+        AsyncTcpStream::connect(self.wapm.as_str(), addr, peer).await
     }
 
     pub async fn bind_udp(&self, addr: SocketAddr) -> io::Result<AsyncUdpSocket> {
         AsyncUdpSocket::bind(self.wapm.as_str(), addr).await
     }
 
-    pub fn blocking_bind_raw(&self) -> io::Result<RawSocketServer> {
-        RawSocketServer::bind(self.wapm.as_str())
+    pub fn blocking_bind_raw(&self) -> io::Result<RawSocket> {
+        RawSocket::bind(self.wapm.as_str())
     }
 
     pub fn blocking_bind_tcp(&self, addr: SocketAddr) -> io::Result<TcpListener> {
         TcpListener::bind(self.wapm.as_str(), addr)
     }
 
-    pub fn blocking_connect_tcp(&self, addr: SocketAddr) -> io::Result<TcpStream> {
-        TcpStream::connect(self.wapm.as_str(), addr)
+    pub fn blocking_connect_tcp(&self, addr: SocketAddr, peer: SocketAddr) -> io::Result<TcpStream> {
+        TcpStream::connect(self.wapm.as_str(), addr, peer)
     }
 
     pub fn blocking_bind_udp(&self, addr: SocketAddr) -> io::Result<UdpSocket> {
@@ -98,7 +98,6 @@ impl AsyncRawSocket {
         let factory = api::MioClient::new(wapm);
         let raw = factory.bind_raw().await
             .map_err(|err| err.into_io_error())?;
-        raw.take_error().await.map_err(conv_err)?.map_err(conv_err2)?;
         Ok(
             AsyncRawSocket {
                 raw
@@ -130,7 +129,6 @@ impl AsyncTcpListener {
             .bind_tcp(addr)
             .await
             .map_err(conv_err)?;
-        listener.take_error().await.map_err(conv_err)?.map_err(conv_err2)?;
         Ok(
             AsyncTcpListener {
                 listener
@@ -143,7 +141,6 @@ impl AsyncTcpListener {
             .accept()
             .await
             .map_err(conv_err)?;
-        tcp.take_error().await.map_err(conv_err)?.map_err(conv_err2)?;
         Ok(
             AsyncTcpStream {
                 tcp
@@ -160,11 +157,12 @@ impl AsyncTcpListener {
     }
 
     pub async fn local_addr(&self) -> io::Result<SocketAddr> {
-        self.listener
-            .local_addr()
-            .await
-            .map_err(conv_err)?
-            .map_err(conv_err2)
+        Ok(
+            self.listener
+                .local_addr()
+                .await
+                .map_err(conv_err)?
+        )
     }
 
     pub async fn set_ttl(&self, ttl: u32) -> io::Result<()> {
@@ -182,15 +180,6 @@ impl AsyncTcpListener {
             .map_err(conv_err)?
             .map_err(conv_err2)
     }
-
-    pub async fn take_error(&self) -> io::Result<Option<io::Error>> {
-        self.listener
-            .take_error()
-            .await
-            .map_err(conv_err)?
-            .map_err(conv_err2)
-            .map(|a| a.map(conv_err2))
-    }
 }
 
 pub struct AsyncTcpStream {
@@ -198,11 +187,10 @@ pub struct AsyncTcpStream {
 }
 
 impl AsyncTcpStream {
-    pub async fn connect(wapm: &str, addr: SocketAddr) -> io::Result<AsyncTcpStream> {
+    pub async fn connect(wapm: &str, addr: SocketAddr, peer: SocketAddr) -> io::Result<AsyncTcpStream> {
         let factory = api::MioClient::new(wapm);
-        let tcp = factory.connect_tcp(addr).await
+        let tcp = factory.connect_tcp(addr, peer).await
             .map_err(conv_err)?;
-        tcp.take_error().await.map_err(conv_err)?.map_err(conv_err2)?;
         Ok(
             AsyncTcpStream {
                 tcp
@@ -211,15 +199,17 @@ impl AsyncTcpStream {
     }
 
     pub async fn peer_addr(&self) -> io::Result<SocketAddr> {
-        self.tcp.peer_addr().await
-            .map_err(conv_err)?
-            .map_err(conv_err2)
+        Ok(
+            self.tcp.peer_addr().await
+                .map_err(conv_err)?
+        )
     }
 
     pub async fn local_addr(&self) -> io::Result<SocketAddr> {
-        self.tcp.local_addr().await
-            .map_err(conv_err)?
-            .map_err(conv_err2)
+        Ok(
+            self.tcp.local_addr().await
+                .map_err(conv_err)?
+        )
     }
 
     pub async fn shutdown(&self, shutdown: std::net::Shutdown) -> io::Result<()> {
@@ -235,9 +225,10 @@ impl AsyncTcpStream {
     }
 
     pub async fn nodelay(&self) -> io::Result<bool> {
-        self.tcp.nodelay().await
-            .map_err(conv_err)?
-            .map_err(conv_err2)
+        Ok(
+            self.tcp.nodelay().await
+                .map_err(conv_err)?
+        )
     }
 
     pub async fn set_ttl(&self, ttl: u32) -> io::Result<()> {
@@ -247,16 +238,10 @@ impl AsyncTcpStream {
     }
 
     pub async fn ttl(&self) -> io::Result<u32> {
-        self.tcp.ttl().await
-            .map_err(conv_err)?
-            .map_err(conv_err2)
-    }
-
-    pub async fn take_error(&self) -> io::Result<Option<io::Error>> {
-        self.tcp.take_error().await
-            .map_err(conv_err)?
-            .map_err(conv_err2)
-            .map(|a| a.map(conv_err2))
+        Ok(
+            self.tcp.ttl().await
+                .map_err(conv_err)?
+        )
     }
 
     pub async fn peek(&self, max: usize) -> io::Result<Vec<u8>> {
@@ -299,7 +284,6 @@ impl AsyncUdpSocket {
         let factory = api::MioClient::new(wapm);
         let udp = factory.bind_udp(addr).await
             .map_err(|err| err.into_io_error())?;
-        udp.take_error().await.map_err(conv_err)?.map_err(conv_err2)?;
         Ok(
             AsyncUdpSocket {
                 udp
@@ -325,16 +309,18 @@ impl AsyncUdpSocket {
             .map_err(conv_err2)
     }
 
-    pub async fn peer_addr(&self) -> io::Result<SocketAddr> {
-        self.udp.peer_addr().await
-            .map_err(conv_err)?
-            .map_err(conv_err2)
+    pub async fn peer_addr(&self) -> io::Result<Option<SocketAddr>> {
+        Ok(
+            self.udp.peer_addr().await
+                .map_err(conv_err)?
+        )
     }
 
     pub async fn local_addr(&self) -> io::Result<SocketAddr> {
-        self.udp.local_addr().await
-            .map_err(conv_err)?
-            .map_err(conv_err2)
+        Ok(
+            self.udp.local_addr().await
+                .map_err(conv_err)?
+        )
     }
 
     pub async fn try_clone(&self) -> io::Result<AsyncUdpSocket> {
@@ -360,15 +346,17 @@ impl AsyncUdpSocket {
     }
 
     pub async fn read_timeout(&self) -> io::Result<Option<Duration>> {
-        self.udp.read_timeout().await
-            .map_err(conv_err)?
-            .map_err(conv_err2)
+        Ok(
+            self.udp.read_timeout().await
+                .map_err(conv_err)?
+        )
     }
 
     pub async fn write_timeout(&self) -> io::Result<Option<Duration>> {
-        self.udp.write_timeout().await
-            .map_err(conv_err)?
-            .map_err(conv_err2)
+        Ok(
+            self.udp.write_timeout().await
+                .map_err(conv_err)?
+        )
     }
 
     pub async fn set_broadcast(&self, broadcast: bool) -> io::Result<()> {
@@ -378,9 +366,10 @@ impl AsyncUdpSocket {
     }
 
     pub async fn broadcast(&self) -> io::Result<bool> {
-        self.udp.broadcast().await
-            .map_err(conv_err)?
-            .map_err(conv_err2)
+        Ok(
+            self.udp.broadcast().await
+                .map_err(conv_err)?
+        )
     }
 
     pub async fn set_multicast_loop_v4(&self, multicast_loop_v4: bool) -> io::Result<()> {
@@ -390,9 +379,10 @@ impl AsyncUdpSocket {
     }
 
     pub async fn multicast_loop_v4(&self) -> io::Result<bool> {
-        self.udp.multicast_loop_v4().await
-            .map_err(conv_err)?
-            .map_err(conv_err2)
+        Ok(
+            self.udp.multicast_loop_v4().await
+                .map_err(conv_err)?
+        )
     }
 
     pub async fn set_multicast_ttl_v4(&self, multicast_ttl_v4: u32) -> io::Result<()> {
@@ -402,9 +392,10 @@ impl AsyncUdpSocket {
     }
 
     pub async fn multicast_ttl_v4(&self) -> io::Result<u32> {
-        self.udp.multicast_ttl_v4().await
-            .map_err(conv_err)?
-            .map_err(conv_err2)
+        Ok(
+            self.udp.multicast_ttl_v4().await
+                .map_err(conv_err)?
+        )
     }
 
     pub async fn set_multicast_loop_v6(&self, multicast_loop_v6: bool) -> io::Result<()> {
@@ -414,9 +405,10 @@ impl AsyncUdpSocket {
     }
 
     pub async fn multicast_loop_v6(&self) -> io::Result<bool> {
-        self.udp.multicast_loop_v6().await
-            .map_err(conv_err)?
-            .map_err(conv_err2)
+        Ok(
+            self.udp.multicast_loop_v6().await
+                .map_err(conv_err)?
+        )
     }
 
     pub async fn set_ttl(&self, ttl: u32) -> io::Result<()> {
@@ -426,9 +418,10 @@ impl AsyncUdpSocket {
     }
 
     pub async fn ttl(&self) -> io::Result<u32> {
-        self.udp.ttl().await
-            .map_err(conv_err)?
-            .map_err(conv_err2)
+        Ok(
+            self.udp.ttl().await
+                .map_err(conv_err)?
+        )
     }
 
     pub async fn join_multicast_v4(&self, multiaddr: Ipv4Addr, interface: Ipv4Addr) -> io::Result<()> {
@@ -453,13 +446,6 @@ impl AsyncUdpSocket {
         self.udp.leave_multicast_v6(multiaddr, interface).await
             .map_err(conv_err)?
             .map_err(conv_err2)
-    }
-
-    pub async fn take_error(&self) -> io::Result<Option<io::Error>> {
-        self.udp.take_error().await
-            .map_err(conv_err)?
-            .map_err(conv_err2)
-            .map(|a| a.map(conv_err2))
     }
 
     pub async fn connect(&self, addr: SocketAddr) -> io::Result<()> {
@@ -499,18 +485,17 @@ impl AsyncUdpSocket {
     }
 }
 
-pub struct RawSocketServer {
+pub struct RawSocket {
     raw: Arc<dyn api::RawSocket + Send + Sync + 'static>,
 }
 
-impl RawSocketServer {
-    pub fn bind(wapm: &str) -> io::Result<RawSocketServer> {
+impl RawSocket {
+    pub fn bind(wapm: &str) -> io::Result<RawSocket> {
         let factory = api::MioClient::new(wapm);
         let raw = factory.blocking_bind_raw()
             .map_err(|err| err.into_io_error())?;
-        raw.blocking_take_error().map_err(conv_err)?.map_err(conv_err2)?;
         Ok(
-            RawSocketServer {
+            RawSocket {
                 raw
             }
         )        
@@ -538,7 +523,6 @@ impl TcpListener {
         let factory = api::MioClient::new(wapm);
         let listener = factory.blocking_bind_tcp(addr)
             .map_err(conv_err)?;
-        listener.blocking_take_error().map_err(conv_err)?.map_err(conv_err2)?;
         Ok(
             TcpListener {
                 listener
@@ -555,7 +539,6 @@ impl TcpListener {
     pub fn accept(&self) -> io::Result<TcpStream> {
         let tcp = self.listener.blocking_accept()
             .map_err(conv_err)?;
-        tcp.blocking_take_error().map_err(conv_err)?.map_err(conv_err2)?;
         Ok(
             TcpStream {
                 tcp
@@ -564,9 +547,10 @@ impl TcpListener {
     }
 
     pub fn local_addr(&self) -> io::Result<SocketAddr> {
-        self.listener.blocking_local_addr()
-            .map_err(conv_err)?
-            .map_err(conv_err2)
+        Ok(
+            self.listener.blocking_local_addr()
+                .map_err(conv_err)?
+        )
     }
 
     pub fn set_ttl(&self, ttl: u32) -> io::Result<()> {
@@ -580,13 +564,6 @@ impl TcpListener {
             .map_err(conv_err)?
             .map_err(conv_err2)
     }
-
-    pub fn take_error(&self) -> io::Result<Option<io::Error>> {
-        self.listener.blocking_take_error()
-            .map_err(conv_err)?
-            .map_err(conv_err2)
-            .map(|a| a.map(conv_err2))
-    }
 }
 
 pub struct TcpStream {
@@ -594,11 +571,10 @@ pub struct TcpStream {
 }
 
 impl TcpStream {
-    pub fn connect(wapm: &str, addr: SocketAddr) -> io::Result<TcpStream> {
+    pub fn connect(wapm: &str, addr: SocketAddr, peer: SocketAddr) -> io::Result<TcpStream> {
         let factory = api::MioClient::new(wapm);
-        let tcp = factory.blocking_connect_tcp(addr)
+        let tcp = factory.blocking_connect_tcp(addr, peer)
             .map_err(conv_err)?;
-        tcp.blocking_take_error().map_err(conv_err)?.map_err(conv_err2)?;
         Ok(
             TcpStream {
                 tcp
@@ -607,15 +583,17 @@ impl TcpStream {
     }
 
     pub fn peer_addr(&self) -> io::Result<SocketAddr> {
-        self.tcp.blocking_peer_addr()
-            .map_err(conv_err)?
-            .map_err(conv_err2)
+        Ok(
+            self.tcp.blocking_peer_addr()
+                .map_err(conv_err)?
+        )
     }
 
     pub fn local_addr(&self) -> io::Result<SocketAddr> {
-        self.tcp.blocking_local_addr()
-            .map_err(conv_err)?
-            .map_err(conv_err2)
+        Ok(
+            self.tcp.blocking_local_addr()
+                .map_err(conv_err)?
+        )
     }
 
     pub fn shutdown(&self, shutdown: std::net::Shutdown) -> io::Result<()> {
@@ -631,9 +609,10 @@ impl TcpStream {
     }
 
     pub fn nodelay(&self) -> io::Result<bool> {
-        self.tcp.blocking_nodelay()
-            .map_err(conv_err)?
-            .map_err(conv_err2)
+        Ok(
+            self.tcp.blocking_nodelay()
+                .map_err(conv_err)?
+        )
     }
 
     pub fn set_ttl(&self, ttl: u32) -> io::Result<()> {
@@ -643,16 +622,10 @@ impl TcpStream {
     }
 
     pub fn ttl(&self) -> io::Result<u32> {
-        self.tcp.blocking_ttl()
-            .map_err(conv_err)?
-            .map_err(conv_err2)
-    }
-
-    pub fn take_error(&self) -> io::Result<Option<io::Error>> {
-        self.tcp.blocking_take_error()
-            .map_err(conv_err)?
-            .map_err(conv_err2)
-            .map(|a| a.map(conv_err2))
+        Ok(
+            self.tcp.blocking_ttl()
+                .map_err(conv_err)?
+        )
     }
 
     pub fn peek(&self, max: usize) -> io::Result<Vec<u8>> {
@@ -695,7 +668,6 @@ impl UdpSocket {
         let factory = api::MioClient::new(wapm);
         let udp = factory.blocking_bind_udp(addr)
             .map_err(|err| err.into_io_error())?;
-        udp.blocking_take_error().map_err(conv_err)?.map_err(conv_err2)?;
         Ok(
             UdpSocket {
                 udp
@@ -721,16 +693,18 @@ impl UdpSocket {
             .map_err(conv_err2)
     }
 
-    pub fn peer_addr(&self) -> io::Result<SocketAddr> {
-        self.udp.blocking_peer_addr()
-            .map_err(conv_err)?
-            .map_err(conv_err2)
+    pub fn peer_addr(&self) -> io::Result<Option<SocketAddr>> {
+        Ok(
+            self.udp.blocking_peer_addr()
+                .map_err(conv_err)?
+        )
     }
 
     pub fn local_addr(&self) -> io::Result<SocketAddr> {
-        self.udp.blocking_local_addr()
-            .map_err(conv_err)?
-            .map_err(conv_err2)
+        Ok(
+            self.udp.blocking_local_addr()
+                .map_err(conv_err)?
+        )
     }
 
     pub fn try_clone(&self) -> io::Result<UdpSocket> {
@@ -756,15 +730,17 @@ impl UdpSocket {
     }
 
     pub fn read_timeout(&self) -> io::Result<Option<Duration>> {
-        self.udp.blocking_read_timeout()
-            .map_err(conv_err)?
-            .map_err(conv_err2)
+        Ok(
+            self.udp.blocking_read_timeout()
+                .map_err(conv_err)?
+        )
     }
 
     pub fn write_timeout(&self) -> io::Result<Option<Duration>> {
-        self.udp.blocking_write_timeout()
-            .map_err(conv_err)?
-            .map_err(conv_err2)
+        Ok(
+            self.udp.blocking_write_timeout()
+                .map_err(conv_err)?
+        )
     }
 
     pub fn set_broadcast(&self, broadcast: bool) -> io::Result<()> {
@@ -774,9 +750,10 @@ impl UdpSocket {
     }
 
     pub fn broadcast(&self) -> io::Result<bool> {
-        self.udp.blocking_broadcast()
-            .map_err(conv_err)?
-            .map_err(conv_err2)
+        Ok(
+            self.udp.blocking_broadcast()
+                .map_err(conv_err)?
+        )
     }
 
     pub fn set_multicast_loop_v4(&self, multicast_loop_v4: bool) -> io::Result<()> {
@@ -786,9 +763,10 @@ impl UdpSocket {
     }
 
     pub fn multicast_loop_v4(&self) -> io::Result<bool> {
-        self.udp.blocking_multicast_loop_v4()
-            .map_err(conv_err)?
-            .map_err(conv_err2)
+        Ok(
+            self.udp.blocking_multicast_loop_v4()
+                .map_err(conv_err)?
+        )
     }
 
     pub fn set_multicast_ttl_v4(&self, multicast_ttl_v4: u32) -> io::Result<()> {
@@ -798,9 +776,10 @@ impl UdpSocket {
     }
 
     pub fn multicast_ttl_v4(&self) -> io::Result<u32> {
-        self.udp.blocking_multicast_ttl_v4()
-            .map_err(conv_err)?
-            .map_err(conv_err2)
+        Ok(
+            self.udp.blocking_multicast_ttl_v4()
+                .map_err(conv_err)?
+        )
     }
 
     pub fn set_multicast_loop_v6(&self, multicast_loop_v6: bool) -> io::Result<()> {
@@ -810,9 +789,10 @@ impl UdpSocket {
     }
 
     pub fn multicast_loop_v6(&self) -> io::Result<bool> {
-        self.udp.blocking_multicast_loop_v6()
-            .map_err(conv_err)?
-            .map_err(conv_err2)
+        Ok(
+            self.udp.blocking_multicast_loop_v6()
+                .map_err(conv_err)?
+        )
     }
 
     pub fn set_ttl(&self, ttl: u32) -> io::Result<()> {
@@ -822,9 +802,10 @@ impl UdpSocket {
     }
 
     pub fn ttl(&self) -> io::Result<u32> {
-        self.udp.blocking_ttl()
-            .map_err(conv_err)?
-            .map_err(conv_err2)
+        Ok(
+            self.udp.blocking_ttl()
+                .map_err(conv_err)?
+        )
     }
 
     pub fn join_multicast_v4(&self, multiaddr: Ipv4Addr, interface: Ipv4Addr) -> io::Result<()> {
@@ -849,13 +830,6 @@ impl UdpSocket {
         self.udp.blocking_leave_multicast_v6(multiaddr, interface)
             .map_err(conv_err)?
             .map_err(conv_err2)
-    }
-
-    pub fn take_error(&self) -> io::Result<Option<io::Error>> {
-        self.udp.blocking_take_error()
-            .map_err(conv_err)?
-            .map_err(conv_err2)
-            .map(|a| a.map(conv_err2))
     }
 
     pub fn connect(&self, addr: SocketAddr) -> io::Result<()> {

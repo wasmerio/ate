@@ -2,20 +2,23 @@ use std::collections::VecDeque;
 use tokio::sync::Mutex;
 use async_trait::async_trait;
 use wasm_bus_mio::api;
+use wasm_bus_mio::api::Shutdown;
 use wasm_bus_mio::prelude::*;
 use wasm_bus_mio::api::MioResult;
 use wasm_bus_mio::api::MioError;
 use wasm_bus_mio::api::MioErrorKind;
 use ate_mio::mio::Socket;
 
+#[derive(Debug)]
 struct State
 {
     backlog: VecDeque<Vec<u8>>,
     socket: Socket,
-    ttl: u8,
+    ttl: u32,
     nodelay: bool,
 }
 
+#[derive(Debug)]
 pub struct TcpStreamServer
 {
     local_addr: SocketAddr,
@@ -50,11 +53,11 @@ for TcpStreamServer {
         self.local_addr
     }
 
-    async fn shutdown(&self, shutdown: Shutdown) -> MioResult<()> {
+    async fn shutdown(&self, _shutdown: Shutdown) -> MioResult<()> {
         MioResult::Ok(())
     }
 
-    async fn set_nodelay(&self, nodelay: bool) -> MioResult<bool> {
+    async fn set_nodelay(&self, nodelay: bool) -> MioResult<()> {
         let mut state = self.state.lock().await;
         state.nodelay = nodelay;
         state.socket.set_no_delay(nodelay)
@@ -62,7 +65,8 @@ for TcpStreamServer {
             .map_err(|err| {
                 let err: MioError = err.into();
                 err
-            })
+            })?;
+        MioResult::Ok(())
     }
 
     async fn nodelay(&self) -> bool {
@@ -73,12 +77,13 @@ for TcpStreamServer {
     async fn set_ttl(&self, ttl: u32) -> MioResult<()> {
         let mut state = self.state.lock().await;
         state.ttl = ttl;
-        state.socket.set_ttl(ttl)
+        state.socket.set_ttl(ttl as u8)
             .await
             .map_err(|err| {
                 let err: MioError = err.into();
                 err
-            })
+            })?;
+        Ok(())
     }
 
     async fn ttl(&self) -> u32 {

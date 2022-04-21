@@ -1,21 +1,20 @@
 use tokio::sync::Mutex;
 use async_trait::async_trait;
 use wasm_bus_mio::api;
-use wasm_bus_mio::prelude::*;
 use wasm_bus_mio::api::MioResult;
 use wasm_bus_mio::api::MioError;
-use wasm_bus_mio::api::MioErrorKind;
 use ate_mio::mio::Socket;
 
-pub struct RawSocket
+#[derive(Debug)]
+pub struct RawSocketServer
 {
     socket: Mutex<Socket>,
 }
 
-impl RawSocket
+impl RawSocketServer
 {
-    pub fn new(socket: Socket) -> RawSocket {
-        RawSocket {
+    pub fn new(socket: Socket) -> RawSocketServer {
+        RawSocketServer {
             socket: Mutex::new(socket)
         }
     }
@@ -23,7 +22,7 @@ impl RawSocket
 
 #[async_trait]
 impl api::RawSocketSimplified
-for RawSocket {
+for RawSocketServer {
     async fn send(&self, buf: Vec<u8>) -> MioResult<usize> {
         let socket = self.socket.lock().await;
         socket.send(buf)

@@ -229,6 +229,14 @@ for MioError
     }
 }
 
+impl From<MioErrorKind>
+for MioError
+{
+    fn from(err: MioErrorKind) -> MioError {
+        MioError::Simple(err)
+    }
+}
+
 impl Into<io::Error>
 for MioError
 {

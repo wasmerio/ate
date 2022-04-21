@@ -5,6 +5,7 @@ use ate_crypto::EncryptKey;
 use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use mpsc::error::TryRecvError;
+use derivative::*;
 
 use crate::model::PortCommand;
 use crate::model::PortNopType;
@@ -14,11 +15,14 @@ use crate::model::IpProtocol;
 use super::port::StreamTx;
 use super::evt::*;
 
+#[derive(Derivative)]
+#[derivative(Debug)]
 pub struct Socket
 {
     pub(super) proto: Option<IpProtocol>,
     pub(super) handle: SocketHandle,
     pub(super) peer_addr: Option<SocketAddr>,
+    #[derivative(Debug = "ignore")]
     pub(super) tx: Arc<Mutex<StreamTx>>,
     pub(super) ek: Option<EncryptKey>,
     pub(super) nop: mpsc::Receiver<PortNopType>,

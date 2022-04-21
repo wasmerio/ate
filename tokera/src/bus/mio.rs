@@ -23,6 +23,10 @@ use wasm_bus_tok::prelude::*;
 use once_cell::sync::Lazy;
 
 use super::file_system::FileSystem;
+use super::tcp_stream::TcpStreamServer;
+use super::udp_socket::UdpSocketServer;
+use super::tcp_listener::TcpListenerServer;
+use super::raw_socket::RawSocketServer;
 use crate::opt::OptsBus;
 use crate::mio::Port;
 use crate::cmd::session_with_permissions;
@@ -154,7 +158,7 @@ for MioServer {
         &self,
         addr: SocketAddr
     ) -> Result<Arc<dyn api::TcpListener + Send + Sync + 'static>, CallError> {
-        Ok(Arc::new(TcpListenerServer::new(addr)))
+        Ok(Arc::new(TcpListenerServer::new(addr).await?))
     }
 
     async fn bind_udp(

@@ -78,8 +78,6 @@ pub trait TcpListener {
     async fn set_ttl(&self, ttl: u32) -> MioResult<()>;
 
     async fn ttl(&self) -> MioResult<u32>;
-
-    async fn take_error(&self) -> MioResult<Option<MioError>>;
 }
 
 #[wasm_bus(format = "bincode")]
@@ -117,7 +115,7 @@ pub trait UdpSocket {
 
     async fn send_to(&self, buf: Vec<u8>, addr: SocketAddr) -> MioResult<usize>;
 
-    async fn peer_addr(&self) -> SocketAddr;
+    async fn peer_addr(&self) -> Option<SocketAddr>;
 
     async fn local_addr(&self) -> SocketAddr;
 

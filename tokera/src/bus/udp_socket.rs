@@ -1,19 +1,24 @@
+use std::sync::Arc;
 use std::collections::VecDeque;
 use tokio::sync::Mutex;
 use async_trait::async_trait;
 use wasm_bus_mio::api;
 use wasm_bus_mio::prelude::*;
+use wasm_bus_mio::api::UdpSocket;
 use wasm_bus_mio::api::MioResult;
 use wasm_bus_mio::api::MioError;
 use wasm_bus_mio::api::MioErrorKind;
 use ate_mio::mio::Socket;
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, trace, warn};
 
 use super::mio::GLOBAL_PORT;
 
+#[derive(Debug)]
 struct State
 {
     socket: Socket,
-    ttl: u8,
+    ttl: u32,
     addr: SocketAddr,
     peer: Option<SocketAddr>,
     broadcast: bool,
@@ -24,6 +29,7 @@ struct State
     backlog: VecDeque<(Vec<u8>, SocketAddr)>,
 }
 
+#[derive(Debug)]
 pub struct UdpSocketServer
 {
     state: Mutex<State>,
@@ -46,6 +52,22 @@ impl UdpSocketServer
                 multicast_ttl_v6: 64,
             })
         }
+    }
+
+    async fn connect(&self, addr: SocketAddr) -> MioResult<()> {
+        let mut state = self.state.lock().await;
+        state.peer.replace(addr);
+        MioResult::Ok(())
+    }
+
+    async fn peer_addr(&self) -> Option<SocketAddr> {
+        let state = self.state.lock().await;
+        state.peer
+    }
+
+    async fn local_addr(&self) -> SocketAddr {
+        let state = self.state.lock().await;
+        state.addr
     }
 }
 
@@ -75,7 +97,7 @@ for UdpSocketServer {
                 err
             })?;
         state.backlog.push_back((data.clone(), addr));
-        MioResult::Ok(data)
+        MioResult::Ok((data, addr))
     }
 
     async fn send_to(&self, buf: Vec<u8>, addr: SocketAddr) -> MioResult<usize> {
@@ -89,30 +111,36 @@ for UdpSocketServer {
     }
 
     async fn peer_addr(&self) -> Option<SocketAddr> {
-        let state = self.state.lock().await;
-        state.peer
+        UdpSocketServer::peer_addr(self).await
     }
 
     async fn local_addr(&self) -> SocketAddr {
-        let state = self.state.lock().await;
-        state.addr
+        UdpSocketServer::local_addr(self).await
     }
 
-    async fn try_clone(&self) -> Result<Arc<dyn UdpSocket>, CallError> {
-        let local_addr = self.local_addr().await?;
-        let peer_addr = self.peer_addr.await?;
+    async fn try_clone(&self) -> Result<Arc<dyn UdpSocket + Send + Sync + 'static>, CallError> {
+        let local_addr = UdpSocketServer::local_addr(self).await;
+        let peer_addr = UdpSocketServer::peer_addr(self).await;
         
         let guard = GLOBAL_PORT.lock().await;
         let port = guard.port.as_ref().ok_or(CallError::BadRequest)?;
 
         let socket = port
-            .bind_udp(addr).await
+            .bind_udp(local_addr).await
             .map_err(|err| {
                 debug!("bind_raw failed: {}", err);
                 CallError::InternalFailure
             })?;
 
-        Ok(Arc::new(UdpSocketServer::new(socket, addr)))
+        let mut ret = UdpSocketServer::new(socket, local_addr);
+        if let Some(peer_addr) = peer_addr {
+            UdpSocketServer::connect(&ret, peer_addr).await
+                .map_err(|err| {
+                    debug!("connect failed: {}", err);
+                    CallError::InternalFailure
+                })?;
+        }
+        Ok(Arc::new(ret))
     }
 
     async fn set_read_timeout(&self, dur: Option<Duration>) -> MioResult<()> {
@@ -123,12 +151,12 @@ for UdpSocketServer {
         MioResult::Ok(())
     }
 
-    async fn read_timeout(&self) -> MioResult<Option<Duration>> {
-        MioResult::Ok(None)
+    async fn read_timeout(&self) -> Option<Duration> {
+        None
     }
 
-    async fn write_timeout(&self) -> MioResult<Option<Duration>> {
-        MioResult::Ok(None)
+    async fn write_timeout(&self) -> Option<Duration> {
+        None
     }
 
     async fn set_broadcast(&self, broadcast: bool) -> MioResult<()> {
@@ -144,13 +172,13 @@ for UdpSocketServer {
 
     async fn set_multicast_loop_v4(&self, multicast_loop_v4: bool) -> MioResult<()> {
         let mut state = self.state.lock().await;
-        state.multicast_loop_v4 = mulicast_loop_v4;
+        state.multicast_loop_v4 = multicast_loop_v4;
         MioResult::Err(MioErrorKind::Unsupported.into())
     }
 
     async fn multicast_loop_v4(&self) -> bool {
         let state = self.state.lock().await;
-        multicast_loop_v4
+        state.multicast_loop_v4
     }
 
     async fn set_multicast_ttl_v4(&self, multicast_ttl_v4: u32) -> MioResult<()> {
@@ -181,7 +209,7 @@ for UdpSocketServer {
         MioResult::Ok(())
     }
 
-    async fn ttl(&self) -> MioResult<u32> {
+    async fn ttl(&self) -> u32 {
         let state = self.state.lock().await;
         state.ttl
     }
@@ -203,9 +231,7 @@ for UdpSocketServer {
     }
 
     async fn connect(&self, addr: SocketAddr) -> MioResult<()> {
-        let mut state = self.state.lock().await;
-        state.peer.replace(peer);
-        MioResult::Ok(())
+        UdpSocketServer::connect(self, addr).await
     }
 
     async fn peek(&self, max: usize) -> MioResult<Vec<u8>>
@@ -219,7 +245,7 @@ for UdpSocketServer {
                         let err: MioError = err.into();
                         err
                     })?;
-                if addr == connected_addr {
+                if &addr == connected_addr {
                     state.backlog.push_back((data.clone(), addr));
                     return MioResult::Ok(data);
                 }
@@ -240,7 +266,7 @@ for UdpSocketServer {
     async fn send(&self, buf: Vec<u8>) -> MioResult<usize> {
         let state = self.state.lock().await;
         if let Some(connected_addr) = state.peer.as_ref() {
-            state.socket.send_to(buf, connected_addr)
+            state.socket.send_to(buf, connected_addr.clone())
                 .await
                 .map_err(|err| {
                     let err: MioError = err.into();
@@ -264,7 +290,7 @@ for UdpSocketServer {
                         let err: MioError = err.into();
                         err
                     })?;
-                if addr == connected_addr {
+                if &addr == connected_addr {
                     return MioResult::Ok(data);
                 }
             }

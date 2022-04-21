@@ -1,4 +1,4 @@
-use std::ops::*;
+use std::sync::Arc;
 use tokio::sync::Mutex;
 use async_trait::async_trait;
 use wasm_bus_mio::api;
@@ -6,16 +6,22 @@ use wasm_bus_mio::prelude::*;
 use wasm_bus_mio::api::MioResult;
 use wasm_bus_mio::api::MioError;
 use wasm_bus_mio::api::MioErrorKind;
+use wasm_bus_mio::api::TcpStream;
 use ate_mio::mio::Socket;
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, trace, warn};
 
 use super::mio::GLOBAL_PORT;
+use super::tcp_stream::TcpStreamServer;
 
+#[derive(Debug)]
 struct State
 {
     socket: Option<Socket>,
-    ttl: u8,
+    ttl: u32,
 }
 
+#[derive(Debug)]
 pub struct TcpListenerServer
 {
     addr: SocketAddr,
@@ -24,17 +30,20 @@ pub struct TcpListenerServer
 
 impl TcpListenerServer
 {
-    pub fn new(socket: Socket, addr: SocketAddr) -> Self {
-        Self {
-            addr,
-            state: Mutex::new(State {
-                socket: Some(socket),
-                ttl: 64,
-            })
-        }
+    pub async fn new(addr: SocketAddr) -> Result<Self, CallError> {
+        let socket = Self::_create_socket(addr).await?;
+        Ok(
+            Self {
+                addr,
+                state: Mutex::new(State {
+                    socket: Some(socket),
+                    ttl: 64,
+                })
+            }
+        )
     }
 
-    async fn _create_socket(&self) -> Result<Socket, CallError> {
+    async fn _create_socket(addr: SocketAddr) -> Result<Socket, CallError> {
         let guard = GLOBAL_PORT.lock().await;
         let port = guard.port.as_ref().ok_or(CallError::BadRequest)?;
 
@@ -58,9 +67,14 @@ for TcpListenerServer {
                     debug!("accept failed: {}", err);
                     CallError::InternalFailure
                 })?;
-            guard.replace(self._create_socket()?);
+            guard.socket.replace(Self::_create_socket(self.addr).await?);
             if guard.ttl != 64 {
-                socket.set_ttl(guard.ttl as u8).await?;
+                socket.set_ttl(guard.ttl as u8)
+                    .await
+                    .map_err(|err| {
+                        debug!("set_ttl failed: {}", err);
+                        CallError::InternalFailure
+                    )?;
             }
             Ok(Arc::new(TcpStreamServer::new(socket, self.addr, peer)))
         } else {
@@ -71,7 +85,10 @@ for TcpListenerServer {
 
     async fn listen(&self, backlog: u32) -> MioResult<()> {
         let mut guard = self.state.lock().await;
-        guard.socket.replace(self._create_socket()?);
+        guard.socket.replace(Self::_create_socket(self.addr)
+            .await
+            .map_err(|err| MioError::SimpleMessage(MioErrorKind::Other, err))?
+        );
         MioResult::Ok(())
     }
 
