@@ -91,7 +91,7 @@ for TcpStreamServer {
         state.ttl
     }
 
-    async fn peek(&self, max: usize) -> MioResult<Vec<u8>> {
+    async fn peek(&self, _max: usize) -> MioResult<Vec<u8>> {
         let mut state = self.state.lock().await;
 
         let buf = state.socket.recv()
@@ -116,7 +116,7 @@ for TcpStreamServer {
             })
     }
 
-    async fn read(&self, max: usize) -> MioResult<Vec<u8>> {
+    async fn read(&self, _max: usize) -> MioResult<Vec<u8>> {
         let mut state = self.state.lock().await;
 
         if let Some(buf) = state.backlog.pop_front() {

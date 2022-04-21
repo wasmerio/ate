@@ -74,7 +74,7 @@ for TcpListenerServer {
                     .map_err(|err| {
                         debug!("set_ttl failed: {}", err);
                         CallError::InternalFailure
-                    )?;
+                    })?;
             }
             Ok(Arc::new(TcpStreamServer::new(socket, self.addr, peer)))
         } else {
@@ -83,11 +83,11 @@ for TcpListenerServer {
         }
     }
 
-    async fn listen(&self, backlog: u32) -> MioResult<()> {
+    async fn listen(&self, _backlog: u32) -> MioResult<()> {
         let mut guard = self.state.lock().await;
         guard.socket.replace(Self::_create_socket(self.addr)
             .await
-            .map_err(|err| MioError::SimpleMessage(MioErrorKind::Other, err))?
+            .map_err(|err| MioError::SimpleMessage(MioErrorKind::Other, err.to_string()))?
         );
         MioResult::Ok(())
     }

@@ -25,7 +25,6 @@ struct State
     multicast_loop_v4: bool,
     multicast_ttl_v4: u32,
     multicast_loop_v6: bool,
-    multicast_ttl_v6: u32,
     backlog: VecDeque<(Vec<u8>, SocketAddr)>,
 }
 
@@ -49,7 +48,6 @@ impl UdpSocketServer
                 multicast_loop_v4: false,
                 multicast_ttl_v4: 64,
                 multicast_loop_v6: false,
-                multicast_ttl_v6: 64,
             })
         }
     }
@@ -74,7 +72,7 @@ impl UdpSocketServer
 #[async_trait]
 impl api::UdpSocketSimplified
 for UdpSocketServer {
-    async fn recv_from(&self, max: usize) -> MioResult<(Vec<u8>, SocketAddr)> {
+    async fn recv_from(&self, _max: usize) -> MioResult<(Vec<u8>, SocketAddr)> {
         let mut state = self.state.lock().await;
         if let Some((buf, addr)) = state.backlog.pop_front() {
             return MioResult::Ok((buf, addr));
@@ -88,7 +86,7 @@ for UdpSocketServer {
         MioResult::Ok((data, addr))
     }
 
-    async fn peek_from(&self, max: usize) -> MioResult<(Vec<u8>, SocketAddr)> {
+    async fn peek_from(&self, _max: usize) -> MioResult<(Vec<u8>, SocketAddr)> {
         let mut state = self.state.lock().await;
         let (data, addr) = state.socket.recv_from()
             .await
@@ -132,7 +130,7 @@ for UdpSocketServer {
                 CallError::InternalFailure
             })?;
 
-        let mut ret = UdpSocketServer::new(socket, local_addr);
+        let ret = UdpSocketServer::new(socket, local_addr);
         if let Some(peer_addr) = peer_addr {
             UdpSocketServer::connect(&ret, peer_addr).await
                 .map_err(|err| {
@@ -143,11 +141,11 @@ for UdpSocketServer {
         Ok(Arc::new(ret))
     }
 
-    async fn set_read_timeout(&self, dur: Option<Duration>) -> MioResult<()> {
+    async fn set_read_timeout(&self, _dur: Option<Duration>) -> MioResult<()> {
         MioResult::Ok(())
     }
 
-    async fn set_write_timeout(&self, dur: Option<Duration>) -> MioResult<()> {
+    async fn set_write_timeout(&self, _dur: Option<Duration>) -> MioResult<()> {
         MioResult::Ok(())
     }
 
@@ -214,19 +212,19 @@ for UdpSocketServer {
         state.ttl
     }
 
-    async fn join_multicast_v4(&self, multiaddr: Ipv4Addr, interface: Ipv4Addr) -> MioResult<()> {
+    async fn join_multicast_v4(&self, _multiaddr: Ipv4Addr, _interface: Ipv4Addr) -> MioResult<()> {
         MioResult::Err(MioErrorKind::Unsupported.into())
     }
 
-    async fn join_multicast_v6(&self, multiaddr: Ipv6Addr, interface: u32) -> MioResult<()> {
+    async fn join_multicast_v6(&self, _multiaddr: Ipv6Addr, _interface: u32) -> MioResult<()> {
         MioResult::Err(MioErrorKind::Unsupported.into())
     }
 
-    async fn leave_multicast_v4(&self, multiaddr: Ipv4Addr, interface: Ipv4Addr) -> MioResult<()> {
+    async fn leave_multicast_v4(&self, _multiaddr: Ipv4Addr, _interface: Ipv4Addr) -> MioResult<()> {
         MioResult::Err(MioErrorKind::Unsupported.into())
     }
 
-    async fn leave_multicast_v6(&self, multiaddr: Ipv6Addr, interface: u32) -> MioResult<()> {
+    async fn leave_multicast_v6(&self, _multiaddr: Ipv6Addr, _interface: u32) -> MioResult<()> {
         MioResult::Err(MioErrorKind::Unsupported.into())
     }
 
@@ -234,10 +232,10 @@ for UdpSocketServer {
         UdpSocketServer::connect(self, addr).await
     }
 
-    async fn peek(&self, max: usize) -> MioResult<Vec<u8>>
+    async fn peek(&self, _max: usize) -> MioResult<Vec<u8>>
     {
         let mut state = self.state.lock().await;
-        if let Some(connected_addr) = state.peer.as_ref() {
+        if let Some(connected_addr) = state.peer.clone() {
             loop {
                 let (data, addr) = state.socket.recv_from()
                     .await
@@ -245,7 +243,7 @@ for UdpSocketServer {
                         let err: MioError = err.into();
                         err
                     })?;
-                if &addr == connected_addr {
+                if addr == connected_addr {
                     state.backlog.push_back((data.clone(), addr));
                     return MioResult::Ok(data);
                 }
@@ -277,12 +275,12 @@ for UdpSocketServer {
         }
     }
 
-    async fn recv(&self, max: usize) -> MioResult<Vec<u8>> {
+    async fn recv(&self, _max: usize) -> MioResult<Vec<u8>> {
         let mut state = self.state.lock().await;
         if let Some((buf, _)) = state.backlog.pop_front() {
             return MioResult::Ok(buf);
         }
-        if let Some(connected_addr) = state.peer.as_ref() {
+        if let Some(connected_addr) = state.peer.clone() {
             loop {
                 let (data, addr) = state.socket.recv_from()
                     .await
@@ -290,7 +288,7 @@ for UdpSocketServer {
                         let err: MioError = err.into();
                         err
                     })?;
-                if &addr == connected_addr {
+                if addr == connected_addr {
                     return MioResult::Ok(data);
                 }
             }

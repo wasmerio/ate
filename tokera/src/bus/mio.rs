@@ -145,7 +145,6 @@ for MioServer {
         let port = guard.port.as_ref().ok_or(CallError::BadRequest)?;
 
         let socket = port.bind_raw().await
-            .map(|s| Arc::new(s))
             .map_err(|err| {
                 debug!("bind_raw failed: {}", err);
                 CallError::InternalFailure

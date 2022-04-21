@@ -33,8 +33,8 @@ for RawSocketServer {
             })
     }
 
-    async fn recv(&self, max: usize) -> MioResult<Vec<u8>> {
-        let socket = self.socket.lock().await;
+    async fn recv(&self, _max: usize) -> MioResult<Vec<u8>> {
+        let mut socket = self.socket.lock().await;
         socket.recv()
             .await
             .map_err(|err| {

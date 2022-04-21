@@ -313,8 +313,8 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
             let net_url = ate_auth::prelude::origin_url(&opts_connect.net_url, "net");
             main_opts_connect(opts_connect.purpose, opts.token_path, auth, db_url, net_url).await?;
         }
-        SubConnect::Disconnect(opts_disconnect) => {
-            main_opts_disconnect().await?;
+        SubCommand::Disconnect(_opts_disconnect) => {
+            main_opts_disconnect().await;
         }
         SubCommand::Instance(opts_instance) => {
             let db_url = ate_auth::prelude::origin_url(&opts_instance.db_url, "db");
