@@ -27,11 +27,13 @@ pub enum NetworkAction
     #[clap()]
     Disconnect,
     /// Create a TAP device that bridges the local network with the remote network
+    #[cfg(feature = "enable_bridge")]
     #[cfg(any(target_os = "linux", target_os = "macos"))]
     #[clap()]
     Bridge(OptsNetworkBridge),
 }
 
+#[cfg(feature = "enable_bridge")]
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 #[allow(dead_code)]
 #[derive(Parser, Clone)]

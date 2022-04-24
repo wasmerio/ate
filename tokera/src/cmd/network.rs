@@ -8,6 +8,7 @@ use std::os::unix::fs::PermissionsExt;
 use async_stream::stream;
 use futures_util::pin_mut;
 use futures_util::stream::StreamExt;
+#[cfg(feature = "enable_bridge")]
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 use {
     std::process::Command,
@@ -52,6 +53,7 @@ pub async fn main_opts_network(
             main_opts_network_disconnect(token_path).await;
             Ok(())
         },
+        #[cfg(feature = "enable_bridge")]
         #[cfg(any(target_os = "linux", target_os = "macos"))]
         NetworkAction::Bridge(opts) => {
             let net_url = opts.net_url.clone().map(|net_url| {
@@ -167,6 +169,7 @@ pub async fn main_opts_network_disconnect(token_path: String)
     clear_access_token(token_path).await;
 }
 
+#[cfg(feature = "enable_bridge")]
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 pub async fn main_opts_network_bridge(
     bridge: OptsNetworkBridge,
@@ -271,6 +274,7 @@ pub async fn main_opts_network_bridge(
     Ok(())
 }
 
+#[cfg(feature = "enable_bridge")]
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 fn cmd_inner(cmd: &str, args: &[&str], stderr: Stdio, stdout: Stdio) -> Result<std::process::ExitStatus, std::io::Error> {
     Command::new(cmd)
@@ -282,6 +286,7 @@ fn cmd_inner(cmd: &str, args: &[&str], stderr: Stdio, stdout: Stdio) -> Result<s
         .wait()
 }
 
+#[cfg(feature = "enable_bridge")]
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 fn cmd(cmd: &str, args: &[&str]) {
     let ecode = cmd_inner(cmd, args, Stdio::inherit(), Stdio::inherit()).unwrap();

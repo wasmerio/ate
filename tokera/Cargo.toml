@@ -18,10 +18,11 @@ server = [ "sys", "enable_full", "ctrlc-async", "ate/server", "ate/enable_mt" ]
 force_tty = [ "ate-auth/force_tty" ]
 bus = []
 sys = [ "wasm-bus-ws/sys", "wasm-bus-tty/sys" ]
-enable_full = [ "enable_tcp" ]
+enable_full = [ "enable_tcp", "enable_bridge" ]
 enable_tcp = [ "enable_ntp", "enable_dns" ]
 enable_dns = []
 enable_ntp = []
+enable_bridge = [ "tokio-tun" ]
 
 [dependencies]
 ate = { version = "^1.2", path = "../lib", default_features = false }
@@ -71,7 +72,7 @@ wasm-bus-tok = { version = "^1", path = "../wasm-bus-tok" }
 wasm-bus-mio = { version = "^1", path = "../wasm-bus-mio" }
 
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
-tokio-tun = { version = "^0.5", git = "https://github.com/john-sharratt/tokio-tun.git" }
+tokio-tun = { version = "^0.5", git = "https://github.com/john-sharratt/tokio-tun.git", optional = true }
 sudo = { version = "^0.6" }
 fork = { version = "^0.1" }
 
