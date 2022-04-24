@@ -1,5 +1,6 @@
 use clap::Parser;
 use url::Url;
+use std::net::Ipv4Addr;
 
 use super::purpose::*;
 
@@ -48,6 +49,15 @@ pub struct OptsNetworkBridge {
     /// URL where the network can be accessed from (e.g. wss://tokera.sh/net)
     #[clap(short, long)]
     pub net_url: Option<Url>,
+    /// Sets a static IP address for this device rather than using DHCP
+    #[clap(long)]
+    pub ip4: Option<Ipv4Addr>,
+    /// Sets a netmask for this device rather than using DHCP to determine it
+    #[clap(long)]
+    pub netmask4: Option<Ipv4Addr>,
+    /// Sets the MTU for this device
+    #[clap(long)]
+    pub mtu: Option<u32>,
 }
 
 #[allow(dead_code)]

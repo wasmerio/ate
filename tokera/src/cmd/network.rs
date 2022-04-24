@@ -202,13 +202,26 @@ pub async fn main_opts_network_bridge(
         })?;
     let hw: [u8; 6] = hw.into();
     
-    let (ip, netmask) = port.dhcp_acquire()
-        .await
-        .map_err(|err| {
-            let err = format!("failed to acquire IP address - {}", err);
-            error!("{}", err);
-            InstanceErrorKind::InternalError(0)
-        })?;
+    let mtu = bridge.mtu.unwrap_or(1500);
+
+    // The IP address is either staticly defined or we use DHCP
+    let (ip4, netmask4) = {
+        if let Some(ip4) = bridge.ip4 {
+            if let Some(netmask4) = bridge.netmask4 {
+                (ip4, netmask4)
+            } else {
+                (ip4, Ipv4Addr::new(255, 255, 255, 0))
+            }
+        } else {
+            port.dhcp_acquire()
+                .await
+                .map_err(|err| {
+                    let err = format!("failed to acquire IP address - {}", err);
+                    error!("{}", err);
+                    InstanceErrorKind::InternalError(0)
+                })?
+        }
+    };
 
     let mut socket = port.bind_raw()
         .await
@@ -226,11 +239,11 @@ pub async fn main_opts_network_bridge(
         .name(name)
         .tap(true)
         .packet_info(false)
-        .mtu(1500)
+        .mtu(mtu as i32)
         .mac(hw.clone())
         //.up()
-        .address(ip)
-        .netmask(netmask)
+        .address(ip4)
+        .netmask(netmask4)
         .broadcast(Ipv4Addr::BROADCAST)
         .try_build()
         .map_err(|err| {
