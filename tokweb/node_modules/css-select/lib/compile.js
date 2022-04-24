@@ -23,7 +23,7 @@ function compile(selector, options, context) {
 }
 exports.compile = compile;
 function compileUnsafe(selector, options, context) {
-    var token = typeof selector === "string" ? (0, css_what_1.parse)(selector, options) : selector;
+    var token = typeof selector === "string" ? (0, css_what_1.parse)(selector) : selector;
     return compileToken(token, options, context);
 }
 exports.compileUnsafe = compileUnsafe;
@@ -33,11 +33,15 @@ function includesScopePseudo(t) {
             (Array.isArray(t.data) &&
                 t.data.some(function (data) { return data.some(includesScopePseudo); }))));
 }
-var DESCENDANT_TOKEN = { type: "descendant" };
+var DESCENDANT_TOKEN = { type: css_what_1.SelectorType.Descendant };
 var FLEXIBLE_DESCENDANT_TOKEN = {
     type: "_flexibleDescendant",
 };
-var SCOPE_TOKEN = { type: "pseudo", name: "scope", data: null };
+var SCOPE_TOKEN = {
+    type: css_what_1.SelectorType.Pseudo,
+    name: "scope",
+    data: null,
+};
 /*
  * CSS 4 Spec (Draft): 3.3.1. Absolutizing a Scope-relative Selector
  * http://www.w3.org/TR/selectors4/#absolutizing

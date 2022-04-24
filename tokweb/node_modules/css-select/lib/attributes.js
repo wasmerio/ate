@@ -13,14 +13,75 @@ function escapeRegex(value) {
     return value.replace(reChars, "\\$&");
 }
 /**
+ * Attributes that are case-insensitive in HTML.
+ *
+ * @private
+ * @see https://html.spec.whatwg.org/multipage/semantics-other.html#case-sensitivity-of-selectors
+ */
+var caseInsensitiveAttributes = new Set([
+    "accept",
+    "accept-charset",
+    "align",
+    "alink",
+    "axis",
+    "bgcolor",
+    "charset",
+    "checked",
+    "clear",
+    "codetype",
+    "color",
+    "compact",
+    "declare",
+    "defer",
+    "dir",
+    "direction",
+    "disabled",
+    "enctype",
+    "face",
+    "frame",
+    "hreflang",
+    "http-equiv",
+    "lang",
+    "language",
+    "link",
+    "media",
+    "method",
+    "multiple",
+    "nohref",
+    "noresize",
+    "noshade",
+    "nowrap",
+    "readonly",
+    "rel",
+    "rev",
+    "rules",
+    "scope",
+    "scrolling",
+    "selected",
+    "shape",
+    "target",
+    "text",
+    "type",
+    "valign",
+    "valuetype",
+    "vlink",
+]);
+function shouldIgnoreCase(selector, options) {
+    return typeof selector.ignoreCase === "boolean"
+        ? selector.ignoreCase
+        : selector.ignoreCase === "quirks"
+            ? !!options.quirksMode
+            : !options.xmlMode && caseInsensitiveAttributes.has(selector.name);
+}
+/**
  * Attribute selectors
  */
 exports.attributeRules = {
-    equals: function (next, data, _a) {
-        var adapter = _a.adapter;
+    equals: function (next, data, options) {
+        var adapter = options.adapter;
         var name = data.name;
         var value = data.value;
-        if (data.ignoreCase) {
+        if (shouldIgnoreCase(data, options)) {
             value = value.toLowerCase();
             return function (elem) {
                 var attr = adapter.getAttributeValue(elem, name);
@@ -34,12 +95,12 @@ exports.attributeRules = {
             return adapter.getAttributeValue(elem, name) === value && next(elem);
         };
     },
-    hyphen: function (next, data, _a) {
-        var adapter = _a.adapter;
+    hyphen: function (next, data, options) {
+        var adapter = options.adapter;
         var name = data.name;
         var value = data.value;
         var len = value.length;
-        if (data.ignoreCase) {
+        if (shouldIgnoreCase(data, options)) {
             value = value.toLowerCase();
             return function hyphenIC(elem) {
                 var attr = adapter.getAttributeValue(elem, name);
@@ -57,13 +118,13 @@ exports.attributeRules = {
                 next(elem));
         };
     },
-    element: function (next, _a, _b) {
-        var name = _a.name, value = _a.value, ignoreCase = _a.ignoreCase;
-        var adapter = _b.adapter;
+    element: function (next, data, options) {
+        var adapter = options.adapter;
+        var name = data.name, value = data.value;
         if (/\s/.test(value)) {
             return boolbase_1.falseFunc;
         }
-        var regex = new RegExp("(?:^|\\s)".concat(escapeRegex(value), "(?:$|\\s)"), ignoreCase ? "i" : "");
+        var regex = new RegExp("(?:^|\\s)".concat(escapeRegex(value), "(?:$|\\s)"), shouldIgnoreCase(data, options) ? "i" : "");
         return function element(elem) {
             var attr = adapter.getAttributeValue(elem, name);
             return (attr != null &&
@@ -77,15 +138,15 @@ exports.attributeRules = {
         var adapter = _b.adapter;
         return function (elem) { return adapter.hasAttrib(elem, name) && next(elem); };
     },
-    start: function (next, data, _a) {
-        var adapter = _a.adapter;
+    start: function (next, data, options) {
+        var adapter = options.adapter;
         var name = data.name;
         var value = data.value;
         var len = value.length;
         if (len === 0) {
             return boolbase_1.falseFunc;
         }
-        if (data.ignoreCase) {
+        if (shouldIgnoreCase(data, options)) {
             value = value.toLowerCase();
             return function (elem) {
                 var attr = adapter.getAttributeValue(elem, name);
@@ -101,15 +162,15 @@ exports.attributeRules = {
                 next(elem);
         };
     },
-    end: function (next, data, _a) {
-        var adapter = _a.adapter;
+    end: function (next, data, options) {
+        var adapter = options.adapter;
         var name = data.name;
         var value = data.value;
         var len = -value.length;
         if (len === 0) {
             return boolbase_1.falseFunc;
         }
-        if (data.ignoreCase) {
+        if (shouldIgnoreCase(data, options)) {
             value = value.toLowerCase();
             return function (elem) {
                 var _a;
@@ -123,13 +184,13 @@ exports.attributeRules = {
                 next(elem);
         };
     },
-    any: function (next, data, _a) {
-        var adapter = _a.adapter;
+    any: function (next, data, options) {
+        var adapter = options.adapter;
         var name = data.name, value = data.value;
         if (value === "") {
             return boolbase_1.falseFunc;
         }
-        if (data.ignoreCase) {
+        if (shouldIgnoreCase(data, options)) {
             var regex_1 = new RegExp(escapeRegex(value), "i");
             return function anyIC(elem) {
                 var attr = adapter.getAttributeValue(elem, name);
@@ -145,8 +206,8 @@ exports.attributeRules = {
                 next(elem);
         };
     },
-    not: function (next, data, _a) {
-        var adapter = _a.adapter;
+    not: function (next, data, options) {
+        var adapter = options.adapter;
         var name = data.name;
         var value = data.value;
         if (value === "") {
@@ -154,7 +215,7 @@ exports.attributeRules = {
                 return !!adapter.getAttributeValue(elem, name) && next(elem);
             };
         }
-        else if (data.ignoreCase) {
+        else if (shouldIgnoreCase(data, options)) {
             value = value.toLowerCase();
             return function (elem) {
                 var attr = adapter.getAttributeValue(elem, name);

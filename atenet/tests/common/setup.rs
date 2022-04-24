@@ -82,26 +82,26 @@ pub async fn client(node: url::Url, chain: ChainKey, access_token: String, stati
 
 pub async fn clients(cross_switch: bool, use_dhcp: bool) -> (Port, Port)
 {
-    let chain1 = ChainKey::from("tokera.com/e7cc8d8528b79d6975bcf438f7308f78_edge");
-    let access_token1 = "27801ccc9ada31487c5fce7dc2d41078";
+    let chain1 = ChainKey::from("tokera.com/c789bd1b7f2a9bba3111d707ce40bffa_edge");
+    let access_token1 = "80f5bdf28ce21947795de68c93c57fcb";
     let addr1 = if use_dhcp == false {
-        Some((IpAddr::V4(Ipv4Addr::new(10, 180, 41, 2)), IpAddr::V4(Ipv4Addr::new(10, 180, 41, 1))))
+        Some((IpAddr::V4(Ipv4Addr::new(10, 35, 196, 2)), IpAddr::V4(Ipv4Addr::new(10, 35, 196, 1))))
     } else {
         None
     };
 
     let (chain2, access_token2, addr2) = if cross_switch == true {
-        let chain2 = ChainKey::from("tokera.com/c23a55096856cc316fb4da3f7a878192_edge");
-        let access_token2 = "6ac4fcf2716b1a22fc298c6d526f031e";
+        let chain2 = ChainKey::from("tokera.com/d237f26dbb0c4cdc17b43d3720009e5d_edge");
+        let access_token2 = "69aec1eaa6cb5a69acac91a8c38d7498";
         let addr2 = if use_dhcp == false {
-            Some((IpAddr::V4(Ipv4Addr::new(10, 164, 156, 2)), IpAddr::V4(Ipv4Addr::new(10, 164, 156, 1))))
+            Some((IpAddr::V4(Ipv4Addr::new(10, 127, 26, 2)), IpAddr::V4(Ipv4Addr::new(10, 127, 26, 1))))
         } else {
             None
         };
         (chain2, access_token2, addr2)
     } else {
         let addr2 = if use_dhcp == false {
-            Some((IpAddr::V4(Ipv4Addr::new(10, 180, 41, 3)), IpAddr::V4(Ipv4Addr::new(10, 180, 41, 1))))
+            Some((IpAddr::V4(Ipv4Addr::new(10, 35, 196, 3)), IpAddr::V4(Ipv4Addr::new(10, 35, 196, 1))))
         } else {
             None
         };

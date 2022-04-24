@@ -49,3 +49,15 @@ jobs:
         cd tokweb
         npm install
         npm run build
+
+  atenet:
+    name: Test ATE Mesh Networking
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+    - name: Run Tests
+      run: |
+        cd atenet
+        cargo test
