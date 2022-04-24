@@ -8,11 +8,12 @@ use wasm_bus_mio::api::MioError;
 use wasm_bus_mio::api::MioErrorKind;
 use wasm_bus_mio::api::TcpStream;
 use ate_mio::mio::Socket;
+use derivative::*;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
-use super::mio::GLOBAL_PORT;
 use super::tcp_stream::TcpStreamServer;
+use crate::mio::Port;
 
 #[derive(Debug)]
 struct State
@@ -21,34 +22,41 @@ struct State
     ttl: u32,
 }
 
-#[derive(Debug)]
+#[derive(Derivative)]
+#[derivative(Debug)]
 pub struct TcpListenerServer
 {
+    #[derivative(Debug = "ignore")]
+    port: Port,
     addr: SocketAddr,
     state: Mutex<State>,
 }
 
 impl TcpListenerServer
 {
-    pub async fn new(addr: SocketAddr) -> Result<Self, CallError> {
-        let socket = Self::_create_socket(addr).await?;
+    pub async fn new(port: Port, addr: SocketAddr) -> Result<Self, CallError> {
+        let socket = port
+            .listen_tcp(addr).await
+            .map_err(|err| {
+                debug!("bind_raw failed: {}", err);
+                CallError::InternalFailure
+            })?;
+
         Ok(
             Self {
+                port,
                 addr,
                 state: Mutex::new(State {
                     socket: Some(socket),
                     ttl: 64,
                 })
-            }
+            }    
         )
     }
 
-    async fn _create_socket(addr: SocketAddr) -> Result<Socket, CallError> {
-        let guard = GLOBAL_PORT.lock().await;
-        let port = guard.port.as_ref().ok_or(CallError::BadRequest)?;
-
-        port
-            .listen_tcp(addr).await
+    async fn _create_socket(&self) -> Result<Socket, CallError> {
+        self.port
+            .listen_tcp(self.addr).await
             .map_err(|err| {
                 debug!("bind_raw failed: {}", err);
                 CallError::InternalFailure
@@ -67,7 +75,7 @@ for TcpListenerServer {
                     debug!("accept failed: {}", err);
                     CallError::InternalFailure
                 })?;
-            guard.socket.replace(Self::_create_socket(self.addr).await?);
+            guard.socket.replace(self._create_socket().await?);
             if guard.ttl != 64 {
                 socket.set_ttl(guard.ttl as u8)
                     .await
@@ -85,7 +93,7 @@ for TcpListenerServer {
 
     async fn listen(&self, _backlog: u32) -> MioResult<()> {
         let mut guard = self.state.lock().await;
-        guard.socket.replace(Self::_create_socket(self.addr)
+        guard.socket.replace(self._create_socket()
             .await
             .map_err(|err| MioError::SimpleMessage(MioErrorKind::Other, err.to_string()))?
         );

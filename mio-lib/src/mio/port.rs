@@ -10,9 +10,11 @@ use std::sync::Arc;
 use std::collections::BTreeMap;
 use tokio::sync::Mutex;
 use tokio::sync::mpsc;
+use derivative::*;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
+use crate::model::HardwareAddress;
 use crate::model::IpCidr;
 use crate::model::IpRoute;
 use crate::model::IpProtocol;
@@ -29,6 +31,7 @@ use super::socket::*;
 
 const MAX_MPSC: usize = std::usize::MAX >> 3;
 
+#[derive(Debug)]
 pub struct SocketState
 {
     nop: mpsc::Sender<PortNopType>,
@@ -38,9 +41,10 @@ pub struct SocketState
     accept: mpsc::Sender<EventAccept>,
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct PortState
 {
+    mac: Option<HardwareAddress>,
     addresses: Vec<IpCidr>,
     routes: Vec<IpRoute>,
     router: Option<IpAddr>,
@@ -49,8 +53,11 @@ pub struct PortState
     dhcp_client: Option<Socket>,
 }
 
+#[derive(Derivative, Clone)]
+#[derivative(Debug)]
 pub struct Port
 {
+    #[derivative(Debug = "ignore")]
     tx: Arc<Mutex<StreamTx>>,
     ek: Option<EncryptKey>,
     state: Arc<Mutex<PortState>>,
@@ -74,12 +81,19 @@ impl Port
         let port = Port {
             tx: Arc::new(Mutex::new(tx)),
             ek,
-            state,
+            state: Arc::clone(&state),
         };
 
         port.tx(PortCommand::Init).await?;
-        init_rx.recv().await
+        let mac = init_rx
+            .recv()
+            .await
             .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "failed to initialize the socket before it was closed."))?;
+
+        {
+            let mut state = state.lock().await;
+            state.mac.replace(mac);
+        }
 
         Ok(port)
     }
@@ -201,7 +215,7 @@ impl Port
         Ok(socket)
     }
 
-    pub async fn dhcp_acquire(&self) -> io::Result<Ipv4Addr> {
+    pub async fn dhcp_acquire(&self) -> io::Result<(Ipv4Addr, Ipv4Addr)> {
         let mut socket = self.bind_dhcp().await?;
         socket.nop(PortNopType::DhcpAcquire).await?;
 
@@ -210,9 +224,22 @@ impl Port
         state.addresses
             .clone()
             .into_iter()
-            .filter_map(|cidr| match &cidr.ip {
-                IpAddr::V4(a) => Some(a.clone()),
-                _ => None,
+            .filter_map(|cidr| {
+                match &cidr.ip {
+                    IpAddr::V4(a) => {
+                        let prefix = 32u32 - (cidr.prefix as u32);
+                        let mask = if prefix <= 1 {
+                            u32::MAX.into()
+                        } else {
+                            let mask = 2u32.pow(prefix) - 1u32;
+                            let mask = mask ^ u32::MAX;
+                            let mask: Ipv4Addr = mask.into();
+                            mask.into()
+                        };
+                        Some((a.clone(), mask))
+                    },
+                    _ => None,
+                }
             })
             .next()
             .ok_or_else(|| {
@@ -244,6 +271,11 @@ impl Port
         self.update_ips().await?;
         self.update_routes().await?;
         Ok(ret)
+    }
+
+    pub async fn hardware_address(&self) -> Option<HardwareAddress> {
+        let state = self.state.lock().await;
+        state.mac
     }
 
     pub async fn addresses(&self) -> Vec<IpCidr> {
@@ -375,7 +407,7 @@ impl Port
         Ok(())
     }
 
-    async fn run(mut rx: StreamRx, ek: Option<EncryptKey>, state: Arc<Mutex<PortState>>, init_tx: mpsc::Sender<()>) {
+    async fn run(mut rx: StreamRx, ek: Option<EncryptKey>, state: Arc<Mutex<PortState>>, init_tx: mpsc::Sender<HardwareAddress>) {
         while let Ok(evt) = rx.recv(&ek).await {
             if let Ok(evt) = bincode::deserialize::<PortResponse>(&evt[..]) {
                 let mut state = state.lock().await;
@@ -449,8 +481,10 @@ impl Port
                         state.router = router;
                         state.dns_servers = dns_servers;
                     }
-                    PortResponse::Inited => {
-                        let _ = init_tx.send(()).await;
+                    PortResponse::Inited {
+                        mac,
+                    } => {
+                        let _ = init_tx.send(mac).await;
                     }
                 }
             }

@@ -11,8 +11,6 @@ mod tcp_stream;
 mod udp_socket;
 
 pub use main::*;
-pub(crate) use mio::peer_with_network;
-pub(crate) use mio::disconnect_from_networks;
 
 use wasm_bus_fuse::api;
 

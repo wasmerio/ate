@@ -8,6 +8,7 @@ use ate::prelude::ChainKey;
 use crate::api::InstanceClient;
 use crate::model::SwitchHello;
 
+#[derive(Debug, Clone)]
 pub struct Port
 {
     inner: InnerPort,

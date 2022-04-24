@@ -48,7 +48,6 @@ use tokera::model::INSTANCE_ROOT_ID;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
-use super::common::*;
 use super::port::*;
 use super::udp::*;
 use super::gateway::*;
@@ -235,12 +234,12 @@ impl Switch
 
     pub async fn new_port(self: &Arc<Switch>) -> Result<Port, AteError> {
         let mac = HardwareAddress::new();
-        let (tx_broadcast, _) = broadcast::channel(MAX_BROADCAST);
+        let (tx_broadcast, _) = broadcast::channel(1000);
         let (tx_wake, rx_wake) = watch::channel(());
         let data = Arc::new(SegQueue::new());
         let switch_port = SwitchPort {
             data: data.clone(),
-            raw: tx_broadcast,
+            raw: tx_broadcast.clone(),
             wake: Arc::new(tx_wake),
             mac: EthernetAddress::from_bytes(mac.as_bytes()),
         };

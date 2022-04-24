@@ -9,9 +9,15 @@ pub async fn main_opts_logout(
     token_path: String,
 ) -> Result<(), AteError> {
     // Convert the token path to a real path
+    let token_network_path = format!("{}.network", token_path);
+    let token_network_path = shellexpand::tilde(&token_network_path).to_string();
     let token_path = shellexpand::tilde(&token_path).to_string();
-
+    
     // Remove any old paths
+    if let Ok(old) = std::fs::canonicalize(token_network_path.clone()) {
+        let _ = std::fs::remove_file(old);
+    }
+    let _ = std::fs::remove_file(token_network_path.clone());
     if let Ok(old) = std::fs::canonicalize(token_path.clone()) {
         let _ = std::fs::remove_file(old);
     }

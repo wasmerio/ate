@@ -54,10 +54,6 @@ pub trait Mio {
     async fn bind_tcp(&self, addr: SocketAddr) -> Arc<dyn TcpListener>;
 
     async fn connect_tcp(&self, addr: SocketAddr, peer: SocketAddr) -> Arc<dyn TcpStream>;
-
-    async fn peer(&self, net_url: url::Url, network_chain: String, access_token: String) -> MioResult<()>;
-
-    async fn disconnect(&self) -> MioResult<()>;
 }
 
 #[wasm_bus(format = "bincode")]

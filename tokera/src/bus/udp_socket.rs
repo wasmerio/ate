@@ -12,7 +12,7 @@ use ate_mio::mio::Socket;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
-use super::mio::GLOBAL_PORT;
+use crate::mio::Port;
 
 #[derive(Debug)]
 struct State
@@ -31,13 +31,15 @@ struct State
 #[derive(Debug)]
 pub struct UdpSocketServer
 {
+    port: Port,
     state: Mutex<State>,
 }
 
 impl UdpSocketServer
 {
-    pub fn new(socket: Socket, addr: SocketAddr) -> Self {
+    pub fn new(port: Port, socket: Socket, addr: SocketAddr) -> Self {
         Self {
+            port,
             state: Mutex::new(State {
                 socket,
                 ttl: 64,
@@ -120,9 +122,7 @@ for UdpSocketServer {
         let local_addr = UdpSocketServer::local_addr(self).await;
         let peer_addr = UdpSocketServer::peer_addr(self).await;
         
-        let guard = GLOBAL_PORT.lock().await;
-        let port = guard.port.as_ref().ok_or(CallError::BadRequest)?;
-
+        let port = self.port.clone();
         let socket = port
             .bind_udp(local_addr).await
             .map_err(|err| {
@@ -130,7 +130,7 @@ for UdpSocketServer {
                 CallError::InternalFailure
             })?;
 
-        let ret = UdpSocketServer::new(socket, local_addr);
+        let ret = UdpSocketServer::new(port, socket, local_addr);
         if let Some(peer_addr) = peer_addr {
             UdpSocketServer::connect(&ret, peer_addr).await
                 .map_err(|err| {

@@ -92,12 +92,9 @@ enum SubCommand {
     /// anywhere via API calls and/or the wasm-bus.
     #[clap()]
     Instance(OptsInstance),
-    /// Connects the networking stack to a particular network.
+    /// Performs a networking action (e.g. connect, disconnect, bridge, etc...)
     #[clap()]
-    Connect(OptsConnect),
-    /// Disconnects the networking stack from any networks
-    #[clap()]
-    Disconnect(OptsDisconnect),
+    Network(OptsNetwork),
     /// Wallets are directly attached to groups and users - they hold a balance,
     /// store transaction history and facilitate transfers, deposits and withdraws.
     #[clap()]
@@ -263,6 +260,14 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
         SubCommand::Token(..) => false,
         #[cfg(feature = "bus")]
         SubCommand::Bus(..) => false,
+        SubCommand::Network(a) => match a.action {
+            NetworkAction::List(..) => true,
+            NetworkAction::Connect(..) => true,
+            NetworkAction::Reconnect(..) => false,
+            NetworkAction::Disconnect => false,
+            #[cfg(any(target_os = "linux", target_os = "macos"))]
+            NetworkAction::Bridge(..) => false,
+        },
         SubCommand::User(a) => match a.action {
             UserAction::Create(..) => false,
             UserAction::Recover(..) => false,
@@ -308,13 +313,8 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
         SubCommand::Service(opts_service) => {
             main_opts_service(opts_service.purpose, opts.token_path, auth).await?;
         }
-        SubCommand::Connect(opts_connect) => {
-            let db_url = ate_auth::prelude::origin_url(&opts_connect.db_url, "db");
-            let net_url = ate_auth::prelude::origin_url(&opts_connect.net_url, "net");
-            main_opts_connect(opts_connect.purpose, opts.token_path, auth, db_url, net_url).await?;
-        }
-        SubCommand::Disconnect(_opts_disconnect) => {
-            main_opts_disconnect().await;
+        SubCommand::Network(opts_network) => {
+            main_opts_network(opts_network, opts.token_path, auth).await?;
         }
         SubCommand::Instance(opts_instance) => {
             let db_url = ate_auth::prelude::origin_url(&opts_instance.db_url, "db");

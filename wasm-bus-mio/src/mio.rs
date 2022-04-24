@@ -11,6 +11,7 @@ use super::api;
 pub struct NetworkManagement
 {
     wapm: String,
+    #[allow(dead_code)]
     factory: api::MioClient,
 }
 
@@ -24,36 +25,6 @@ impl NetworkManagement
                 factory
             }
         )
-    }
-
-    pub async fn peer(&self, net_url: url::Url, network_chain: &str, access_token: &str) -> io::Result<()> {
-        self.factory.peer(net_url, network_chain.to_string(), access_token.to_string())
-            .await
-            .map_err(conv_err)?
-            .map_err(conv_err2)?;
-        Ok(())
-    }
-
-    pub async fn blocking_peer(&self, net_url: url::Url, network_chain: &str, access_token: &str) -> io::Result<()> {
-        self.factory.blocking_peer(net_url, network_chain.to_string(), access_token.to_string())
-            .map_err(conv_err)?
-            .map_err(conv_err2)?;
-        Ok(())
-    }
-
-    pub async fn disconnect(&self) -> io::Result<()> {
-        self.factory.disconnect()
-            .await
-            .map_err(conv_err)?
-            .map_err(conv_err2)?;
-        Ok(())
-    }
-
-    pub async fn blocking_disconnect(&self) -> io::Result<()> {
-        self.factory.blocking_disconnect()
-            .map_err(conv_err)?
-            .map_err(conv_err2)?;
-        Ok(())
     }
 
     pub async fn bind_raw(&self) -> io::Result<AsyncRawSocket> {

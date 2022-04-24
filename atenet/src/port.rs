@@ -3,7 +3,6 @@ use std::collections::BTreeMap;
 use std::net::IpAddr;
 use std::net::Ipv4Addr;
 use std::sync::Arc;
-use std::sync::Mutex;
 use std::time::Duration;
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -14,8 +13,6 @@ use smoltcp::iface::Routes;
 use smoltcp::time::Instant;
 use smoltcp::socket::Dhcpv4Event;
 use smoltcp::wire::Ipv4Cidr;
-use tokera::model::IpProtocol;
-use tokera::model::IpVersion;
 use tokio::sync::mpsc;
 use tokio::sync::watch;
 use tokio::sync::broadcast;
@@ -41,9 +38,6 @@ use smoltcp::phy::Device;
 use smoltcp::phy::DeviceCapabilities;
 use smoltcp::phy::Medium;
 use smoltcp::phy::ChecksumCapabilities;
-use smoltcp::socket::RawSocket;
-use smoltcp::socket::RawSocketBuffer;
-use smoltcp::socket::RawPacketMetadata;
 use smoltcp::socket::IcmpEndpoint;
 use smoltcp::socket::IcmpSocket;
 use smoltcp::socket::IcmpSocketBuffer;
@@ -539,7 +533,9 @@ impl Port
                 });
             },
             PortCommand::Init => {
-                self.queue_tx(PortResponse::Inited);
+                self.queue_tx(PortResponse::Inited {
+                    mac: HardwareAddress::from_bytes(self.mac.as_bytes())
+                });
             },
         }
         Ok(())
@@ -659,7 +655,7 @@ impl Port
             }
         }
 
-        for (handle, raw) in self.raw_sockets.iter() {
+        for (handle, raw) in self.raw_sockets.iter_mut() {
             while let Some(data) = raw.recv() {
                 ret.push(PortResponse::Received { handle: handle.clone(), data })
             }
@@ -799,12 +795,6 @@ impl phy::TxToken for TxToken {
     }
 }
 
-fn raw_meta_buf(buf_size: usize) -> Vec<RawPacketMetadata> {
-    let mut ret = Vec::with_capacity(buf_size);
-    ret.resize_with(buf_size, || RawPacketMetadata::EMPTY);
-    ret
-}
-
 fn udp_meta_buf(buf_size: usize) -> Vec<UdpPacketMetadata> {
     let mut ret = Vec::with_capacity(buf_size);
     ret.resize_with(buf_size, || UdpPacketMetadata::EMPTY);
@@ -874,27 +864,4 @@ fn cidr_good(ip: IpAddr) -> bool {
         return false;
     }
     true
-}
-
-fn conv_ip_protocol(a: IpProtocol) -> smoltcp::wire::IpProtocol {
-    match a {
-        IpProtocol::HopByHop => smoltcp::wire::IpProtocol::HopByHop,
-        IpProtocol::Icmp => smoltcp::wire::IpProtocol::Icmp,
-        IpProtocol::Igmp => smoltcp::wire::IpProtocol::Igmp,
-        IpProtocol::Tcp => smoltcp::wire::IpProtocol::Tcp,
-        IpProtocol::Udp => smoltcp::wire::IpProtocol::Udp,
-        IpProtocol::Ipv6Route => smoltcp::wire::IpProtocol::Ipv6Route,
-        IpProtocol::Ipv6Frag => smoltcp::wire::IpProtocol::Ipv6Frag,
-        IpProtocol::Icmpv6 => smoltcp::wire::IpProtocol::Icmpv6,
-        IpProtocol::Ipv6NoNxt => smoltcp::wire::IpProtocol::Ipv6NoNxt,
-        IpProtocol::Ipv6Opts => smoltcp::wire::IpProtocol::Ipv6Opts,
-        IpProtocol::Unknown(code) => smoltcp::wire::IpProtocol::Unknown(code),
-    }
-}
-
-fn conv_ip_version(a: IpVersion) -> smoltcp::wire::IpVersion {
-    match a {
-        IpVersion::Ipv4 => smoltcp::wire::IpVersion::Ipv4,
-        IpVersion::Ipv6 => smoltcp::wire::IpVersion::Ipv6,
-    }
 }

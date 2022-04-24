@@ -60,3 +60,19 @@ for HardwareAddress
         write!(f, "{}", hex::encode(&self.0))
     }
 }
+
+impl Into<[u8; 6]>
+for HardwareAddress
+{
+    fn into(self) -> [u8; 6] {
+        self.0
+    }
+}
+
+impl From<[u8; 6]>
+for HardwareAddress
+{
+    fn from(mac: [u8; 6]) -> HardwareAddress {
+        HardwareAddress(mac)
+    }
+}

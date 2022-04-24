@@ -62,7 +62,7 @@ pub async fn main_opts_bus(
     // Start the fuse and tok implementations
     TokServer::listen(opts.clone(), registry.clone(), session_user.clone(), conf.clone(), auth_url.clone()).await?;
     FuseServer::listen(opts.clone(), registry.clone(), session_user.clone(), conf.clone(), auth_url.clone()).await?;
-    MioServer::listen(opts.clone(), registry.clone(), session_user.clone(), conf.clone(), auth_url.clone()).await?;
+    MioServer::listen(opts.clone(), token_path).await?;
     wasm_bus::task::serve();
     Ok(())
 }

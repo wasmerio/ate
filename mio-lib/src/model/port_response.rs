@@ -43,7 +43,9 @@ pub enum PortResponse {
     RouteTable {
         routes: Vec<IpRoute>,
     },
-    Inited,
+    Inited {
+        mac: HardwareAddress,
+    },
 }
 
 impl fmt::Display
@@ -112,8 +114,10 @@ for PortResponse
                 }
                 write!(f, ")")
             },
-            PortResponse::Inited => {
-                write!(f, "initialized")
+            PortResponse::Inited {
+                mac
+            } => {
+                write!(f, "initialized (mac={})", mac)
             }
         }
     }
