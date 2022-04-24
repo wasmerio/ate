@@ -15,7 +15,7 @@ pub struct OptsNetworkServer {
     /// Forces Tokera to listen on a specific port for HTTPS requests with generated certificates
     #[clap(long)]
     pub tls_port: Option<u16>,
-    /// Port that the switches will listen on for peer-to-peer traffic
+    /// Port that the switches will listen on for peer-to-peer traffic (default: 2000)
     #[clap(long)]
     pub udp_port: Option<u16>,
     /// Token file to read that holds a previously created access token for the switches

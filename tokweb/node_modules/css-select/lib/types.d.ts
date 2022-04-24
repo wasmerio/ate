@@ -34,6 +34,10 @@ export interface Adapter<Node, ElementNode extends Node> {
      */
     getSiblings: (node: Node) => Node[];
     /**
+     * Returns the previous element sibling of a node.
+     */
+    prevElementSibling?: (node: Node) => ElementNode | null;
+    /**
      * Get the text content of the node, and its children if it has any.
      */
     getText: (node: Node) => string;
@@ -83,6 +87,26 @@ export interface Options<Node, ElementNode extends Node> {
      * @default false
      */
     xmlMode?: boolean;
+    /**
+     * Lower-case attribute names.
+     *
+     * @default !xmlMode
+     */
+    lowerCaseAttributeNames?: boolean;
+    /**
+     * Lower-case tag names.
+     *
+     * @default !xmlMode
+     */
+    lowerCaseTags?: boolean;
+    /**
+     * Is the document in quirks mode?
+     *
+     * This will lead to .className and #id being case-insensitive.
+     *
+     * @default false
+     */
+    quirksMode?: boolean;
     /**
      * The last function in the stack, will be called with the last element
      * that's looked at.

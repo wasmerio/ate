@@ -26,7 +26,7 @@ fn load_test() -> Result<(), AteError> {
         .enable_all()
         .build()?;
 
-    rt.block_on(TaskEngine::run_until(async {
+    rt.block_on(async {
         // The default configuration will store the redo log locally in the temporary folder
         let mut conf = ConfAte::default();
         conf.configured_for(ConfiguredFor::BestPerformance);
@@ -73,5 +73,5 @@ fn load_test() -> Result<(), AteError> {
         }
 
         Ok(())
-    }))
+    })
 }

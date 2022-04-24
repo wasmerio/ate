@@ -83,7 +83,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .add_listener(run.listen, run.port, run.port == 443u16)
                 .build()
                 .await?;
-            TaskEngine::run_until(server.run()).await?;
+            server.run().await?;
         }
 
         SubCommand::All(run) => {
@@ -141,7 +141,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .add_listener(run.listen, run.port, run.port == 443u16)
                 .build()
                 .await?;
-            TaskEngine::run_until(server.run()).await?;
+            server.run().await?;
         }
     }
 

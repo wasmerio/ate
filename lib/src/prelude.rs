@@ -55,6 +55,8 @@ pub use crate::trust::ChainKey;
 pub use crate::trust::ChainRef;
 
 pub use crate::dio::Bus;
+pub use crate::dio::BusEvent;
+pub use crate::dio::TryBusEvent;
 pub use crate::dio::Dao;
 pub use crate::dio::DaoAuthGuard;
 pub use crate::dio::DaoChild;

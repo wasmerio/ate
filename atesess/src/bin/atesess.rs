@@ -170,12 +170,7 @@ async fn main_web_ext(solo: &OptsSessionServer, cfg_ate: ConfAte, callback: Opti
     Ok(server)
 }
 
-async fn main_loop(hard_exit: Option<Receiver<bool>>) -> Result<(), Box<dyn std::error::Error>>
-{
-    TaskEngine::run_until(__main_loop(hard_exit)).await
-}
-
-async fn __main_loop(mut hard_exit: Option<Receiver<bool>>) -> Result<(), Box<dyn std::error::Error>>
+async fn main_loop(mut hard_exit: Option<Receiver<bool>>) -> Result<(), Box<dyn std::error::Error>>
 {
     // Wait for ctrl-c
     eprintln!("Press ctrl-c to exit");

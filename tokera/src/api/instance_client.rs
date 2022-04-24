@@ -18,12 +18,14 @@ pub struct InstanceClient
 
 impl InstanceClient
 {
+    pub const PATH_INST: &'static str = "/inst";
+
     pub async fn new(connect_url: url::Url) -> Result<Self, Box<dyn std::error::Error>>
     {
-        Self::new_ext(connect_url, false).await
+        Self::new_ext(connect_url, Self::PATH_INST, false).await
     }
 
-    pub async fn new_ext(connect_url: url::Url, ignore_certificate: bool) -> Result<Self, Box<dyn std::error::Error>>
+    pub async fn new_ext(connect_url: url::Url, path: &str, ignore_certificate: bool) -> Result<Self, Box<dyn std::error::Error>>
     {
         let domain = connect_url.domain().clone().map(|a| a.to_string()).unwrap_or("localhost".to_string());
 
@@ -61,6 +63,14 @@ impl InstanceClient
         let (tx, rx) = socket.split(); 
         let mut tx: StreamTx = tx.into();
         let mut rx: StreamRx = rx.into();
+
+        // We only encrypt if it actually has a certificate (otherwise
+        // a simple man-in-the-middle could intercept anyway)
+        let key_size = if ignore_certificate == false {
+            Some(KeySize::Bit192)
+        } else {
+            None
+        };
         
         // Say hello
         let node_id = NodeId::generate_client_id();
@@ -68,9 +78,9 @@ impl InstanceClient
             &mut rx,
             &mut tx,
             node_id,
-            "/inst".to_string(),
+            path.to_string(),
             domain,
-            Some(KeySize::Bit192),
+            key_size,
         )
         .await?;
 
@@ -94,6 +104,15 @@ impl InstanceClient
                 tx,
                 ek,
             }
+        )
+    }
+
+    pub fn split(self) -> (StreamTx, StreamRx, Option<EncryptKey>)
+    {
+        (
+            self.tx,
+            self.rx,
+            self.ek,
         )
     }
 

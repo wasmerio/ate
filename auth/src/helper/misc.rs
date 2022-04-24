@@ -16,7 +16,7 @@ pub fn password_to_read_key(
         bytes.push(0);
     }
     let hash = AteHash::from_bytes_sha3(password.as_bytes(), repeat);
-    EncryptKey::from_seed_bytes(hash.to_bytes(), key_size)
+    EncryptKey::from_seed_bytes(hash.as_bytes(), key_size)
 }
 
 pub fn estimate_user_name_as_uid(email: String) -> u32 {

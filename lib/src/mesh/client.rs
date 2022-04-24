@@ -37,7 +37,7 @@ pub struct MeshClientSession {
 }
 
 impl MeshClientSession {
-    pub(crate) async fn __try_open_ext<'a>(
+    pub async fn try_open_ext<'a>(
         &'a self,
     ) -> Result<Option<Arc<Chain>>, ChainCreationError> {
         let chain = self.chain.lock().await;
@@ -48,7 +48,7 @@ impl MeshClientSession {
         Ok(None)
     }
 
-    pub(crate) async fn __open_ext<'a>(
+    pub async fn open_ext<'a>(
         &'a self,
         client: &MeshClient,
         hello_path: String,
@@ -63,13 +63,13 @@ impl MeshClientSession {
 
         trace!("creating chain {}", self.key);
         let ret = self
-            .__open_ext_internal(client, hello_path, loader_local, loader_remote)
+            .open_ext_internal(client, hello_path, loader_local, loader_remote)
             .await?;
         *chain = Arc::downgrade(&ret);
         Ok(ret)
     }
 
-    async fn __open_ext_internal<'a>(
+    pub async fn open_ext_internal<'a>(
         &'a self,
         client: &MeshClient,
         hello_path: String,
@@ -130,26 +130,7 @@ impl MeshClient {
         })
     }
 
-    pub async fn open_ext<'a>(
-        &'a self,
-        key: &ChainKey,
-        hello_path: String,
-        loader_local: impl Loader + 'static,
-        loader_remote: impl Loader + 'static,
-    ) -> Result<Arc<Chain>, ChainCreationError> {
-        let span = span!(
-            Level::INFO,
-            "client-open",
-            id = self.node_id.to_short_string().as_str()
-        );
-        TaskEngine::run_until(
-            self.__open_ext(key, hello_path, loader_local, loader_remote)
-                .instrument(span),
-        )
-        .await
-    }
-
-    pub(crate) async fn __try_open_ext<'a>(
+    pub async fn try_open_ext<'a>(
         &'a self,
         key: &ChainKey,
     ) -> Result<Option<Arc<Chain>>, ChainCreationError> {
@@ -164,10 +145,10 @@ impl MeshClient {
             Arc::clone(record)
         };
 
-        session.__try_open_ext().await
+        session.try_open_ext().await
     }
 
-    pub(crate) async fn __open_ext<'a>(
+    pub async fn open_ext<'a>(
         &'a self,
         key: &ChainKey,
         hello_path: String,
@@ -187,7 +168,7 @@ impl MeshClient {
         };
 
         session
-            .__open_ext(self, hello_path, loader_local, loader_remote)
+            .open_ext(self, hello_path, loader_local, loader_remote)
             .await
     }
 
@@ -216,18 +197,10 @@ impl MeshClient {
         url: &'_ url::Url,
         key: &'_ ChainKey,
     ) -> Result<Arc<Chain>, ChainCreationError> {
-        TaskEngine::run_until(self.__open(url, key)).await
-    }
-
-    async fn __open(
-        self: &Arc<MeshClient>,
-        url: &'_ url::Url,
-        key: &'_ ChainKey,
-    ) -> Result<Arc<Chain>, ChainCreationError> {
         let loader_local = crate::loader::DummyLoader::default();
         let loader_remote = crate::loader::DummyLoader::default();
         let hello_path = url.path().to_string();
-        self.__open_ext(&key, hello_path, loader_local, loader_remote)
+        self.open_ext(&key, hello_path, loader_local, loader_remote)
             .await
     }
 }

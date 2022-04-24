@@ -16,6 +16,7 @@ mod wallet;
 mod wallet_action;
 mod withdraw;
 mod instance;
+mod network;
 
 pub use ate_auth::opt::*;
 
@@ -37,3 +38,4 @@ pub use wallet::*;
 pub use wallet_action::*;
 pub use withdraw::*;
 pub use instance::*;
+pub use network::*;

@@ -6,23 +6,22 @@
  * @module plugins
  *
  * @param {Object} data input data
- * @param {Object} info extra information
  * @param {Object} plugins plugins object from config
  * @return {Object} output data
  */
-module.exports = function(data, info, plugins) {
+module.exports = function(data, plugins) {
 
     plugins.forEach(function(group) {
 
         switch(group[0].type) {
             case 'perItem':
-                data = perItem(data, info, group);
+                data = perItem(data, group);
                 break;
             case 'perItemReverse':
-                data = perItem(data, info, group, true);
+                data = perItem(data, group, true);
                 break;
             case 'full':
-                data = full(data, info, group);
+                data = full(data, group);
                 break;
         }
 
@@ -36,12 +35,11 @@ module.exports = function(data, info, plugins) {
  * Direct or reverse per-item loop.
  *
  * @param {Object} data input data
- * @param {Object} info extra information
  * @param {Array} plugins plugins list to process
  * @param {Boolean} [reverse] reverse pass?
  * @return {Object} output data
  */
-function perItem(data, info, plugins, reverse) {
+function perItem(data, plugins, reverse) {
 
     function monkeys(items) {
 
@@ -58,7 +56,7 @@ function perItem(data, info, plugins, reverse) {
             for (var i = 0; filter && i < plugins.length; i++) {
                 var plugin = plugins[i];
 
-                if (plugin.active && plugin.fn(item, plugin.params, info) === false) {
+                if (plugin.active && plugin.fn(item, plugin.params) === false) {
                     filter = false;
                 }
             }
@@ -84,15 +82,14 @@ function perItem(data, info, plugins, reverse) {
  * "Full" plugins.
  *
  * @param {Object} data input data
- * @param {Object} info extra information
  * @param {Array} plugins plugins list to process
  * @return {Object} output data
  */
-function full(data, info, plugins) {
+function full(data, plugins) {
 
     plugins.forEach(function(plugin) {
         if (plugin.active) {
-            data = plugin.fn(data, plugin.params, info);
+            data = plugin.fn(data, plugin.params);
         }
     });
 

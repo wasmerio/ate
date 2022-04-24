@@ -55,10 +55,6 @@ pub struct Registry {
 
 impl Registry {
     pub async fn new(cfg_ate: &ConfAte) -> Registry {
-        TaskEngine::run_until(Registry::__new(cfg_ate)).await
-    }
-
-    async fn __new(cfg_ate: &ConfAte) -> Registry {
         #[cfg(feature = "enable_dns")]
         let dns = {
             let dns = DnsClient::connect(cfg_ate).await;
@@ -109,49 +105,35 @@ impl Registry {
         Arc::new(self)
     }
 
-    pub async fn open(&self, url: &Url, key: &ChainKey) -> Result<ChainGuard, ChainCreationError> {
-        TaskEngine::run_until(self.__open(url, key)).await
-    }
-
     pub async fn open_cmd(&self, url: &Url) -> Result<ChainGuard, ChainCreationError> {
-        TaskEngine::run_until(async {
-            if let Some(a) = self.__try_open(url, &self.chain_key_cmd(url, true)).await? {
+        async {
+            if let Some(a) = self.try_open(url, &self.chain_key_cmd(url, true)).await? {
                 Ok(a)
             } else {
-                Ok(self.__open(url, &self.chain_key_cmd(url, false)).await?)
+                Ok(self.open(url, &self.chain_key_cmd(url, false)).await?)
             }
-        })
+        }
         .await
     }
 
-    async fn __open(&self, url: &Url, key: &ChainKey) -> Result<ChainGuard, ChainCreationError> {
+    pub async fn open(&self, url: &Url, key: &ChainKey) -> Result<ChainGuard, ChainCreationError> {
         let loader_local = loader::DummyLoader::default();
         let loader_remote = loader::DummyLoader::default();
         Ok(self
-            .__open_ext(url, key, loader_local, loader_remote)
+            .open_ext(url, key, loader_local, loader_remote)
             .await?)
     }
 
-    pub async fn open_ext(
-        &self,
-        url: &Url,
-        key: &ChainKey,
-        loader_local: impl loader::Loader + 'static,
-        loader_remote: impl loader::Loader + 'static,
-    ) -> Result<ChainGuard, ChainCreationError> {
-        TaskEngine::run_until(self.__open_ext(url, key, loader_local, loader_remote)).await
-    }
-
-    async fn __try_open(
+    pub async fn try_open(
         &self,
         url: &Url,
         key: &ChainKey,
     ) -> Result<Option<ChainGuard>, ChainCreationError> {
-        Ok(self.__try_open_ext(url, key).await?)
+        Ok(self.try_open_ext(url, key).await?)
     }
 
     #[cfg(feature = "enable_client")]
-    async fn __try_open_ext(
+    pub async fn try_open_ext(
         &self,
         url: &Url,
         key: &ChainKey,
@@ -169,7 +151,7 @@ impl Registry {
 
         trace!("trying reuse chain ({}) on mesh client for {}", key, url);
 
-        let ret = client.__try_open_ext(&key).await?;
+        let ret = client.try_open_ext(&key).await?;
         let ret = match ret {
             Some(a) => a,
             None => {
@@ -185,7 +167,7 @@ impl Registry {
     }
 
     #[cfg(not(feature = "enable_client"))]
-    async fn __try_open_ext(
+    pub async fn try_open_ext(
         &self,
         _url: &Url,
         _key: &ChainKey,
@@ -197,7 +179,7 @@ impl Registry {
     }
 
     #[cfg(feature = "enable_client")]
-    async fn __open_ext(
+    pub async fn open_ext(
         &self,
         url: &Url,
         key: &ChainKey,
@@ -227,7 +209,7 @@ impl Registry {
 
         let hello_path = url.path().to_string();
         let ret = client
-            .__open_ext(&key, hello_path, loader_local, loader_remote)
+            .open_ext(&key, hello_path, loader_local, loader_remote)
             .await?;
 
         Ok(ChainGuard {
@@ -237,7 +219,7 @@ impl Registry {
     }
 
     #[cfg(not(feature = "enable_client"))]
-    async fn __open_ext(
+    pub async fn open_ext(
         &self,
         _url: &Url,
         _key: &ChainKey,

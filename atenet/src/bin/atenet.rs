@@ -1,6 +1,7 @@
 #![recursion_limit="256"]
 #![allow(unused_imports)]
 use ate::mesh::MeshHashTable;
+use atenet::common::setup_server;
 use atenet::server::Server;
 use tokio::sync::watch;
 #[allow(unused_imports, dead_code)]
@@ -29,8 +30,6 @@ fn ctrl_channel() -> Receiver<bool> {
 
 fn main() -> Result<(), Box<dyn std::error::Error>>
 {
-    let ret = Ok(());
-    /*
     // Create the runtime
     let runtime = Arc::new(Builder::new_multi_thread().enable_all().build().unwrap());
 
@@ -50,73 +49,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
     let mut conf = AteConfig::default();
     conf.dns_sec = opts.dns_sec.clone();
     conf.dns_server = opts.dns_server.clone();
+    conf.record_type_name = true;
     
     let ret = runtime.clone().block_on(async move {
         match opts.subcmd {
             SubCommand::Run(solo) => {
-                let protocol = StreamProtocol::parse(&solo.inst_url)?;
-                let port = solo.auth_url.port().unwrap_or(protocol.default_port());
-                let domain = solo.auth_url.domain().unwrap_or("localhost").to_string();
-                let ttl = std::time::Duration::from_secs(solo.ttl);
-
-                let mut cfg_mesh = ConfMesh::skeleton(&conf, domain, port, solo.node_id).await?;
-                cfg_mesh.wire_protocol = protocol;
-                cfg_mesh.wire_encryption = Some(opts.wire_encryption);
-                cfg_mesh.listen_certificate = Some(cert);
-
-                let table = MeshHashTable::new(&cfg_mesh);
-                let server_id = table.compute_node_id(solo.node_id)?;
-
-                let registry = Arc::new(Registry::new(&conf).await);
-
-                let native_files = if let Some(path) = solo.native_files_path.clone() {
-                    NativeFileType::LocalFileSystem(path)
-                } else {
-                    NativeFileType::AteFileSystem(solo.native_files.clone())
-                };
-        
-                // Set the system
-                let (tx_exit, _) = watch::channel(false);
-                let sys = Arc::new(tokterm::system::SysSystem::new_with_runtime(
-                    tx_exit, runtime,
-                ));
-                let sys = atessh::system::System::new(sys, registry.clone(), solo.db_url.clone(), native_files).await;
-                atessh::term_lib::api::set_system_abi(sys);
-
-                let mut instance_authority = solo.inst_url.domain()
-                    .map(|a| a.to_string())
-                    .unwrap_or_else(|| "tokera.sh".to_string());
-                if instance_authority == "localhost" {
-                    instance_authority = "tokera.sh".to_string();
-                }
-
-                let compiled_modules = Arc::new(CachedCompiledModules::new(Some(solo.compiler_cache_path.clone())));
-                let instance_server = Server::new(
-                    solo.db_url.clone(),
-                    solo.auth_url.clone(),
-                    instance_authority.clone(),
-                    solo.token_path.clone(),
-                    registry.clone(),
-                    ttl,
+                let (_server, hard_exit) = setup_server(
+                    solo,
+                    conf,
+                    Some(opts.wire_encryption),
+                    Some(cert)
                 ).await?;
-
-                let mut router = ate::comms::StreamRouter::new(
-                    cfg_mesh.wire_format.clone(),
-                    cfg_mesh.wire_protocol.clone(),
-                    cfg_mesh.listen_certificate.clone(),
-                    server_id,
-                    cfg_mesh.accept_timeout,
-                );
-                
-                let route = Arc::new(instance_server);
-                router.add_socket_route("/sess", route.clone()).await;
-                router.add_socket_route("/inst", route.clone()).await;
-                router.add_post_route("/sess", route.clone()).await;
-                router.add_post_route("/inst", route.clone()).await;
-                router.add_put_route("/sess", route.clone()).await;
-                router.add_put_route("/inst", route.clone()).await;
-
-                let (_server, hard_exit) = main_web(&solo, conf, Some(router)).await?;
                 
                 main_loop(Some(hard_exit)).await?;
                 //server.shutdown().await;
@@ -124,59 +67,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
         }
         Ok(())
     });
-    */
 
     println!("Goodbye!");
     ret
 }
 
-/*
-#[allow(dead_code)]
-async fn main_web(solo: &OptsNetworkServer, cfg_ate: ConfAte, callback: Option<StreamRouter>) -> Result<(Arc<ateweb::server::Server>, watch::Receiver<bool>), AteError>
-{
-    let (hard_exit_tx, hard_exit_rx) = tokio::sync::watch::channel(false);
-    let server = main_web_ext(solo, cfg_ate, callback, hard_exit_tx).await?;
-    Ok((server, hard_exit_rx))
-}
-
-async fn main_web_ext(solo: &OptsNetworkServer, cfg_ate: ConfAte, callback: Option<StreamRouter>, hard_exit_tx: watch::Sender<bool>) -> Result<Arc<ateweb::server::Server>, AteError>
-{
-    let mut builder = atenet::builder::ServerBuilder::new(solo.db_url.clone(), solo.auth_url.clone())
-        .add_listener(solo.listen, solo.port.unwrap_or(80u16), false)
-        .add_listener(solo.listen, solo.tls_port.unwrap_or(443u16), true)
-        .with_conf(&cfg_ate);
-
-    if let Some(callback) = callback {
-        builder = builder
-            .with_callback(callback);
-    }
-
-    let server = builder
-        .build()
-        .await?;
-
-    // Run the web server
-    {
-        let server = Arc::clone(&server);
-        TaskEngine::spawn(async move {
-            let ret = server.run().await;
-            if let Err(err) = ret {
-                error!("web server fatal error - {}", err);
-            }
-            let _ = hard_exit_tx.send(true);
-        });
-    }
-
-    // Done
-    Ok(server)
-}
-
-async fn main_loop(hard_exit: Option<Receiver<bool>>) -> Result<(), Box<dyn std::error::Error>>
-{
-    TaskEngine::run_until(__main_loop(hard_exit)).await
-}
-
-async fn __main_loop(mut hard_exit: Option<Receiver<bool>>) -> Result<(), Box<dyn std::error::Error>>
+async fn main_loop(mut hard_exit: Option<Receiver<bool>>) -> Result<(), Box<dyn std::error::Error>>
 {
     // Wait for ctrl-c
     eprintln!("Press ctrl-c to exit");
@@ -203,4 +99,3 @@ async fn __main_loop(mut hard_exit: Option<Receiver<bool>>) -> Result<(), Box<dy
     println!("Shutting down...");
     Ok(())
 }
-*/

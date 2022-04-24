@@ -24,28 +24,27 @@ Below is the design rationale for many of the design decisions
 
 
 ```
-
-                                                         (tun/tap)
-                 browser                                    tok
-                    |                                        |
-                  (wss)                 .---------.        (udp)
-                    |                   | atesess |          |
-               .----|----.              |----|----|     .----|----.
-               | atenet  |- - (udp) - - | atenet  | - - | atenet  |
-               '----|----'              '----|----'     '----|---'
-                    \                        |               /
-                     \                  (subscribe)         /
-                      \                      |             /
-                      .------------------------------------.
-                      |      tokdb - chain-of-trust        |
-                      '------------------------------------'
+                                                     (tun/tap)
+             browser                                    tok
+                |                                        |
+              (wss)                 .---------.        (wss)
+                |                   | atesess |          |
+           .----^----.              |---------|     .----^----.
+           | atenet  |- - (udp) - - | atenet  | - - | atenet  |
+           '----|----'              '----|----'     '----|---'
+                \                        |               /
+                 \                  (subscribe)         /
+                  \                      |             /
+                  .^---------------------^------------^.
+                  |      tokdb - chain-of-trust        |
+                  '------------------------------------'
 
 ```
 
 # MVP
 
-The first version is a dump switch (i.e. all data gets broadcast) - later versions will
-use ARP snooping to only send data to other nodes that are meant to get the data
+The first version is a dumb switch (i.e. all data gets broadcast) - later versions will
+MAC unicast routing and only send data to other nodes that are meant to get the data
 
 No default gateway will be available on the first version hence it is not possible to
 make internet calls outside of the closed network
@@ -59,7 +58,7 @@ The security of the distributed networking is built upon the strong security of 
 itself however there are few specifics that make this viable
 
 1. The 'atenet' binaries need to have access to the chains in order to read the
-   configuration hence they reuse the master keys that are also used by 'ateses'
+   configuration hence they reuse the master keys that are also used by 'atesess'.
 2. Creating an 'instance' in Tokera is the same chain also used for the vSwitch
    and hence there is no need to associate a network with a instance.
 3. Exporting access to a vSwitch gives an access key - more than one can be

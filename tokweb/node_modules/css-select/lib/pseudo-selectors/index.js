@@ -34,7 +34,7 @@ function compilePseudoSelector(next, selector, options, context, compileToken) {
             throw new Error("Pseudo ".concat(name, " doesn't have any arguments"));
         }
         // The alias has to be parsed here, to make sure options are respected.
-        var alias = (0, css_what_1.parse)(aliases_1.aliases[name], options);
+        var alias = (0, css_what_1.parse)(aliases_1.aliases[name]);
         return subselects_1.subselects.is(next, alias, options, context, compileToken);
     }
     if (name in filters_1.filters) {

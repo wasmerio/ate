@@ -22,13 +22,6 @@ use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 pub struct TaskEngine {}
 
 impl TaskEngine {
-    pub async fn run_until<F>(future: F) -> F::Output
-    where
-        F: Future,
-    {
-        future.await
-    }
-
     #[cfg(not(target_arch = "wasm32"))]
     pub fn spawn<T>(task: T) -> tokio::task::JoinHandle<T::Output>
     where

@@ -27,3 +27,4 @@ pub fn panic_on_thrash(max: u32, file: &str, line: u32) {
         panic!("CPU appears to be thrashing! - {}({})", file, line);
     }
 }
+

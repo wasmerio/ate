@@ -24,6 +24,8 @@ use wasm_bus_ws::prelude::RecvHalf as WasmRecvHalf;
 use wasm_bus_ws::prelude::SendHalf as WasmSendHalf;
 use wasm_bus_ws::prelude::WebSocket as WasmWebSocket;
 use bytes::Bytes;
+use ate_mio::comms::StreamReceiver;
+use ate_mio::comms::StreamTransmitter;
 
 use crate::comms::PacketData;
 use crate::crypto::EncryptKey;
@@ -846,5 +848,25 @@ for StreamRx
 {
     async fn read_buf_with_header(&mut self, wire_encryption: &Option<EncryptKey>, total_read: &mut u64) -> Result<Vec<u8>, TError> {
         StreamRx::read_buf_with_header(self, wire_encryption, total_read).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StreamReceiver
+for StreamRx
+{
+    async fn recv(&mut self, ek: &Option<EncryptKey>) -> Result<Vec<u8>, std::io::Error> {
+        let mut total_read = 0u64;
+        StreamRx::read_buf_with_header(self, ek, &mut total_read).await
+    }
+}
+
+#[async_trait::async_trait]
+impl StreamTransmitter
+for StreamTx
+{
+    async fn send(&mut self, ek: &Option<EncryptKey>, data: &[u8]) -> Result<(), std::io::Error> {
+        StreamTx::send(self, ek, data).await?;
+        Ok(())
     }
 }

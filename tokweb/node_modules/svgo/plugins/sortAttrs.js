@@ -30,8 +30,7 @@ exports.fn = function(item, params) {
 
 	var attrs = [],
 		sorted = {},
-		orderlen = params.order.length + 1,
-		xmlnsOrder = params.xmlnsOrder || 'front';
+		orderlen = params.order.length + 1;
 
 	if (item.elem) {
 
@@ -42,12 +41,10 @@ exports.fn = function(item, params) {
 		attrs.sort(function(a, b) {
 			if (a.prefix != b.prefix) {
 				// xmlns attributes implicitly have the prefix xmlns
-				if (xmlnsOrder == 'front') {
-                    if (a.prefix == 'xmlns')
-                        return -1;
-                    if (b.prefix == 'xmlns')
-                        return 1;
-                }
+				if (a.prefix == 'xmlns')
+					return -1;
+				if (b.prefix == 'xmlns')
+					return 1;
 				return a.prefix < b.prefix ? -1 : 1;
 			}
 

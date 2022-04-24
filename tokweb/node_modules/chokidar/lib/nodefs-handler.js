@@ -11,7 +11,6 @@ var isBinaryPath = require('is-binary-path');
 // (may be shared across chokidar FSWatcher instances)
 var FsWatchInstances = Object.create(null);
 
-
 // Private function: Instantiates the fs.watch interface
 
 // * path       - string, path to be watched
@@ -26,7 +25,7 @@ function createFsWatchInstance(path, options, listener, errHandler, emitRaw) {
     listener(path);
     emitRaw(rawEvent, evPath, {watchedPath: path});
 
-    // emit based on events occurring for files from a directory's watcher in
+    // emit based on events occuring for files from a directory's watcher in
     // case the file's watcher misses it (and rely on throttling to de-dupe)
     if (evPath && path !== evPath) {
       fsWatchBroadcast(
@@ -88,13 +87,11 @@ function setFsWatchListener(path, fullPath, options, handlers) {
     if (!watcher) return;
     var broadcastErr = fsWatchBroadcast.bind(null, fullPath, 'errHandlers');
     watcher.on('error', function(error) {
-      container.watcherUnusable = true; // documented since Node 10.4.1
       // Workaround for https://github.com/joyent/node/issues/4337
       if (process.platform === 'win32' && error.code === 'EPERM') {
         fs.open(path, 'r', function(err, fd) {
-          if (!err) fs.close(fd, function(err) {
-            if (!err) broadcastErr(error);
-          });
+          if (fd) fs.close(fd);
+          if (!err) broadcastErr(error);
         });
       } else {
         broadcastErr(error);
@@ -120,9 +117,7 @@ function setFsWatchListener(path, fullPath, options, handlers) {
     delete container.errHandlers[listenerIndex];
     delete container.rawEmitters[listenerIndex];
     if (!Object.keys(container.listeners).length) {
-      if (!container.watcherUnusable) { // check to protect against issue #730
-        container.watcher.close();
-      }
+      container.watcher.close();
       delete FsWatchInstances[fullPath];
     }
   };
@@ -252,8 +247,6 @@ function(file, stats, initialAdd, callback) {
   var dirname = sysPath.dirname(file);
   var basename = sysPath.basename(file);
   var parent = this._getWatchedDir(dirname);
-  // stats is always present
-  var prevStats = stats;
 
   // if the file is already being watched, do nothing
   if (parent.has(basename)) return callback();
@@ -267,24 +260,12 @@ function(file, stats, initialAdd, callback) {
         if (error) {
           this._remove(dirname, basename);
         } else {
-          // Check that change event was not fired because of changed only accessTime.
-          var at = newStats.atime.getTime();
-          var mt = newStats.mtime.getTime();
-          if (!at || at <= mt || mt !== prevStats.mtime.getTime()) {
-            this._emit('change', file, newStats);
-          }
-          prevStats = newStats;
+          this._emit('change', file, newStats);
         }
       }.bind(this));
     // add is about to be emitted if file not already tracked in parent
     } else if (parent.has(basename)) {
-      // Check that change event was not fired because of changed only accessTime.
-      var at = newStats.atime.getTime();
-      var mt = newStats.mtime.getTime();
-      if (!at || at <= mt ||  mt !== prevStats.mtime.getTime()) {
-        this._emit('change', file, newStats);
-      }
-      prevStats = newStats;
+      this._emit('change', file, newStats);
     }
   }.bind(this));
 
@@ -398,7 +379,7 @@ function(dir, stats, initialAdd, depth, target, wh, callback) {
         this._addToNodeFs(path, initialAdd, wh, depth + 1);
       }
     }.bind(this)).on('end', function() {
-      var wasThrottled = throttler ? throttler.clear() : false;
+      if (throttler) throttler.clear();
       if (done) done();
 
       // Files that absent in current directory snapshot
@@ -416,9 +397,6 @@ function(dir, stats, initialAdd, depth, target, wh, callback) {
       }).forEach(function(item) {
         this._remove(directory, item);
       }, this);
-
-      // one more time for any missed in case changes came in extremely quickly
-      if (wasThrottled) read(directory, false);
     }.bind(this)).on('error', this._handleError.bind(this));
   }.bind(this);
 
@@ -495,10 +473,7 @@ function(path, initialAdd, priorWh, depth, target, callback) {
       closer = this._handleFile(wh.watchPath, stats, initialAdd, ready);
     }
 
-    if (closer) {
-      this._closers[path] = this._closers[path] || [];
-      this._closers[path].push(closer);
-    }
+    if (closer) this._closers[path] = closer;
     callback(null, false);
   }.bind(this));
 };

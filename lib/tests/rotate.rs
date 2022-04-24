@@ -17,7 +17,7 @@ fn rotate_test() -> Result<(), AteError> {
         .enable_all()
         .build()?;
 
-    rt.block_on(TaskEngine::run_until(async {
+    rt.block_on(async {
         // The default configuration will store the redo log locally in the temporary folder
         let mut conf = ConfAte::default();
         #[cfg(feature = "enable_local_fs")]
@@ -68,5 +68,5 @@ fn rotate_test() -> Result<(), AteError> {
         }
 
         Ok(())
-    }))
+    })
 }

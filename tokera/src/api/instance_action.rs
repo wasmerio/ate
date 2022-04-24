@@ -1,4 +1,3 @@
-use ate::chain::ChainKey;
 use ate::header::PrimaryKey;
 use ate::prelude::*;
 use error_chain::bail;
@@ -61,7 +60,7 @@ impl TokApi {
         // Find the instance that best matches the name supplied
         let mut instances = self.instances().await;
         let instances = instances
-            .iter_mut()
+            .iter_mut_ext(true, true)
             .await?
             .filter(|i| i.name.to_lowercase().starts_with(name))
             .collect::<Vec<_>>();

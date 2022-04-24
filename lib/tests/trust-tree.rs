@@ -144,7 +144,7 @@ fn test_trust_tree_memory() -> Result<(), AteError> {
         .enable_all()
         .build()?;
 
-    rt.block_on(TaskEngine::run_until(async {
+    rt.block_on(async {
         info!("generating crypto keys");
         let write_key = PrivateSignKey::generate(KeySize::Bit192);
         let write_key2 = PrivateSignKey::generate(KeySize::Bit256);
@@ -223,5 +223,5 @@ fn test_trust_tree_memory() -> Result<(), AteError> {
         }
 
         Ok(())
-    }))
+    })
 }

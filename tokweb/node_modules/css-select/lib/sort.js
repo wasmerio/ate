@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+var css_what_1 = require("css-what");
 var procedure_1 = require("./procedure");
 var attributes = {
     exists: 10,
@@ -36,7 +37,7 @@ function sortByProcedure(arr) {
 exports.default = sortByProcedure;
 function getProcedure(token) {
     var proc = procedure_1.procedure[token.type];
-    if (token.type === "attribute") {
+    if (token.type === css_what_1.SelectorType.Attribute) {
         proc = attributes[token.action];
         if (proc === attributes.equals && token.name === "id") {
             // Prefer ID selectors (eg. #ID)
@@ -50,7 +51,7 @@ function getProcedure(token) {
             proc >>= 1;
         }
     }
-    else if (token.type === "pseudo") {
+    else if (token.type === css_what_1.SelectorType.Pseudo) {
         if (!token.data) {
             proc = 3;
         }

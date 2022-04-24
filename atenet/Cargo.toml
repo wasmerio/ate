@@ -16,12 +16,14 @@ readme = "README.md"
 
 [features]
 default = []
+tcpdump = []
 
 [dependencies]
 ate = { version = "^1.2", path = "../lib", features = [ "client", "server" ], default_features = false }
 ate-auth = { version = "^1.9", path = "../auth", features = [ "client", "server" ], default_features = false }
 ate-files = { version = "^1.2", path = "../files" }
-wasm-bus-mio = { version = "^1", path = "../wasm-bus-mio",  default_features = false }
+ateweb = { version = "^1.2", path = "../ateweb" }
+wasm-bus-mio = { version = "^1", path = "../wasm-bus-mio", default_features = false }
 tokera = { version = "^1.3", path = "../tokera" }
 error-chain = { version = "^0.12", default_features = false }
 tokio = { version = "^1", features = [ "full", "signal", "process"] }
@@ -48,8 +50,16 @@ url = "^2"
 ttl_cache = "^0.5"
 x509-parser = "^0.12"
 chrono = "^0.4"
-smoltcp = { version = "0.8.0", features = [ "async" ] }
+smoltcp = { version = "0.8.0", git = "https://github.com/john-sharratt/smoltcp.git", features = [ "async" ] }
 ctrlc = { version = "^3" }
 http = { version = "^0.2" }
 derivative = { version = "^2" }
 managed = "0.8.0"
+pnet = "^0.27"
+byteorder = "^1"
+async-recursion = "^1"
+crossbeam = "^0.8"
+hex = "^0.4"
+
+[dev-dependencies]
+serial_test = "0.6.0"

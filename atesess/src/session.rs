@@ -78,7 +78,8 @@ impl Session
         let handler = Arc::new(handler);
 
         // Create the console
-        let prompt = (&basics.service_instance.name[0..9]).to_string();
+        let id_str = basics.service_instance.id_str();
+        let prompt = (&id_str[0..9]).to_string();
         let location = format!("ssh://tokera.sh/?no_welcome&prompt={}", prompt);
         let user_agent = "noagent".to_string();
         let mut console = Console::new_ext(
@@ -232,13 +233,13 @@ impl Session
                             self.console.on_data(data.into()).await;
                         }
                         Err(err) => {
-                            info!("exiting from session ({}) - {}", self.basics.service_instance.name, err);
+                            info!("exiting from session ({}) - {}", self.basics.service_instance.id_str(), err);
                             break;        
                         }
                     }
                 },
                 _ = self.exit_rx.recv() => {
-                    info!("exiting from session ({})", self.basics.service_instance.name);
+                    info!("exiting from session ({})", self.basics.service_instance.id_str());
                     break;
                 }
                 _ = invocations => {
