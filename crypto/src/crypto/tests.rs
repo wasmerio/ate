@@ -84,7 +84,7 @@ fn test_asym_crypto_256() {
 }
 
 #[test]
-fn test_ntru_encapsulate() -> Result<(), AteError> {
+fn test_ntru_encapsulate() -> Result<(), CryptoError> {
     crate::utils::bootstrap_test_env();
 
     static KEY_SIZES: [KeySize; 3] = [KeySize::Bit128, KeySize::Bit192, KeySize::Bit256];
@@ -108,7 +108,7 @@ fn test_ntru_encapsulate() -> Result<(), AteError> {
 }
 
 #[test]
-fn test_ntru_encrypt() -> Result<(), AteError> {
+fn test_ntru_encrypt() -> Result<(), Box<dyn std::error::Error>> {
     crate::utils::bootstrap_test_env();
 
     static KEY_SIZES: [KeySize; 3] = [KeySize::Bit128, KeySize::Bit192, KeySize::Bit256];
@@ -128,7 +128,7 @@ fn test_ntru_encrypt() -> Result<(), AteError> {
 }
 
 #[test]
-fn test_derived_keys() -> Result<(), AteError> {
+fn test_derived_keys() -> Result<(), Box<dyn std::error::Error>> {
     static KEY_SIZES: [KeySize; 3] = [KeySize::Bit128, KeySize::Bit192, KeySize::Bit256];
     for key_size1 in KEY_SIZES.iter() {
         for key_size2 in KEY_SIZES.iter() {
@@ -176,7 +176,7 @@ fn test_derived_keys() -> Result<(), AteError> {
 }
 
 #[test]
-fn test_public_secure_data() -> Result<(), AteError> {
+fn test_public_secure_data() -> Result<(), Box<dyn std::error::Error>> {
     crate::utils::bootstrap_test_env();
 
     #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -199,7 +199,7 @@ fn test_public_secure_data() -> Result<(), AteError> {
 }
 
 #[test]
-fn test_secure_data() -> Result<(), AteError> {
+fn test_secure_data() -> Result<(), Box<dyn std::error::Error>> {
     crate::utils::bootstrap_test_env();
 
     static KEY_SIZES: [KeySize; 3] = [KeySize::Bit128, KeySize::Bit192, KeySize::Bit256];
@@ -217,7 +217,7 @@ fn test_secure_data() -> Result<(), AteError> {
 }
 
 #[test]
-fn test_multi_encrypt() -> Result<(), AteError> {
+fn test_multi_encrypt() -> Result<(), Box<dyn std::error::Error>> {
     crate::utils::bootstrap_test_env();
 
     static KEY_SIZES: [KeySize; 3] = [KeySize::Bit128, KeySize::Bit192, KeySize::Bit256];
@@ -253,7 +253,7 @@ fn test_multi_encrypt() -> Result<(), AteError> {
 }
 
 #[test]
-fn test_signed_protected_data() -> Result<(), AteError> {
+fn test_signed_protected_data() -> Result<(), Box<dyn std::error::Error>> {
     let sign_key = PrivateSignKey::generate(KeySize::Bit256);
     let data = "test data".to_string();
 

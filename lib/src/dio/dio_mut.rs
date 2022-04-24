@@ -257,10 +257,6 @@ impl DioMut {
     }
 
     pub async fn new(dio: &Arc<Dio>, scope: TransactionScope) -> Arc<DioMut> {
-        TaskEngine::run_until(DioMut::__new(dio, scope)).await
-    }
-
-    pub(crate) async fn __new(dio: &Arc<Dio>, scope: TransactionScope) -> Arc<DioMut> {
         let ret = DioMut {
             dio: Arc::clone(dio),
             scope,
@@ -346,15 +342,11 @@ impl DioMut {
         F: std::future::Future,
     {
         let key_str = self.chain.key().to_string();
-        TaskEngine::run_until(future.instrument(span!(Level::DEBUG, "dio", key = key_str.as_str())))
+        future.instrument(span!(Level::DEBUG, "dio", key = key_str.as_str()))
             .await
     }
 
     pub async fn delete(&self, key: &PrimaryKey) -> Result<(), SerializationError> {
-        self.run_async(self.__delete(key)).await
-    }
-
-    async fn __delete(&self, key: &PrimaryKey) -> Result<(), SerializationError> {
         {
             let mut state = self.state.lock().unwrap();
             if state.is_locked(key) {
@@ -376,19 +368,19 @@ impl Chain {
     /// Opens a data access layer that allows mutable changes to data.
     /// Transaction consistency on commit will be guarranted for local redo log files
     pub async fn dio_mut(self: &Arc<Chain>, session: &'_ dyn AteSession) -> Arc<DioMut> {
-        TaskEngine::run_until(self.__dio_trans(session, TransactionScope::Local)).await
+        self.dio_trans(session, TransactionScope::Local).await
     }
 
     /// Opens a data access layer that allows mutable changes to data (in a fire-and-forget mode).
     /// No transaction consistency on commits will be enforced
     pub async fn dio_fire(self: &Arc<Chain>, session: &'_ dyn AteSession) -> Arc<DioMut> {
-        TaskEngine::run_until(self.__dio_trans(session, TransactionScope::None)).await
+        self.dio_trans(session, TransactionScope::None).await
     }
 
     /// Opens a data access layer that allows mutable changes to data.
     /// Transaction consistency on commit will be guarranted for all remote replicas
     pub async fn dio_full(self: &Arc<Chain>, session: &'_ dyn AteSession) -> Arc<DioMut> {
-        TaskEngine::run_until(self.__dio_trans(session, TransactionScope::Full)).await
+        self.dio_trans(session, TransactionScope::Full).await
     }
 
     /// Opens a data access layer that allows mutable changes to data.
@@ -398,18 +390,8 @@ impl Chain {
         session: &'_ dyn AteSession,
         scope: TransactionScope,
     ) -> Arc<DioMut> {
-        TaskEngine::run_until(self.__dio_trans(session, scope)).await
-    }
-
-    /// Opens a data access layer that allows mutable changes to data.
-    /// Transaction consistency on commit must be specified
-    pub(crate) async fn __dio_trans(
-        self: &Arc<Chain>,
-        session: &'_ dyn AteSession,
-        scope: TransactionScope,
-    ) -> Arc<DioMut> {
-        let dio = self.__dio(session).await;
-        dio.__trans(scope).await
+        let dio = self.dio(session).await;
+        dio.trans(scope).await
     }
 }
 
@@ -443,14 +425,10 @@ impl DioMut {
 
     pub async fn commit(&self) -> Result<(), CommitError> {
         let timeout = Duration::from_secs(30);
-        self.run_async(self.__commit(timeout)).await
+        self.commit_ext(timeout).await
     }
 
     pub async fn commit_ext(&self, timeout: Duration) -> Result<(), CommitError> {
-        self.run_async(self.__commit(timeout)).await
-    }
-
-    async fn __commit(&self, timeout: Duration) -> Result<(), CommitError> {
         let (rows, deleted, unlocks) = {
             // If we have no dirty records
             let mut state = self.state.lock().unwrap();
@@ -699,14 +677,6 @@ impl Drop for DioMut {
 }
 
 impl DioMut {
-    pub async fn load<D>(self: &Arc<Self>, key: &PrimaryKey) -> Result<DaoMut<D>, LoadError>
-    where
-        D: Serialize + DeserializeOwned,
-    {
-        let ret: DaoMut<D> = TaskEngine::run_until(self.__load(key)).await?;
-        Ok(ret)
-    }
-
     pub async fn try_load<D>(
         self: &Arc<Self>,
         key: &PrimaryKey,
@@ -721,7 +691,7 @@ impl DioMut {
         }
     }
 
-    async fn __load<D>(self: &Arc<Self>, key: &PrimaryKey) -> Result<DaoMut<D>, LoadError>
+    pub async fn load<D>(self: &Arc<Self>, key: &PrimaryKey) -> Result<DaoMut<D>, LoadError>
     where
         D: Serialize + DeserializeOwned,
     {
@@ -824,14 +794,7 @@ impl DioMut {
     where
         D: Serialize + DeserializeOwned,
     {
-        self.run_async(self.__load_and_take(key)).await
-    }
-
-    async fn __load_and_take<D>(self: &Arc<Self>, key: &PrimaryKey) -> Result<D, LoadError>
-    where
-        D: Serialize + DeserializeOwned,
-    {
-        let ret: DaoMut<D> = self.__load(key).await?;
+        let ret: DaoMut<D> = self.load(key).await?;
         Ok(ret.take())
     }
 
@@ -840,10 +803,6 @@ impl DioMut {
     }
 
     pub async fn exists(&self, key: &PrimaryKey) -> bool {
-        self.run_async(self.__exists(key)).await
-    }
-
-    async fn __exists(&self, key: &PrimaryKey) -> bool {
         {
             let state = self.state.lock().unwrap();
             if state.deleted.contains(&key) {
@@ -865,12 +824,7 @@ impl DioMut {
     }
 
     pub async fn delete_all_roots(self: &Arc<Self>) -> Result<(), CommitError> {
-        self.run_async(self.__delete_all_roots())
-            .await
-    }
-
-    async fn __delete_all_roots(self: &Arc<Self>) -> Result<(), CommitError> {
-        for key in self.__root_keys().await {
+        for key in self.root_keys().await {
             self.delete(&key).await?;
         }
         Ok(())
@@ -898,25 +852,6 @@ impl DioMut {
     where
         D: Serialize + DeserializeOwned,
     {
-        self.run_async(self.__children_ext(
-            parent_id,
-            collection_id,
-            allow_missing_keys,
-            allow_serialization_error,
-        ))
-        .await
-    }
-
-    pub async fn __children_ext<D>(
-        self: &Arc<Self>,
-        parent_id: PrimaryKey,
-        collection_id: u64,
-        allow_missing_keys: bool,
-        allow_serialization_error: bool,
-    ) -> Result<Vec<DaoMut<D>>, LoadError>
-    where
-        D: Serialize + DeserializeOwned,
-    {
         // Build the secondary index key
         let collection_key = MetaCollection {
             parent_id,
@@ -931,7 +866,7 @@ impl DioMut {
 
         // Perform the lower level calls
         let mut ret: Vec<DaoMut<D>> = self
-            .__load_many_ext(
+            .load_many_ext(
                 keys.into_iter(),
                 allow_missing_keys,
                 allow_serialization_error,
@@ -988,19 +923,6 @@ impl DioMut {
     }
 
     pub async fn load_many_ext<D>(
-        self: &Arc<Self>,
-        keys: impl Iterator<Item = PrimaryKey>,
-        allow_missing_keys: bool,
-        allow_serialization_error: bool,
-    ) -> Result<Vec<DaoMut<D>>, LoadError>
-    where
-        D: Serialize + DeserializeOwned,
-    {
-        self.run_async(self.__load_many_ext(keys, allow_missing_keys, allow_serialization_error))
-            .await
-    }
-
-    async fn __load_many_ext<D>(
         self: &Arc<Self>,
         keys: impl Iterator<Item = PrimaryKey>,
         allow_missing_keys: bool,
@@ -1146,7 +1068,7 @@ impl DioMut {
 
         // Perform the lower level calls
         let mut ret: Vec<DaoMut<D>> = self
-            .__load_many_ext(
+            .load_many_ext(
                 keys.into_iter(),
                 allow_missing_keys,
                 allow_serialization_error,
@@ -1191,14 +1113,6 @@ impl DioMut {
     }
 
     pub async fn root_keys(
-        self: &Arc<Self>,
-    ) -> Vec<PrimaryKey>
-    {
-        self.run_async(self.__root_keys())
-            .await
-    }
-
-    async fn __root_keys(
         self: &Arc<Self>,
     ) -> Vec<PrimaryKey>
     {

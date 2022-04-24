@@ -139,6 +139,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>>
 ## Changelog
 
 ```
+1.2.2  -= Code Refactoring =-
+        + The crypto library has been split out from the main ATE library to reduce dependencies
+          when using just cryptographic routines and to reduce build times.
 1.2.1  -= Lazy Loading =-
         + Subscribing to chains can now load the data in the chain on demand as its needed
           which reduces the startup time considerably.

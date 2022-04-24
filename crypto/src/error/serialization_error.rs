@@ -1,8 +1,9 @@
-use crate::prelude::PrimaryKey;
 use error_chain::error_chain;
 use rmp_serde::decode::Error as RmpDecodeError;
 use rmp_serde::encode::Error as RmpEncodeError;
 use serde_json::Error as JsonError;
+
+use crate::spec::PrimaryKey;
 
 error_chain! {
     types {

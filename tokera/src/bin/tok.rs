@@ -92,6 +92,9 @@ enum SubCommand {
     /// anywhere via API calls and/or the wasm-bus.
     #[clap()]
     Instance(OptsInstance),
+    /// Performs a networking action (e.g. connect, disconnect, bridge, etc...)
+    #[clap()]
+    Network(OptsNetwork),
     /// Wallets are directly attached to groups and users - they hold a balance,
     /// store transaction history and facilitate transfers, deposits and withdraws.
     #[clap()]
@@ -257,6 +260,14 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
         SubCommand::Token(..) => false,
         #[cfg(feature = "bus")]
         SubCommand::Bus(..) => false,
+        SubCommand::Network(a) => match a.action {
+            NetworkAction::List(..) => true,
+            NetworkAction::Connect(..) => true,
+            NetworkAction::Reconnect(..) => false,
+            NetworkAction::Disconnect => false,
+            #[cfg(any(target_os = "linux", target_os = "macos"))]
+            NetworkAction::Bridge(..) => false,
+        },
         SubCommand::User(a) => match a.action {
             UserAction::Create(..) => false,
             UserAction::Recover(..) => false,
@@ -302,13 +313,20 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
         SubCommand::Service(opts_service) => {
             main_opts_service(opts_service.purpose, opts.token_path, auth).await?;
         }
+        SubCommand::Network(opts_network) => {
+            main_opts_network(opts_network, opts.token_path, auth).await?;
+        }
         SubCommand::Instance(opts_instance) => {
             let db_url = ate_auth::prelude::origin_url(&opts_instance.db_url, "db");
             let inst_url = ate_auth::prelude::origin_url(&opts_instance.inst_url, "inst");
             main_opts_instance(opts_instance.purpose, opts.token_path, auth, db_url, inst_url, opts_instance.ignore_certificate).await?;
         }
-        SubCommand::Login(opts_login) => main_opts_login(opts_login, opts.token_path, auth).await?,
-        SubCommand::Logout(opts_logout) => main_opts_logout(opts_logout, opts.token_path).await?,
+        SubCommand::Login(opts_login) => {
+            main_opts_login(opts_login, opts.token_path, auth).await?
+        },
+        SubCommand::Logout(opts_logout) => {
+            main_opts_logout(opts_logout, opts.token_path).await?
+        },
     }
 
     // We are done

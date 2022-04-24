@@ -14,6 +14,7 @@ error_chain! {
     }
     foreign_links {
         IO(tokio::io::Error);
+        MioError(wasm_bus_mio::api::MioError);
     }
     errors {
         Unauthorized {

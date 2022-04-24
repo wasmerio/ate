@@ -1,5 +1,6 @@
 use std::error::Error;
 use std::io;
+use std::fmt;
 use serde::*;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -164,10 +165,49 @@ pub enum MioError {
     SimpleMessage(MioErrorKind, String),
 }
 
+impl fmt::Display
+for MioError
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result
+    {
+        let err: io::Error = self.clone().into();
+        err.fmt(f)
+    }
+}
+
+impl std::error::Error
+for MioError
+{
+    #[allow(deprecated, deprecated_in_future)]
+    fn description(&self) -> &str {
+        match self {
+            MioError::Os(..) | MioError::Simple(..) => self.kind().as_str(),
+            MioError::SimpleMessage(_, msg) => msg.as_str(),
+        }
+    }
+
+    #[allow(deprecated)]
+    fn cause(&self) -> Option<&dyn std::error::Error> {
+        None
+    }
+
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        None
+    }
+}
+
 impl MioError
 {
     pub fn new(kind: MioErrorKind, msg: String) -> MioError {
         MioError::SimpleMessage(kind, msg)
+    }
+
+    pub fn kind(&self) -> MioErrorKind {
+        match self {
+            MioError::Os(..) => MioErrorKind::Other,
+            MioError::Simple(kind) => kind.clone(),
+            MioError::SimpleMessage(kind, _) => kind.clone(),
+        }
     }
 }
 
@@ -186,6 +226,14 @@ for MioError
         } else {
             MioError::SimpleMessage(kind, desc.to_string())
         }
+    }
+}
+
+impl From<MioErrorKind>
+for MioError
+{
+    fn from(err: MioErrorKind) -> MioError {
+        MioError::Simple(err)
     }
 }
 

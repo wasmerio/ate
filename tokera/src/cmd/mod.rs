@@ -22,6 +22,9 @@ mod transfer;
 mod wallet;
 mod withdraw;
 mod instance;
+mod cidr;
+mod peering;
+pub(crate) mod network;
 
 pub use ate_auth::cmd::*;
 
@@ -49,3 +52,6 @@ pub use transfer::*;
 pub use wallet::*;
 pub use withdraw::*;
 pub use instance::*;
+pub use cidr::*;
+pub use peering::*;
+pub use network::*;

@@ -1,6 +1,6 @@
 [package]
 name = "ate"
-version = "1.2.1"
+version = "1.2.2"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 description = "Distributed immutable data store with strong encryption and authentication"
@@ -33,6 +33,8 @@ server = [ "sys", "enable_full", "enable_server", "enable_client" ]
 sys = [ "wasm-bus-ws/sys" ]
 
 [dependencies]
+ate-crypto = { version = "^1", path = "../crypto" }
+ate-mio = { version = "^1", path = "../mio-lib" }
 error-chain = { version = "^0.12", default_features = false }
 uuid = { version = "^0.8", features = ["serde", "v4"] }
 serde = { version = "^1", features = ["derive"] }
@@ -43,19 +45,17 @@ bytes = "^1"
 futures = "^0.3"
 futures-util = "^0.3"
 hash = "^0.3"
-fxhash = "^0.2"
 async-trait = "^0.1"
-fastrand = "^1"
 rand = "^0.8"
-rand_chacha = "^0.3"
+fastrand = "^1"
 snap = "^1"
 once_cell = "^1"
 rcu_cell = "^0.1"
-sha3 = "^0.9"
-blake3 = "0.3.8"
 multimap = "^0.8"
 hex = "^0.4"
+fxhash = "^0.2"
 chrono = { version = "^0.4", git = "https://github.com/john-sharratt/chrono.git" }
+pqcrypto-traits-wasi = { version = "^0.3", default_features = false }
 pbr = "^1"
 tracing = { version = "^0.1", features = [ "log" ] }
 tracing-futures = { version = "^0.2" }
@@ -69,12 +69,7 @@ base64 = "^0.13"
 num_enum = "^0.5"
 pin-project-lite = "^0.2"
 cooked-waker = "^5"
-pqcrypto-falcon-wasi = { version = "^0.2", features = [ "avx2" ], default_features = false }
-pqcrypto-ntru-wasi = { version = "^0.5", features = [ "avx2" ], default_features = false }
-pqcrypto-traits-wasi = { version = "^0.3", default_features = false }
 http = { version = "^0.2" }
-aes = { version = "^0.7" }
-ctr = { version = "^0.8" }
 tokio = { version = "^1", features = [ "macros", "sync" ], default_features = false }
 derivative = { version = "^2" }
 wasm-bus-ws = { version = "^1", path = "../wasm-bus-ws" }

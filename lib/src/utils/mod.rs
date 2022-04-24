@@ -2,21 +2,23 @@
 #![allow(unused_imports)]
 use tracing::{debug, error, info};
 
-mod b64;
 mod key;
-mod log;
 mod progress;
-mod test;
+
+use ate_crypto::utils;
+pub use ate_crypto::utils::b64;
+pub use ate_crypto::utils::log;
+pub use ate_crypto::utils::test;
 
 pub use super::utils::test::*;
-pub use b64::b16_deserialize;
-pub use b64::b16_serialize;
-pub use b64::b24_deserialize;
-pub use b64::b24_serialize;
-pub use b64::b32_deserialize;
-pub use b64::b32_serialize;
-pub use b64::vec_deserialize;
-pub use b64::vec_serialize;
+pub use utils::b16_deserialize;
+pub use utils::b16_serialize;
+pub use utils::b24_deserialize;
+pub use utils::b24_serialize;
+pub use utils::b32_deserialize;
+pub use utils::b32_serialize;
+pub use utils::vec_deserialize;
+pub use utils::vec_serialize;
 pub use key::chain_key_16hex;
 pub use key::chain_key_4hex;
 pub use log::log_init;

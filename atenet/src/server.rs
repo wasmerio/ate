@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::sync::Weak;
 use std::time::Duration;
 use error_chain::bail;
 #[allow(unused_imports)]
@@ -27,19 +26,21 @@ use tokera::model::InstanceCall;
 use tokera::model::SwitchHello;
 use ate_auth::cmd::impersonate_command;
 use ate_auth::helper::b64_to_session;
-use tokio::sync::RwLock;
+use std::sync::RwLock;
 
-use super::switch::*;
+use super::factory::*;
 use super::session::*;
+use super::udp::*;
 
 pub struct Server
 {
     pub registry: Arc<Registry>,
     pub repo: Arc<Repository>,
+    pub udp: UdpPeerHandle,
     pub db_url: url::Url,
     pub auth_url: url::Url,
     pub instance_authority: String,
-    pub switches: RwLock<HashMap<ChainKey, Weak<Switch>>>,
+    pub factory: Arc<SwitchFactory>,
 }
 
 impl Server
@@ -51,10 +52,12 @@ impl Server
         token_path: String,
         registry: Arc<Registry>,
         ttl: Duration,
+        udp_listen: IpAddr,
+        udp_port: u16,
     ) -> Result<Self, Box<dyn std::error::Error>>
     {
         // Build a switch factory that will connect clients to the current switch
-        let switch_factory = SwitchFactory {
+        let session_factory = SessionFactory {
             db_url: db_url.clone(),
             auth_url: auth_url.clone(),
             registry: registry.clone(),
@@ -67,12 +70,17 @@ impl Server
             &registry,
             db_url.clone(),
             auth_url.clone(),
-            Box::new(switch_factory),
+            Box::new(session_factory),
             ttl,
         )
         .await?;
 
-        let switches = RwLock::new(HashMap::default());
+        let switches = Arc::new(RwLock::new(HashMap::default()));
+        let udp = UdpPeer::new(udp_listen, udp_port, switches.clone()).await;
+
+        let factory = Arc::new(
+            SwitchFactory::new(repo.clone(), udp.clone(), instance_authority.clone(), switches)
+        );
 
         Ok(Self {
             db_url,
@@ -80,44 +88,9 @@ impl Server
             registry,
             repo,
             instance_authority,
-            switches,
+            udp,
+            factory,
         })
-    }
-
-    pub async fn get_or_create_switch(&self, key: ChainKey) -> Result<(Arc<Switch>, bool), CommsError> {
-        // Check the cache
-        {
-            let guard = self.switches.read().await;
-            if let Some(ret) = guard.get(&key) {
-                if let Some(ret) = ret.upgrade() {
-                    return Ok((ret, false));
-                }
-            }
-        }
-
-        // Open the instance chain that backs this particular instance
-        // (this will reuse accessors across threads and calls)
-        let accessor = self.repo.get_accessor(&key, self.instance_authority.as_str()).await
-            .map_err(|err| CommsErrorKind::InternalError(err.to_string()))?;
-        trace!("loaded file accessor for {}", key);
-
-        // Enter a write lock and check again
-        let mut guard = self.switches.write().await;
-        if let Some(ret) = guard.get(&key) {
-            if let Some(ret) = ret.upgrade() {
-                return Ok((ret, false));
-            }
-        }
-        
-        // Build the basics
-        let switch = Arc::new(Switch {
-            accessor,
-            ports: Default::default(),
-        });
-
-        // Cache and and return it
-        guard.insert(key.clone(), Arc::downgrade(&switch));
-        Ok((switch, true))
     }
 
     async fn accept_internal(
@@ -132,8 +105,23 @@ impl Server
     {
         // Get or create the switch
         let key = hello_switch.chain.clone();
-        let (switch, _) = self.get_or_create_switch(key).await?;
-        let port = switch.new_port();
+        debug!("accept_internal(chain={})", key);
+        let (switch, _) = self.factory.get_or_create_switch(key).await?;
+
+        // Check to make sure the caller has rights to this switch
+        if switch.has_access(hello_switch.access_token.as_str()) == false {
+            warn!("access denied (id={})", switch.id);
+            return Err(CommsErrorKind::Refused.into());
+        }
+
+        // Create the port into the switch
+        let port = switch.new_port()
+            .await
+            .map_err(|err| {
+                warn!("switch port creation failed - {}", err);
+                CommsErrorKind::InternalError(err.to_string())
+            })?;
+        let mac = port.mac;
 
         // Create the session that will process packets for this switch
         let session = Session {
@@ -145,6 +133,8 @@ impl Server
             wire_encryption,
             port,
         };
+
+        info!("switch port established (switch={}, mac={}, peer_addr={})", session.hello_switch.chain, mac, sock_addr);
         
         // Start the background thread that will process events on the session
         tokio::task::spawn(async move {
@@ -234,8 +224,8 @@ for Server
             wire_format: tx.wire_format,
         };
         let hello_switch = SwitchHello {
-            access_token: auth.to_str().unwrap().to_string(),
             chain: chain.clone(),
+            access_token: auth.to_str().unwrap().to_string(),
             version: tokera::model::PORT_COMMAND_VERSION,
         };
 
@@ -254,7 +244,7 @@ for Server
     }
 }
 
-struct SwitchFactory
+struct SessionFactory
 {
     db_url: url::Url,
     auth_url: url::Url,
@@ -266,7 +256,7 @@ struct SwitchFactory
 
 #[async_trait]
 impl RepositorySessionFactory
-for SwitchFactory
+for SessionFactory
 {
     async fn create(&self, sni: String, key: ChainKey) -> Result<AteSessionType, AteError>
     {
@@ -279,6 +269,7 @@ for SwitchFactory
                 let session = if let Ok(token) = std::fs::read_to_string(path) {
                     b64_to_session(token)
                 } else {
+                    warn!("token is missing - {}", self.token_path);
                     let err: ate_auth::error::GatherError = ate_auth::error::GatherErrorKind::NoMasterKey.into();
                     return Err(err.into());
                 };

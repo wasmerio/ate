@@ -200,7 +200,7 @@ pub fn save_token(
 }
 
 #[cfg(unix)]
-fn random_file() -> String {
+pub fn random_file() -> String {
     let mut tmp = temp_dir();
 
     let rnd = ate::prelude::PrimaryKey::default().as_hex_string();

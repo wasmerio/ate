@@ -79,7 +79,7 @@ async fn test_server_client_for_comms(
 ) -> Result<(), AteError> {
     use crate::comms::helper::InboxProcessor;
 
-    TaskEngine::run_until(async move {
+    async move {
         crate::utils::bootstrap_test_env();
 
         let listener;
@@ -192,6 +192,6 @@ async fn test_server_client_for_comms(
             }
         }
         Ok(())
-    })
+    }
     .await
 }

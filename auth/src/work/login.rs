@@ -145,7 +145,7 @@ impl AuthService {
     ) -> (EncryptKey, EncryptedSecureData<EncryptKey>) {
         // Create a session with crypto keys based off the username and password
         let super_key = AteHash::from_bytes_twice(&master_key.value()[..], &secret.value()[..]);
-        let super_key = EncryptKey::from_seed_bytes(super_key.to_bytes(), KeySize::Bit192);
+        let super_key = EncryptKey::from_seed_bytes(super_key.as_bytes(), KeySize::Bit192);
         let token = EncryptedSecureData::new(&master_key, super_key).unwrap();
 
         (super_key, token)
@@ -153,8 +153,8 @@ impl AuthService {
 
     pub fn compute_super_key_from_hash(master_key: &EncryptKey, hash: &AteHash) -> EncryptKey {
         // Create a session with crypto keys based off the username and password
-        let super_key = AteHash::from_bytes_twice(&master_key.value()[..], &hash.to_bytes()[..]);
-        let super_key = EncryptKey::from_seed_bytes(super_key.to_bytes(), KeySize::Bit192);
+        let super_key = AteHash::from_bytes_twice(&master_key.value()[..], &hash.as_bytes()[..]);
+        let super_key = EncryptKey::from_seed_bytes(super_key.as_bytes(), KeySize::Bit192);
         super_key
     }
 

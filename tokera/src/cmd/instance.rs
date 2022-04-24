@@ -20,21 +20,36 @@ pub async fn main_opts_instance_list(api: &mut TokApi) -> Result<(), InstanceErr
     println!("|-------name-------|-------created-------|-exports");
     let instances = api.instances().await;
 
-    let instances = instances.iter().await?;
+    let instances = instances.iter_ext(true, true).await?;
     let instances_ext = {
         let api = api.clone();
         stream! {
             for instance in instances {
-                yield api.instance_chain(instance.name.as_str())
-                    .await
-                    .map(|chain| (instance, chain));
+                let name = instance.name.clone();
+                yield
+                (
+                    api.instance_chain(instance.name.as_str())
+                        .await
+                        .map(|chain| (instance, chain)),
+                    name,
+                )
             }
         }
     };
     pin_mut!(instances_ext);
 
-    while let Some(res) = instances_ext.next().await {
-        let (wallet_instance, _) = res?;
+    while let Some((res, name)) = instances_ext.next().await {
+        let (wallet_instance, _) = match res {
+            Ok(a) => a,
+            Err(err) => {
+                debug!("error loading wallet instance - {} - {}", name, err);
+                println!(
+                    "- {:<16} - {:<19} - {}",
+                    name, "error", err
+                );
+                continue;
+            }
+        };
         match api.instance_load(&wallet_instance).await {
             Ok(instance) => {
                 let secs = instance.when_created() / 1000;
@@ -49,14 +64,14 @@ pub async fn main_opts_instance_list(api: &mut TokApi) -> Result<(), InstanceErr
                     }
                 }
                 println!(
-                    "- {:<16} - {:<18} - {}",
+                    "- {:<16} - {:<19} - {}",
                     wallet_instance.name, when.format("%Y-%m-%d %H:%M:%S"), exports
                 );
             }
             Err(err) => {
                 debug!("error loading service chain - {}", err);
                 println!(
-                    "- {:<16} - {:<18} - {}",
+                    "- {:<16} - {:<19} - {}",
                     wallet_instance.name, "error", err
                 );
             }
@@ -87,13 +102,38 @@ pub async fn main_opts_instance_details(
     println!("{}", serde_json::to_string_pretty(instance.deref()).unwrap());
 
     if let Ok(service_instance) = api.instance_load(instance.deref()).await {
+        println!("{}", serde_json::to_string_pretty(&service_instance.subnet).unwrap());
+
         if service_instance.exports.len().await? > 0 {
+            let id = service_instance.id_str();
+            let chain = ChainKey::from(service_instance.chain.clone());
+            println!("ID: {}", id);
             println!("");
             println!("Exports");
             for export in service_instance.exports.iter().await? {
-                let url = compute_export_url(&inst_url, service_instance.chain.as_str(), export.binary.as_str());
+                let url = compute_export_url(&inst_url, &chain, export.binary.as_str());
                 println!("POST {}", url);
                 println!("{}", serde_json::to_string_pretty(export.deref()).unwrap());
+            }
+        }
+
+        for node in service_instance.mesh_nodes.iter().await? {
+            println!("");
+            println!("Mesh Node");
+            println!("Key: {}", node.key());
+            println!("Address: {}", node.node_addr);
+            
+            if node.switch_ports.len() > 0 {
+                println!("Switch Ports:");
+                for switch_port in node.switch_ports.iter() {
+                    println!("- {}", switch_port);
+                }
+            }
+            if node.dhcp_reservation.len() > 0 {
+                println!("DHCP");
+                for (mac, ip) in node.dhcp_reservation.iter() {
+                    println!("- {} - {},", mac, ip.addr4);
+                }
             }
         }
     }
@@ -107,6 +147,7 @@ pub async fn main_opts_instance_create(
     group: Option<String>,
     db_url: url::Url,
     instance_authority: String,
+    force: bool,
 ) -> Result<(), InstanceError> {
 
     let name = match name {
@@ -116,7 +157,7 @@ pub async fn main_opts_instance_create(
         }
     };
 
-    if let Err(err) = api.instance_create(name.clone(), group, db_url, instance_authority).await {
+    if let Err(err) = api.instance_create(name.clone(), group, db_url, instance_authority, force).await {
         bail!(err);
     };
 
@@ -134,7 +175,7 @@ pub async fn main_opts_instance_kill(
     let name = match service_instance {
         Ok(service_instance) => {
             let dio = service_instance.dio_mut();
-            let name = service_instance.name.clone();
+            let name = service_instance.id_str();
             debug!("deleting all the roots in the chain");
             dio.delete_all_roots().await?;
             dio.commit().await?;
@@ -180,7 +221,7 @@ pub async fn main_opts_instance_shell(
 ) -> Result<(), InstanceError> {
     let (instance, _) = api.instance_action(name).await?;
     let instance = instance?;
-    let mut client = InstanceClient::new_ext(inst_url, ignore_certificate).await
+    let mut client = InstanceClient::new_ext(inst_url, InstanceClient::PATH_INST, ignore_certificate).await
         .unwrap();
 
     client.send_hello(InstanceHello {
@@ -218,7 +259,7 @@ pub async fn main_opts_instance_call(
 
     let (instance, _) = api.instance_action(name).await?;
     let instance = instance?;
-    let mut client = InstanceClient::new_ext(inst_url, ignore_certificate).await
+    let mut client = InstanceClient::new_ext(inst_url, InstanceClient::PATH_INST, ignore_certificate).await
         .unwrap();
 
     // Search for an export that matches this binary
@@ -266,11 +307,11 @@ pub async fn main_opts_instance_export(
     let (service_instance, _wallet_instance) = api.instance_action(name).await?;
 
     let access_token = AteHash::generate().to_hex_string();
-    let (name, chain) = match service_instance {
+    let (chain, id_str) = match service_instance {
         Ok(mut service_instance) => {
             let dio = service_instance.dio_mut();
-            let name = service_instance.name.clone();
             let chain = service_instance.chain.clone();
+            let id_str = service_instance.id_str();
             service_instance.as_mut().exports.push(InstanceExport {
                 access_token: access_token.clone(),
                 binary: binary.to_string(),
@@ -282,15 +323,16 @@ pub async fn main_opts_instance_export(
             })?;
             dio.commit().await?;
             drop(dio);
-            (name, chain)
+            (chain, id_str)
         }
         Err(err) => {
             bail!(err);
         }
     };
+    let chain = ChainKey::from(chain);
 
     // Build the URL that can be used to access this binary
-    let url = compute_export_url(&inst_url, chain.as_str(), binary);
+    let url = compute_export_url(&inst_url, &chain, binary);
 
     // Now add the history
     if let Err(err) = api
@@ -298,7 +340,7 @@ pub async fn main_opts_instance_export(
             activities::InstanceExported {
                 when: chrono::offset::Utc::now(),
                 by: api.user_identity(),
-                alias: Some(name.clone()),
+                alias: Some(id_str.to_string()),
                 binary: binary.to_string(),
             },
         ))
@@ -308,18 +350,18 @@ pub async fn main_opts_instance_export(
     }
     api.dio.commit().await?;
 
-    println!("Instance ({}) has exported binary ({})", name, binary);
+    println!("Instance ({}) has exported binary ({})", id_str, binary);
     println!("Authorization: {}", access_token);
     println!("POST: {}arg0/arg1/...", url);
     println!("PUT: {}[request]", url);
     Ok(())
 }
 
-fn compute_export_url(inst_url: &url::Url, chain: &str, binary: &str) -> String
+fn compute_export_url(inst_url: &url::Url, chain: &ChainKey, binary: &str) -> String
 {
     // Build the URL that can be used to access this binary
     let domain = inst_url.domain().unwrap_or_else(|| "localhost");
-    let url = format!("https://{}{}/{}/{}/", domain, inst_url.path(), chain, binary);
+    let url = format!("https://{}{}/{}/{}/", domain, inst_url.path(), chain.to_string(), binary);
     url
 }
 
@@ -331,10 +373,10 @@ pub async fn main_opts_instance_deport(
 
     let (service_instance, _wallet_instance) = api.instance_action(name).await?;
 
-    let (name, binary) = match service_instance {
+    let (id, binary) = match service_instance {
         Ok(mut service_instance) => {
             let dio = service_instance.dio_mut();
-            let name = service_instance.name.clone();
+            let id = service_instance.id_str();
 
             let export = service_instance.as_mut().exports.iter_mut().await?
                 .filter(|e| e.access_token.eq_ignore_ascii_case(access_token))
@@ -346,7 +388,7 @@ pub async fn main_opts_instance_deport(
             export.delete()?;                
             dio.commit().await?;
             drop(dio);
-            (name, binary)
+            (id, binary)
         }
         Err(err) => {
             bail!(err);
@@ -359,7 +401,7 @@ pub async fn main_opts_instance_deport(
             activities::InstanceDeported {
                 when: chrono::offset::Utc::now(),
                 by: api.user_identity(),
-                alias: Some(name.clone()),
+                alias: Some(id.clone()),
                 binary: binary.to_string(),
             },
         ))
@@ -369,7 +411,7 @@ pub async fn main_opts_instance_deport(
     }
     api.dio.commit().await?;
 
-    println!("Instance ({}) has deported binary ({})", name, binary);
+    println!("Instance ({}) has deported binary ({})", id, binary);
     Ok(())
 }
 
@@ -387,6 +429,49 @@ pub async fn main_opts_instance_mount(
 ) -> Result<(), InstanceError> {
 
     Err(InstanceErrorKind::Unsupported.into())
+}
+
+pub async fn main_opts_instance_cidr(
+    api: &mut TokApi,
+    name: &str,
+    action: OptsCidrAction,
+) -> Result<(), InstanceError> {
+    let (instance, _) = api.instance_action(name).await?;
+    let instance = instance?;
+    
+    main_opts_cidr(instance, action).await?;
+
+    Ok(())
+}
+
+pub async fn main_opts_instance_peering(
+    api: &mut TokApi,
+    name: &str,
+    action: OptsPeeringAction,
+) -> Result<(), InstanceError> {
+    let (instance, wallet_instance) = api.instance_action(name).await?;
+    let instance = instance?;
+    
+    main_opts_peering(api, instance, wallet_instance, action).await?;
+
+    Ok(())
+}
+
+pub async fn main_opts_instance_reset(
+    api: &mut TokApi,
+    name: &str,
+) -> Result<(), InstanceError> {
+    let (instance, _) = api.instance_action(name).await?;
+    let mut instance = instance?;
+    
+    let dio = instance.dio_mut();
+    {
+        let mut instance = instance.as_mut();
+        let _ = instance.mesh_nodes.clear().await;
+    }
+    dio.commit().await?;
+
+    Ok(())
 }
 
 pub async fn main_opts_instance(
@@ -427,7 +512,7 @@ pub async fn main_opts_instance(
             main_opts_instance_details(&mut context.api, inst_url, opts).await?;
         }
         OptsInstanceAction::Create(opts) => {
-            main_opts_instance_create(&mut context.api, opts.name, purpose.group_name(), db_url, instance_authority).await?;
+            main_opts_instance_create(&mut context.api, opts.name, purpose.group_name(), db_url, instance_authority, opts.force).await?;
         }
         OptsInstanceAction::Kill(opts_kill) => {
             if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
@@ -463,6 +548,21 @@ pub async fn main_opts_instance(
             if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
             let name = name.unwrap();
             main_opts_instance_mount(&mut context.api, name.as_str()).await?;
+        }
+        OptsInstanceAction::Cidr(opts_cidr) => {
+            if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
+            let name = name.unwrap();
+            main_opts_instance_cidr(&mut context.api, name.as_str(), opts_cidr.action).await?;
+        }
+        OptsInstanceAction::Peering(opts_peering) => {
+            if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
+            let name = name.unwrap();
+            main_opts_instance_peering(&mut context.api, name.as_str(), opts_peering.action).await?;
+        }
+        OptsInstanceAction::Reset(_opts_reset) => {
+            if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
+            let name = name.unwrap();
+            main_opts_instance_reset(&mut context.api, name.as_str()).await?;
         }
     }
 

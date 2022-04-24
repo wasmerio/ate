@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use ate::prelude::*;
 use ate_auth::error::GatherError;
 use bytes::Bytes;
+use derivative::*;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::time::Duration;
@@ -12,12 +13,17 @@ use ttl_cache::TtlCache;
 
 use crate::prelude::*;
 
+#[derive(Derivative)]
+#[derivative(Debug)]
 pub struct Repository {
     pub registry: Arc<Registry>,
     pub db_url: url::Url,
     pub auth_url: url::Url,
+    #[derivative(Debug = "ignore")]
     pub sessions: RwLock<TtlCache<String, AteSessionType>>,
+    #[derivative(Debug = "ignore")]
     pub chains: Mutex<TtlCache<ChainKey, Arc<FileAccessor>>>,
+    #[derivative(Debug = "ignore")]
     pub session_factory: Box<dyn RepositorySessionFactory + 'static>,
     pub ttl: Duration,
 }

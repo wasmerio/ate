@@ -20,6 +20,8 @@ pub use super::dio::dio::DioSessionGuardMut;
 pub use super::dio::dio_mut::DioMut;
 pub use super::dio::map::DaoMap;
 pub use crate::dio::bus::Bus;
+pub use crate::dio::bus::BusEvent;
+pub use crate::dio::bus::TryBusEvent;
 pub use crate::dio::child::DaoChild;
 pub use crate::dio::dao::Dao;
 pub use crate::dio::dao::DaoObj;
