@@ -22,6 +22,7 @@ pub struct MountPoint {
     pub weak_fs: Weak<Box<dyn MountedFileSystem>>,
     pub temp_holding: Arc<Mutex<Option<Arc<Box<dyn MountedFileSystem>>>>>,
     pub should_sanitize: bool,
+    pub new_path: Option<String>,
 }
 
 impl Clone for MountPoint {
@@ -33,6 +34,7 @@ impl Clone for MountPoint {
             weak_fs: self.weak_fs.clone(),
             temp_holding: self.temp_holding.clone(),
             should_sanitize: self.should_sanitize,
+            new_path: self.new_path.clone(),
         }
     }
 }
@@ -65,6 +67,7 @@ impl MountPoint {
                 name: self.name.clone(),
                 fs,
                 should_sanitize: self.should_sanitize,
+                new_path: self.new_path.clone(),
             }),
             None => None,
         }
@@ -77,6 +80,7 @@ pub struct StrongMountPoint {
     pub name: String,
     pub fs: Arc<Box<dyn MountedFileSystem>>,
     pub should_sanitize: bool,
+    pub new_path: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -86,7 +90,9 @@ pub struct UnionFileSystem {
 
 impl UnionFileSystem {
     pub fn new() -> UnionFileSystem {
-        UnionFileSystem { mounts: Vec::new() }
+        UnionFileSystem {
+            mounts: Vec::new(),
+        }
     }
 
     pub fn clear(&mut self) {
@@ -101,12 +107,23 @@ impl UnionFileSystem {
         path: &str,
         should_sanitize: bool,
         fs: Box<dyn MountedFileSystem>,
+        new_path: Option<&str>,
     ) {
         self.unmount(path);
         let mut path = path.to_string();
+        if path.starts_with("/") == false {
+            path.insert(0, '/');
+        }
         if path.ends_with("/") == false {
             path += "/";
         }
+        let new_path = new_path.map(|new_path| {
+            let mut new_path = new_path.to_string();
+            if new_path.ends_with("/") == false {
+                new_path += "/";
+            }
+            new_path
+        });
         let fs = Arc::new(fs);
         self.mounts.push(MountPoint {
             path,
@@ -115,6 +132,7 @@ impl UnionFileSystem {
             weak_fs: Arc::downgrade(&fs),
             temp_holding: Arc::new(Mutex::new(Some(fs.clone()))),
             should_sanitize,
+            new_path,
         });
     }
 
@@ -141,7 +159,7 @@ impl UnionFileSystem {
 
         let mut ret = None;
         for (path, mount) in filter_mounts(&self.mounts, path.as_ref()) {
-            match mount.fs.read_dir(Path::new(path)) {
+            match mount.fs.read_dir(Path::new(path.as_str())) {
                 Ok(dir) => {
                     if ret.is_none() {
                         ret = Some(Vec::new());
@@ -205,7 +223,7 @@ impl FileSystem for UnionFileSystem {
         let path = path.to_string_lossy();
         let mut ret_error = FsError::EntityNotFound;
         for (path, mount) in filter_mounts(&self.mounts, path.as_ref()) {
-            match mount.fs.create_dir(Path::new(path)) {
+            match mount.fs.create_dir(Path::new(path.as_str())) {
                 Ok(ret) => {
                     return Ok(ret);
                 }
@@ -221,7 +239,7 @@ impl FileSystem for UnionFileSystem {
         let mut ret_error = FsError::EntityNotFound;
         let path = path.to_string_lossy();
         for (path, mount) in filter_mounts(&self.mounts, path.as_ref()) {
-            match mount.fs.remove_dir(Path::new(path)) {
+            match mount.fs.remove_dir(Path::new(path.as_str())) {
                 Ok(ret) => {
                     return Ok(ret);
                 }
@@ -238,21 +256,27 @@ impl FileSystem for UnionFileSystem {
         let from = from.to_string_lossy();
         let to = to.to_string_lossy();
         for (path, mount) in filter_mounts(&self.mounts, from.as_ref()) {
-            let to = if to.starts_with(mount.path.as_str()) {
-                &to[mount.path.len()..]
+            let mut to = if to.starts_with(mount.path.as_str()) {
+                (&to[mount.path.len()..]).to_string()
             } else {
                 ret_error = FsError::UnknownError;
                 continue;
             };
-            match mount.fs.rename(Path::new(from.as_ref()), Path::new(to)) {
+            if to.starts_with("/") == false {
+                to = format!("/{}", to);
+            }
+            match mount.fs.rename(Path::new(from.as_ref()), Path::new(to.as_str())) {
                 Ok(ret) => {
+                    trace!("rename ok");
                     return Ok(ret);
                 }
                 Err(err) => {
+                    trace!("rename error (from={}, to={}) - {}", from, to, err);            
                     ret_error = err;
                 }
             }
         }
+        trace!("rename failed - {}", ret_error);
         Err(ret_error)
     }
     fn metadata(&self, path: &Path) -> Result<Metadata> {
@@ -260,7 +284,7 @@ impl FileSystem for UnionFileSystem {
         let mut ret_error = FsError::EntityNotFound;
         let path = path.to_string_lossy();
         for (path, mount) in filter_mounts(&self.mounts, path.as_ref()) {
-            match mount.fs.metadata(Path::new(path)) {
+            match mount.fs.metadata(Path::new(path.as_str())) {
                 Ok(ret) => {
                     return Ok(ret);
                 }
@@ -284,7 +308,7 @@ impl FileSystem for UnionFileSystem {
         let mut ret_error = FsError::EntityNotFound;
         let path = path.to_string_lossy();
         for (path_inner, mount) in filter_mounts(&self.mounts, path.as_ref()) {
-            match mount.fs.symlink_metadata(Path::new(path_inner)) {
+            match mount.fs.symlink_metadata(Path::new(path_inner.as_str())) {
                 Ok(ret) => {
                     return Ok(ret);
                 }
@@ -309,7 +333,7 @@ impl FileSystem for UnionFileSystem {
         let mut ret_error = FsError::EntityNotFound;
         let path = path.to_string_lossy();
         for (path, mount) in filter_mounts(&self.mounts, path.as_ref()) {
-            match mount.fs.remove_file(Path::new(path)) {
+            match mount.fs.remove_file(Path::new(path.as_str())) {
                 Ok(ret) => {
                     return Ok(ret);
                 }
@@ -328,10 +352,10 @@ impl FileSystem for UnionFileSystem {
     }
 }
 
-fn filter_mounts<'a, 'b>(
-    mounts: &'a Vec<MountPoint>,
-    mut target: &'b str,
-) -> impl Iterator<Item = (&'b str, StrongMountPoint)> {
+fn filter_mounts(
+    mounts: &Vec<MountPoint>,
+    mut target: &str,
+) -> impl Iterator<Item = (String, StrongMountPoint)> {
     let mut biggest_path = 0usize;
     let mut ret = Vec::new();
     for mount in mounts.iter().rev() {
@@ -348,13 +372,20 @@ fn filter_mounts<'a, 'b>(
         if target == test_mount_path1 || target == test_mount_path2 {
             if let Some(mount) = mount.strong() {
                 biggest_path = biggest_path.max(mount.path.len());
-                let path = "/";
+                let mut path = "/".to_string();
+                if let Some(ref np) = mount.new_path {
+                    path = np.to_string();
+                }
                 ret.push((path, mount));
             }
         } else if target.starts_with(test_mount_path1.as_str()) {
             if let Some(mount) = mount.strong() {
                 biggest_path = biggest_path.max(mount.path.len());
                 let path = &target[test_mount_path2.len()..];
+                let mut path = path.to_string();
+                if let Some(ref np) = mount.new_path {
+                    path = format!("{}{}", np, &path[1..]);
+                }
                 ret.push((path, mount));
             }
         }

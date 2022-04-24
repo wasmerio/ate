@@ -1,13 +1,13 @@
 use std::str::FromStr;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Redirect {
     pub fd: i32,
     pub filename: String,
     pub op: RedirectionType,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum RedirectionType {
     TO,      // fd > fname
     CLOBBER, // fd >| fname

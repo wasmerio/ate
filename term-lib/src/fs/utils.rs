@@ -14,11 +14,11 @@ pub fn create_root_fs(inner: Option<Box<dyn MountedFileSystem>>) -> UnionFileSys
         Some(a) => a,
         None => Box::new(TmpFileSystem::new())
     };
-    mounts.mount("root", "/", false, inner);
+    mounts.mount("root", "/", false, inner, None);
     append_static_dir(&mut mounts, &STATIC_DIR);
 
     // The WAPM installations will go to /.app as they are ripe for deduplication
-    mounts.mount("app", "/.app", false, Box::new(TmpFileSystem::new()));
+    mounts.mount("app", "/.app", false, Box::new(TmpFileSystem::new()), None);
     mounts
 }
 
