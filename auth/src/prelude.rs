@@ -12,3 +12,4 @@ pub use crate::helper::conf_auth;
 pub use crate::helper::conf_cmd;
 pub use crate::helper::DioBuilder;
 pub use crate::util::origin_url;
+pub use crate::util::origin_url_ext;

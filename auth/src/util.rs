@@ -1,5 +1,10 @@
 pub fn origin_url(url: &Option<url::Url>, postfix: &str) -> url::Url
 {
+    origin_url_ext(url, postfix, false)
+}
+
+pub fn origin_url_ext(url: &Option<url::Url>, postfix: &str, force_insecure: bool) -> url::Url
+{
     let origin = if let Ok(origin) = std::env::var("ORIGIN") {
         if origin.eq_ignore_ascii_case("localhost") {
             "tokera.com".to_string()
@@ -11,7 +16,7 @@ pub fn origin_url(url: &Option<url::Url>, postfix: &str) -> url::Url
     };
 
     let scheme = if let Ok(location) = std::env::var("LOCATION") {
-        if location.starts_with("http://") {
+        if location.starts_with("http://") || force_insecure {
             "ws".to_string()
         } else {
             "wss".to_string()

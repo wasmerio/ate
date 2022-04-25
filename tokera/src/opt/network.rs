@@ -69,7 +69,7 @@ pub struct OptsNetworkConnect {
     /// URL where the data is remotely stored on a distributed commit log (e.g. wss://tokera.sh/db).
     #[clap(short, long)]
     pub db_url: Option<Url>,
-    /// URL where the network can be accessed from (e.g. wss://tokera.sh/net)
+    /// URL where the network can be accessed from (e.g. ws://tokera.sh/net)
     #[clap(short, long)]
     pub net_url: Option<Url>,
     /// Indicates that the server certificate should be ignored
@@ -78,6 +78,9 @@ pub struct OptsNetworkConnect {
     /// Exports the token to STDOUT rather than stored it so that it may be used later to reconnect
     #[clap(short, long)]
     pub export: bool,
+    /// Encrypts the connection with both classical and quantum resistant encryption
+    #[clap(long)]
+    pub double_encrypt: bool,
 }
 
 #[allow(dead_code)]

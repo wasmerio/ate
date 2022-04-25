@@ -42,8 +42,9 @@ pub async fn main_opts_network(
             main_opts_network_list(opts.purpose, token_path, auth_url, db_url).await
         },
         NetworkAction::Connect(opts) => {
+            let force_insecure = opts.double_encrypt == false; // the messages are still encrypted inside the stream
             let db_url = ate_auth::prelude::origin_url(&opts.db_url, "db");
-            let net_url = ate_auth::prelude::origin_url(&opts.net_url, "net");
+            let net_url = ate_auth::prelude::origin_url_ext(&opts.net_url, "net", force_insecure);
             main_opts_network_connect(opts.purpose, token_path, auth_url, db_url, net_url, opts.export).await
         },
         NetworkAction::Reconnect(opts) => {
