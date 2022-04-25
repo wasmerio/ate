@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::io;
 use tokio::sync::Mutex;
 use tokio::net::TcpStream;
-use tokio_tungstenite::{connect_async_with_config_and_socket, tungstenite::protocol::Message};
+use tokio_tungstenite::{client_async_tls_with_config, tungstenite::protocol::Message};
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
@@ -40,7 +40,7 @@ impl WebSocket {
         let socket = TcpStream::connect(addr).await?;
         socket.set_nodelay(true)?;
 
-        let (ws_stream, _) = connect_async_with_config_and_socket(request, None, socket).await
+        let (ws_stream, _) = client_async_tls_with_config(request, socket, None, None).await
             .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
         let (sink, stream) = ws_stream.split();
 

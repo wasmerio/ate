@@ -28,7 +28,7 @@ serde = { version = "^1", features = ["derive"] }
 serde_derive = "^1"
 serde_json = "^1"
 tokio = { version = "^1", features = [ "rt", "rt-multi-thread", "time", "sync", "macros", "net" ], default_features = false }
-tokio-tungstenite = { version = "^0.16", features = [ "native-tls" ] }
+tokio-tungstenite = { version = "^0.17", features = [ "native-tls" ] }
 futures = "^0.3"
 futures-util = "^0.3"
 derivative = { version = "^2" }
