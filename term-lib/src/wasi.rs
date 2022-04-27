@@ -13,7 +13,7 @@ use tokio::sync::RwLock;
 use tracing::{debug, error, info, trace, warn};
 /*
 use crate::wasmer_wasi::{
-    iterate_poll_events, types::*, Array, PollEvent, PollEventBuilder, PollEventIter, PollEventSet,
+    iterate_poll_events, types::*, PollEvent, PollEventBuilder, PollEventIter, PollEventSet,
     WasiEnv, WasiProxy, WasmPtr,
 };
 */
@@ -50,8 +50,8 @@ impl WasiProxy for WasiTerm {
     fn args_get(
         &self,
         env: &WasiEnv,
-        argv: WasmPtr<WasmPtr<u8, Array>, Array>,
-        argv_buf: WasmPtr<u8, Array>,
+        argv: WasmPtr<WasmPtr<u8>, Array>,
+        argv_buf: WasmPtr<u8>,
     ) -> __wasi_errno_t {
         self.tick(env);
         wasmer_wasi::native::args_get(env, argv, argv_buf)
@@ -86,8 +86,8 @@ impl WasiProxy for WasiTerm {
     fn environ_get(
         &self,
         env: &WasiEnv,
-        environ: WasmPtr<WasmPtr<u8, Array>, Array>,
-        environ_buf: WasmPtr<u8, Array>,
+        environ: WasmPtr<WasmPtr<u8>, Array>,
+        environ_buf: WasmPtr<u8>,
     ) -> __wasi_errno_t {
         self.tick(env);
         wasmer_wasi::native::environ_get(env, environ, environ_buf)
@@ -191,7 +191,7 @@ impl WasiProxy for WasiTerm {
         &self,
         env: &WasiEnv,
         fd: __wasi_fd_t,
-        iovs: WasmPtr<__wasi_iovec_t, Array>,
+        iovs: WasmPtr<__wasi_iovec_t>,
         iovs_len: u32,
         offset: __wasi_filesize_t,
         nread: WasmPtr<u32>,
@@ -212,7 +212,7 @@ impl WasiProxy for WasiTerm {
         &self,
         env: &WasiEnv,
         fd: __wasi_fd_t,
-        path: WasmPtr<u8, Array>,
+        path: WasmPtr<u8>,
         path_len: u32,
     ) -> __wasi_errno_t {
         self.tick(env);
@@ -246,7 +246,7 @@ impl WasiProxy for WasiTerm {
         &self,
         env: &WasiEnv,
         fd: __wasi_fd_t,
-        buf: WasmPtr<u8, Array>,
+        buf: WasmPtr<u8>,
         buf_len: u32,
         cookie: __wasi_dircookie_t,
         bufused: WasmPtr<u32>,
@@ -297,7 +297,7 @@ impl WasiProxy for WasiTerm {
         &self,
         env: &WasiEnv,
         fd: __wasi_fd_t,
-        path: WasmPtr<u8, Array>,
+        path: WasmPtr<u8>,
         path_len: u32,
     ) -> __wasi_errno_t {
         self.tick(env);
@@ -308,7 +308,7 @@ impl WasiProxy for WasiTerm {
         env: &WasiEnv,
         fd: __wasi_fd_t,
         flags: __wasi_lookupflags_t,
-        path: WasmPtr<u8, Array>,
+        path: WasmPtr<u8>,
         path_len: u32,
         buf: WasmPtr<__wasi_filestat_t>,
     ) -> __wasi_errno_t {
@@ -320,7 +320,7 @@ impl WasiProxy for WasiTerm {
         env: &WasiEnv,
         fd: __wasi_fd_t,
         flags: __wasi_lookupflags_t,
-        path: WasmPtr<u8, Array>,
+        path: WasmPtr<u8>,
         path_len: u32,
         st_atim: __wasi_timestamp_t,
         st_mtim: __wasi_timestamp_t,
@@ -336,10 +336,10 @@ impl WasiProxy for WasiTerm {
         env: &WasiEnv,
         old_fd: __wasi_fd_t,
         old_flags: __wasi_lookupflags_t,
-        old_path: WasmPtr<u8, Array>,
+        old_path: WasmPtr<u8>,
         old_path_len: u32,
         new_fd: __wasi_fd_t,
-        new_path: WasmPtr<u8, Array>,
+        new_path: WasmPtr<u8>,
         new_path_len: u32,
     ) -> __wasi_errno_t {
         self.tick(env);
@@ -359,7 +359,7 @@ impl WasiProxy for WasiTerm {
         env: &WasiEnv,
         dirfd: __wasi_fd_t,
         dirflags: __wasi_lookupflags_t,
-        path: WasmPtr<u8, Array>,
+        path: WasmPtr<u8>,
         path_len: u32,
         o_flags: __wasi_oflags_t,
         fs_rights_base: __wasi_rights_t,
@@ -385,9 +385,9 @@ impl WasiProxy for WasiTerm {
         &self,
         env: &WasiEnv,
         dir_fd: __wasi_fd_t,
-        path: WasmPtr<u8, Array>,
+        path: WasmPtr<u8>,
         path_len: u32,
-        buf: WasmPtr<u8, Array>,
+        buf: WasmPtr<u8>,
         buf_len: u32,
         buf_used: WasmPtr<u32>,
     ) -> __wasi_errno_t {
@@ -398,7 +398,7 @@ impl WasiProxy for WasiTerm {
         &self,
         env: &WasiEnv,
         fd: __wasi_fd_t,
-        path: WasmPtr<u8, Array>,
+        path: WasmPtr<u8>,
         path_len: u32,
     ) -> __wasi_errno_t {
         self.tick(env);
@@ -408,10 +408,10 @@ impl WasiProxy for WasiTerm {
         &self,
         env: &WasiEnv,
         old_fd: __wasi_fd_t,
-        old_path: WasmPtr<u8, Array>,
+        old_path: WasmPtr<u8>,
         old_path_len: u32,
         new_fd: __wasi_fd_t,
-        new_path: WasmPtr<u8, Array>,
+        new_path: WasmPtr<u8>,
         new_path_len: u32,
     ) -> __wasi_errno_t {
         self.tick(env);
@@ -428,10 +428,10 @@ impl WasiProxy for WasiTerm {
     fn path_symlink(
         &self,
         env: &WasiEnv,
-        old_path: WasmPtr<u8, Array>,
+        old_path: WasmPtr<u8>,
         old_path_len: u32,
         fd: __wasi_fd_t,
-        new_path: WasmPtr<u8, Array>,
+        new_path: WasmPtr<u8>,
         new_path_len: u32,
     ) -> __wasi_errno_t {
         self.tick(env);
@@ -441,7 +441,7 @@ impl WasiProxy for WasiTerm {
         &self,
         env: &WasiEnv,
         fd: __wasi_fd_t,
-        path: WasmPtr<u8, Array>,
+        path: WasmPtr<u8>,
         path_len: u32,
     ) -> __wasi_errno_t {
         self.tick(env);
@@ -450,8 +450,8 @@ impl WasiProxy for WasiTerm {
     fn poll_oneoff(
         &self,
         env: &WasiEnv,
-        in_: WasmPtr<__wasi_subscription_t, Array>,
-        out_: WasmPtr<__wasi_event_t, Array>,
+        in_: WasmPtr<__wasi_subscription_t>,
+        out_: WasmPtr<__wasi_event_t>,
         nsubscriptions: u32,
         nevents: WasmPtr<u32>,
     ) -> __wasi_errno_t {
@@ -554,7 +554,7 @@ impl WasiProxy for WasiTerm {
         &self,
         env: &WasiEnv,
         sock: __wasi_fd_t,
-        si_data: WasmPtr<__wasi_ciovec_t, Array>,
+        si_data: WasmPtr<__wasi_ciovec_t>,
         si_data_len: u32,
         _si_flags: __wasi_siflags_t,
         so_datalen: WasmPtr<u32>,

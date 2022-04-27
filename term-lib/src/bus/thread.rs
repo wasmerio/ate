@@ -369,9 +369,12 @@ impl WasmBusThread {
                     let buf_len = data.len() as u32;
                     let buf = native_malloc.call(buf_len).unwrap();
 
-                    native_memory
-                        .uint8view_with_byte_offset_and_length(buf, buf_len)
-                        .copy_from(&data[..]);
+                    let err = native_memory
+                        .write(buf.into(), &data[..]);
+                    if let Err(err) = err {
+                        warn!("wasm-bus::call-reply - data copy failed - {}", err);
+                        continue;
+                    }
 
                     native_finish.call(handle.id, buf, buf_len).unwrap();
                 }
@@ -566,9 +569,13 @@ impl WasmBusThread {
                         return err::ERR_OK;
                     }
                 };
-                native_memory
-                    .uint8view_with_byte_offset_and_length(topic_ptr, topic_len)
-                    .copy_from(&topic_bytes[..]);
+                let err = native_memory
+                    .write(topic_ptr.into(), &topic_bytes[..]);
+                if let Err(err) = err {
+                    warn!("wasm-bus::call - topic memcpy failed - {}", err);
+                    let _ = tx.send(Err(CallError::MemoryAccessViolation));
+                    return err::ERR_OK;
+                }
 
                 let request_bytes = &data[..];
                 let request_len = request_bytes.len() as u32;
@@ -586,9 +593,13 @@ impl WasmBusThread {
                         return err::ERR_OK;
                     }
                 };
-                native_memory
-                    .uint8view_with_byte_offset_and_length(request_ptr, request_len)
-                    .copy_from(&request_bytes[..]);
+                let err = native_memory
+                    .write(request_ptr.into(), &request_bytes[..]);
+                if let Err(err) = err {
+                    warn!("wasm-bus::call - request memcpy failed - {}", err);
+                    let _ = tx.send(Err(CallError::MemoryAccessViolation));
+                    return err::ERR_OK;
+                }
 
                 // Record the handler so that when the call completes it notifies the
                 // one who put this work on the queue

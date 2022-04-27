@@ -1,5 +1,4 @@
 use crate::api::SystemAbiExt;
-use crate::wasmer::Array;
 use crate::wasmer::WasmPtr;
 use crate::wasmer_wasi::WasiError;
 use std::collections::HashMap;
@@ -22,8 +21,10 @@ pub(crate) mod raw {
         unsafe { super::wasm_bus_handle(thread).into() }
     }
     pub fn wasm_bus_listen(thread: &WasmBusThread, topic_ptr: u32, topic_len: u32) {
-        let topic_ptr: WasmPtr<u8, Array> = WasmPtr::new(topic_ptr as u32);
-        unsafe { super::wasm_bus_listen(thread, topic_ptr, topic_len as usize) }
+        let topic_ptr: WasmPtr<u8> = WasmPtr::new(topic_ptr as u32);
+        unsafe { 
+            let _ = super::wasm_bus_listen(thread, topic_ptr, topic_len as usize);
+        }
     }
     pub fn wasm_bus_callback(
         thread: &WasmBusThread,
@@ -38,8 +39,10 @@ pub(crate) mod raw {
             None
         };
         let handle: CallHandle = handle.into();
-        let topic_ptr: WasmPtr<u8, Array> = WasmPtr::new(topic_ptr as u32);
-        unsafe { super::wasm_bus_callback(thread, parent, handle, topic_ptr, topic_len as usize) }
+        let topic_ptr: WasmPtr<u8> = WasmPtr::new(topic_ptr as u32);
+        unsafe {
+            let _ = super::wasm_bus_callback(thread, parent, handle, topic_ptr, topic_len as usize);
+        }
     }
     pub fn wasm_bus_fault(thread: &WasmBusThread, handle: u32, error: u32) {
         let handle: CallHandle = handle.into();
@@ -58,8 +61,10 @@ pub(crate) mod raw {
         response_len: u32,
     ) {
         let handle: CallHandle = handle.into();
-        let response_ptr: WasmPtr<u8, Array> = WasmPtr::new(response_ptr as u32);
-        unsafe { super::wasm_bus_reply(thread, handle, response_ptr, response_len as usize) }
+        let response_ptr: WasmPtr<u8> = WasmPtr::new(response_ptr as u32);
+        unsafe { 
+            let _ = super::wasm_bus_reply(thread, handle, response_ptr, response_len as usize);
+        }
     }
     pub fn wasm_bus_reply_callback(
         thread: &WasmBusThread,
@@ -70,17 +75,17 @@ pub(crate) mod raw {
         response_len: u32,
     ) {
         let handle: CallHandle = handle.into();
-        let topic_ptr: WasmPtr<u8, Array> = WasmPtr::new(topic_ptr as u32);
-        let response_ptr: WasmPtr<u8, Array> = WasmPtr::new(response_ptr as u32);
+        let topic_ptr: WasmPtr<u8> = WasmPtr::new(topic_ptr as u32);
+        let response_ptr: WasmPtr<u8> = WasmPtr::new(response_ptr as u32);
         unsafe {
-            super::wasm_bus_reply_callback(
+            let _ = super::wasm_bus_reply_callback(
                 thread,
                 handle,
                 topic_ptr,
                 topic_len as usize,
                 response_ptr,
                 response_len as usize,
-            )
+            );
         }
     }
     pub fn wasm_bus_call(
@@ -101,9 +106,9 @@ pub(crate) mod raw {
             None
         };
         let handle: CallHandle = handle.into();
-        let wapm_ptr: WasmPtr<u8, Array> = WasmPtr::new(wapm_ptr as u32);
-        let topic_ptr: WasmPtr<u8, Array> = WasmPtr::new(topic_ptr as u32);
-        let request_ptr: WasmPtr<u8, Array> = WasmPtr::new(request_ptr as u32);
+        let wapm_ptr: WasmPtr<u8> = WasmPtr::new(wapm_ptr as u32);
+        let topic_ptr: WasmPtr<u8> = WasmPtr::new(topic_ptr as u32);
+        let request_ptr: WasmPtr<u8> = WasmPtr::new(request_ptr as u32);
         unsafe {
             super::wasm_bus_call(
                 thread,
@@ -117,6 +122,9 @@ pub(crate) mod raw {
                 request_ptr,
                 request_len as usize,
             )
+            .map(|_| CallError::Success)
+            .unwrap_or_else(|e| e)
+            .into()
         }
     }
     pub fn wasm_bus_call_instance(
@@ -141,11 +149,11 @@ pub(crate) mod raw {
             None
         };
         let handle: CallHandle = handle.into();
-        let instance_ptr: WasmPtr<u8, Array> = WasmPtr::new(instance_ptr as u32);
-        let access_token_ptr: WasmPtr<u8, Array> = WasmPtr::new(access_token_ptr as u32);
-        let wapm_ptr: WasmPtr<u8, Array> = WasmPtr::new(wapm_ptr as u32);
-        let topic_ptr: WasmPtr<u8, Array> = WasmPtr::new(topic_ptr as u32);
-        let request_ptr: WasmPtr<u8, Array> = WasmPtr::new(request_ptr as u32);
+        let instance_ptr: WasmPtr<u8> = WasmPtr::new(instance_ptr as u32);
+        let access_token_ptr: WasmPtr<u8> = WasmPtr::new(access_token_ptr as u32);
+        let wapm_ptr: WasmPtr<u8> = WasmPtr::new(wapm_ptr as u32);
+        let topic_ptr: WasmPtr<u8> = WasmPtr::new(topic_ptr as u32);
+        let request_ptr: WasmPtr<u8> = WasmPtr::new(request_ptr as u32);
         unsafe {
             super::wasm_bus_call_instance(
                 thread,
@@ -163,6 +171,9 @@ pub(crate) mod raw {
                 request_ptr,
                 request_len as usize,
             )
+            .map(|_| CallError::Success)
+            .unwrap_or_else(|e| e)
+            .into()
         }
     }
     pub fn wasm_bus_thread_id(thread: &WasmBusThread) -> u32 {
@@ -195,12 +206,12 @@ unsafe fn wasm_bus_callback(
     thread: &WasmBusThread,
     parent: Option<CallHandle>,
     handle: CallHandle,
-    topic_ptr: WasmPtr<u8, Array>,
+    topic_ptr: WasmPtr<u8>,
     topic_len: usize,
-) {
+) -> Result<(), CallError> {
     let topic = topic_ptr
-        .get_utf8_str(thread.memory(), topic_len as u32)
-        .unwrap();
+        .read_utf8_string(thread.memory(), topic_len as u32)
+        .map_err(mem_violation_conv_err)?;
     debug!(
         "wasm-bus::recv (parent={:?}, handle={}, topic={})",
         parent, handle.id, topic
@@ -210,8 +221,8 @@ unsafe fn wasm_bus_callback(
     if let Some(parent) = parent {
         let entry = inner.callbacks.entry(parent).or_default();
         entry.insert(topic.to_string(), handle);
-        return;
     }
+    Ok(())
 }
 
 // Forks the current process and then continuously polls the operating system
@@ -300,14 +311,16 @@ unsafe fn wasm_bus_tick(thread: &WasmBusThread) -> usize {
 
 // Tells the operating system that this program is ready to respond
 // to calls on a particular topic name.
-unsafe fn wasm_bus_listen(thread: &WasmBusThread, topic_ptr: WasmPtr<u8, Array>, topic_len: usize) {
+unsafe fn wasm_bus_listen(thread: &WasmBusThread, topic_ptr: WasmPtr<u8>, topic_len: usize) -> Result<(), CallError>
+{
     let topic = topic_ptr
-        .get_utf8_str(thread.memory(), topic_len as u32)
-        .unwrap();
+        .read_utf8_string(thread.memory(), topic_len as u32)
+        .map_err(mem_violation_conv_err)?;
     debug!("wasm-bus::listen (topic={})", topic);
 
     let mut inner = thread.inner.lock();
     inner.listens.insert(topic.to_string());
+    Ok(())
 }
 
 // Indicates that a fault has occured while processing a call
@@ -342,9 +355,9 @@ unsafe fn wasm_bus_fault(thread: &WasmBusThread, handle: CallHandle, error: u32)
 unsafe fn wasm_bus_reply(
     thread: &WasmBusThread,
     handle: CallHandle,
-    response_ptr: WasmPtr<u8, Array>,
+    response_ptr: WasmPtr<u8>,
     response_len: usize,
-) {
+) -> Result<(), CallError> {
     use tokio::sync::mpsc::error::TrySendError;
 
     debug!(
@@ -353,10 +366,11 @@ unsafe fn wasm_bus_reply(
     );
 
     // Grab the data we are sending back
-    let response = thread
-        .memory()
-        .uint8view_with_byte_offset_and_length(response_ptr.offset(), response_len as u32)
-        .to_vec();
+    let response = response_ptr
+        .slice(thread.memory(), response_len as _)
+        .map_err(mem_violation_conv_err)?
+        .read_to_vec()
+        .map_err(mem_violation_conv_err)?;
 
     // Grab the sender we will relay this response to
     let work = {
@@ -376,31 +390,32 @@ unsafe fn wasm_bus_reply(
             }));
         }
     }
+    Ok(())
 }
 
 // Returns the response of a listen callback
 unsafe fn wasm_bus_reply_callback(
     thread: &WasmBusThread,
     handle: CallHandle,
-    topic_ptr: WasmPtr<u8, Array>,
+    topic_ptr: WasmPtr<u8>,
     topic_len: usize,
-    response_ptr: WasmPtr<u8, Array>,
+    response_ptr: WasmPtr<u8>,
     response_len: usize,
-) {
+) -> Result<(), CallError> {
     let topic = topic_ptr
-        .get_utf8_str(thread.memory(), topic_len as u32)
-        .unwrap()
-        .to_string();
+        .read_utf8_string(thread.memory(), topic_len as u32)
+        .map_err(mem_violation_conv_err)?;
     debug!(
         "wasm-bus::reply_callback (handle={}, topic={}, response={} bytes)",
         handle.id, topic, response_len
     );
 
     // Grab the data we are sending back
-    let response = thread
-        .memory()
-        .uint8view_with_byte_offset_and_length(response_ptr.offset(), response_len as u32)
-        .to_vec();
+    let response = response_ptr
+        .slice(thread.memory(), response_len as _)
+        .map_err(mem_violation_conv_err)?
+        .read_to_vec()
+        .map_err(mem_violation_conv_err)?;
 
     // Grab the callback this related to
     let callback = {
@@ -419,6 +434,7 @@ unsafe fn wasm_bus_reply_callback(
     } else {
         debug!("callback is lost (topic={})", topic);
     }
+    Ok(())
 }
 
 // Calls a function using the operating system call to find
@@ -430,19 +446,19 @@ unsafe fn wasm_bus_call(
     parent: Option<CallHandle>,
     handle: CallHandle,
     keepalive: bool,
-    wapm_ptr: WasmPtr<u8, Array>,
+    wapm_ptr: WasmPtr<u8>,
     wapm_len: usize,
-    topic_ptr: WasmPtr<u8, Array>,
+    topic_ptr: WasmPtr<u8>,
     topic_len: usize,
-    request_ptr: WasmPtr<u8, Array>,
+    request_ptr: WasmPtr<u8>,
     request_len: usize
-) -> u32 {
+) -> Result<(), CallError> {
     let wapm = wapm_ptr
-        .get_utf8_str(thread.memory(), wapm_len as u32)
-        .unwrap();
+        .read_utf8_string(thread.memory(), wapm_len as u32)
+        .map_err(mem_violation_conv_err)?;
     let topic = topic_ptr
-        .get_utf8_str(thread.memory(), topic_len as u32)
-        .unwrap();
+        .read_utf8_string(thread.memory(), topic_len as u32)
+        .map_err(mem_violation_conv_err)?;
     if let Some(parent) = parent {
         debug!(
             "wasm-bus::call (parent={}, handle={}, wapm={}, topic={}, request={} bytes)",
@@ -455,10 +471,11 @@ unsafe fn wasm_bus_call(
         );
     }
 
-    let request = thread
-        .memory()
-        .uint8view_with_byte_offset_and_length(request_ptr.offset(), request_len as u32)
-        .to_vec();
+    let request = request_ptr
+        .slice(thread.memory(), request_len as _)
+        .map_err(mem_violation_conv_err)?
+        .read_to_vec()
+        .map_err(mem_violation_conv_err)?;
 
     // Create to data feeders that will respond to the message in a happy path or
     // an unhappy path
@@ -527,7 +544,7 @@ unsafe fn wasm_bus_call(
     // Record the invocations and return success
     let mut inner = thread.inner.lock();
     inner.invocations.insert(handle, invoke);
-    CallError::Success.into()
+    Ok(())
 }
 
 // Calls a function in a WAPM process that is running in an
@@ -539,30 +556,30 @@ unsafe fn wasm_bus_call_instance(
     parent: Option<CallHandle>,
     handle: CallHandle,
     keepalive: bool,
-    instance_ptr: WasmPtr<u8, Array>,
+    instance_ptr: WasmPtr<u8>,
     instance_len: usize,
-    access_token_ptr: WasmPtr<u8, Array>,
+    access_token_ptr: WasmPtr<u8>,
     access_token_len: usize,
-    wapm_ptr: WasmPtr<u8, Array>,
+    wapm_ptr: WasmPtr<u8>,
     wapm_len: usize,
-    topic_ptr: WasmPtr<u8, Array>,
+    topic_ptr: WasmPtr<u8>,
     topic_len: usize,
-    request_ptr: WasmPtr<u8, Array>,
+    request_ptr: WasmPtr<u8>,
     request_len: usize,
-) -> u32 {
+) -> Result<(), CallError> {
     let instance = instance_ptr
-        .get_utf8_str(thread.memory(), instance_len as u32)
-        .unwrap();
+        .read_utf8_string(thread.memory(), instance_len as u32)
+        .map_err(mem_violation_conv_err)?;
     #[allow(unused)]
     let access_token = access_token_ptr
-        .get_utf8_str(thread.memory(), access_token_len as u32)
-        .unwrap();
+        .read_utf8_string(thread.memory(), access_token_len as u32)
+        .map_err(mem_violation_conv_err)?;
     let wapm = wapm_ptr
-        .get_utf8_str(thread.memory(), wapm_len as u32)
-        .unwrap();
+        .read_utf8_string(thread.memory(), wapm_len as u32)
+        .map_err(mem_violation_conv_err)?;
     let topic = topic_ptr
-        .get_utf8_str(thread.memory(), topic_len as u32)
-        .unwrap();
+        .read_utf8_string(thread.memory(), topic_len as u32)
+        .map_err(mem_violation_conv_err)?;
     if let Some(parent) = parent {
         debug!(
             "wasm-bus::call_instance (parent={}, handle={}, instance={}, wapm={}, topic={}, request={} bytes)",
@@ -576,10 +593,11 @@ unsafe fn wasm_bus_call_instance(
     }
 
     #[allow(unused)]
-    let request = thread
-        .memory()
-        .uint8view_with_byte_offset_and_length(request_ptr.offset(), request_len as u32)
-        .to_vec();
+    let request = request_ptr
+        .slice(thread.memory(), request_len as _)
+        .map_err(mem_violation_conv_err)?
+        .read_to_vec()
+        .map_err(mem_violation_conv_err)?;
 
     // Create to data feeders that will respond to the message in a happy path or
     // an unhappy path
@@ -648,11 +666,17 @@ unsafe fn wasm_bus_call_instance(
     // Record the invocations and return success
     let mut inner = thread.inner.lock();
     inner.invocations.insert(handle, invoke);
-    CallError::Success.into()
+    Ok(())
 }
 
 // Returns a unqiue ID for the thread
 unsafe fn wasm_bus_thread_id(thread: &WasmBusThread) -> u32 {
     trace!("wasm-bus::thread_id (id={})", thread.thread_id);
     thread.thread_id
+}
+
+fn mem_violation_conv_err<T: std::fmt::Display>(err: T) -> CallError
+{
+    debug!("memory access violation - {}", err);
+    CallError::MemoryAccessViolation
 }

@@ -23,6 +23,7 @@ pub enum CallError {
     BusInvocationFailed = 17,
     AccessDenied = 18,
     AlreadyConsumed = 19,
+    MemoryAccessViolation = 20,
     Unknown = u32::MAX,
 }
 
@@ -47,6 +48,7 @@ impl From<u32> for CallError {
             17 => CallError::BusInvocationFailed,
             18 => CallError::AccessDenied,
             19 => CallError::AlreadyConsumed,
+            20 => CallError::MemoryAccessViolation,
             _ => CallError::Unknown,
         }
     }
@@ -73,6 +75,7 @@ impl Into<u32> for CallError {
             CallError::BusInvocationFailed => 17,
             CallError::AccessDenied => 18,
             CallError::AlreadyConsumed => 19,
+            CallError::MemoryAccessViolation => 20,
             CallError::Unknown => u32::MAX,
         }
     }
@@ -140,6 +143,7 @@ impl fmt::Display for CallError {
             CallError::MemoryAllocationFailed => write!(f, "memory allocation has failed"),
             CallError::BusInvocationFailed => write!(f, "bus invocation has failed"),
             CallError::AlreadyConsumed => write!(f, "result already consumed"),
+            CallError::MemoryAccessViolation => write!(f, "memory access violation"),
             CallError::Unknown => write!(f, "unknown error."),
         }
     }

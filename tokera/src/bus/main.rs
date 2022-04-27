@@ -30,12 +30,13 @@ pub async fn main_opts_bus(
     token_path: String,
     auth_url: url::Url,
 ) -> Result<(), crate::error::BusError> {
-    info!("wasm bus initializing");
+    info!("wasm-bus initializing");
 
     // Freeze the opts
     let opts = Arc::new(opts);
 
     // Load the session
+    info!("loading the user session");
     let session_user = match main_session_user(None, Some(token_path.clone()), None).await {
         Ok(a) => a,
         Err(err) => {
@@ -60,10 +61,15 @@ pub async fn main_opts_bus(
     let registry = Arc::new(Registry::new(&conf).await);
 
     // Start the fuse and tok implementations
+    debug!("listing for tokera commands");
     TokServer::listen(opts.clone(), registry.clone(), session_user.clone(), conf.clone(), auth_url.clone()).await?;
+    debug!("listing for fuse commands");
     FuseServer::listen(opts.clone(), registry.clone(), session_user.clone(), conf.clone(), auth_url.clone()).await?;
+    debug!("listing for mio commands");
     MioServer::listen(opts.clone(), token_path).await?;
+    debug!("registering wasm_bus server");
     wasm_bus::task::serve();
+    info!("switching from command to reactor pattern");
     Ok(())
 }
 

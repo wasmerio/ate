@@ -431,7 +431,7 @@ impl FileOpener for UnionFileOpener {
             match mount
                 .fs
                 .new_open_options()
-                .set_options(conf.clone())
+                .options(conf.clone())
                 .open(path)
             {
                 Ok(ret) => return Ok(ret),

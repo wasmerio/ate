@@ -9,6 +9,7 @@ use ate_files::prelude::*;
 use derivative::*;
 use std::io::Write;
 use std::sync::Arc;
+use std::ops::Deref;
 use tokio::sync::Mutex;
 use std::time::Duration;
 #[allow(unused_imports, dead_code)]
@@ -31,13 +32,35 @@ use crate::cmd::network::load_port;
 use crate::opt::OptsBus;
 use crate::mio::Port;
 
+#[derive(Debug)]
+pub struct MioServerState {
+    port: Port,
+    ip: Ipv4Addr,
+    netmask: Ipv4Addr,
+}
+
+#[derive(Debug)]
+pub struct MioServerStateGuard<'a>
+{
+    guard: tokio::sync::MutexGuard<'a, Option<MioServerState>>
+}
+
+impl<'a> Deref
+for MioServerStateGuard<'a>
+{
+    type Target = MioServerState;
+
+    fn deref(&self) -> &Self::Target {
+        self.guard.as_ref().unwrap()
+    }
+}
+
 #[allow(dead_code)]
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct MioServer {
-    port: Port,
-    ip: Ipv4Addr,
-    netmask: Ipv4Addr,
+    token_path: String,
+    state: Mutex<Option<MioServerState>>
 }
 
 impl MioServer {
@@ -46,32 +69,57 @@ impl MioServer {
         token_path: String,
     ) -> Result<(), crate::error::BusError>
     { 
+        // Register so we can respond to calls
+        let server = Arc::new(MioServer {
+            token_path,
+            state: Mutex::new(None)
+        });
+        api::MioService::listen(server);
+        Ok(())
+    }
+}
+
+impl MioServer
+{
+    async fn get_or_create_state<'a>(&'a self) -> Result<MioServerStateGuard<'a>, CallError>
+    {
+        // Lock the state guard
+        let mut guard = self.state.lock().await;
+
+        // If the port is already set then we are good to go
+        if guard.is_some() {
+            return Ok(MioServerStateGuard {
+                guard
+            })
+        }
+
         // Load the port
-        let port = load_port(token_path, None)
+        let port = load_port(self.token_path.clone(), None)
             .await
             .map_err(|err| {
-                let err = tokio::io::Error::new(tokio::io::ErrorKind::NotConnected, err.to_string());
-                let err: crate::error::BusError = err.into();
-                err
+                error!("failed to load port - {}", err);
+                CallError::BadRequest
             })?;
 
         // Acquire an IP address
         let (ip, netmask) = port.dhcp_acquire()
             .await
             .map_err(|err| {
-                let err = tokio::io::Error::new(tokio::io::ErrorKind::AddrNotAvailable, err);
-                let err: crate::error::BusError = err.into();
-                err
+                error!("failed to acquire IP using DHCP - {}", err);
+                CallError::BadRequest
             })?;
-
-        // Register so we can respond to calls
-        let server = Arc::new(MioServer {
+            
+        // Set the state
+        guard.replace(MioServerState {
             port,
             ip,
-            netmask,
+            netmask
         });
-        api::MioService::listen(server);
-        Ok(())
+
+        // Return the guard
+        Ok(MioServerStateGuard {
+            guard
+        })
     }
 }
 
@@ -81,7 +129,8 @@ for MioServer {
     async fn bind_raw(
         &self,
     ) -> Result<Arc<dyn api::RawSocket + Send + Sync + 'static>, CallError> {
-        let socket = self.port.bind_raw().await
+        let guard = self.get_or_create_state().await?;
+        let socket = guard.port.bind_raw().await
             .map_err(|err| {
                 debug!("bind_raw failed: {}", err);
                 CallError::InternalFailure
@@ -94,14 +143,16 @@ for MioServer {
         &self,
         addr: SocketAddr
     ) -> Result<Arc<dyn api::TcpListener + Send + Sync + 'static>, CallError> {
-        Ok(Arc::new(TcpListenerServer::new(self.port.clone(), addr).await?))
+        let guard = self.get_or_create_state().await?;
+        Ok(Arc::new(TcpListenerServer::new(guard.port.clone(), addr).await?))
     }
 
     async fn bind_udp(
         &self,
         addr: SocketAddr
     ) -> Result<Arc<dyn api::UdpSocket + Send + Sync + 'static>, CallError> {
-        let port = self.port.clone();
+        let guard = self.get_or_create_state().await?;
+        let port = guard.port.clone();
         let socket = port
             .bind_udp(addr).await
             .map_err(|err| {
@@ -117,7 +168,8 @@ for MioServer {
         addr: SocketAddr,
         peer: SocketAddr,
     ) -> Result<Arc<dyn api::TcpStream + Send + Sync + 'static>, CallError> {
-        let socket = self.port
+        let guard = self.get_or_create_state().await?;
+        let socket = guard.port
             .connect_tcp(addr, peer).await
             .map_err(|err| {
                 debug!("bind_raw failed: {}", err);
