@@ -7,7 +7,8 @@ use std::sync::Arc;
 use std::io;
 use tokio::sync::Mutex;
 use tokio::net::TcpStream;
-use tokio_tungstenite::{client_async_tls_with_config, tungstenite::protocol::Message};
+#[allow(unused_imports)]
+use tokio_tungstenite::{client_async_tls_with_config, connect_async, tungstenite::protocol::Message};
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
@@ -24,6 +25,7 @@ impl WebSocket {
     pub(crate) async fn new(url: &str) -> Result<Self, io::Error> {
         let request = url::Url::parse(url).unwrap();
 
+        /*
         let domain = request
             .domain()
             .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "URL does not have a domain component"))?;
@@ -39,9 +41,12 @@ impl WebSocket {
         let addr = format!("{}:{}", domain, port);
         let socket = TcpStream::connect(addr).await?;
         socket.set_nodelay(true)?;
+        */
 
-        let (ws_stream, _) = client_async_tls_with_config(request, socket, None, None).await
-            .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
+        let (ws_stream, _) = connect_async(request).await
+                .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
+        //let (ws_stream, _) = client_async_tls_with_config(request, socket, None, None).await
+        //    .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
         let (sink, stream) = ws_stream.split();
 
         Ok(Self {
