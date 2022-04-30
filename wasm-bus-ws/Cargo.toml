@@ -23,6 +23,6 @@ tokio = { version = "^1", features = [ "sync", "macros" ], default_features = fa
 wasm-bus = { version = "^1", path = "../wasm-bus", default_features = false, features = [ "rt", "macros" ] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-tokio-tungstenite = { version = "^0.17", features = [ "native-tls" ], optional = true }
+tokio-tungstenite = { version = "^0.16", features = [ "native-tls" ], optional = true }
 futures = { version = "^0.3", optional = true }
 futures-util = { version = "^0.3", optional = true }
