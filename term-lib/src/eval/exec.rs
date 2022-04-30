@@ -40,7 +40,7 @@ use crate::poll::*;
 use crate::reactor::*;
 use crate::state::*;
 use crate::stdio::*;
-use crate::wasmer::{ChainableNamedResolver, Instance, Module, Store};
+use crate::wasmer::{Imports, Instance, Module, Store};
 use crate::wasmer_vfs::FileSystem;
 use crate::wasmer_vfs::FsError;
 use crate::wasmer_wasi::Stdin;
@@ -468,7 +468,7 @@ pub async fn exec_process(
             let mut wasi_thread = wasi_env.new_thread();
 
             // Generate an `ImportObject`.
-            let wasi_import = match wasi_thread.import_object(&module) {
+            let mut wasi_imports = match wasi_thread.import_object_for_all_wasi_versions(&module) {
                 Ok(a) => a,
                 Err(err) => {
                     let _ = stderr.write(format!("wasi error ({})\n", err.to_string()).as_bytes()).await;
@@ -477,12 +477,14 @@ pub async fn exec_process(
                 }
             };
             let mut wasm_thread = bus_thread_pool.get_or_create(&wasi_thread, &launch_env);
-            let wasm_bus_import = wasm_thread.import_object(&module);
-            let import = wasi_import.chain_front(wasm_bus_import);
+            let wasm_bus_imports = wasm_thread.imports(&module);
+            let mut imports = Imports::new();
+            imports.extend(wasi_imports.into_iter());
+            imports.extend(wasm_bus_imports.into_iter());
             let bus_thread_pool = bus_thread_pool.to_take_context();
 
             // Let's instantiate the module with the imports.
-            let instance = match Instance::new(&module, &import) {
+            let instance = match Instance::new(&module, &imports) {
                 Ok(a) => a,
                 Err(err) => {
                     let _ = stderr.write(format!("instantiate error ({})\n", err.to_string()).as_bytes()).await;

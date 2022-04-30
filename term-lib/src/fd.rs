@@ -230,9 +230,9 @@ impl Fd {
         let _ = self.flush_async().await;
     }
 
-    pub fn poll(&mut self) -> PollResult {
+    pub fn poll(&self) -> PollResult {
         poll_fd(
-            self.receiver.as_mut(),
+            self.receiver.as_ref(),
             self.sender.as_ref().map(|a| a.deref()),
         )
     }
@@ -527,6 +527,42 @@ impl VirtualFile for Fd {
 
     fn unlink(&mut self) -> Result<(), WasiFsError> {
         Ok(())
+    }
+
+    fn bytes_available_read(&self) -> Result<Option<usize>, WasiFsError> {
+        if self.ctx.should_terminate().is_some() {
+            return Err(WasiFsError::Interrupted);
+        }
+        let ret = self.poll();
+        if ret.is_closed {
+            if self.flip_to_abort {
+                return Err(WasiFsError::BrokenPipe);
+            }
+            return Ok(Some(0usize));
+        }
+        if ret.can_read {
+            Ok(Some(ret.bytes_available_read))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn bytes_available_write(&self) -> Result<Option<usize>, WasiFsError> {
+        if self.ctx.should_terminate().is_some() {
+            return Err(WasiFsError::Interrupted);
+        }
+        let ret = self.poll();
+        if ret.is_closed {
+            if self.flip_to_abort {
+                return Err(WasiFsError::BrokenPipe);
+            }
+            return Ok(Some(0usize));
+        }
+        if ret.can_write {
+            Ok(Some(4096usize))
+        } else {
+            Ok(None)
+        }
     }
 }
 

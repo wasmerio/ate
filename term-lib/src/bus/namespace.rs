@@ -1,13 +1,13 @@
 use crate::wasmer::imports;
-use crate::wasmer::ImportObject;
+use crate::wasmer::Imports;
 use crate::wasmer::{Function, Store};
 
 use super::syscalls::raw;
 use super::thread::WasmBusThread;
 
 /// Combines a state generating function with the import list for the WASM bus
-pub(super) fn generate_import_object_wasm_bus(store: &Store, env: WasmBusThread) -> ImportObject {
-    imports! {
+pub(super) fn generate_import_object_wasm_bus(store: &Store, env: WasmBusThread) -> Imports {
+    let imports: Imports = imports! {
         "wasm-bus" => {
             "drop" => Function::new_native_with_env(store, env.clone(), raw::wasm_bus_drop),
             "handle" => Function::new_native_with_env(store, env.clone(), raw::wasm_bus_handle),
@@ -22,5 +22,6 @@ pub(super) fn generate_import_object_wasm_bus(store: &Store, env: WasmBusThread)
             "callback" => Function::new_native_with_env(store, env.clone(), raw::wasm_bus_callback),
             "thread_id" => Function::new_native_with_env(store, env.clone(), raw::wasm_bus_thread_id),
         }
-    }
+    };
+    imports
 }

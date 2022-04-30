@@ -18,41 +18,71 @@ pub struct PollResult {
     pub can_read: bool,
     pub can_write: bool,
     pub is_closed: bool,
+    pub bytes_available_read: usize,
 }
 
 pub fn poll_fd(
-    rx: Option<&mut Arc<AsyncMutex<ReactorPipeReceiver>>>,
+    rx: Option<&Arc<AsyncMutex<ReactorPipeReceiver>>>,
     tx: Option<&mpsc::Sender<FdMsg>>,
 ) -> PollResult {
-    let mut has_fd = false;
+    let mut bytes_available_read = 0usize;
+    
     let can_write = if let Some(fd) = tx {
-        has_fd = true;
-        if let Ok(_permit) = fd.try_reserve() {
-            true
-        } else {
-            false
+        match fd.try_reserve() {
+            Ok(_permit) => {
+                true
+            }
+            Err(mpsc::error::TrySendError::Full(())) => {
+                false
+            }
+            Err(mpsc::error::TrySendError::Closed(())) => {
+                return PollResult {
+                    can_read: false,
+                    can_write: false,
+                    is_closed: true,
+                    bytes_available_read: 0
+                };
+            }
         }
     } else {
         false
     };
     let can_read = if let Some(fd) = rx {
-        has_fd = true;
         let mut fd = fd.blocking_lock();
         if fd.buffer.is_empty() == false {
-            true
-        } else if let Ok(msg) = fd.rx.try_recv() {
-            match msg {
-                FdMsg::Data { data, flag } => {
-                    fd.cur_flag = flag;
-                    fd.buffer.extend_from_slice(&data[..]);
-                }
-                FdMsg::Flush { tx } => {
-                    let _ = tx.try_send(());
-                }
-            }
+            bytes_available_read += fd.buffer.len();
             true
         } else {
-            false
+            match fd.rx.try_recv() {
+                Ok(msg) => {
+                    match msg {
+                        FdMsg::Data { data, flag } => {
+                            fd.cur_flag = flag;
+                            fd.buffer.extend_from_slice(&data[..]);
+                            if fd.mode == ReceiverMode::Message(false) {
+                                fd.mode = ReceiverMode::Message(true);
+                            }
+                            bytes_available_read += fd.buffer.len();
+                            true
+                        }
+                        FdMsg::Flush { tx } => {
+                            let _ = tx.try_send(());
+                            false
+                        }
+                    }
+                }
+                Err(mpsc::error::TryRecvError::Empty) => {
+                    false
+                }
+                Err(mpsc::error::TryRecvError::Disconnected) => {
+                    return PollResult {
+                        can_read: false,
+                        can_write: false,
+                        is_closed: true,
+                        bytes_available_read: 0
+                    };
+                }
+            }
         }
     } else {
         false
@@ -60,7 +90,8 @@ pub fn poll_fd(
     let ret = PollResult {
         can_read,
         can_write,
-        is_closed: has_fd == false,
+        is_closed: rx.is_some() || tx.is_some(),
+        bytes_available_read,
     };
     ret
 }

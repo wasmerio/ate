@@ -1,4 +1,4 @@
-use crate::wasmer::ImportObject;
+use crate::wasmer::Imports;
 use crate::wasmer::LazyInit;
 use crate::wasmer::Memory;
 use crate::wasmer::Module;
@@ -392,8 +392,8 @@ impl WasmBusThread {
 }
 
 impl WasmBusThread {
-    /// Get an `ImportObject`
-    pub fn import_object(&mut self, module: &Module) -> ImportObject {
+    /// Get an `Imports`
+    pub fn imports(&mut self, module: &Module) -> Imports {
         generate_import_object_wasm_bus(module.store(), self.clone())
     }
 
