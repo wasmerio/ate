@@ -40,7 +40,7 @@ pub enum PortCommand {
     },
     BindIcmp {
         handle: SocketHandle,
-        local_addr: SocketAddr,
+        local_addr: IpAddr,
         hop_limit: u8,
     },
     BindDhcp {

@@ -338,7 +338,7 @@ fn decode_access_token(token: String) -> Result<NetworkToken, SerializationError
 async fn load_access_token(token_path: String) -> Result<Option<NetworkToken>, SerializationError> {
     let token_path = format!("{}.network", token_path);
     let token_path = shellexpand::tilde(token_path.as_str()).to_string();
-    if let Ok(token) = tokio::fs::read_to_string(token_path).await {
+    if let Ok(token) = std::fs::read_to_string(token_path) {
         Ok(Some(decode_access_token(token)?))
     } else {
         Ok(None)

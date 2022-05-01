@@ -282,7 +282,7 @@ impl Port
                 local_addr,
                 hop_limit,
             } => {
-                if unicast_good(local_addr.ip()) == false {
+                if unicast_good(local_addr) == false {
                     self.queue_error(handle, SocketErrorKind::AddrNotAvailable);
                     return Ok(());
                 }
@@ -290,7 +290,7 @@ impl Port
                 let tx_buffer = IcmpSocketBuffer::new(icmp_meta_buf(self.buf_size), self.raw_buf(1));
                 let mut socket = IcmpSocket::new(rx_buffer, tx_buffer);
                 socket.set_hop_limit(Some(hop_limit));
-                if let Err(err) = socket.bind(IcmpEndpoint::Udp(local_addr.into())) {
+                if let Err(err) = socket.bind(IcmpEndpoint::Udp(SocketAddr::new(local_addr, 0).into())) {
                     self.queue_error(handle, conv_err(err));
                 } else {
                     self.icmp_sockets.insert(handle, self.iface.add_socket(socket));
@@ -653,6 +653,19 @@ impl Port
                     }
                 }
             }
+
+            for (handle, socket_handle) in self.icmp_sockets.iter() {
+                let socket = self.iface.get_socket::<IcmpSocket>(*socket_handle);
+                while socket.can_recv() {
+                    if let Ok((data, addr)) = socket.recv() {
+                        let data = data.to_vec();
+                        let peer_addr = conv_addr2(addr, 0);
+                        ret.push(PortResponse::ReceivedFrom { handle: *handle, peer_addr, data });
+                    } else {
+                        break;
+                    }
+                }
+            }
         }
 
         for (handle, raw) in self.raw_sockets.iter_mut() {
@@ -808,9 +821,12 @@ fn icmp_meta_buf(buf_size: usize) -> Vec<IcmpPacketMetadata> {
 }
 
 fn conv_addr(addr: smoltcp::wire::IpEndpoint) -> SocketAddr {
-    let port = addr.port;
+    conv_addr2(addr.addr, addr.port)
+}
+
+fn conv_addr2(addr: smoltcp::wire::IpAddress, port: u16) -> SocketAddr {
     use smoltcp::wire::IpAddress::*;
-    match addr.addr {
+    match addr {
         Ipv4(addr) => SocketAddr::V4(SocketAddrV4::new(addr.into(), port)),
         Ipv6(addr) => SocketAddr::V6(SocketAddrV6::new(addr.into(), port, 0 ,0)),
         _ => SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, port)),

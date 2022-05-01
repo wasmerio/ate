@@ -27,11 +27,15 @@ impl InstanceClient
 
     pub async fn new_ext(connect_url: url::Url, path: &str, ignore_certificate: bool) -> Result<Self, Box<dyn std::error::Error>>
     {
-        let domain = connect_url.domain().clone().map(|a| a.to_string()).unwrap_or("localhost".to_string());
+        let domain = connect_url
+            .domain()
+            .clone()
+            .map(|a| a.to_string())
+            .unwrap_or("localhost".to_string());
 
         let mut validation = {
             let mut certs = Vec::new();
-            
+
             #[cfg(not(target_arch = "wasm32"))]
             {
                 let test_registry = Registry::new(&conf_cmd()).await;
@@ -71,7 +75,7 @@ impl InstanceClient
         } else {
             None
         };
-        
+
         // Say hello
         let node_id = NodeId::generate_client_id();
         let hello_metadata = ate::comms::hello::mesh_hello_exchange_sender(
@@ -97,7 +101,7 @@ impl InstanceClient
             ),
             None => None,
         };
-        
+
         Ok(
             Self {
                 rx,

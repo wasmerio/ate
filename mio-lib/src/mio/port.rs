@@ -160,7 +160,7 @@ impl Port
         Ok(socket)
     }
 
-    pub async fn bind_icmp(&self, local_addr: SocketAddr) -> io::Result<Socket> {
+    pub async fn bind_icmp(&self, local_addr: IpAddr) -> io::Result<Socket> {
         let mut socket = self.new_socket(Some(IpProtocol::Icmp)).await;
 
         socket.tx(PortCommand::BindIcmp {

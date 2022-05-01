@@ -9,6 +9,7 @@ mod raw_socket;
 mod tcp_listener;
 mod tcp_stream;
 mod udp_socket;
+mod icmp_socket;
 
 pub use main::*;
 

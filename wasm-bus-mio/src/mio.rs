@@ -1,3 +1,4 @@
+use std::net::IpAddr;
 use std::sync::Arc;
 use std::io;
 
@@ -7,6 +8,8 @@ pub use std::net::Ipv4Addr;
 pub use std::net::Ipv6Addr;
 
 use super::api;
+
+const WAPM_DEFAULT: &'static str = "tok";
 
 pub struct NetworkManagement
 {
@@ -28,35 +31,35 @@ impl NetworkManagement
     }
 
     pub async fn bind_raw(&self) -> io::Result<AsyncRawSocket> {
-        AsyncRawSocket::bind(self.wapm.as_str()).await
+        AsyncRawSocket::bind_via(self.wapm.as_str()).await
     }
 
     pub async fn bind_tcp(&self, addr: SocketAddr) -> io::Result<AsyncTcpListener> {
-        AsyncTcpListener::bind(self.wapm.as_str(), addr).await
+        AsyncTcpListener::bind_via(self.wapm.as_str(), addr).await
     }
 
     pub async fn connect_tcp(&self, addr: SocketAddr, peer: SocketAddr) -> io::Result<AsyncTcpStream> {
-        AsyncTcpStream::connect(self.wapm.as_str(), addr, peer).await
+        AsyncTcpStream::connect_via(self.wapm.as_str(), addr, peer).await
     }
 
     pub async fn bind_udp(&self, addr: SocketAddr) -> io::Result<AsyncUdpSocket> {
-        AsyncUdpSocket::bind(self.wapm.as_str(), addr).await
+        AsyncUdpSocket::bind_via(self.wapm.as_str(), addr).await
     }
 
     pub fn blocking_bind_raw(&self) -> io::Result<RawSocket> {
-        RawSocket::bind(self.wapm.as_str())
+        RawSocket::bind_via(self.wapm.as_str())
     }
 
     pub fn blocking_bind_tcp(&self, addr: SocketAddr) -> io::Result<TcpListener> {
-        TcpListener::bind(self.wapm.as_str(), addr)
+        TcpListener::bind_via(self.wapm.as_str(), addr)
     }
 
     pub fn blocking_connect_tcp(&self, addr: SocketAddr, peer: SocketAddr) -> io::Result<TcpStream> {
-        TcpStream::connect(self.wapm.as_str(), addr, peer)
+        TcpStream::connect_via(self.wapm.as_str(), addr, peer)
     }
 
     pub fn blocking_bind_udp(&self, addr: SocketAddr) -> io::Result<UdpSocket> {
-        UdpSocket::bind(self.wapm.as_str(), addr)
+        UdpSocket::bind_via(self.wapm.as_str(), addr)
     }
 }
 
@@ -65,7 +68,11 @@ pub struct AsyncRawSocket {
 }
 
 impl AsyncRawSocket {
-    pub async fn bind(wapm: &str) -> io::Result<AsyncRawSocket> {
+    pub async fn bind() -> io::Result<AsyncRawSocket> {
+        Self::bind_via(WAPM_DEFAULT).await
+    }
+
+    pub async fn bind_via(wapm: &str) -> io::Result<AsyncRawSocket> {
         let factory = api::MioClient::new(wapm);
         let raw = factory.bind_raw().await
             .map_err(|err| err.into_io_error())?;
@@ -94,7 +101,11 @@ pub struct AsyncTcpListener {
 }
 
 impl AsyncTcpListener {
-    pub async fn bind(wapm: &str, addr: SocketAddr) -> io::Result<AsyncTcpListener> {
+    pub async fn bind(addr: SocketAddr) -> io::Result<AsyncTcpListener> {
+        Self::bind_via(WAPM_DEFAULT, addr).await
+    }
+
+    pub async fn bind_via(wapm: &str, addr: SocketAddr) -> io::Result<AsyncTcpListener> {
         let factory = api::MioClient::new(wapm);
         let listener = factory
             .bind_tcp(addr)
@@ -158,7 +169,11 @@ pub struct AsyncTcpStream {
 }
 
 impl AsyncTcpStream {
-    pub async fn connect(wapm: &str, addr: SocketAddr, peer: SocketAddr) -> io::Result<AsyncTcpStream> {
+    pub async fn connect(addr: SocketAddr, peer: SocketAddr) -> io::Result<AsyncTcpStream> {
+        Self::connect_via(WAPM_DEFAULT, addr, peer).await
+    }
+
+    pub async fn connect_via(wapm: &str, addr: SocketAddr, peer: SocketAddr) -> io::Result<AsyncTcpStream> {
         let factory = api::MioClient::new(wapm);
         let tcp = factory.connect_tcp(addr, peer).await
             .map_err(conv_err)?;
@@ -251,7 +266,11 @@ pub struct AsyncUdpSocket {
 }
 
 impl AsyncUdpSocket {
-    pub async fn bind(wapm: &str, addr: SocketAddr) -> io::Result<AsyncUdpSocket> {
+    pub async fn bind(addr: SocketAddr) -> io::Result<AsyncUdpSocket> {
+        Self::bind_via(WAPM_DEFAULT, addr).await
+    }
+
+    pub async fn bind_via(wapm: &str, addr: SocketAddr) -> io::Result<AsyncUdpSocket> {
         let factory = api::MioClient::new(wapm);
         let udp = factory.bind_udp(addr).await
             .map_err(|err| err.into_io_error())?;
@@ -456,12 +475,75 @@ impl AsyncUdpSocket {
     }
 }
 
+pub struct AsyncIcmpSocket {
+    icmp: Arc<dyn api::IcmpSocket + Send + Sync + 'static>,
+}
+
+impl AsyncIcmpSocket {
+    pub async fn bind(addr: IpAddr) -> io::Result<AsyncIcmpSocket> {
+        Self::bind_via(WAPM_DEFAULT, addr).await
+    }
+
+    pub async fn bind_via(wapm: &str, addr: IpAddr) -> io::Result<AsyncIcmpSocket> {
+        let factory = api::MioClient::new(wapm);
+        let icmp = factory.bind_icmp(addr).await
+            .map_err(|err| err.into_io_error())?;
+        Ok(
+            AsyncIcmpSocket {
+                icmp
+            }
+        )        
+    }
+
+    pub async fn recv_from(&self, max: usize) -> io::Result<(Vec<u8>, IpAddr)> {
+        self.icmp.recv_from(max).await
+            .map_err(conv_err)?
+            .map_err(conv_err2)
+    }
+
+    pub async fn peek_from(&self, max: usize) -> io::Result<(Vec<u8>, IpAddr)> {
+        self.icmp.peek_from(max).await
+            .map_err(conv_err)?
+            .map_err(conv_err2)
+    }
+
+    pub async fn send_to(&self, buf: Vec<u8>, addr: IpAddr) -> io::Result<usize> {
+        self.icmp.send_to(buf, addr).await
+            .map_err(conv_err)?
+            .map_err(conv_err2)
+    }
+
+    pub async fn local_addr(&self) -> io::Result<IpAddr> {
+        Ok(
+            self.icmp.local_addr().await
+                .map_err(conv_err)?
+        )
+    }
+
+    pub async fn set_ttl(&self, ttl: u32) -> io::Result<()> {
+        self.icmp.set_ttl(ttl).await
+            .map_err(conv_err)?
+            .map_err(conv_err2)
+    }
+
+    pub async fn ttl(&self) -> io::Result<u32> {
+        Ok(
+            self.icmp.ttl().await
+                .map_err(conv_err)?
+        )
+    }
+}
+
 pub struct RawSocket {
     raw: Arc<dyn api::RawSocket + Send + Sync + 'static>,
 }
 
 impl RawSocket {
-    pub fn bind(wapm: &str) -> io::Result<RawSocket> {
+    pub fn bind() -> io::Result<RawSocket> {
+        Self::bind_via(WAPM_DEFAULT)
+    }
+
+    pub fn bind_via(wapm: &str) -> io::Result<RawSocket> {
         let factory = api::MioClient::new(wapm);
         let raw = factory.blocking_bind_raw()
             .map_err(|err| err.into_io_error())?;
@@ -490,7 +572,11 @@ pub struct TcpListener {
 }
 
 impl TcpListener {
-    pub fn bind(wapm: &str, addr: SocketAddr) -> io::Result<TcpListener> {
+    pub fn bind(addr: SocketAddr) -> io::Result<TcpListener> {
+        Self::bind_via(WAPM_DEFAULT, addr)
+    }
+
+    pub fn bind_via(wapm: &str, addr: SocketAddr) -> io::Result<TcpListener> {
         let factory = api::MioClient::new(wapm);
         let listener = factory.blocking_bind_tcp(addr)
             .map_err(conv_err)?;
@@ -542,7 +628,11 @@ pub struct TcpStream {
 }
 
 impl TcpStream {
-    pub fn connect(wapm: &str, addr: SocketAddr, peer: SocketAddr) -> io::Result<TcpStream> {
+    pub fn connect(addr: SocketAddr, peer: SocketAddr) -> io::Result<TcpStream> {
+        Self::connect_via(WAPM_DEFAULT, addr, peer)
+    }
+
+    pub fn connect_via(wapm: &str, addr: SocketAddr, peer: SocketAddr) -> io::Result<TcpStream> {
         let factory = api::MioClient::new(wapm);
         let tcp = factory.blocking_connect_tcp(addr, peer)
             .map_err(conv_err)?;
@@ -635,7 +725,11 @@ pub struct UdpSocket {
 }
 
 impl UdpSocket {
-    pub fn bind(wapm: &str, addr: SocketAddr) -> io::Result<UdpSocket> {
+    pub fn bind(addr: SocketAddr) -> io::Result<UdpSocket> {
+        Self::bind_via(WAPM_DEFAULT, addr)
+    }
+
+    pub fn bind_via(wapm: &str, addr: SocketAddr) -> io::Result<UdpSocket> {
         let factory = api::MioClient::new(wapm);
         let udp = factory.blocking_bind_udp(addr)
             .map_err(|err| err.into_io_error())?;
@@ -837,6 +931,65 @@ impl UdpSocket {
         self.udp.blocking_as_raw_fd()
             .map_err(conv_err)?
             .map_err(conv_err2)
+    }
+}
+
+pub struct IcmpSocket {
+    icmp: Arc<dyn api::IcmpSocket + Send + Sync + 'static>,
+}
+
+impl IcmpSocket {
+    pub fn bind(addr: IpAddr) -> io::Result<IcmpSocket> {
+        Self::bind_via(WAPM_DEFAULT, addr)
+    }
+
+    pub fn bind_via(wapm: &str, addr: IpAddr) -> io::Result<IcmpSocket> {
+        let factory = api::MioClient::new(wapm);
+        let icmp = factory.blocking_bind_icmp(addr)
+            .map_err(|err| err.into_io_error())?;
+        Ok(
+            IcmpSocket {
+                icmp
+            }
+        )        
+    }
+
+    pub fn recv_from(&self, max: usize) -> io::Result<(Vec<u8>, IpAddr)> {
+        self.icmp.blocking_recv_from(max)
+            .map_err(conv_err)?
+            .map_err(conv_err2)
+    }
+
+    pub fn peek_from(&self, max: usize) -> io::Result<(Vec<u8>, IpAddr)> {
+        self.icmp.blocking_peek_from(max)
+            .map_err(conv_err)?
+            .map_err(conv_err2)
+    }
+
+    pub fn send_to(&self, buf: Vec<u8>, addr: IpAddr) -> io::Result<usize> {
+        self.icmp.blocking_send_to(buf, addr)
+            .map_err(conv_err)?
+            .map_err(conv_err2)
+    }
+
+    pub fn local_addr(&self) -> io::Result<IpAddr> {
+        Ok(
+            self.icmp.blocking_local_addr()
+                .map_err(conv_err)?
+        )
+    }
+
+    pub fn set_ttl(&self, ttl: u32) -> io::Result<()> {
+        self.icmp.blocking_set_ttl(ttl)
+            .map_err(conv_err)?
+            .map_err(conv_err2)
+    }
+
+    pub fn ttl(&self) -> io::Result<u32> {
+        Ok(
+            self.icmp.blocking_ttl()
+                .map_err(conv_err)?
+        )
     }
 }
 

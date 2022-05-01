@@ -2,6 +2,8 @@ use ate_mio::mio::Port as InnerPort;
 use std::io;
 use std::ops::Deref;
 use std::ops::DerefMut;
+#[allow(unused_imports, dead_code)]
+use tracing::{debug, error, info, trace, warn};
 
 use ate::prelude::ChainKey;
 
@@ -18,7 +20,8 @@ impl Port
 {
     pub async fn new(url: url::Url, chain: ChainKey, access_token: String,) -> io::Result<Port>
     {
-        let client = InstanceClient::new_ext(url, "/net", true).await
+        let client = InstanceClient::new_ext(url, "/net", true)
+            .await
             .map_err(|err| io::Error::new(io::ErrorKind::Other, err.to_string()))?;
         let (mut tx, rx, ek) = client.split();
 

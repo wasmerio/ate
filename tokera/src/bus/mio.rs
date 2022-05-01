@@ -28,6 +28,7 @@ use super::tcp_stream::TcpStreamServer;
 use super::udp_socket::UdpSocketServer;
 use super::tcp_listener::TcpListenerServer;
 use super::raw_socket::RawSocketServer;
+use super::icmp_socket::IcmpSocketServer;
 use crate::cmd::network::load_port;
 use crate::opt::OptsBus;
 use crate::mio::Port;
@@ -156,11 +157,27 @@ for MioServer {
         let socket = port
             .bind_udp(addr).await
             .map_err(|err| {
-                debug!("bind_raw failed: {}", err);
+                debug!("bind_udp failed: {}", err);
                 CallError::InternalFailure
             })?;
 
         Ok(Arc::new(UdpSocketServer::new(port, socket, addr)))
+    }
+
+    async fn bind_icmp(
+        &self,
+        addr: IpAddr
+    ) -> Result<Arc<dyn api::IcmpSocket + Send + Sync + 'static>, CallError> {
+        let guard = self.get_or_create_state().await?;
+        let port = guard.port.clone();
+        let socket = port
+            .bind_icmp(addr).await
+            .map_err(|err| {
+                debug!("bind_icmp failed: {}", err);
+                CallError::InternalFailure
+            })?;
+
+        Ok(Arc::new(IcmpSocketServer::new(socket, addr)))
     }
 
     async fn connect_tcp(
@@ -172,7 +189,7 @@ for MioServer {
         let socket = guard.port
             .connect_tcp(addr, peer).await
             .map_err(|err| {
-                debug!("bind_raw failed: {}", err);
+                debug!("connect_tcp failed: {}", err);
                 CallError::InternalFailure
             })?;
 

@@ -6,6 +6,7 @@ use serde::*;
 
 pub use std::time::Duration;
 pub use std::net::SocketAddr;
+pub use std::net::IpAddr;
 pub use std::net::Ipv4Addr;
 pub use std::net::Ipv6Addr;
 
@@ -53,6 +54,8 @@ pub trait Mio {
 
     async fn bind_tcp(&self, addr: SocketAddr) -> Arc<dyn TcpListener>;
 
+    async fn bind_icmp(&self, addr: IpAddr) -> Arc<dyn IcmpSocket>;
+
     async fn connect_tcp(&self, addr: SocketAddr, peer: SocketAddr) -> Arc<dyn TcpStream>;
 }
 
@@ -61,6 +64,21 @@ pub trait RawSocket {
     async fn send(&self, buf: Vec<u8>) -> MioResult<usize>;
 
     async fn recv(&self, max: usize) -> MioResult<Vec<u8>>;
+}
+
+#[wasm_bus(format = "bincode")]
+pub trait IcmpSocket {
+    async fn local_addr(&self) -> IpAddr;
+
+    async fn set_ttl(&self, ttl: u32) -> MioResult<()>;
+
+    async fn ttl(&self) -> u32;
+
+    async fn recv_from(&self, max: usize) -> MioResult<(Vec<u8>, IpAddr)>;
+
+    async fn peek_from(&self, max: usize) -> MioResult<(Vec<u8>, IpAddr)>;
+
+    async fn send_to(&self, buf: Vec<u8>, addr: IpAddr) -> MioResult<usize>;
 }
 
 #[wasm_bus(format = "bincode")]
