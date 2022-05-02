@@ -73,6 +73,7 @@ pub struct SwitchPort {
 pub struct DataPlane {
     pub(crate) cidrs: Vec<IpCidr>,
     pub(crate) ports: HashMap<EthernetAddress, Destination>,
+    pub(crate) promiscuous: HashSet<EthernetAddress>,
     pub(crate) peers: HashMap<PrimaryKey, IpAddr>,
     #[derivative(Debug = "ignore")]
     pub(crate) arp_throttle: HashMap<Ipv4Address, chrono::DateTime<chrono::Utc>>,
@@ -173,6 +174,7 @@ impl Switch
                     node_addr: udp.local_ip(),
                     switch_ports: Default::default(),
                     dhcp_reservation: Default::default(),
+                    promiscuous: Default::default(),
                 })?
             };
             chain_dio.commit().await?;
@@ -208,6 +210,7 @@ impl Switch
                     ip4: TtlCache::new(Self::MAC_SNOOP_MAX),
                     mac6: TtlCache::new(Self::MAC_SNOOP_MAX),
                     ip6: TtlCache::new(Self::MAC_SNOOP_MAX),
+                    promiscuous: Default::default(),
                 }
             ),
             control_plane: RwLock::new(
@@ -265,6 +268,36 @@ impl Switch
         Ok(
             Port::new(self, mac, data, rx_wake, mac_drop, tx_broadcast)
         )
+    }
+
+    pub async fn set_promiscuous(self: &Arc<Switch>, mac: HardwareAddress, promiscuous: bool) -> Result<(), AteError>
+    {
+        // Update the data plane
+        {
+            let mac = EthernetAddress::from_bytes(mac.as_bytes());
+            let mut state = self.data_plane.lock().unwrap();
+            if promiscuous {
+                state.promiscuous.insert(mac.clone());
+            } else {
+                state.promiscuous.remove(&mac);
+            }
+        }
+
+        // Update the control plane
+        {
+            let mut state = self.control_plane.write().await;
+            let dio = state.inst.dio_mut();
+            if let Some(mut me_node) = state.me_node().await {
+                let mut me_node = me_node.as_mut();
+                if promiscuous {
+                    me_node.promiscuous.insert(mac.clone());
+                } else {
+                    me_node.promiscuous.remove(&mac);
+                }
+            }
+            dio.commit().await?;
+        };
+        Ok(())
     }
 
     pub fn cidrs(&self) -> Vec<IpCidr>
@@ -696,7 +729,7 @@ impl Switch
         // should pass it to our dateway engine to process instead
         if dst_mac == &Gateway::MAC
         {
-            {
+            let is_promiscuous = {
                 // We should snoop all the packets
                 let mut state = self.data_plane.lock().unwrap();
                 self.snoop(&mut state, &pck[..], None);
@@ -713,10 +746,28 @@ impl Switch
                         }
                     }
                 }
-            }
 
-            // Process the outbound packet which will do some IP routing
-            self.gateway.process_outbound(pck);            
+                state.promiscuous.is_empty() == false
+            };
+
+            // If we are promiscuous then we need to copy the packet and set it on, otherwise
+            // we can just take ownership of the packet
+            if is_promiscuous
+            {
+                // Process the outbound packet which will do some IP routing
+                self.gateway.process_outbound(pck.clone());
+
+                // Promiscuous devices might also be listening to the gateway address
+                {
+                    let mut state = self.data_plane.lock().unwrap();
+                    self.__promiscuous(&mut state, dst_mac, pck, allow_forward);
+                }
+            }
+            else
+            {
+                // Process the outbound packet which will do some IP routing
+                self.gateway.process_outbound(pck.clone());
+            }
             return;
         }
 
@@ -728,7 +779,14 @@ impl Switch
     {
         // Next we lookup if this destination address is known either
         // on this switch node or another one
-        if let Some(dst) = state.ports.get(&dst_mac) {
+        if let Some(dst) = state.ports.get(&dst_mac)
+        {
+            let promiscuous_copy = if state.promiscuous.is_empty() == false {
+                Some(pck.clone())
+            } else {
+                None
+            };
+
             match dst {
                 Destination::Local(_) => {
                     self.snoop(state, &pck[..], set_peer);
@@ -745,6 +803,10 @@ impl Switch
                     }
                 }
             }
+
+            if let Some(pck) = promiscuous_copy {
+                self.__promiscuous(state, dst_mac, pck, allow_forward);
+            }
             return;
         }
 
@@ -752,6 +814,42 @@ impl Switch
         // could be that we just dont know about it yet or it could
         // be that its multicast/broadcast traffic.
         self.__broadcast(state, src, &pck[..], allow_forward, set_peer);
+    }
+
+    pub(crate) fn __promiscuous(self: &Arc<Switch>, state: &mut MutexGuard<DataPlane>, dst_mac: &EthernetAddress, pck: Vec<u8>, allow_forward: bool)
+    {
+        if state.promiscuous.is_empty() {
+            return;
+        }
+
+        let mut peers = HashSet::new();
+        for mac in state.promiscuous.iter() {
+            if mac == dst_mac {
+                continue;
+            }
+            match state.ports.get(mac) {
+                Some(Destination::Local(port)) => {
+                    port.data.push(pck.clone());
+                    let _ = port.raw.send(pck.clone());
+                    let _ = port.wake.send(());
+                },
+                Some(Destination::PeerSwitch(peer)) => {
+                    peers.insert(peer.clone());
+                },
+                _ => { }
+            }
+        }
+
+        // We do not send the packet twice
+        if allow_forward && peers.len() > 0 {
+            if let Some(Destination::PeerSwitch(peer)) = state.ports.get(dst_mac) {
+                peers.remove(peer);
+            }
+            for peer in peers {
+                let pck = self.encrypt_packet(&pck[..]);
+                let _ = self.udp.send(pck, peer.clone());
+            }
+        }
     }
 
     pub fn snoop(&self, state: &mut MutexGuard<DataPlane>, pck: &[u8], set_peer: Option<&IpAddr>) {
@@ -902,15 +1000,24 @@ impl Switch
         }
         info!("switch node deleted (id={}, key={})", self.id, node_key);
 
+        let mut prom_remove = Vec::new();
         let mut state = self.data_plane.lock().unwrap();
         if let Some(node_addr) = state.peers.remove(node_key) {
-            state.ports.retain(|_, v| {
+            state.ports.retain(|m, v| {
                 match v {
-                    Destination::PeerSwitch(s) => s == &node_addr,
+                    Destination::PeerSwitch(s) => {
+                        if s == &node_addr {
+                            prom_remove.push(m.clone());
+                            false
+                        } else { true }
+                    },
                     _ => true
                 }
             });
         }
+        prom_remove.into_iter().for_each(|m| {
+            state.promiscuous.remove(&m);
+        });
     }
 
     pub async fn update_node(&self, node_key: &PrimaryKey, node: &MeshNode)
@@ -920,12 +1027,21 @@ impl Switch
         }
         debug!("switch node updated (id={}, node_addr={})", self.id, node.node_addr);
 
+        let mut prom_remove = Vec::new();
         let mut state = self.data_plane.lock().unwrap();
-        state.ports.retain(|_, v| {
+        state.ports.retain(|m, v| {
             match v {
-                Destination::PeerSwitch(s) => s == &node.node_addr,
+                Destination::PeerSwitch(s) => {
+                    if s == &node.node_addr {
+                        prom_remove.push(m.clone());
+                        false
+                    } else { true }
+                },
                 _ => true
             }
+        });
+        prom_remove.into_iter().for_each(|m| {
+            state.promiscuous.remove(&m);
         });
         debug!("adding switch peer (node_key={}, addr={})", node_key, node.node_addr);
         state.peers.insert(node_key.clone(), node.node_addr);
@@ -933,6 +1049,11 @@ impl Switch
             let mac = EthernetAddress::from_bytes(mac.as_bytes());
             debug!("adding switch port (mac={}, addr={})", mac, node.node_addr);
             state.ports.insert(mac, Destination::PeerSwitch(node.node_addr));
+        }
+        for mac in node.promiscuous.iter() {
+            let mac = EthernetAddress::from_bytes(mac.as_bytes());
+            debug!("promiscuous switch port (mac={})", mac);
+            state.promiscuous.insert(mac);
         }
     }
 
@@ -983,6 +1104,7 @@ impl Switch
                         if let Some(mut me_node) = state.me_node().await {
                             let mut me_node = me_node.as_mut();
                             me_node.switch_ports.remove(&mac);
+                            me_node.promiscuous.remove(&mac);
 
                             let mac_str = hex::encode(mac.as_bytes()).to_uppercase();
                             me_node.dhcp_reservation.remove(&mac_str);

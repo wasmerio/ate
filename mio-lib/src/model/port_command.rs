@@ -98,6 +98,10 @@ pub enum PortCommand {
     SetRoutes {
         routes: Vec<IpRoute>,
     },
+    SetPromiscuous {
+        handle: SocketHandle,
+        promiscuous: bool,
+    },
     Init,
 }
 
@@ -129,6 +133,7 @@ for PortCommand
             PortCommand::MayReceive { handle } => write!(f, "may-receive(handle={})", handle),
             PortCommand::SetAckDelay { handle, duration_ms } => write!(f, "set-ack-delay(handle={},duration_ms={})", handle, duration_ms),
             PortCommand::SetNoDelay { handle, no_delay } => write!(f, "set-keep-alive(handle={},interval={})", handle, no_delay),
+            PortCommand::SetPromiscuous { handle, promiscuous } => write!(f, "set-promiscuous(handle={},promiscuous={})", handle, promiscuous),
             PortCommand::SetTimeout { handle, timeout } => {
                 match timeout {
                     Some(timeout) => {

@@ -13,6 +13,8 @@ use crate::model::SwitchHello;
 #[derive(Debug, Clone)]
 pub struct Port
 {
+    url: url::Url,
+    chain: ChainKey,
     inner: InnerPort,
 }
 
@@ -25,7 +27,7 @@ impl Port
 
     pub async fn new_ext(url: url::Url, chain: ChainKey, access_token: String, no_inner_encryption: bool) -> io::Result<Port>
     {
-        let client = InstanceClient::new_ext(url, "/net", false, no_inner_encryption)
+        let client = InstanceClient::new_ext(url.clone(), "/net", false, no_inner_encryption)
             .await
             .map_err(|err| io::Error::new(io::ErrorKind::Other, err.to_string()))?;
         let (mut tx, rx, ek) = client.split();
@@ -45,9 +47,22 @@ impl Port
 
         Ok(
             Port {
+                url,
+                chain,
                 inner: port
             }
         )
+    }
+}
+
+impl Port
+{
+    pub fn chain(&self) -> &ChainKey {
+        &self.chain
+    }
+
+    pub fn url(&self) -> &url::Url {
+        &self.url
     }
 }
 

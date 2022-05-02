@@ -17,6 +17,7 @@ pub enum PortNopType
     SetHopLimit,
     SetAckDelay,
     SetNoDelay,
+    SetPromiscuous,
     SetTimeout,
     SetKeepAlive,
 }

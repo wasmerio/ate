@@ -186,7 +186,7 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
                             if cur <= 0 {
                                 received += 1;
                             } else if cur == 1 {
-                                print!(" (DUP!)", cur);
+                                print!(" (DUP!)");
                             } else {
                                 print!(" (DUP![{}])", cur);
                             }

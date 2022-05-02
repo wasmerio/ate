@@ -238,6 +238,18 @@ impl Socket
         }
     }
 
+    pub async fn set_promiscuous(&mut self, promiscuous: bool) -> io::Result<bool> {
+        self.tx(PortCommand::SetPromiscuous {
+            handle: self.handle,
+            promiscuous,
+        }).await?;
+        match self.nop(PortNopType::SetPromiscuous).await {
+            Ok(()) => Ok(true),
+            Err(err) if err.kind() == io::ErrorKind::WouldBlock => Ok(false),
+            Err(err) => Err(err)
+        }
+    }
+
     pub async fn may_send(&mut self) -> io::Result<bool> {
         self.tx(PortCommand::MaySend {
             handle: self.handle,

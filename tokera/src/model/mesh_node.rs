@@ -27,6 +27,9 @@ pub struct MeshNode {
     /// List of all the assigned MAC addresses to IPv4 used by the DHCP server
     #[serde(default)]
     pub dhcp_reservation: HashMap<String, DhcpReservation>,
+    /// List of all the ports that are in promiscuous mode
+    #[serde(default)]
+    pub promiscuous: HashSet<HardwareAddress>,
 }
 
 impl fmt::Display

@@ -266,6 +266,7 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
             OptsNetworkCommand::For(..) => true,
             OptsNetworkCommand::Reconnect(..) => false,
             OptsNetworkCommand::Disconnect => false,
+            OptsNetworkCommand::Monitor(..) => false,
             #[cfg(any(target_os = "linux", target_os = "macos"))]
             OptsNetworkCommand::Bridge(..) => false,
         },

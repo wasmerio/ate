@@ -34,6 +34,9 @@ pub enum OptsNetworkCommand
     /// Disconnects from the network
     #[clap()]
     Disconnect,
+    /// Monitors the local network and sends the output to packet metadata to STDOUT
+    #[clap()]
+    Monitor(OptsNetworkMonitor),
     /// Create a TAP device that bridges the local network with the remote network
     #[cfg(feature = "enable_bridge")]
     #[cfg(any(target_os = "linux", target_os = "macos"))]
@@ -49,6 +52,16 @@ pub struct OptsNetworkCommandFor {
     /// Category of networks to perform an action upon
     #[clap(subcommand)]
     pub purpose: OptsNetworkPurpose,
+}
+
+#[allow(dead_code)]
+#[derive(Parser, Clone)]
+#[clap(version = "1.5", author = "Tokera Pty Ltd <info@tokera.com>")]
+pub struct OptsNetworkMonitor {
+    /// Overrides the URL where the network can be accessed from (e.g. wss://tokera.sh/net)
+    /// (the default is to use the URL contained within the token)
+    #[clap(short, long)]
+    pub net_url: Option<Url>,
 }
 
 #[cfg(feature = "enable_bridge")]

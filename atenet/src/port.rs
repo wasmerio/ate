@@ -272,8 +272,9 @@ impl Port
             PortCommand::BindRaw {
                 handle,
             } => {
+                let mac = HardwareAddress::from_bytes(self.mac.as_bytes());
                 let rx = self.raw_tx.subscribe();
-                let raw_socket = TapSocket::new(&self.switch, rx);
+                let raw_socket = TapSocket::new(&self.switch, mac, rx);
                 self.raw_sockets.insert(handle, raw_socket);
                 self.queue_nop(handle, PortNopType::BindRaw);
             },
@@ -434,6 +435,15 @@ impl Port
                     socket.set_nagle_enabled(nagle_enable);
                 }
                 self.queue_nop(handle, PortNopType::SetNoDelay);
+            },
+            PortCommand::SetPromiscuous {
+                handle,
+                promiscuous,
+            } => {
+                if let Some(socket) = self.raw_sockets.get_mut(&handle) {
+                    socket.set_promiscuous(promiscuous);
+                }
+                self.queue_nop(handle, PortNopType::SetPromiscuous);
             },
             PortCommand::SetKeepAlive {
                 handle,

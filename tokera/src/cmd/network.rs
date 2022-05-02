@@ -38,6 +38,7 @@ pub async fn main_opts_network(
     auth_url: url::Url,
 ) -> Result<(), InstanceError>
 {
+    #[allow(unused_variables)]
     let no_inner_encryption = opts.double_encrypt == false; // the messages are still encrypted inside the stream
     let db_url = ate_auth::prelude::origin_url(&opts.db_url, "db");
     match opts.cmd
@@ -85,6 +86,12 @@ pub async fn main_opts_network(
         OptsNetworkCommand::Disconnect => {
             main_opts_network_disconnect(token_path).await;
             Ok(())
+        },
+        OptsNetworkCommand::Monitor(opts) => {
+            let net_url = opts.net_url.clone().map(|net_url| {
+                ate_auth::prelude::origin_url(&Some(net_url), "net")
+            });
+            main_opts_network_monitor(token_path, net_url, no_inner_encryption).await
         },
         #[cfg(feature = "enable_bridge")]
         #[cfg(any(target_os = "linux", target_os = "macos"))]
@@ -301,6 +308,65 @@ pub async fn main_opts_network_disconnect(token_path: String)
     clear_access_token(token_path).await;
 }
 
+pub async fn main_opts_network_monitor(
+    token_path: String,
+    net_url: Option<url::Url>,
+    no_inner_encryption: bool
+) -> Result<(), InstanceError>
+{
+    let token_path = if let Ok(t) = std::env::var("NETWORK_TOKEN_PATH") {
+        t
+    } else {
+        shellexpand::tilde(token_path.as_str()).to_string()
+    };
+
+    std::env::set_var("NETWORK_TOKEN_PATH", token_path.as_str());
+    ::sudo::with_env(&(vec!("NETWORK_TOKEN_PATH")[..])).unwrap();
+
+    let port = load_port(token_path, net_url, no_inner_encryption).await?;
+    let mut socket = port.bind_raw()
+        .await
+        .map_err(|err| {
+            let err = format!("failed to open raw socket - {}", err);
+            error!("{}", err);
+            InstanceErrorKind::InternalError(0)
+        })?;
+    socket.set_promiscuous(true)
+        .await
+        .map_err(|err| {
+            let err = format!("failed to set promiscuous - {}", err);
+            error!("{}", err);
+            InstanceErrorKind::InternalError(0)
+        })?;
+    
+    println!("Monitoring {}", port.chain());
+    while let Ok(data) = socket.recv().await {
+        println!("hit!");
+        tcpdump(&data[..]);
+    }
+    Ok(())
+}
+
+#[cfg(not(feature = "smoltcp"))]
+fn tcpdump(data: &[u8]) {
+    if data.len() > 18 {
+        let end = data.len() - 18;
+        let dst = hex::encode(&data[0..6]).to_uppercase();
+        let src = hex::encode(&data[6..12]).to_uppercase();
+        let ty = hex::encode(&data[12..14]).to_uppercase();
+        let data = hex::encode(&data[14..end]).to_uppercase();
+        println!("{}->{} ({}): {}", src, dst, ty, data);
+    } else {
+        println!("JUNK 0x{}", hex::encode(data).to_uppercase());
+    }    
+}
+
+#[cfg(feature = "smoltcp")]
+fn tcpdump(data: &[u8]) {
+    let pck = smoltcp::wire::PrettyPrinter::<EthernetFrame<&[u8]>>::new("", &data);
+    println!("{}", pck);
+}
+
 #[cfg(feature = "enable_bridge")]
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 pub async fn main_opts_network_bridge(
@@ -363,6 +429,16 @@ pub async fn main_opts_network_bridge(
             error!("{}", err);
             InstanceErrorKind::InternalError(0)
         })?;
+
+    if bridge.promiscuous {
+        socket.set_promiscuous(true)
+            .await
+            .map_err(|err| {
+                let err = format!("failed to set promiscuous - {}", err);
+                error!("{}", err);
+                InstanceErrorKind::InternalError(0)
+            })?;
+    }
 
     let name_id = fastrand::u64(..);
     let name = format!("ate{}", hex::encode(name_id.to_ne_bytes()).to_uppercase());
