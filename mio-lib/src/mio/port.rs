@@ -73,7 +73,7 @@ impl Port
         {
             let ek = ek.clone();
             let state = state.clone();
-            tokio::task::spawn(async move {
+            crate::task::spawn(async move {
                 Self::run(rx, ek, state, init_tx).await
             });
         }

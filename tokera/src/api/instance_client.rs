@@ -1,5 +1,6 @@
 #[cfg(not(target_arch = "wasm32"))]
 use ate_auth::prelude::conf_cmd;
+use std::io;
 use wasm_bus_ws::prelude::*;
 use wasm_bus_tty::prelude::*;
 use ate::{prelude::*, comms::{StreamTx, StreamRx}};
@@ -22,16 +23,21 @@ impl InstanceClient
 
     pub async fn new(connect_url: url::Url) -> Result<Self, Box<dyn std::error::Error>>
     {
-        Self::new_ext(connect_url, Self::PATH_INST, false).await
+        Self::new_ext(connect_url, Self::PATH_INST, false, false).await
     }
 
-    pub async fn new_ext(connect_url: url::Url, path: &str, ignore_certificate: bool) -> Result<Self, Box<dyn std::error::Error>>
+    pub async fn new_ext(connect_url: url::Url, path: &str, ignore_certificate: bool, no_inner_encryption: bool) -> Result<Self, Box<dyn std::error::Error>>
     {
-        let domain = connect_url
-            .domain()
-            .clone()
-            .map(|a| a.to_string())
-            .unwrap_or("localhost".to_string());
+        let host = connect_url
+            .host()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "URL does not have a host component"))?;
+        let domain = match &host {
+                url::Host::Domain(a) => Some(*a),
+                url::Host::Ipv4(ip) if ip.is_loopback() => Some("localhost"),
+                url::Host::Ipv6(ip) if ip.is_loopback() => Some("localhost"),
+                _ => None
+            }
+            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "URL does not have a domain component"))?;
 
         let mut validation = {
             let mut certs = Vec::new();
@@ -39,7 +45,7 @@ impl InstanceClient
             #[cfg(not(target_arch = "wasm32"))]
             {
                 let test_registry = Registry::new(&conf_cmd()).await;
-                for cert in test_registry.dns_certs(domain.as_str()).await.unwrap() {
+                for cert in test_registry.dns_certs(domain).await.unwrap() {
                     certs.push(cert);
                 }
             }
@@ -60,7 +66,7 @@ impl InstanceClient
             validation = CertificateValidation::AllowAll;
         }
 
-        let socket = SocketBuilder::new(connect_url)
+        let socket = SocketBuilder::new(connect_url.clone())
             .open()
             .await?;
             
@@ -70,7 +76,7 @@ impl InstanceClient
 
         // We only encrypt if it actually has a certificate (otherwise
         // a simple man-in-the-middle could intercept anyway)
-        let key_size = if ignore_certificate == false {
+        let key_size = if ignore_certificate == false && domain != "localhost" && no_inner_encryption == false {
             Some(KeySize::Bit192)
         } else {
             None
@@ -83,7 +89,7 @@ impl InstanceClient
             &mut tx,
             node_id,
             path.to_string(),
-            domain,
+            domain.to_string(),
             key_size,
         )
         .await?;

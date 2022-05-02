@@ -262,13 +262,12 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
         SubCommand::Token(..) => false,
         #[cfg(feature = "bus")]
         SubCommand::Bus(..) => false,
-        SubCommand::Network(a) => match a.action {
-            NetworkAction::List(..) => true,
-            NetworkAction::Connect(..) => true,
-            NetworkAction::Reconnect(..) => false,
-            NetworkAction::Disconnect => false,
+        SubCommand::Network(a) => match a.cmd {
+            OptsNetworkCommand::For(..) => true,
+            OptsNetworkCommand::Reconnect(..) => false,
+            OptsNetworkCommand::Disconnect => false,
             #[cfg(any(target_os = "linux", target_os = "macos"))]
-            NetworkAction::Bridge(..) => false,
+            OptsNetworkCommand::Bridge(..) => false,
         },
         SubCommand::User(a) => match a.action {
             UserAction::Create(..) => false,

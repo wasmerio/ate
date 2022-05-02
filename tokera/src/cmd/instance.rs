@@ -116,26 +116,6 @@ pub async fn main_opts_instance_details(
                 println!("{}", serde_json::to_string_pretty(export.deref()).unwrap());
             }
         }
-
-        for node in service_instance.mesh_nodes.iter().await? {
-            println!("");
-            println!("Mesh Node");
-            println!("Key: {}", node.key());
-            println!("Address: {}", node.node_addr);
-            
-            if node.switch_ports.len() > 0 {
-                println!("Switch Ports:");
-                for switch_port in node.switch_ports.iter() {
-                    println!("- {}", switch_port);
-                }
-            }
-            if node.dhcp_reservation.len() > 0 {
-                println!("DHCP");
-                for (mac, ip) in node.dhcp_reservation.iter() {
-                    println!("- {} - {},", mac, ip.addr4);
-                }
-            }
-        }
     }
 
     Ok(())
@@ -221,7 +201,7 @@ pub async fn main_opts_instance_shell(
 ) -> Result<(), InstanceError> {
     let (instance, _) = api.instance_action(name).await?;
     let instance = instance?;
-    let mut client = InstanceClient::new_ext(inst_url, InstanceClient::PATH_INST, ignore_certificate).await
+    let mut client = InstanceClient::new_ext(inst_url, InstanceClient::PATH_INST, ignore_certificate, false).await
         .unwrap();
 
     client.send_hello(InstanceHello {
@@ -259,7 +239,7 @@ pub async fn main_opts_instance_call(
 
     let (instance, _) = api.instance_action(name).await?;
     let instance = instance?;
-    let mut client = InstanceClient::new_ext(inst_url, InstanceClient::PATH_INST, ignore_certificate).await
+    let mut client = InstanceClient::new_ext(inst_url, InstanceClient::PATH_INST, ignore_certificate, false).await
         .unwrap();
 
     // Search for an export that matches this binary

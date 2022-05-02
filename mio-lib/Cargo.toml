@@ -34,6 +34,7 @@ base64 = "^0.13"
 bincode = "^1"
 once_cell = "^1"
 derivative = { version = "^2" }
+wasm-bus = { version = "^1", path = "../wasm-bus", default_features = false, features = [ "rt", "macros" ] }
 
 [target.'cfg(not(target_os = "wasi"))'.dependencies]
 tokio = { version = "^1", features = [ "rt", "io-util", "macros", "sync", "time", "fs" ], default_features = false }

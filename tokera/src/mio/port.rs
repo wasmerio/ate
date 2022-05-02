@@ -18,9 +18,14 @@ pub struct Port
 
 impl Port
 {
-    pub async fn new(url: url::Url, chain: ChainKey, access_token: String,) -> io::Result<Port>
+    pub async fn new(url: url::Url, chain: ChainKey, access_token: String) -> io::Result<Port>
     {
-        let client = InstanceClient::new_ext(url, "/net", true)
+        Self::new_ext(url, chain, access_token, false).await
+    }
+
+    pub async fn new_ext(url: url::Url, chain: ChainKey, access_token: String, no_inner_encryption: bool) -> io::Result<Port>
+    {
+        let client = InstanceClient::new_ext(url, "/net", false, no_inner_encryption)
             .await
             .map_err(|err| io::Error::new(io::ErrorKind::Other, err.to_string()))?;
         let (mut tx, rx, ek) = client.split();

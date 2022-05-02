@@ -63,7 +63,6 @@ impl Session
                 },
                 e = self.port.wake.changed() => {
                     if e.is_err() {
-                        info!("port closed (mac={}, addr={})", self.port.mac, self.sock_addr);
                         break;
                     }
                 }

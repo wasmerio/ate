@@ -2,25 +2,33 @@ use clap::Parser;
 use url::Url;
 
 use super::purpose::*;
+use super::OptsCidrAction;
+use super::OptsPeeringAction;
 
 #[allow(dead_code)]
 #[derive(Parser)]
 #[clap(version = "1.5", author = "Tokera Pty Ltd <info@tokera.com>")]
 pub struct OptsNetwork {
     #[clap(subcommand)]
-    pub action: NetworkAction,
+    pub cmd: OptsNetworkCommand,
+    /// URL where the data is remotely stored on a distributed commit log (e.g. wss://tokera.sh/db).
+    #[clap(short, long)]
+    pub db_url: Option<Url>,
+    /// Indicates that the server certificate should be ignored
+    #[clap(long)]
+    pub ignore_certificate: bool,
+    /// Encrypts the connection with both classical and quantum resistant encryption
+    #[clap(long)]
+    pub double_encrypt: bool,
 }
 
 #[derive(Parser)]
-pub enum NetworkAction
+pub enum OptsNetworkCommand
 {
-    /// List all the networks that can be connected to
+    /// Performs an action on a particular grouping of networks or a specific network in a group
     #[clap()]
-    List(OptsNetworkList),
-    /// Peers this machine with a remote network
-    #[clap()]
-    Connect(OptsNetworkConnect),
-    /// Reconnects to a network using an access token that was previously exported
+    For(OptsNetworkCommandFor),
+    /// Reconnects to a network using an access token that was previously exported for a network
     #[clap()]
     Reconnect(OptsNetworkReconnect),
     /// Disconnects from the network
@@ -33,21 +41,32 @@ pub enum NetworkAction
     Bridge(OptsNetworkBridge),
 }
 
+
+#[allow(dead_code)]
+#[derive(Parser, Clone)]
+#[clap(version = "1.5", author = "Tokera Pty Ltd <info@tokera.com>")]
+pub struct OptsNetworkCommandFor {
+    /// Category of networks to perform an action upon
+    #[clap(subcommand)]
+    pub purpose: OptsNetworkPurpose,
+}
+
 #[cfg(feature = "enable_bridge")]
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 #[allow(dead_code)]
 #[derive(Parser, Clone)]
 #[clap(version = "1.5", author = "Tokera Pty Ltd <info@tokera.com>")]
 pub struct OptsNetworkBridge {
+    /// Overrides the URL where the network can be accessed from (e.g. wss://tokera.sh/net)
+    /// (the default is to use the URL contained within the token)
+    #[clap(short, long)]
+    pub net_url: Option<Url>,
     /// Port will receive all packets on the network and not just those destined for this port
     #[clap(short, long)]
     pub promiscuous: bool,
     /// Runs the port as a daemon in the background after forking the process
     #[clap(short, long)]
     pub daemon: bool,
-    /// URL where the network can be accessed from (e.g. wss://tokera.sh/net)
-    #[clap(short, long)]
-    pub net_url: Option<Url>,
     /// Sets a static IP address for this device rather than using DHCP
     #[clap(long)]
     pub ip4: Option<std::net::Ipv4Addr>,
@@ -63,24 +82,15 @@ pub struct OptsNetworkBridge {
 #[derive(Parser, Clone)]
 #[clap(version = "1.5", author = "Tokera Pty Ltd <info@tokera.com>")]
 pub struct OptsNetworkConnect {
-    /// Category of network to connect to
-    #[clap(subcommand)]
-    pub purpose: OptsNetworkConnectFor,
-    /// URL where the data is remotely stored on a distributed commit log (e.g. wss://tokera.sh/db).
-    #[clap(short, long)]
-    pub db_url: Option<Url>,
-    /// URL where the network can be accessed from (e.g. ws://tokera.sh/net)
-    #[clap(short, long)]
-    pub net_url: Option<Url>,
-    /// Indicates that the server certificate should be ignored
-    #[clap(long)]
-    pub ignore_certificate: bool,
-    /// Exports the token to STDOUT rather than stored it so that it may be used later to reconnect
+    /// Name of the network to connect to
+    #[clap(index = 1)]
+    pub name: String,
+    /// Exports the token to STDOUT rather than storing it so that it may be used later to reconnect
     #[clap(short, long)]
     pub export: bool,
-    /// Encrypts the connection with both classical and quantum resistant encryption
-    #[clap(long)]
-    pub double_encrypt: bool,
+    /// URL where the network can be accessed from (e.g. wss://tokera.sh/net)
+    #[clap(short, long)]
+    pub net_url: Option<Url>,
 }
 
 #[allow(dead_code)]
@@ -92,99 +102,110 @@ pub struct OptsNetworkReconnect {
     pub token: String,
 }
 
-#[allow(dead_code)]
 #[derive(Parser, Clone)]
-#[clap(version = "1.5", author = "Tokera Pty Ltd <info@tokera.com>")]
-pub struct OptsNetworkList {
-    /// Category of network to list
+#[clap()]
+pub struct OptsNetworkCidr {
+    /// Name of the network to be modify routing tables
+    #[clap(index = 1)]
+    pub name: String,
+    /// Action to perform on the cidr
     #[clap(subcommand)]
-    pub purpose: OptsNetworkListFor,
-    /// URL where the data is remotely stored on a distributed commit log (e.g. wss://tokera.sh/db).
+    pub action: OptsCidrAction,
+}
+
+#[derive(Parser, Clone)]
+#[clap()]
+pub struct OptsNetworkPeering {
+    /// Name of the network to modify peering
+    #[clap(index = 1)]
+    pub name: String,
+    /// Action to perform on the peerings
+    #[clap(subcommand)]
+    pub action: OptsPeeringAction,
+}
+
+#[derive(Parser, Clone)]
+#[clap()]
+pub struct OptsNetworkCreate {
+    /// Name of the new network (which will be generated if you dont supply one)
+    #[clap(index = 1)]
+    pub name: Option<String>,
+    /// Forces the creation of this network even if there is a duplicate
     #[clap(short, long)]
-    pub db_url: Option<Url>,
-}
-
-#[derive(Parser, Clone)]
-pub enum OptsNetworkConnectFor {
-    /// Networks associated to you personally
-    #[clap()]
-    Personal(OptsNetworkConnectForPersonal),
-    /// Networks associated with a particular group you can authorize on behalf of
-    #[clap()]
-    Domain(OptsNetworkConnectForDomain),
-}
-
-impl OptsNetworkConnectFor {
-    pub fn is_personal(&self) -> bool {
-        if let OptsNetworkConnectFor::Personal(..) = self {
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn network_name(&self) -> &str {
-        match self {
-            OptsNetworkConnectFor::Personal(opts) => opts.network_name.as_str(),
-            OptsNetworkConnectFor::Domain(opts) => opts.network_name.as_str()
-        }
-    }
+    pub force: bool,
 }
 
 #[derive(Parser, Clone)]
 #[clap()]
-pub struct OptsNetworkConnectForPersonal {
-    /// Name of the network (a.k.a. instance) to connect to
+pub struct OptsNetworkKill {
+    /// Name of the network to be killed
+    /// (killed networks are perminently destroyed)
     #[clap(index = 1)]
-    pub network_name: String,
-    /// Name of the personal wallet to use for this network (if required)
-    #[clap(index = 2, default_value = "default")]
-    pub wallet_name: String,
+    pub name: String,
+    /// Forces the removal of the network from the wallet even
+    /// if access is denied to its data and thus this would create an orphan chain.
+    #[clap(short, long)]
+    pub force: bool,
 }
 
 #[derive(Parser, Clone)]
 #[clap()]
-pub struct OptsNetworkConnectForDomain {
-    /// Name of the group that the network is attached to
+pub struct OptsNetworkReset {
+    /// Name of the network to destroy
     #[clap(index = 1)]
-    pub domain: String,
-    /// Name of the network (a.k.a. instance) to connect to
-    #[clap(index = 2)]
-    pub network_name: String,
-    /// Name of the group wallet to use in this context (if required)
-    #[clap(index = 3, default_value = "default")]
-    pub wallet_name: String,
-}
-
-impl OptsPurpose<()> for OptsNetworkConnectFor {
-    fn purpose(&self) -> Purpose<()> {
-        match self {
-            OptsNetworkConnectFor::Personal(a) => Purpose::Personal {
-                wallet_name: a.wallet_name.clone(),
-                action: (),
-            },
-            OptsNetworkConnectFor::Domain(a) => Purpose::Domain {
-                domain_name: a.domain.clone(),
-                wallet_name: a.wallet_name.clone(),
-                action: (),
-            },
-        }
-    }
+    pub name: String,
 }
 
 #[derive(Parser, Clone)]
-pub enum OptsNetworkListFor {
-    /// Networks associated to you personally
-    #[clap()]
-    Personal(OptsNetworkListForPersonal),
-    /// Networks associated with a particular group you can authorize on behalf of
-    #[clap()]
-    Domain(OptsNetworkListForDomain),
+#[clap()]
+pub struct OptsNetworkDetails {
+    /// Name of the network to get the details for
+    #[clap(index = 1)]
+    pub name: String,
 }
 
-impl OptsNetworkListFor {
+#[derive(Parser, Clone)]
+#[clap()]
+pub enum OptsNetworkAction {
+    /// List all the networks that can be connected to
+    #[clap()]
+    List,
+    /// Details the details of a particular network
+    #[clap()]
+    Details(OptsNetworkDetails),
+    /// List, add or remove a CIDR (subnet)
+    #[clap()]
+    Cidr(OptsNetworkCidr),
+    /// List, add or remove a network peering between different networks
+    #[clap()]
+    Peering(OptsNetworkPeering),
+    /// Connects this machine/instance with a remote network
+    #[clap()]
+    Connect(OptsNetworkConnect),
+    /// Creates a new network
+    #[clap()]
+    Create(OptsNetworkCreate),
+    /// Kills are particular network
+    #[clap()]
+    Kill(OptsNetworkKill),
+    /// Resets an network and its attached mesh nodes
+    #[clap()]
+    Reset(OptsNetworkReset),
+}
+
+#[derive(Parser, Clone)]
+pub enum OptsNetworkPurpose {
+    /// Networks associated to you personally
+    #[clap()]
+    Personal(OptsNetworkForPersonal),
+    /// Networks associated with a particular group you can authorize on behalf of
+    #[clap()]
+    Domain(OptsNetworkForDomain),
+}
+
+impl OptsNetworkPurpose {
     pub fn is_personal(&self) -> bool {
-        if let OptsNetworkListFor::Personal(..) = self {
+        if let OptsNetworkPurpose::Personal(..) = self {
             true
         } else {
             false
@@ -194,34 +215,40 @@ impl OptsNetworkListFor {
 
 #[derive(Parser, Clone)]
 #[clap()]
-pub struct OptsNetworkListForPersonal {
+pub struct OptsNetworkForPersonal {
     /// Name of the personal wallet to use for this network (if required)
     #[clap(index = 1, default_value = "default")]
     pub wallet_name: String,
+    /// Action to perform on this network
+    #[clap(subcommand)]
+    pub action: OptsNetworkAction,
 }
 
 #[derive(Parser, Clone)]
 #[clap()]
-pub struct OptsNetworkListForDomain {
+pub struct OptsNetworkForDomain {
     /// Name of the group that the network is attached to
     #[clap(index = 1)]
     pub domain: String,
     /// Name of the group wallet to use in this context (if required)
     #[clap(index = 2, default_value = "default")]
     pub wallet_name: String,
+    /// Action to perform on this network
+    #[clap(subcommand)]
+    pub action: OptsNetworkAction,
 }
 
-impl OptsPurpose<()> for OptsNetworkListFor {
-    fn purpose(&self) -> Purpose<()> {
+impl OptsPurpose<OptsNetworkAction> for OptsNetworkPurpose {
+    fn purpose(&self) -> Purpose<OptsNetworkAction> {
         match self {
-            OptsNetworkListFor::Personal(a) => Purpose::Personal {
+            OptsNetworkPurpose::Personal(a) => Purpose::Personal {
                 wallet_name: a.wallet_name.clone(),
-                action: (),
+                action: a.action.clone(),
             },
-            OptsNetworkListFor::Domain(a) => Purpose::Domain {
+            OptsNetworkPurpose::Domain(a) => Purpose::Domain {
                 domain_name: a.domain.clone(),
                 wallet_name: a.wallet_name.clone(),
-                action: (),
+                action: a.action.clone(),
             },
         }
     }

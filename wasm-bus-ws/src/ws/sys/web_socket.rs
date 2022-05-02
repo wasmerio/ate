@@ -24,9 +24,9 @@ impl WebSocket {
     pub(crate) async fn new(url: &str) -> Result<Self, io::Error> {
         let request = url::Url::parse(url).unwrap();
 
-        let domain = request
-            .domain()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "URL does not have a domain component"))?;
+        let host = request
+            .host()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "URL does not have a host component"))?;            
         let port = request
             .port()
             .or_else(|| match request.scheme() {
@@ -36,7 +36,7 @@ impl WebSocket {
             })
             .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "URL does not have a port component"))?;
 
-        let addr = format!("{}:{}", domain, port);
+        let addr = format!("{}:{}", host, port);
         let socket = TcpStream::connect(addr).await?;
         socket.set_nodelay(true)?;
 

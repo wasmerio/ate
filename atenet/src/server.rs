@@ -106,7 +106,7 @@ impl Server
         // Get or create the switch
         let key = hello_switch.chain.clone();
         debug!("accept_internal(chain={})", key);
-        let (switch, _) = self.factory.get_or_create_switch(key).await?;
+        let (switch, _) = self.factory.get_or_create_switch(key.clone()).await?;
 
         // Check to make sure the caller has rights to this switch
         if switch.has_access(hello_switch.access_token.as_str()) == false {
@@ -139,8 +139,9 @@ impl Server
         // Start the background thread that will process events on the session
         tokio::task::spawn(async move {
             if let Err(err) = session.run().await {
-                debug!("instance session failed: {}", err);
+                warn!("instance session failed: {}", err);
             }
+            info!("switch port closed (switch={}, mac={}, addr={})", key, mac, sock_addr);
         });
         Ok(())
     }

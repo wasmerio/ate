@@ -5,6 +5,8 @@ use std::io::Write;
 use std::os::unix::fs::symlink;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
+use std::ops::Deref;
+use error_chain::bail;
 use async_stream::stream;
 use futures_util::pin_mut;
 use futures_util::stream::StreamExt;
@@ -26,6 +28,7 @@ use crate::model::NetworkToken;
 use crate::model::HardwareAddress;
 use crate::opt::*;
 use crate::mio::Port;
+use crate::api::TokApi;
 
 use super::*;
 
@@ -35,47 +38,70 @@ pub async fn main_opts_network(
     auth_url: url::Url,
 ) -> Result<(), InstanceError>
 {
-    match opts.action
+    let no_inner_encryption = opts.double_encrypt == false; // the messages are still encrypted inside the stream
+    let db_url = ate_auth::prelude::origin_url(&opts.db_url, "db");
+    match opts.cmd
     {
-        NetworkAction::List(opts) => {
-            let db_url = ate_auth::prelude::origin_url(&opts.db_url, "db");
-            main_opts_network_list(opts.purpose, token_path, auth_url, db_url).await
+        OptsNetworkCommand::For(opts) => {
+            let purpose: &dyn OptsPurpose<OptsNetworkAction> = &opts.purpose;
+            let mut context = PurposeContext::new(purpose, token_path.as_str(), &auth_url, Some(&db_url), true).await?;
+            match context.action.clone() {
+                OptsNetworkAction::List => {
+                    main_opts_network_list(&mut context.api).await
+                },
+                OptsNetworkAction::Details(opts) => {
+                    main_opts_network_details(&mut context.api, opts.name.as_str()).await
+                },
+                OptsNetworkAction::Cidr(opts) => {
+                    main_opts_network_cidr(&mut context.api, opts.name.as_str(), opts.action).await
+                },
+                OptsNetworkAction::Peering(opts) => {
+                    main_opts_network_peering(&mut context.api, opts.name.as_str(), opts.action).await
+                },
+                OptsNetworkAction::Reset(opts) => {
+                    main_opts_network_reset(&mut context.api, opts.name.as_str()).await
+                },
+                OptsNetworkAction::Connect(opts) => {
+                    let net_url = ate_auth::prelude::origin_url(&opts.net_url, "net");
+                    main_opts_network_connect(&mut context.api, opts.name.as_str(), net_url, token_path, opts.export).await
+                },
+                OptsNetworkAction::Create(opts) => {
+                    let mut instance_authority = db_url.domain()
+                        .map(|a| a.to_string())
+                        .unwrap_or_else(|| "tokera.sh".to_string());
+                    if instance_authority == "localhost" {
+                        instance_authority = "tokera.sh".to_string();
+                    }
+                    main_opts_network_create(&mut context.api, opts.name, purpose.group_name(), db_url, instance_authority, opts.force).await
+                },
+                OptsNetworkAction::Kill(opts) => {
+                    main_opts_network_kill(&mut context.api, opts.name.as_str(), opts.force).await
+                },
+            }
         },
-        NetworkAction::Connect(opts) => {
-            let force_insecure = opts.double_encrypt == false; // the messages are still encrypted inside the stream
-            let db_url = ate_auth::prelude::origin_url(&opts.db_url, "db");
-            let net_url = ate_auth::prelude::origin_url_ext(&opts.net_url, "net", force_insecure);
-            main_opts_network_connect(opts.purpose, token_path, auth_url, db_url, net_url, opts.export).await
-        },
-        NetworkAction::Reconnect(opts) => {
+        OptsNetworkCommand::Reconnect(opts) => {
             main_opts_network_reconnect(opts.token, token_path).await
-        }
-        NetworkAction::Disconnect => {
+        },
+        OptsNetworkCommand::Disconnect => {
             main_opts_network_disconnect(token_path).await;
             Ok(())
         },
         #[cfg(feature = "enable_bridge")]
         #[cfg(any(target_os = "linux", target_os = "macos"))]
-        NetworkAction::Bridge(opts) => {
+        OptsNetworkCommand::Bridge(opts) => {
             let net_url = opts.net_url.clone().map(|net_url| {
                 ate_auth::prelude::origin_url(&Some(net_url), "net")
             });
-            main_opts_network_bridge(opts, token_path, net_url).await
+            main_opts_network_bridge(opts, token_path, net_url, no_inner_encryption).await
         }
     }
 }
 
 pub async fn main_opts_network_list(
-    opts: OptsNetworkListFor,
-    token_path: String,
-    auth_url: url::Url,
-    db_url: url::Url,
+    api: &mut TokApi,
 ) -> Result<(), InstanceError>
 {
-    let context = PurposeContext::new(&opts, token_path.as_str(), &auth_url, Some(&db_url), true).await?;
-    let api = context.api;
-    
-    println!("|-------name-------|");
+    println!("|-------name-------|-peerings");
     let instances = api.instances().await;
 
     let instances = instances.iter_ext(true, true).await?;
@@ -108,27 +134,113 @@ pub async fn main_opts_network_list(
                 continue;
             }
         };
+        let mut peerings = String::new();
+        if let Ok(service_instance) = api.instance_load(wallet_instance.deref()).await {
+            for peer in service_instance.subnet.peerings.iter() {
+                if peerings.len() > 0 { peerings.push_str(","); }
+                peerings.push_str(peer.name.as_str());
+            }
+        }
         println!(
-            "- {:<16}",
-            wallet_instance.name
+            "- {:<16} - {}",
+            wallet_instance.name,
+            peerings
         );
     }
     Ok(())
 }
 
+pub async fn main_opts_network_details(
+    api: &mut TokApi,
+    network_name: &str,
+) -> Result<(), InstanceError>
+{
+    let network = api.instance_find(network_name)
+        .await;
+    let network = match network {
+        Ok(a) => a,
+        Err(InstanceError(InstanceErrorKind::InvalidInstance, _)) => {
+            eprintln!("An network does not exist for this token.");
+            std::process::exit(1);
+        }
+        Err(err) => {
+            bail!(err);
+        }
+    };
+
+    println!("Network");
+    println!("{}", serde_json::to_string_pretty(network.deref()).unwrap());
+
+    if let Ok(service_instance) = api.instance_load(network.deref()).await {
+        println!("{}", serde_json::to_string_pretty(&service_instance.subnet).unwrap());
+
+        for node in service_instance.mesh_nodes.iter().await? {
+            println!("");
+            println!("Mesh Node");
+            println!("Key: {}", node.key());
+            println!("Address: {}", node.node_addr);
+            
+            if node.switch_ports.len() > 0 {
+                println!("Switch Ports:");
+                for switch_port in node.switch_ports.iter() {
+                    println!("- {}", switch_port);
+                }
+            }
+            if node.dhcp_reservation.len() > 0 {
+                println!("DHCP");
+                for (mac, ip) in node.dhcp_reservation.iter() {
+                    println!("- {} - {},", mac, ip.addr4);
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+pub async fn main_opts_network_cidr(
+    api: &mut TokApi,
+    network_name: &str,
+    action: OptsCidrAction,
+) -> Result<(), InstanceError> {
+    let (instance, _) = api.instance_action(network_name).await?;
+    let instance = instance?;
+    
+    main_opts_cidr(instance, action).await?;
+
+    Ok(())
+}
+
+pub async fn main_opts_network_peering(
+    api: &mut TokApi,
+    network_name: &str,
+    action: OptsPeeringAction,
+) -> Result<(), InstanceError> {
+    let (instance, wallet_instance) = api.instance_action(network_name).await?;
+    let instance = instance?;
+    
+    main_opts_peering(api, instance, wallet_instance, action).await?;
+
+    Ok(())
+}
+
+pub async fn main_opts_network_reset(
+    api: &mut TokApi,
+    network_name: &str,
+) -> Result<(), InstanceError> {
+    main_opts_instance_reset(api, network_name).await
+}
+
 pub async fn main_opts_network_connect(
-    opts: OptsNetworkConnectFor,
-    token_path: String,
-    auth_url: url::Url,
-    db_url: url::Url,
+    api: &mut TokApi,
+    network_name: &str,
     net_url: url::Url,
+    token_path: String,
     export: bool,
 ) -> Result<(), InstanceError>
 {
     // Get the specifics around the network we will be connecting too
-    let network_name = opts.network_name().to_string();
-    let mut context = PurposeContext::new(&opts, token_path.as_str(), &auth_url, Some(&db_url), true).await?;
-    let (instance, _) = context.api.instance_action(network_name.as_str()).await?;
+    let (instance, _) = api.instance_action(network_name).await?;
     let instance = instance?;
     let chain = instance.chain.clone();
     let access_token = instance.subnet.network_token.clone();
@@ -150,6 +262,25 @@ pub async fn main_opts_network_connect(
     // Save the token
     save_access_token(token_path, &token).await?;
     Ok(())            
+}
+
+pub async fn main_opts_network_create(
+    api: &mut TokApi,
+    network_name: Option<String>,
+    group: Option<String>,
+    db_url: url::Url,
+    instance_authority: String,
+    force: bool,
+) -> Result<(), InstanceError> {
+    main_opts_instance_create(api, network_name, group, db_url, instance_authority, force).await
+}
+
+pub async fn main_opts_network_kill(
+    api: &mut TokApi,
+    network_name: &str,
+    force: bool,
+) -> Result<(), InstanceError> {
+    main_opts_instance_kill(api, network_name, force).await
 }
 
 pub async fn main_opts_network_reconnect(
@@ -176,6 +307,7 @@ pub async fn main_opts_network_bridge(
     bridge: OptsNetworkBridge,
     token_path: String,
     net_url: Option<url::Url>,
+    no_inner_encryption: bool
 ) -> Result<(), InstanceError>
 {
     let token_path = if let Ok(t) = std::env::var("NETWORK_TOKEN_PATH") {
@@ -193,7 +325,7 @@ pub async fn main_opts_network_bridge(
         }
     }
 
-    let port = load_port(token_path, net_url).await?;
+    let port = load_port(token_path, net_url, no_inner_encryption).await?;
     
     let hw = port.hardware_address()
         .await
@@ -307,7 +439,7 @@ fn cmd(cmd: &str, args: &[&str]) {
     assert!(ecode.success(), "Failed to execte {}", cmd);
 }
 
-pub async fn load_port(token_path: String, net_url: Option<url::Url>) -> Result<Port, InstanceError> {
+pub async fn load_port(token_path: String, net_url: Option<url::Url>, no_inner_encryption: bool) -> Result<Port, InstanceError> {
     let token = load_access_token(token_path).await?;
     let token = match token {
         Some(a) => a,
@@ -319,7 +451,7 @@ pub async fn load_port(token_path: String, net_url: Option<url::Url>) -> Result<
         None => token.network_url
     };
     
-    let port = Port::new(net_url, token.chain, token.access_token)
+    let port = Port::new_ext(net_url, token.chain, token.access_token, no_inner_encryption)
         .await
         .map_err(|err| {
             error!("failed to create port - {}", err);

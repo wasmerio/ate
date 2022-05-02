@@ -95,7 +95,7 @@ impl MioServer
         }
 
         // Load the port
-        let port = load_port(self.token_path.clone(), None)
+        let port = load_port(self.token_path.clone(), None, false)
             .await
             .map_err(|err| {
                 error!("failed to load port - {}", err);
