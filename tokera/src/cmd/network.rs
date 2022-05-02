@@ -320,9 +320,6 @@ pub async fn main_opts_network_monitor(
         shellexpand::tilde(token_path.as_str()).to_string()
     };
 
-    std::env::set_var("NETWORK_TOKEN_PATH", token_path.as_str());
-    ::sudo::with_env(&(vec!("NETWORK_TOKEN_PATH")[..])).unwrap();
-
     let port = load_port(token_path, net_url, no_inner_encryption).await?;
     let mut socket = port.bind_raw()
         .await
@@ -341,7 +338,6 @@ pub async fn main_opts_network_monitor(
     
     println!("Monitoring {}", port.chain());
     while let Ok(data) = socket.recv().await {
-        println!("hit!");
         tcpdump(&data[..]);
     }
     Ok(())
@@ -363,7 +359,7 @@ fn tcpdump(data: &[u8]) {
 
 #[cfg(feature = "smoltcp")]
 fn tcpdump(data: &[u8]) {
-    let pck = smoltcp::wire::PrettyPrinter::<EthernetFrame<&[u8]>>::new("", &data);
+    let pck = smoltcp::wire::PrettyPrinter::<smoltcp::wire::EthernetFrame<&[u8]>>::new("", &data);
     println!("{}", pck);
 }
 
