@@ -266,36 +266,52 @@ impl Port
                 }
                 if let Some(socket_handle) = self.dhcp_sockets.remove(&handle) {
                     self.iface.remove_socket(socket_handle);
-                }
+                } 
                 self.queue_nop(handle, PortNopType::CloseHandle);
             },
             PortCommand::BindRaw {
                 handle,
             } => {
-                let mac = HardwareAddress::from_bytes(self.mac.as_bytes());
-                let rx = self.raw_tx.subscribe();
-                let raw_socket = TapSocket::new(&self.switch, mac, rx);
-                self.raw_sockets.insert(handle, raw_socket);
-                self.queue_nop(handle, PortNopType::BindRaw);
+                match self.switch_to_raw() {
+                    Ok(()) => {
+                        let mac = HardwareAddress::from_bytes(self.mac.as_bytes());
+                        let rx = self.raw_tx.subscribe();
+                        let raw_socket = TapSocket::new(&self.switch, mac, rx);
+                        self.raw_sockets.insert(handle, raw_socket);
+                        self.queue_nop(handle, PortNopType::BindRaw);
+                    },
+                    Err(err) => {
+                        debug!("{}", err);
+                        self.queue_error(handle, SocketErrorKind::InvalidInput);
+                    }
+                };
             },
             PortCommand::BindIcmp {
                 handle,
                 local_addr,
                 hop_limit,
             } => {
-                if unicast_good(local_addr) == false {
-                    self.queue_error(handle, SocketErrorKind::AddrNotAvailable);
-                    return Ok(());
-                }
-                let rx_buffer = IcmpSocketBuffer::new(icmp_meta_buf(self.buf_size), self.raw_buf(1));
-                let tx_buffer = IcmpSocketBuffer::new(icmp_meta_buf(self.buf_size), self.raw_buf(1));
-                let mut socket = IcmpSocket::new(rx_buffer, tx_buffer);
-                socket.set_hop_limit(Some(hop_limit));
-                if let Err(err) = socket.bind(IcmpEndpoint::Udp(SocketAddr::new(local_addr, 0).into())) {
-                    self.queue_error(handle, conv_err(err));
-                } else {
-                    self.icmp_sockets.insert(handle, self.iface.add_socket(socket));
-                    self.queue_nop(handle, PortNopType::BindIcmp);
+                match self.switch_to_smoltcp() {
+                    Ok(()) => {
+                        if unicast_good(local_addr) == false {
+                            self.queue_error(handle, SocketErrorKind::AddrNotAvailable);
+                            return Ok(());
+                        }
+                        let rx_buffer = IcmpSocketBuffer::new(icmp_meta_buf(self.buf_size), self.raw_buf(1));
+                        let tx_buffer = IcmpSocketBuffer::new(icmp_meta_buf(self.buf_size), self.raw_buf(1));
+                        let mut socket = IcmpSocket::new(rx_buffer, tx_buffer);
+                        socket.set_hop_limit(Some(hop_limit));
+                        if let Err(err) = socket.bind(IcmpEndpoint::Udp(SocketAddr::new(local_addr, 0).into())) {
+                            self.queue_error(handle, conv_err(err));
+                        } else {
+                            self.icmp_sockets.insert(handle, self.iface.add_socket(socket));
+                            self.queue_nop(handle, PortNopType::BindIcmp);
+                        }
+                    },
+                    Err(err) => {
+                        debug!("{}", err);
+                        self.queue_error(handle, SocketErrorKind::InvalidInput);
+                    }
                 }
             },
             PortCommand::BindDhcp {
@@ -326,19 +342,27 @@ impl Port
                 local_addr,
                 hop_limit,
             } => {
-                if unicast_good(local_addr.ip()) == false {
-                    self.queue_error(handle, SocketErrorKind::AddrNotAvailable);
-                    return Ok(());
-                }
-                let rx_buffer = UdpSocketBuffer::new(udp_meta_buf(self.buf_size), self.ip_buf(1));
-                let tx_buffer = UdpSocketBuffer::new(udp_meta_buf(self.buf_size), self.ip_buf(1));
-                let mut socket = UdpSocket::new(rx_buffer, tx_buffer);
-                socket.set_hop_limit(Some(hop_limit));
-                if let Err(err) = socket.bind(local_addr) {
-                    self.queue_error(handle, conv_err(err));
-                } else {
-                    self.udp_sockets.insert(handle, self.iface.add_socket(socket));
-                    self.queue_nop(handle, PortNopType::BindUdp);
+                match self.switch_to_smoltcp() {
+                    Ok(()) => {
+                        if unicast_good(local_addr.ip()) == false {
+                            self.queue_error(handle, SocketErrorKind::AddrNotAvailable);
+                            return Ok(());
+                        }
+                        let rx_buffer = UdpSocketBuffer::new(udp_meta_buf(self.buf_size), self.ip_buf(1));
+                        let tx_buffer = UdpSocketBuffer::new(udp_meta_buf(self.buf_size), self.ip_buf(1));
+                        let mut socket = UdpSocket::new(rx_buffer, tx_buffer);
+                        socket.set_hop_limit(Some(hop_limit));
+                        if let Err(err) = socket.bind(local_addr) {
+                            self.queue_error(handle, conv_err(err));
+                        } else {
+                            self.udp_sockets.insert(handle, self.iface.add_socket(socket));
+                            self.queue_nop(handle, PortNopType::BindUdp);
+                        }
+                    },
+                    Err(err) => {
+                        debug!("{}", err);
+                        self.queue_error(handle, SocketErrorKind::InvalidInput);
+                    }
                 }
             },
             PortCommand::ConnectTcp {
@@ -347,25 +371,33 @@ impl Port
                 peer_addr,
                 hop_limit,
             } => {
-                if unicast_good(local_addr.ip()) == false {
-                    self.queue_error(handle, SocketErrorKind::AddrNotAvailable);
-                    return Ok(());
-                }
-                if unicast_good(peer_addr.ip()) == false {
-                    self.queue_error(handle, SocketErrorKind::HostUnreachable);
-                    return Ok(());
-                }
-                let rx_buffer = TcpSocketBuffer::new(self.ip_buf(self.buf_size));
-                let tx_buffer = TcpSocketBuffer::new(self.ip_buf(self.buf_size));
-                let mut socket = TcpSocket::new(rx_buffer, tx_buffer);
-                socket.set_hop_limit(Some(hop_limit));
-                let socket_handle = self.iface.add_socket(socket);
-                let (socket, cx) = self.iface.get_socket_and_context::<TcpSocket>(socket_handle);
-                if let Err(err) = socket.connect(cx, peer_addr, local_addr) {
-                    self.queue_error(handle, conv_err(err));
-                } else {
-                    self.tcp_sockets.insert(handle, socket_handle);
-                    self.queue_nop(handle, PortNopType::ConnectTcp);
+                match self.switch_to_smoltcp() {
+                    Ok(()) => {
+                        if unicast_good(local_addr.ip()) == false {
+                            self.queue_error(handle, SocketErrorKind::AddrNotAvailable);
+                            return Ok(());
+                        }
+                        if unicast_good(peer_addr.ip()) == false {
+                            self.queue_error(handle, SocketErrorKind::HostUnreachable);
+                            return Ok(());
+                        }
+                        let rx_buffer = TcpSocketBuffer::new(self.ip_buf(self.buf_size));
+                        let tx_buffer = TcpSocketBuffer::new(self.ip_buf(self.buf_size));
+                        let mut socket = TcpSocket::new(rx_buffer, tx_buffer);
+                        socket.set_hop_limit(Some(hop_limit));
+                        let socket_handle = self.iface.add_socket(socket);
+                        let (socket, cx) = self.iface.get_socket_and_context::<TcpSocket>(socket_handle);
+                        if let Err(err) = socket.connect(cx, peer_addr, local_addr) {
+                            self.queue_error(handle, conv_err(err));
+                        } else {
+                            self.tcp_sockets.insert(handle, socket_handle);
+                            self.queue_nop(handle, PortNopType::ConnectTcp);
+                        }
+                    },
+                    Err(err) => {
+                        debug!("{}", err);
+                        self.queue_error(handle, SocketErrorKind::InvalidInput);
+                    }
                 }
             },
             PortCommand::Listen {
@@ -373,19 +405,27 @@ impl Port
                 local_addr,
                 hop_limit,
             } => {
-                if unicast_good(local_addr.ip()) == false {
-                    self.queue_error(handle, SocketErrorKind::AddrNotAvailable);
-                    return Ok(());
-                }
-                let rx_buffer = TcpSocketBuffer::new(self.ip_buf(self.buf_size));
-                let tx_buffer = TcpSocketBuffer::new(self.ip_buf(self.buf_size));
-                let mut socket = TcpSocket::new(rx_buffer, tx_buffer);
-                socket.set_hop_limit(Some(hop_limit));
-                if let Err(err) = socket.listen(local_addr) {
-                    self.queue_error(handle, conv_err(err));
-                } else {
-                    self.listen_sockets.insert(handle, self.iface.add_socket(socket));
-                    self.queue_nop(handle, PortNopType::Listen);
+                match self.switch_to_smoltcp() {
+                    Ok(()) => {
+                        if unicast_good(local_addr.ip()) == false {
+                            self.queue_error(handle, SocketErrorKind::AddrNotAvailable);
+                            return Ok(());
+                        }
+                        let rx_buffer = TcpSocketBuffer::new(self.ip_buf(self.buf_size));
+                        let tx_buffer = TcpSocketBuffer::new(self.ip_buf(self.buf_size));
+                        let mut socket = TcpSocket::new(rx_buffer, tx_buffer);
+                        socket.set_hop_limit(Some(hop_limit));
+                        if let Err(err) = socket.listen(local_addr) {
+                            self.queue_error(handle, conv_err(err));
+                        } else {
+                            self.listen_sockets.insert(handle, self.iface.add_socket(socket));
+                            self.queue_nop(handle, PortNopType::Listen);
+                        }
+                    },
+                    Err(err) => {
+                        debug!("{}", err);
+                        self.queue_error(handle, SocketErrorKind::InvalidInput);
+                    }
                 }
             },
             PortCommand::SetHopLimit {
@@ -549,6 +589,56 @@ impl Port
             },
         }
         Ok(())
+    }
+
+    pub fn switch_to_smoltcp(&mut self) -> Result<(), &str> {
+        let mut state = self.switch.data_plane.lock().unwrap();
+        if let Some(dst) = state.ports.remove(&self.mac) {
+            match dst {
+                Destination::LocalSmoltcp(port) => {
+                    state.ports.insert(self.mac.clone(), Destination::LocalSmoltcp(port));
+                    Ok(())
+                }
+                Destination::LocalRaw(port) => {
+                    state.ports.insert(self.mac.clone(), Destination::LocalRaw(port));
+                    Err("port is already in a raw mode")
+                }
+                Destination::LocalDuel(port_smoltcp, _) => {
+                    state.ports.insert(self.mac.clone(), Destination::LocalSmoltcp(port_smoltcp));
+                    Ok(())
+                }
+                _ => {
+                    Err("port is in an invalid state to switch")
+                }
+            }
+        } else {
+            Err("failed to switch port mode as it is unknown")
+        }
+    }
+
+    pub fn switch_to_raw(&mut self) -> Result<(), &str> {
+        let mut state = self.switch.data_plane.lock().unwrap();
+        if let Some(dst) = state.ports.remove(&self.mac) {
+            match dst {
+                Destination::LocalSmoltcp(port) => {
+                    state.ports.insert(self.mac.clone(), Destination::LocalSmoltcp(port));
+                    Err("port is already in a smoltcp mode")
+                }
+                Destination::LocalRaw(port) => {
+                    state.ports.insert(self.mac.clone(), Destination::LocalRaw(port));
+                    Ok(())
+                }
+                Destination::LocalDuel(_, port_raw) => {
+                    state.ports.insert(self.mac.clone(), Destination::LocalRaw(port_raw));
+                    Ok(())
+                }
+                _ => {
+                    Err("port is in an invalid state to switch")
+                }
+            }
+        } else {
+            Err("failed to switch port mode as it is unknown")
+        }
     }
 
     pub fn poll(&mut self) -> (Vec<PortResponse>, Duration) {

@@ -55,17 +55,25 @@ use super::gateway::*;
 #[derive(Debug)]
 pub enum Destination
 {
-    Local(SwitchPort),
+    LocalSmoltcp(SwitchPortSmoltcp),
+    LocalRaw(SwitchPortRaw),
+    LocalDuel(SwitchPortSmoltcp, SwitchPortRaw),
     PeerSwitch(IpAddr)
 }
 
 #[derive(Debug)]
-pub struct SwitchPort {
-    data: Arc<SegQueue<Vec<u8>>>,
-    wake: Arc<watch::Sender<()>>,
-    raw: broadcast::Sender<Vec<u8>>,
+pub struct SwitchPortSmoltcp {
+    pub(crate) data: Arc<SegQueue<Vec<u8>>>,
+    pub(crate) wake: Arc<watch::Sender<()>>,
     #[allow(dead_code)]
-    mac: EthernetAddress,
+    pub(crate) mac: EthernetAddress,
+}
+
+#[derive(Debug)]
+pub struct SwitchPortRaw {
+    pub(crate) raw: broadcast::Sender<Vec<u8>>,
+    #[allow(dead_code)]
+    pub(crate) mac: EthernetAddress,
 }
 
 #[derive(Derivative)]
@@ -121,6 +129,41 @@ pub struct DhcpMessage
     message_type: DhcpMessageType,
     transaction_id: u32,
     switch: Weak<Switch>,
+}
+
+impl Destination
+{
+    pub fn send(&self, switch: &Switch, pck: Vec<u8>, allow_forward: bool) {
+        match self {
+            Destination::LocalSmoltcp(port) => {
+                port.data.push(pck);
+                let _ = port.wake.send(());
+            },
+            Destination::LocalRaw(port) => {
+                let _ = port.raw.send(pck);
+            },
+            Destination::LocalDuel(port_smoltcp, port_raw) => {
+                port_smoltcp.data.push(pck.clone());
+                let _ = port_smoltcp.wake.send(());
+                let _ = port_raw.raw.send(pck);
+            },
+            Destination::PeerSwitch(peer) => {
+                if allow_forward {
+                    let pck = switch.encrypt_packet(&pck[..]);
+                    let _ = switch.udp.send(pck, peer.clone());
+                }
+            },
+        }
+    }
+
+    pub fn is_local(&self) -> bool {
+        match self {
+            Destination::LocalSmoltcp(_) => true,
+            Destination::LocalRaw(_) => true,
+            Destination::LocalDuel(..) => true,
+            Destination::PeerSwitch(_) => false,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -240,17 +283,20 @@ impl Switch
         let (tx_broadcast, _) = broadcast::channel(1000);
         let (tx_wake, rx_wake) = watch::channel(());
         let data = Arc::new(SegQueue::new());
-        let switch_port = SwitchPort {
+        let switch_port_smoltcp = SwitchPortSmoltcp {
             data: data.clone(),
-            raw: tx_broadcast.clone(),
             wake: Arc::new(tx_wake),
+            mac: EthernetAddress::from_bytes(mac.as_bytes()),
+        };
+        let switch_port_raw = SwitchPortRaw {
+            raw: tx_broadcast.clone(),
             mac: EthernetAddress::from_bytes(mac.as_bytes()),
         };
 
         // Update the data plane so that it can start receiving data
         {
             let mut state = self.data_plane.lock().unwrap();
-            state.ports.insert(EthernetAddress::from_bytes(mac.as_bytes()), Destination::Local(switch_port));
+            state.ports.insert(EthernetAddress::from_bytes(mac.as_bytes()), Destination::LocalDuel(switch_port_smoltcp, switch_port_raw));
         }
 
         // Update the control plane so that others know that the port is here
@@ -681,13 +727,9 @@ impl Switch
 
         // Process the packet
         for (mac, dst) in state.ports.iter() {
-            if let Destination::Local(port) = dst {
-                if src != mac {
-                    let pck = pck.to_vec();
-                    port.data.push(pck.clone());
-                    let _ = port.raw.send(pck);
-                    let _ = port.wake.send(());
-                }
+            let pck = pck.to_vec();
+            if src != mac {
+                dst.send(self, pck, false);
             }
         }
 
@@ -729,7 +771,7 @@ impl Switch
         // should pass it to our dateway engine to process instead
         if dst_mac == &Gateway::MAC
         {
-            let is_promiscuous = {
+            {
                 // We should snoop all the packets
                 let mut state = self.data_plane.lock().unwrap();
                 self.snoop(&mut state, &pck[..], None);
@@ -747,27 +789,14 @@ impl Switch
                     }
                 }
 
-                state.promiscuous.is_empty() == false
-            };
-
-            // If we are promiscuous then we need to copy the packet and set it on, otherwise
-            // we can just take ownership of the packet
-            if is_promiscuous
-            {
-                // Process the outbound packet which will do some IP routing
-                self.gateway.process_outbound(pck.clone());
-
                 // Promiscuous devices might also be listening to the gateway address
-                {
-                    let mut state = self.data_plane.lock().unwrap();
-                    self.__promiscuous(&mut state, dst_mac, pck, allow_forward);
+                if state.promiscuous.is_empty() {
+                    self.__promiscuous(&mut state, dst_mac, &pck[..], allow_forward);
                 }
             }
-            else
-            {
-                // Process the outbound packet which will do some IP routing
-                self.gateway.process_outbound(pck.clone());
-            }
+
+            // Process the outbound packet which will do some IP routing
+            self.gateway.process_outbound(pck);
             return;
         }
 
@@ -777,46 +806,31 @@ impl Switch
 
     pub(crate) fn __unicast(self: &Arc<Switch>, state: &mut MutexGuard<DataPlane>, src: &EthernetAddress, dst_mac: &EthernetAddress, pck: Vec<u8>, allow_forward: bool, set_peer: Option<&IpAddr>)
     {
-        // Next we lookup if this destination address is known either
-        // on this switch node or another one
-        if let Some(dst) = state.ports.get(&dst_mac)
+        // We might need to snoop this packet
+        self.snoop(state, &pck[..], set_peer);
+
+        // If the destination is known to us
+        if state.ports.contains_key(&dst_mac)
         {
-            let promiscuous_copy = if state.promiscuous.is_empty() == false {
-                Some(pck.clone())
-            } else {
-                None
-            };
-
-            match dst {
-                Destination::Local(_) => {
-                    self.snoop(state, &pck[..], set_peer);
-                    if let Some(Destination::Local(port)) = state.ports.get(&dst_mac) {
-                        port.data.push(pck.clone());
-                        let _ = port.raw.send(pck);
-                        let _ = port.wake.send(());
-                    }
-                },
-                Destination::PeerSwitch(peer) => {
-                    if allow_forward {
-                        let pck = self.encrypt_packet(&pck[..]);
-                        let _ = self.udp.send(pck, peer.clone());
-                    }
-                }
+            // We might need to make a copy of the packet so that any promiscuous
+            // ports can also get a copy
+            if state.promiscuous.is_empty() == false {
+                self.__promiscuous(state, dst_mac, &pck[..], allow_forward);
             }
 
-            if let Some(pck) = promiscuous_copy {
-                self.__promiscuous(state, dst_mac, pck, allow_forward);
+            // Send the packet to the destination
+            if let Some(dst) = state.ports.get(&dst_mac) {
+                dst.send(self, pck, allow_forward);
             }
-            return;
+        } else {
+            // Otherwise we broadcast it to all the other nodes as it
+            // could be that we just dont know about it yet or it could
+            // be that its multicast/broadcast traffic.
+            self.__broadcast(state, src, &pck[..], allow_forward, set_peer);
         }
-
-        // Otherwise we broadcast it to all the other nodes as it
-        // could be that we just dont know about it yet or it could
-        // be that its multicast/broadcast traffic.
-        self.__broadcast(state, src, &pck[..], allow_forward, set_peer);
     }
 
-    pub(crate) fn __promiscuous(self: &Arc<Switch>, state: &mut MutexGuard<DataPlane>, dst_mac: &EthernetAddress, pck: Vec<u8>, allow_forward: bool)
+    pub(crate) fn __promiscuous(self: &Arc<Switch>, state: &mut MutexGuard<DataPlane>, dst_mac: &EthernetAddress, pck: &[u8], allow_forward: bool)
     {
         if state.promiscuous.is_empty() {
             return;
@@ -828,10 +842,17 @@ impl Switch
                 continue;
             }
             match state.ports.get(mac) {
-                Some(Destination::Local(port)) => {
-                    port.data.push(pck.clone());
-                    let _ = port.raw.send(pck.clone());
+                Some(Destination::LocalSmoltcp(port)) => {
+                    port.data.push(pck.to_vec());
                     let _ = port.wake.send(());
+                },
+                Some(Destination::LocalRaw(port)) => {
+                    let _ = port.raw.send(pck.to_vec());
+                },
+                Some(Destination::LocalDuel(port_smoltcp, port_raw)) => {
+                    port_smoltcp.data.push(pck.to_vec());
+                    let _ = port_smoltcp.wake.send(());
+                    let _ = port_raw.raw.send(pck.to_vec());
                 },
                 Some(Destination::PeerSwitch(peer)) => {
                     peers.insert(peer.clone());
@@ -846,7 +867,7 @@ impl Switch
                 peers.remove(peer);
             }
             for peer in peers {
-                let pck = self.encrypt_packet(&pck[..]);
+                let pck = self.encrypt_packet(pck);
                 let _ = self.udp.send(pck, peer.clone());
             }
         }

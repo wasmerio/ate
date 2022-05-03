@@ -459,6 +459,7 @@ pub async fn main_opts_network_bridge(
 
     let (mut reader, mut writer) = tokio::io::split(tap);
 
+    std::thread::sleep(std::time::Duration::from_millis(200));
     cmd("ip", &["link", "set", "dev", name, "down"]);
     if bridge.promiscuous {
         cmd("ip", &["link", "set", "dev", name, "promisc", "on"]);    
@@ -509,6 +510,7 @@ fn cmd_inner(cmd: &str, args: &[&str], stderr: Stdio, stdout: Stdio) -> Result<s
 fn cmd(cmd: &str, args: &[&str]) {
     let ecode = cmd_inner(cmd, args, Stdio::inherit(), Stdio::inherit()).unwrap();
     assert!(ecode.success(), "Failed to execte {}", cmd);
+    std::thread::sleep(std::time::Duration::from_millis(10));
 }
 
 pub async fn load_port(token_path: String, net_url: Option<url::Url>, no_inner_encryption: bool) -> Result<Port, InstanceError> {
