@@ -72,6 +72,7 @@ pub struct SwitchPortSmoltcp {
 #[derive(Debug)]
 pub struct SwitchPortRaw {
     pub(crate) raw: broadcast::Sender<Vec<u8>>,
+    pub(crate) wake: Arc<watch::Sender<()>>,
     #[allow(dead_code)]
     pub(crate) mac: EthernetAddress,
 }
@@ -282,14 +283,16 @@ impl Switch
         let mac = HardwareAddress::new();
         let (tx_broadcast, _) = broadcast::channel(1000);
         let (tx_wake, rx_wake) = watch::channel(());
+        let tx_wake = Arc::new(tx_wake);
         let data = Arc::new(SegQueue::new());
         let switch_port_smoltcp = SwitchPortSmoltcp {
             data: data.clone(),
-            wake: Arc::new(tx_wake),
+            wake: tx_wake.clone(),
             mac: EthernetAddress::from_bytes(mac.as_bytes()),
         };
         let switch_port_raw = SwitchPortRaw {
             raw: tx_broadcast.clone(),
+            wake: tx_wake.clone(),
             mac: EthernetAddress::from_bytes(mac.as_bytes()),
         };
 
