@@ -72,6 +72,7 @@ pub struct SwitchPortSmoltcp {
 #[derive(Debug)]
 pub struct SwitchPortRaw {
     pub(crate) raw: broadcast::Sender<Vec<u8>>,
+    #[allow(dead_code)]
     pub(crate) wake: Arc<watch::Sender<()>>,
     #[allow(dead_code)]
     pub(crate) mac: EthernetAddress,
@@ -142,11 +143,12 @@ impl Destination
             },
             Destination::LocalRaw(port) => {
                 let _ = port.raw.send(pck);
+                let _ = port.wake.send(());
             },
             Destination::LocalDuel(port_smoltcp, port_raw) => {
                 port_smoltcp.data.push(pck.clone());
-                let _ = port_smoltcp.wake.send(());
                 let _ = port_raw.raw.send(pck);
+                let _ = port_smoltcp.wake.send(());
             },
             Destination::PeerSwitch(peer) => {
                 if allow_forward {
@@ -730,8 +732,8 @@ impl Switch
 
         // Process the packet
         for (mac, dst) in state.ports.iter() {
-            let pck = pck.to_vec();
             if src != mac {
+                let pck = pck.to_vec();
                 dst.send(self, pck, false);
             }
         }
@@ -851,11 +853,12 @@ impl Switch
                 },
                 Some(Destination::LocalRaw(port)) => {
                     let _ = port.raw.send(pck.to_vec());
+                    let _ = port.wake.send(());
                 },
                 Some(Destination::LocalDuel(port_smoltcp, port_raw)) => {
                     port_smoltcp.data.push(pck.to_vec());
-                    let _ = port_smoltcp.wake.send(());
                     let _ = port_raw.raw.send(pck.to_vec());
+                    let _ = port_smoltcp.wake.send(());
                 },
                 Some(Destination::PeerSwitch(peer)) => {
                     peers.insert(peer.clone());
