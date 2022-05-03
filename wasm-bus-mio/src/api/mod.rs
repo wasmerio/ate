@@ -54,7 +54,7 @@ pub trait Mio {
 
     async fn bind_tcp(&self, addr: SocketAddr) -> Arc<dyn TcpListener>;
 
-    async fn bind_icmp(&self, addr: IpAddr) -> Arc<dyn IcmpSocket>;
+    async fn bind_icmp(&self, ident: u16) -> Arc<dyn IcmpSocket>;
 
     async fn connect_tcp(&self, addr: SocketAddr, peer: SocketAddr) -> Arc<dyn TcpStream>;
 }
@@ -68,7 +68,7 @@ pub trait RawSocket {
 
 #[wasm_bus(format = "bincode")]
 pub trait IcmpSocket {
-    async fn local_addr(&self) -> IpAddr;
+    async fn ident(&self) -> u16;
 
     async fn set_ttl(&self, ttl: u32) -> MioResult<()>;
 

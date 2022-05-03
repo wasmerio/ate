@@ -63,8 +63,7 @@ pub async fn main_opts_network(
                     main_opts_network_reset(&mut context.api, opts.name.as_str()).await
                 },
                 OptsNetworkAction::Connect(opts) => {
-                    let net_url = ate_auth::prelude::origin_url(&opts.net_url, "net");
-                    main_opts_network_connect(&mut context.api, opts.name.as_str(), net_url, token_path, opts.export).await
+                    main_opts_network_connect(&mut context.api, opts.name.as_str(), token_path, opts.export).await
                 },
                 OptsNetworkAction::Create(opts) => {
                     let mut instance_authority = db_url.domain()
@@ -88,17 +87,13 @@ pub async fn main_opts_network(
             Ok(())
         },
         OptsNetworkCommand::Monitor(opts) => {
-            let net_url = opts.net_url.clone().map(|net_url| {
-                ate_auth::prelude::origin_url(&Some(net_url), "net")
-            });
+            let net_url = ate_auth::prelude::origin_url(&opts.net_url, "net");
             main_opts_network_monitor(token_path, net_url, no_inner_encryption).await
         },
         #[cfg(feature = "enable_bridge")]
         #[cfg(any(target_os = "linux", target_os = "macos"))]
         OptsNetworkCommand::Bridge(opts) => {
-            let net_url = opts.net_url.clone().map(|net_url| {
-                ate_auth::prelude::origin_url(&Some(net_url), "net")
-            });
+            let net_url = ate_auth::prelude::origin_url(&opts.net_url, "net");
             main_opts_network_bridge(opts, token_path, net_url, no_inner_encryption).await
         }
     }
@@ -241,7 +236,6 @@ pub async fn main_opts_network_reset(
 pub async fn main_opts_network_connect(
     api: &mut TokApi,
     network_name: &str,
-    net_url: url::Url,
     token_path: String,
     export: bool,
 ) -> Result<(), InstanceError>
@@ -255,7 +249,6 @@ pub async fn main_opts_network_connect(
     // Build the access token
     let token = NetworkToken {
         chain: ChainKey::from(chain.clone()),
-        network_url: net_url,
         access_token: access_token.clone(),
     };
 
@@ -310,7 +303,7 @@ pub async fn main_opts_network_disconnect(token_path: String)
 
 pub async fn main_opts_network_monitor(
     token_path: String,
-    net_url: Option<url::Url>,
+    net_url: url::Url,
     no_inner_encryption: bool
 ) -> Result<(), InstanceError>
 {
@@ -368,7 +361,7 @@ fn tcpdump(data: &[u8]) {
 pub async fn main_opts_network_bridge(
     bridge: OptsNetworkBridge,
     token_path: String,
-    net_url: Option<url::Url>,
+    net_url: url::Url,
     no_inner_encryption: bool
 ) -> Result<(), InstanceError>
 {
@@ -513,16 +506,11 @@ fn cmd(cmd: &str, args: &[&str]) {
     std::thread::sleep(std::time::Duration::from_millis(10));
 }
 
-pub async fn load_port(token_path: String, net_url: Option<url::Url>, no_inner_encryption: bool) -> Result<Port, InstanceError> {
+pub async fn load_port(token_path: String, net_url: url::Url, no_inner_encryption: bool) -> Result<Port, InstanceError> {
     let token = load_access_token(token_path).await?;
     let token = match token {
         Some(a) => a,
         None => { return Err(InstanceErrorKind::InvalidAccessToken.into()); }
-    };
-
-    let net_url = match net_url {
-        Some(n) => n,
-        None => token.network_url
     };
     
     let port = Port::new_ext(net_url, token.chain, token.access_token, no_inner_encryption)

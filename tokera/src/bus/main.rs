@@ -29,6 +29,7 @@ pub async fn main_opts_bus(
     conf: AteConfig,
     token_path: String,
     auth_url: url::Url,
+    net_url: url::Url,
 ) -> Result<(), crate::error::BusError> {
     info!("wasm-bus initializing");
 
@@ -66,7 +67,7 @@ pub async fn main_opts_bus(
     debug!("listing for fuse commands");
     FuseServer::listen(opts.clone(), registry.clone(), session_user.clone(), conf.clone(), auth_url.clone()).await?;
     debug!("listing for mio commands");
-    MioServer::listen(opts.clone(), token_path).await?;
+    MioServer::listen(opts.clone(), token_path, net_url.clone()).await?;
     debug!("registering wasm_bus server");
     wasm_bus::task::serve();
     info!("switching from command to reactor pattern");

@@ -101,9 +101,6 @@ pub struct OptsNetworkConnect {
     /// Exports the token to STDOUT rather than storing it so that it may be used later to reconnect
     #[clap(short, long)]
     pub export: bool,
-    /// URL where the network can be accessed from (e.g. wss://tokera.sh/net)
-    #[clap(short, long)]
-    pub net_url: Option<Url>,
 }
 
 #[allow(dead_code)]

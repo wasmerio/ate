@@ -300,7 +300,8 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
         }
         #[cfg(feature = "bus")]
         SubCommand::Bus(opts_bus) => {
-            main_opts_bus(opts_bus, conf, opts.token_path, auth).await?;
+            let net_url = ate_auth::prelude::origin_url(&opts_bus.net_url, "net");
+            main_opts_bus(opts_bus, conf, opts.token_path, auth, net_url).await?;
         }
         #[cfg(not(feature_os = "wasi"))]
         SubCommand::Token(opts_token) => {

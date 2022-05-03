@@ -288,20 +288,16 @@ impl Port
             },
             PortCommand::BindIcmp {
                 handle,
-                local_addr,
+                ident,
                 hop_limit,
             } => {
                 match self.switch_to_smoltcp() {
                     Ok(()) => {
-                        if unicast_good(local_addr) == false {
-                            self.queue_error(handle, SocketErrorKind::AddrNotAvailable);
-                            return Ok(());
-                        }
                         let rx_buffer = IcmpSocketBuffer::new(icmp_meta_buf(self.buf_size), self.raw_buf(1));
                         let tx_buffer = IcmpSocketBuffer::new(icmp_meta_buf(self.buf_size), self.raw_buf(1));
                         let mut socket = IcmpSocket::new(rx_buffer, tx_buffer);
                         socket.set_hop_limit(Some(hop_limit));
-                        if let Err(err) = socket.bind(IcmpEndpoint::Udp(SocketAddr::new(local_addr, 0).into())) {
+                        if let Err(err) = socket.bind(IcmpEndpoint::Ident(ident)) {
                             self.queue_error(handle, conv_err(err));
                         } else {
                             self.icmp_sockets.insert(handle, self.iface.add_socket(socket));

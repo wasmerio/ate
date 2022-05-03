@@ -40,7 +40,7 @@ pub enum PortCommand {
     },
     BindIcmp {
         handle: SocketHandle,
-        local_addr: IpAddr,
+        ident: u16,
         hop_limit: u8,
     },
     BindDhcp {
@@ -113,7 +113,7 @@ for PortCommand
             PortCommand::CloseHandle { handle } => write!(f, "close(handle={})", handle),
             PortCommand::BindRaw { handle, .. } => write!(f, "bind-raw(handle={})", handle),
             PortCommand::BindUdp { handle, local_addr: addr, .. } => write!(f, "bind-udp(handle={},addr={})", handle, addr),
-            PortCommand::BindIcmp { handle, local_addr: addr, .. } => write!(f, "bind-icmp(handle={},addr={})", handle, addr),
+            PortCommand::BindIcmp { handle, ident, .. } => write!(f, "bind-icmp(handle={},ident={})", handle, ident),
             PortCommand::BindDhcp { handle, lease_duration, ignore_naks } => {
                 match lease_duration {
                     Some(lease_duration) => {

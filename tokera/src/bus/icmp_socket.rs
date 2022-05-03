@@ -15,7 +15,7 @@ struct State
 {
     socket: Socket,
     ttl: u32,
-    addr: IpAddr,
+    ident: u16,
     backlog: VecDeque<(Vec<u8>, IpAddr)>,
 }
 
@@ -27,20 +27,20 @@ pub struct IcmpSocketServer
 
 impl IcmpSocketServer
 {
-    pub fn new(socket: Socket, addr: IpAddr) -> Self {
+    pub fn new(socket: Socket, ident: u16) -> Self {
         Self {
             state: Mutex::new(State {
                 socket,
                 ttl: 64,
-                addr,
+                ident,
                 backlog: Default::default(),
             })
         }
     }
 
-    async fn local_addr(&self) -> IpAddr {
+    async fn ident(&self) -> u16 {
         let state = self.state.lock().await;
-        state.addr
+        state.ident
     }
 }
 
@@ -84,8 +84,8 @@ for IcmpSocketServer {
             })
     }
 
-    async fn local_addr(&self) -> IpAddr {
-        IcmpSocketServer::local_addr(self).await
+    async fn ident(&self) -> u16 {
+        IcmpSocketServer::ident(self).await
     }
 
     async fn set_ttl(&self, ttl: u32) -> MioResult<()> {

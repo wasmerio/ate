@@ -480,13 +480,13 @@ pub struct AsyncIcmpSocket {
 }
 
 impl AsyncIcmpSocket {
-    pub async fn bind(addr: IpAddr) -> io::Result<AsyncIcmpSocket> {
-        Self::bind_via(WAPM_DEFAULT, addr).await
+    pub async fn bind(ident: u16) -> io::Result<AsyncIcmpSocket> {
+        Self::bind_via(WAPM_DEFAULT, ident).await
     }
 
-    pub async fn bind_via(wapm: &str, addr: IpAddr) -> io::Result<AsyncIcmpSocket> {
+    pub async fn bind_via(wapm: &str, ident: u16) -> io::Result<AsyncIcmpSocket> {
         let factory = api::MioClient::new(wapm);
-        let icmp = factory.bind_icmp(addr).await
+        let icmp = factory.bind_icmp(ident).await
             .map_err(|err| err.into_io_error())?;
         Ok(
             AsyncIcmpSocket {
@@ -513,9 +513,9 @@ impl AsyncIcmpSocket {
             .map_err(conv_err2)
     }
 
-    pub async fn local_addr(&self) -> io::Result<IpAddr> {
+    pub async fn ident(&self) -> io::Result<u16> {
         Ok(
-            self.icmp.local_addr().await
+            self.icmp.ident().await
                 .map_err(conv_err)?
         )
     }
@@ -939,13 +939,13 @@ pub struct IcmpSocket {
 }
 
 impl IcmpSocket {
-    pub fn bind(addr: IpAddr) -> io::Result<IcmpSocket> {
-        Self::bind_via(WAPM_DEFAULT, addr)
+    pub fn bind(ident: u16) -> io::Result<IcmpSocket> {
+        Self::bind_via(WAPM_DEFAULT, ident)
     }
 
-    pub fn bind_via(wapm: &str, addr: IpAddr) -> io::Result<IcmpSocket> {
+    pub fn bind_via(wapm: &str, ident: u16) -> io::Result<IcmpSocket> {
         let factory = api::MioClient::new(wapm);
-        let icmp = factory.blocking_bind_icmp(addr)
+        let icmp = factory.blocking_bind_icmp(ident)
             .map_err(|err| err.into_io_error())?;
         Ok(
             IcmpSocket {
@@ -972,9 +972,9 @@ impl IcmpSocket {
             .map_err(conv_err2)
     }
 
-    pub fn local_addr(&self) -> io::Result<IpAddr> {
+    pub fn ident(&self) -> io::Result<u16> {
         Ok(
-            self.icmp.blocking_local_addr()
+            self.icmp.blocking_ident()
                 .map_err(conv_err)?
         )
     }

@@ -6,6 +6,9 @@ pub struct OptsBus {
     /// URL where the data is remotely stored on a distributed commit log (e.g. wss://tokera.sh/db).
     #[clap(short, long)]
     pub remote: Option<url::Url>,
+    /// URL where the networks can be accessed from (e.g. wss://tokera.sh/net)
+    #[clap(short, long)]
+    pub net_url: Option<url::Url>,
     /// Determines how the file-system will react while it is nominal and when it is
     /// recovering from a communication failure (valid options are 'async', 'readonly-async',
     /// 'readonly-sync' or 'sync')

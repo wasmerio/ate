@@ -61,6 +61,7 @@ for MioServerStateGuard<'a>
 #[derivative(Debug)]
 pub struct MioServer {
     token_path: String,
+    net_url: url::Url,
     state: Mutex<Option<MioServerState>>
 }
 
@@ -68,11 +69,13 @@ impl MioServer {
     pub async fn listen(
         _opts: Arc<OptsBus>,
         token_path: String,
+        net_url: url::Url,
     ) -> Result<(), crate::error::BusError>
     { 
         // Register so we can respond to calls
         let server = Arc::new(MioServer {
             token_path,
+            net_url,
             state: Mutex::new(None)
         });
         api::MioService::listen(server);
@@ -95,7 +98,7 @@ impl MioServer
         }
 
         // Load the port
-        let port = load_port(self.token_path.clone(), None, false)
+        let port = load_port(self.token_path.clone(), self.net_url.clone(), false)
             .await
             .map_err(|err| {
                 error!("failed to load port - {}", err);
@@ -109,6 +112,7 @@ impl MioServer
                 error!("failed to acquire IP using DHCP - {}", err);
                 CallError::BadRequest
             })?;
+        info!("port acquired ip={} netmask={}", ip, netmask);
             
         // Set the state
         guard.replace(MioServerState {
@@ -133,7 +137,7 @@ for MioServer {
         let guard = self.get_or_create_state().await?;
         let socket = guard.port.bind_raw().await
             .map_err(|err| {
-                debug!("bind_raw failed: {}", err);
+                warn!("bind_raw failed: {}", err);
                 CallError::InternalFailure
             })?;
 
@@ -157,7 +161,7 @@ for MioServer {
         let socket = port
             .bind_udp(addr).await
             .map_err(|err| {
-                debug!("bind_udp failed: {}", err);
+                warn!("bind_udp failed: {}", err);
                 CallError::InternalFailure
             })?;
 
@@ -166,18 +170,19 @@ for MioServer {
 
     async fn bind_icmp(
         &self,
-        addr: IpAddr
+        ident: u16
     ) -> Result<Arc<dyn api::IcmpSocket + Send + Sync + 'static>, CallError> {
         let guard = self.get_or_create_state().await?;
         let port = guard.port.clone();
         let socket = port
-            .bind_icmp(addr).await
+            .bind_icmp(ident)
+            .await
             .map_err(|err| {
-                debug!("bind_icmp failed: {}", err);
+                warn!("bind_icmp failed: {}", err);
                 CallError::InternalFailure
             })?;
 
-        Ok(Arc::new(IcmpSocketServer::new(socket, addr)))
+        Ok(Arc::new(IcmpSocketServer::new(socket, ident)))
     }
 
     async fn connect_tcp(
@@ -189,7 +194,7 @@ for MioServer {
         let socket = guard.port
             .connect_tcp(addr, peer).await
             .map_err(|err| {
-                debug!("connect_tcp failed: {}", err);
+                warn!("connect_tcp failed: {}", err);
                 CallError::InternalFailure
             })?;
 

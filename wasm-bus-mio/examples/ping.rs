@@ -2,8 +2,6 @@ use std::collections::HashMap;
 use std::time::Instant;
 use std::time::Duration;
 use std::net::IpAddr;
-use std::net::Ipv4Addr;
-use std::net::Ipv6Addr;
 use std::convert::TryInto;
 use byteorder::ReadBytesExt;
 use byteorder::WriteBytesExt;
@@ -137,19 +135,15 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
     let interval = Duration::from_millis(opts.interval);
     let timeout = Duration::from_millis(opts.timeout);
 
-    let source = match &destination {
-        IpAddr::V4(_) => IpAddr::V4(Ipv4Addr::UNSPECIFIED),
-        IpAddr::V6(_) => IpAddr::V6(Ipv6Addr::UNSPECIFIED),
-    };
-
     let mut dups = HashMap::<u64, u32>::new();
     let mut sent = 0u64;
     let mut received = 0u64;
 
     println!("PING {} ({}) 56(84) bytes of data", destination, destination);
 
+    let ident = 0x22b;
     let start = Instant::now();
-    let socket = AsyncIcmpSocket::bind(source).await?;
+    let socket = AsyncIcmpSocket::bind(ident).await?;
     for seq in 0..count
     {
         let pck = create_ping_packet(destination, start, seq)?;
