@@ -1,0 +1,31 @@
+[package]
+name = "wasm-bus-reqwest"
+version = "1.2.0"
+authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
+edition = "2018"
+description = "WebAssembly HTTP(s) Web Request Interface"
+license = "MIT OR Apache-2.0"
+keywords = [ "wasi", "wasm", "bus", "http", "api" ]
+repository = "https://github.com/john-sharratt/ate"
+readme = "README.md"
+
+[features]
+default = []
+
+[dependencies]
+wasm-bus = { version = "^1", path = "../lib", default_features = false, features = [ "rt", "macros" ] }
+tracing = { version = "^0.1", features = [ "log" ] }
+serde = { version = "^1", features = ["derive"] }
+serde_json = "^1.0"
+http = { version = "^0.2" }
+mime_guess = { version = "^2" }
+http-body = { version = "^0.4" }
+formdata = { version = "^0.13" }
+bytes = "^1"
+futures-core = "^0.3"
+futures-util = "^0.3"
+pin-project-lite = "^0.2"
+url = "^2"
+urlencoding = "^2"
+tokio = { version = "^1", features = [ "sync", "macros" ], default_features = false }
+async-trait = "^0.1"

@@ -1,15 +1,9 @@
 pub mod file_io;
 pub mod file_system;
 mod fuse;
-mod mio;
 mod tok;
 mod main;
 pub mod opened_file;
-mod raw_socket;
-mod tcp_listener;
-mod tcp_stream;
-mod udp_socket;
-mod icmp_socket;
 
 pub use main::*;
 

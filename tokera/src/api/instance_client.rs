@@ -1,10 +1,5 @@
-#[cfg(not(target_arch = "wasm32"))]
-use ate_auth::prelude::conf_cmd;
-use std::io;
-use wasm_bus_ws::prelude::*;
 use wasm_bus_tty::prelude::*;
-use ate::{prelude::*, comms::{StreamTx, StreamRx}};
-use ate::mesh::GLOBAL_CERTIFICATES;
+use ate::comms::{StreamTx, StreamRx, StreamSecurity};
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
@@ -14,7 +9,6 @@ pub struct InstanceClient
 {
     rx: StreamRx,
     tx: StreamTx,
-    ek: Option<EncryptKey>,
 }
 
 impl InstanceClient
@@ -23,106 +17,34 @@ impl InstanceClient
 
     pub async fn new(connect_url: url::Url) -> Result<Self, Box<dyn std::error::Error>>
     {
-        Self::new_ext(connect_url, Self::PATH_INST, false, false).await
+        Self::new_ext(connect_url, Self::PATH_INST, StreamSecurity::AnyEncryption).await
     }
 
-    pub async fn new_ext(connect_url: url::Url, path: &str, ignore_certificate: bool, no_inner_encryption: bool) -> Result<Self, Box<dyn std::error::Error>>
+    pub async fn new_ext(connect_url: url::Url, path: &str, security: StreamSecurity) -> Result<Self, Box<dyn std::error::Error>>
     {
-        let host = connect_url
-            .host()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "URL does not have a host component"))?;
-        let domain = match &host {
-                url::Host::Domain(a) => Some(*a),
-                url::Host::Ipv4(ip) if ip.is_loopback() => Some("localhost"),
-                url::Host::Ipv6(ip) if ip.is_loopback() => Some("localhost"),
-                _ => None
-            }
-            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "URL does not have a domain component"))?;
-
-        let mut validation = {
-            let mut certs = Vec::new();
-
-            #[cfg(not(target_arch = "wasm32"))]
-            {
-                let test_registry = Registry::new(&conf_cmd()).await;
-                for cert in test_registry.dns_certs(domain).await.unwrap() {
-                    certs.push(cert);
-                }
-            }
-            for cert in GLOBAL_CERTIFICATES.read().unwrap().iter() {
-                if certs.contains(cert) == false {
-                    certs.push(cert.clone());
-                }
-            }
-            if certs.len() > 0 {
-                CertificateValidation::AllowedCertificates(certs)
-            } else if domain == "localhost" {
-                CertificateValidation::AllowAll
-            } else {
-                CertificateValidation::DenyAll
-            }
-        };
-        if ignore_certificate {
-            validation = CertificateValidation::AllowAll;
-        }
-
-        let socket = SocketBuilder::new(connect_url.clone())
-            .open()
+        let port = ate_comms::StreamClient::connect(
+            connect_url,
+            path,
+            security,
+            Some("8.8.8.8".to_string()),
+            false)
             .await?;
-            
-        let (tx, rx) = socket.split(); 
-        let mut tx: StreamTx = tx.into();
-        let mut rx: StreamRx = rx.into();
 
-        // We only encrypt if it actually has a certificate (otherwise
-        // a simple man-in-the-middle could intercept anyway)
-        let key_size = if ignore_certificate == false && domain != "localhost" && no_inner_encryption == false {
-            Some(KeySize::Bit192)
-        } else {
-            None
-        };
-
-        // Say hello
-        let node_id = NodeId::generate_client_id();
-        let hello_metadata = ate::comms::hello::mesh_hello_exchange_sender(
-            &mut rx,
-            &mut tx,
-            node_id,
-            path.to_string(),
-            domain.to_string(),
-            key_size,
-        )
-        .await?;
-
-        // If we are using wire encryption then exchange secrets
-        let ek = match hello_metadata.encryption {
-            Some(key_size) => Some(
-                ate::comms::key_exchange::mesh_key_exchange_sender(
-                    &mut rx,
-                    &mut tx,
-                    key_size,
-                    validation,
-                )
-                .await?,
-            ),
-            None => None,
-        };
+        let (rx, tx) = port.split();
 
         Ok(
             Self {
                 rx,
                 tx,
-                ek,
             }
         )
     }
 
-    pub fn split(self) -> (StreamTx, StreamRx, Option<EncryptKey>)
+    pub fn split(self) -> (StreamTx, StreamRx)
     {
         (
             self.tx,
             self.rx,
-            self.ek,
         )
     }
 
@@ -139,7 +61,7 @@ impl InstanceClient
     }
 
     pub async fn send_data(&mut self, data: Vec<u8>) -> Result<(), Box<dyn std::error::Error>> {
-        self.tx.send(&self.ek, &data[..]).await?;
+        self.tx.write(&data[..]).await?;
         Ok(())
     }
 
@@ -147,10 +69,9 @@ impl InstanceClient
         let mut stdin = Tty::stdin().await?;
         let mut stdout = Tty::stdout().await?;
 
-        let mut total_read = 0u64;
         loop {
             tokio::select! {
-                data = self.rx.read_buf_with_header(&self.ek, &mut total_read) => {
+                data = self.rx.read() => {
                     if let Ok(data) = data {
                         if data.len() <= 0 {
                             break;
@@ -163,7 +84,7 @@ impl InstanceClient
                 }
                 data = stdin.read() => {
                     if let Some(data) = data {
-                        self.tx.send(&self.ek, &data[..]).await?;
+                        self.tx.write(&data[..]).await?;
                     } else {
                         break;
                     }
@@ -176,9 +97,8 @@ impl InstanceClient
     pub async fn run_read(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let mut stdout = Tty::stdout().await?;
         let mut stderr = Tty::stderr().await?;
-        let mut total_read = 0u64;
         loop {
-            match self.rx.read_buf_with_header(&self.ek, &mut total_read).await {
+            match self.rx.read().await {
                 Ok(data) => {
                     if data.len() <= 0 {
                         break;

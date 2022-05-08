@@ -14,8 +14,10 @@ use ate::comms::HelloMetadata;
 use ate::comms::RawStreamRoute;
 use ate::comms::StreamRoute;
 use ate::comms::StreamRx;
+use ate::comms::MessageProtocolVersion;
 use ate::comms::Upstream;
 use ate::comms::StreamReader;
+use ate::comms::MessageProtocolVersion;
 use ate::prelude::*;
 use ate_files::repo::Repository;
 use ate_files::repo::RepositorySessionFactory;
@@ -49,6 +51,8 @@ use ate_auth::cmd::impersonate_command;
 use ate_auth::helper::b64_to_session;
 use ttl_cache::TtlCache;
 use tokio::sync::RwLock;
+use tokio::io::AsyncRead;
+use tokio::io::AsyncWrite;
 use http::StatusCode;
 
 use crate::adapter::FileAccessorAdapter;
@@ -243,6 +247,7 @@ for Server
     async fn accepted_web_socket(
         &self,
         mut rx: StreamRx,
+        rx_proto: StreamProtocol,
         tx: Upstream,
         hello: HelloMetadata,
         sock_addr: SocketAddr,
@@ -276,14 +281,24 @@ for Server
 {
     async fn accepted_raw_web_socket(
         &self,
-        rx: StreamRx,
-        tx: Upstream,
+        rx: Box<dyn AsyncRead + Send + Sync + Unpin + 'static>,
+        tx: Box<dyn AsyncWrite + Send + Sync + Unpin + 'static>,
         uri: http::Uri,
         headers: http::HeaderMap,
         sock_addr: SocketAddr,
         server_id: NodeId,
     ) -> Result<(), CommsError>
     {
+        // Create the upstream
+        let (rx, tx) = MessageProtocolVersion::V3
+            .create(rx, tx)
+            .split(None);
+        let tx = Upstream {
+            id: NodeId::generate_client_id(),
+            outbox: tx,
+            wire_format: self.wire_format,
+        };
+
         // Get the chain and the topic
         let path = std::path::PathBuf::from(uri.path().to_string());
         let chain = {

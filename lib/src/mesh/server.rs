@@ -307,6 +307,7 @@ for MeshRoot
     async fn accepted_web_socket(
         &self,
         rx: StreamRx,
+        rx_proto: StreamProtocol,
         tx: Upstream,
         hello: HelloMetadata,
         sock_addr: SocketAddr,
@@ -321,7 +322,7 @@ for MeshRoot
                 bail!(CommsErrorKind::Refused);
             }
         };
-        Listener::accept_stream(listener, rx, tx, hello, wire_encryption, sock_addr, self.exit.subscribe()).await?;
+        Listener::accept_stream(listener, rx, rx_proto, tx, hello, wire_encryption, sock_addr, self.exit.subscribe()).await?;
         Ok(())
     }
 }
@@ -848,7 +849,7 @@ async fn inbox_subscribe<'b>(
 async fn inbox_unsubscribe<'b>(
     _root: Arc<MeshRoot>,
     chain_key: ChainKey,
-    _tx: &'b mut StreamTxChannel,
+    _tx: &'b mut StreamTx,
     context: Arc<SessionContext>,
 ) -> Result<(), CommsError> {
     debug!(" unsubscribe: {}", chain_key.to_string());

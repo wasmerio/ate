@@ -34,6 +34,7 @@ use std::{
 };
 use tokio::sync::mpsc;
 use tokio::sync::{Mutex, RwLock};
+use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::chain::*;
 use super::chain::*;
@@ -173,8 +174,7 @@ pub fn create_temporal_client(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Arc<Mes
     MeshClient::new(&cfg_ate, &cfg_mesh, client_id, true)
 }
 
-pub static GLOBAL_CERTIFICATES: Lazy<StdRwLock<Vec<AteHash>>> =
-    Lazy::new(|| StdRwLock::new(Vec::new()));
+pub use ate_comms::add_global_certificate;
 
 pub(crate) static GLOBAL_COMM_FACTORY: Lazy<
     Mutex<
@@ -183,7 +183,12 @@ pub(crate) static GLOBAL_COMM_FACTORY: Lazy<
                 dyn Fn(
                         MeshConnectAddr,
                     )
-                        -> Pin<Box<dyn Future<Output = Option<Stream>> + Send + Sync + 'static>>
+                        -> Pin<Box<dyn Future<Output = Option<
+                            (
+                                Box<dyn AsyncRead + Send + Sync + Unpin + 'static>,
+                                Box<dyn AsyncWrite + Send + Sync + Unpin + 'static>
+                            )
+                        >> + Send + Sync + 'static>>
                     + Send
                     + Sync
                     + 'static,
@@ -192,12 +197,13 @@ pub(crate) static GLOBAL_COMM_FACTORY: Lazy<
     >,
 > = Lazy::new(|| Mutex::new(None));
 
-pub fn add_global_certificate(cert: &AteHash) {
-    GLOBAL_CERTIFICATES.write().unwrap().push(cert.clone());
-}
-
 pub async fn set_comm_factory(
-    funct: impl Fn(MeshConnectAddr) -> Pin<Box<dyn Future<Output = Option<Stream>> + Send + Sync + 'static>>
+    funct: impl Fn(MeshConnectAddr) -> Pin<Box<dyn Future<Output = Option<
+        (
+            Box<dyn AsyncRead + Send + Sync + Unpin + 'static>,
+            Box<dyn AsyncWrite + Send + Sync + Unpin + 'static>
+        )
+        >> + Send + Sync + 'static>>
         + Send
         + Sync
         + 'static,

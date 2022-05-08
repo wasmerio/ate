@@ -4,6 +4,7 @@ use clap::Parser;
 use url::Url;
 
 use super::purpose::*;
+use ate_comms::StreamSecurity;
 
 #[allow(dead_code)]
 #[derive(Parser, Clone)]
@@ -18,9 +19,9 @@ pub struct OptsInstance {
     /// URL where the instances can be accessed from (e.g. wss://tokera.sh/inst)
     #[clap(short, long)]
     pub inst_url: Option<Url>,
-    /// Indicates that the server certificate should be ignored
-    #[clap(long)]
-    pub ignore_certificate: bool
+    /// Level of security to apply to the connection
+    #[clap(long, default_value = "any")]
+    pub security: StreamSecurity
 }
 
 #[derive(Parser, Clone)]

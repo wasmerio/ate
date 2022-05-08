@@ -11,16 +11,14 @@ pub mod key_exchange;
 #[cfg(feature = "enable_server")]
 mod listener;
 mod metrics;
-mod node_id;
 mod packet;
 mod rx_tx;
 mod stream;
 mod test;
 mod throttle;
 mod router;
-mod protocol;
 
-pub use self::node_id::NodeId;
+pub use ate_crypto::NodeId;
 
 pub(crate) use conf::MeshConfig;
 pub(crate) use packet::Packet;
@@ -39,12 +37,13 @@ pub(crate) use listener::Listener;
 pub use super::conf::MeshConnectAddr;
 pub use certificate_validation::*;
 pub use metrics::Metrics;
-pub use stream::Stream;
 pub use stream::StreamProtocol;
 pub use stream::StreamRx;
 pub use stream::StreamTx;
-pub use stream::StreamTxChannel;
-pub use stream::StreamReader;
+pub use stream::MessageProtocolVersion;
+pub use stream::StreamClient;
+pub use stream::StreamSecurity;
+pub use stream::Dns;
 pub use conf::Upstream;
 pub use throttle::Throttle;
 pub use router::*;

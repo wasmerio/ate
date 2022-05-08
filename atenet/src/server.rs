@@ -5,6 +5,8 @@ use std::time::Duration;
 use error_chain::bail;
 #[allow(unused_imports)]
 use tokio::sync::mpsc;
+use tokio::io::AsyncRead;
+use tokio::io::AsyncWrite;
 
 use async_trait::async_trait;
 use ate::comms::HelloMetadata;
@@ -12,7 +14,7 @@ use ate::comms::RawStreamRoute;
 use ate::comms::StreamRoute;
 use ate::comms::StreamRx;
 use ate::comms::Upstream;
-use ate::comms::StreamReader;
+use ate::comms::MessageProtocolVersion;
 use ate::prelude::*;
 use ate_files::repo::Repository;
 use ate_files::repo::RepositorySessionFactory;
@@ -96,6 +98,7 @@ impl Server
     async fn accept_internal(
         &self,
         rx: Box<dyn StreamReader + Send + Sync + 'static>,
+        rx_proto: StreamProtocol,
         tx: Upstream,
         hello: HelloMetadata,
         hello_switch: SwitchHello,
@@ -154,6 +157,7 @@ for Server
     async fn accepted_web_socket(
         &self,
         mut rx: StreamRx,
+        rx_proto: StreamProtocol,
         tx: Upstream,
         hello: HelloMetadata,
         sock_addr: SocketAddr,
@@ -172,6 +176,7 @@ for Server
         // Accept the web connection
         self.accept_internal(
             rx,
+            rx_proto,
             tx,
             hello,
             hello_switch,
@@ -187,8 +192,8 @@ for Server
 {
     async fn accepted_raw_web_socket(
         &self,
-        rx: StreamRx,
-        tx: Upstream,
+        rx: Box<dyn AsyncRead + Send + Sync + Unpin + 'static>,
+        tx: Box<dyn AsyncWrite + Send + Sync + Unpin + 'static>,
         uri: http::Uri,
         headers: http::HeaderMap,
         sock_addr: SocketAddr,
@@ -231,7 +236,9 @@ for Server
         };
 
         // Build the rx and tx
-        let rx = Box::new(rx);
+        let (rx, tx) = MessageProtocolVersion::V3
+            .create(rx, tx)
+            .split(None);
 
         // Accept the web connection
         self.accept_internal(

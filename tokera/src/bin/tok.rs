@@ -300,8 +300,7 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
         }
         #[cfg(feature = "bus")]
         SubCommand::Bus(opts_bus) => {
-            let net_url = ate_auth::prelude::origin_url(&opts_bus.net_url, "net");
-            main_opts_bus(opts_bus, conf, opts.token_path, auth, net_url).await?;
+            main_opts_bus(opts_bus, conf, opts.token_path, auth).await?;
         }
         #[cfg(not(feature_os = "wasi"))]
         SubCommand::Token(opts_token) => {
@@ -322,7 +321,7 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
         SubCommand::Instance(opts_instance) => {
             let db_url = ate_auth::prelude::origin_url(&opts_instance.db_url, "db");
             let inst_url = ate_auth::prelude::origin_url(&opts_instance.inst_url, "inst");
-            main_opts_instance(opts_instance.purpose, opts.token_path, auth, db_url, inst_url, opts_instance.ignore_certificate).await?;
+            main_opts_instance(opts_instance.purpose, opts.token_path, auth, db_url, inst_url, opts_instance.security).await?;
         }
         SubCommand::Login(opts_login) => {
             main_opts_login(opts_login, opts.token_path, auth).await?

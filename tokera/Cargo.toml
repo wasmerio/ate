@@ -17,10 +17,10 @@ client = [ "sys", "enable_full", "ate/client" ]
 server = [ "sys", "enable_full", "ctrlc-async", "ate/server", "ate/enable_mt" ]
 force_tty = [ "ate-auth/force_tty" ]
 bus = []
-sys = [ "wasm-bus-ws/sys", "wasm-bus-tty/sys", "smoltcp" ]
+sys = [ "wasm-bus-ws/sys", "wasm-bus-tty/sys", "wasm-bus-mio/sys", "wasm-bus/sys", "ate-comms/sys", "smoltcp" ]
 enable_full = [ "enable_tcp", "enable_bridge" ]
 enable_tcp = [ "enable_ntp", "enable_dns" ]
-enable_dns = []
+enable_dns = [ "ate-comms/dns" ]
 enable_ntp = []
 enable_bridge = [ "tokio-tun" ]
 
@@ -28,7 +28,8 @@ enable_bridge = [ "tokio-tun" ]
 ate = { version = "^1.2", path = "../lib", default_features = false }
 ate-auth = { version = "^1.9", path = "../auth", default_features = false }
 ate-files = { version = "^1.2", path = "../files", default_features = false }
-ate-mio = { version = "^1.0", path = "../mio-lib" }
+ate-crypto = { version = "^1.0", path = "../crypto", features = [ "quantum" ] }
+ate-comms = { version = "^1.0", path = "../comms", features = [ "quantum" ] }
 error-chain = { version = "^0.12", default_features = false }
 serde = { version = "^1", features = ["derive"] }
 serde_json = "^1"
@@ -64,12 +65,12 @@ wild = "^2"
 pbr = "^1"
 derivative = { version = "^2" }
 async-stream = "^0.3"
-wasm-bus = { version = "^1", path = "../wasm-bus" }
-wasm-bus-fuse = { version = "^1", path = "../wasm-bus-fuse" }
-wasm-bus-ws = { version = "^1", path = "../wasm-bus-ws" }
-wasm-bus-tty = { version = "^1", path = "../wasm-bus-tty" }
-wasm-bus-tok = { version = "^1", path = "../wasm-bus-tok" }
-wasm-bus-mio = { version = "^1", path = "../wasm-bus-mio" }
+wasm-bus = { version = "^1", path = "../wasm-bus/lib" }
+wasm-bus-fuse = { version = "^1", path = "../wasm-bus/fuse" }
+wasm-bus-ws = { version = "^1", path = "../wasm-bus/ws" }
+wasm-bus-tty = { version = "^1", path = "../wasm-bus/tty" }
+wasm-bus-tok = { version = "^1", path = "../wasm-bus/tok" }
+wasm-bus-mio = { version = "^1", path = "../wasm-bus/mio" }
 
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
 tokio-tun = { version = "^0.5", git = "https://github.com/john-sharratt/tokio-tun.git", optional = true }
@@ -85,4 +86,4 @@ tokio = { version = "^1", features = [ "macros", "sync" ], default_features = fa
 backtrace = "^0.3"
 wasi = { version = "^0.10" }
 wasm-timer = { version = "^0.2" }
-wasm-bus-process = { version = "^1", path = "../wasm-bus-process" }
+wasm-bus-process = { version = "^1", path = "../wasm-bus/process" }

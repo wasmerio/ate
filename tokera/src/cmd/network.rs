@@ -1,8 +1,9 @@
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use std::io::Write;
 #[cfg(unix)]
+#[allow(unused_imports)]
 use std::os::unix::fs::symlink;
+#[allow(unused_imports)]
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::ops::Deref;
@@ -21,27 +22,27 @@ use {
     tokio_tun::TunBuilder,
 };
 use ate::prelude::*;
+#[allow(unused_imports)]
+use wasm_bus_mio::prelude::*;
 
 use crate::error::*;
 use crate::model::NetworkToken;
 #[allow(unused_imports)]
 use crate::model::HardwareAddress;
 use crate::opt::*;
-use crate::mio::Port;
 use crate::api::TokApi;
 
 use super::*;
 
 pub async fn main_opts_network(
-    opts: OptsNetwork,
+    opts_network: OptsNetwork,
     token_path: String,
     auth_url: url::Url,
 ) -> Result<(), InstanceError>
 {
     #[allow(unused_variables)]
-    let no_inner_encryption = opts.double_encrypt == false; // the messages are still encrypted inside the stream
-    let db_url = ate_auth::prelude::origin_url(&opts.db_url, "db");
-    match opts.cmd
+    let db_url = ate_auth::prelude::origin_url(&opts_network.db_url, "db");
+    match opts_network.cmd
     {
         OptsNetworkCommand::For(opts) => {
             let purpose: &dyn OptsPurpose<OptsNetworkAction> = &opts.purpose;
@@ -88,13 +89,13 @@ pub async fn main_opts_network(
         },
         OptsNetworkCommand::Monitor(opts) => {
             let net_url = ate_auth::prelude::origin_url(&opts.net_url, "net");
-            main_opts_network_monitor(token_path, net_url, no_inner_encryption).await
+            main_opts_network_monitor(token_path, net_url, opts_network.security).await
         },
         #[cfg(feature = "enable_bridge")]
         #[cfg(any(target_os = "linux", target_os = "macos"))]
         OptsNetworkCommand::Bridge(opts) => {
             let net_url = ate_auth::prelude::origin_url(&opts.net_url, "net");
-            main_opts_network_bridge(opts, token_path, net_url, no_inner_encryption).await
+            main_opts_network_bridge(opts, token_path, net_url, opts_network.security).await
         }
     }
 }
@@ -254,7 +255,6 @@ pub async fn main_opts_network_connect(
 
     // If we are exporting then just throw it out to STDOUT
     if export {
-        let token = encode_access_token(&token)?;
         println!("{}", token);
         return Ok(());
     }
@@ -289,7 +289,7 @@ pub async fn main_opts_network_reconnect(
 ) -> Result<(), InstanceError>
 {
     // Decode the token
-    let token = decode_access_token(token)?;
+    let token = FromStr::from_str(token.as_str())?;
 
     // Save the token
     save_access_token(token_path, &token).await?;
@@ -304,7 +304,7 @@ pub async fn main_opts_network_disconnect(token_path: String)
 pub async fn main_opts_network_monitor(
     token_path: String,
     net_url: url::Url,
-    no_inner_encryption: bool
+    security: StreamSecurity,
 ) -> Result<(), InstanceError>
 {
     let token_path = if let Ok(t) = std::env::var("NETWORK_TOKEN_PATH") {
@@ -313,8 +313,8 @@ pub async fn main_opts_network_monitor(
         shellexpand::tilde(token_path.as_str()).to_string()
     };
 
-    let port = load_port(token_path, net_url, no_inner_encryption).await?;
-    let mut socket = port.bind_raw()
+    let port = Port::new(TokenSource::ByPath(token_path), net_url, security)?;
+    let socket = port.bind_raw()
         .await
         .map_err(|err| {
             let err = format!("failed to open raw socket - {}", err);
@@ -362,7 +362,7 @@ pub async fn main_opts_network_bridge(
     bridge: OptsNetworkBridge,
     token_path: String,
     net_url: url::Url,
-    no_inner_encryption: bool
+    security: StreamSecurity,
 ) -> Result<(), InstanceError>
 {
     let token_path = if let Ok(t) = std::env::var("NETWORK_TOKEN_PATH") {
@@ -380,38 +380,21 @@ pub async fn main_opts_network_bridge(
         }
     }
 
-    let port = load_port(token_path, net_url, no_inner_encryption).await?;
-    
+    let port = Port::new(TokenSource::ByPath(token_path), net_url, security)?;
     let hw = port.hardware_address()
-        .await
+        .await?
         .ok_or_else(|| {
             error!("the hardware address (MAC) on the port has not been set");
             InstanceErrorKind::InternalError(0)
         })?;
     let hw: [u8; 6] = hw.into();
     
+    let (ip4, netmask4) = port.dhcp_acquire().await?;
+    info!("port acquired ip={} netmask={}", ip4, netmask4);
+
     let mtu = bridge.mtu.unwrap_or(1500);
 
-    // The IP address is either staticly defined or we use DHCP
-    let (ip4, netmask4) = {
-        if let Some(ip4) = bridge.ip4 {
-            if let Some(netmask4) = bridge.netmask4 {
-                (ip4, netmask4)
-            } else {
-                (ip4, Ipv4Addr::new(255, 255, 255, 0))
-            }
-        } else {
-            port.dhcp_acquire()
-                .await
-                .map_err(|err| {
-                    let err = format!("failed to acquire IP address - {}", err);
-                    error!("{}", err);
-                    InstanceErrorKind::InternalError(0)
-                })?
-        }
-    };
-
-    let mut socket = port.bind_raw()
+    let socket = port.bind_raw()
         .await
         .map_err(|err| {
             let err = format!("failed to open raw socket - {}", err);
@@ -506,100 +489,8 @@ fn cmd(cmd: &str, args: &[&str]) {
     std::thread::sleep(std::time::Duration::from_millis(10));
 }
 
-pub async fn load_port(token_path: String, net_url: url::Url, no_inner_encryption: bool) -> Result<Port, InstanceError> {
-    let token = load_access_token(token_path).await?;
-    let token = match token {
-        Some(a) => a,
-        None => { return Err(InstanceErrorKind::InvalidAccessToken.into()); }
-    };
-    
-    let port = Port::new_ext(net_url, token.chain, token.access_token, no_inner_encryption)
-        .await
-        .map_err(|err| {
-            error!("failed to create port - {}", err);
-            InstanceErrorKind::InternalError(0)
-        })?;
-
-    Ok(port)
-}
-
-fn decode_access_token(token: String) -> Result<NetworkToken, SerializationError> {
-    let val = token.trim().to_string();
-    let bytes = base64::decode(val).unwrap();
-    Ok(SerializationFormat::MessagePack.deserialize(&bytes)?)
-}
-
-async fn load_access_token(token_path: String) -> Result<Option<NetworkToken>, SerializationError> {
-    let token_path = format!("{}.network", token_path);
-    let token_path = shellexpand::tilde(token_path.as_str()).to_string();
-    if let Ok(token) = std::fs::read_to_string(token_path) {
-        Ok(Some(decode_access_token(token)?))
-    } else {
-        Ok(None)
-    }
-}
-
-fn encode_access_token(token: &NetworkToken) -> Result<String, SerializationError> {
-    let bytes = SerializationFormat::MessagePack.serialize(&token)?;
-    let bytes = base64::encode(bytes);
-    Ok(bytes)
-}
-
-async fn save_access_token(token_path: String, token: &NetworkToken) -> Result<(), SerializationError> {
-    let bytes = encode_access_token(token)?;
-    
-    let token_path = format!("{}.network", token_path);
-    let token_path = shellexpand::tilde(token_path.as_str()).to_string();
-
-    // Remove any old paths
-    if let Ok(old) = std::fs::canonicalize(token_path.clone()) {
-        let _ = std::fs::remove_file(old);
-    }
-    let _ = std::fs::remove_file(token_path.clone());
-
-    // Create the folder structure
-    let path = std::path::Path::new(&token_path);
-    let _ = std::fs::create_dir_all(path.parent().unwrap().clone());
-
-    // Create a random file that will hold the token
-    #[cfg(unix)]
-    let save_path = ate_auth::helper::random_file();
-    #[cfg(not(unix))]
-    let save_path = token_path;
-
-    {
-        // Create the folder structure
-        let path = std::path::Path::new(&save_path);
-        let _ = std::fs::create_dir_all(path.parent().unwrap().clone());
-
-        // Create the file
-        let mut file = std::fs::File::create(save_path.clone())?;
-
-        // Set the permissions so no one else can read it but the current user
-        #[cfg(unix)]
-        {
-            let mut perms = std::fs::metadata(save_path.clone())?.permissions();
-            perms.set_mode(0o600);
-            std::fs::set_permissions(save_path.clone(), perms)?;
-        }
-
-        // Write the token to it
-        file.write_all(bytes.as_bytes())?;
-    }
-
-    // Update the token path so that it points to this temporary token
-    #[cfg(unix)]
-    symlink(save_path, token_path)?;
-    Ok(())
-}
-
-async fn clear_access_token(token_path: String) {
-    let token_path = format!("{}/network", token_path);
-    let token_path = shellexpand::tilde(token_path.as_str()).to_string();
-
-    // Remove any old paths
-    if let Ok(old) = std::fs::canonicalize(token_path.clone()) {
-        let _ = std::fs::remove_file(old);
-    }
-    let _ = std::fs::remove_file(token_path.clone());
-}
+pub use wasm_bus_mio::prelude::TokenSource;
+pub use wasm_bus_mio::prelude::Port;
+pub use wasm_bus_mio::prelude::load_access_token;
+pub use wasm_bus_mio::prelude::save_access_token;
+pub use wasm_bus_mio::prelude::clear_access_token;

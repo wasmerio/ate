@@ -1,7 +1,11 @@
 use async_trait::async_trait;
 use error_chain::bail;
 use std::net::SocketAddr;
+use std::ops::DerefMut;
 use tokio::sync::Mutex;
+use tokio::io::AsyncRead;
+use tokio::io::AsyncWrite;
+use tokio::net::TcpStream;
 use std::sync::Arc;
 use std::time::Duration;
 #[allow(unused_imports, dead_code)]
@@ -11,10 +15,8 @@ use http::*;
 use std::result::Result;
 
 use crate::comms::{
-    Stream,
     StreamRx,
     StreamTx,
-    StreamTxChannel,
     Upstream,
     StreamProtocol,
     NodeId,
@@ -47,6 +49,7 @@ where Self: Send + Sync
     async fn accepted_web_socket(
         &self,
         rx: StreamRx,
+        rx_proto: StreamProtocol,
         tx: Upstream,
         hello: HelloMetadata,
         sock_addr: SocketAddr,
@@ -60,8 +63,8 @@ where Self: Send + Sync
 {
     async fn accepted_raw_web_socket(
         &self,
-        rx: StreamRx,
-        tx: Upstream,
+        rx: Box<dyn AsyncRead + Send + Sync + Unpin + 'static>,
+        tx: Box<dyn AsyncWrite + Send + Sync + Unpin + 'static>,
         uri: http::Uri,
         headers: http::HeaderMap,
         sock_addr: SocketAddr,
@@ -176,15 +179,17 @@ impl StreamRouter {
     #[cfg(feature = "enable_server")]
     pub async fn accept_socket(
         &self,
-        stream: Stream,
+        stream: TcpStream,
         sock_addr: SocketAddr,
         uri: Option<http::Uri>,
         headers: Option<http::HeaderMap>
     ) -> Result<(), CommsError>
     {
         // Upgrade and split the stream
-        let stream = stream.upgrade_server(self.wire_protocol, self.timeout).await?;
-        let (mut rx, mut tx) = stream.split();
+        let (rx, tx) = self
+            .wire_protocol
+            .upgrade_server_and_split(stream, self.timeout)
+            .await?;
 
         // Attempt to open it with as a raw stream (if a URI is supplied)
         if let (Some(uri), Some(headers)) = (uri, headers)
@@ -201,14 +206,6 @@ impl StreamRouter {
                     };
                     drop(raw_routes);
 
-                    // Create the upstream
-                    let tx = StreamTxChannel::new(tx, None);
-                    let tx = Upstream {
-                        id: NodeId::generate_client_id(),
-                        outbox: tx,
-                        wire_format: self.wire_format,
-                    };
-
                     // Execute the accept command
                     route.accepted_raw_web_socket(rx, tx, uri, headers, sock_addr, self.server_id).await?;
                     return Ok(());
@@ -217,9 +214,9 @@ impl StreamRouter {
         }
 
         // Say hello
-        let hello_meta = mesh_hello_exchange_receiver(
-            &mut rx,
-            &mut tx,
+        let (mut proto, hello_meta) = mesh_hello_exchange_receiver(
+            rx,
+            tx,
             self.server_id,
             self.server_cert.as_ref().map(|a| a.size()),
             self.wire_format,
@@ -244,11 +241,11 @@ impl StreamRouter {
         // If we are using wire encryption then exchange secrets
         let ek = match self.server_cert.as_ref() {
             Some(server_key) => {
-                Some(key_exchange::mesh_key_exchange_receiver(&mut rx, &mut tx, server_key.clone()).await?)
+                Some(key_exchange::mesh_key_exchange_receiver(proto.deref_mut(), server_key.clone()).await?)
             }
             None => None,
         };
-        let tx = StreamTxChannel::new(tx, ek);
+        let (rx, tx) = proto.split(ek);
         let tx = Upstream {
             id: node_id,
             outbox: tx,
@@ -269,7 +266,7 @@ impl StreamRouter {
                     drop(routes);
 
                     // Execute the accept command
-                    route.accepted_web_socket(rx, tx, hello_meta, sock_addr, ek).await?;
+                    route.accepted_web_socket(rx, self.wire_protocol, tx, hello_meta, sock_addr, ek).await?;
                     return Ok(());
                 }
             }
@@ -277,7 +274,7 @@ impl StreamRouter {
 
         // Check the default route and execute the accept command
         if let Some(route) = &self.default_route {
-            route.accepted_web_socket(rx, tx, hello_meta, sock_addr, ek).await?;
+            route.accepted_web_socket(rx, self.wire_protocol, tx, hello_meta, sock_addr, ek).await?;
             return Ok(());
         }
 

@@ -8,6 +8,7 @@ use futures_util::pin_mut;
 use futures_util::stream::StreamExt;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
+use ate_comms::StreamSecurity;
 
 use crate::error::*;
 use crate::model::{HistoricActivity, activities, InstanceHello, InstanceCommand, InstanceExport, InstanceCall};
@@ -197,11 +198,11 @@ pub async fn main_opts_instance_shell(
     api: &mut TokApi,
     inst_url: url::Url,
     name: &str,
-    ignore_certificate: bool
+    security: StreamSecurity
 ) -> Result<(), InstanceError> {
     let (instance, _) = api.instance_action(name).await?;
     let instance = instance?;
-    let mut client = InstanceClient::new_ext(inst_url, InstanceClient::PATH_INST, ignore_certificate, false).await
+    let mut client = InstanceClient::new_ext(inst_url, InstanceClient::PATH_INST, security).await
         .unwrap();
 
     client.send_hello(InstanceHello {
@@ -227,7 +228,7 @@ pub async fn main_opts_instance_call(
     name: &str,
     binary: &str,
     topic: &str,
-    ignore_certificate: bool
+    security: StreamSecurity
 ) -> Result<(), InstanceError>
 {
     // Read the object into stdin
@@ -239,7 +240,7 @@ pub async fn main_opts_instance_call(
 
     let (instance, _) = api.instance_action(name).await?;
     let instance = instance?;
-    let mut client = InstanceClient::new_ext(inst_url, InstanceClient::PATH_INST, ignore_certificate, false).await
+    let mut client = InstanceClient::new_ext(inst_url, InstanceClient::PATH_INST, security).await
         .unwrap();
 
     // Search for an export that matches this binary
@@ -460,7 +461,7 @@ pub async fn main_opts_instance(
     auth_url: url::Url,
     db_url: url::Url,
     inst_url: url::Url,
-    ignore_certificate: bool
+    security: StreamSecurity
 ) -> Result<(), InstanceError>
 {
     // Check if sudo is needed
@@ -502,12 +503,12 @@ pub async fn main_opts_instance(
         OptsInstanceAction::Shell(_opts_exec) => {
             if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
             let name = name.unwrap();
-            main_opts_instance_shell(&mut context.api, inst_url, name.as_str(), ignore_certificate).await?;
+            main_opts_instance_shell(&mut context.api, inst_url, name.as_str(), security).await?;
         }
         OptsInstanceAction::Call(opts_call) => {
             if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
             let name = name.unwrap();
-            main_opts_instance_call(&mut context.api, inst_url, name.as_str(), opts_call.binary.as_str(), opts_call.topic.as_str(), ignore_certificate).await?;
+            main_opts_instance_call(&mut context.api, inst_url, name.as_str(), opts_call.binary.as_str(), opts_call.topic.as_str(), security).await?;
         }
         OptsInstanceAction::Export(opts_export) => {
             if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }

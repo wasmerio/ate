@@ -262,7 +262,7 @@ impl Registry {
         // Add all the global certificates
         if let CertificateValidation::AllowedCertificates(allowed) = &mut ret.certificate_validation
         {
-            for cert in GLOBAL_CERTIFICATES.read().unwrap().iter() {
+            for cert in ate_comms::get_global_certificates() {
                 allowed.push(cert.clone());
             }
         }

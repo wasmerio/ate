@@ -30,11 +30,11 @@ enable_full = [ "tokio/net", "tokio-tungstenite", "enable_buffered", "enable_loc
 client_web = [ "enable_client", "enable_web_sys" ]
 client = [ "sys", "enable_full", "enable_client" ]
 server = [ "sys", "enable_full", "enable_server", "enable_client" ]
-sys = [ "wasm-bus-ws/sys" ]
+sys = [ "wasm-bus-ws/sys", "ate-comms/sys" ]
 
 [dependencies]
-ate-crypto = { version = "^1", path = "../crypto" }
-ate-mio = { version = "^1", path = "../mio-lib" }
+ate-crypto = { version = "^1", path = "../crypto", features = [ "quantum" ] }
+ate-comms = { version = "^1", path ="../comms", features = [ "quantum", "dns" ], default_features = false }
 error-chain = { version = "^0.12", default_features = false }
 uuid = { version = "^0.8", features = ["serde", "v4"] }
 serde = { version = "^1", features = ["derive"] }
@@ -72,7 +72,7 @@ cooked-waker = "^5"
 http = { version = "^0.2" }
 tokio = { version = "^1", features = [ "macros", "sync" ], default_features = false }
 derivative = { version = "^2" }
-wasm-bus-ws = { version = "^1", path = "../wasm-bus-ws" }
+wasm-bus-ws = { version = "^1", path = "../wasm-bus/ws" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 pnet = { version = "^0.27", optional = true }
@@ -83,8 +83,8 @@ trust-dns-client = { version = "^0.20", features = ["dnssec"], optional = true }
 backtrace = { version = "^0.3" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-bus = { version = "^1", path = "../wasm-bus" }
-wasm-bus-time = { version = "^1", path = "../wasm-bus-time" }
+wasm-bus = { version = "^1", path = "../wasm-bus/lib" }
+wasm-bus-time = { version = "^1", path = "../wasm-bus/time" }
 
 [dev-dependencies]
 ctor = "0.1.*"

@@ -1,5 +1,6 @@
 use clap::Parser;
 use url::Url;
+use ate_comms::StreamSecurity;
 
 use super::purpose::*;
 use super::OptsCidrAction;
@@ -14,12 +15,9 @@ pub struct OptsNetwork {
     /// URL where the data is remotely stored on a distributed commit log (e.g. wss://tokera.sh/db).
     #[clap(short, long)]
     pub db_url: Option<Url>,
-    /// Indicates that the server certificate should be ignored
-    #[clap(long)]
-    pub ignore_certificate: bool,
-    /// Encrypts the connection with both classical and quantum resistant encryption
-    #[clap(long)]
-    pub double_encrypt: bool,
+    /// Level of security to apply to the connection
+    #[clap(long, default_value = "any")]
+    pub security: StreamSecurity
 }
 
 #[derive(Parser)]
@@ -80,12 +78,6 @@ pub struct OptsNetworkBridge {
     /// Runs the port as a daemon in the background after forking the process
     #[clap(short, long)]
     pub daemon: bool,
-    /// Sets a static IP address for this device rather than using DHCP
-    #[clap(long)]
-    pub ip4: Option<std::net::Ipv4Addr>,
-    /// Sets a netmask for this device rather than using DHCP to determine it
-    #[clap(long)]
-    pub netmask4: Option<std::net::Ipv4Addr>,
     /// Sets the MTU for this device
     #[clap(long)]
     pub mtu: Option<u32>,

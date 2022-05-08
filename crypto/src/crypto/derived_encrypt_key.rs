@@ -33,6 +33,7 @@ impl DerivedEncryptKey {
         Ok(EncryptKey::from_bytes(&bytes[..])?)
     }
 
+    #[cfg(feature = "quantum")]
     pub fn transmute_private(&self, key: &PrivateEncryptKey) -> Result<EncryptKey, std::io::Error> {
         // Decrypt the derived key
         let bytes = key.decrypt(&self.inner.iv, &self.inner.data[..])?;
@@ -46,6 +47,7 @@ impl DerivedEncryptKey {
         Ok(())
     }
 
+    #[cfg(feature = "quantum")]
     pub fn change_private(
         &mut self,
         old: &PrivateEncryptKey,

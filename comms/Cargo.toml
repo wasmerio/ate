@@ -1,0 +1,49 @@
+[package]
+name = "ate-comms"
+version = "1.0.0"
+authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
+edition = "2018"
+description = "Provides the communication library integrates with ate"
+license = "MIT OR Apache-2.0"
+keywords = [ "networking" ]
+categories = [ "networking" ]
+repository = "https://github.com/john-sharratt/ate"
+readme = "README.md"
+
+[features]
+default = [ "quantum", "sys", "dns" ]
+quantum = [ "ate-crypto/quantum" ]
+sys = [ "wasm-bus-ws/sys" ]
+dns = [ "trust-dns-proto", "trust-dns-client" ]
+
+[dependencies]
+ate-crypto = { version = "^1", path = "../crypto", default_features = false }
+error-chain = { version = "^0.12", default_features = false }
+serde = { version = "^1", features = ["derive"] }
+serde_json = "^1"
+tracing = { version = "^0.1", features = [ "log" ] }
+tracing-futures = { version = "^0.2" }
+tracing-subscriber = { version = "^0.2" }
+futures = "^0.3"
+futures-util = "^0.3"
+async-trait = "^0.1"
+bytes = "^1"
+fastrand = "^1"
+chrono = { version = "^0.4", git = "https://github.com/john-sharratt/chrono.git", features = ["serde"] }
+url = "^2"
+hex = "^0.4"
+base64 = "^0.13"
+bincode = "^1"
+once_cell = "^1"
+derivative = { version = "^2" }
+wasm-bus = { version = "^1", path = "../wasm-bus/lib", default_features = false, features = [ "rt", "macros" ] }
+wasm-bus-ws = { version = "^1", path = "../wasm-bus/ws" }
+
+[target.'cfg(not(target_os = "wasi"))'.dependencies]
+tokio = { version = "^1", features = [ "rt", "io-util", "macros", "sync", "time", "fs" ], default_features = false }
+trust-dns-proto = { version = "^0.20", optional = true }
+trust-dns-client = { version = "^0.20", features = ["dnssec"], optional = true }
+
+[target.'cfg(target_os = "wasi")'.dependencies]
+tokio = { version = "^1", features = [ "macros", "sync" ], default_features = false }
+backtrace = "^0.3"

@@ -33,7 +33,6 @@ use super::rx_tx::*;
 use super::stream::*;
 use super::router::*;
 use super::PacketWithContext;
-use super::Stream;
 use super::StreamProtocol;
 use super::StreamRouter;
 use super::hello::HelloMetadata;
@@ -240,7 +239,6 @@ where
                 });
                 router.set_default_route(adapter);
 
-                let stream = Stream::Tcp(stream);
                 match router.accept_socket(stream, sock_addr, None, None)
                     .instrument(tracing::info_span!(
                         "server-accept",
@@ -273,6 +271,7 @@ where
     pub(crate) async fn accept_stream(
         listener: Arc<StdMutex<Listener<M, C>>>,
         rx: StreamRx,
+        rx_proto: StreamProtocol,
         tx: Upstream,
         hello: HelloMetadata,
         wire_encryption: Option<EncryptKey>,
@@ -333,6 +332,7 @@ where
         TaskEngine::spawn(async move {
             let result = process_inbox(
                 rx,
+                rx_proto,
                 tx,
                 metrics,
                 throttle,
@@ -409,6 +409,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
     async fn accepted_web_socket(
         &self,
         rx: StreamRx,
+        rx_proto: StreamProtocol,
         tx: Upstream,
         hello: HelloMetadata,
         sock_addr: SocketAddr,
@@ -418,6 +419,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         Listener::accept_stream(
             self.listener.clone(),
             rx,
+            rx_proto,
             tx,
             hello,
             wire_encryption,

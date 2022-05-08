@@ -17,6 +17,7 @@ error_chain! {
         DecodeError(RmpDecodeError);
         JsonError(JsonError);
         BincodeError(bincode::Error);
+        Base64Error(base64::DecodeError);
     }
     errors {
         NoPrimarykey {
