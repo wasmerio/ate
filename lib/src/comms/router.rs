@@ -179,18 +179,13 @@ impl StreamRouter {
     #[cfg(feature = "enable_server")]
     pub async fn accept_socket(
         &self,
-        stream: TcpStream,
+        rx: Box<dyn AsyncRead + Send + Sync + Unpin + 'static>,
+        tx: Box<dyn AsyncWrite + Send + Sync + Unpin + 'static>,
         sock_addr: SocketAddr,
         uri: Option<http::Uri>,
         headers: Option<http::HeaderMap>
     ) -> Result<(), CommsError>
     {
-        // Upgrade and split the stream
-        let (rx, tx) = self
-            .wire_protocol
-            .upgrade_server_and_split(stream, self.timeout)
-            .await?;
-
         // Attempt to open it with as a raw stream (if a URI is supplied)
         if let (Some(uri), Some(headers)) = (uri, headers)
         {

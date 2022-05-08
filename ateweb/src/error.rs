@@ -19,7 +19,7 @@ error_chain! {
     foreign_links {
         HeaderStrError(http::header::ToStrError);
         HeaderValueError(http::header::InvalidHeaderValue);
-        TungsteniteError(tungstenite::error::ProtocolError);
+        TokioTungsteniteError(tokio_tungstenite::tungstenite::error::ProtocolError);
         HyperTungsteniteError(hyper_tungstenite::tungstenite::error::ProtocolError);
     }
     errors {

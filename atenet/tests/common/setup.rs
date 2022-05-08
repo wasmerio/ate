@@ -5,7 +5,10 @@ use std::future::Future;
 use ate::prelude::*;
 use atenet::opt::OptsNetworkServer;
 use tokio::runtime::Builder;
-use tokera::mio::Port;
+use wasm_bus_mio::prelude::Port;
+use wasm_bus_mio::prelude::TokenSource;
+use wasm_bus_mio::prelude::NetworkToken;
+use wasm_bus_mio::prelude::StreamSecurity;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
@@ -70,7 +73,11 @@ pub async fn client2(chain: &ChainKey, access_token: &str, static_ip: Option<(Ip
 
 pub async fn client(node: url::Url, chain: ChainKey, access_token: String, static_ip: Option<(IpAddr, IpAddr)>) -> Port
 {
-    let mut port = Port::new(node, chain, access_token).await.unwrap();
+    let token = TokenSource::ByValue(NetworkToken {
+        chain,
+        access_token
+    });
+    let port = Port::new(token, node, StreamSecurity::Unencrypted).unwrap();
     if let Some(static_ip) = static_ip {
         port.add_ip(static_ip.0, 24).await.unwrap();
         port.add_default_route(static_ip.1).await.unwrap();

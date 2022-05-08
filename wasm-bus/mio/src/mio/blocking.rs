@@ -24,6 +24,10 @@ impl RawSocket {
         block_on(self.inner.recv())
     }
 
+    pub fn try_recv(&self) -> io::Result<Option<Vec<u8>>> {
+        self.inner.try_recv()
+    }
+
     pub fn set_promiscuous(&self, promiscuous: bool) -> io::Result<bool> {
         block_on(self.inner.set_promiscuous(promiscuous))
     }
@@ -104,12 +108,16 @@ impl TcpStream {
         block_on(self.inner.peek())
     }
 
-    pub fn read(&self) -> io::Result<Vec<u8>> {
-        block_on(self.inner.read())
+    pub fn recv(&self) -> io::Result<Vec<u8>> {
+        block_on(self.inner.recv())
     }
 
-    pub fn write(&self, buf: Vec<u8>) -> io::Result<usize> {
-        block_on(self.inner.write(buf))
+    pub fn try_recv(&self) -> io::Result<Option<Vec<u8>>> {
+        self.inner.try_recv()
+    }
+
+    pub fn send(&self, buf: Vec<u8>) -> io::Result<usize> {
+        block_on(self.inner.send(buf))
     }
 
     pub fn flush(&self) -> io::Result<()> {
@@ -134,6 +142,10 @@ impl UdpSocket {
 
     pub fn recv_from(&self) -> io::Result<(Vec<u8>, SocketAddr)> {
         block_on(self.inner.recv_from())
+    }
+
+    pub fn try_recv_from(&self) -> io::Result<Option<(Vec<u8>, SocketAddr)>> {
+        self.inner.try_recv_from()
     }
 
     pub fn peek_from(&self) -> io::Result<(Vec<u8>, SocketAddr)> {
@@ -178,6 +190,10 @@ impl UdpSocket {
 
     pub fn recv(&self) -> io::Result<Vec<u8>> {
         block_on(self.inner.recv())
+    }
+
+    pub fn try_recv(&self) -> io::Result<Option<Vec<u8>>> {
+        self.inner.try_recv()
     }
 
     pub fn peek(&self) -> io::Result<Vec<u8>> {

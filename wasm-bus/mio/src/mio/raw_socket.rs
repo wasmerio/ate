@@ -30,6 +30,15 @@ impl AsyncRawSocket {
             .await
     }
 
+    pub fn try_recv(&self) -> io::Result<Option<Vec<u8>>> {
+        if let Ok(mut socket) = self.socket.try_lock() {
+            socket
+                .try_recv()
+        } else {
+            Ok(None)
+        }        
+    }
+
     pub async fn set_promiscuous(&self, promiscuous: bool) -> io::Result<bool> {
         let mut socket = self.socket.lock().await;
         socket.set_promiscuous(promiscuous).await

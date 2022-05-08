@@ -97,8 +97,8 @@ impl Server
 
     async fn accept_internal(
         &self,
-        rx: Box<dyn StreamReader + Send + Sync + 'static>,
-        rx_proto: StreamProtocol,
+        rx: StreamRx,
+        _rx_proto: StreamProtocol,
         tx: Upstream,
         hello: HelloMetadata,
         hello_switch: SwitchHello,
@@ -165,13 +165,9 @@ for Server
     ) -> Result<(), CommsError>
     {
         // Read the instance hello message
-        let mut _total_read = 0u64;
-        let hello_buf = rx.read_buf_with_header(&wire_encryption, &mut _total_read).await?;
+        let hello_buf = rx.read().await?;
         let hello_switch: SwitchHello = serde_json::from_slice(&hello_buf[..])?;
         debug!("accept-web-socket: {}", hello_switch);
-
-        // Build the rx and tx
-        let rx = Box::new(rx);
 
         // Accept the web connection
         self.accept_internal(
@@ -200,6 +196,14 @@ for Server
         server_id: NodeId,
     ) -> Result<(), CommsError>
     {
+        // Check if its https or not
+        let https = uri.scheme_str() == Some("https") || uri.scheme_str() == Some("wss");
+        let stream_proto = if https {
+            StreamProtocol::SecureWebSocket
+        } else {
+            StreamProtocol::WebSocket
+        };
+
         // Get the chain and the topic
         let path = std::path::PathBuf::from(uri.path().to_string());
         let chain = {
@@ -222,12 +226,13 @@ for Server
         debug!("accept-raw-web-socket: uri: {}", uri);
 
         // Make a fake hello from the HTTP metadata
+        let client_id = NodeId::generate_client_id();
         let hello = HelloMetadata {
-            client_id: NodeId::generate_client_id(),
+            client_id,
             server_id,
             path: path.to_string_lossy().to_string(),
             encryption: None,
-            wire_format: tx.wire_format,
+            wire_format: SerializationFormat::Bincode,
         };
         let hello_switch = SwitchHello {
             chain: chain.clone(),
@@ -237,12 +242,18 @@ for Server
 
         // Build the rx and tx
         let (rx, tx) = MessageProtocolVersion::V3
-            .create(rx, tx)
+            .create(Some(rx), Some(tx))
             .split(None);
+        let tx = Upstream {
+            id: client_id,
+            outbox: tx,
+            wire_format: SerializationFormat::Bincode
+        };
 
         // Accept the web connection
         self.accept_internal(
             rx,
+            stream_proto,
             tx,
             hello,
             hello_switch,

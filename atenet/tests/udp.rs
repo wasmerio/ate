@@ -36,11 +36,11 @@ fn run_udp(cross_switch: bool, use_dhcp: bool) {
         let _servers = common::setup().await;
 
         let (c1, c2) = common::clients(cross_switch, use_dhcp).await;
-        let s1_addr = SocketAddr::V4(SocketAddrV4::new(c1.addr_ipv4().await.unwrap(), 3000));
-        let s2_addr = SocketAddr::V4(SocketAddrV4::new(c2.addr_ipv4().await.unwrap(), 3000));
+        let s1_addr = SocketAddr::V4(SocketAddrV4::new(c1.addr_ipv4().await.unwrap().unwrap(), 3000));
+        let s2_addr = SocketAddr::V4(SocketAddrV4::new(c2.addr_ipv4().await.unwrap().unwrap(), 3000));
         
-        let mut s1 = c1.bind_udp(s1_addr).await.unwrap();
-        let mut s2 = c2.bind_udp(s2_addr).await.unwrap();
+        let s1 = c1.bind_udp(s1_addr).await.unwrap();
+        let s2 = c2.bind_udp(s2_addr).await.unwrap();
         
         tokio::task::spawn(async move {
             loop {

@@ -15,12 +15,14 @@ repository = "https://github.com/john-sharratt/ate/tree/master/atefs"
 readme = "README.md"
 
 [features]
-default = []
+default = [ "sys" ]
+sys = [ "wasm-bus-ws/sys" ]
 
 [dependencies]
 ate = { version = "^1.2", path = "../lib", features = [ "client", "server" ], default_features = false }
 ate-auth = { version = "^1.9", path = "../auth", features = [ "client", "server" ], default_features = false }
 ate-files = { version = "^1.2", path = "../files" }
+wasm-bus-ws = { version = "^1", path = "../wasm-bus/ws" }
 hyper = { version = "^0.14", features = ["full"] }
 hyper-tls = "^0.5"
 rustls = { version = "^0.19" }
@@ -30,8 +32,8 @@ http = { version = "0.2" }
 mime_guess = { version = "2.0"}
 error-chain = { version = "^0.12", default_features = false }
 tokio = { version = "^1", features = [ "full", "signal", "process"] }
-tungstenite = { version = "^0.15" } 
-hyper-tungstenite = { version = "^0.4" }
+tokio-tungstenite = { version = "^0.16" }
+hyper-tungstenite = { version = "^0.6" }
 serde = { version = "^1", features = [ "derive"] }
 serde_yaml = { version = "^0.8" }
 serde_json = { version = "^1" }

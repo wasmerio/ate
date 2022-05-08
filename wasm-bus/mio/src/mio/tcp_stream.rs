@@ -103,7 +103,7 @@ impl AsyncTcpStream {
         Ok(buf)
     }
 
-    pub async fn read(&self) -> io::Result<Vec<u8>> {
+    pub async fn recv(&self) -> io::Result<Vec<u8>> {
         let mut state = self.state.lock().await;
         if let Some(shutdown) = state.shutdown.as_ref() {
             if shutdown == &std::net::Shutdown::Read || shutdown == &std::net::Shutdown::Both {
@@ -118,7 +118,24 @@ impl AsyncTcpStream {
             .await
     }
 
-    pub async fn write(&self, buf: Vec<u8>) -> io::Result<usize> {
+    pub fn try_recv(&self) -> io::Result<Option<Vec<u8>>> {
+        if let Ok(mut state) = self.state.try_lock() {
+            if let Some(shutdown) = state.shutdown.as_ref() {
+                if shutdown == &std::net::Shutdown::Read || shutdown == &std::net::Shutdown::Both {
+                    return Err(io::Error::new(io::ErrorKind::NotConnected, "reading has been shutdown for this socket"));
+                }
+            }
+            if let Some(buf) = state.backlog.pop_front() {
+                return Ok(Some(buf));
+            }
+            state.socket
+                .try_recv()
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub async fn send(&self, buf: Vec<u8>) -> io::Result<usize> {
         let state = self.state.lock().await;
         if let Some(shutdown) = state.shutdown.as_ref() {
             if shutdown == &std::net::Shutdown::Write || shutdown == &std::net::Shutdown::Both {

@@ -231,7 +231,7 @@ where
                     wire_protocol,
                     server_cert,
                     server_id,
-                    timeout
+                    timeout.clone()
                 );
                 let adapter = Arc::new(ListenerAdapter {
                     listener,
@@ -239,7 +239,18 @@ where
                 });
                 router.set_default_route(adapter);
 
-                match router.accept_socket(stream, sock_addr, None, None)
+                // Upgrade and split the stream
+                let (rx, tx) = match wire_protocol
+                    .upgrade_server_and_split(stream, timeout)
+                    .await {
+                    Ok(a) => a,
+                    Err(err) => {
+                        warn!("connection-failed(accept): {}", err.to_string());
+                        continue;
+                    }
+                };
+
+                match router.accept_socket(rx, tx, sock_addr, None, None)
                     .instrument(tracing::info_span!(
                         "server-accept",
                         id = server_id.to_short_string().as_str()

@@ -317,7 +317,7 @@ impl Port {
         Ok(RawSocket::new(block_on(self.bind_raw())?))
     }
 
-    pub async fn bind_tcp(
+    pub async fn listen_tcp(
         &self,
         addr: SocketAddr
     ) -> io::Result<AsyncTcpListener> {
@@ -332,7 +332,7 @@ impl Port {
         &self,
         addr: SocketAddr
     ) -> io::Result<TcpListener> {
-        Ok(TcpListener::new(block_on(self.bind_tcp(addr))?))
+        Ok(TcpListener::new(block_on(self.listen_tcp(addr))?))
     }
 
     pub async fn bind_udp(

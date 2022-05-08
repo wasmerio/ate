@@ -11,7 +11,7 @@ use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 use super::port::*;
 
 pub struct Session {
-    pub rx: Box<dyn StreamReader + Send + Sync + 'static>,
+    pub rx: StreamRx,
     pub tx: Upstream,
     pub hello: HelloMetadata,
     pub hello_switch: SwitchHello,
@@ -25,8 +25,6 @@ impl Session
     pub async fn run(mut self) -> Result<(), Box<dyn std::error::Error>>
     {
         // Wait for commands to come in and then process them
-        let wire_encryption = self.wire_encryption.clone();
-        let mut total_read = 0u64;
         loop {
             let (ret, wait_time) = self.port.poll();
             if ret.len() > 0 {
@@ -38,7 +36,7 @@ impl Session
 
             tokio::select! {
                 _ = wait => { },
-                cmd = self.rx.read_buf_with_header(&wire_encryption, &mut total_read) => {
+                cmd = self.rx.read() => {
                     let cmd = match cmd {
                         Ok(a) => a,
                         Err(err) => {
@@ -77,7 +75,7 @@ impl Session
         for ret in ret {
             match bincode::serialize(&ret) {
                 Ok(ret) => {
-                    let _=  self.tx.outbox.send(&ret[..]).await;
+                    let _=  self.tx.outbox.write(&ret[..]).await;
                 }
                 Err(err) => {
                     trace!("tx serialize failed - {}", err);

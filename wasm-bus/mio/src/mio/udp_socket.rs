@@ -66,6 +66,18 @@ impl AsyncUdpSocket {
         Ok((data, addr))
     }
 
+    pub fn try_recv_from(&self) -> io::Result<Option<(Vec<u8>, SocketAddr)>> {
+        if let Ok(mut state) = self.state.try_lock() {
+            if let Some((buf, addr)) = state.backlog.pop_front() {
+                return Ok(Some((buf, addr)));
+            }
+            state.socket
+                .try_recv_from()
+        } else {
+            Ok(None)
+        }
+    }
+
     pub async fn peek_from(&self) -> io::Result<(Vec<u8>, SocketAddr)> {
         let mut state = self.state.lock().await;
         if let Some((data, addr)) = state.backlog.pop_front() {
@@ -130,6 +142,18 @@ impl AsyncUdpSocket {
         state.socket
             .recv()
             .await
+    }
+
+    pub fn try_recv(&self) -> io::Result<Option<Vec<u8>>> {
+        if let Ok(mut state) = self.state.try_lock() {
+            if let Some((buf, _)) = state.backlog.pop_front() {
+                return Ok(Some(buf));
+            }
+            state.socket
+                .try_recv()
+        } else {
+            Ok(None)
+        }
     }
 
     pub async fn peek(&self) -> io::Result<Vec<u8>> {
