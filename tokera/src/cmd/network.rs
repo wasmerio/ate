@@ -390,7 +390,15 @@ pub async fn main_opts_network_bridge(
     let hw: [u8; 6] = hw.into();
     
     let (ip4, netmask4) = port.dhcp_acquire().await?;
-    info!("port acquired ip={} netmask={}", ip4, netmask4);
+
+    print!("connected:");
+    if let Ok(Some(mac)) = port.hardware_address().await {
+        print!(" mac={}", mac);
+    }
+    if let Ok(Some(ip)) = port.addr_ipv4().await {
+        print!(" ip={}", ip);
+    }
+    println!("");
 
     let mtu = bridge.mtu.unwrap_or(1500);
 

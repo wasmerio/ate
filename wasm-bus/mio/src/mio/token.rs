@@ -83,7 +83,7 @@ pub async fn save_access_token(token_path: String, token: &NetworkToken) -> Resu
 }
 
 pub async fn clear_access_token(token_path: String) {
-    let token_path = format!("{}/network", token_path);
+    let token_path = format!("{}.network", token_path);
     let token_path = shellexpand::tilde(token_path.as_str()).to_string();
 
     // Remove any old paths
