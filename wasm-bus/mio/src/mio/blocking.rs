@@ -228,8 +228,8 @@ impl IcmpSocket {
         block_on(self.inner.send_to(buf, addr))
     }
 
-    pub fn ident(&self) -> u16 {
-        self.inner.ident()
+    pub fn local_addr(&self) -> IpAddr {
+        self.inner.local_addr()
     }
 
     pub fn set_ttl(&self, ttl: u8) -> io::Result<()> {

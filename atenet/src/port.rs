@@ -48,7 +48,6 @@ use smoltcp::socket::TcpSocketBuffer;
 use smoltcp::socket::UdpSocket;
 use smoltcp::socket::UdpSocketBuffer;
 use smoltcp::socket::UdpPacketMetadata;
-use smoltcp::wire::EthernetFrame;
 use managed::ManagedSlice;
 use managed::ManagedMap;
 
@@ -288,7 +287,7 @@ impl Port
             },
             PortCommand::BindIcmp {
                 handle,
-                ident,
+                local_addr,
                 hop_limit,
             } => {
                 match self.switch_to_smoltcp() {
@@ -297,7 +296,7 @@ impl Port
                         let tx_buffer = IcmpSocketBuffer::new(icmp_meta_buf(self.buf_size), self.raw_buf(1));
                         let mut socket = IcmpSocket::new(rx_buffer, tx_buffer);
                         socket.set_hop_limit(Some(hop_limit));
-                        if let Err(err) = socket.bind(IcmpEndpoint::Ident(ident)) {
+                        if let Err(err) = socket.bind(IcmpEndpoint::Ip(local_addr.into())) {
                             self.queue_error(handle, conv_err(err));
                         } else {
                             self.icmp_sockets.insert(handle, self.iface.add_socket(socket));
@@ -814,6 +813,7 @@ for Port
 #[derivative(Debug)]
 pub struct PortDevice {
     data: Arc<SegQueue<Vec<u8>>>,
+    #[allow(dead_code)]
     #[derivative(Debug = "ignore")]
     mac: EthernetAddress,
     mtu: usize,
@@ -832,7 +832,6 @@ impl<'a> Device<'a> for PortDevice {
                         buffer,
                     },
                     TxToken {
-                        src: self.mac,
                         switch: self.switch.clone()
                     }
                 )
@@ -844,7 +843,6 @@ impl<'a> Device<'a> for PortDevice {
 
     fn transmit(&'a mut self) -> Option<Self::TxToken> {
         Some(TxToken {
-            src: self.mac,
             switch: self.switch.clone()
         })
 
@@ -876,7 +874,6 @@ impl phy::RxToken for RxToken {
 
 #[doc(hidden)]
 pub struct TxToken {
-    src: EthernetAddress,
     switch: Arc<Switch>,
 }
 
@@ -889,15 +886,7 @@ impl phy::TxToken for TxToken {
         let result = f(&mut buffer);
         
         if result.is_ok() {
-            // This should use unicast for destination MAC's that are unicast - other
-            // MAC addresses such as multicast and broadcast should use broadcast
-            let frame = EthernetFrame::new_checked(&buffer[..])?;
-            let dst = frame.dst_addr();
-            if dst.is_unicast() {
-                let _ = self.switch.unicast(&self.src, &dst, buffer, true, None);
-            } else {
-                let _ = self.switch.broadcast_and_arps(&self.src, buffer, true, None);
-            }
+            self.switch.process(buffer, true, None);
         }
 
         result

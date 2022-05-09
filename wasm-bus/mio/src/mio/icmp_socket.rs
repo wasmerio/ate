@@ -18,23 +18,23 @@ struct State
 
 pub struct AsyncIcmpSocket {
     state: Mutex<State>,
-    ident: u16,
+    addr: IpAddr,
 }
 
 impl AsyncIcmpSocket {
-    pub(crate) fn new(socket: Socket, ident: u16) -> Self {
+    pub(crate) fn new(socket: Socket, addr: IpAddr) -> Self {
         Self {
             state: Mutex::new(State {
                 socket,
                 ttl: 64,
                 backlog: Default::default(),
             }),
-            ident,
+            addr,
         }
     }
 
-    pub fn ident(&self) -> u16 {
-        self.ident
+    pub fn local_addr(&self) -> IpAddr {
+        self.addr
     }
 
     pub async fn recv_from(&self) -> io::Result<(Vec<u8>, IpAddr)> {

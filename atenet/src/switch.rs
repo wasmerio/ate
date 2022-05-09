@@ -357,12 +357,7 @@ impl Switch
         state.cidrs.clone()
     }
 
-    pub fn arps(self: &Arc<Switch>, pck: Vec<u8>) {
-        let mut state = self.data_plane.lock().unwrap();
-        self.__arps(&mut state, &pck[..]);
-    }
-
-    fn __arps(self: &Arc<Switch>, state: &mut MutexGuard<DataPlane>, pck: &[u8]) -> bool
+    fn process_arps(self: &Arc<Switch>, state: &mut MutexGuard<DataPlane>, pck: &[u8]) -> bool
     {
         // If its an ARP packet then maybe its for the gateway and
         // we should send a reply ARP
@@ -371,10 +366,10 @@ impl Switch
         }
 
         // If its a DHCP request then we should respond to it
-        self.__dhcp_process(pck )
+        self.process_dhcp_request(pck)
     }
 
-    fn __dhcp_process(self: &Arc<Switch>, pck: &[u8]) -> bool
+    fn process_dhcp_request(self: &Arc<Switch>, pck: &[u8]) -> bool
     {
         if let Ok(frame_mac) = EthernetFrame::new_checked(pck) {
             if frame_mac.ethertype() == EthernetProtocol::Ipv4
@@ -526,7 +521,7 @@ impl Switch
         None
     }
 
-    async fn __tick(&self)
+    async fn tick(&self)
     {
         let subnet = {
             let control_plane = self.control_plane.read().await;
@@ -537,7 +532,7 @@ impl Switch
         data_plane.cidrs = super::common::subnet_to_cidrs(&subnet);
     }
 
-    pub fn arp_request(self: &Arc<Self>, src_mac: EthernetAddress, src_ip: Ipv4Address, dst_ip: Ipv4Address)
+    pub(crate) fn process_arp_request(self: &Arc<Self>, src_mac: EthernetAddress, src_ip: Ipv4Address, dst_ip: Ipv4Address)
     {
         // Check its in the CIDR and the backoff window
         let mut data_plane = self.data_plane.lock().unwrap();
@@ -582,16 +577,16 @@ impl Switch
                 eth_packet.payload_mut().copy_from_slice(&arp_bytes[..]);
 
                 #[cfg(feature="tcpdump")]
-                tcpdump(self.me_node_addr, self.name.as_str(), "BROADCAST", &eth_bytes[..]);
+                tcpdump(self.me_node_addr, self.name.as_str(), &eth_bytes[..]);
 
                 // Broadcast it
-                self.__broadcast(&mut data_plane, &src_mac, &eth_bytes[..], true, None);
+                self.process_broadcast(&mut data_plane, &src_mac, &eth_bytes[..], true);
                 return;
             }
         }
     }
 
-    async fn __dhcp_process_internal(self: &Arc<Switch>, msg: DhcpMessage)
+    async fn dhcp_process_internal(self: &Arc<Switch>, msg: DhcpMessage)
     {
         // Determine the IP address for this particular MAC address
         let client_ip = self.allocate_ipv4(msg.src_mac).await;
@@ -713,41 +708,79 @@ impl Switch
         eth_packet.payload_mut().copy_from_slice(&ip_bytes[..]);
 
         // Send the response to the caller
-        self.unicast(&Gateway::MAC, &msg.src_mac, eth_bytes, false, None);
+        self.process_unicast(&Gateway::MAC, &msg.src_mac, eth_bytes, false);
     }
 
-    pub fn broadcast(self: &Arc<Switch>, src: &EthernetAddress, pck: Vec<u8>, allow_forward: bool, set_peer: Option<&IpAddr>) {
-        #[cfg(feature="tcpdump")]
-        tcpdump(self.me_node_addr, self.name.as_str(), "BROADCAST", &pck[..]);
+    pub fn process(self: &Arc<Switch>, pck: Vec<u8>, allow_forward: bool, set_peer: Option<&IpAddr>) {
+        // This should use unicast for destination MAC's that are unicast - other
+        // MAC addresses such as multicast and broadcast should use broadcast
+        match EthernetFrame::new_checked(&pck[..]) {
+            Ok(frame) => {
+                let src = frame.src_addr();
+                let dst = frame.dst_addr();
+                drop(frame);
 
-        let mut state = self.data_plane.lock().unwrap();
-        self.__broadcast(&mut state, src, &pck[..], allow_forward, set_peer);
+                #[cfg(feature="tcpdump")]
+                tcpdump(self.me_node_addr, self.name.as_str(), &pck[..]);
+
+                {
+                    // Snoop the packet
+                    let mut state = self.data_plane.lock().unwrap();
+                    self.process_snoop(&mut state, &pck[..], set_peer);
+
+                    // If its a broadcast then we reuse the locked mutex and send the packet on
+                    if dst.is_broadcast() {
+                        self.process_broadcast(&mut state, &src, &pck[..], allow_forward);
+                        return;
+                    }
+                }
+
+                // Otherwise its probably a unicast packet to the be transmitted
+                if dst.is_unicast()
+                {
+                    // Send the packet to a specific destination
+                    self.process_unicast(&src, &dst, pck, allow_forward);
+                }
+            }
+            Err(err) => {
+                debug!("packet dropped - {}", err);
+            }
+        }
     }
-    
-    fn __broadcast(self: &Arc<Switch>, state: &mut MutexGuard<DataPlane>, src: &EthernetAddress, pck: &[u8], allow_forward: bool, set_peer: Option<&IpAddr>)
+
+    fn process_broadcast(self: &Arc<Switch>, state: &mut MutexGuard<DataPlane>, src: &EthernetAddress, pck: &[u8], allow_forward: bool)
     {
         // If its an ARP packet then maybe its for the gateway and
         // we should send a reply ARP
-        self.gateway.process_arp_reply(pck, self, state);
+        let already_processed =
+            self.process_arps(state, pck);
 
-        // Process the packet
-        for (mac, dst) in state.ports.iter() {
-            if src != mac {
-                let pck = pck.to_vec();
-                dst.send(self, pck, false);
+        // Only process it if its not already processed
+        if already_processed == false
+        {
+            // Process the packet
+            for (mac, dst) in state.ports.iter() {
+                if src != mac {
+                    let pck = pck.to_vec();
+                    dst.send(self, pck, false);
+                }
+            }
+
+            // Only if we allow forwarding
+            if allow_forward {
+                self.process_broadcast_to_peers(state, pck);
             }
         }
-
-        // Only if we allow forwarding
-        if allow_forward {
-            self.__broadcast_to_peers(state, pck);
+        else 
+        {
+            // Promiscuous devices might also be listening to the gateway address
+            if state.promiscuous.is_empty() {
+                self.process_promiscuous(state, &EthernetAddress::BROADCAST, &pck[..], allow_forward);
+            }
         }
-
-        // Snoop the packet
-        self.snoop(state, &pck[..], set_peer);
     }
 
-    fn __broadcast_to_peers(self: &Arc<Switch>, state: &mut MutexGuard<DataPlane>, pck: &[u8])
+    fn process_broadcast_to_peers(self: &Arc<Switch>, state: &mut MutexGuard<DataPlane>, pck: &[u8])
     {
         // Encrypt and sign the packet before we send it
         let pck = self.encrypt_packet(pck);
@@ -757,70 +790,60 @@ impl Switch
         }
     }
 
-    pub fn broadcast_and_arps(self: &Arc<Switch>, src: &EthernetAddress, pck: Vec<u8>, allow_forward: bool, set_peer: Option<&IpAddr>) {
-        #[cfg(feature="tcpdump")]
-        tcpdump(self.me_node_addr, self.name.as_str(), "BROADCAST", &pck[..]);
-
-        let mut state = self.data_plane.lock().unwrap();
-        if self.__arps(&mut state, &pck[..]) == false {
-            self.__broadcast(&mut state, src, &pck[..], allow_forward, set_peer);
+    pub fn process_unicast(self: &Arc<Switch>, src: &EthernetAddress, dst_mac: &EthernetAddress, pck: Vec<u8>, allow_forward: bool)
+    {
+        // If the packet is going to the default gateway then we
+        // should pass it to our dateway engine to process instead
+        if dst_mac == &Gateway::MAC {
+            self.process_unicast_for_gateways(dst_mac, pck, allow_forward);
+        } else {
+            // Otherwise it should go to one of the ports
+            let mut state = self.data_plane.lock().unwrap();
+            self.process_unicast_for_ports(&mut state, src, dst_mac, pck, allow_forward);
         }
     }
 
-    pub fn unicast(self: &Arc<Switch>, src: &EthernetAddress, dst_mac: &EthernetAddress, pck: Vec<u8>, allow_forward: bool, set_peer: Option<&IpAddr>)
+    pub fn process_unicast_for_gateways(self: &Arc<Switch>, dst_mac: &EthernetAddress, pck: Vec<u8>, mut allow_forward: bool)
     {
-        #[cfg(feature="tcpdump")]
-        tcpdump(self.me_node_addr, self.name.as_str(), "UNICAST  ", &pck[..]);
-
-        // If the packet is going to the default gateway then we
-        // should pass it to our dateway engine to process instead
-        if dst_mac == &Gateway::MAC
+        // There are certain situations where we forward to the peers (namely if an ARP
+        // reply goes back to the gateway - this is so that all the gateways can update
+        // there internal state)
+        let mut state = self.data_plane.lock().unwrap();
+        if allow_forward
         {
-            {
-                // We should snoop all the packets
-                let mut state = self.data_plane.lock().unwrap();
-                self.snoop(&mut state, &pck[..], None);
-                
-                // There are certain situations where we forward to the peers (namely if an ARP
-                // reply goes back to the gateway - this is so that all the gateways can update
-                // there internal state)
-                if allow_forward
-                {
-                    // If this is an ARP packet then we should broadcast it
-                    if let Ok(frame_mac) = EthernetFrame::new_checked(&pck[..]) {
-                        if frame_mac.ethertype() == EthernetProtocol::Arp {
-                            self.__broadcast_to_peers(&mut state, &pck[..]);
-                        }
-                    }
-                }
-
-                // Promiscuous devices might also be listening to the gateway address
-                if state.promiscuous.is_empty() {
-                    self.__promiscuous(&mut state, dst_mac, &pck[..], allow_forward);
+            // If this is an ARP packet then we should broadcast it
+            if let Ok(frame_mac) = EthernetFrame::new_checked(&pck[..]) {
+                if frame_mac.ethertype() == EthernetProtocol::Arp {
+                    self.process_broadcast_to_peers(&mut state, &pck[..]);
+                    allow_forward = false;  // we have aleady forwarded it so we dont what the promiscuous code to also forward
                 }
             }
+        }
 
-            // Process the outbound packet which will do some IP routing
-            self.gateway.process_outbound(pck);
+        // Promiscuous devices might also be listening to the gateway address
+        if state.promiscuous.is_empty() {
+            self.process_promiscuous(&mut state, dst_mac, &pck[..], allow_forward);
+        }
+
+        // Maybe the gateway needs to respond to an ICMP packet
+        if self.gateway.process_icmp_reply(&pck[..], self, &mut state) {
             return;
         }
 
-        let mut state = self.data_plane.lock().unwrap();
-        self.__unicast(&mut state, src, dst_mac, pck, allow_forward, set_peer);
+        // Process the outbound packet which will do some IP routing
+        drop(state);
+        self.gateway.process_outbound(pck);
     }
 
-    pub(crate) fn __unicast(self: &Arc<Switch>, state: &mut MutexGuard<DataPlane>, src: &EthernetAddress, dst_mac: &EthernetAddress, pck: Vec<u8>, allow_forward: bool, set_peer: Option<&IpAddr>)
+    pub(super) fn process_unicast_for_ports(self: &Arc<Switch>, state: &mut MutexGuard<DataPlane>, src: &EthernetAddress, dst_mac: &EthernetAddress, pck: Vec<u8>, allow_forward: bool)
     {
-        // We might need to snoop this packet
-        self.snoop(state, &pck[..], set_peer);
-
         // If the destination is known to us
         if state.ports.contains_key(&dst_mac)
         {
             // We might need to make a copy of the packet so that any promiscuous
             // ports can also get a copy
             if state.promiscuous.is_empty() == false {
-                self.__promiscuous(state, dst_mac, &pck[..], allow_forward);
+                self.process_promiscuous(state, dst_mac, &pck[..], allow_forward);
             }
 
             // Send the packet to the destination
@@ -831,11 +854,11 @@ impl Switch
             // Otherwise we broadcast it to all the other nodes as it
             // could be that we just dont know about it yet or it could
             // be that its multicast/broadcast traffic.
-            self.__broadcast(state, src, &pck[..], allow_forward, set_peer);
+            self.process_broadcast(state, src, &pck[..], allow_forward);
         }
     }
 
-    pub(crate) fn __promiscuous(self: &Arc<Switch>, state: &mut MutexGuard<DataPlane>, dst_mac: &EthernetAddress, pck: &[u8], allow_forward: bool)
+    fn process_promiscuous(self: &Arc<Switch>, state: &mut MutexGuard<DataPlane>, dst_mac: &EthernetAddress, pck: &[u8], allow_forward: bool)
     {
         if state.promiscuous.is_empty() {
             return;
@@ -879,7 +902,7 @@ impl Switch
         }
     }
 
-    pub fn snoop(&self, state: &mut MutexGuard<DataPlane>, pck: &[u8], set_peer: Option<&IpAddr>) {
+    pub fn process_snoop(&self, state: &mut MutexGuard<DataPlane>, pck: &[u8], set_peer: Option<&IpAddr>) {
         if let Ok(frame_mac) = EthernetFrame::new_checked(&pck[..]) {
             let mac = frame_mac.src_addr();
             match frame_mac.ethertype() {
@@ -997,20 +1020,7 @@ impl Switch
         if let Some(pck) = self.decrypt_packet(pck, hash) {
             // This should use unicast for destination MAC's that are unicast - other
             // MAC addresses such as multicast and broadcast should use broadcast
-            match EthernetFrame::new_checked(&pck[..]) {
-                Ok(frame) => {
-                    let src = frame.src_addr();
-                    let dst = frame.dst_addr();
-                    if dst.is_unicast() {
-                        let _ = self.unicast(&src, &dst, pck, false, Some(&peer));
-                    } else {
-                        let _ = self.broadcast(&src, pck, false, Some(&peer));
-                    }
-                }
-                Err(err) => {
-                    debug!("packet dropped - {}", err);
-                }
-            }
+            self.process(pck, false, Some(&peer));
         }
     }
 
@@ -1104,7 +1114,7 @@ impl Switch
         loop {
             tokio::select! {
                 _ = interval.tick() => {
-                    self.__tick().await;
+                    self.tick().await;
                 },
                 evt = bus.recv() => {
                     match evt {
@@ -1145,7 +1155,7 @@ impl Switch
                 msg = dhcp_msg_rx.recv() => {
                     if let Some(msg) = msg {
                         if let Some(switch) = msg.switch.upgrade() {
-                            switch.__dhcp_process_internal(msg).await;
+                            switch.dhcp_process_internal(msg).await;
                         }
                     } else {
                         debug!("control thread closing (3)");
@@ -1174,8 +1184,8 @@ impl Switch
 }
 
 #[cfg(feature="tcpdump")]
-fn tcpdump(node_ip: IpAddr, sw: &str, ty: &str, pck: &[u8])
+pub(crate) fn tcpdump(node_ip: IpAddr, sw: &str, pck: &[u8])
 {
     let pck = smoltcp::wire::PrettyPrinter::<EthernetFrame<&[u8]>>::new("", &pck);
-    info!("{}@{}: {} {}", &sw[..4], node_ip, ty, pck);
+    info!("{}@{}: {}", &sw[..4], node_ip, pck);
 }

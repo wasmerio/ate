@@ -2,7 +2,6 @@ use std::sync::Arc;
 use tokio::sync::broadcast;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
-use smoltcp::wire::EthernetFrame;
 use tokera::model::HardwareAddress;
 
 use super::switch::Switch;
@@ -26,19 +25,7 @@ impl TapSocket
     }
 
     pub fn send(&self, data: Vec<u8>) {
-        if let Ok(frame_mac) = EthernetFrame::new_checked(&data[..]) {
-            let src = frame_mac.src_addr();
-            let dst = frame_mac.dst_addr();
-            drop(frame_mac);
-
-            if dst.is_unicast() {
-                self.switch.unicast(&src, &dst, data, true, None);
-            } else {
-                self.switch.broadcast(&src, data, true, None);
-            }
-        } else {
-            trace!("dropped invalid packet (len={})", data.len());
-        }
+        self.switch.process(data, true, None);
     }
 
     pub fn recv(&mut self) -> Option<Vec<u8>> {

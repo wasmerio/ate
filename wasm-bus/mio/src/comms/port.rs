@@ -164,12 +164,12 @@ impl Port
         Ok(socket)
     }
 
-    pub async fn bind_icmp(&self, ident: u16) -> io::Result<Socket> {
+    pub async fn bind_icmp(&self, local_addr: IpAddr) -> io::Result<Socket> {
         let mut socket = self.new_socket(Some(IpProtocol::Icmp)).await;
 
         socket.tx(PortCommand::BindIcmp {
             handle: socket.handle,
-            ident,
+            local_addr,
             hop_limit: Socket::HOP_LIMIT,
         }).await?;
         socket.nop(PortNopType::BindIcmp).await?;

@@ -359,21 +359,21 @@ impl Port {
 
     pub async fn bind_icmp(
         &self,
-        ident: u16
+        addr: IpAddr
     ) -> io::Result<AsyncIcmpSocket> {
         let guard = self.get_or_create_state().await?;
         let port = guard.port.clone();
         let socket = port
-            .bind_icmp(ident)
+            .bind_icmp(addr)
             .await?;
-        Ok(AsyncIcmpSocket::new(socket, ident))
+        Ok(AsyncIcmpSocket::new(socket, addr))
     }
 
     pub fn blocking_bind_icmp(
         &self,
-        ident: u16
+        addr: IpAddr
     ) -> io::Result<IcmpSocket> {
-        Ok(IcmpSocket::new(block_on(self.bind_icmp(ident))?))
+        Ok(IcmpSocket::new(block_on(self.bind_icmp(addr))?))
     }
 
     pub async fn connect_tcp(
