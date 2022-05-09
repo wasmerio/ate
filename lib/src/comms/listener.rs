@@ -54,6 +54,7 @@ where
 {
     server_id: NodeId,
     wire_format: SerializationFormat,
+    min_encryption: Option<KeySize>,
     server_cert: Option<PrivateEncryptKey>,
     timeout: Duration,
     handler: Arc<dyn ServerProcessor<M, C>>,
@@ -118,6 +119,7 @@ where
             Arc::new(StdMutex::new(Listener {
                 server_id: server_id.clone(),
                 wire_format: conf.cfg_mesh.wire_format,
+                min_encryption: conf.listen_min_encryption.clone(),
                 server_cert: conf.listen_cert.clone(),
                 timeout: conf.cfg_mesh.accept_timeout,
                 handler: Arc::clone(&inbox),
@@ -215,12 +217,14 @@ where
                 // default route to the listener
                 let (
                     wire_format,
+                    min_encryption,
                     server_cert,
                     timeout,
                 ) = {
                     let listener = listener.lock().unwrap();
                     (
                         listener.wire_format.clone(),
+                        listener.min_encryption.clone(),
                         listener.server_cert.clone(),
                         listener.timeout.clone(),
                     )
@@ -229,6 +233,7 @@ where
                 let mut router = StreamRouter::new(
                     wire_format,
                     wire_protocol,
+                    min_encryption,
                     server_cert,
                     server_id,
                     timeout.clone()

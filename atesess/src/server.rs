@@ -14,10 +14,9 @@ use ate::comms::HelloMetadata;
 use ate::comms::RawStreamRoute;
 use ate::comms::StreamRoute;
 use ate::comms::StreamRx;
+use ate::comms::StreamReadable;
 use ate::comms::MessageProtocolVersion;
 use ate::comms::Upstream;
-use ate::comms::StreamReader;
-use ate::comms::MessageProtocolVersion;
 use ate::prelude::*;
 use ate_files::repo::Repository;
 use ate_files::repo::RepositorySessionFactory;
@@ -181,7 +180,7 @@ impl Server
 
     pub async fn new_session(
         &self,
-        rx: Box<dyn StreamReader + Send + Sync + 'static>,
+        rx: StreamRx,
         tx: Upstream,
         hello: HelloMetadata,
         hello_instance: InstanceHello,
@@ -194,6 +193,7 @@ impl Server
         let (basics, first_init) = self.get_or_create_session_basics(key.clone()).await?;
 
         // Build the session
+        let rx = Box::new(rx);
         let ret = Session::new(
             rx,
             Some(tx),
@@ -212,7 +212,7 @@ impl Server
 
     async fn accept_internal(
         &self,
-        rx: Box<dyn StreamReader + Send + Sync + 'static>,
+        rx: StreamRx,
         tx: Upstream,
         hello: HelloMetadata,
         hello_instance: InstanceHello,
@@ -247,7 +247,7 @@ for Server
     async fn accepted_web_socket(
         &self,
         mut rx: StreamRx,
-        rx_proto: StreamProtocol,
+        _rx_proto: StreamProtocol,
         tx: Upstream,
         hello: HelloMetadata,
         sock_addr: SocketAddr,
@@ -255,13 +255,9 @@ for Server
     ) -> Result<(), CommsError>
     {
         // Read the instance hello message
-        let mut _total_read = 0u64;
-        let hello_buf = rx.read_buf_with_header(&wire_encryption, &mut _total_read).await?;
+        let hello_buf = rx.read().await?;
         let hello_instance: InstanceHello = serde_json::from_slice(&hello_buf[..])?;
         debug!("accept-web-socket: {}", hello_instance);
-
-        // Build the rx and tx
-        let rx = Box::new(rx);
 
         // Accept the web connection
         self.accept_internal(
@@ -291,12 +287,12 @@ for Server
     {
         // Create the upstream
         let (rx, tx) = MessageProtocolVersion::V3
-            .create(rx, tx)
+            .create(Some(rx), Some(tx))
             .split(None);
         let tx = Upstream {
             id: NodeId::generate_client_id(),
             outbox: tx,
-            wire_format: self.wire_format,
+            wire_format: SerializationFormat::Json,
         };
 
         // Get the chain and the topic
@@ -332,9 +328,6 @@ for Server
             access_token: auth.to_str().unwrap().to_string(),
             chain: chain.clone(),
         };
-
-        // Build the rx and tx
-        let rx = Box::new(rx);
 
         // Accept the web connection
         self.accept_internal(
@@ -420,8 +413,8 @@ for Server
             })?;
 
         // Create a fixed reader
-        let rx = Box::new(FixedReader::new(Vec::new()));
-
+        let rx: Box<dyn StreamReadable + Send + Sync + Unpin + 'static> = Box::new(FixedReader::new(Vec::new()));
+        
         // Build the session
         let mut session = Session::new(
             rx,

@@ -35,7 +35,7 @@ impl SessionHandler
             match tx.deref_mut() {
                 SessionTx::None => { }
                 SessionTx::Upstream(tx) => {
-                    if let Err(err) = tx.outbox.send(&data[..]).await {
+                    if let Err(err) = tx.outbox.write(&data[..]).await {
                         debug!("writing failed - will close the channel now - {}", err);
                         self.exit().await;
                     }

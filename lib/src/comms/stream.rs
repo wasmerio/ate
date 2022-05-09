@@ -34,13 +34,17 @@ use bytes::Bytes;
 
 use crate::comms::PacketData;
 use crate::crypto::EncryptKey;
+#[cfg(feature = "enable_full")]
 use super::helper::setup_tcp_stream;
 
 pub use ate_comms::StreamRx;
 pub use ate_comms::StreamTx;
+pub use ate_comms::StreamReadable;
+pub use ate_comms::StreamWritable;
 pub use ate_comms::MessageProtocolVersion;
 pub use ate_comms::StreamClient;
 pub use ate_comms::StreamSecurity;
+#[cfg(feature = "enable_dns")]
 pub use ate_comms::Dns;
 
 #[cfg(feature = "enable_server")]
@@ -156,6 +160,7 @@ impl StreamProtocol {
         StreamProtocol::from_str(scheme.as_str())
     }
 
+    #[cfg(feature = "enable_full")]
     pub async fn upgrade_client_and_split(&self, stream: TcpStream) -> Result<
         (
             Box<dyn AsyncRead + Send + Sync + Unpin + 'static>,
@@ -209,6 +214,7 @@ impl StreamProtocol {
         }
     }
 
+    #[cfg(feature = "enable_full")]
     pub async fn upgrade_server_and_split(&self, stream: TcpStream, timeout: Duration) -> Result<
         (
             Box<dyn AsyncRead + Send + Sync + Unpin + 'static>,

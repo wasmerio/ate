@@ -5,6 +5,7 @@ use std::ops::DerefMut;
 use tokio::sync::Mutex;
 use tokio::io::AsyncRead;
 use tokio::io::AsyncWrite;
+#[cfg(feature = "enable_full")]
 use tokio::net::TcpStream;
 use std::sync::Arc;
 use std::time::Duration;
@@ -99,6 +100,7 @@ where Self: Send + Sync
 pub struct StreamRouter {
     wire_format: SerializationFormat,
     wire_protocol: StreamProtocol,
+    min_encryption: Option<KeySize>,
     server_cert: Option<PrivateEncryptKey>,
     server_id: NodeId,
     timeout: Duration,
@@ -110,10 +112,11 @@ pub struct StreamRouter {
 }
 
 impl StreamRouter {
-    pub fn new(format: SerializationFormat, protocol: StreamProtocol, server_cert: Option<PrivateEncryptKey>, server_id: NodeId, timeout: Duration) -> Self {
+    pub fn new(format: SerializationFormat, protocol: StreamProtocol, min_encryption: Option<KeySize>, server_cert: Option<PrivateEncryptKey>, server_id: NodeId, timeout: Duration) -> Self {
         StreamRouter {
             wire_format: format,
             wire_protocol: protocol,
+            min_encryption,
             server_cert,
             server_id,
             timeout,
@@ -213,7 +216,7 @@ impl StreamRouter {
             rx,
             tx,
             self.server_id,
-            self.server_cert.as_ref().map(|a| a.size()),
+            self.min_encryption.clone(),
             self.wire_format,
         )
         .await?;
@@ -221,24 +224,25 @@ impl StreamRouter {
         let node_id = hello_meta.client_id;
 
         // If wire encryption is required then make sure a certificate of sufficient size was supplied
-        if let Some(size) = &wire_encryption {
-            match self.server_cert.as_ref() {
-                None => {
-                    return Err(CommsError::from(CommsErrorKind::MissingCertificate).into());
+        let ek = match &wire_encryption {
+            Some(size) => {
+                match self.server_cert.as_ref() {
+                    None => {
+                        return Err(CommsError::from(CommsErrorKind::MissingCertificate).into());
+                    }
+                    Some(a) if a.size() < *size => {
+                        return Err(CommsError::from(CommsErrorKind::CertificateTooWeak(size.clone(), a.size())).into());
+                    }
+                    Some(server_key) =>
+                    {
+                        // If we are using wire encryption then exchange secrets
+                        let ek = key_exchange::mesh_key_exchange_receiver(proto.deref_mut(), server_key.clone())
+                            .await?;
+                        Some(ek)
+                    }
                 }
-                Some(a) if a.size() < *size => {
-                    return Err(CommsError::from(CommsErrorKind::CertificateTooWeak(size.clone(), a.size())).into());
-                }
-                _ => {}
             }
-        }
-
-        // If we are using wire encryption then exchange secrets
-        let ek = match self.server_cert.as_ref() {
-            Some(server_key) => {
-                Some(key_exchange::mesh_key_exchange_receiver(proto.deref_mut(), server_key.clone()).await?)
-            }
-            None => None,
+            None => None
         };
         let (rx, tx) = proto.split(ek);
         let tx = Upstream {

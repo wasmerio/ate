@@ -37,7 +37,7 @@ use super::server::SessionBasics;
 
 pub struct Session
 {
-    pub rx: Box<dyn StreamReader + Send + Sync + 'static>,
+    pub rx: Box<dyn StreamReadable + Send + Sync + 'static>,
     pub tx: Option<Upstream>,
     pub hello: HelloMetadata,
     pub hello_instance: InstanceHello,
@@ -56,7 +56,7 @@ pub struct Session
 impl Session
 {
     pub async fn new(
-        rx: Box<dyn StreamReader + Send + Sync + 'static>,
+        rx: Box<dyn StreamReadable + Send + Sync + 'static>,
         tx: Option<Upstream>,
         hello: HelloMetadata,
         hello_instance: InstanceHello,
@@ -155,12 +155,10 @@ impl Session
         let mut is_feeder_set = false;
 
         // Wait for commands to come in and then process them
-        let wire_encryption = self.wire_encryption.clone();
-        let mut total_read = 0u64;
         loop {
             let invocations = self.invocations.clone();
             tokio::select! {
-                cmd = self.rx.read_buf_with_header(&wire_encryption, &mut total_read) => {
+                cmd = self.rx.read() => {
                     let cmd = cmd?;
                     debug!("session read (len={})", cmd.len());
 
@@ -180,7 +178,7 @@ impl Session
                             }
 
                             // Invoke the call
-                            let req = self.rx.read_buf_with_header(&wire_encryption, &mut total_read).await?;
+                            let req = self.rx.read().await?;
                             self.call(call, req, tx_reply.clone()).await?;
                         }
                     }
@@ -189,7 +187,7 @@ impl Session
                     if let Some(reply) = reply {
                         let reply = bincode::serialize(&reply).unwrap();
                         if let Some(tx) = self.tx.as_mut() {
-                            let _ = tx.outbox.send(&reply[..]).await;
+                            let _ = tx.outbox.write(&reply[..]).await;
                         }
                     }
                 }
@@ -222,11 +220,10 @@ impl Session
         self.console.tty_mut().draw_prompt().await;
 
         // Enter a processing loop
-        let mut total_read = 0;
         loop {
             let invocations = self.invocations.clone();
             tokio::select! {
-                data = self.rx.read_buf_with_header(&self.wire_encryption, &mut total_read) => {
+                data = self.rx.read() => {
                     match data {
                         Ok(data) => {
                             let data = String::from_utf8_lossy(&data[..]);

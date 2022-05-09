@@ -104,6 +104,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
                 let mut router = ate::comms::StreamRouter::new(
                     cfg_mesh.wire_format.clone(),
                     cfg_mesh.wire_protocol.clone(),
+                    cfg_mesh.listen_min_encryption.clone(),
                     cfg_mesh.listen_certificate.clone(),
                     server_id,
                     cfg_mesh.accept_timeout,

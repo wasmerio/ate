@@ -1,10 +1,16 @@
-use ate::comms::StreamReader;
-use std::io::*;
-use ate::prelude::EncryptKey;
+use std::io;
+use std::pin::Pin;
+use std::task::Context;
+use std::task::Poll;
+use bytes::Bytes;
+use tokio::io::AsyncRead;
+use tokio::io::ReadBuf;
+use ate_comms::StreamReadable;
+use async_trait::async_trait;
 
 pub struct FixedReader
 {
-    data: Option<Vec<u8>>,
+    data: Option<Bytes>,
 }
 
 impl FixedReader
@@ -12,25 +18,42 @@ impl FixedReader
     pub fn new(data: Vec<u8>) -> FixedReader
     {
         FixedReader {
-            data: Some(data)
+            data: Some(Bytes::from(data))
         }
     }
 }
 
-#[async_trait::async_trait]
-impl StreamReader
+impl AsyncRead
 for FixedReader
 {
-    async fn read_buf_with_header(&mut self, _wire_encryption: &Option<EncryptKey>, total_read: &mut u64) -> Result<Vec<u8>>
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>>
     {
-        match self.data.take() {
-            Some(data) => {
-                *total_read += data.len() as u64;
-                return Ok(data);
+        if let Some(data) = self.data.take() {
+            if data.len() <= buf.remaining() {
+                buf.put_slice(&data[..]);
+            } else {
+                let end = buf.remaining();
+                buf.put_slice(&data[..end]);
+                self.data.replace(data.slice(end..));
             }
-            None => {
-                return Ok(Vec::new());
-            }
+        }
+        Poll::Ready(Ok(()))
+    }
+}
+
+#[async_trait]
+impl StreamReadable
+for FixedReader
+{
+    async fn read(&mut self) -> io::Result<Vec<u8>> {
+        if let Some(data) = self.data.take() {
+            Ok(data.to_vec())
+        } else {
+            Ok(Vec::new())
         }
     }
 }

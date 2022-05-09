@@ -6,7 +6,9 @@ mod stream;
 mod version;
 
 pub use api::MessageProtocolApi;
-pub use stream::AsyncStream;
+pub use api::AsyncStream;
+pub use api::StreamReadable;
+pub use api::StreamWritable;
 pub use stream::StreamRx;
 pub use stream::StreamTx;
 pub use version::MessageProtocolVersion;

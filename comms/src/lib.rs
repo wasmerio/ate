@@ -11,6 +11,9 @@ mod security;
 
 pub use protocol::MessageProtocolVersion;
 pub use protocol::MessageProtocolApi;
+pub use protocol::StreamReadable;
+pub use protocol::StreamWritable;
+pub use protocol::AsyncStream;
 pub use hello::HelloMetadata;
 pub use hello::mesh_hello_exchange_sender;
 pub use hello::mesh_hello_exchange_receiver;

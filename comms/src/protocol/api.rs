@@ -131,3 +131,30 @@ for dyn MessageProtocolApi + Unpin + Send + Sync
         tx.poll_shutdown(cx)
     }
 }
+
+#[async_trait]
+pub trait StreamReadable {
+    async fn read(&mut self) -> io::Result<Vec<u8>>;
+}
+
+#[async_trait]
+pub trait StreamWritable {
+    async fn write(&mut self, data: &[u8]) -> io::Result<usize>;
+    
+    async fn flush(&mut self) -> io::Result<()>;
+
+    async fn close(&mut self) -> io::Result<()>;
+
+    fn wire_encryption(&self) -> Option<EncryptKey>;
+}
+
+pub trait AsyncStream: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + Sync {}
+
+impl<T> AsyncStream for T where T: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + Sync
+{}
+
+impl std::fmt::Debug for dyn AsyncStream {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("async-stream")
+    }
+}

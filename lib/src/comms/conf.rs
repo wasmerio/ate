@@ -8,6 +8,7 @@ use crate::comms::NodeId;
 use crate::conf::ConfMesh;
 use crate::conf::MeshAddress;
 use crate::crypto::EncryptKey;
+use crate::crypto::KeySize;
 use crate::crypto::PrivateEncryptKey;
 use crate::spec::*;
 
@@ -37,6 +38,8 @@ pub(crate) struct MeshConfig {
     #[cfg(feature = "enable_server")]
     pub listen_on: Vec<SocketAddr>,
     #[cfg(feature = "enable_server")]
+    pub listen_min_encryption: Option<KeySize>,
+    #[cfg(feature = "enable_server")]
     pub listen_cert: Option<PrivateEncryptKey>,
     #[allow(dead_code)]
     #[cfg(feature = "enable_dns")]
@@ -54,6 +57,8 @@ impl MeshConfig {
         MeshConfig {
             #[cfg(feature = "enable_server")]
             listen_on: Vec::new(),
+            #[cfg(feature = "enable_server")]
+            listen_min_encryption: cfg_mesh.listen_min_encryption.clone(),
             #[cfg(feature = "enable_server")]
             listen_cert: cfg_mesh.listen_certificate.clone(),
             #[cfg(feature = "enable_dns")]

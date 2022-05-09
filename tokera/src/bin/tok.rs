@@ -139,6 +139,7 @@ async fn init_wasi_hook() {
 #[cfg(target_os = "wasi")]
 async fn init_wasi_ws() {
     // Add the main Tokera certificate and connect via a wasm_bus web socket
+
     add_global_certificate(&AteHash::from_hex_string("9c960f3ba2ece59881be0b45f39ef989").unwrap());
     set_comm_factory(move |addr| {
         let schema = match addr.port() {
@@ -152,7 +153,10 @@ async fn init_wasi_ws() {
                 .open()
                 .await
                 .unwrap();
-            Some(ate::comms::Stream::WasmWebSocket(ws))
+            let (tx, rx) = ws.split();
+            let rx: Box<dyn tokio::io::AsyncRead + Send + Sync + Unpin + 'static> = Box::new(rx);
+            let tx: Box<dyn tokio::io::AsyncWrite + Send + Sync + Unpin + 'static> = Box::new(tx);
+            Some((rx, tx))
         })
     })
     .await;

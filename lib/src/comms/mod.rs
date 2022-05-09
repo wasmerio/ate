@@ -40,9 +40,12 @@ pub use metrics::Metrics;
 pub use stream::StreamProtocol;
 pub use stream::StreamRx;
 pub use stream::StreamTx;
+pub use stream::StreamReadable;
+pub use stream::StreamWritable;
 pub use stream::MessageProtocolVersion;
 pub use stream::StreamClient;
 pub use stream::StreamSecurity;
+#[cfg(feature = "enable_dns")]
 pub use stream::Dns;
 pub use conf::Upstream;
 pub use throttle::Throttle;
