@@ -139,6 +139,9 @@ pub struct Opts {
     #[allow(dead_code)]
     #[clap(index = 1)]
     pub destination: IpAddr,
+    /// Token used to access your network (if this is omitted then the token path will be probed)
+    #[clap(long)]
+    pub token: Option<String>,
     /// Token file to read that holds a previously created token to be used for this operation
     #[cfg(not(target_os = "wasi"))]
     #[clap(long, default_value = "~/tok/token")]
@@ -174,8 +177,13 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
     let mut sent = 0u64;
     let mut received = 0u64;
 
-    let port = Port::new(TokenSource::
-        ByPath(opts.token_path),
+    let port = Port::new(match opts.token {
+            Some(token) => {
+                let token: NetworkToken = std::str::FromStr::from_str(&token).unwrap();
+                TokenSource::ByValue(token)
+            },
+            None => TokenSource::ByPath(opts.token_path)
+        },
         url::Url::parse("wss://tokera.com/net").unwrap(),
         StreamSecurity::AnyEncryption)?;
     port.dhcp_acquire().await?;
@@ -184,15 +192,17 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
     if let Ok(Some(mac)) = port.hardware_address().await {
         print!(" mac={}", mac);
     }
-    if let Ok(Some(ip)) = port.addr_ipv4().await {
+    let ip = if let Ok(Some(ip)) = port.addr_ipv4().await {
         print!(" ip={}", ip);
-    }
+        ip
+    } else {
+        panic!("no local ip address!");
+    };
     println!("");
 
     println!("PING {} ({}) 56(84) bytes of data", destination, destination);
 
-    let ident = 0x22b;
-    let socket = port.bind_icmp(ident).await?;
+    let socket = port.bind_icmp(IpAddr::V4(ip)).await?;
     for seq in 0..count
     {
         let pck = create_ping_packet(start, seq)?;
