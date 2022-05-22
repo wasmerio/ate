@@ -1,6 +1,7 @@
 use crate::api::SystemAbiExt;
 use crate::wasmer::WasmPtr;
 use crate::wasmer_wasi::WasiError;
+use crate::wasmer_wasi::WasiThreadId;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -177,7 +178,7 @@ pub(crate) mod raw {
         }
     }
     pub fn wasm_bus_thread_id(thread: &WasmBusThread) -> u32 {
-        unsafe { super::wasm_bus_thread_id(thread) }
+        unsafe { super::wasm_bus_thread_id(thread).into() }
     }
 }
 
@@ -670,8 +671,9 @@ unsafe fn wasm_bus_call_instance(
 }
 
 // Returns a unqiue ID for the thread
-unsafe fn wasm_bus_thread_id(thread: &WasmBusThread) -> u32 {
-    trace!("wasm-bus::thread_id (id={})", thread.thread_id);
+unsafe fn wasm_bus_thread_id(thread: &WasmBusThread) -> WasiThreadId {
+    let thread_id_u32: u32 = thread.thread_id.into();
+    trace!("wasm-bus::thread_id (id={})", thread_id_u32);
     thread.thread_id
 }
 

@@ -22,21 +22,25 @@ async_ws = [ ]
 [dependencies]
 grammar = { version = "^0.1", package = "tok-grammar" }
 
-wasmer = { version = "^2", git = "https://github.com/john-sharratt/wasmer.git", branch = "wasmer3-wasix", default-features = false, features = [ "wat"] }
-wasmer-wasi = { version = "^2", git = "https://github.com/john-sharratt/wasmer.git", branch = "wasmer3-wasix", default-features = false, features = [ "mem-fs" ] }
-wasmer-vfs = { version = "^2", git = "https://github.com/john-sharratt/wasmer.git", branch = "wasmer3-wasix", default-features = false, features = ["mem-fs"] }
-wasmer-compiler-cranelift = { version = "^2", git = "https://github.com/john-sharratt/wasmer.git", branch = "wasmer3-wasix", optional = true }
-wasmer-compiler-llvm = { version = "^2", git = "https://github.com/john-sharratt/wasmer.git", branch = "wasmer3-wasix", optional = true }
-wasmer-compiler-singlepass = { version = "^2", git = "https://github.com/john-sharratt/wasmer.git", branch = "wasmer3-wasix", optional = true }
-wasmer-compiler = { version = "^2", git = "https://github.com/john-sharratt/wasmer.git", branch = "wasmer3", optional = true }
+#wasmer = { version = "^2", git = "https://github.com/john-sharratt/wasmer.git", branch = "wasmer3-wasix", default-features = false, features = [ "wat"] }
+#wasmer-wasi = { version = "^2", git = "https://github.com/john-sharratt/wasmer.git", branch = "wasmer3-wasix", default-features = false, features = [ "mem-fs" ] }
+#wasmer-vfs = { version = "^2", git = "https://github.com/john-sharratt/wasmer.git", branch = "wasmer3-wasix", default-features = false, features = ["mem-fs"] }
+#wasmer-vnet = { version = "^2", git = "https://github.com/john-sharratt/wasmer.git", branch = "wasmer3-wasix", default-features = false }
+#wasmer-vbus = { version = "^2", git = "https://github.com/john-sharratt/wasmer.git", branch = "wasmer3-wasix", default-features = false }
+#wasmer-compiler-cranelift = { version = "^2", git = "https://github.com/john-sharratt/wasmer.git", branch = "wasmer3-wasix", optional = true }
+#wasmer-compiler-llvm = { version = "^2", git = "https://github.com/john-sharratt/wasmer.git", branch = "wasmer3-wasix", optional = true }
+#wasmer-compiler-singlepass = { version = "^2", git = "https://github.com/john-sharratt/wasmer.git", branch = "wasmer3-wasix", optional = true }
+#wasmer-compiler = { version = "^2", git = "https://github.com/john-sharratt/wasmer.git", branch = "wasmer3", optional = true }
 
-#wasmer = { version = "^2", path = "../../wasmer/lib/api", default-features = false, features = [ "wat" ] }
-#wasmer-wasi = { version = "^2", path = "../../wasmer/lib/wasi", default-features = false, features = [ "mem-fs" ] }
-#wasmer-vfs = { version = "^2", path = "../../wasmer/lib/vfs", default-features = false, features = ["mem-fs"] }
-#wasmer-compiler-cranelift = { version = "^2", path = "../../wasmer/lib/compiler-cranelift", optional = true }
-#wasmer-compiler-llvm = { version = "^2", path = "../../wasmer/lib/compiler-llvm", optional = true }
-#wasmer-compiler-singlepass = { version = "^2", path = "../../wasmer/lib/compiler-singlepass", optional = true }
-#wasmer-compiler = { version = "^2", path = "../../wasmer/lib/compiler", optional = true }
+wasmer = { version = "^2", path = "../../wasmer/lib/api", default-features = false, features = [ "wat" ] }
+wasmer-wasi = { version = "^2", path = "../../wasmer/lib/wasi", default-features = false, features = [ "mem-fs" ] }
+wasmer-vfs = { version = "^2", path = "../../wasmer/lib/vfs", default-features = false, features = ["mem-fs"] }
+wasmer-vnet = { version = "^2", path = "../../wasmer/lib/vnet", default-features = false }
+wasmer-vbus = { version = "^2", path = "../../wasmer/lib/vbus", default-features = false }
+wasmer-compiler-cranelift = { version = "^2", path = "../../wasmer/lib/compiler-cranelift", optional = true }
+wasmer-compiler-llvm = { version = "^2", path = "../../wasmer/lib/compiler-llvm", optional = true }
+wasmer-compiler-singlepass = { version = "^2", path = "../../wasmer/lib/compiler-singlepass", optional = true }
+wasmer-compiler = { version = "^2", path = "../../wasmer/lib/compiler", optional = true }
 
 chrono = { version = "^0.4", git = "https://github.com/john-sharratt/chrono.git" }
 tracing = { version = "^0.1" }

@@ -429,16 +429,10 @@ pub async fn exec_process(
                     }
                 }
             }
-            
-            // Add the tick callback that will invoke the WASM bus background
-            // operations on the current thread
-            wasi_env.on_yield(move |thread| {
-                let forced_exit = forced_exit.load(Ordering::Acquire);
-                if forced_exit != 0 {
-                    return Err(WasiError::Exit(forced_exit));
-                }
-                Ok(())
-            });
+
+            // Create a new runtime
+            let wasi_runtime = WasiRuntime::new(&forced_exit);
+            wasi_env.runtime(wasi_runtime);
 
             // Finish off the WasiEnv
             let mut wasi_env = match wasi_env.set_fs(Box::new(union)).finalize() {

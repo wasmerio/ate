@@ -206,22 +206,22 @@ impl Port {
         block_on(self.hardware_address())
     }
 
-    pub async fn addresses(&self) -> io::Result<Vec<IpCidr>> {
+    pub async fn ips(&self) -> io::Result<Vec<IpCidr>> {
         let guard = self.get_or_create_state().await?;
-        Ok(guard.port.addresses().await)
+        Ok(guard.port.ips().await)
     }
 
-    pub fn blocking_addresses(&self) -> io::Result<Vec<IpCidr>> {
-        block_on(self.addresses())
+    pub fn blocking_ips(&self) -> io::Result<Vec<IpCidr>> {
+        block_on(self.ips())
     }
 
-    pub async fn clear_addresses(&self) -> io::Result<()> {
+    pub async fn clear_ips(&self) -> io::Result<()> {
         let mut guard = self.get_or_create_state().await?;
-        guard.port.clear_addresses().await
+        guard.port.clear_ips().await
     }
 
-    pub fn blocking_clear_addresses(&self) -> io::Result<()> {
-        block_on(self.clear_addresses())
+    pub fn blocking_clear_ips(&self) -> io::Result<()> {
+        block_on(self.clear_ips())
     }
 
     pub async fn add_default_route(&self, gateway: IpAddr) -> io::Result<IpRoute> {

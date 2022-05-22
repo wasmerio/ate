@@ -8,6 +8,7 @@ use crate::wasmer_wasi::WasiError;
 use crate::wasmer_wasi::WasiThread;
 use async_trait::async_trait;
 use serde::*;
+use wasmer_wasi::WasiThreadId;
 use std::any::type_name;
 use std::cell::RefCell;
 use std::cell::RefMut;
@@ -33,7 +34,7 @@ use crate::err;
 use crate::eval::EvalContext;
 
 pub struct WasmBusThreadPool {
-    threads: Arc<RwLock<HashMap<u32, WasmBusThread>>>,
+    threads: Arc<RwLock<HashMap<WasiThreadId, WasmBusThread>>>,
     process_factory: ProcessExecFactory,
     ctx: WasmCallerContext,
 }
@@ -200,7 +201,7 @@ unsafe impl Sync for WasmBusThreadProtected {}
 #[derive(Clone, WasmerEnv)]
 pub struct WasmBusThread {
     pub(crate) system: System,
-    pub thread_id: u32,
+    pub thread_id: WasiThreadId,
     pub pool: Arc<WasmBusThreadPool>,
     pub polling: watch::Receiver<bool>,
     pub(crate) inner: Arc<WasmBusThreadProtected>,

@@ -50,8 +50,8 @@ pub fn run<F: Future>(future: F) -> F::Output {
 }
 
 pub async fn setup() -> Vec<Arc<ateweb::server::Server>> {
-    //ate::log_init(1, false);
-    ate::log_init(2, false);
+    ate::log_init(1, false);
+    //ate::log_init(2, false);
     //ate::log_init(3, false);
 
     let s1 = create_node(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 2)), 1).await;

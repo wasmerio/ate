@@ -282,12 +282,12 @@ impl Port
         state.mac
     }
 
-    pub async fn addresses(&self) -> Vec<IpCidr> {
+    pub async fn ips(&self) -> Vec<IpCidr> {
         let state = self.state.lock().await;
         state.addresses.clone()
     }
 
-    pub async fn clear_addresses(&mut self) -> io::Result<()> {
+    pub async fn clear_ips(&mut self) -> io::Result<()> {
         {
             let mut state = self.state.lock().await;
             state.addresses.clear();
