@@ -8,7 +8,7 @@ Supports IPV4 and IPV6.
 The basics are straigthforward
 
 ```js
-const { encode, decode, sizeOf, familyOf } = require('@leichtgewicht/ip-codec')
+import { encode, decode, sizeOf, familyOf } from '@leichtgewicht/ip-codec'
 
 const uint8Array = encode("127.0.0.1")
 const str = decode(uint8Array)
@@ -51,7 +51,7 @@ encode('127.0.0.1', Buffer.alloc)
 You can also de/encode ipv4 or ipv6 specifically:
 
 ```js
-const { v4, v6 } = require('@leichtgewicht/ip-codec')
+import { v4, v6 } from '@leichtgewicht/ip-codec'
 
 v4.decode(v4.encode('127.0.0.1'))
 v6.decode(v6.encode('::'))

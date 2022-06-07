@@ -30,10 +30,11 @@ const {
 const { format, parse } = require('./extension');
 const { toBuffer } = require('./buffer-util');
 
+const closeTimeout = 30 * 1000;
+const kAborted = Symbol('kAborted');
+const protocolVersions = [8, 13];
 const readyStates = ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'];
 const subprotocolRegex = /^[!#$%&'*+\-.0-9A-Z^_`|a-z~]+$/;
-const protocolVersions = [8, 13];
-const closeTimeout = 30 * 1000;
 
 /**
  * Class representing a WebSocket.
@@ -647,7 +648,7 @@ function initAsClient(websocket, address, protocols, options) {
     hostname: undefined,
     protocol: undefined,
     timeout: undefined,
-    method: undefined,
+    method: 'GET',
     host: undefined,
     path: undefined,
     port: undefined
@@ -701,7 +702,7 @@ function initAsClient(websocket, address, protocols, options) {
 
   const defaultPort = isSecure ? 443 : 80;
   const key = randomBytes(16).toString('base64');
-  const get = isSecure ? https.get : http.get;
+  const request = isSecure ? https.request : http.request;
   const protocolSet = new Set();
   let perMessageDeflate;
 
@@ -766,8 +767,11 @@ function initAsClient(websocket, address, protocols, options) {
     opts.path = parts[1];
   }
 
+  let req;
+
   if (opts.followRedirects) {
     if (websocket._redirects === 0) {
+      websocket._originalSecure = isSecure;
       websocket._originalHost = parsedUrl.host;
 
       const headers = options && options.headers;
@@ -783,15 +787,21 @@ function initAsClient(websocket, address, protocols, options) {
           options.headers[key.toLowerCase()] = value;
         }
       }
-    } else if (parsedUrl.host !== websocket._originalHost) {
-      //
-      // Match curl 7.77.0 behavior and drop the following headers. These
-      // headers are also dropped when following a redirect to a subdomain.
-      //
-      delete opts.headers.authorization;
-      delete opts.headers.cookie;
-      delete opts.headers.host;
-      opts.auth = undefined;
+    } else if (websocket.listenerCount('redirect') === 0) {
+      const isSameHost = parsedUrl.host === websocket._originalHost;
+
+      if (!isSameHost || (websocket._originalSecure && !isSecure)) {
+        //
+        // Match curl 7.77.0 behavior and drop the following headers. These
+        // headers are also dropped when following a redirect to a subdomain.
+        //
+        delete opts.headers.authorization;
+        delete opts.headers.cookie;
+
+        if (!isSameHost) delete opts.headers.host;
+
+        opts.auth = undefined;
+      }
     }
 
     //
@@ -803,9 +813,24 @@ function initAsClient(websocket, address, protocols, options) {
       options.headers.authorization =
         'Basic ' + Buffer.from(opts.auth).toString('base64');
     }
-  }
 
-  let req = (websocket._req = get(opts));
+    req = websocket._req = request(opts);
+
+    if (websocket._redirects) {
+      //
+      // Unlike what is done for the `'upgrade'` event, no early exit is
+      // triggered here if the user calls `websocket.close()` or
+      // `websocket.terminate()` from a listener of the `'redirect'` event. This
+      // is because the user can also call `request.destroy()` with an error
+      // before calling `websocket.close()` or `websocket.terminate()` and this
+      // would result in an error being emitted on the `request` object with no
+      // `'error'` event listeners attached.
+      //
+      websocket.emit('redirect', websocket.url, req);
+    }
+  } else {
+    req = websocket._req = request(opts);
+  }
 
   if (opts.timeout) {
     req.on('timeout', () => {
@@ -814,7 +839,7 @@ function initAsClient(websocket, address, protocols, options) {
   }
 
   req.on('error', (err) => {
-    if (req === null || req.aborted) return;
+    if (req === null || req[kAborted]) return;
 
     req = websocket._req = null;
     emitErrorAndClose(websocket, err);
@@ -861,12 +886,17 @@ function initAsClient(websocket, address, protocols, options) {
     websocket.emit('upgrade', res);
 
     //
-    // The user may have closed the connection from a listener of the `upgrade`
-    // event.
+    // The user may have closed the connection from a listener of the
+    // `'upgrade'` event.
     //
     if (websocket.readyState !== WebSocket.CONNECTING) return;
 
     req = websocket._req = null;
+
+    if (res.headers.upgrade.toLowerCase() !== 'websocket') {
+      abortHandshake(websocket, socket, 'Invalid Upgrade header');
+      return;
+    }
 
     const digest = createHash('sha1')
       .update(key + GUID)
@@ -947,10 +977,12 @@ function initAsClient(websocket, address, protocols, options) {
       skipUTF8Validation: opts.skipUTF8Validation
     });
   });
+
+  req.end();
 }
 
 /**
- * Emit the `'error'` and `'close'` event.
+ * Emit the `'error'` and `'close'` events.
  *
  * @param {WebSocket} websocket The WebSocket instance
  * @param {Error} The error to emit
@@ -1007,6 +1039,7 @@ function abortHandshake(websocket, stream, message) {
   Error.captureStackTrace(err, abortHandshake);
 
   if (stream.setHeader) {
+    stream[kAborted] = true;
     stream.abort();
 
     if (stream.socket && !stream.socket.destroyed) {
@@ -1018,8 +1051,7 @@ function abortHandshake(websocket, stream, message) {
       stream.socket.destroy();
     }
 
-    stream.once('abort', websocket.emitClose.bind(websocket));
-    websocket.emit('error', err);
+    process.nextTick(emitErrorAndClose, websocket, err);
   } else {
     stream.destroy(err);
     stream.once('error', websocket.emit.bind(websocket, 'error'));

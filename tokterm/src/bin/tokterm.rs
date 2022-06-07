@@ -34,6 +34,9 @@ struct Opts {
     /// Location where cached compiled modules are stored
     #[clap(long, default_value = "~/ate/compiled")]
     pub compiler_cache_path: String,
+    /// Runs a particular command after loading
+    #[clap(index = 1)]
+    pub run: Option<String>,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -75,12 +78,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Build the compiled modules
     let compiled_modules = Arc::new(CachedCompiledModules::new(Some(opts.compiler_cache_path)));
 
+    // If a command is passed in then pass it into the console
+    let location = if let Some(run) = opts.run {
+        format!("wss://localhost/?no_welcome&init={}", run)
+    } else {
+        format!("wss://localhost/")
+    };
+
     // Now we run the actual console under the runtime
     let fs = term_lib::fs::create_root_fs(None);
     let con = con.clone();
     let compiler = opts.compiler;
     sys.block_on(async move {
-        let location = "wss://localhost/".to_string();
         let user_agent = "noagent".to_string();
         let mut console = Console::new(
             location,

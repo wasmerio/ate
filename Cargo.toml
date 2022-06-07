@@ -30,6 +30,8 @@ members = [
     "tokterm",
     "tokweb",
     "grammar",
+    "examples/tcp-listener",
+    "examples/tcp-client"
 ]
 
 [profile.release]
