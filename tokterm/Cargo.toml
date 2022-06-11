@@ -16,6 +16,7 @@ embedded_files = [ "include_dir" ]
 
 [dependencies]
 term-lib = { version = "^1.0", path = "../term-lib", features = [ "singlepass", "cranelift", "cached_compiling", "async_ws" ] }
+#term-lib = { version = "^1.0", path = "../term-lib", features = [ "singlepass", "cranelift", "llvm", "cached_compiling", "async_ws" ] }
 #tracing = { version = "^0.1", features = [ "log", "release_max_level_warn" ] }
 #log = { version = "^0.4", features = [ "release_max_level_warn" ] }
 tracing = { version = "^0.1", features = [ "log", "release_max_level_debug" ] }

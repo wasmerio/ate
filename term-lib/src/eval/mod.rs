@@ -79,7 +79,6 @@ impl EvalResult {
 
 #[derive(Debug, Clone, Copy)]
 pub enum Compiler {
-    Default,
     #[cfg(feature = "singlepass")]
     Singlepass,
     #[cfg(feature = "llvm")]
@@ -88,29 +87,58 @@ pub enum Compiler {
     Cranelift,
 }
 
+impl Default
+for Compiler
+{
+    #[cfg(feature = "llvm")]
+    fn default() -> Self {
+        Self::LLVM
+    }
+
+    #[cfg(all(not(feature = "llvm"), feature = "cranelift"))]
+    fn default() -> Self {
+        Self::Cranelift
+    }
+
+    #[cfg(all(not(feature = "llvm"), not(feature = "cranelift"), feature = "singlepass"))]
+    fn default() -> Self {
+        Self::Singlepass
+    }
+}
+
 impl Compiler
 {
     #[cfg(feature = "wasmer-compiler")]
     pub fn new_store(&self) -> Store
     {
+        // Build the features list
+        let mut features = wasmer_compiler::Features::new();
+        features.threads(true);
+        features.memory64(true);
+
         // Choose the right compiler
         let store = match self {
             #[cfg(feature = "cranelift")]
             Compiler::Cranelift => {
                 let compiler = Cranelift::default();
-                Store::new(&Universal::new(compiler).engine())
+                Store::new(&Universal::new(compiler)
+                    .features(features)
+                    .engine())
             }
             #[cfg(feature = "llvm")]
             Compiler::LLVM => {
                 let compiler = LLVM::default();
-                Store::new(&Universal::new(compiler).engine())
+                Store::new(&Universal::new(compiler)
+                    .features(features)
+                    .engine())
             }
             #[cfg(feature = "singlepass")]
             Compiler::Singlepass => {
                 let compiler = Singlepass::default();
-                Store::new(&Universal::new(compiler).engine())
+                Store::new(&Universal::new(compiler)
+                    .features(features)
+                    .engine())
             }
-            _ => Store::default(),
         };
         store
     }
@@ -127,7 +155,7 @@ impl std::str::FromStr for Compiler {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "default" => Ok(Compiler::Default),
+            "default" => Ok(Default::default()),
             #[cfg(feature = "singlepass")]
             "singlepass" => Ok(Compiler::Singlepass),
             #[cfg(feature = "cranelift")]
@@ -159,7 +187,6 @@ for Compiler
             Compiler::Cranelift => write!(f, "cranelift"),
             #[cfg(feature = "llvm")]
             Compiler::LLVM => write!(f, "llvm"),
-            Compiler::Default => write!(f, "default")
         }
     }
 }

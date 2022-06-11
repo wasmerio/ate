@@ -386,7 +386,12 @@ pub async fn exec_process(
                 .envs(&envs)
                 .stdin(Box::new(stdio.stdin.clone()))
                 .stdout(Box::new(stdio.stdout.clone()))
-                .stderr(Box::new(stdio.stderr.clone()));
+                .stderr(Box::new(stdio.stderr.clone()))
+                .set_fs(Box::new(union))
+                .setup_fs(Box::new(move |_, fs| {
+                    fs.set_current_dir(pwd.as_str());
+                    Ok(())
+                }));
 
             // We default and open the current directory
             let mut is_chroot = false;
@@ -434,8 +439,8 @@ pub async fn exec_process(
             let wasi_runtime = WasiRuntime::new(&forced_exit);
             wasi_env.runtime(wasi_runtime);
 
-            // Finish off the WasiEnv
-            let mut wasi_env = match wasi_env.set_fs(Box::new(union)).finalize() {
+            // Build the environment
+            let mut wasi_env = match wasi_env.finalize() {
                 Ok(a) => a,
                 Err(err) => {
                     drop(module);
@@ -458,11 +463,8 @@ pub async fn exec_process(
                 trace!("module::import - {}::{}", ns.module(), ns.name());
             }
 
-            // Create the WASI thread
-            let mut wasi_thread = wasi_env.new_thread();
-
             // Generate an `ImportObject`.
-            let mut wasi_imports = match wasi_thread.import_object_for_all_wasi_versions(&module) {
+            let mut wasi_imports = match wasi_env.import_object_for_all_wasi_versions(&module) {
                 Ok(a) => a,
                 Err(err) => {
                     let _ = stderr.write(format!("wasi error ({})\n", err.to_string()).as_bytes()).await;
@@ -470,7 +472,7 @@ pub async fn exec_process(
                     return (ctx, ERR_ENOEXEC);
                 }
             };
-            let mut wasm_thread = bus_thread_pool.get_or_create(&wasi_thread, &launch_env);
+            let mut wasm_thread = bus_thread_pool.get_or_create(&wasi_env, &launch_env);
             let wasm_bus_imports = wasm_thread.imports(&module);
             let mut imports = Imports::new();
             imports.extend(wasi_imports.into_iter());

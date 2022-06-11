@@ -124,6 +124,9 @@ features = [
 [dev-dependencies]
 wasm-bindgen-test = "^0.3"
 
+[build-dependencies]
+build-deps = "^0.1"
+
 [lib]
 crate-type = ["cdylib"]
 

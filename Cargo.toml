@@ -31,7 +31,9 @@ members = [
     "tokweb",
     "grammar",
     "examples/tcp-listener",
-    "examples/tcp-client"
+    "examples/tcp-client",
+    "examples/multi-threading",
+    "examples/thread-local"
 ]
 
 [profile.release]

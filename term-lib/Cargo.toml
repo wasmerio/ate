@@ -81,3 +81,6 @@ serde_yaml = { version = "^0.8" }
 include_dir = "0.7.2"
 shellexpand = "^2"
 weezl = "^0.1"
+
+[build-dependencies]
+build-deps = "^0.1"

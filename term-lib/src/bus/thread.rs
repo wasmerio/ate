@@ -5,9 +5,9 @@ use crate::wasmer::Module;
 use crate::wasmer::NativeFunc;
 use crate::wasmer::WasmerEnv;
 use crate::wasmer_wasi::WasiError;
-use crate::wasmer_wasi::WasiThread;
 use async_trait::async_trait;
 use serde::*;
+use wasmer_wasi::WasiEnv;
 use wasmer_wasi::WasiThreadId;
 use std::any::type_name;
 use std::cell::RefCell;
@@ -61,9 +61,9 @@ impl WasmBusThreadPool {
             .map(|a| a.clone())
     }
 
-    pub fn get_or_create(self: &Arc<WasmBusThreadPool>, thread: &WasiThread, env: &LaunchEnvironment) -> WasmBusThread {
+    pub fn get_or_create(self: &Arc<WasmBusThreadPool>, env: &WasiEnv, launch_env: &LaunchEnvironment) -> WasmBusThread {
         // fast path
-        let thread_id = thread.thread_id();
+        let thread_id = env.current_thread_id();
         {
             let threads = self.threads.read().unwrap();
             if let Some(thread) = threads.get(&thread_id) {
@@ -92,11 +92,11 @@ impl WasmBusThreadPool {
             polling: polling_tx,
             work_rx: Some(work_rx),
             poll_thread: None,
-            env: env.clone(),
+            env: launch_env.clone(),
         };
 
         let ret = WasmBusThread {
-            thread_id: thread.thread_id(),
+            thread_id: env.current_thread_id(),
             system: System::default(),
             pool: Arc::clone(self),
             polling: polling_rx,
@@ -106,7 +106,7 @@ impl WasmBusThreadPool {
             work_tx,
             feed_data: feed_tx,
             ctx: self.ctx.clone(),
-            memory: thread.memory_clone(),
+            memory: env.memory_clone(),
             wasm_bus_free: LazyInit::new(),
             wasm_bus_malloc: LazyInit::new(),
             wasm_bus_start: LazyInit::new(),
@@ -211,17 +211,17 @@ pub struct WasmBusThread {
 
     #[wasmer(export)]
     pub memory: LazyInit<Memory>,
-    #[wasmer(export(name = "wasm_bus_free"))]
+    #[wasmer(export(optional = true, name = "wasm_bus_free"))]
     pub wasm_bus_free: LazyInit<NativeFunc<(u32, u32), ()>>,
-    #[wasmer(export(name = "wasm_bus_malloc"))]
+    #[wasmer(export(optional = true, name = "wasm_bus_malloc"))]
     pub wasm_bus_malloc: LazyInit<NativeFunc<u32, u32>>,
-    #[wasmer(export(name = "wasm_bus_start"))]
+    #[wasmer(export(optional = true, name = "wasm_bus_start"))]
     pub wasm_bus_start: LazyInit<NativeFunc<(u32, u32, u32, u32, u32, u32), ()>>,
-    #[wasmer(export(name = "wasm_bus_finish"))]
+    #[wasmer(export(optional = true, name = "wasm_bus_finish"))]
     pub wasm_bus_finish: LazyInit<NativeFunc<(u32, u32, u32), ()>>,
-    #[wasmer(export(name = "wasm_bus_error"))]
+    #[wasmer(export(optional = true, name = "wasm_bus_error"))]
     pub wasm_bus_error: LazyInit<NativeFunc<(u32, u32), ()>>,
-    #[wasmer(export(name = "wasm_bus_drop"))]
+    #[wasmer(export(optional = true, name = "wasm_bus_drop"))]
     pub wasm_bus_drop: LazyInit<NativeFunc<u32, ()>>,
 }
 
