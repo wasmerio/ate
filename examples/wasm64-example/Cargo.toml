@@ -1,5 +1,5 @@
 [package]
-name = "tcp-client"
+name = "wasm64-example"
 version = "0.0.1"
 authors = ["John Sharratt <john.sharratt@gmail.com>"]
 license = "MIT OR Apache-2.0"
@@ -10,5 +10,4 @@ keywords = [
     "wasm",
     "tcp",
 ]
-categories = ["network-programming"]
 edition = "2021"

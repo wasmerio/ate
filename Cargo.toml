@@ -33,7 +33,8 @@ members = [
     "examples/tcp-listener",
     "examples/tcp-client",
     "examples/multi-threading",
-    "examples/thread-local"
+    "examples/thread-local",
+    "examples/wasm64-example"
 ]
 
 [profile.release]
