@@ -12,6 +12,7 @@ readme = "../README.md"
 [features]
 default = [ "embedded_files" ]
 host-net = [ "term-lib/host-net" ]
+mesh-net = [ "term-lib/mesh-net" ]
 embedded_files = [ "include_dir" ]
 
 [dependencies]

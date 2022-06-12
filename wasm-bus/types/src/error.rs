@@ -27,60 +27,6 @@ pub enum CallError {
     Unknown = u32::MAX,
 }
 
-impl From<u32> for CallError {
-    fn from(val: u32) -> CallError {
-        match val {
-            0 => CallError::Success,
-            1 => CallError::SerializationFailed,
-            2 => CallError::DeserializationFailed,
-            3 => CallError::InvalidWapm,
-            4 => CallError::FetchFailed,
-            5 => CallError::CompileError,
-            6 => CallError::IncorrectAbi,
-            7 => CallError::Aborted,
-            8 => CallError::InvalidHandle,
-            9 => CallError::InvalidTopic,
-            10 => CallError::MissingCallbacks,
-            11 => CallError::Unsupported,
-            12 => CallError::BadRequest,
-            14 => CallError::InternalFailure,
-            16 => CallError::MemoryAllocationFailed,
-            17 => CallError::BusInvocationFailed,
-            18 => CallError::AccessDenied,
-            19 => CallError::AlreadyConsumed,
-            20 => CallError::MemoryAccessViolation,
-            _ => CallError::Unknown,
-        }
-    }
-}
-
-impl Into<u32> for CallError {
-    fn into(self) -> u32 {
-        match self {
-            CallError::Success => 0,
-            CallError::SerializationFailed => 1,
-            CallError::DeserializationFailed => 2,
-            CallError::InvalidWapm => 3,
-            CallError::FetchFailed => 4,
-            CallError::CompileError => 5,
-            CallError::IncorrectAbi => 6,
-            CallError::Aborted => 7,
-            CallError::InvalidHandle => 8,
-            CallError::InvalidTopic => 9,
-            CallError::MissingCallbacks => 10,
-            CallError::Unsupported => 11,
-            CallError::BadRequest => 12,
-            CallError::InternalFailure => 14,
-            CallError::MemoryAllocationFailed => 16,
-            CallError::BusInvocationFailed => 17,
-            CallError::AccessDenied => 18,
-            CallError::AlreadyConsumed => 19,
-            CallError::MemoryAccessViolation => 20,
-            CallError::Unknown => u32::MAX,
-        }
-    }
-}
-
 impl CallError {
     pub fn into_io_error(self) -> io::Error {
         self.into()

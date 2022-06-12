@@ -23,7 +23,7 @@ static GLOBAL_ENGINE: Lazy<BusEngine> = Lazy::new(|| BusEngine::default());
 pub struct BusEngineState {
     pub handles: HashSet<CallHandle>,
     pub calls: HashMap<CallHandle, Arc<dyn CallOps>>,
-    pub callbacks: HashMap<CallHandle, Arc<dyn FinishOps>>,
+    pub callbacks: HashMap<Cow<'static, str>, Box<dyn Fn(Vec<u8>, SerializationFormat) + Send + 'static>>,
     pub children: HashMap<CallHandle, Vec<CallHandle>>,
     #[cfg(feature = "rt")]
     pub listening: HashMap<String, ListenService>,
@@ -38,15 +38,15 @@ pub struct BusEngine {
 }
 
 impl BusEngine {
-    fn read<'a>() -> RwLockReadGuard<'a, BusEngineState> {
+    pub(crate) fn read<'a>() -> RwLockReadGuard<'a, BusEngineState> {
         GLOBAL_ENGINE.state.read().unwrap()
     }
 
-    fn write<'a>() -> RwLockWriteGuard<'a, BusEngineState> {
+    pub(crate) fn write<'a>() -> RwLockWriteGuard<'a, BusEngineState> {
         GLOBAL_ENGINE.state.write().unwrap()
     }
 
-    fn try_write<'a>() -> Option<RwLockWriteGuard<'a, BusEngineState>> {
+    pub(crate) fn try_write<'a>() -> Option<RwLockWriteGuard<'a, BusEngineState>> {
         GLOBAL_ENGINE.state.try_write().ok()
     }
 
@@ -57,10 +57,11 @@ impl BusEngine {
     // This function will block
     #[cfg(feature = "rt")]
     pub fn start(
-        topic: String,
+        topic: &'static str,
         parent: Option<CallHandle>,
         handle: CallHandle,
         request: Vec<u8>,
+        format: SerializationFormat,
     ) -> Result<(), CallError> {
         let state = BusEngine::read();
         if let Some(parent) = parent {
@@ -105,7 +106,11 @@ impl BusEngine {
     }
 
     // This function will block
-    pub fn finish(handle: CallHandle, response: Vec<u8>) {
+    pub fn finish(
+        handle: CallHandle,
+        response: Vec<u8>,
+        format: SerializationFormat,
+    ) {
         {
             let state = BusEngine::read();
             if let Some(call) = state.calls.get(&handle) {
@@ -118,7 +123,7 @@ impl BusEngine {
                     call.wapm(),
                     call.topic()
                 );
-                call.data(response);
+                call.data(response, format);
             } else if let Some(callback) = state.callbacks.get(&handle) {
                 let callback = Arc::clone(callback);
                 drop(state);
@@ -128,7 +133,7 @@ impl BusEngine {
                     response.len(),
                     callback.topic()
                 );
-                let _ = callback.process(response);
+                let _ = callback.process(response, format);
             } else {
                 trace!(
                     "wasm_bus_finish (handle={}, response={} bytes, orphaned)",
@@ -255,13 +260,12 @@ impl BusEngine {
     ) -> Call {
         use std::sync::atomic::AtomicBool;
 
-        let mut handle: CallHandle = crate::abi::syscall::handle().into();
-        let mut call = Call {
+        Call {
             state: Arc::new(Mutex::new(CallState {
                 result: None,
                 callbacks: Vec::new(),
             })),
-            handle,
+            handle: None,
             keepalive: false,
             parent,
             wapm,
@@ -269,23 +273,6 @@ impl BusEngine {
             format,
             instance,
             drop_on_data: Arc::new(AtomicBool::new(true)),
-        };
-
-        loop {
-            handle = crate::abi::syscall::handle().into();
-            call.handle = handle;
-
-            {
-                let mut state = BusEngine::write();
-                if state.handles.contains(&handle) == false
-                    && state.calls.contains_key(&handle) == false
-                {
-                    state.handles.insert(handle);
-                    state.calls.insert(handle, Arc::new(call.clone()));
-                    return call;
-                }
-            }
-            std::thread::yield_now();
         }
     }
 
@@ -300,52 +287,35 @@ impl BusEngine {
         panic!("call not supported on this platform");
     }
 
-    #[cfg(target_arch = "wasm32")]
-    pub fn callback<RES, REQ, F>(format: SerializationFormat, mut callback: F) -> Finish
+    pub fn callback<REQ, F>(mut callback: F)
     where
         REQ: de::DeserializeOwned + Send + Sync + 'static,
-        RES: Serialize + Send + Sync + 'static,
-        F: FnMut(REQ) -> Result<RES, CallError>,
+        F: Fn(REQ),
         F: Send + 'static,
     {
         let topic = type_name::<REQ>();
-        let callback = move |req: Vec<u8>| {
+        let cb = move |req, format| {
             let req = match format {
                 SerializationFormat::Bincode => bincode::deserialize::<REQ>(req.as_ref())
                     .map_err(|_err| CallError::DeserializationFailed)?,
                 SerializationFormat::Json => serde_json::from_slice::<REQ>(req.as_ref())
                     .map_err(|_err| CallError::DeserializationFailed)?,
+                SerializationFormat::MessagePack | SerializationFormat::Xml | SerializationFormat::Yaml | _ => {
+                    // This serialization formats are not yet supported
+                    return CallError::DeserializationFailed
+                }
             };
 
-            let res = callback(req)?;
-
-            let res = match format {
-                SerializationFormat::Bincode => bincode::serialize::<RES>(&res)
-                    .map_err(|_err| CallError::SerializationFailed)?,
-                SerializationFormat::Json => serde_json::to_vec::<RES>(&res)
-                    .map_err(|_err| CallError::SerializationFailed)?,
-            };
-
-            Ok(res)
+            callback(req);
         };
-        BusEngine::register(topic.into(), callback)
+
+        let mut state = BusEngine::write();
+        state.callbacks.insert(topic, Box::new(cb));
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn callback<RES, REQ, F>(_format: SerializationFormat, _callback: F) -> Finish
-    where
-        REQ: de::DeserializeOwned + Send + Sync + 'static,
-        RES: Serialize + Send + Sync + 'static,
-        F: FnMut(REQ) -> Result<RES, CallError>,
-        F: Send + 'static,
-    {
-        panic!("recv not supported on this platform");
-    }
-
-    #[cfg(target_arch = "wasm32")]
     fn register<F>(topic: Cow<'static, str>, callback: F) -> Finish
     where
-        F: FnMut(Vec<u8>) -> Result<Vec<u8>, CallError>,
+        F: FnMut(Vec<u8>, SerializationFormat),
         F: Send + 'static,
     {
         let mut handle: CallHandle = crate::abi::syscall::handle().into();
@@ -371,14 +341,6 @@ impl BusEngine {
             }
             std::thread::yield_now();
         }
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn register<F>(_topic: Cow<'static, str>, _callback: F) -> Finish
-    where
-        F: FnMut(Vec<u8>) -> Result<(), CallError>,
-    {
-        panic!("recv not supported on this platform");
     }
 
     #[cfg(feature = "rt")]

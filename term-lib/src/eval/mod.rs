@@ -85,6 +85,8 @@ pub enum Compiler {
     LLVM,
     #[cfg(feature = "cranelift")]
     Cranelift,
+    #[cfg(feature = "js")]
+    Browser
 }
 
 impl Default
@@ -104,6 +106,11 @@ for Compiler
     fn default() -> Self {
         Self::Singlepass
     }
+
+    #[cfg(all(not(feature = "llvm"), not(feature = "cranelift"), not(feature = "singlepass"), feature = "js"))]
+    fn default() -> Self {
+        Self::Browser
+    }
 }
 
 impl Compiler
@@ -115,6 +122,10 @@ impl Compiler
         let mut features = wasmer_compiler::Features::new();
         features.threads(true);
         features.memory64(true);
+        #[cfg(feature = "singlepass")]
+        if let Compiler::Singlepass = self {
+            features.multi_value(false);
+        }
 
         // Choose the right compiler
         let store = match self {
@@ -138,6 +149,10 @@ impl Compiler
                 Store::new(&Universal::new(compiler)
                     .features(features)
                     .engine())
+            }
+            #[cfg(feature = "js")]
+            Compiler::Browser => {
+                Store::default()
             }
         };
         store
@@ -187,6 +202,8 @@ for Compiler
             Compiler::Cranelift => write!(f, "cranelift"),
             #[cfg(feature = "llvm")]
             Compiler::LLVM => write!(f, "llvm"),
+            #[cfg(feature = "js")]
+            Compiler::Browser => write!(f, "browser"),
         }
     }
 }

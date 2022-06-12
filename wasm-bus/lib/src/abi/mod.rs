@@ -9,14 +9,14 @@ mod reply;
 #[cfg(feature = "rt")]
 mod respond_to;
 mod session;
-#[cfg(target_os = "wasi")]
+//#[cfg(target_os = "wasi")]
 pub(crate) mod syscall;
 #[cfg(not(target_os = "wasi"))]
 pub(crate) mod unsupported;
 
-#[allow(unused_imports)]
-#[cfg(not(target_os = "wasi"))]
-pub(crate) use unsupported as syscall;
+//#[allow(unused_imports)]
+//#[cfg(not(target_os = "wasi"))]
+//pub(crate) use unsupported as syscall;
 
 use serde::*;
 use std::any::type_name;

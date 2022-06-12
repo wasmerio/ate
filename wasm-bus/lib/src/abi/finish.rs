@@ -10,7 +10,7 @@ pub trait FinishOps
 where
     Self: Send + Sync,
 {
-    fn process(&self, data: Vec<u8>) -> Result<Vec<u8>, CallError>;
+    fn process(&self, data: Vec<u8>, format: SerializationFormat) -> Result<Vec<u8>, CallError>;
 
     fn topic(&self) -> &str;
 }

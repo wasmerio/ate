@@ -19,7 +19,7 @@ pub trait CallOps
 where
     Self: Send + Sync,
 {
-    fn data(&self, data: Vec<u8>);
+    fn data(&self, data: Vec<u8>, format: SerializationFormat);
 
     fn error(&self, error: CallError);
 
@@ -28,9 +28,15 @@ where
     fn topic(&self) -> &str;
 }
 
+pub(crate) struct CallResult
+{
+    pub data: Vec<u8>,
+    pub format: SerializationFormat,
+}
+
 #[derive(Debug)]
 pub struct CallState {
-    pub(crate) result: Option<Result<Vec<u8>, CallError>>,
+    pub(crate) result: Option<Result<CallResult, CallError>>,
     pub(crate) callbacks: Vec<Finish>,
 }
 
@@ -56,9 +62,8 @@ impl CallInstance
 pub struct Call {
     pub(crate) wapm: Cow<'static, str>,
     pub(crate) topic: Cow<'static, str>,
-    pub(crate) format: SerializationFormat,
     pub(crate) instance: Option<CallInstance>,
-    pub(crate) handle: CallHandle,
+    pub(crate) handle: Option<CallHandle>,
     pub(crate) keepalive: bool,
     pub(crate) parent: Option<CallHandle>,
     pub(crate) state: Arc<Mutex<CallState>>,
@@ -66,18 +71,23 @@ pub struct Call {
 }
 
 impl CallOps for Call {
-    fn data(&self, data: Vec<u8>) {
+    fn data(&self, data: Vec<u8>, format: SerializationFormat) {
         {
             let mut state = self.state.lock().unwrap();
-            state.result = Some(Ok(data));
+            state.result = Some(Ok(CallResult {
+                data,
+                format
+            }));
         }
         if self
             .drop_on_data
             .compare_exchange(true, false, Ordering::Release, Ordering::Relaxed)
             .is_ok()
         {
-            super::drop(self.handle);
-            crate::engine::BusEngine::remove(&self.handle, "call finished (data received)");
+            if let Some(handle) = self.handle {
+                super::drop(handle);
+                crate::engine::BusEngine::remove(&handle, "call finished (data received)");
+            }
         }
     }
 
@@ -86,8 +96,10 @@ impl CallOps for Call {
             let mut state = self.state.lock().unwrap();
             state.result = Some(Err(error));
         }
-        super::drop(self.handle);
-        crate::engine::BusEngine::remove(&self.handle, "call has failed");
+        if let Some(handle) = self.handle {
+            super::drop(handle);
+            crate::engine::BusEngine::remove(&handle, "call has failed");
+        }
     }
 
     fn wapm(&self) -> &str {
@@ -100,11 +112,11 @@ impl CallOps for Call {
 }
 
 impl Call {
-    pub fn id(&self) -> u32 {
-        self.handle.id
+    pub fn id(&self) -> Option<u32> {
+        self.handle.map(|a| a.id)
     }
 
-    pub fn handle(&self) -> CallHandle {
+    pub fn handle(&self) -> Option<CallHandle> {
         self.handle.clone()
     }
 
@@ -164,7 +176,7 @@ impl CallBuilder {
         let mut call = self.call.take().unwrap();
         call.keepalive = true;
         call.drop_on_data.store(false, Ordering::Release);
-        self.invoke_internal(&call);
+        self.invoke_internal(&mut call);
 
         let handle = call.handle.clone();
         let wapm = call.wapm.clone();
@@ -183,40 +195,44 @@ impl CallBuilder {
     /// Invokes the call with the specified callbacks
     #[cfg(target_arch = "wasm32")]
     pub fn invoke(mut self) -> Call {
-        let call = self.call.take().unwrap();
-        self.invoke_internal(&call);
+        let mut call = self.call.take().unwrap();
+        self.invoke_internal(&mut call);
         call
     }
 
-    fn invoke_internal(&self, call: &Call) {
-        match &self.request {
+    fn invoke_internal(&self, call: &mut Call) {
+        let handle = match &self.request {
             Data::Success(req) => {
                 if let Some(ref instance) = call.instance {
                     crate::abi::syscall::call_instance(
                         call.parent,
-                        call.handle,
                         call.keepalive,
                         &instance.instance,
                         &instance.access_token,
                         &call.wapm,
                         &call.topic,
                         &req[..],
-                    );
+                    )
                 } else {
                     crate::abi::syscall::call(
                         call.parent,
-                        call.handle,
                         call.keepalive,
                         &call.wapm,
                         &call.topic,
                         &req[..],
-                    );
+                    )
                 }
             }
             Data::Error(err) => {
                 crate::engine::BusEngine::error(call.handle, err.clone());
+                return;
             }
-        }
+        };
+
+        let mut state = crate::engine::BusEngine::write();
+        state.handles.insert(handle);
+        state.calls.insert(handle, Arc::new(call.clone()));
+        call.handle.replace(handle)
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -283,7 +299,7 @@ impl Call {
 
 #[derive(Debug)]
 pub struct DetachedCall<T> {
-    handle: CallHandle,
+    handle: Option<CallHandle>,
     result: T,
     wapm: Cow<'static, str>,
     instance: Option<CallInstance>,
@@ -310,15 +326,17 @@ impl<T> DetachedCall<T> {
         self.instance.as_ref().map(|a| a.access_token.as_str())
     }
 
-    pub fn handle(&self) -> CallHandle {
+    pub fn handle(&self) -> Option<CallHandle> {
         self.handle.clone()
     }
 }
 
 impl<T> Drop for DetachedCall<T> {
     fn drop(&mut self) {
-        super::drop(self.handle);
-        crate::engine::BusEngine::remove(&self.handle, "detached call was dropped");
+        if let Some(handle) = self.handle {
+            super::drop(handle);
+            crate::engine::BusEngine::remove(&handle, "detached call was dropped");
+        }
     }
 }
 
@@ -380,11 +398,15 @@ where
 
         match response {
             Some(Ok(res)) => {
-                let res = match self.call.format {
-                    SerializationFormat::Bincode => bincode::deserialize::<T>(res.as_ref())
+                let res = match res.format {
+                    SerializationFormat::Bincode => bincode::deserialize::<T>(res.data.as_ref())
                         .map_err(|_err| CallError::DeserializationFailed),
-                    SerializationFormat::Json => serde_json::from_slice(res.as_ref())
+                    SerializationFormat::Json => serde_json::from_slice(res.data.as_ref())
                         .map_err(|_err| CallError::DeserializationFailed),
+                    SerializationFormat::MessagePack | SerializationFormat::Xml | SerializationFormat::Yaml | SerializationFormat::Raw => {
+                        // This format is not yet supported
+                        Err(CallError::DeserializationFailed)
+                    }
                 };
                 match res {
                     Ok(data) => Ok(Some(data)),
@@ -410,12 +432,16 @@ where
         };
 
         match response {
-            Some(Ok(response)) => {
-                let res = match self.call.format {
-                    SerializationFormat::Bincode => bincode::deserialize::<T>(response.as_ref())
+            Some(Ok(res)) => {
+                let res = match res.format {
+                    SerializationFormat::Bincode => bincode::deserialize::<T>(res.data.as_ref())
                         .map_err(|_err| CallError::DeserializationFailed),
-                    SerializationFormat::Json => serde_json::from_slice(response.as_ref())
+                    SerializationFormat::Json => serde_json::from_slice(res.data.as_ref())
                         .map_err(|_err| CallError::DeserializationFailed),
+                    SerializationFormat::MessagePack | SerializationFormat::Xml | SerializationFormat::Yaml | SerializationFormat::Raw => {
+                        // This format is not yet supported
+                        Err(CallError::DeserializationFailed)
+                    }
                 };
                 match res {
                     Ok(data) => Poll::Ready(Ok(data)),

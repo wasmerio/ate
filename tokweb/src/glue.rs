@@ -139,7 +139,7 @@ pub fn start() -> Result<(), JsValue> {
     let mut console = Console::new(
         location,
         user_agent,
-        term_lib::eval::Compiler::Default,
+        term_lib::eval::Compiler::Browser,
         Arc::new(web_console),
         None,
         fs,
