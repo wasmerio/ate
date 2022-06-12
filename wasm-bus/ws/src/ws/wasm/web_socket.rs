@@ -52,7 +52,7 @@ pub struct SendHalf {
     client: Arc<dyn crate::api::WebSocket>,
     state: watch::Receiver<SocketState>,
     #[derivative(Debug = "ignore")]
-    sending: Arc<Mutex<VecDeque<Pin<Box<dyn Future<Output=Result<SendResult, CallError>> + Send + 'static>>>>>,
+    sending: Arc<Mutex<VecDeque<Pin<Box<dyn Future<Output=Result<SendResult, BusError>> + Send + 'static>>>>>,
 }
 
 impl SendHalf {

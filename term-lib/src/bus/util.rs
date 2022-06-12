@@ -1,10 +1,10 @@
 use serde::*;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use wasm_bus::abi::CallError;
+use wasm_bus::abi::BusError;
 use wasm_bus::abi::SerializationFormat;
 
-pub fn decode_request<T>(format: SerializationFormat, request: &[u8]) -> Result<T, CallError>
+pub fn decode_request<T>(format: SerializationFormat, request: &[u8]) -> Result<T, BusError>
 where
     T: de::DeserializeOwned,
 {
@@ -13,21 +13,21 @@ where
             Ok(a) => a,
             Err(err) => {
                 warn!("failed to deserialize bus call - {}", err);
-                return Err(CallError::DeserializationFailed);
+                return Err(BusError::DeserializationFailed);
             }
         },
         SerializationFormat::Json => match serde_json::from_slice(request) {
             Ok(a) => a,
             Err(err) => {
                 warn!("failed to deserialize bus call - {}", err);
-                return Err(CallError::DeserializationFailed);
+                return Err(BusError::DeserializationFailed);
             }
         },
     };
     Ok(req)
 }
 
-pub fn encode_response<T>(format: SerializationFormat, response: &T) -> Result<Vec<u8>, CallError>
+pub fn encode_response<T>(format: SerializationFormat, response: &T) -> Result<Vec<u8>, BusError>
 where
     T: Serialize,
 {
@@ -36,14 +36,14 @@ where
             Ok(a) => a,
             Err(err) => {
                 warn!("failed to serialize bus call response - {}", err);
-                return Err(CallError::SerializationFailed);
+                return Err(BusError::SerializationFailed);
             }
         },
         SerializationFormat::Json => match serde_json::to_vec(response) {
             Ok(a) => a,
             Err(err) => {
                 warn!("failed to serialize bus call response - {}", err);
-                return Err(CallError::SerializationFailed);
+                return Err(BusError::SerializationFailed);
             }
         },
     };

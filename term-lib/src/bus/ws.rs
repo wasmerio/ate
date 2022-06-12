@@ -9,7 +9,7 @@ use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use wasm_bus::abi::CallError;
+use wasm_bus::abi::BusError;
 use wasm_bus::abi::SerializationFormat;
 use wasm_bus_ws::api;
 use wasm_bus_ws::model;
@@ -21,7 +21,7 @@ pub fn web_socket(
     connect: api::SocketBuilderConnectRequest,
     this_callback: Arc<dyn BusFeeder + Send + Sync + 'static>,
     mut client_callbacks: HashMap<String, Arc<dyn BusFeeder + Send + Sync + 'static>>,
-) -> Result<(WebSocketInvoker, WebSocketSession), CallError> {
+) -> Result<(WebSocketInvoker, WebSocketSession), BusError> {
     let system = System::default();
 
     // Build all the callbacks
@@ -30,7 +30,7 @@ pub fn web_socket(
     let on_received = client_callbacks
         .remove(&type_name::<api::SocketBuilderConnectReceiveCallback>().to_string());
     if on_state_change.is_none() || on_received.is_none() {
-        return Err(CallError::MissingCallbacks);
+        return Err(BusError::MissingCallbacks);
     }
     let on_state_change = on_state_change.unwrap();
     let on_received = on_received.unwrap();
@@ -210,7 +210,7 @@ pub struct WebSocketInvoker {
 
 #[async_trait]
 impl Invokable for WebSocketInvoker {
-    async fn process(&mut self) -> Result<InvokeResult, CallError> {
+    async fn process(&mut self) -> Result<InvokeResult, BusError> {
         let ws = self.ws.take();
         if let Some(ws) = ws {
             let fut = Box::pin(ws.run());
@@ -219,7 +219,7 @@ impl Invokable for WebSocketInvoker {
                 fut,
             ))
         } else {
-            Err(CallError::Unknown)
+            Err(BusError::Unknown)
         }
     }
 }
@@ -229,7 +229,7 @@ pub struct WebSocketSession {
 }
 
 impl Session for WebSocketSession {
-    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), CallError> {
+    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
         if topic == type_name::<api::WebSocketSendRequest>() {
             let data = decode_request::<api::WebSocketSendRequest>(
                 SerializationFormat::Bincode,
@@ -260,7 +260,7 @@ impl Session for WebSocketSession {
                 ))
             }
         } else {
-            Err(CallError::InvalidTopic)
+            Err(BusError::InvalidTopic)
         }
     }
 }
@@ -272,7 +272,7 @@ struct DelayedSend {
 
 #[async_trait]
 impl Invokable for DelayedSend {
-    async fn process(&mut self) -> Result<InvokeResult, CallError> {
+    async fn process(&mut self) -> Result<InvokeResult, BusError> {
         let mut size = 0usize;
         if let Some(data) = self.data.take() {
             size = data.len();

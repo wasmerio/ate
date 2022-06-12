@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::collections::HashMap;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use wasm_bus::abi::CallError;
+use wasm_bus::abi::BusError;
 use wasm_bus::abi::SerializationFormat;
 
 use crate::api::System;
@@ -54,7 +54,7 @@ impl StandardBus {
         this_callback: &Arc<dyn BusFeeder + Send + Sync + 'static>,
         client_callbacks: &HashMap<String, Arc<dyn BusFeeder + Send + Sync + 'static>>,
         env: &LaunchEnvironment
-    ) -> Result<(Box<dyn Invokable>, Option<Box<dyn Session>>), CallError> {
+    ) -> Result<(Box<dyn Invokable>, Option<Box<dyn Session>>), BusError> {
         match (wapm, topic) {
             ("os", topic)
                 if topic == type_name::<wasm_bus_ws::api::SocketBuilderConnectRequest>() =>
@@ -115,16 +115,16 @@ impl StandardBus {
                         Ok((ResultInvokable::new_leaked(SerializationFormat::Bincode, ()), Some(Box::new(session))))
                     },
                     None => {
-                        Err(CallError::Unsupported)
+                        Err(BusError::Unsupported)
                     }
                 }
                 
             }
             ("os", topic) => {
                 error!("the os function ({}) is not supported", topic);
-                return Err(CallError::Unsupported);
+                return Err(BusError::Unsupported);
             }
-            _ => Err(CallError::InvalidTopic),
+            _ => Err(BusError::InvalidTopic),
         }
     }
 }

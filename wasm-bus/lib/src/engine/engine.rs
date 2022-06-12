@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 use once_cell::sync::Lazy;
-use serde::*;
 #[allow(unused_imports, dead_code)]
 use std::any::type_name;
 use std::borrow::Cow;
@@ -23,12 +22,11 @@ static GLOBAL_ENGINE: Lazy<BusEngine> = Lazy::new(|| BusEngine::default());
 pub struct BusEngineState {
     pub handles: HashSet<CallHandle>,
     pub calls: HashMap<CallHandle, Arc<dyn CallOps>>,
-    pub callbacks: HashMap<Cow<'static, str>, Box<dyn Fn(Vec<u8>, SerializationFormat) + Send + 'static>>,
     pub children: HashMap<CallHandle, Vec<CallHandle>>,
     #[cfg(feature = "rt")]
-    pub listening: HashMap<String, ListenService>,
+    pub listening: HashMap<Cow<'static, str>, ListenService>,
     #[cfg(feature = "rt")]
-    pub respond_to: HashMap<String, RespondToService>,
+    pub respond_to: HashMap<Cow<'static, str>, RespondToService>,
 }
 
 #[derive(Default)]
@@ -57,14 +55,24 @@ impl BusEngine {
     // This function will block
     #[cfg(feature = "rt")]
     pub fn start(
-        topic: &'static str,
+        topic: Cow<'static, str>,
         parent: Option<CallHandle>,
         handle: CallHandle,
         request: Vec<u8>,
         format: SerializationFormat,
-    ) -> Result<(), CallError> {
+    ) -> Result<(), BusError> {
         let state = BusEngine::read();
         if let Some(parent) = parent {
+            if let Some(parent) = state.calls.get(&parent) {
+                // If the callback is registered then process it and finish the call
+                if parent.callback(topic, request, format) != CallbackResult::InvalidTopic {
+                    // The topic exists at least - so lets close the handle
+                    syscall::call_close(handle);   
+                    return Ok(());
+                } else {
+                    return Err(BusError::InvalidTopic);    
+                }
+            }
             if let Some(respond_to) = state.respond_to.get(&topic) {
                 let respond_to = respond_to.clone();
                 drop(state);
@@ -75,14 +83,14 @@ impl BusEngine {
                     drop(state);
 
                     crate::task::spawn(async move {
-                        respond_to.process(parent, handle, request).await;
+                        respond_to.process(parent, handle, request, format).await;
                     });
                     return Ok(());
                 } else {
-                    return Err(CallError::InvalidHandle);
+                    return Err(BusError::InvalidHandle);
                 }
             } else {
-                return Err(CallError::InvalidHandle);
+                return Err(BusError::InvalidHandle);
             }
         } else if let Some(listen) = state.listening.get(&topic) {
             let listen = listen.clone();
@@ -94,19 +102,20 @@ impl BusEngine {
                 drop(state);
 
                 crate::task::spawn(async move {
-                    listen.process(handle, request).await;
+                    listen.process(handle, request, format).await;
                 });
                 return Ok(());
             } else {
-                return Err(CallError::InvalidHandle);
+                return Err(BusError::InvalidHandle);
             }
         } else {
-            return Err(CallError::InvalidTopic);
+            return Err(BusError::InvalidTopic);
         }
     }
 
     // This function will block
-    pub fn finish(
+    pub fn finish_callback(
+        topic: Cow<'static, str>,
         handle: CallHandle,
         response: Vec<u8>,
         format: SerializationFormat,
@@ -117,23 +126,48 @@ impl BusEngine {
                 let call = Arc::clone(call);
                 drop(state);
                 trace!(
-                    "wasm_bus_finish (handle={}, response={} bytes, wapm={}, topic={})",
+                    "wasm_bus_callback (handle={}, response={} bytes, topic={}, parent_topic={})",
                     handle.id,
                     response.len(),
-                    call.wapm(),
+                    topic,
                     call.topic()
                 );
-                call.data(response, format);
-            } else if let Some(callback) = state.callbacks.get(&handle) {
-                let callback = Arc::clone(callback);
+                call.callback(topic, response, format);
+            } else {
+                trace!(
+                    "wasm_bus_callback (handle={}, response={} bytes, topic={}, orphaned)",
+                    handle.id,
+                    response.len(),
+                    topic,
+                );
+            }
+        };
+
+        let mut wakers = Self::wakers();
+        if let Some(waker) = wakers.remove(&handle) {
+            drop(wakers);
+            waker.wake();
+        }
+    }
+
+    // This function will block
+    pub fn result(
+        handle: CallHandle,
+        response: Vec<u8>,
+        format: SerializationFormat,
+    ) {
+        {
+            let state = BusEngine::read();
+            if let Some(call) = state.calls.get(&handle) {
+                let call = Arc::clone(call);
                 drop(state);
                 trace!(
                     "wasm_bus_finish (handle={}, response={} bytes, topic={})",
                     handle.id,
                     response.len(),
-                    callback.topic()
+                    call.topic()
                 );
-                let _ = callback.process(response, format);
+                call.data(response, format);
             } else {
                 trace!(
                     "wasm_bus_finish (handle={}, response={} bytes, orphaned)",
@@ -150,17 +184,16 @@ impl BusEngine {
         }
     }
 
-    pub fn error(handle: CallHandle, err: CallError) {
+    pub fn error(handle: CallHandle, err: BusError) {
         {
             let state = BusEngine::read();
             if let Some(call) = state.calls.get(&handle) {
                 let call = Arc::clone(call);
                 drop(state);
                 trace!(
-                    "wasm_bus_err (handle={}, error={}, wapm={}, topic={})",
+                    "wasm_bus_err (handle={}, error={}, topic={})",
                     handle.id,
                     err,
-                    call.wapm(),
                     call.topic()
                 );
                 call.error(err);
@@ -196,13 +229,12 @@ impl BusEngine {
         children.push(child);
     }
 
-    pub fn remove(handle: &CallHandle, reason: &'static str) {
+    pub fn close(handle: &CallHandle, reason: &'static str) {
         let mut children = Vec::new();
         {
             let mut delayed_drop1 = Vec::new();
             let mut delayed_drop2 = Vec::new();
-            let mut delayed_drop3 = Vec::new();
-
+            
             {
                 let mut state = BusEngine::write();
                 #[cfg(feature = "rt")]
@@ -212,21 +244,12 @@ impl BusEngine {
                 }
                 if let Some(drop_me) = state.calls.remove(handle) {
                     trace!(
-                        "wasm_bus_drop (handle={}, reason='{}', wapm={}, topic={})",
-                        handle.id,
-                        reason,
-                        drop_me.wapm(),
-                        drop_me.topic()
-                    );
-                    delayed_drop2.push(drop_me);
-                } else if let Some(drop_me) = state.callbacks.remove(handle) {
-                    trace!(
                         "wasm_bus_drop (handle={}, reason='{}', topic={})",
                         handle.id,
                         reason,
                         drop_me.topic()
                     );
-                    delayed_drop3.push(drop_me);
+                    delayed_drop2.push(drop_me);
                 } else {
                     trace!(
                         "wasm_bus_drop (handle={}, reason='{}', orphaned)",
@@ -243,104 +266,11 @@ impl BusEngine {
         }
 
         for child in children {
-            Self::remove(&child, reason);
+            Self::close(&child, reason);
         }
 
         let mut wakers = Self::wakers();
         wakers.remove(handle);
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    pub fn call(
-        parent: Option<CallHandle>,
-        wapm: Cow<'static, str>,
-        topic: Cow<'static, str>,
-        format: SerializationFormat,
-        instance: Option<CallInstance>,
-    ) -> Call {
-        use std::sync::atomic::AtomicBool;
-
-        Call {
-            state: Arc::new(Mutex::new(CallState {
-                result: None,
-                callbacks: Vec::new(),
-            })),
-            handle: None,
-            keepalive: false,
-            parent,
-            wapm,
-            topic,
-            format,
-            instance,
-            drop_on_data: Arc::new(AtomicBool::new(true)),
-        }
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn call(
-        _parent: Option<CallHandle>,
-        _wapm: Cow<'static, str>,
-        _topic: Cow<'static, str>,
-        _format: SerializationFormat,
-        _instance: Option<CallInstance>,
-    ) -> Call {
-        panic!("call not supported on this platform");
-    }
-
-    pub fn callback<REQ, F>(mut callback: F)
-    where
-        REQ: de::DeserializeOwned + Send + Sync + 'static,
-        F: Fn(REQ),
-        F: Send + 'static,
-    {
-        let topic = type_name::<REQ>();
-        let cb = move |req, format| {
-            let req = match format {
-                SerializationFormat::Bincode => bincode::deserialize::<REQ>(req.as_ref())
-                    .map_err(|_err| CallError::DeserializationFailed)?,
-                SerializationFormat::Json => serde_json::from_slice::<REQ>(req.as_ref())
-                    .map_err(|_err| CallError::DeserializationFailed)?,
-                SerializationFormat::MessagePack | SerializationFormat::Xml | SerializationFormat::Yaml | _ => {
-                    // This serialization formats are not yet supported
-                    return CallError::DeserializationFailed
-                }
-            };
-
-            callback(req);
-        };
-
-        let mut state = BusEngine::write();
-        state.callbacks.insert(topic, Box::new(cb));
-    }
-
-    fn register<F>(topic: Cow<'static, str>, callback: F) -> Finish
-    where
-        F: FnMut(Vec<u8>, SerializationFormat),
-        F: Send + 'static,
-    {
-        let mut handle: CallHandle = crate::abi::syscall::handle().into();
-        let mut recv = Finish {
-            handle: handle,
-            topic: topic.clone(),
-            callback: Arc::new(Mutex::new(Box::new(callback))),
-        };
-
-        loop {
-            handle = crate::abi::syscall::handle().into();
-            recv.handle = handle;
-
-            {
-                let mut state = BusEngine::write();
-                if state.handles.contains(&handle) == false
-                    && state.callbacks.contains_key(&handle) == false
-                {
-                    state.handles.insert(handle);
-                    state.callbacks.insert(handle, Arc::new(recv.clone()));
-                    return recv;
-                }
-            }
-            std::thread::yield_now();
-        }
     }
 
     #[cfg(feature = "rt")]
@@ -351,15 +281,15 @@ impl BusEngine {
         callback: F,
         persistent: bool,
     ) where
-        F: Fn(CallHandle, Vec<u8>) -> Result<Fut, CallError>,
+        F: Fn(CallHandle, Vec<u8>) -> Result<Fut, BusError>,
         F: Send + Sync + 'static,
-        Fut: Future<Output = Result<Vec<u8>, CallError>>,
+        Fut: Future<Output = Result<Vec<u8>, BusError>>,
         Fut: Send + 'static,
     {
         {
             let mut state = BusEngine::write();
             state.listening.insert(
-                topic.clone(),
+                topic.into(),
                 ListenService::new(
                     format,
                     Arc::new(move |handle, req| {
@@ -370,8 +300,6 @@ impl BusEngine {
                 ),
             );
         }
-
-        crate::abi::syscall::listen(topic.as_str());
     }
 
     #[cfg(feature = "rt")]
@@ -382,9 +310,9 @@ impl BusEngine {
         _callback: F,
         _persistent: bool,
     ) where
-        F: Fn(CallHandle, Vec<u8>) -> Result<Fut, CallError>,
+        F: Fn(CallHandle, Vec<u8>) -> Result<Fut, BusError>,
         F: Send + Sync + 'static,
-        Fut: Future<Output = Result<Vec<u8>, CallError>>,
+        Fut: Future<Output = Result<Vec<u8>, BusError>>,
         Fut: Send + 'static,
     {
         panic!("listen not supported on this platform");
@@ -395,26 +323,26 @@ impl BusEngine {
     pub(crate) fn respond_to_internal<F, Fut>(
         format: SerializationFormat,
         topic: String,
-        parent: CallHandle,
+        parent: CallSmartHandle,
         callback: F,
         persistent: bool,
     ) where
-        F: Fn(CallHandle, Vec<u8>) -> Result<Fut, CallError>,
+        F: Fn(CallHandle, Vec<u8>) -> Result<Fut, BusError>,
         F: Send + Sync + 'static,
-        Fut: Future<Output = Result<Vec<u8>, CallError>>,
+        Fut: Future<Output = Result<Vec<u8>, BusError>>,
         Fut: Send + 'static,
     {
         {
             let mut state = BusEngine::write();
+            let topic: Cow<'static, str> = topic.into();
             if state.respond_to.contains_key(&topic) == false {
                 state
                     .respond_to
                     .insert(topic.clone(), RespondToService::new(format, persistent));
-                crate::abi::syscall::listen(topic.as_str());
             }
             let respond_to = state.respond_to.get_mut(&topic).unwrap();
             respond_to.add(
-                parent,
+                parent.cid(),
                 Arc::new(move |handle, req| {
                     let res = callback(handle, req);
                     Box::pin(async move { Ok(res?.await?) })
@@ -428,13 +356,13 @@ impl BusEngine {
     pub(crate) fn respond_to_internal<F, Fut>(
         _format: SerializationFormat,
         _topic: String,
-        _parent: CallHandle,
+        _parent: CallSmartHandle,
         _callback: F,
         _persistent: bool,
     ) where
-        F: Fn(CallHandle, Vec<u8>) -> Result<Fut, CallError>,
+        F: Fn(CallHandle, Vec<u8>) -> Result<Fut, BusError>,
         F: Send + Sync + 'static,
-        Fut: Future<Output = Result<Vec<u8>, CallError>>,
+        Fut: Future<Output = Result<Vec<u8>, BusError>>,
         Fut: Send + 'static,
     {
         panic!("respond_to not supported on this platform");

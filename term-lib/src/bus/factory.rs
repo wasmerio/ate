@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use wasm_bus::abi::CallError;
+use wasm_bus::abi::BusError;
 use wasm_bus::abi::CallHandle;
 use wasm_bus_process::api::StdioMode;
 
@@ -61,7 +61,7 @@ impl BusFactory {
             } else {
                 // Session is orphaned
                 debug!("orphaned wasm-bus session (handle={})", parent);
-                return ErrornousInvokable::new(CallError::InvalidHandle);
+                return ErrornousInvokable::new(BusError::InvalidHandle);
             }
         }
 
@@ -116,7 +116,7 @@ impl Invokable for BusStartInvokable
 where
     Self: Send + 'static,
 {
-    async fn process(&mut self) -> Result<InvokeResult, CallError> {
+    async fn process(&mut self) -> Result<InvokeResult, BusError> {
         // Get the client callbacks
         let client_callbacks = self.client_callbacks.clone();
 
@@ -124,7 +124,7 @@ where
         let request = match self.request.take() {
             Some(a) => a,
             None => {
-                return Err(CallError::Unknown);
+                return Err(BusError::Unknown);
             }
         };
 
@@ -151,8 +151,8 @@ where
             Ok((mut invoker, None)) => {
                 return invoker.process().await;
             }
-            Err(CallError::InvalidTopic) if self.wapm.as_str() != "os" => { /* fall through */ }
-            Err(CallError::InvalidTopic) => return Err(CallError::InvalidTopic),
+            Err(BusError::InvalidTopic) if self.wapm.as_str() != "os" => { /* fall through */ }
+            Err(BusError::InvalidTopic) => return Err(BusError::InvalidTopic),
             Err(err) => return Err(err),
         };
 

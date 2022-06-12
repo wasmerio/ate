@@ -1,5 +1,5 @@
 use std::sync::Arc;
-pub use wasm_bus::prelude::CallError;
+pub use wasm_bus::prelude::BusError;
 
 pub use super::api::glenum::*;
 
@@ -394,6 +394,6 @@ impl Shader
     }
 }
 
-fn convert_err(err: CallError) -> WebGlError {
+fn convert_err(err: BusError) -> WebGlError {
     WebGlError::IO(err.into_io_error())
 }

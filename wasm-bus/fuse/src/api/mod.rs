@@ -231,17 +231,16 @@ where
         name: String,
     ) -> std::result::Result<
         std::sync::Arc<dyn FileSystem + Send + Sync + 'static>,
-        wasm_bus::abi::CallError,
+        wasm_bus::abi::BusError,
     >;
     fn blocking_mount(
         &self,
         name: String,
     ) -> std::result::Result<
         std::sync::Arc<dyn FileSystem + Send + Sync + 'static>,
-        wasm_bus::abi::CallError,
+        wasm_bus::abi::BusError,
     >;
     fn as_client(&self) -> Option<FuseClient>;
-    fn handle(&self) -> Option<wasm_bus::abi::CallHandle>;
 }
 #[async_trait::async_trait]
 pub trait FuseSimplified
@@ -253,7 +252,7 @@ where
         name: String,
     ) -> std::result::Result<
         std::sync::Arc<dyn FileSystem + Send + Sync + 'static>,
-        wasm_bus::abi::CallError,
+        wasm_bus::abi::BusError,
     >;
 }
 #[async_trait::async_trait]
@@ -266,7 +265,7 @@ where
         name: String,
     ) -> std::result::Result<
         std::sync::Arc<dyn FileSystem + Send + Sync + 'static>,
-        wasm_bus::abi::CallError,
+        wasm_bus::abi::BusError,
     > {
         FuseSimplified::mount(self, name).await
     }
@@ -275,14 +274,11 @@ where
         name: String,
     ) -> std::result::Result<
         std::sync::Arc<dyn FileSystem + Send + Sync + 'static>,
-        wasm_bus::abi::CallError,
+        wasm_bus::abi::BusError,
     > {
         wasm_bus::task::block_on(FuseSimplified::mount(self, name))
     }
     fn as_client(&self) -> Option<FuseClient> {
-        None
-    }
-    fn handle(&self) -> Option<wasm_bus::abi::CallHandle> {
         None
     }
 }
@@ -338,63 +334,50 @@ impl FuseService {
 }
 #[derive(Debug, Clone)]
 pub struct FuseClient {
-    wapm: std::borrow::Cow<'static, str>,
-    instance: Option<wasm_bus::abi::CallInstance>,
-    parent: Option<std::sync::Arc<wasm_bus::abi::DetachedCall<()>>>,
+    ctx: wasm_bus::abi::CallContext,
     task: Option<wasm_bus::abi::Call>,
     join: Option<wasm_bus::abi::CallJoin<()>>,
 }
 impl FuseClient {
     pub fn new(wapm: &str) -> Self {
         Self {
-            wapm: wapm.to_string().into(),
-            instance: None,
-            parent: None,
+            ctx: wasm_bus::abi::CallContext::NewBusCall {
+                wapm: wapm.to_string().into(),
+                instance: None
+            },
             task: None,
             join: None,
         }
     }
     pub fn new_with_instance(wapm: &str, instance: &str, access_token: &str) -> Self {
         Self {
-            wapm: wapm.to_string().into(),
-            instance: Some(wasm_bus::abi::CallInstance::new(instance, access_token)),
-            parent: None,
+            ctx: wasm_bus::abi::CallContext::NewBusCall {
+                wapm: wapm.to_string().into(),
+                instance: Some(wasm_bus::abi::CallInstance::new(instance, access_token)),
+            },
             task: None,
             join: None,
         }
     }
     pub fn attach(task: wasm_bus::abi::DetachedCall<()>) -> Self {
-        let wapm = task.wapm();
-        let instance = task.clone_instance();
         Self {
-            wapm,
-            instance,
-            parent: Some(std::sync::Arc::new(task)),
+            ctx: wasm_bus::abi::CallContext::SubCall { parent: task.handle() },
             task: None,
             join: None,
         }
     }
-    pub fn id(&self) -> u32 {
-        self.task.as_ref().map(|a| a.id()).unwrap_or(0u32)
-    }
-    pub fn handle(&self) -> Option<wasm_bus::abi::CallHandle> {
-        if let Some(handle) = self.task.as_ref().map(|a| a.handle()) {
-            return Some(handle);
-        }
-        None
-    }
-    pub fn wait(self) -> Result<(), wasm_bus::abi::CallError> {
+    pub fn wait(self) -> Result<(), wasm_bus::abi::BusError> {
         if let Some(join) = self.join {
             join.wait()?;
         }
         if let Some(task) = self.task {
-            task.join().wait()?;
+            task.join()?.wait()?;
         }
         Ok(())
     }
-    pub fn try_wait(&mut self) -> Result<Option<()>, wasm_bus::abi::CallError> {
+    pub fn try_wait(&mut self) -> Result<Option<()>, wasm_bus::abi::BusError> {
         if let Some(task) = self.task.take() {
-            self.join.replace(task.join());
+            self.join.replace(task.join()?);
         }
         if let Some(join) = self.join.as_mut() {
             join.try_wait()
@@ -407,14 +390,12 @@ impl FuseClient {
         name: String,
     ) -> std::result::Result<
         std::sync::Arc<dyn FileSystem + Send + Sync + 'static>,
-        wasm_bus::abi::CallError,
+        wasm_bus::abi::BusError,
     > {
         let request = FuseMountRequest { name };
-        let task = wasm_bus::abi::call_ext(
-            self.parent.as_ref().map(|a| a.handle()),
-            self.wapm.clone(),
+        let task = wasm_bus::abi::call(
+            self.ctx.clone(),
             wasm_bus::abi::SerializationFormat::Json,
-            self.instance.clone(),
             request,
         )
         .detach()
@@ -426,19 +407,19 @@ impl FuseClient {
         name: String,
     ) -> std::result::Result<
         std::sync::Arc<dyn FileSystem + Send + Sync + 'static>,
-        wasm_bus::abi::CallError,
+        wasm_bus::abi::BusError,
     > {
         wasm_bus::task::block_on(self.mount(name))
     }
 }
 impl std::future::Future for FuseClient {
-    type Output = Result<(), wasm_bus::abi::CallError>;
+    type Output = Result<(), wasm_bus::abi::BusError>;
     fn poll(
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Self::Output> {
         if let Some(task) = self.task.take() {
-            self.join.replace(task.join());
+            self.join.replace(task.join()?);
         }
         if let Some(join) = self.join.as_mut() {
             let join = std::pin::Pin::new(join);
@@ -455,7 +436,7 @@ impl Fuse for FuseClient {
         name: String,
     ) -> std::result::Result<
         std::sync::Arc<dyn FileSystem + Send + Sync + 'static>,
-        wasm_bus::abi::CallError,
+        wasm_bus::abi::BusError,
     > {
         FuseClient::mount(self, name).await
     }
@@ -464,15 +445,12 @@ impl Fuse for FuseClient {
         name: String,
     ) -> std::result::Result<
         std::sync::Arc<dyn FileSystem + Send + Sync + 'static>,
-        wasm_bus::abi::CallError,
+        wasm_bus::abi::BusError,
     > {
         FuseClient::blocking_mount(self, name)
     }
     fn as_client(&self) -> Option<FuseClient> {
         Some(self.clone())
-    }
-    fn handle(&self) -> Option<wasm_bus::abi::CallHandle> {
-        FuseClient::handle(self)
     }
 }
 
@@ -517,85 +495,83 @@ pub trait FileSystem
 where
     Self: std::fmt::Debug + Send + Sync,
 {
-    async fn init(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError>;
+    async fn init(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError>;
     async fn read_dir(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<Dir>, wasm_bus::abi::CallError>;
+    ) -> std::result::Result<FsResult<Dir>, wasm_bus::abi::BusError>;
     async fn create_dir(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::CallError>;
+    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError>;
     async fn remove_dir(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError>;
+    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError>;
     async fn rename(
         &self,
         from: String,
         to: String,
-    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError>;
+    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError>;
     async fn remove_file(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError>;
+    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError>;
     async fn read_metadata(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::CallError>;
+    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError>;
     async fn read_symlink_metadata(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::CallError>;
+    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError>;
     async fn open(
         &self,
         path: String,
         options: OpenOptions,
     ) -> std::result::Result<
         std::sync::Arc<dyn OpenedFile + Send + Sync + 'static>,
-        wasm_bus::abi::CallError,
+        wasm_bus::abi::BusError,
     >;
-    fn blocking_init(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError>;
+    fn blocking_init(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError>;
     fn blocking_read_dir(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<Dir>, wasm_bus::abi::CallError>;
+    ) -> std::result::Result<FsResult<Dir>, wasm_bus::abi::BusError>;
     fn blocking_create_dir(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::CallError>;
+    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError>;
     fn blocking_remove_dir(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError>;
+    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError>;
     fn blocking_rename(
         &self,
         from: String,
         to: String,
-    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError>;
+    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError>;
     fn blocking_remove_file(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError>;
+    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError>;
     fn blocking_read_metadata(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::CallError>;
+    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError>;
     fn blocking_read_symlink_metadata(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::CallError>;
+    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError>;
     fn blocking_open(
         &self,
         path: String,
         options: OpenOptions,
     ) -> std::result::Result<
         std::sync::Arc<dyn OpenedFile + Send + Sync + 'static>,
-        wasm_bus::abi::CallError,
+        wasm_bus::abi::BusError,
     >;
     fn as_client(&self) -> Option<FileSystemClient>;
-    fn handle(&self) -> Option<wasm_bus::abi::CallHandle>;
-    fn parent_handle(&self) -> Option<wasm_bus::abi::CallHandle>;
 }
 #[async_trait::async_trait]
 pub trait FileSystemSimplified
@@ -616,7 +592,7 @@ where
         options: OpenOptions,
     ) -> std::result::Result<
         std::sync::Arc<dyn OpenedFile + Send + Sync + 'static>,
-        wasm_bus::abi::CallError,
+        wasm_bus::abi::BusError,
     >;
 }
 #[async_trait::async_trait]
@@ -624,22 +600,22 @@ impl<T> FileSystem for T
 where
     T: FileSystemSimplified,
 {
-    async fn init(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    async fn init(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         Ok(FileSystemSimplified::init(self).await)
     }
-    fn blocking_init(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    fn blocking_init(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         Ok(wasm_bus::task::block_on(FileSystemSimplified::init(self)))
     }
     async fn read_dir(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<Dir>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<Dir>, wasm_bus::abi::BusError> {
         Ok(FileSystemSimplified::read_dir(self, path).await)
     }
     fn blocking_read_dir(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<Dir>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<Dir>, wasm_bus::abi::BusError> {
         Ok(wasm_bus::task::block_on(FileSystemSimplified::read_dir(
             self, path,
         )))
@@ -647,13 +623,13 @@ where
     async fn create_dir(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError> {
         Ok(FileSystemSimplified::create_dir(self, path).await)
     }
     fn blocking_create_dir(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError> {
         Ok(wasm_bus::task::block_on(FileSystemSimplified::create_dir(
             self, path,
         )))
@@ -661,13 +637,13 @@ where
     async fn remove_dir(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         Ok(FileSystemSimplified::remove_dir(self, path).await)
     }
     fn blocking_remove_dir(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         Ok(wasm_bus::task::block_on(FileSystemSimplified::remove_dir(
             self, path,
         )))
@@ -676,14 +652,14 @@ where
         &self,
         from: String,
         to: String,
-    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         Ok(FileSystemSimplified::rename(self, from, to).await)
     }
     fn blocking_rename(
         &self,
         from: String,
         to: String,
-    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         Ok(wasm_bus::task::block_on(FileSystemSimplified::rename(
             self, from, to,
         )))
@@ -691,13 +667,13 @@ where
     async fn remove_file(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         Ok(FileSystemSimplified::remove_file(self, path).await)
     }
     fn blocking_remove_file(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         Ok(wasm_bus::task::block_on(FileSystemSimplified::remove_file(
             self, path,
         )))
@@ -705,13 +681,13 @@ where
     async fn read_metadata(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError> {
         Ok(FileSystemSimplified::read_metadata(self, path).await)
     }
     fn blocking_read_metadata(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError> {
         Ok(wasm_bus::task::block_on(
             FileSystemSimplified::read_metadata(self, path),
         ))
@@ -719,13 +695,13 @@ where
     async fn read_symlink_metadata(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError> {
         Ok(FileSystemSimplified::read_symlink_metadata(self, path).await)
     }
     fn blocking_read_symlink_metadata(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError> {
         Ok(wasm_bus::task::block_on(
             FileSystemSimplified::read_symlink_metadata(self, path),
         ))
@@ -736,7 +712,7 @@ where
         options: OpenOptions,
     ) -> std::result::Result<
         std::sync::Arc<dyn OpenedFile + Send + Sync + 'static>,
-        wasm_bus::abi::CallError,
+        wasm_bus::abi::BusError,
     > {
         FileSystemSimplified::open(self, path, options).await
     }
@@ -746,17 +722,11 @@ where
         options: OpenOptions,
     ) -> std::result::Result<
         std::sync::Arc<dyn OpenedFile + Send + Sync + 'static>,
-        wasm_bus::abi::CallError,
+        wasm_bus::abi::BusError,
     > {
         wasm_bus::task::block_on(FileSystemSimplified::open(self, path, options))
     }
     fn as_client(&self) -> Option<FileSystemClient> {
-        None
-    }
-    fn handle(&self) -> Option<wasm_bus::abi::CallHandle> {
-        None
-    }
-    fn parent_handle(&self) -> Option<wasm_bus::abi::CallHandle> {
         None
     }
 }
@@ -1044,66 +1014,50 @@ impl FileSystemService {
 }
 #[derive(Debug, Clone)]
 pub struct FileSystemClient {
-    wapm: std::borrow::Cow<'static, str>,
-    instance: Option<wasm_bus::abi::CallInstance>,
-    parent: Option<std::sync::Arc<wasm_bus::abi::DetachedCall<()>>>,
+    ctx: wasm_bus::abi::CallContext,
     task: Option<wasm_bus::abi::Call>,
     join: Option<wasm_bus::abi::CallJoin<()>>,
 }
 impl FileSystemClient {
     pub fn new(wapm: &str) -> Self {
         Self {
-            wapm: wapm.to_string().into(),
-            instance: None,
-            parent: None,
+            ctx: wasm_bus::abi::CallContext::NewBusCall {
+                wapm: wapm.to_string().into(),
+                instance: None
+            },
             task: None,
             join: None,
         }
     }
     pub fn new_with_instance(wapm: &str, instance: &str, access_token: &str) -> Self {
         Self {
-            wapm: wapm.to_string().into(),
-            instance: Some(wasm_bus::abi::CallInstance::new(instance, access_token)),
-            parent: None,
+            ctx: wasm_bus::abi::CallContext::NewBusCall {
+                wapm: wapm.to_string().into(),
+                instance: Some(wasm_bus::abi::CallInstance::new(instance, access_token)),
+            },
             task: None,
             join: None,
         }
     }
     pub fn attach(task: wasm_bus::abi::DetachedCall<()>) -> Self {
-        let wapm = task.wapm();
-        let instance = task.clone_instance();
         Self {
-            wapm,
-            instance,
-            parent: Some(std::sync::Arc::new(task)),
+            ctx: wasm_bus::abi::CallContext::SubCall { parent: task.handle() },
             task: None,
             join: None,
         }
     }
-    pub fn id(&self) -> u32 {
-        self.task.as_ref().map(|a| a.id()).unwrap_or(0u32)
-    }
-    pub fn handle(&self) -> Option<wasm_bus::abi::CallHandle> {
-        if let Some(handle) = self.task.as_ref().map(|a| a.handle()) {
-            return Some(handle);
-        }
-        None
-    }
-    pub fn parent_handle(&self) -> Option<wasm_bus::abi::CallHandle> {
-        self.parent.as_ref().map(|a| a.handle())
-    }
-    pub fn wait(self) -> Result<(), wasm_bus::abi::CallError> {
+    pub fn wait(self) -> Result<(), wasm_bus::abi::BusError> {
         if let Some(join) = self.join {
             join.wait()?;
         }
         if let Some(task) = self.task {
-            task.join().wait()?;
+            task.join()?.wait()?;
         }
         Ok(())
     }
-    pub fn try_wait(&mut self) -> Result<Option<()>, wasm_bus::abi::CallError> {
+    pub fn try_wait(&mut self) -> Result<Option<()>, wasm_bus::abi::BusError> {
         if let Some(task) = self.task.take() {
-            self.join.replace(task.join());
+            self.join.replace(task.join()?);
         }
         if let Some(join) = self.join.as_mut() {
             join.try_wait()
@@ -1111,130 +1065,114 @@ impl FileSystemClient {
             Ok(None)
         }
     }
-    pub async fn init(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    pub async fn init(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         let request = FileSystemInitRequest {};
-        wasm_bus::abi::call_ext(
-            self.parent.as_ref().map(|a| a.handle()),
-            self.wapm.clone(),
+        wasm_bus::abi::call(
+            self.ctx.clone(),
             wasm_bus::abi::SerializationFormat::Json,
-            self.instance.clone(),
             request,
         )
         .invoke()
-        .join()
+        .join()?
         .await
     }
     pub async fn read_dir(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<Dir>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<Dir>, wasm_bus::abi::BusError> {
         let request = FileSystemReadDirRequest { path };
-        wasm_bus::abi::call_ext(
-            self.parent.as_ref().map(|a| a.handle()),
-            self.wapm.clone(),
+        wasm_bus::abi::call(
+            self.ctx.clone(),
             wasm_bus::abi::SerializationFormat::Json,
-            self.instance.clone(),
             request,
         )
         .invoke()
-        .join()
+        .join()?
         .await
     }
     pub async fn create_dir(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError> {
         let request = FileSystemCreateDirRequest { path };
-        wasm_bus::abi::call_ext(
-            self.parent.as_ref().map(|a| a.handle()),
-            self.wapm.clone(),
+        wasm_bus::abi::call(
+            self.ctx.clone(),
             wasm_bus::abi::SerializationFormat::Json,
-            self.instance.clone(),
             request,
         )
         .invoke()
-        .join()
+        .join()?
         .await
     }
     pub async fn remove_dir(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         let request = FileSystemRemoveDirRequest { path };
-        wasm_bus::abi::call_ext(
-            self.parent.as_ref().map(|a| a.handle()),
-            self.wapm.clone(),
+        wasm_bus::abi::call(
+            self.ctx.clone(),
             wasm_bus::abi::SerializationFormat::Json,
-            self.instance.clone(),
             request,
         )
         .invoke()
-        .join()
+        .join()?
         .await
     }
     pub async fn rename(
         &self,
         from: String,
         to: String,
-    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         let request = FileSystemRenameRequest { from, to };
-        wasm_bus::abi::call_ext(
-            self.parent.as_ref().map(|a| a.handle()),
-            self.wapm.clone(),
+        wasm_bus::abi::call(
+            self.ctx.clone(),
             wasm_bus::abi::SerializationFormat::Json,
-            self.instance.clone(),
             request,
         )
         .invoke()
-        .join()
+        .join()?
         .await
     }
     pub async fn remove_file(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         let request = FileSystemRemoveFileRequest { path };
-        wasm_bus::abi::call_ext(
-            self.parent.as_ref().map(|a| a.handle()),
-            self.wapm.clone(),
+        wasm_bus::abi::call(
+            self.ctx.clone(),
             wasm_bus::abi::SerializationFormat::Json,
-            self.instance.clone(),
             request,
         )
         .invoke()
-        .join()
+        .join()?
         .await
     }
     pub async fn read_metadata(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError> {
         let request = FileSystemReadMetadataRequest { path };
-        wasm_bus::abi::call_ext(
-            self.parent.as_ref().map(|a| a.handle()),
-            self.wapm.clone(),
+        wasm_bus::abi::call(
+            self.ctx.clone(),
             wasm_bus::abi::SerializationFormat::Json,
-            self.instance.clone(),
             request,
         )
         .invoke()
-        .join()
+        .join()?
         .await
     }
     pub async fn read_symlink_metadata(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError> {
         let request = FileSystemReadSymlinkMetadataRequest { path };
-        wasm_bus::abi::call_ext(
-            self.parent.as_ref().map(|a| a.handle()),
-            self.wapm.clone(),
+        wasm_bus::abi::call(
+            self.ctx.clone(),
             wasm_bus::abi::SerializationFormat::Json,
-            self.instance.clone(),
             request,
         )
         .invoke()
-        .join()
+        .join()?
         .await
     }
     pub async fn open(
@@ -1243,64 +1181,62 @@ impl FileSystemClient {
         options: OpenOptions,
     ) -> std::result::Result<
         std::sync::Arc<dyn OpenedFile + Send + Sync + 'static>,
-        wasm_bus::abi::CallError,
+        wasm_bus::abi::BusError,
     > {
         let request = FileSystemOpenRequest { path, options };
-        let task = wasm_bus::abi::call_ext(
-            self.parent.as_ref().map(|a| a.handle()),
-            self.wapm.clone(),
+        let task = wasm_bus::abi::call(
+            self.ctx.clone(),
             wasm_bus::abi::SerializationFormat::Json,
-            self.instance.clone(),
             request,
         )
         .detach()
         .await?;
         Ok(Arc::new(OpenedFileClient::attach(task)))
     }
-    pub fn blocking_init(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    pub fn blocking_init(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         wasm_bus::task::block_on(self.init())
     }
     pub fn blocking_read_dir(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<Dir>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<Dir>, wasm_bus::abi::BusError> {
         wasm_bus::task::block_on(self.read_dir(path))
     }
     pub fn blocking_create_dir(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError> {
         wasm_bus::task::block_on(self.create_dir(path))
     }
     pub fn blocking_remove_dir(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         wasm_bus::task::block_on(self.remove_dir(path))
     }
     pub fn blocking_rename(
         &self,
         from: String,
         to: String,
-    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         wasm_bus::task::block_on(self.rename(from, to))
     }
     pub fn blocking_remove_file(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         wasm_bus::task::block_on(self.remove_file(path))
     }
     pub fn blocking_read_metadata(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError> {
         wasm_bus::task::block_on(self.read_metadata(path))
     }
     pub fn blocking_read_symlink_metadata(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError> {
         wasm_bus::task::block_on(self.read_symlink_metadata(path))
     }
     pub fn blocking_open(
@@ -1309,19 +1245,19 @@ impl FileSystemClient {
         options: OpenOptions,
     ) -> std::result::Result<
         std::sync::Arc<dyn OpenedFile + Send + Sync + 'static>,
-        wasm_bus::abi::CallError,
+        wasm_bus::abi::BusError,
     > {
         wasm_bus::task::block_on(self.open(path, options))
     }
 }
 impl std::future::Future for FileSystemClient {
-    type Output = Result<(), wasm_bus::abi::CallError>;
+    type Output = Result<(), wasm_bus::abi::BusError>;
     fn poll(
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Self::Output> {
         if let Some(task) = self.task.take() {
-            self.join.replace(task.join());
+            self.join.replace(task.join()?);
         }
         if let Some(join) = self.join.as_mut() {
             let join = std::pin::Pin::new(join);
@@ -1333,96 +1269,96 @@ impl std::future::Future for FileSystemClient {
 }
 #[async_trait::async_trait]
 impl FileSystem for FileSystemClient {
-    async fn init(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    async fn init(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         FileSystemClient::init(self).await
     }
-    fn blocking_init(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    fn blocking_init(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         FileSystemClient::blocking_init(self)
     }
     async fn read_dir(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<Dir>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<Dir>, wasm_bus::abi::BusError> {
         FileSystemClient::read_dir(self, path).await
     }
     fn blocking_read_dir(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<Dir>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<Dir>, wasm_bus::abi::BusError> {
         FileSystemClient::blocking_read_dir(self, path)
     }
     async fn create_dir(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError> {
         FileSystemClient::create_dir(self, path).await
     }
     fn blocking_create_dir(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError> {
         FileSystemClient::blocking_create_dir(self, path)
     }
     async fn remove_dir(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         FileSystemClient::remove_dir(self, path).await
     }
     fn blocking_remove_dir(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         FileSystemClient::blocking_remove_dir(self, path)
     }
     async fn rename(
         &self,
         from: String,
         to: String,
-    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         FileSystemClient::rename(self, from, to).await
     }
     fn blocking_rename(
         &self,
         from: String,
         to: String,
-    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         FileSystemClient::blocking_rename(self, from, to)
     }
     async fn remove_file(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         FileSystemClient::remove_file(self, path).await
     }
     fn blocking_remove_file(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         FileSystemClient::blocking_remove_file(self, path)
     }
     async fn read_metadata(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError> {
         FileSystemClient::read_metadata(self, path).await
     }
     fn blocking_read_metadata(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError> {
         FileSystemClient::blocking_read_metadata(self, path)
     }
     async fn read_symlink_metadata(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError> {
         FileSystemClient::read_symlink_metadata(self, path).await
     }
     fn blocking_read_symlink_metadata(
         &self,
         path: String,
-    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError> {
         FileSystemClient::blocking_read_symlink_metadata(self, path)
     }
     async fn open(
@@ -1431,7 +1367,7 @@ impl FileSystem for FileSystemClient {
         options: OpenOptions,
     ) -> std::result::Result<
         std::sync::Arc<dyn OpenedFile + Send + Sync + 'static>,
-        wasm_bus::abi::CallError,
+        wasm_bus::abi::BusError,
     > {
         FileSystemClient::open(self, path, options).await
     }
@@ -1441,18 +1377,12 @@ impl FileSystem for FileSystemClient {
         options: OpenOptions,
     ) -> std::result::Result<
         std::sync::Arc<dyn OpenedFile + Send + Sync + 'static>,
-        wasm_bus::abi::CallError,
+        wasm_bus::abi::BusError,
     > {
         FileSystemClient::blocking_open(self, path, options)
     }
     fn as_client(&self) -> Option<FileSystemClient> {
         Some(self.clone())
-    }
-    fn handle(&self) -> Option<wasm_bus::abi::CallHandle> {
-        FileSystemClient::handle(self)
-    }
-    fn parent_handle(&self) -> Option<wasm_bus::abi::CallHandle> {
-        FileSystemClient::parent_handle(self)
     }
 }
 
@@ -1471,32 +1401,31 @@ pub trait OpenedFile
 where
     Self: std::fmt::Debug + Send + Sync,
 {
-    async fn meta(&self) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::CallError>;
-    async fn unlink(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError>;
+    async fn meta(&self) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError>;
+    async fn unlink(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError>;
     async fn set_len(
         &self,
         len: u64,
-    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError>;
+    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError>;
     async fn io(
         &self,
     ) -> std::result::Result<
         std::sync::Arc<dyn FileIO + Send + Sync + 'static>,
-        wasm_bus::abi::CallError,
+        wasm_bus::abi::BusError,
     >;
-    fn blocking_meta(&self) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::CallError>;
-    fn blocking_unlink(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError>;
+    fn blocking_meta(&self) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError>;
+    fn blocking_unlink(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError>;
     fn blocking_set_len(
         &self,
         len: u64,
-    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError>;
+    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError>;
     fn blocking_io(
         &self,
     ) -> std::result::Result<
         std::sync::Arc<dyn FileIO + Send + Sync + 'static>,
-        wasm_bus::abi::CallError,
+        wasm_bus::abi::BusError,
     >;
     fn as_client(&self) -> Option<OpenedFileClient>;
-    fn handle(&self) -> Option<wasm_bus::abi::CallHandle>;
 }
 #[async_trait::async_trait]
 pub trait OpenedFileSimplified
@@ -1510,7 +1439,7 @@ where
         &self,
     ) -> std::result::Result<
         std::sync::Arc<dyn FileIO + Send + Sync + 'static>,
-        wasm_bus::abi::CallError,
+        wasm_bus::abi::BusError,
     >;
 }
 #[async_trait::async_trait]
@@ -1518,28 +1447,28 @@ impl<T> OpenedFile for T
 where
     T: OpenedFileSimplified,
 {
-    async fn meta(&self) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::CallError> {
+    async fn meta(&self) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError> {
         Ok(OpenedFileSimplified::meta(self).await)
     }
-    fn blocking_meta(&self) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::CallError> {
+    fn blocking_meta(&self) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError> {
         Ok(wasm_bus::task::block_on(OpenedFileSimplified::meta(self)))
     }
-    async fn unlink(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    async fn unlink(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         Ok(OpenedFileSimplified::unlink(self).await)
     }
-    fn blocking_unlink(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    fn blocking_unlink(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         Ok(wasm_bus::task::block_on(OpenedFileSimplified::unlink(self)))
     }
     async fn set_len(
         &self,
         len: u64,
-    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         Ok(OpenedFileSimplified::set_len(self, len).await)
     }
     fn blocking_set_len(
         &self,
         len: u64,
-    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         Ok(wasm_bus::task::block_on(OpenedFileSimplified::set_len(
             self, len,
         )))
@@ -1548,7 +1477,7 @@ where
         &self,
     ) -> std::result::Result<
         std::sync::Arc<dyn FileIO + Send + Sync + 'static>,
-        wasm_bus::abi::CallError,
+        wasm_bus::abi::BusError,
     > {
         OpenedFileSimplified::io(self).await
     }
@@ -1556,14 +1485,11 @@ where
         &self,
     ) -> std::result::Result<
         std::sync::Arc<dyn FileIO + Send + Sync + 'static>,
-        wasm_bus::abi::CallError,
+        wasm_bus::abi::BusError,
     > {
         wasm_bus::task::block_on(OpenedFileSimplified::io(self))
     }
     fn as_client(&self) -> Option<OpenedFileClient> {
-        None
-    }
-    fn handle(&self) -> Option<wasm_bus::abi::CallHandle> {
         None
     }
 }
@@ -1698,63 +1624,50 @@ impl OpenedFileService {
 }
 #[derive(Debug, Clone)]
 pub struct OpenedFileClient {
-    wapm: std::borrow::Cow<'static, str>,
-    instance: Option<wasm_bus::abi::CallInstance>,
-    parent: Option<std::sync::Arc<wasm_bus::abi::DetachedCall<()>>>,
+    ctx: wasm_bus::abi::CallContext,
     task: Option<wasm_bus::abi::Call>,
     join: Option<wasm_bus::abi::CallJoin<()>>,
 }
 impl OpenedFileClient {
     pub fn new(wapm: &str) -> Self {
         Self {
-            wapm: wapm.to_string().into(),
-            instance: None,
-            parent: None,
+            ctx: wasm_bus::abi::CallContext::NewBusCall {
+                wapm: wapm.to_string().into(),
+                instance: None
+            },
             task: None,
             join: None,
         }
     }
     pub fn new_with_instance(wapm: &str, instance: &str, access_token: &str) -> Self {
         Self {
-            wapm: wapm.to_string().into(),
-            instance: Some(wasm_bus::abi::CallInstance::new(instance, access_token)),
-            parent: None,
+            ctx: wasm_bus::abi::CallContext::NewBusCall {
+                wapm: wapm.to_string().into(),
+                instance: Some(wasm_bus::abi::CallInstance::new(instance, access_token)),
+            },
             task: None,
             join: None,
         }
     }
     pub fn attach(task: wasm_bus::abi::DetachedCall<()>) -> Self {
-        let wapm = task.wapm();
-        let instance = task.clone_instance();
         Self {
-            wapm,
-            instance,
-            parent: Some(std::sync::Arc::new(task)),
+            ctx: wasm_bus::abi::CallContext::SubCall { parent: task.handle() },
             task: None,
             join: None,
         }
     }
-    pub fn id(&self) -> u32 {
-        self.task.as_ref().map(|a| a.id()).unwrap_or(0u32)
-    }
-    pub fn handle(&self) -> Option<wasm_bus::abi::CallHandle> {
-        if let Some(handle) = self.task.as_ref().map(|a| a.handle()) {
-            return Some(handle);
-        }
-        None
-    }
-    pub fn wait(self) -> Result<(), wasm_bus::abi::CallError> {
+    pub fn wait(self) -> Result<(), wasm_bus::abi::BusError> {
         if let Some(join) = self.join {
             join.wait()?;
         }
         if let Some(task) = self.task {
-            task.join().wait()?;
+            task.join()?.wait()?;
         }
         Ok(())
     }
-    pub fn try_wait(&mut self) -> Result<Option<()>, wasm_bus::abi::CallError> {
+    pub fn try_wait(&mut self) -> Result<Option<()>, wasm_bus::abi::BusError> {
         if let Some(task) = self.task.take() {
-            self.join.replace(task.join());
+            self.join.replace(task.join()?);
         }
         if let Some(join) = self.join.as_mut() {
             join.try_wait()
@@ -1762,60 +1675,52 @@ impl OpenedFileClient {
             Ok(None)
         }
     }
-    pub async fn meta(&self) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::CallError> {
+    pub async fn meta(&self) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError> {
         let request = OpenedFileMetaRequest {};
-        wasm_bus::abi::call_ext(
-            self.parent.as_ref().map(|a| a.handle()),
-            self.wapm.clone(),
+        wasm_bus::abi::call(
+            self.ctx.clone(),
             wasm_bus::abi::SerializationFormat::Json,
-            self.instance.clone(),
             request,
         )
         .invoke()
-        .join()
+        .join()?
         .await
     }
-    pub async fn unlink(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    pub async fn unlink(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         let request = OpenedFileUnlinkRequest {};
-        wasm_bus::abi::call_ext(
-            self.parent.as_ref().map(|a| a.handle()),
-            self.wapm.clone(),
+        wasm_bus::abi::call(
+            self.ctx.clone(),
             wasm_bus::abi::SerializationFormat::Json,
-            self.instance.clone(),
             request,
         )
         .invoke()
-        .join()
+        .join()?
         .await
     }
     pub async fn set_len(
         &self,
         len: u64,
-    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         let request = OpenedFileSetLenRequest { len };
-        wasm_bus::abi::call_ext(
-            self.parent.as_ref().map(|a| a.handle()),
-            self.wapm.clone(),
+        wasm_bus::abi::call(
+            self.ctx.clone(),
             wasm_bus::abi::SerializationFormat::Json,
-            self.instance.clone(),
             request,
         )
         .invoke()
-        .join()
+        .join()?
         .await
     }
     pub async fn io(
         &self,
     ) -> std::result::Result<
         std::sync::Arc<dyn FileIO + Send + Sync + 'static>,
-        wasm_bus::abi::CallError,
+        wasm_bus::abi::BusError,
     > {
         let request = OpenedFileIoRequest {};
-        let task = wasm_bus::abi::call_ext(
-            self.parent.as_ref().map(|a| a.handle()),
-            self.wapm.clone(),
+        let task = wasm_bus::abi::call(
+            self.ctx.clone(),
             wasm_bus::abi::SerializationFormat::Json,
-            self.instance.clone(),
             request,
         )
         .detach()
@@ -1824,35 +1729,35 @@ impl OpenedFileClient {
     }
     pub fn blocking_meta(
         &self,
-    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError> {
         wasm_bus::task::block_on(self.meta())
     }
-    pub fn blocking_unlink(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    pub fn blocking_unlink(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         wasm_bus::task::block_on(self.unlink())
     }
     pub fn blocking_set_len(
         &self,
         len: u64,
-    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         wasm_bus::task::block_on(self.set_len(len))
     }
     pub fn blocking_io(
         &self,
     ) -> std::result::Result<
         std::sync::Arc<dyn FileIO + Send + Sync + 'static>,
-        wasm_bus::abi::CallError,
+        wasm_bus::abi::BusError,
     > {
         wasm_bus::task::block_on(self.io())
     }
 }
 impl std::future::Future for OpenedFileClient {
-    type Output = Result<(), wasm_bus::abi::CallError>;
+    type Output = Result<(), wasm_bus::abi::BusError>;
     fn poll(
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Self::Output> {
         if let Some(task) = self.task.take() {
-            self.join.replace(task.join());
+            self.join.replace(task.join()?);
         }
         if let Some(join) = self.join.as_mut() {
             let join = std::pin::Pin::new(join);
@@ -1864,35 +1769,35 @@ impl std::future::Future for OpenedFileClient {
 }
 #[async_trait::async_trait]
 impl OpenedFile for OpenedFileClient {
-    async fn meta(&self) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::CallError> {
+    async fn meta(&self) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError> {
         OpenedFileClient::meta(self).await
     }
-    fn blocking_meta(&self) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::CallError> {
+    fn blocking_meta(&self) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError> {
         OpenedFileClient::blocking_meta(self)
     }
-    async fn unlink(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    async fn unlink(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         OpenedFileClient::unlink(self).await
     }
-    fn blocking_unlink(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    fn blocking_unlink(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         OpenedFileClient::blocking_unlink(self)
     }
     async fn set_len(
         &self,
         len: u64,
-    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         OpenedFileClient::set_len(self, len).await
     }
     fn blocking_set_len(
         &self,
         len: u64,
-    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         OpenedFileClient::blocking_set_len(self, len)
     }
     async fn io(
         &self,
     ) -> std::result::Result<
         std::sync::Arc<dyn FileIO + Send + Sync + 'static>,
-        wasm_bus::abi::CallError,
+        wasm_bus::abi::BusError,
     > {
         OpenedFileClient::io(self).await
     }
@@ -1900,15 +1805,12 @@ impl OpenedFile for OpenedFileClient {
         &self,
     ) -> std::result::Result<
         std::sync::Arc<dyn FileIO + Send + Sync + 'static>,
-        wasm_bus::abi::CallError,
+        wasm_bus::abi::BusError,
     > {
         OpenedFileClient::blocking_io(self)
     }
     fn as_client(&self) -> Option<OpenedFileClient> {
         Some(self.clone())
-    }
-    fn handle(&self) -> Option<wasm_bus::abi::CallHandle> {
-        OpenedFileClient::handle(self)
     }
 }
 
@@ -1934,31 +1836,30 @@ where
     async fn seek(
         &self,
         from: SeekFrom,
-    ) -> std::result::Result<FsResult<u64>, wasm_bus::abi::CallError>;
-    async fn flush(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError>;
+    ) -> std::result::Result<FsResult<u64>, wasm_bus::abi::BusError>;
+    async fn flush(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError>;
     async fn write(
         &self,
         data: Vec<u8>,
-    ) -> std::result::Result<FsResult<u64>, wasm_bus::abi::CallError>;
+    ) -> std::result::Result<FsResult<u64>, wasm_bus::abi::BusError>;
     async fn read(
         &self,
         len: u64,
-    ) -> std::result::Result<FsResult<Vec<u8>>, wasm_bus::abi::CallError>;
+    ) -> std::result::Result<FsResult<Vec<u8>>, wasm_bus::abi::BusError>;
     fn blocking_seek(
         &self,
         from: SeekFrom,
-    ) -> std::result::Result<FsResult<u64>, wasm_bus::abi::CallError>;
-    fn blocking_flush(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError>;
+    ) -> std::result::Result<FsResult<u64>, wasm_bus::abi::BusError>;
+    fn blocking_flush(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError>;
     fn blocking_write(
         &self,
         data: Vec<u8>,
-    ) -> std::result::Result<FsResult<u64>, wasm_bus::abi::CallError>;
+    ) -> std::result::Result<FsResult<u64>, wasm_bus::abi::BusError>;
     fn blocking_read(
         &self,
         len: u64,
-    ) -> std::result::Result<FsResult<Vec<u8>>, wasm_bus::abi::CallError>;
+    ) -> std::result::Result<FsResult<Vec<u8>>, wasm_bus::abi::BusError>;
     fn as_client(&self) -> Option<FileIOClient>;
-    fn handle(&self) -> Option<wasm_bus::abi::CallHandle>;
 }
 #[async_trait::async_trait]
 pub trait FileIOSimplified
@@ -1978,31 +1879,31 @@ where
     async fn seek(
         &self,
         from: SeekFrom,
-    ) -> std::result::Result<FsResult<u64>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<u64>, wasm_bus::abi::BusError> {
         Ok(FileIOSimplified::seek(self, from).await)
     }
     fn blocking_seek(
         &self,
         from: SeekFrom,
-    ) -> std::result::Result<FsResult<u64>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<u64>, wasm_bus::abi::BusError> {
         Ok(wasm_bus::task::block_on(FileIOSimplified::seek(self, from)))
     }
-    async fn flush(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    async fn flush(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         Ok(FileIOSimplified::flush(self).await)
     }
-    fn blocking_flush(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    fn blocking_flush(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         Ok(wasm_bus::task::block_on(FileIOSimplified::flush(self)))
     }
     async fn write(
         &self,
         data: Vec<u8>,
-    ) -> std::result::Result<FsResult<u64>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<u64>, wasm_bus::abi::BusError> {
         Ok(FileIOSimplified::write(self, data).await)
     }
     fn blocking_write(
         &self,
         data: Vec<u8>,
-    ) -> std::result::Result<FsResult<u64>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<u64>, wasm_bus::abi::BusError> {
         Ok(wasm_bus::task::block_on(FileIOSimplified::write(
             self, data,
         )))
@@ -2010,19 +1911,16 @@ where
     async fn read(
         &self,
         len: u64,
-    ) -> std::result::Result<FsResult<Vec<u8>>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<Vec<u8>>, wasm_bus::abi::BusError> {
         Ok(FileIOSimplified::read(self, len).await)
     }
     fn blocking_read(
         &self,
         len: u64,
-    ) -> std::result::Result<FsResult<Vec<u8>>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<Vec<u8>>, wasm_bus::abi::BusError> {
         Ok(wasm_bus::task::block_on(FileIOSimplified::read(self, len)))
     }
     fn as_client(&self) -> Option<FileIOClient> {
-        None
-    }
-    fn handle(&self) -> Option<wasm_bus::abi::CallHandle> {
         None
     }
 }
@@ -2149,63 +2047,50 @@ impl FileIOService {
 }
 #[derive(Debug, Clone)]
 pub struct FileIOClient {
-    wapm: std::borrow::Cow<'static, str>,
-    instance: Option<wasm_bus::abi::CallInstance>,
-    parent: Option<std::sync::Arc<wasm_bus::abi::DetachedCall<()>>>,
+    ctx: wasm_bus::abi::CallContext,
     task: Option<wasm_bus::abi::Call>,
     join: Option<wasm_bus::abi::CallJoin<()>>,
 }
 impl FileIOClient {
     pub fn new(wapm: &str) -> Self {
         Self {
-            wapm: wapm.to_string().into(),
-            instance: None,
-            parent: None,
+            ctx: wasm_bus::abi::CallContext::NewBusCall {
+                wapm: wapm.to_string().into(),
+                instance: None
+            },
             task: None,
             join: None,
         }
     }
     pub fn new_with_instance(wapm: &str, instance: &str, access_token: &str) -> Self {
         Self {
-            wapm: wapm.to_string().into(),
-            instance: Some(wasm_bus::abi::CallInstance::new(instance, access_token)),
-            parent: None,
+            ctx: wasm_bus::abi::CallContext::NewBusCall {
+                wapm: wapm.to_string().into(),
+                instance: Some(wasm_bus::abi::CallInstance::new(instance, access_token)),
+            },
             task: None,
             join: None,
         }
     }
     pub fn attach(task: wasm_bus::abi::DetachedCall<()>) -> Self {
-        let wapm = task.wapm();
-        let instance = task.clone_instance();
         Self {
-            wapm,
-            instance,
-            parent: Some(std::sync::Arc::new(task)),
+            ctx: wasm_bus::abi::CallContext::SubCall { parent: task.handle() },
             task: None,
             join: None,
         }
     }
-    pub fn id(&self) -> u32 {
-        self.task.as_ref().map(|a| a.id()).unwrap_or(0u32)
-    }
-    pub fn handle(&self) -> Option<wasm_bus::abi::CallHandle> {
-        if let Some(handle) = self.task.as_ref().map(|a| a.handle()) {
-            return Some(handle);
-        }
-        None
-    }
-    pub fn wait(self) -> Result<(), wasm_bus::abi::CallError> {
+    pub fn wait(self) -> Result<(), wasm_bus::abi::BusError> {
         if let Some(join) = self.join {
             join.wait()?;
         }
         if let Some(task) = self.task {
-            task.join().wait()?;
+            task.join()?.wait()?;
         }
         Ok(())
     }
-    pub fn try_wait(&mut self) -> Result<Option<()>, wasm_bus::abi::CallError> {
+    pub fn try_wait(&mut self) -> Result<Option<()>, wasm_bus::abi::BusError> {
         if let Some(task) = self.task.take() {
-            self.join.replace(task.join());
+            self.join.replace(task.join()?);
         }
         if let Some(join) = self.join.as_mut() {
             join.try_wait()
@@ -2216,94 +2101,86 @@ impl FileIOClient {
     pub async fn seek(
         &self,
         from: SeekFrom,
-    ) -> std::result::Result<FsResult<u64>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<u64>, wasm_bus::abi::BusError> {
         let request = FileIoSeekRequest { from };
-        wasm_bus::abi::call_ext(
-            self.parent.as_ref().map(|a| a.handle()),
-            self.wapm.clone(),
+        wasm_bus::abi::call(
+            self.ctx.clone(),
             wasm_bus::abi::SerializationFormat::Bincode,
-            self.instance.clone(),
             request,
         )
         .invoke()
-        .join()
+        .join()?
         .await
     }
-    pub async fn flush(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    pub async fn flush(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         let request = FileIoFlushRequest {};
-        wasm_bus::abi::call_ext(
-            self.parent.as_ref().map(|a| a.handle()),
-            self.wapm.clone(),
+        wasm_bus::abi::call(
+            self.ctx.clone(),
             wasm_bus::abi::SerializationFormat::Bincode,
-            self.instance.clone(),
             request,
         )
         .invoke()
-        .join()
+        .join()?
         .await
     }
     pub async fn write(
         &self,
         data: Vec<u8>,
-    ) -> std::result::Result<FsResult<u64>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<u64>, wasm_bus::abi::BusError> {
         let request = FileIoWriteRequest { data };
-        wasm_bus::abi::call_ext(
-            self.parent.as_ref().map(|a| a.handle()),
-            self.wapm.clone(),
+        wasm_bus::abi::call(
+            self.ctx.clone(),
             wasm_bus::abi::SerializationFormat::Bincode,
-            self.instance.clone(),
             request,
         )
         .invoke()
-        .join()
+        .join()?
         .await
     }
     pub async fn read(
         &self,
         len: u64,
-    ) -> std::result::Result<FsResult<Vec<u8>>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<Vec<u8>>, wasm_bus::abi::BusError> {
         let request = FileIoReadRequest { len };
-        wasm_bus::abi::call_ext(
-            self.parent.as_ref().map(|a| a.handle()),
-            self.wapm.clone(),
+        wasm_bus::abi::call(
+            self.ctx.clone(),
             wasm_bus::abi::SerializationFormat::Bincode,
-            self.instance.clone(),
             request,
         )
         .invoke()
-        .join()
+        .join()?
         .await
     }
     pub fn blocking_seek(
         &self,
         from: SeekFrom,
-    ) -> std::result::Result<FsResult<u64>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<u64>, wasm_bus::abi::BusError> {
         wasm_bus::task::block_on(self.seek(from))
     }
-    pub fn blocking_flush(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    pub fn blocking_flush(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         wasm_bus::task::block_on(self.flush())
     }
     pub fn blocking_write(
         &self,
         data: Vec<u8>,
-    ) -> std::result::Result<FsResult<u64>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<u64>, wasm_bus::abi::BusError> {
         wasm_bus::task::block_on(self.write(data))
     }
     pub fn blocking_read(
         &self,
         len: u64,
-    ) -> std::result::Result<FsResult<Vec<u8>>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<Vec<u8>>, wasm_bus::abi::BusError> {
         wasm_bus::task::block_on(self.read(len))
     }
 }
 impl std::future::Future for FileIOClient {
-    type Output = Result<(), wasm_bus::abi::CallError>;
+    type Output = Result<(), wasm_bus::abi::BusError>;
     fn poll(
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Self::Output> {
         if let Some(task) = self.task.take() {
-            self.join.replace(task.join());
+            self.join.replace(task.join()?);
         }
         if let Some(join) = self.join.as_mut() {
             let join = std::pin::Pin::new(join);
@@ -2318,50 +2195,47 @@ impl FileIO for FileIOClient {
     async fn seek(
         &self,
         from: SeekFrom,
-    ) -> std::result::Result<FsResult<u64>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<u64>, wasm_bus::abi::BusError> {
         FileIOClient::seek(self, from).await
     }
     fn blocking_seek(
         &self,
         from: SeekFrom,
-    ) -> std::result::Result<FsResult<u64>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<u64>, wasm_bus::abi::BusError> {
         FileIOClient::blocking_seek(self, from)
     }
-    async fn flush(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    async fn flush(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         FileIOClient::flush(self).await
     }
-    fn blocking_flush(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::CallError> {
+    fn blocking_flush(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         FileIOClient::blocking_flush(self)
     }
     async fn write(
         &self,
         data: Vec<u8>,
-    ) -> std::result::Result<FsResult<u64>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<u64>, wasm_bus::abi::BusError> {
         FileIOClient::write(self, data).await
     }
     fn blocking_write(
         &self,
         data: Vec<u8>,
-    ) -> std::result::Result<FsResult<u64>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<u64>, wasm_bus::abi::BusError> {
         FileIOClient::blocking_write(self, data)
     }
     async fn read(
         &self,
         len: u64,
-    ) -> std::result::Result<FsResult<Vec<u8>>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<Vec<u8>>, wasm_bus::abi::BusError> {
         FileIOClient::read(self, len).await
     }
     fn blocking_read(
         &self,
         len: u64,
-    ) -> std::result::Result<FsResult<Vec<u8>>, wasm_bus::abi::CallError> {
+    ) -> std::result::Result<FsResult<Vec<u8>>, wasm_bus::abi::BusError> {
         FileIOClient::blocking_read(self, len)
     }
     fn as_client(&self) -> Option<FileIOClient> {
         Some(self.clone())
-    }
-    fn handle(&self) -> Option<wasm_bus::abi::CallHandle> {
-        FileIOClient::handle(self)
     }
 }
 */

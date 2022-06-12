@@ -59,7 +59,7 @@ impl api::FuseSimplified for FuseServer {
     async fn mount(
         &self,
         name: String,
-    ) -> Result<Arc<dyn api::FileSystem + Send + Sync + 'static>, CallError> {
+    ) -> Result<Arc<dyn api::FileSystem + Send + Sync + 'static>, BusError> {
         // Derive the group from the mount address
         let mut group = None;
         if let Some((group_str, _)) = name.split_once("/") {
@@ -109,7 +109,7 @@ impl api::FuseSimplified for FuseServer {
             Ok(a) => a,
             Err(err) => {
                 warn!("failed to open chain - {}", err);
-                return Err(CallError::BadRequest);
+                return Err(BusError::BadRequest);
             }
         };
         let accessor = Arc::new(

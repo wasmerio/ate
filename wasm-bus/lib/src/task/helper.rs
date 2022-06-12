@@ -5,8 +5,9 @@ use std::ops::Deref;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
-use crate::abi::CallError;
+use crate::abi::BusError;
 use crate::abi::CallHandle;
+use crate::abi::CallSmartHandle;
 use crate::abi::SerializationFormat;
 use crate::engine::BusEngine;
 use crate::rt::RuntimeBlockingGuard;
@@ -97,31 +98,18 @@ where
     RES: Serialize,
     F: Fn(CallHandle, REQ) -> Fut,
     F: Send + Sync + 'static,
-    Fut: Future<Output = Result<RES, CallError>> + Send + 'static,
+    Fut: Future<Output = Result<RES, BusError>> + Send + 'static,
 {
     let topic = type_name::<REQ>();
     BusEngine::listen_internal(
         format,
         topic.to_string(),
         move |handle, req| {
-            let req = match format {
-                SerializationFormat::Bincode => {
-                    match bincode::deserialize(&req[..]) {
-                        Ok(a) => a,
-                        Err(err) => {
-                            debug!("failed to deserialize the request object (type={}, format={}) - {}", type_name::<REQ>(), format, err);
-                            return Err(CallError::DeserializationFailed);
-                        }
-                    }
-                }
-                SerializationFormat::Json => {
-                    match serde_json::from_slice(&req[..]) {
-                        Ok(a) => a,
-                        Err(err) => {
-                            debug!("failed to deserialize the request object (type={}, format={}) - {}", type_name::<REQ>(), format, err);
-                            return Err(CallError::DeserializationFailed);
-                        }
-                    }
+            let req = match format.deserialize(req) {
+                Ok(a) => a,
+                Err(err) => {
+                    debug!("failed to deserialize the request object (type={}, format={}) - {}", type_name::<REQ>(), format, err);
+                    return Err(BusError::DeserializationFailed);
                 }
             };
 
@@ -129,26 +117,16 @@ where
 
             Ok(async move {
                 let res = res.await?;
-                let res = match format {
-                    SerializationFormat::Bincode => bincode::serialize(&res).map_err(|err| {
+                let res = format.serialize(res)
+                    .map_err(|err| {
                         debug!(
                             "failed to serialize the response object (type={}, format={}) - {}",
                             type_name::<RES>(),
                             format,
                             err
                         );
-                        CallError::SerializationFailed
-                    })?,
-                    SerializationFormat::Json => serde_json::to_vec(&res).map_err(|err| {
-                        debug!(
-                            "failed to serialize the response object (type={}, format={}) - {}",
-                            type_name::<RES>(),
-                            format,
-                            err
-                        );
-                        CallError::SerializationFailed
-                    })?,
-                };
+                        BusError::SerializationFailed
+                    })?;
                 Ok(res)
             })
         },
@@ -157,7 +135,7 @@ where
 }
 
 pub fn respond_to<RES, REQ, F, Fut>(
-    parent: CallHandle,
+    parent: CallSmartHandle,
     format: SerializationFormat,
     callback: F,
     persistent: bool,
@@ -166,7 +144,7 @@ pub fn respond_to<RES, REQ, F, Fut>(
     RES: Serialize,
     F: Fn(CallHandle, REQ) -> Fut,
     F: Send + Sync + 'static,
-    Fut: Future<Output = Result<RES, CallError>> + Send + 'static,
+    Fut: Future<Output = Result<RES, BusError>> + Send + 'static,
 {
     let topic = type_name::<REQ>();
     BusEngine::respond_to_internal(
@@ -174,24 +152,11 @@ pub fn respond_to<RES, REQ, F, Fut>(
         topic.to_string(),
         parent,
         move |handle, req| {
-            let req = match format {
-                SerializationFormat::Bincode => {
-                    match bincode::deserialize(&req[..]) {
-                        Ok(a) => a,
-                        Err(err) => {
-                            debug!("failed to deserialize the request object (type={}, format={}) - {}", type_name::<REQ>(), format, err);
-                            return Err(CallError::DeserializationFailed);
-                        }
-                    }
-                }
-                SerializationFormat::Json => {
-                    match serde_json::from_slice(&req[..]) {
-                        Ok(a) => a,
-                        Err(err) => {
-                            debug!("failed to deserialize the request object (type={}, format={}) - {}", type_name::<REQ>(), format, err);
-                            return Err(CallError::DeserializationFailed);
-                        }
-                    }
+            let req = match format.deserialize(req) {
+                Ok(a) => a,
+                Err(err) => {
+                    debug!("failed to deserialize the request object (type={}, format={}) - {}", type_name::<REQ>(), format, err);
+                    return Err(BusError::DeserializationFailed);
                 }
             };
 
@@ -199,26 +164,15 @@ pub fn respond_to<RES, REQ, F, Fut>(
 
             Ok(async move {
                 let res = res.await?;
-                let res = match format {
-                    SerializationFormat::Bincode => bincode::serialize(&res).map_err(|err| {
-                        debug!(
-                            "failed to serialize the response object (type={}, format={}) - {}",
-                            type_name::<RES>(),
-                            format,
-                            err
-                        );
-                        CallError::SerializationFailed
-                    })?,
-                    SerializationFormat::Json => serde_json::to_vec(&res).map_err(|err| {
-                        debug!(
-                            "failed to serialize the response object (type={}, format={}) - {}",
-                            type_name::<RES>(),
-                            format,
-                            err
-                        );
-                        CallError::SerializationFailed
-                    })?,
-                };
+                let res = format.serialize(res) .map_err(|err| {
+                    debug!(
+                        "failed to serialize the response object (type={}, format={}) - {}",
+                        type_name::<RES>(),
+                        format,
+                        err
+                    );
+                    BusError::SerializationFailed
+                })?;
                 Ok(res)
             })
         },

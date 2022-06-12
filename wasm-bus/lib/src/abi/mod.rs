@@ -1,6 +1,5 @@
 mod call;
 mod data;
-mod error;
 mod finish;
 mod handle;
 #[cfg(feature = "rt")]
@@ -9,22 +8,19 @@ mod reply;
 #[cfg(feature = "rt")]
 mod respond_to;
 mod session;
-//#[cfg(target_os = "wasi")]
+#[cfg(target_os = "wasi")]
 pub(crate) mod syscall;
 #[cfg(not(target_os = "wasi"))]
 pub(crate) mod unsupported;
 
-//#[allow(unused_imports)]
-//#[cfg(not(target_os = "wasi"))]
-//pub(crate) use unsupported as syscall;
+#[cfg(not(target_os = "wasi"))]
+pub(crate) use unsupported as syscall;
 
-use serde::*;
 use std::any::type_name;
 use std::borrow::Cow;
 
 pub use call::*;
 pub use data::*;
-pub use error::*;
 pub use finish::*;
 pub use handle::*;
 #[cfg(feature = "rt")]
@@ -32,114 +28,76 @@ pub use listen::*;
 pub use reply::*;
 #[cfg(feature = "rt")]
 pub use respond_to::*;
+use serde::Serialize;
 pub use session::*;
 
 pub use wasm_bus_types::*;
 
 pub fn call<T>(
-    wapm: Cow<'static, str>,
+    ctx: CallContext,
     format: SerializationFormat,
-    instance: Option<CallInstance>,
     request: T,
 ) -> CallBuilder
 where
     T: Serialize,
 {
-    call_ext(None, wapm, format, instance, request)
+    match ctx {
+        CallContext::NewBusCall { wapm, instance } => {
+            call_new(wapm, instance, format, request)
+        },
+        CallContext::SubCall { parent } => {
+            subcall(parent, format, request)
+        }
+    }
 }
 
-pub fn call_ext<T>(
-    parent: Option<CallHandle>,
+pub fn call_new<T>(
     wapm: Cow<'static, str>,
-    format: SerializationFormat,
     instance: Option<CallInstance>,
+    format: SerializationFormat,
     request: T,
 ) -> CallBuilder
 where
     T: Serialize,
 {
     let topic = type_name::<T>();
-    let call = crate::engine::BusEngine::call(parent, wapm, topic.into(), format, instance);
+    let call = Call::new_call(wapm, topic.into(), instance);
 
-    let req = match format {
-        SerializationFormat::Bincode => match bincode::serialize(&request) {
-            Ok(req) => Data::Success(req),
-            Err(_err) => Data::Error(CallError::SerializationFailed),
-        },
-        SerializationFormat::Json => match serde_json::to_vec(&request) {
-            Ok(req) => Data::Success(req),
-            Err(_err) => Data::Error(CallError::SerializationFailed),
-        },
+    let req = match format.serialize(request) {
+        Ok(req) => Data::Prepared(req),
+        Err(err) => Data::Error(err),
     };
 
-    CallBuilder::new(call, req)
+    CallBuilder::new(call, req, format)
 }
 
-pub(crate) fn callback_internal<RES, REQ, F>(
-    parent: CallHandle,
+pub fn subcall<T>(
+    parent: CallSmartHandle,
     format: SerializationFormat,
-    callback: F,
-) -> Finish
+    request: T,
+) -> CallBuilder
 where
-    REQ: de::DeserializeOwned + Send + Sync + 'static,
-    RES: Serialize + Send + Sync + 'static,
-    F: FnMut(REQ) -> Result<RES, CallError>,
-    F: Send + 'static,
+    T: Serialize,
 {
-    let topic = type_name::<REQ>();
-    let recv = crate::engine::BusEngine::callback(format, callback);
-    let handle = recv.handle;
-    
-    crate::engine::BusEngine::add_callback(parent.clone(), handle.clone());
-    syscall::callback(parent, handle, topic);
-    return recv;
+    let topic = type_name::<T>();
+    let call = Call::new_subcall(parent, topic.into());
+
+    let req = match format.serialize(request) {
+        Ok(req) => Data::Prepared(req),
+        Err(err) => Data::Error(err),
+    };
+
+    CallBuilder::new(call, req, format)
 }
 
 pub(self) fn reply<RES>(handle: CallHandle, format: SerializationFormat, response: RES)
 where
     RES: Serialize,
 {
-    match format {
-        SerializationFormat::Bincode => match bincode::serialize(&response) {
-            Ok(res) => {
-                syscall::reply(handle, &res[..]);
-            }
-            Err(_err) => syscall::fault(handle, CallError::SerializationFailed as u32),
-        },
-        SerializationFormat::Json => match serde_json::to_vec(&response) {
-            Ok(res) => {
-                syscall::reply(handle, &res[..]);
-            }
-            Err(_err) => syscall::fault(handle, CallError::SerializationFailed as u32),
-        },
-    };
-}
-
-pub fn reply_callback<RES>(handle: CallHandle, format: SerializationFormat, response: RES)
-where
-    RES: Serialize,
-{
-    let topic = type_name::<RES>();
-    match format {
-        SerializationFormat::Bincode => match bincode::serialize(&response) {
-            Ok(res) => {
-                syscall::reply_callback(handle, topic, &res[..]);
-            }
-            Err(_err) => syscall::fault(handle, CallError::SerializationFailed as u32),
-        },
-        SerializationFormat::Json => match serde_json::to_vec(&response) {
-            Ok(res) => {
-                syscall::reply_callback(handle, topic, &res[..]);
-            }
-            Err(_err) => syscall::fault(handle, CallError::SerializationFailed as u32),
-        },
-    };
-}
-
-pub(self) fn drop(handle: CallHandle) {
-    syscall::drop(handle);
-}
-
-pub fn thread_id() -> u32 {
-    syscall::thread_id()
+    match format.serialize(response) {
+        Ok(res) => {
+            syscall::call_reply(handle, &res[..], format);
+        }
+        Err(_err) => syscall::call_fault(handle, BusError::SerializationFailed),
+    }
 }

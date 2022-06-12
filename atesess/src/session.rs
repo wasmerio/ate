@@ -322,7 +322,7 @@ impl Session
             == false
         {
             warn!("access denied to {}@{} from {}", call.binary, self.hello_instance.chain, self.sock_addr);
-            this_callback.error(CallError::AccessDenied);
+            this_callback.error(BusError::AccessDenied);
             return Ok(());
         }
 
@@ -370,7 +370,7 @@ impl Session
                         response
                     }
                     _ = abort_rx.recv() => {
-                        Err(CallError::Aborted)
+                        Err(BusError::Aborted)
                     }
                 }
             })
@@ -391,7 +391,7 @@ impl Session
 pub struct SessionInvocation
 {
     feeder: SessionFeeder,
-    result: AsyncResult<Result<InvokeResult, CallError>>,
+    result: AsyncResult<Result<InvokeResult, BusError>>,
     sessions: Arc<Mutex<HashMap<CallHandle, Box<dyn bus::Session>>>>,
     _abort_tx: mpsc::Sender<()>,
 }
@@ -422,7 +422,7 @@ impl Future for SessionInvocations {
                     BusFeederUtils::process(&invoke.feeder, result, &invoke.sessions);
                 }
                 Poll::Ready(None) => {
-                    BusFeederUtils::process(&invoke.feeder, Err(CallError::Aborted), &invoke.sessions);
+                    BusFeederUtils::process(&invoke.feeder, Err(BusError::Aborted), &invoke.sessions);
                 }
                 Poll::Pending => {
                     carry.push(invoke);
@@ -459,7 +459,7 @@ for SessionFeeder {
         });
     }
 
-    fn error(&self, err: CallError) {
+    fn error(&self, err: BusError) {
         trace!("error(handle={}, err={})", self.handle, err);
         self.send(InstanceReply::Error {
             handle: self.handle,

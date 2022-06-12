@@ -10,7 +10,7 @@ pub trait FinishOps
 where
     Self: Send + Sync,
 {
-    fn process(&self, data: Vec<u8>, format: SerializationFormat) -> Result<Vec<u8>, CallError>;
+    fn process(&self, data: Vec<u8>, format: SerializationFormat) -> Result<Vec<u8>, BusError>;
 
     fn topic(&self) -> &str;
 }
@@ -22,13 +22,13 @@ pub struct Finish {
     pub(crate) topic: Cow<'static, str>,
     pub(crate) handle: CallHandle,
     #[derivative(Debug = "ignore")]
-    pub(crate) callback: Arc<Mutex<Box<dyn FnMut(Vec<u8>) -> Result<Vec<u8>, CallError> + Send>>>,
+    pub(crate) callback: Arc<Mutex<Box<dyn FnMut(Vec<u8>, SerializationFormat) -> Result<Vec<u8>, BusError> + Send>>>,
 }
 
 impl FinishOps for Finish {
-    fn process(&self, data: Vec<u8>) -> Result<Vec<u8>, CallError> {
+    fn process(&self, data: Vec<u8>, format: SerializationFormat) -> Result<Vec<u8>, BusError> {
         let mut callback = self.callback.lock().unwrap();
-        callback.as_mut()(data)
+        callback.as_mut()(data, format)
     }
 
     fn topic(&self) -> &str {

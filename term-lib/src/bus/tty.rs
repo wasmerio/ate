@@ -13,7 +13,7 @@ use tokio::select;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, trace, warn};
-use wasm_bus::abi::CallError;
+use wasm_bus::abi::BusError;
 use wasm_bus::abi::SerializationFormat;
 use wasm_bus_tty::api;
 use std::sync::Arc;
@@ -26,7 +26,7 @@ pub fn stdin(
     tty: crate::fs::TtyFile,
     this_callback: &Arc<dyn BusFeeder + Send + Sync + 'static>,
     mut client_callbacks: HashMap<String, Arc<dyn BusFeeder + Send + Sync + 'static>>,
-) -> Result<(StdinInvoker, StdinSession), CallError> {
+) -> Result<(StdinInvoker, StdinSession), BusError> {
 
     // Build all the callbacks
     let on_recv = client_callbacks
@@ -34,7 +34,7 @@ pub fn stdin(
     let on_flush = client_callbacks
         .remove(&type_name::<api::TtyStdinFlushCallback>().to_string());
     if on_recv.is_none() || on_flush.is_none() {
-        return Err(CallError::MissingCallbacks);
+        return Err(BusError::MissingCallbacks);
     }
     let on_recv = on_recv.unwrap();
     let on_flush = on_flush.unwrap();
@@ -82,7 +82,7 @@ pub struct StdinInvoker
 
 #[async_trait]
 impl Invokable for StdinInvoker {
-    async fn process(&mut self) -> Result<InvokeResult, CallError> {
+    async fn process(&mut self) -> Result<InvokeResult, BusError> {
         let stdin = self.stdin.take();
         if let Some(stdin) = stdin {
             let fut = Box::pin(stdin.run());
@@ -91,7 +91,7 @@ impl Invokable for StdinInvoker {
                 fut,
             ))
         } else {
-            Err(CallError::Unknown)
+            Err(BusError::Unknown)
         }
     }
 }
@@ -100,8 +100,8 @@ pub struct StdinSession {
 }
 
 impl Session for StdinSession {
-    fn call(&mut self, _topic: &str, _request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), CallError> {
-        Ok((ErrornousInvokable::new(CallError::InvalidTopic), None))
+    fn call(&mut self, _topic: &str, _request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
+        Ok((ErrornousInvokable::new(BusError::InvalidTopic), None))
     }
 }
 
@@ -109,7 +109,7 @@ pub fn stdout(
     _req: api::TtyStdoutRequest,
     stdout: crate::stdout::Stdout,
     _client_callbacks: HashMap<String, Arc<dyn BusFeeder + Send + Sync + 'static>>,
-) -> Result<(StdoutInvoker, StdoutSession), CallError> {
+) -> Result<(StdoutInvoker, StdoutSession), BusError> {
 
     // Return the invokers
     let invoker = StdoutInvoker {};
@@ -122,7 +122,7 @@ pub struct StdoutInvoker {
 
 #[async_trait]
 impl Invokable for StdoutInvoker {
-    async fn process(&mut self) -> Result<InvokeResult, CallError> {
+    async fn process(&mut self) -> Result<InvokeResult, BusError> {
         Ok(InvokeResult::ResponseThenLeak(
             encode_response(SerializationFormat::Bincode, &())?,
         ))
@@ -134,7 +134,7 @@ pub struct StdoutSession {
 }
 
 impl Session for StdoutSession {
-    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), CallError> {
+    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
         let ret = {
             if topic == type_name::<api::StdoutWriteRequest>() {
                 let data = match decode_request::<api::StdoutWriteRequest>(
@@ -171,7 +171,7 @@ impl Session for StdoutSession {
                     stdout: self.stdout.clone(),
                 })
             } else {
-                ErrornousInvokable::new(CallError::InvalidTopic)
+                ErrornousInvokable::new(BusError::InvalidTopic)
             }
         };
         Ok((ret, None))
@@ -184,7 +184,7 @@ struct DelayedStdoutFlush {
 
 #[async_trait]
 impl Invokable for DelayedStdoutFlush {
-    async fn process(&mut self) -> Result<InvokeResult, CallError> {
+    async fn process(&mut self) -> Result<InvokeResult, BusError> {
         let _ = self.stdout.flush_async().await;
         ResultInvokable::new(SerializationFormat::Bincode, ())
             .process()
@@ -199,7 +199,7 @@ struct DelayedStdoutSend {
 
 #[async_trait]
 impl Invokable for DelayedStdoutSend {
-    async fn process(&mut self) -> Result<InvokeResult, CallError> {
+    async fn process(&mut self) -> Result<InvokeResult, BusError> {
         let mut size = 0usize;
         if let Some(data) = self.data.take() {
             size = data.len();
@@ -219,7 +219,7 @@ pub fn stderr(
     _req: api::TtyStderrRequest,
     stderr: crate::fd::Fd,
     _client_callbacks: HashMap<String, Arc<dyn BusFeeder + Send + Sync + 'static>>,
-) -> Result<(StderrInvoker, StderrSession), CallError> {
+) -> Result<(StderrInvoker, StderrSession), BusError> {
 
     // Return the invokers
     let invoker = StderrInvoker {};
@@ -232,7 +232,7 @@ pub struct StderrInvoker {
 
 #[async_trait]
 impl Invokable for StderrInvoker {
-    async fn process(&mut self) -> Result<InvokeResult, CallError> {
+    async fn process(&mut self) -> Result<InvokeResult, BusError> {
         Ok(InvokeResult::ResponseThenLeak(
             encode_response(SerializationFormat::Bincode, &())?,
         ))
@@ -244,7 +244,7 @@ pub struct StderrSession {
 }
 
 impl Session for StderrSession {
-    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), CallError> {
+    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
         let ret = {
             if topic == type_name::<api::StderrWriteRequest>() {
                 let data = match decode_request::<api::StderrWriteRequest>(
@@ -281,7 +281,7 @@ impl Session for StderrSession {
                     stderr: self.stderr.clone(),
                 })
             } else {
-                ErrornousInvokable::new(CallError::InvalidTopic)
+                ErrornousInvokable::new(BusError::InvalidTopic)
             }
         };
         Ok((ret, None))
@@ -294,7 +294,7 @@ struct DelayedStderrFlush {
 
 #[async_trait]
 impl Invokable for DelayedStderrFlush {
-    async fn process(&mut self) -> Result<InvokeResult, CallError> {
+    async fn process(&mut self) -> Result<InvokeResult, BusError> {
         let _ = self.stderr.flush_async().await;
         ResultInvokable::new(SerializationFormat::Bincode, ())
             .process()
@@ -309,7 +309,7 @@ struct DelayedStderrSend {
 
 #[async_trait]
 impl Invokable for DelayedStderrSend {
-    async fn process(&mut self) -> Result<InvokeResult, CallError> {
+    async fn process(&mut self) -> Result<InvokeResult, BusError> {
         let mut size = 0usize;
         if let Some(data) = self.data.take() {
             size = data.len();
@@ -332,7 +332,7 @@ pub struct DelayedTtyRect {
 #[async_trait]
 impl Invokable for DelayedTtyRect
 {
-    async fn process(&mut self) -> Result<InvokeResult, CallError> {
+    async fn process(&mut self) -> Result<InvokeResult, BusError> {
         let rect = self.abi.console_rect().await;
         ResultInvokable::new(SerializationFormat::Bincode, api::TtyRect {
             cols: rect.cols as u32,
@@ -346,7 +346,7 @@ impl Invokable for DelayedTtyRect
 pub fn rect(
     _req: api::TtyRectRequest,
     abi: &Arc<dyn ConsoleAbi>,
-) -> Result<DelayedTtyRect, CallError> {
+) -> Result<DelayedTtyRect, BusError> {
     Ok(DelayedTtyRect {
         abi: abi.clone()
     })

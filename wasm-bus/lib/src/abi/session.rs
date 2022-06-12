@@ -20,7 +20,7 @@ impl WasmBusSession {
     }
 
     fn close_internal(&mut self, reason: &'static str) {
-        crate::engine::BusEngine::remove(&self.handle, reason);
+        crate::engine::BusEngine::close(&self.handle, reason);
     }
 }
 

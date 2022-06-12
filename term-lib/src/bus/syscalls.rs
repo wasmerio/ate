@@ -7,7 +7,7 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use wasm_bus::abi::CallError;
+use wasm_bus::abi::BusError;
 use wasm_bus::abi::CallHandle;
 
 use super::thread::WasmBusThread;
@@ -123,7 +123,7 @@ pub(crate) mod raw {
                 request_ptr,
                 request_len as usize,
             )
-            .map(|_| CallError::Success)
+            .map(|_| BusError::Success)
             .unwrap_or_else(|e| e)
             .into()
         }
@@ -172,7 +172,7 @@ pub(crate) mod raw {
                 request_ptr,
                 request_len as usize,
             )
-            .map(|_| CallError::Success)
+            .map(|_| BusError::Success)
             .unwrap_or_else(|e| e)
             .into()
         }
@@ -209,7 +209,7 @@ unsafe fn wasm_bus_callback(
     handle: CallHandle,
     topic_ptr: WasmPtr<u8>,
     topic_len: usize,
-) -> Result<(), CallError> {
+) -> Result<(), BusError> {
     let topic = topic_ptr
         .read_utf8_string(thread.memory(), topic_len as u32)
         .map_err(mem_violation_conv_err)?;
@@ -312,7 +312,7 @@ unsafe fn wasm_bus_tick(thread: &WasmBusThread) -> usize {
 
 // Tells the operating system that this program is ready to respond
 // to calls on a particular topic name.
-unsafe fn wasm_bus_listen(thread: &WasmBusThread, topic_ptr: WasmPtr<u8>, topic_len: usize) -> Result<(), CallError>
+unsafe fn wasm_bus_listen(thread: &WasmBusThread, topic_ptr: WasmPtr<u8>, topic_len: usize) -> Result<(), BusError>
 {
     let topic = topic_ptr
         .read_utf8_string(thread.memory(), topic_len as u32)
@@ -331,7 +331,7 @@ unsafe fn wasm_bus_fault(thread: &WasmBusThread, handle: CallHandle, error: u32)
     debug!("wasm-bus::error (handle={}, error={})", handle.id, error);
 
     // Grab the sender we will relay this response to
-    let error: CallError = error.into();
+    let error: BusError = error.into();
     let work = {
         let mut inner = thread.inner.lock();
         inner.calls.remove(&handle)
@@ -358,7 +358,7 @@ unsafe fn wasm_bus_reply(
     handle: CallHandle,
     response_ptr: WasmPtr<u8>,
     response_len: usize,
-) -> Result<(), CallError> {
+) -> Result<(), BusError> {
     use tokio::sync::mpsc::error::TrySendError;
 
     debug!(
@@ -402,7 +402,7 @@ unsafe fn wasm_bus_reply_callback(
     topic_len: usize,
     response_ptr: WasmPtr<u8>,
     response_len: usize,
-) -> Result<(), CallError> {
+) -> Result<(), BusError> {
     let topic = topic_ptr
         .read_utf8_string(thread.memory(), topic_len as u32)
         .map_err(mem_violation_conv_err)?;
@@ -453,7 +453,7 @@ unsafe fn wasm_bus_call(
     topic_len: usize,
     request_ptr: WasmPtr<u8>,
     request_len: usize
-) -> Result<(), CallError> {
+) -> Result<(), BusError> {
     let wapm = wapm_ptr
         .read_utf8_string(thread.memory(), wapm_len as u32)
         .map_err(mem_violation_conv_err)?;
@@ -529,7 +529,7 @@ unsafe fn wasm_bus_call(
                     response
                 }
                 _ = abort_rx.recv() => {
-                    Err(CallError::Aborted)
+                    Err(BusError::Aborted)
                 }
             }
         })
@@ -567,7 +567,7 @@ unsafe fn wasm_bus_call_instance(
     topic_len: usize,
     request_ptr: WasmPtr<u8>,
     request_len: usize,
-) -> Result<(), CallError> {
+) -> Result<(), BusError> {
     let instance = instance_ptr
         .read_utf8_string(thread.memory(), instance_len as u32)
         .map_err(mem_violation_conv_err)?;
@@ -651,7 +651,7 @@ unsafe fn wasm_bus_call_instance(
                     response
                 }
                 _ = abort_rx.recv() => {
-                    Err(CallError::Aborted)
+                    Err(BusError::Aborted)
                 }
             }
         })
@@ -677,8 +677,8 @@ unsafe fn wasm_bus_thread_id(thread: &WasmBusThread) -> WasiThreadId {
     thread.thread_id
 }
 
-fn mem_violation_conv_err<T: std::fmt::Display>(err: T) -> CallError
+fn mem_violation_conv_err<T: std::fmt::Display>(err: T) -> BusError
 {
     debug!("memory access violation - {}", err);
-    CallError::MemoryAccessViolation
+    BusError::MemoryAccessViolation
 }

@@ -1,6 +1,7 @@
 use derivative::*;
 use serde::*;
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::ops::*;
@@ -15,19 +16,27 @@ use tracing::{debug, error, info, trace, warn};
 
 use super::*;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum CallbackResult {
+    InvalidTopic,
+    Success,
+    Error,
+}
+
 pub trait CallOps
 where
     Self: Send + Sync,
 {
     fn data(&self, data: Vec<u8>, format: SerializationFormat);
 
-    fn error(&self, error: CallError);
+    fn callback(&self, topic: Cow<'static, str>, data: Vec<u8>, format: SerializationFormat) -> CallbackResult;
 
-    fn wapm(&self) -> &str;
+    fn error(&self, error: BusError);
 
     fn topic(&self) -> &str;
 }
 
+#[derive(Debug)]
 pub(crate) struct CallResult
 {
     pub data: Vec<u8>,
@@ -36,23 +45,69 @@ pub(crate) struct CallResult
 
 #[derive(Debug)]
 pub struct CallState {
-    pub(crate) result: Option<Result<CallResult, CallError>>,
-    pub(crate) callbacks: Vec<Finish>,
+    pub(crate) result: Option<Result<CallResult, BusError>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CallInstance {
-    pub(crate) instance: String,
-    pub(crate) access_token: String,
+    pub(crate) instance: Cow<'static, str>,
+    pub(crate) access_token: Cow<'static, str>,
 }
 
 impl CallInstance
 {
     pub fn new(instance: &str, access_token: &str) -> CallInstance {
         CallInstance { 
-            instance: instance.to_string(),
-            access_token: access_token.to_string(),
+            instance: instance.to_string().into(),
+            access_token: access_token.to_string().into(),
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum CallContext {
+    NewBusCall {
+        wapm: Cow<'static, str>,
+        instance: Option<CallInstance>,
+    },
+    SubCall {
+        parent: CallSmartHandle,
+    }
+}
+
+/// When this object is destroyed it will kill the call on the bus
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct CallSmartHandle {
+    inside: Arc<CallSmartPointerInside>,
+}
+
+impl CallSmartHandle {
+    pub fn new(handle: CallHandle) -> CallSmartHandle {
+        CallSmartHandle {
+            inside: Arc::new(
+                CallSmartPointerInside {
+                    handle
+                }
+            )
+        }
+    }
+
+    pub fn cid(&self) -> CallHandle {
+        self.inside.handle
+    }
+}
+
+/// When this object is destroyed it will kill the call on the bus
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct CallSmartPointerInside {
+    handle: CallHandle,
+}
+
+impl Drop
+for CallSmartPointerInside {
+    fn drop(&mut self) {
+        crate::abi::syscall::call_close(self.handle);
+        crate::engine::BusEngine::close(&self.handle, "call closed");
     }
 }
 
@@ -60,14 +115,55 @@ impl CallInstance
 #[derivative(Debug)]
 #[must_use = "you must 'wait' or 'await' to actually send this call to other modules"]
 pub struct Call {
-    pub(crate) wapm: Cow<'static, str>,
+    pub(crate) ctx: CallContext,
     pub(crate) topic: Cow<'static, str>,
-    pub(crate) instance: Option<CallInstance>,
-    pub(crate) handle: Option<CallHandle>,
+    #[derivative(Debug = "ignore")]
+    pub(crate) callbacks: HashMap<Cow<'static, str>, Arc<dyn Fn(Vec<u8>, SerializationFormat) -> CallbackResult + Send + Sync + 'static>>,
+    pub(crate) handle: Option<CallSmartHandle>,
     pub(crate) keepalive: bool,
-    pub(crate) parent: Option<CallHandle>,
     pub(crate) state: Arc<Mutex<CallState>>,
     pub(crate) drop_on_data: Arc<AtomicBool>,
+}
+
+impl Call {
+    pub fn new_call(
+        wapm: Cow<'static, str>,
+        topic: Cow<'static, str>,
+        instance: Option<CallInstance>,
+    ) -> Call {
+        Call {
+            ctx: CallContext::NewBusCall { wapm, instance },
+            state: Arc::new(Mutex::new(CallState {
+                result: None,
+            })),
+            callbacks: Default::default(),
+            handle: None,
+            keepalive: false,
+            topic,
+            drop_on_data: Arc::new(AtomicBool::new(true)),
+        }
+    }
+
+    pub fn new_subcall(
+        parent: CallSmartHandle,
+        topic: Cow<'static, str>,
+    ) -> Call {
+        Call {
+            ctx: CallContext::SubCall { parent },
+            state: Arc::new(Mutex::new(CallState {
+                result: None,
+            })),
+            callbacks: Default::default(),
+            handle: None,
+            keepalive: false,
+            topic,
+            drop_on_data: Arc::new(AtomicBool::new(true)),
+        }
+    }
+
+    pub fn handle(&self) -> Option<CallSmartHandle> {
+        self.handle.clone()
+    }
 }
 
 impl CallOps for Call {
@@ -84,56 +180,33 @@ impl CallOps for Call {
             .compare_exchange(true, false, Ordering::Release, Ordering::Relaxed)
             .is_ok()
         {
-            if let Some(handle) = self.handle {
-                super::drop(handle);
-                crate::engine::BusEngine::remove(&handle, "call finished (data received)");
+            if let Some(scope) = self.handle.as_ref() {
+                super::syscall::call_close(scope.cid());
+                crate::engine::BusEngine::close(&scope.cid(), "call has finished (with data)");
             }
         }
     }
 
-    fn error(&self, error: CallError) {
+    fn callback(&self, topic: Cow<'static, str>, data: Vec<u8>, format: SerializationFormat) -> CallbackResult {
+        if let Some(funct) = self.callbacks.get(&topic) {
+            funct(data, format)
+        } else {
+            CallbackResult::InvalidTopic
+        }
+    }
+
+    fn error(&self, error: BusError) {
         {
             let mut state = self.state.lock().unwrap();
             state.result = Some(Err(error));
         }
-        if let Some(handle) = self.handle {
-            super::drop(handle);
-            crate::engine::BusEngine::remove(&handle, "call has failed");
+        if let Some(scope) = self.handle.as_ref() {
+            crate::engine::BusEngine::close(&scope.cid(), "call has failed");
         }
-    }
-
-    fn wapm(&self) -> &str {
-        self.wapm.as_ref()
     }
 
     fn topic(&self) -> &str {
         self.topic.as_ref()
-    }
-}
-
-impl Call {
-    pub fn id(&self) -> Option<u32> {
-        self.handle.map(|a| a.id)
-    }
-
-    pub fn handle(&self) -> Option<CallHandle> {
-        self.handle.clone()
-    }
-
-    pub fn wapm(&self) -> Cow<'static, str> {
-        self.wapm.clone()
-    }
-
-    pub fn instance(&self) -> Option<&CallInstance> {
-        self.instance.as_ref()
-    }
-
-    pub fn instance_ref(&self) -> Option<&str> {
-        self.instance.as_ref().map(|a| a.instance.as_str())
-    }
-
-    pub fn access_token(&self) -> Option<&str> {
-        self.instance.as_ref().map(|a| a.access_token.as_str())
     }
 }
 
@@ -142,13 +215,15 @@ impl Call {
 #[must_use = "you must 'invoke' the builder for it to actually call anything"]
 pub struct CallBuilder {
     call: Option<Call>,
+    format: SerializationFormat,
     request: Data,
 }
 
 impl CallBuilder {
-    pub fn new(call: Call, request: Data) -> CallBuilder {
+    pub fn new(call: Call, request: Data, format: SerializationFormat) -> CallBuilder {
         CallBuilder {
             call: Some(call),
+            format,
             request,
         }
     }
@@ -157,186 +232,172 @@ impl CallBuilder {
 impl CallBuilder {
     /// Upon receiving a particular message from the service that is
     /// invoked this callback will take some action
-    pub fn callback<C, F>(mut self, format: SerializationFormat, callback: F) -> Self
+    pub fn callback<C, F>(mut self, callback: F) -> Self
     where
         C: Serialize + de::DeserializeOwned + Send + Sync + 'static,
-        F: FnMut(C),
-        F: Send + 'static,
+        F: Fn(C),
+        F: Send + Sync + 'static,
     {
-        self.call.as_mut().unwrap().callback(format, callback);
+        self.call
+            .as_mut()
+            .unwrap()
+            .register_callback(callback);
         self
     }
 
     // Completes the call but leaves the resources present
     // for the duration of the life of 'DetachedCall'
-    pub async fn detach<T>(mut self) -> Result<DetachedCall<T>, CallError>
+    pub async fn detach<T>(mut self) -> Result<DetachedCall<T>, BusError>
     where
         T: de::DeserializeOwned,
     {
         let mut call = self.call.take().unwrap();
         call.keepalive = true;
         call.drop_on_data.store(false, Ordering::Release);
-        self.invoke_internal(&mut call);
-
-        let handle = call.handle.clone();
-        let wapm = call.wapm.clone();
-        let instance = call.instance.clone();
-
-        let result = call.join::<T>().await?;
+        let scope = self.invoke_internal(&mut call)?;
+        
+        let result = call.join::<T>()?
+            .await?;
 
         Ok(DetachedCall {
-            handle,
+            handle: scope,
             result,
-            wapm,
-            instance,
         })
     }
 
     /// Invokes the call with the specified callbacks
-    #[cfg(target_arch = "wasm32")]
     pub fn invoke(mut self) -> Call {
         let mut call = self.call.take().unwrap();
-        self.invoke_internal(&mut call);
+        match self.invoke_internal(&mut call) {
+            Ok(scope) => {
+                call.handle.replace(scope);
+            },
+            Err(err) => {
+                call.error(err);
+            }
+        }        
         call
     }
 
-    fn invoke_internal(&self, call: &mut Call) {
+    fn invoke_internal(&self, call: &mut Call) -> Result<CallSmartHandle, BusError> {
         let handle = match &self.request {
-            Data::Success(req) => {
-                if let Some(ref instance) = call.instance {
-                    crate::abi::syscall::call_instance(
-                        call.parent,
-                        call.keepalive,
-                        &instance.instance,
-                        &instance.access_token,
-                        &call.wapm,
-                        &call.topic,
-                        &req[..],
-                    )
-                } else {
-                    crate::abi::syscall::call(
-                        call.parent,
-                        call.keepalive,
-                        &call.wapm,
-                        &call.topic,
-                        &req[..],
-                    )
+            Data::Prepared(req) => {
+                match &call.ctx {
+                    CallContext::NewBusCall { wapm, instance } => {
+                        if let Some(ref instance) = instance {
+                            crate::abi::syscall::bus_open_remote(
+                                wapm.as_ref(),
+                                true,
+                                &instance.instance,
+                                &instance.access_token,
+                            )
+                        } else {
+                            crate::abi::syscall::bus_open_local(
+                                wapm.as_ref(),
+                                true,
+                            )
+                        }.and_then(|bid| {
+                            crate::abi::syscall::bus_call(
+                                bid,
+                                call.keepalive,
+                                &call.topic,
+                                &req[..],
+                                self.format,
+                            )
+                        })
+                    },
+                    CallContext::SubCall { parent } => {
+                        crate::abi::syscall::bus_subcall(
+                            parent.cid(),
+                            call.keepalive,
+                            &call.topic,
+                            &req[..],
+                            self.format,
+                        )
+                    }
                 }
             }
             Data::Error(err) => {
-                crate::engine::BusEngine::error(call.handle, err.clone());
-                return;
+                return Err(err.clone());
             }
-        };
-
-        let mut state = crate::engine::BusEngine::write();
-        state.handles.insert(handle);
-        state.calls.insert(handle, Arc::new(call.clone()));
-        call.handle.replace(handle)
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn invoke(self) -> Call {
-        panic!("invoke not supported on this platform");
-    }
-}
-
-impl Drop for CallBuilder {
-    fn drop(&mut self) {
-        if let Some(call) = self.call.take() {
-            super::drop(call.handle);
-            crate::engine::BusEngine::remove(&call.handle, "call building was dropped");
         }
+        .map(|a| CallSmartHandle::new(a));
+
+        if let Ok(scope) = &handle {
+            let mut state = crate::engine::BusEngine::write();
+            state.handles.insert(scope.cid());
+            state.calls.insert(scope.cid(), Arc::new(call.clone()));
+            call.handle.replace(scope.clone());
+        }
+        handle
     }
 }
 
 impl Call {
-    /// Creates another call relative to this call
-    /// This can be useful for creating contextual objects using thread calls
-    /// and then passing data or commands back and forth to it
-    pub fn call<T>(&self, format: SerializationFormat, req: T) -> CallBuilder
-    where
-        T: Serialize,
-    {
-        super::call_ext(
-            Some(self.handle),
-            self.wapm.clone(),
-            format,
-            self.instance.clone(),
-            req,
-        )
-    }
-
     /// Upon receiving a particular message from the service that is
     /// invoked this callback will take some action
     ///
     /// Note: This must be called before the invoke or things will go wrong
     /// hence there is a builder that invokes this in the right order
-    fn callback<C, F>(&self, format: SerializationFormat, mut callback: F) -> &Self
+    fn register_callback<C, F>(&mut self, callback: F)
     where
         C: Serialize + de::DeserializeOwned + Send + Sync + 'static,
-        F: FnMut(C),
-        F: Send + 'static,
+        F: Fn(C),
+        F: Send + Sync + 'static,
     {
-        let callback = move |req| {
-            callback(req);
-            Ok(())
+        let topic = std::any::type_name::<C>();
+        let callback = move |data, format: SerializationFormat| {
+            if let Ok(data) = format.deserialize(data) {
+                callback(data);
+                CallbackResult::Success
+            } else {
+                debug!("deserialization failed during callback (format={}, topic={})", format, topic);
+                CallbackResult::Error
+            }
         };
-        let recv = super::callback_internal(self.handle, format, callback);
-        let mut state = self.state.lock().unwrap();
-        state.callbacks.push(recv);
-        self
+        self.callbacks.insert(topic.into(), Arc::new(callback));
     }
 
     /// Returns the result of the call
-    pub fn join<T>(self) -> CallJoin<T>
+    pub fn join<T>(self) -> Result<CallJoin<T>, BusError>
     where
         T: de::DeserializeOwned,
     {
-        CallJoin::new(self)
+        match self.handle.clone() {
+            Some(scope) => {
+                Ok(CallJoin::new(self, scope))
+            },
+            None => {
+                trace!("must invoke the call before attempting to join on it (topic={})", self.topic());
+                Err(BusError::BusInvocationFailed)
+            }
+        }
     }
 }
 
 #[derive(Debug)]
 pub struct DetachedCall<T> {
-    handle: Option<CallHandle>,
+    handle: CallSmartHandle,
     result: T,
-    wapm: Cow<'static, str>,
-    instance: Option<CallInstance>,
 }
 
 impl<T> DetachedCall<T> {
-    pub fn wapm(&self) -> Cow<'static, str> {
-        self.wapm.clone()
+    /// Creates another call relative to this call
+    /// This can be useful for creating contextual objects using thread calls
+    /// and then passing data or commands back and forth to it
+    pub fn subcall<A>(&self, format: SerializationFormat, req: A) -> CallBuilder
+    where
+        A: Serialize,
+    {
+        super::subcall(
+            self.handle.clone(),
+            format,
+            req,
+        )
     }
 
-    pub fn instance(&self) -> Option<&CallInstance> {
-        self.instance.as_ref()
-    }
-
-    pub fn clone_instance(&self) -> Option<CallInstance> {
-        self.instance.clone()
-    }
-
-    pub fn instance_ref(&self) -> Option<&str> {
-        self.instance.as_ref().map(|a| a.instance.as_str())
-    }
-
-    pub fn access_token(&self) -> Option<&str> {
-        self.instance.as_ref().map(|a| a.access_token.as_str())
-    }
-
-    pub fn handle(&self) -> Option<CallHandle> {
+    pub fn handle(&self) -> CallSmartHandle {
         self.handle.clone()
-    }
-}
-
-impl<T> Drop for DetachedCall<T> {
-    fn drop(&mut self) {
-        if let Some(handle) = self.handle {
-            super::drop(handle);
-            crate::engine::BusEngine::remove(&handle, "detached call was dropped");
-        }
     }
 }
 
@@ -355,6 +416,7 @@ where
     T: de::DeserializeOwned,
 {
     call: Call,
+    scope: CallSmartHandle,
     _marker1: PhantomData<T>,
 }
 
@@ -362,9 +424,10 @@ impl<T> CallJoin<T>
 where
     T: de::DeserializeOwned,
 {
-    fn new(call: Call) -> CallJoin<T> {
+    fn new(call: Call, scope: CallSmartHandle) -> CallJoin<T> {
         CallJoin {
             call,
+            scope,
             _marker1: PhantomData,
         }
     }
@@ -372,7 +435,7 @@ where
     /// Waits for the call to complete and returns the response from
     /// the server
     #[cfg(feature = "rt")]
-    pub fn wait(self) -> Result<T, CallError> {
+    pub fn wait(self) -> Result<T, BusError> {
         crate::task::block_on(self)
     }
 
@@ -387,7 +450,7 @@ where
 
     /// Tries to get the result of the call to the server but will not
     /// block the execution
-    pub fn try_wait(&mut self) -> Result<Option<T>, CallError>
+    pub fn try_wait(&mut self) -> Result<Option<T>, BusError>
     where
         T: de::DeserializeOwned,
     {
@@ -398,16 +461,7 @@ where
 
         match response {
             Some(Ok(res)) => {
-                let res = match res.format {
-                    SerializationFormat::Bincode => bincode::deserialize::<T>(res.data.as_ref())
-                        .map_err(|_err| CallError::DeserializationFailed),
-                    SerializationFormat::Json => serde_json::from_slice(res.data.as_ref())
-                        .map_err(|_err| CallError::DeserializationFailed),
-                    SerializationFormat::MessagePack | SerializationFormat::Xml | SerializationFormat::Yaml | SerializationFormat::Raw => {
-                        // This format is not yet supported
-                        Err(CallError::DeserializationFailed)
-                    }
-                };
+                let res = res.format.deserialize(res.data);
                 match res {
                     Ok(data) => Ok(Some(data)),
                     Err(err) => Err(err),
@@ -423,7 +477,7 @@ impl<T> Future for CallJoin<T>
 where
     T: de::DeserializeOwned,
 {
-    type Output = Result<T, CallError>;
+    type Output = Result<T, BusError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let response = {
@@ -433,16 +487,7 @@ where
 
         match response {
             Some(Ok(res)) => {
-                let res = match res.format {
-                    SerializationFormat::Bincode => bincode::deserialize::<T>(res.data.as_ref())
-                        .map_err(|_err| CallError::DeserializationFailed),
-                    SerializationFormat::Json => serde_json::from_slice(res.data.as_ref())
-                        .map_err(|_err| CallError::DeserializationFailed),
-                    SerializationFormat::MessagePack | SerializationFormat::Xml | SerializationFormat::Yaml | SerializationFormat::Raw => {
-                        // This format is not yet supported
-                        Err(CallError::DeserializationFailed)
-                    }
-                };
+                let res = res.format.deserialize(res.data);
                 match res {
                     Ok(data) => Poll::Ready(Ok(data)),
                     Err(err) => Poll::Ready(Err(err)),
@@ -450,7 +495,7 @@ where
             }
             Some(Err(err)) => Poll::Ready(Err(err)),
             None => {
-                crate::engine::BusEngine::subscribe(&self.call.handle, cx);
+                crate::engine::BusEngine::subscribe(&self.scope.cid(), cx);
                 Poll::Pending
             }
         }

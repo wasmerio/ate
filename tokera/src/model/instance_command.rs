@@ -1,6 +1,6 @@
 use serde::*;
 pub use wasm_bus::prelude::CallHandle;
-pub use wasm_bus::prelude::CallError;
+pub use wasm_bus::prelude::BusError;
 use std::fmt;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -56,7 +56,7 @@ pub enum InstanceReply {
     },
     Error {
         handle: CallHandle,
-        error: CallError
+        error: BusError
     },
     Terminate {
         handle: CallHandle

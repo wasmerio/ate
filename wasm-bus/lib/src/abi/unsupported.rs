@@ -1,68 +1,64 @@
-#![allow(dead_code)]
+#![allow(unused_variables)]
 use super::*;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
-pub fn drop(_handle: CallHandle) {
+pub fn bus_poll_once() -> usize {
+    0
+}
+
+pub fn bus_open_local(
+    name: &str,
+    resuse: bool,
+) -> Result<BusHandle, BusError> {
     panic!("unsupported on this platform");
 }
 
-pub fn handle() -> CallHandle {
+pub fn bus_open_remote(
+    name: &str,
+    resuse: bool,
+    instance: &str,
+    token: &str,
+) -> Result<BusHandle, BusError> {
     panic!("unsupported on this platform");
 }
 
-pub fn fault(_handle: CallHandle, _error: u32) {
+pub fn bus_call(
+    bid: BusHandle,
+    keepalive: bool,
+    topic: &str,
+    request: &[u8],
+    format: SerializationFormat
+) -> Result<CallHandle, BusError> {
     panic!("unsupported on this platform");
 }
 
-pub fn poll() {
+pub fn bus_subcall(
+    parent: CallHandle,
+    keepalive: bool,
+    topic: &str,
+    request: &[u8],
+    format: SerializationFormat
+) -> Result<CallHandle, BusError> {
     panic!("unsupported on this platform");
 }
 
-pub fn fork() {
+pub fn call_close(handle: CallHandle) {
     panic!("unsupported on this platform");
 }
 
-pub fn listen(_topic: &str) {
+pub fn call_fault(handle: CallHandle, error: BusError) {
     panic!("unsupported on this platform");
 }
 
-pub fn reply(_handle: CallHandle, _response: &[u8]) {
-    panic!("unsupported on this platform");
-}
-
-pub fn reply_callback(_handle: CallHandle, _topic: &str, _response: &[u8]) {
-    panic!("unsupported on this platform");
-}
-
-pub fn call(
-    _parent: Option<CallHandle>,
-    _handle: CallHandle,
-    _leak: bool,
-    _wapm: &str,
-    _topic: &str,
-    _request: &[u8],
+pub fn call_reply(
+    handle: CallHandle,
+    response: &[u8],
+    format: SerializationFormat
 ) {
     panic!("unsupported on this platform");
 }
 
-pub fn call_instance(
-    _parent: Option<CallHandle>,
-    _handle: CallHandle,
-    _leak: bool,
-    _instance: &str,
-    _access_token: &str,
-    _wapm: &str,
-    _topic: &str,
-    _request: &[u8],
-) {
-    panic!("unsupported on this platform");
-}
-
-pub fn callback(_parent: CallHandle, _handle: CallHandle, _topic: &str) {
-    panic!("unsupported on this platform");
-}
-
-pub fn thread_id() -> u32 {
+pub fn spawn_reactor() {
     panic!("unsupported on this platform");
 }

@@ -10,7 +10,7 @@ use tokio::sync::mpsc;
 use tokio::sync::RwLock;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use wasm_bus::abi::CallError;
+use wasm_bus::abi::BusError;
 use wasm_bus::abi::SerializationFormat;
 use wasm_bus_process::api;
 use wasm_bus_process::prelude::*;
@@ -112,7 +112,7 @@ impl ProcessExecFactory {
         env: &LaunchEnvironment,
         mut client_callbacks: HashMap<String, Arc<dyn BusFeeder + Send + Sync + 'static>>,
         funct: F,
-    ) -> Result<T, CallError>
+    ) -> Result<T, BusError>
     where
         F: Fn(LaunchContext) -> Pin<Box<dyn Future<Output = Result<T, u32>>>>,
         F: Send + 'static,
@@ -267,12 +267,12 @@ impl ProcessExecFactory {
             Ok(funct(ctx).await?)
         });
 
-        let ret = match result.await.ok_or_else(|| CallError::Aborted)? {
+        let ret = match result.await.ok_or_else(|| BusError::Aborted)? {
             Ok(created) => created,
             Err(err) => {
                 let err: u32 = err;
                 warn!("failed to create process - internal error - code={}", err);
-                return Err(CallError::Unknown);
+                return Err(BusError::Unknown);
             }
         };
 
@@ -285,7 +285,7 @@ impl ProcessExecFactory {
         env: &LaunchEnvironment,
         this_callback: Arc<dyn BusFeeder + Send + Sync + 'static>,
         client_callbacks: HashMap<String, Arc<dyn BusFeeder + Send + Sync + 'static>>,
-    ) -> Result<EvalCreated, CallError> {
+    ) -> Result<EvalCreated, BusError> {
         let dst = Arc::clone(&self.ctx);
         self.launch(request, env, client_callbacks, move |ctx: LaunchContext| {
             let dst = dst.clone();
@@ -336,7 +336,7 @@ impl ProcessExecFactory {
             AsyncResult<(EvalContext, u32)>,
             Arc<WasmBusThreadPool>,
         ),
-        CallError,
+        BusError,
     > {
         self.launch(request, env, client_callbacks, |ctx: LaunchContext| {
             Box::pin(async move {
@@ -514,7 +514,7 @@ pub struct ProcessExecInvokable {
 
 #[async_trait]
 impl Invokable for ProcessExecInvokable {
-    async fn process(&mut self) -> Result<InvokeResult, CallError> {
+    async fn process(&mut self) -> Result<InvokeResult, BusError> {
         let exec = self.exec.take();
         if let Some(exec) = exec {
             let fut = Box::pin(exec.run());
@@ -523,7 +523,7 @@ impl Invokable for ProcessExecInvokable {
                 fut,
             ))
         } else {
-            Err(CallError::Unknown)
+            Err(BusError::Unknown)
         }
     }
 }
@@ -532,7 +532,7 @@ fn encode_eval_response(
     format: SerializationFormat,
     on_ctx: Pin<Box<dyn Fn(EvalContext) + Send + 'static>>,
     res: Option<EvalResult>,
-) -> Result<Vec<u8>, CallError> {
+) -> Result<Vec<u8>, BusError> {
     match res {
         Some(res) => {
             {
@@ -564,7 +564,7 @@ pub struct ProcessExecSession {
 }
 
 impl Session for ProcessExecSession {
-    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), CallError> {
+    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
         let ret = {
             if topic == type_name::<api::ProcessStdinRequest>() {
                 let request: api::ProcessStdinRequest =
@@ -590,7 +590,7 @@ impl Session for ProcessExecSession {
                 self.stdin.take();
                 ResultInvokable::new(SerializationFormat::Bincode, ())
             } else {
-                ErrornousInvokable::new(CallError::InvalidTopic)
+                ErrornousInvokable::new(BusError::InvalidTopic)
             }
         };
         Ok((ret, None))

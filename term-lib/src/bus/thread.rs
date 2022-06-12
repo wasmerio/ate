@@ -154,7 +154,7 @@ pub(crate) enum WasmBusThreadWork {
         parent: Option<CallHandle>,
         handle: WasmBusThreadHandle,
         data: Vec<u8>,
-        tx: mpsc::Sender<Result<Vec<u8>, CallError>>,
+        tx: mpsc::Sender<Result<Vec<u8>, BusError>>,
     },
     Drop {
         handle: CallHandle,
@@ -163,14 +163,14 @@ pub(crate) enum WasmBusThreadWork {
 
 pub(crate) struct WasmBusThreadInvocation {
     pub _abort: mpsc::Sender<()>,
-    pub result: AsyncResult<Result<InvokeResult, CallError>>,
+    pub result: AsyncResult<Result<InvokeResult, BusError>>,
     pub data_feeder: WasmBusFeeder,
 }
 
 pub(crate) struct WasmBusThreadInner {
     pub(super) invocations: HashMap<CallHandle, WasmBusThreadInvocation>,
     pub(super) feed_data: mpsc::Receiver<FeedData>,
-    pub(super) calls: HashMap<CallHandle, mpsc::Sender<Result<Vec<u8>, CallError>>>,
+    pub(super) calls: HashMap<CallHandle, mpsc::Sender<Result<Vec<u8>, BusError>>>,
     pub(super) callbacks: HashMap<CallHandle, HashMap<String, CallHandle>>,
     pub(super) listens: HashSet<String>,
     pub(super) factory: BusFactory,
@@ -242,7 +242,7 @@ impl Future for WasmBusThread {
                         to_remove.push(handle.clone());
                     }
                     Poll::Ready(None) => {
-                        callbacks.push((invocation.data_feeder.clone(), Err(CallError::Aborted)));
+                        callbacks.push((invocation.data_feeder.clone(), Err(BusError::Aborted)));
                         to_remove.push(handle.clone());
                     }
                     Poll::Pending => {
@@ -294,7 +294,7 @@ impl WasmBusThread {
                         to_remove.push(handle.clone());
                     }
                     Err(mpsc::error::TryRecvError::Disconnected) => {
-                        callbacks.push((invocation.data_feeder.clone(), Err(CallError::Aborted)));
+                        callbacks.push((invocation.data_feeder.clone(), Err(BusError::Aborted)));
                         to_remove.push(handle.clone());
                     }
                     Err(mpsc::error::TryRecvError::Empty) => {
@@ -416,7 +416,7 @@ impl WasmBusThread {
         topic: String,
         data: Vec<u8>,
     ) -> (
-        mpsc::Receiver<Result<Vec<u8>, CallError>>,
+        mpsc::Receiver<Result<Vec<u8>, BusError>>,
         WasmBusThreadHandle,
     ) {
         // Create a call handle
@@ -456,7 +456,7 @@ impl WasmBusThread {
         format: SerializationFormat,
         request: REQ,
         ctx: WasmCallerContext,
-    ) -> Result<AsyncWasmBusResult<RES>, CallError>
+    ) -> Result<AsyncWasmBusResult<RES>, BusError>
     where
         REQ: Serialize,
         RES: de::DeserializeOwned,
@@ -473,7 +473,7 @@ impl WasmBusThread {
                         format,
                         err
                     );
-                    return Err(CallError::SerializationFailed);
+                    return Err(BusError::SerializationFailed);
                 }
             },
             SerializationFormat::Json => match serde_json::to_vec(&request) {
@@ -485,7 +485,7 @@ impl WasmBusThread {
                         format,
                         err
                     );
-                    return Err(CallError::SerializationFailed);
+                    return Err(BusError::SerializationFailed);
                 }
             },
         };
@@ -531,7 +531,7 @@ impl WasmBusThread {
                 let native_malloc = self.wasm_bus_malloc_ref();
                 let native_start = self.wasm_bus_start_ref();
                 if native_memory.is_none() || native_malloc.is_none() || native_start.is_none() {
-                    let _ = tx.send(Err(CallError::IncorrectAbi));
+                    let _ = tx.send(Err(BusError::IncorrectAbi));
                     warn!("wasm-bus::call - ABI does not match (start)");
                     return err::ERR_PANIC;
                 }
@@ -545,7 +545,7 @@ impl WasmBusThread {
                     inner.listens.contains(&topic)
                 };
                 if no_topic == false {
-                    let _ = tx.send(Err(CallError::InvalidTopic));
+                    let _ = tx.send(Err(BusError::InvalidTopic));
                     warn!("wasm-bus::call - invalid topic");
                     return err::ERR_OK;
                 }
@@ -566,7 +566,7 @@ impl WasmBusThread {
                             err,
                             err.message()
                         );
-                        let _ = tx.send(Err(CallError::MemoryAllocationFailed));
+                        let _ = tx.send(Err(BusError::MemoryAllocationFailed));
                         return err::ERR_OK;
                     }
                 };
@@ -574,7 +574,7 @@ impl WasmBusThread {
                     .write(topic_ptr.into(), &topic_bytes[..]);
                 if let Err(err) = err {
                     warn!("wasm-bus::call - topic memcpy failed - {}", err);
-                    let _ = tx.send(Err(CallError::MemoryAccessViolation));
+                    let _ = tx.send(Err(BusError::MemoryAccessViolation));
                     return err::ERR_OK;
                 }
 
@@ -590,7 +590,7 @@ impl WasmBusThread {
                             err,
                             err.message()
                         );
-                        let _ = tx.send(Err(CallError::MemoryAllocationFailed));
+                        let _ = tx.send(Err(BusError::MemoryAllocationFailed));
                         return err::ERR_OK;
                     }
                 };
@@ -598,7 +598,7 @@ impl WasmBusThread {
                     .write(request_ptr.into(), &request_bytes[..]);
                 if let Err(err) = err {
                     warn!("wasm-bus::call - request memcpy failed - {}", err);
-                    let _ = tx.send(Err(CallError::MemoryAccessViolation));
+                    let _ = tx.send(Err(BusError::MemoryAccessViolation));
                     return err::ERR_OK;
                 }
 
@@ -632,7 +632,7 @@ impl WasmBusThread {
                             inner.calls.remove(&handle)
                         };
                         if let Some(call) = call {
-                            let _ = call.send(Err(CallError::BusInvocationFailed));
+                            let _ = call.send(Err(BusError::BusInvocationFailed));
                         }
                         match e.downcast::<WasiError>() {
                             Ok(WasiError::Exit(code)) => code,
@@ -682,7 +682,7 @@ async fn async_wait_for_poll(mut polling: watch::Receiver<bool>) -> bool {
 }
 
 pub struct AsyncWasmBusResultRaw {
-    pub(crate) rx: mpsc::Receiver<Result<Vec<u8>, CallError>>,
+    pub(crate) rx: mpsc::Receiver<Result<Vec<u8>, BusError>>,
     pub(crate) handle: WasmBusThreadHandle,
     pub(crate) ctx_src: WasmCallerContext,
     pub(crate) ctx_dst: WasmCallerContext,
@@ -691,7 +691,7 @@ pub struct AsyncWasmBusResultRaw {
 
 impl AsyncWasmBusResultRaw {
     pub fn new(
-        rx: mpsc::Receiver<Result<Vec<u8>, CallError>>,
+        rx: mpsc::Receiver<Result<Vec<u8>, BusError>>,
         handle: WasmBusThreadHandle,
         ctx_src: WasmCallerContext,
         ctx_dst: WasmCallerContext,
@@ -710,7 +710,7 @@ impl AsyncWasmBusResultRaw {
         self.handle.clone()
     }
 
-    pub fn block_on(mut self) -> Result<Vec<u8>, CallError> {
+    pub fn block_on(mut self) -> Result<Vec<u8>, BusError> {
         let mut tick_wait = 0u64;
         loop {
             // Attempt to get the data from the receiver pipe
@@ -720,16 +720,16 @@ impl AsyncWasmBusResultRaw {
                 }
                 Err(mpsc::error::TryRecvError::Empty) => {}
                 Err(mpsc::error::TryRecvError::Disconnected) => {
-                    return Err(CallError::Aborted);
+                    return Err(BusError::Aborted);
                 }
             }
 
             // Check for a forced exit
             if self.ctx_src.should_terminate().is_some() {
-                return Err(CallError::Aborted);
+                return Err(BusError::Aborted);
             }
             if self.ctx_dst.should_terminate().is_some() {
-                return Err(CallError::Aborted);
+                return Err(BusError::Aborted);
             }
 
             // Linearly increasing wait time
@@ -742,12 +742,12 @@ impl AsyncWasmBusResultRaw {
 
 #[async_trait]
 impl Invokable for AsyncWasmBusResultRaw {
-    async fn process(&mut self) -> Result<InvokeResult, CallError> {
+    async fn process(&mut self) -> Result<InvokeResult, BusError> {
         let leak = self.keepalive;
         self.rx
             .recv()
             .await
-            .ok_or_else(|| CallError::Aborted)?
+            .ok_or_else(|| BusError::Aborted)?
             .map(|a| {
                 if leak {
                     InvokeResult::ResponseThenLeak(a)
@@ -765,7 +765,7 @@ where
     pub(crate) thread: WasmBusThread,
     pub(crate) handle: WasmBusThreadHandle,
     pub(crate) format: SerializationFormat,
-    pub(crate) rx: mpsc::Receiver<Result<Vec<u8>, CallError>>,
+    pub(crate) rx: mpsc::Receiver<Result<Vec<u8>, BusError>>,
     pub(crate) ctx: WasmCallerContext,
     should_drop: bool,
     _marker: PhantomData<T>,
@@ -777,7 +777,7 @@ where
 {
     pub fn new(
         thread: &WasmBusThread,
-        rx: mpsc::Receiver<Result<Vec<u8>, CallError>>,
+        rx: mpsc::Receiver<Result<Vec<u8>, BusError>>,
         handle: WasmBusThreadHandle,
         format: SerializationFormat,
         ctx: WasmCallerContext,
@@ -793,11 +793,11 @@ where
         }
     }
 
-    pub fn block_on(mut self) -> Result<T, CallError> {
+    pub fn block_on(mut self) -> Result<T, BusError> {
         self.block_on_internal()
     }
 
-    fn block_on_internal(&mut self) -> Result<T, CallError> {
+    fn block_on_internal(&mut self) -> Result<T, BusError> {
         let format = self.format;
         let mut tick_wait = 0u64;
         loop {
@@ -810,16 +810,16 @@ where
                 }
                 Err(mpsc::error::TryRecvError::Empty) => {}
                 Err(mpsc::error::TryRecvError::Disconnected) => {
-                    return Err(CallError::Aborted);
+                    return Err(BusError::Aborted);
                 }
             }
 
             // Check for a forced exit
             if self.ctx.should_terminate().is_some() {
-                return Err(CallError::Aborted);
+                return Err(BusError::Aborted);
             }
             if self.thread.ctx.should_terminate().is_some() {
-                return Err(CallError::Aborted);
+                return Err(BusError::Aborted);
             }
 
             // Linearly increasing wait time
@@ -829,7 +829,7 @@ where
         }
     }
 
-    fn process_block_on_result(format: SerializationFormat, data: Vec<u8>) -> Result<T, CallError> {
+    fn process_block_on_result(format: SerializationFormat, data: Vec<u8>) -> Result<T, BusError> {
         match format {
             SerializationFormat::Bincode => match bincode::deserialize::<T>(&data[..]) {
                 Ok(a) => Ok(a),
@@ -840,7 +840,7 @@ where
                         format,
                         err
                     );
-                    Err(CallError::SerializationFailed)
+                    Err(BusError::SerializationFailed)
                 }
             },
             SerializationFormat::Json => match serde_json::from_slice::<T>(&data[..]) {
@@ -852,18 +852,18 @@ where
                         format,
                         err
                     );
-                    Err(CallError::SerializationFailed)
+                    Err(BusError::SerializationFailed)
                 }
             },
         }
     }
 
-    pub async fn join(mut self) -> Result<T, CallError> {
+    pub async fn join(mut self) -> Result<T, BusError> {
         self.join_internal().await
     }
 
-    async fn join_internal(&mut self) -> Result<T, CallError> {
-        let data = self.rx.recv().await.ok_or_else(|| CallError::Aborted)??;
+    async fn join_internal(&mut self) -> Result<T, BusError> {
+        let data = self.rx.recv().await.ok_or_else(|| BusError::Aborted)??;
         self.should_drop = false;
         match self.format {
             SerializationFormat::Bincode => match bincode::deserialize::<T>(&data[..]) {
@@ -875,7 +875,7 @@ where
                         self.format,
                         err
                     );
-                    Err(CallError::SerializationFailed)
+                    Err(BusError::SerializationFailed)
                 }
             },
             SerializationFormat::Json => match serde_json::from_slice::<T>(&data[..]) {
@@ -887,13 +887,13 @@ where
                         self.format,
                         err
                     );
-                    Err(CallError::SerializationFailed)
+                    Err(BusError::SerializationFailed)
                 }
             },
         }
     }
 
-    pub async fn detach(mut self) -> Result<AsyncWasmBusSession, CallError> {
+    pub async fn detach(mut self) -> Result<AsyncWasmBusSession, BusError> {
         self.should_drop = false;
         let _ = self.join_internal().await?;
         Ok(AsyncWasmBusSession::new(
@@ -903,7 +903,7 @@ where
         ))
     }
 
-    pub fn blocking_detach(mut self) -> Result<AsyncWasmBusSession, CallError> {
+    pub fn blocking_detach(mut self) -> Result<AsyncWasmBusSession, BusError> {
         self.should_drop = false;
         let _ = self.block_on_internal()?;
         Ok(AsyncWasmBusSession::new(
@@ -982,7 +982,7 @@ impl AsyncWasmBusSession {
         &self,
         request: REQ,
         ctx: WasmCallerContext,
-    ) -> Result<AsyncWasmBusResult<RES>, CallError>
+    ) -> Result<AsyncWasmBusResult<RES>, BusError>
     where
         REQ: Serialize,
         RES: de::DeserializeOwned,
@@ -995,7 +995,7 @@ impl AsyncWasmBusSession {
         format: SerializationFormat,
         request: REQ,
         ctx: WasmCallerContext,
-    ) -> Result<AsyncWasmBusResult<RES>, CallError>
+    ) -> Result<AsyncWasmBusResult<RES>, BusError>
     where
         REQ: Serialize,
         RES: de::DeserializeOwned,
@@ -1012,7 +1012,7 @@ impl AsyncWasmBusSession {
                         format,
                         err
                     );
-                    return Err(CallError::SerializationFailed);
+                    return Err(BusError::SerializationFailed);
                 }
             },
             SerializationFormat::Json => match serde_json::to_vec(&request) {
@@ -1024,7 +1024,7 @@ impl AsyncWasmBusSession {
                         format,
                         err
                     );
-                    return Err(CallError::SerializationFailed);
+                    return Err(BusError::SerializationFailed);
                 }
             },
         };

@@ -32,7 +32,7 @@ pub use feeder::FeedData;
 pub use feeder::BusFeeder;
 pub use feeder::BusFeederUtils;
 pub use feeder::CallHandle;
-pub use feeder::CallError;
+pub use feeder::BusError;
 pub use sub_process::SubProcessMultiplexer;
 pub use invokable::Invokable;
 pub use invokable::InvokeResult;

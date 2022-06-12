@@ -33,13 +33,13 @@ impl WebGlInstance {
 impl Session
 for WebGlInstance
 {
-    fn call(&mut self, topic: &str, _request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), CallError> {
+    fn call(&mut self, topic: &str, _request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
         match topic {
             topic if topic == type_name::<api::WebGlContextRequest>() => {
                 let session = self.context();
                 Ok((ResultInvokable::new_leaked(SerializationFormat::Bincode, ()), Some(Box::new(session))))
             }
-            _ => Err(CallError::InvalidTopic)
+            _ => Err(BusError::InvalidTopic)
         }
     }
 }
@@ -104,7 +104,7 @@ impl RenderingContextInstance {
 impl Session
 for RenderingContextInstance
 {
-    fn call(&mut self, topic: &str, _request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), CallError> {
+    fn call(&mut self, topic: &str, _request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
         let ret = self.std_ret_leaked.deref().clone();
         match topic {
             topic if topic == type_name::<api::RenderingContextRasterRequest>() => {
@@ -127,7 +127,7 @@ for RenderingContextInstance
                 let session = self.create_texture();
                 Ok((ret, Some(Box::new(session))))
             }
-            _ => Err(CallError::InvalidTopic)
+            _ => Err(BusError::InvalidTopic)
         }
     }
 }
@@ -147,14 +147,14 @@ impl BufferInstance
 impl Session
 for BufferInstance
 {
-    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), CallError> {
+    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
         match topic {
             topic if topic == type_name::<api::BufferBindBufferRequest>() => {
                 let request: api::BufferBindBufferRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
                 self.bind_buffer(request.kind);
                 Ok((ResultInvokable::new_strong(SerializationFormat::Bincode, ()), None))
             }
-            _ => Err(CallError::InvalidTopic)
+            _ => Err(BusError::InvalidTopic)
         }
     }
 }
@@ -190,7 +190,7 @@ impl TextureInstance {
 impl Session
 for TextureInstance
 {
-    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), CallError> {
+    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
         match topic {
             topic if topic == type_name::<api::TextureBindTextureRequest>() => {
                 let request: api::TextureBindTextureRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
@@ -207,7 +207,7 @@ for TextureInstance
                 self.framebuffer_texture2d(request.target, request.attachment, request.textarget, request.level);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            _ => Err(CallError::InvalidTopic)
+            _ => Err(BusError::InvalidTopic)
         }
     }
 }
@@ -369,7 +369,7 @@ impl RasterInstance
 impl Session
 for RasterInstance
 {
-    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), CallError> {
+    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
         match topic {
             topic if topic == type_name::<api::RasterClearColorRequest>() => {
                 let request: api::RasterClearColorRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
@@ -536,7 +536,7 @@ for RasterInstance
                 let ret = self.sync();
                 Ok((Box::new(ret), None))
             }
-            _ => Err(CallError::InvalidTopic)
+            _ => Err(BusError::InvalidTopic)
         }
     }
 }
@@ -556,14 +556,14 @@ impl FrameBufferInstance {
 impl Session
 for FrameBufferInstance
 {
-    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), CallError> {
+    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
         match topic {
             topic if topic == type_name::<api::FrameBufferBindFramebufferRequest>() => {
                 let request: api::FrameBufferBindFramebufferRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
                 self.bind_framebuffer(request.buffer);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            _ => Err(CallError::InvalidTopic)
+            _ => Err(BusError::InvalidTopic)
         }
     }
 }
@@ -633,7 +633,7 @@ impl ProgramInstance {
 impl Session
 for ProgramInstance
 {
-    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), CallError> {
+    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
         match topic {
             topic if topic == type_name::<api::ProgramCreateShaderRequest>() => {
                 let request: api::ProgramCreateShaderRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
@@ -663,7 +663,7 @@ for ProgramInstance
                 let session = self.get_program_parameter(request.pname);
                 Ok((self.std_ret_leaked.deref().clone(), Some(Box::new(session))))
             }
-            _ => Err(CallError::InvalidTopic)
+            _ => Err(BusError::InvalidTopic)
         }
     }
 }
@@ -690,8 +690,8 @@ impl ProgramParameterInstance {
 impl Session
 for ProgramParameterInstance
 {
-    fn call(&mut self, _topic: &str, _request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), CallError> {
-        Err(CallError::InvalidTopic)
+    fn call(&mut self, _topic: &str, _request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
+        Err(BusError::InvalidTopic)
     }
 }
 
@@ -722,7 +722,7 @@ for ProgramLocationInstance
 impl Session
 for ProgramLocationInstance
 {
-    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), CallError> {
+    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
         match topic {
             topic if topic == type_name::<api::ProgramLocationVertexAttribPointerRequest>() => {
                 let request: api::ProgramLocationVertexAttribPointerRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
@@ -733,7 +733,7 @@ for ProgramLocationInstance
                 self.enable_vertex_attrib_array();
                 Ok((self.std_ret.deref().clone(), None))
             }
-            _ => Err(CallError::InvalidTopic)
+            _ => Err(BusError::InvalidTopic)
         }
     }
 }
@@ -753,13 +753,13 @@ impl VertexArrayInstance {
 impl Session
 for VertexArrayInstance
 {
-    fn call(&mut self, topic: &str, _request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), CallError> {
+    fn call(&mut self, topic: &str, _request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
         match topic {
             topic if topic == type_name::<api::VertexArrayBindVertexArrayRequest>() => {
                 self.bind_vertex_array();
                 Ok((self.std_ret.deref().clone(), None))
             }
-            _ => Err(CallError::InvalidTopic)
+            _ => Err(BusError::InvalidTopic)
         }
     }
 }
@@ -816,7 +816,7 @@ impl UniformLocationInstance {
 impl Session
 for UniformLocationInstance
 {
-    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), CallError> {
+    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
         match topic {
             topic if topic == type_name::<api::UniformLocationUniformMatrix4FvRequest>() => {
                 let request: api::UniformLocationUniformMatrix4FvRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
@@ -858,7 +858,7 @@ for UniformLocationInstance
                 self.uniform_4f(request.value);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            _ => Err(CallError::InvalidTopic)
+            _ => Err(BusError::InvalidTopic)
         }
     }
 }
@@ -886,7 +886,7 @@ impl ShaderInstance {
 impl Session
 for ShaderInstance
 {
-    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), CallError> {
+    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
         match topic {
             topic if topic == type_name::<api::ShaderShaderSourceRequest>() => {
                 let request: api::ShaderShaderSourceRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
@@ -901,7 +901,7 @@ for ShaderInstance
                 let ret = self.attach_shader();
                 Ok((Box::new(ret), None))
             }
-            _ => Err(CallError::InvalidTopic)
+            _ => Err(BusError::InvalidTopic)
         }
     }
 }

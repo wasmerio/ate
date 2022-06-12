@@ -4,7 +4,7 @@ use std::io;
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub enum CallError {
+pub enum BusError {
     Success = 0,
     SerializationFailed = 1,
     DeserializationFailed = 2,
@@ -27,16 +27,16 @@ pub enum CallError {
     Unknown = u32::MAX,
 }
 
-impl CallError {
+impl BusError {
     pub fn into_io_error(self) -> io::Error {
         self.into()
     }
 }
 
-impl Into<io::Error> for CallError {
+impl Into<io::Error> for BusError {
     fn into(self) -> io::Error {
         match self {
-            CallError::InvalidHandle => io::Error::new(
+            BusError::InvalidHandle => io::Error::new(
                 io::ErrorKind::ConnectionAborted,
                 format!("connection aborted - {}", self.to_string()).as_str(),
             ),
@@ -48,49 +48,49 @@ impl Into<io::Error> for CallError {
     }
 }
 
-impl Into<Box<dyn std::error::Error>> for CallError {
+impl Into<Box<dyn std::error::Error>> for BusError {
     fn into(self) -> Box<dyn std::error::Error> {
         let err: io::Error = self.into();
         err.into()
     }
 }
 
-impl fmt::Display for CallError {
+impl fmt::Display for BusError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            CallError::Success => write!(f, "operation successful"),
-            CallError::SerializationFailed => write!(
+            BusError::Success => write!(f, "operation successful"),
+            BusError::SerializationFailed => write!(
                 f,
                 "there was an error while serializing the request or response."
             ),
-            CallError::DeserializationFailed => write!(
+            BusError::DeserializationFailed => write!(
                 f,
                 "there was an error while deserializing the request or response."
             ),
-            CallError::InvalidWapm => write!(f, "the specified WAPM module does not exist."),
-            CallError::FetchFailed => write!(f, "failed to fetch the WAPM module."),
-            CallError::CompileError => write!(f, "failed to compile the WAPM module."),
-            CallError::IncorrectAbi => write!(f, "the ABI is invalid for cross module calls."),
-            CallError::Aborted => write!(f, "the request has been aborted."),
-            CallError::InvalidHandle => write!(f, "the handle is not valid."),
-            CallError::InvalidTopic => write!(f, "the topic name is invalid."),
-            CallError::MissingCallbacks => {
+            BusError::InvalidWapm => write!(f, "the specified WAPM module does not exist."),
+            BusError::FetchFailed => write!(f, "failed to fetch the WAPM module."),
+            BusError::CompileError => write!(f, "failed to compile the WAPM module."),
+            BusError::IncorrectAbi => write!(f, "the ABI is invalid for cross module calls."),
+            BusError::Aborted => write!(f, "the request has been aborted."),
+            BusError::InvalidHandle => write!(f, "the handle is not valid."),
+            BusError::InvalidTopic => write!(f, "the topic name is invalid."),
+            BusError::MissingCallbacks => {
                 write!(f, "some mandatory callbacks were not registered.")
             }
-            CallError::Unsupported => {
+            BusError::Unsupported => {
                 write!(f, "this operation is not supported on this platform.")
             }
-            CallError::BadRequest => write!(
+            BusError::BadRequest => write!(
                 f,
                 "invalid input was supplied in the call resulting in a bad request."
             ),
-            CallError::AccessDenied => write!(f, "access denied"),
-            CallError::InternalFailure => write!(f, "an internal failure has occured"),
-            CallError::MemoryAllocationFailed => write!(f, "memory allocation has failed"),
-            CallError::BusInvocationFailed => write!(f, "bus invocation has failed"),
-            CallError::AlreadyConsumed => write!(f, "result already consumed"),
-            CallError::MemoryAccessViolation => write!(f, "memory access violation"),
-            CallError::Unknown => write!(f, "unknown error."),
+            BusError::AccessDenied => write!(f, "access denied"),
+            BusError::InternalFailure => write!(f, "an internal failure has occured"),
+            BusError::MemoryAllocationFailed => write!(f, "memory allocation has failed"),
+            BusError::BusInvocationFailed => write!(f, "bus invocation has failed"),
+            BusError::AlreadyConsumed => write!(f, "result already consumed"),
+            BusError::MemoryAccessViolation => write!(f, "memory access violation"),
+            BusError::Unknown => write!(f, "unknown error."),
         }
     }
 }

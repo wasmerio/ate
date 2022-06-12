@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use serde::*;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use wasm_bus::abi::CallError;
+use wasm_bus::abi::BusError;
 use wasm_bus::abi::SerializationFormat;
 
 use super::*;
@@ -21,7 +21,7 @@ pub trait Invokable
 where
     Self: Send,
 {
-    async fn process(&mut self) -> Result<InvokeResult, CallError>;
+    async fn process(&mut self) -> Result<InvokeResult, BusError>;
 }
 
 #[async_trait]
@@ -29,24 +29,24 @@ pub trait Session
 where
     Self: Send,
 {
-    fn call(&mut self, _topic: &str, _request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), CallError> {
-        Ok((ErrornousInvokable::new(CallError::InvalidTopic), None))
+    fn call(&mut self, _topic: &str, _request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
+        Ok((ErrornousInvokable::new(BusError::InvalidTopic), None))
     }
 }
 
 pub struct ErrornousInvokable {
-    err: CallError,
+    err: BusError,
 }
 
 impl ErrornousInvokable {
-    pub fn new(err: CallError) -> Box<dyn Invokable> {
+    pub fn new(err: BusError) -> Box<dyn Invokable> {
         Box::new(ErrornousInvokable { err })
     }
 }
 
 #[async_trait]
 impl Invokable for ErrornousInvokable {
-    async fn process(&mut self) -> Result<InvokeResult, CallError> {
+    async fn process(&mut self) -> Result<InvokeResult, BusError> {
         Err(self.err)
     }
 }
@@ -55,7 +55,7 @@ impl Invokable for ErrornousInvokable {
 pub struct ResultInvokable
 where Self: Send + 'static,
 {
-    ret: Option<Result<Vec<u8>, CallError>>,
+    ret: Option<Result<Vec<u8>, BusError>>,
     leak: bool,
 }
 
@@ -99,7 +99,7 @@ where Self: Send + 'static,
 impl Invokable for ResultInvokable
 where Self: Send + 'static,
 {
-    async fn process(&mut self) -> Result<InvokeResult, CallError> {
+    async fn process(&mut self) -> Result<InvokeResult, BusError> {
         if let Some(ret) = self.ret.take() {
             if self.leak {
                 ret.map(|ret| {
@@ -111,7 +111,7 @@ where Self: Send + 'static,
                 })
             }
         } else {
-            Err(CallError::AlreadyConsumed)
+            Err(BusError::AlreadyConsumed)
         }
     }
 }
@@ -122,8 +122,8 @@ where
     Self: Send + 'static,
     T: Serialize + Send,
 {
-    async fn process(&mut self) -> Result<InvokeResult, CallError> {
-        let result = self.rx.recv().await.ok_or_else(|| CallError::Aborted)?;
+    async fn process(&mut self) -> Result<InvokeResult, BusError> {
+        let result = self.rx.recv().await.ok_or_else(|| BusError::Aborted)?;
         Ok(InvokeResult::Response(encode_response(
             self.format,
             &result,

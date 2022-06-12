@@ -5,7 +5,7 @@ use std::sync::Mutex;
 use std::sync::Weak;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use wasm_bus::abi::CallError;
+use wasm_bus::abi::BusError;
 use wasm_bus_process::api;
 use wasm_bus_process::prelude::*;
 
@@ -56,7 +56,7 @@ impl SubProcessFactory {
         env: &LaunchEnvironment,
         stdout_mode: StdioMode,
         stderr_mode: StdioMode,
-    ) -> Result<Arc<SubProcess>, CallError> {
+    ) -> Result<Arc<SubProcess>, BusError> {
         let wapm = wapm.to_string();
         let key = format!("{}-{}-{}", wapm, stdout_mode, stderr_mode);
 
@@ -98,7 +98,7 @@ impl SubProcessFactory {
             Some(a) => a,
             None => {
                 error!("no threads within spawned thread pool of running process");
-                return Err(CallError::Unknown);
+                return Err(BusError::Unknown);
             }
         };
 
@@ -163,11 +163,11 @@ impl SubProcess {
         ctx: WasmCallerContext,
         _client_callbacks: HashMap<String, Arc<dyn BusFeeder + Send + Sync + 'static>>,
         keepalive: bool,
-    ) -> Result<(Box<dyn Invokable>, Option<Box<dyn Session>>), CallError> {
+    ) -> Result<(Box<dyn Invokable>, Option<Box<dyn Session>>), BusError> {
         let threads = match self.threads.first() {
             Some(a) => a,
             None => {
-                return Err(CallError::Unsupported);
+                return Err(BusError::Unsupported);
             }
         };
 
@@ -204,7 +204,7 @@ impl SubProcessSession {
 }
 
 impl Session for SubProcessSession {
-    fn call(&mut self, topic: &str, request: Vec<u8>, leak: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), CallError> {
+    fn call(&mut self, topic: &str, request: Vec<u8>, leak: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
         let topic = topic.to_string();
         let invoker =
             self.thread

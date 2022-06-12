@@ -104,6 +104,12 @@ impl Runtime {
                 }
             }
 
+            // Process any BUS work that needs to be done
+            let bus_events = crate::abi::syscall::bus_poll_once();
+            if bus_events > 0 {
+                continue;
+            }
+
             // It could be the case that one of the threads we just executed has
             // done something that means the main loop needs to run again. For instance
             // if it passed a variable via a mpsc::send to an earlier executed thread.
@@ -113,16 +119,13 @@ impl Runtime {
                 counter = new_counter;
                 continue;
             }
-
-            // Polling the wasm_bus will block execution until something
-            // comes in that changes the current state (e.g. a timer triggers or a packet)
-            crate::abi::syscall::poll();
         }
     }
 
     /// Processes any pending tasks on the engine until it goes
     /// to sleep. Returns the number of outstanding tasks
-    pub fn tick(&self) -> usize {
+    pub fn tick(&self) -> usize
+    {
         // The waker is used to make sure that any asynchronous code that wakes up
         // this main thread (likely because it sent something somewhere else) will
         // repeat the main loop
@@ -151,6 +154,12 @@ impl Runtime {
                 }
             }
 
+            // Process any BUS work that needs to be done
+            let bus_events = crate::abi::syscall::bus_poll_once();
+            if bus_events > 0 {
+                continue;
+            }
+
             // It could be the case that one of the threads we just executed has
             // done something that means the main loop needs to run again. For instance
             // if it passed a variable via a mpsc::send to an earlier executed thread.
@@ -160,12 +169,15 @@ impl Runtime {
                 last_waker = cur_waker;
                 continue;
             }
+
+            // We have completed all the asynchronous work and polled the BUS sufficiently
             return remaining;
         }
     }
 
-    /// Tell the  current thread to start serving requests from
-    /// the WASM bus.
+    /// Tell the operating system to start a reactor thread upon exit
+    /// of the main thread which will call back into the process whenever
+    /// there is work to be done (i.e. IO or BUS arrived)
     pub fn serve(&self) {
         // Upon calling fork then after the main function exits
         // it will run a working thread that processes any inbound
@@ -173,7 +185,7 @@ impl Runtime {
         // back when there are no calls coming back in thus there
         // is no need for the main thread to stick around (even if
         // it has some calls outstanding)
-        crate::abi::syscall::fork();
+        crate::abi::syscall::spawn_reactor();
     }
 
     pub fn wake(&self) {

@@ -9,4 +9,4 @@ pub use crate::ws::WebSocket;
 #[cfg(target_arch = "wasm32")]
 pub use wasm_bus;
 #[cfg(target_arch = "wasm32")]
-pub use wasm_bus::abi::CallError;
+pub use wasm_bus::abi::BusError;

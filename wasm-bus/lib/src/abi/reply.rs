@@ -11,7 +11,7 @@ where
     REQ: de::DeserializeOwned,
     RES: Serialize,
 {
-    handle: CallHandle,
+    scope: CallSmartHandle,
     format: SerializationFormat,
     request: REQ,
     _marker2: PhantomData<RES>,
@@ -23,11 +23,11 @@ where
     RES: Serialize,
 {
     pub fn id(&self) -> u32 {
-        self.handle.id
+        self.scope.cid().id
     }
 
     pub fn reply(self, response: RES) {
-        super::reply(self.handle, self.format, response)
+        super::reply(self.scope.cid(), self.format, response)
     }
 }
 
@@ -43,7 +43,6 @@ where
     REQ: de::DeserializeOwned,
 {
     fn take(self) -> REQ {
-        super::drop(self.handle);
         self.request
     }
 }

@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use tokio::sync::mpsc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-pub use wasm_bus::abi::CallError;
+pub use wasm_bus::abi::BusError;
 pub use wasm_bus::abi::CallHandle;
 
 use super::*;
@@ -17,7 +17,7 @@ use crate::api::SerializationFormat;
 pub trait BusFeeder {
     fn feed_bytes(&self, data: Vec<u8>);
 
-    fn error(&self, err: CallError);
+    fn error(&self, err: BusError);
 
     fn terminate(&self);
 
@@ -28,7 +28,7 @@ pub struct BusFeederUtils { }
 impl BusFeederUtils {
     pub fn process(
         feeder: &dyn BusFeeder,
-        result: Result<InvokeResult, CallError>,
+        result: Result<InvokeResult, BusError>,
         sessions: &Arc<Mutex<HashMap<CallHandle, Box<dyn Session>>>>,
     ) {
         let handle = feeder.handle();
@@ -74,7 +74,7 @@ impl BusFeederUtils {
     pub fn feed_or_error<T>(
         feeder: &dyn BusFeeder,
         format: SerializationFormat,
-        data: Result<T, CallError>)
+        data: Result<T, BusError>)
     where
         T: Serialize,
     {
@@ -87,7 +87,7 @@ impl BusFeederUtils {
 
     pub fn feed_bytes_or_error(
         feeder: &dyn BusFeeder,
-        data: Result<Vec<u8>, CallError>) {
+        data: Result<Vec<u8>, BusError>) {
         match data {
             Ok(a) => feeder.feed_bytes(a),
             Err(err) => feeder.error(err),
@@ -138,7 +138,7 @@ for WasmBusFeeder
         );
     }
 
-    fn error(&self, err: CallError) {
+    fn error(&self, err: BusError) {
         self.system.fork_send(
             &self.tx,
             FeedData::Error {
@@ -165,6 +165,6 @@ for WasmBusFeeder
 #[derive(Debug)]
 pub enum FeedData {
     Finish { handle: CallHandle, data: Vec<u8> },
-    Error { handle: CallHandle, err: CallError },
+    Error { handle: CallHandle, err: BusError },
     Terminate { handle: CallHandle },
 }

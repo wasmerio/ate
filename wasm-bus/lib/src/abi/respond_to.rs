@@ -8,11 +8,11 @@ use std::sync::Mutex;
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus_types::SerializationFormat;
 
-use crate::abi::CallError;
+use crate::abi::BusError;
 use crate::abi::CallHandle;
 
 type CallbackHandler = Arc<
-    dyn Fn(CallHandle, Vec<u8>) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, CallError>> + Send>>
+    dyn Fn(CallHandle, Vec<u8>) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, BusError>> + Send>>
         + Send
         + Sync,
 >;
@@ -43,7 +43,7 @@ impl RespondToService {
                     CallHandle,
                     Vec<u8>,
                 )
-                    -> Pin<Box<dyn Future<Output = Result<Vec<u8>, CallError>> + Send>>
+                    -> Pin<Box<dyn Future<Output = Result<Vec<u8>, BusError>> + Send>>
                 + Send
                 + Sync,
         >,
@@ -57,15 +57,14 @@ impl RespondToService {
         callbacks.remove(handle)
     }
 
-    pub async fn process(&self, callback_handle: CallHandle, handle: CallHandle, request: Vec<u8>) {
+    pub async fn process(&self, callback_handle: CallHandle, handle: CallHandle, request: Vec<u8>, format: SerializationFormat) {
         let callback = {
             let callbacks = self.callbacks.lock().unwrap();
             if let Some(callback) = callbacks.get(&callback_handle) {
                 Arc::clone(callback)
             } else {
-                let err: u32 = CallError::InvalidHandle.into();
-                crate::abi::syscall::fault(handle, err as u32);
-                crate::engine::BusEngine::remove(&handle, "invalid callback handle");
+                crate::abi::syscall::call_fault(handle, BusError::InvalidHandle);
+                crate::engine::BusEngine::close(&handle, "invalid callback handle");
                 return;
             }
         };
@@ -73,15 +72,14 @@ impl RespondToService {
         let res = callback.as_ref()(handle, request);
         match res.await {
             Ok(a) => {
-                crate::abi::syscall::reply(handle, &a[..]);
+                crate::abi::syscall::call_reply(handle, &a[..], format);
             }
             Err(err) => {
-                let err: u32 = err.into();
-                crate::abi::syscall::fault(handle, err as u32);
+                crate::abi::syscall::call_fault(handle, err);
             }
         }
         if self.persistent == false {
-            crate::engine::BusEngine::remove(&handle, "request was processed (by respond_to)");
+            crate::engine::BusEngine::close(&handle, "request was processed (by respond_to)");
         }
     }
 }

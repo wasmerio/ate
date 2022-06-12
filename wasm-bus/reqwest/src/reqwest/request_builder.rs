@@ -7,7 +7,7 @@ use std::io::Write;
 use super::*;
 use crate::api::ReqwestClient;
 use crate::api::Response;
-use wasm_bus::abi::call;
+use wasm_bus::abi::call_new;
 
 pub struct RequestBuilder {
     pub(crate) method: http::Method,

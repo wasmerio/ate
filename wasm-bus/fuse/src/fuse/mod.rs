@@ -27,7 +27,7 @@ impl FileSystem {
                 FsError::IOError
             })?;
         fs.init().await.map_err(|err| {
-            debug!("mount init failed (parent={:?}) - {}", fs.parent_handle(), err);
+            debug!("mount init failed - {}", err);
             FsError::IOError
         })??;
         Ok(FileSystem { fs })
@@ -47,7 +47,7 @@ impl FileSystem {
                 FsError::IOError
             })?;
         fs.init().await.map_err(|err| {
-            debug!("mount init failed (parent={:?}) - {}", fs.parent_handle(), err);
+            debug!("mount init failed - {}", err);
             FsError::IOError
         })??;
         Ok(FileSystem { fs })
