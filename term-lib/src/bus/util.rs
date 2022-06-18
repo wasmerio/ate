@@ -23,6 +23,7 @@ where
                 return Err(BusError::DeserializationFailed);
             }
         },
+        _ => return Err(BusError::Unsupported)
     };
     Ok(req)
 }
@@ -46,6 +47,7 @@ where
                 return Err(BusError::SerializationFailed);
             }
         },
+        _ => return Err(BusError::Unsupported)
     };
     Ok(res)
 }

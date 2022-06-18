@@ -461,7 +461,7 @@ impl WasiProxy for WasiTerm {
     fn poll(
         &self,
         env: &WasiEnv,
-        files: &[&dyn VirtualFile + Sync],
+        files: &[&dyn VirtualFile + Send + Sync],
         events: &[PollEventSet],
         seen_events: &mut [PollEventSet],
     ) -> Result<u32, FsError> {

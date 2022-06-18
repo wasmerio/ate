@@ -2,7 +2,7 @@ use crate::wasmer::Imports;
 use crate::wasmer::LazyInit;
 use crate::wasmer::Memory;
 use crate::wasmer::Module;
-use crate::wasmer::NativeFunc;
+use crate::wasmer::TypedFunction;
 use crate::wasmer::WasmerEnv;
 use crate::wasmer_wasi::WasiError;
 use async_trait::async_trait;
@@ -212,17 +212,17 @@ pub struct WasmBusThread {
     #[wasmer(export)]
     pub memory: LazyInit<Memory>,
     #[wasmer(export(optional = true, name = "wasm_bus_free"))]
-    pub wasm_bus_free: LazyInit<NativeFunc<(u32, u32), ()>>,
+    pub wasm_bus_free: LazyInit<TypedFunction<(u32, u32), ()>>,
     #[wasmer(export(optional = true, name = "wasm_bus_malloc"))]
-    pub wasm_bus_malloc: LazyInit<NativeFunc<u32, u32>>,
+    pub wasm_bus_malloc: LazyInit<TypedFunction<u32, u32>>,
     #[wasmer(export(optional = true, name = "wasm_bus_start"))]
-    pub wasm_bus_start: LazyInit<NativeFunc<(u32, u32, u32, u32, u32, u32), ()>>,
+    pub wasm_bus_start: LazyInit<TypedFunction<(u32, u32, u32, u32, u32, u32), ()>>,
     #[wasmer(export(optional = true, name = "wasm_bus_finish"))]
-    pub wasm_bus_finish: LazyInit<NativeFunc<(u32, u32, u32), ()>>,
+    pub wasm_bus_finish: LazyInit<TypedFunction<(u32, u32, u32), ()>>,
     #[wasmer(export(optional = true, name = "wasm_bus_error"))]
-    pub wasm_bus_error: LazyInit<NativeFunc<(u32, u32), ()>>,
+    pub wasm_bus_error: LazyInit<TypedFunction<(u32, u32), ()>>,
     #[wasmer(export(optional = true, name = "wasm_bus_drop"))]
-    pub wasm_bus_drop: LazyInit<NativeFunc<u32, ()>>,
+    pub wasm_bus_drop: LazyInit<TypedFunction<u32, ()>>,
 }
 
 impl Future for WasmBusThread {
@@ -381,7 +381,7 @@ impl WasmBusThread {
                 }
                 FeedData::Error { handle, err } => {
                     debug!("wasm-bus::call-reply (handle={}, error={})", handle.id, err);
-                    native_error.call(handle.id, err.into()).unwrap();
+                    native_error.call(handle.id, err as u32).unwrap();
                 }
                 FeedData::Terminate { handle } => {
                     debug!("wasm-bus::drop (handle={})", handle.id);
@@ -488,6 +488,7 @@ impl WasmBusThread {
                     return Err(BusError::SerializationFailed);
                 }
             },
+            _ => return Err(BusError::Unsupported)
         };
 
         let (rx, handle) = self.call_internal(None, topic.to_string(), data);
@@ -855,6 +856,7 @@ where
                     Err(BusError::SerializationFailed)
                 }
             },
+            _ => return Err(BusError::Unsupported)
         }
     }
 
@@ -890,6 +892,7 @@ where
                     Err(BusError::SerializationFailed)
                 }
             },
+            _ => return Err(BusError::Unsupported)
         }
     }
 
@@ -1027,6 +1030,7 @@ impl AsyncWasmBusSession {
                     return Err(BusError::SerializationFailed);
                 }
             },
+            _ => return Err(BusError::Unsupported)
         };
 
         let (rx, handle) =

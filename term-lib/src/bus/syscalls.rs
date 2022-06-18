@@ -125,7 +125,7 @@ pub(crate) mod raw {
             )
             .map(|_| BusError::Success)
             .unwrap_or_else(|e| e)
-            .into()
+            as u32
         }
     }
     pub fn wasm_bus_call_instance(
@@ -174,7 +174,7 @@ pub(crate) mod raw {
             )
             .map(|_| BusError::Success)
             .unwrap_or_else(|e| e)
-            .into()
+            as u32
         }
     }
     pub fn wasm_bus_thread_id(thread: &WasmBusThread) -> u32 {

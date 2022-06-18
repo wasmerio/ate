@@ -27,6 +27,35 @@ pub enum BusError {
     Unknown = u32::MAX,
 }
 
+impl From<u32>
+for BusError {
+    fn from(raw: u32) -> Self {
+        use BusError::*;
+        match raw {
+            0 => Success,
+            1 => SerializationFailed,
+            2 => DeserializationFailed,
+            3 => InvalidWapm,
+            4 => FetchFailed,
+            5 => CompileError,
+            6 => IncorrectAbi,
+            7 => Aborted,
+            8 => InvalidHandle,
+            9 => InvalidTopic,
+            10 => MissingCallbacks,
+            11 => Unsupported,
+            12 => BadRequest,
+            14 => InternalFailure,
+            16 => MemoryAllocationFailed,
+            17 => BusInvocationFailed,
+            18 => AccessDenied,
+            19 => AlreadyConsumed,
+            20 => MemoryAccessViolation,
+            _ => Unknown
+        }
+    }
+}
+
 impl BusError {
     pub fn into_io_error(self) -> io::Error {
         self.into()

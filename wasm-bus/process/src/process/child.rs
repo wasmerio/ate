@@ -166,7 +166,7 @@ impl Child {
         };
 
         Ok(Child {
-            id: context.id(),
+            id: context.id().await.map_err(|err| err.into_io_error())?,
             context: Some(context),
             exited: exited_rx,
             stdin,

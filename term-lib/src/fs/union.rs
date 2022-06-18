@@ -404,7 +404,7 @@ impl FileOpener for UnionFileOpener {
         &mut self,
         path: &Path,
         conf: &OpenOptionsConfig,
-    ) -> Result<Box<dyn VirtualFile + Sync>> {
+    ) -> Result<Box<dyn VirtualFile + Send + Sync>> {
         debug!("open: path={}", path.display());
         let mut ret_err = FsError::EntityNotFound;
         let path = path.to_string_lossy();

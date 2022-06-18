@@ -167,7 +167,7 @@ impl FileOpener for CoreFileOpener {
         &mut self,
         path: &Path,
         conf: &OpenOptionsConfig,
-    ) -> FsResult<Box<dyn VirtualFile + Sync>> {
+    ) -> FsResult<Box<dyn VirtualFile + Send + Sync>> {
         debug!("open: path={}", path.display());
         let path = path.to_string_lossy();
         let path = path.as_ref();

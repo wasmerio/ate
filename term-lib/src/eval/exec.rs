@@ -3,6 +3,7 @@
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use sha2::digest::generic_array::sequence::Lengthen;
+use wasmer::Extern;
 use std::collections::HashMap;
 use std::future::Future;
 use std::io::Read;
@@ -478,7 +479,7 @@ pub async fn exec_process(
             imports.extend(wasi_imports.into_iter());
             imports.extend(wasm_bus_imports.into_iter());
             let bus_thread_pool = bus_thread_pool.to_take_context();
-            
+
             // Let's instantiate the module with the imports.
             let instance = match Instance::new(&module, &imports) {
                 Ok(a) => a,

@@ -16,6 +16,7 @@ pub trait Pool {
 
 #[wasm_bus(format = "bincode")]
 pub trait Process {
+    async fn id(&self) -> u32;
     async fn stdin(&self, data: Vec<u8>) -> usize;
     async fn close_stdin(&self);
     async fn kill(&self);
