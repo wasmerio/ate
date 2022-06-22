@@ -1,4 +1,0 @@
-[build]
-target = "wasm32-wasi"
-#rustflags = '-Ctarget-feature=+atomics,+bulk-memory -Clink-args=--no-check-features'
-rustflags = '-Ctarget-feature=+atomics -Clink-args=--no-check-features'

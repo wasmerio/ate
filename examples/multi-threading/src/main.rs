@@ -1,3 +1,5 @@
+//#![feature(unboxed_closures)]
+//#![feature(fn_traits)]
 use std::{
     thread,
     time::Duration,
@@ -43,6 +45,7 @@ fn main() {
     
     for n in 1..10u32 {
         let lock = lock.clone();
+
         joins.push(thread::spawn(move || {
             {
                 let _guard = lock.lock().unwrap();
