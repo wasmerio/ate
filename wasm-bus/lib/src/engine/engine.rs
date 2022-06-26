@@ -3,6 +3,7 @@ use once_cell::sync::Lazy;
 #[allow(unused_imports, dead_code)]
 use std::any::type_name;
 use std::borrow::Cow;
+use std::convert::TryInto;
 #[allow(unused_imports)]
 use std::future::Future;
 use std::sync::RwLock;
@@ -24,15 +25,24 @@ pub struct BusEngineState {
     pub calls: HashMap<CallHandle, Arc<dyn CallOps>>,
     pub children: HashMap<CallHandle, Vec<CallHandle>>,
     #[cfg(feature = "rt")]
-    pub listening: HashMap<Cow<'static, str>, ListenService>,
+    pub listening: HashMap<u128, ListenService>,
     #[cfg(feature = "rt")]
-    pub respond_to: HashMap<Cow<'static, str>, RespondToService>,
+    pub respond_to: HashMap<u128, RespondToService>,
 }
 
 #[derive(Default)]
 pub struct BusEngine {
     state: RwLock<BusEngineState>,
     wakers: Mutex<HashMap<CallHandle, Waker>>,
+}
+
+// Function that hashes the topic using SHA256
+pub(crate) fn hash_topic(topic: &Cow<'static, str>) -> u128 {
+    use sha2::{Sha256, Digest};
+    let mut hasher = Sha256::new();
+    hasher.update(&topic.bytes().collect::<Vec<_>>());
+    let hash: [u8; 16] = hasher.finalize()[..16].try_into().unwrap();
+    u128::from_le_bytes(hash)
 }
 
 impl BusEngine {
@@ -55,7 +65,7 @@ impl BusEngine {
     // This function will block
     #[cfg(feature = "rt")]
     pub fn start(
-        topic: Cow<'static, str>,
+        topic_hash: u128,
         parent: Option<CallHandle>,
         handle: CallHandle,
         request: Vec<u8>,
@@ -65,7 +75,7 @@ impl BusEngine {
         if let Some(parent) = parent {
             if let Some(parent) = state.calls.get(&parent) {
                 // If the callback is registered then process it and finish the call
-                if parent.callback(topic, request, format) != CallbackResult::InvalidTopic {
+                if parent.callback(topic_hash, request, format) != CallbackResult::InvalidTopic {
                     // The topic exists at least - so lets close the handle
                     syscall::call_close(handle);   
                     return Ok(());
@@ -73,7 +83,8 @@ impl BusEngine {
                     return Err(BusError::InvalidTopic);    
                 }
             }
-            if let Some(respond_to) = state.respond_to.get(&topic) {
+
+            if let Some(respond_to) = state.respond_to.get(&topic_hash) {
                 let respond_to = respond_to.clone();
                 drop(state);
 
@@ -92,7 +103,7 @@ impl BusEngine {
             } else {
                 return Err(BusError::InvalidHandle);
             }
-        } else if let Some(listen) = state.listening.get(&topic) {
+        } else if let Some(listen) = state.listening.get(&topic_hash) {
             let listen = listen.clone();
             drop(state);
 
@@ -115,7 +126,7 @@ impl BusEngine {
 
     // This function will block
     pub fn finish_callback(
-        topic: Cow<'static, str>,
+        topic_hash: u128,
         handle: CallHandle,
         response: Vec<u8>,
         format: SerializationFormat,
@@ -126,19 +137,16 @@ impl BusEngine {
                 let call = Arc::clone(call);
                 drop(state);
                 trace!(
-                    "wasm_bus_callback (handle={}, response={} bytes, topic={}, parent_topic={})",
+                    "wasm_bus_callback (handle={}, response={} bytes)",
                     handle.id,
-                    response.len(),
-                    topic,
-                    call.topic()
+                    response.len()
                 );
-                call.callback(topic, response, format);
+                call.callback(topic_hash, response, format);
             } else {
                 trace!(
-                    "wasm_bus_callback (handle={}, response={} bytes, topic={}, orphaned)",
+                    "wasm_bus_callback (handle={}, response={} bytes, orphaned)",
                     handle.id,
                     response.len(),
-                    topic,
                 );
             }
         };
@@ -162,10 +170,9 @@ impl BusEngine {
                 let call = Arc::clone(call);
                 drop(state);
                 trace!(
-                    "wasm_bus_finish (handle={}, response={} bytes, topic={})",
+                    "wasm_bus_finish (handle={}, response={} bytes)",
                     handle.id,
-                    response.len(),
-                    call.topic()
+                    response.len()
                 );
                 call.data(response, format);
             } else {
@@ -191,10 +198,9 @@ impl BusEngine {
                 let call = Arc::clone(call);
                 drop(state);
                 trace!(
-                    "wasm_bus_err (handle={}, error={}, topic={})",
+                    "wasm_bus_err (handle={}, error={})",
                     handle.id,
                     err,
-                    call.topic()
                 );
                 call.error(err);
             } else {
@@ -244,10 +250,9 @@ impl BusEngine {
                 }
                 if let Some(drop_me) = state.calls.remove(handle) {
                     trace!(
-                        "wasm_bus_drop (handle={}, reason='{}', topic={})",
+                        "wasm_bus_drop (handle={}, reason='{}')",
                         handle.id,
-                        reason,
-                        drop_me.topic()
+                        reason
                     );
                     delayed_drop2.push(drop_me);
                 } else {
@@ -286,10 +291,11 @@ impl BusEngine {
         Fut: Future<Output = Result<Vec<u8>, BusError>>,
         Fut: Send + 'static,
     {
+        let topic_hash = crate::engine::hash_topic(&topic.into());
         {
             let mut state = BusEngine::write();
             state.listening.insert(
-                topic.into(),
+                topic_hash,
                 ListenService::new(
                     format,
                     Arc::new(move |handle, req| {
@@ -332,15 +338,15 @@ impl BusEngine {
         Fut: Future<Output = Result<Vec<u8>, BusError>>,
         Fut: Send + 'static,
     {
+        let topic_hash = crate::engine::hash_topic(&topic.into());
         {
             let mut state = BusEngine::write();
-            let topic: Cow<'static, str> = topic.into();
-            if state.respond_to.contains_key(&topic) == false {
+            if state.respond_to.contains_key(&topic_hash) == false {
                 state
                     .respond_to
-                    .insert(topic.clone(), RespondToService::new(format, persistent));
+                    .insert(topic_hash, RespondToService::new(format, persistent));
             }
-            let respond_to = state.respond_to.get_mut(&topic).unwrap();
+            let respond_to = state.respond_to.get_mut(&topic_hash).unwrap();
             respond_to.add(
                 parent.cid(),
                 Arc::new(move |handle, req| {

@@ -17,6 +17,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::task::Context;
 use std::task::Poll;
+use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tokio::sync::watch;
@@ -87,7 +88,7 @@ pub async fn exec_process(
     (
         Process,
         AsyncResult<(EvalContext, u32)>,
-        Arc<WasmBusThreadPool>,
+        Arc<WasiRuntime>,
     ),
     u32,
 > {
@@ -309,10 +310,12 @@ pub async fn exec_process(
     
     let forced_exit = caller_ctx.get_forced_exit();
 
-    // The BUS pool is what gives this WASM process its syscall and operation system
-    // functions and services
-    let bus_thread_pool = WasmBusThreadPool::new(sub_process_factory, caller_ctx.clone());
-    let bus_thread_pool_ret = Arc::clone(&bus_thread_pool);
+    // Create the runtime that will perform terminal specific actions
+    let wasi_runtime = Arc::new(WasiRuntime::new(
+        &forced_exit,
+        sub_process_factory,
+        caller_ctx.clone()));
+    let ctx_taker = wasi_runtime.prepare_take_context();
 
     // This wait point is so that the main thread is created before it returns
     let (checkpoint_tx, mut checkpoint_rx) = mpsc::channel(1);
@@ -321,6 +324,7 @@ pub async fn exec_process(
     let cmd = cmd.clone();
     let args = args.clone();
     let process_result = {
+        let wasi_runtime = wasi_runtime.clone();
         let forced_exit = Arc::clone(&forced_exit);
         sys.spawn_stateful(move |mut thread_local| async move {
             let mut thread_local = thread_local.borrow_mut();
@@ -351,7 +355,7 @@ pub async fn exec_process(
                         let _ = stderr
                             .write(format!("compile-error: {}\n", err).as_bytes())
                             .await;
-                        let ctx = bus_thread_pool.take_context().unwrap();
+                        let ctx = ctx_taker.take_context().unwrap();
                         return (ctx, ERR_ENOEXEC);
                     }
                 };
@@ -430,15 +434,20 @@ pub async fn exec_process(
                         let _ = stderr
                             .write(format!("pre-open error (path={})\n", pre_open).as_bytes())
                             .await;
-                        let ctx = bus_thread_pool.take_context().unwrap();
+                        let ctx = ctx_taker.take_context().unwrap();
                         return (ctx, ERR_ENOEXEC);
                     }
                 }
             }
 
             // Create a new runtime
-            let wasi_runtime = WasiRuntime::new(&forced_exit);
-            wasi_env.runtime(wasi_runtime);
+            // (we do a deeper clone as its needed to implement the trait
+            //  however everyone else will just use arc reference counting
+            //  for better performance)
+            {
+                let wasi_runtime = wasi_runtime.deref();
+                wasi_env.runtime(wasi_runtime.clone());
+            }            
 
             // Build the environment
             let mut wasi_env = match wasi_env.finalize() {
@@ -451,7 +460,7 @@ pub async fn exec_process(
                     let _ = stderr
                         .write(format!("exec error: {}\n", err.to_string()).as_bytes())
                         .await;
-                    let ctx = bus_thread_pool.take_context().unwrap();
+                    let ctx = ctx_taker.take_context().unwrap();
                     return (ctx, ERR_ENOEXEC);
                 }
             };
@@ -465,53 +474,24 @@ pub async fn exec_process(
             }
 
             // Generate an `ImportObject`.
-            let mut wasi_imports = match wasi_env.import_object_for_all_wasi_versions(&module) {
+            let mut imports = match wasi_env.import_object_for_all_wasi_versions(&module) {
                 Ok(a) => a,
                 Err(err) => {
                     let _ = stderr.write(format!("wasi error ({})\n", err.to_string()).as_bytes()).await;
-                    let ctx = bus_thread_pool.take_context().unwrap();
+                    let ctx = ctx_taker.take_context().unwrap();
                     return (ctx, ERR_ENOEXEC);
                 }
             };
-            let mut wasm_thread = bus_thread_pool.get_or_create(&wasi_env, &launch_env);
-            let wasm_bus_imports = wasm_thread.imports(&module);
-            let mut imports = Imports::new();
-            imports.extend(wasi_imports.into_iter());
-            imports.extend(wasm_bus_imports.into_iter());
-            let bus_thread_pool = bus_thread_pool.to_take_context();
-
+            
             // Let's instantiate the module with the imports.
             let instance = match Instance::new(&module, &imports) {
                 Ok(a) => a,
                 Err(err) => {
                     let _ = stderr.write(format!("instantiate error ({})\n", err.to_string()).as_bytes()).await;
-                    let ctx = bus_thread_pool.take_context().unwrap();
+                    let ctx = ctx_taker.take_context().unwrap();
                     return (ctx, ERR_ENOEXEC);
                 }
             };
-
-            // Pre-init a bunch of the functions
-            if let Ok(mem) = instance.exports.get_memory("memory") {
-                wasm_thread.memory.initialize(mem.clone());
-            }
-            if let Ok(funct) = instance.exports.get_native_function("wasm_bus_malloc") {
-                wasm_thread.wasm_bus_malloc.initialize(funct);
-            }
-            if let Ok(funct) = instance.exports.get_native_function("wasm_bus_free") {
-                wasm_thread.wasm_bus_free.initialize(funct);
-            }
-            if let Ok(funct) = instance.exports.get_native_function("wasm_bus_start") {
-                wasm_thread.wasm_bus_start.initialize(funct);
-            }
-            if let Ok(funct) = instance.exports.get_native_function("wasm_bus_finish") {
-                wasm_thread.wasm_bus_finish.initialize(funct);
-            }
-            if let Ok(funct) = instance.exports.get_native_function("wasm_bus_error") {
-                wasm_thread.wasm_bus_error.initialize(funct);
-            }
-            if let Ok(funct) = instance.exports.get_native_function("wasm_bus_drop") {
-                wasm_thread.wasm_bus_drop.initialize(funct);
-            }
 
             // Let's call the `_start` function, which is our `main` function in Rust.
             let start = instance
@@ -547,26 +527,25 @@ pub async fn exec_process(
                 err::ERR_ENOEXEC
             };
 
-            // If there is a polling worker that got registered then its time to consume
-            // it which will effectively bring up a reactor based WASM module
-            let worker = unsafe {
-                let mut inner = wasm_thread.inner.lock();
-                inner.poll_thread.take()
-            };
-            if let Some(worker) = worker {
-                // Running this in a select ensures any finished callbacks
-                // are also processed whenever the worker thread goes idle.
-                // The wasm_thread.await never finishes by design.
-                ret = ExecInterlacer {
-                    poll_thread: worker,
-                    wasm_thread,
+            // If the main thread exited normally and there are still active threads
+            // running then we need to wait for them all to exit before we terminate
+            if ret == 0 {
+                while wasi_env.active_threads() > 0 {
+                    if let Err(err) = wasi_env.sleep(Duration::from_millis(50)) {
+                        match err {
+                            WasiError::Exit(code) => {
+                                ret = code;
+                            },
+                            _ => { }
+                        }
+                        break;
+                    }
                 }
-                .await;
             }
 
             // Ok we are done
             debug!("exited (name={}) with code {}", cmd, ret);
-            let ctx = bus_thread_pool.take_context().unwrap();
+            let ctx = ctx_taker.take_context().unwrap();
             (ctx, ret)
         })
     };
@@ -578,7 +557,7 @@ pub async fn exec_process(
     // Generate a PID for this process
     let (pid, process) = {
         let mut guard = reactor.write().await;
-        let pid = guard.generate_pid(bus_thread_pool_ret.clone(), caller_ctx)?;
+        let pid = guard.generate_pid(caller_ctx)?;
         let process = match guard.get_process(pid) {
             Some(a) => a,
             None => {
@@ -589,36 +568,5 @@ pub async fn exec_process(
     };
     debug!("process created (pid={})", pid);
 
-    Ok((process, process_result, bus_thread_pool_ret))
-}
-
-struct ExecInterlacer {
-    poll_thread: Pin<Box<dyn Future<Output = u32> + Send + 'static>>,
-    wasm_thread: WasmBusThread,
-}
-
-impl Future for ExecInterlacer {
-    type Output = u32;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        // Run the wasm thread
-        let mut wasm_thread = Pin::new(&mut self.wasm_thread);
-        if let Poll::Ready(ret) = wasm_thread.poll(cx) {
-            return Poll::Ready(err::ERR_ECONNABORTED);
-        }
-
-        let mut poll_thread = self.poll_thread.as_mut();
-        if let Poll::Ready(ret) = poll_thread.poll(cx) {
-            return Poll::Ready(ret);
-        }
-
-        // Run the wasm thread
-        let mut wasm_thread = Pin::new(&mut self.wasm_thread);
-        if let Poll::Ready(ret) = wasm_thread.poll(cx) {
-            return Poll::Ready(err::ERR_ECONNABORTED);
-        }
-
-        // We are pending
-        return Poll::Pending;
-    }
+    Ok((process, process_result, wasi_runtime))
 }

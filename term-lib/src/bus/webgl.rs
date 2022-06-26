@@ -1,8 +1,8 @@
 use wasm_bus_webgl::api::glenum::*;
+use wasmer_vbus::BusDataFormat;
 use std::sync::Arc;
 use wasm_bus_webgl::api;
 use std::ops::Deref;
-use std::any::type_name;
 
 use super::*;
 use crate::api::*;
@@ -33,11 +33,11 @@ impl WebGlInstance {
 impl Session
 for WebGlInstance
 {
-    fn call(&mut self, topic: &str, _request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
-        match topic {
-            topic if topic == type_name::<api::WebGlContextRequest>() => {
+    fn call(&mut self, topic_hash: u128, format: BusDataFormat, _request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
+        match topic_hash {
+            topic_hash if topic_hash == type_name_hash::<api::WebGlContextRequest>() => {
                 let session = self.context();
-                Ok((ResultInvokable::new_leaked(SerializationFormat::Bincode, ()), Some(Box::new(session))))
+                Ok((ResultInvokable::new_leaked(conv_format(format), ()), Some(Box::new(session))))
             }
             _ => Err(BusError::InvalidTopic)
         }
@@ -104,26 +104,26 @@ impl RenderingContextInstance {
 impl Session
 for RenderingContextInstance
 {
-    fn call(&mut self, topic: &str, _request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
+    fn call(&mut self, topic_hash: u128, _format: BusDataFormat, _request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
         let ret = self.std_ret_leaked.deref().clone();
-        match topic {
-            topic if topic == type_name::<api::RenderingContextRasterRequest>() => {
+        match topic_hash {
+            topic_hash if topic_hash == type_name_hash::<api::RenderingContextRasterRequest>() => {
                 let session = self.raster();
                 Ok((ret, Some(Box::new(session))))
             }
-            topic if topic == type_name::<api::RenderingContextCreateProgramRequest>() => {
+            topic_hash if topic_hash == type_name_hash::<api::RenderingContextCreateProgramRequest>() => {
                 let session = self.create_program();
                 Ok((ret, Some(Box::new(session))))
             }
-            topic if topic == type_name::<api::RenderingContextCreateBufferRequest>() => {
+            topic_hash if topic_hash == type_name_hash::<api::RenderingContextCreateBufferRequest>() => {
                 let session = self.create_buffer();
                 Ok((ret, Some(Box::new(session))))
             }
-            topic if topic == type_name::<api::RenderingContextCreateVertexArrayRequest>() => {
+            topic_hash if topic_hash == type_name_hash::<api::RenderingContextCreateVertexArrayRequest>() => {
                 let session = self.create_vertex_array();
                 Ok((ret, Some(Box::new(session))))
             }
-            topic if topic == type_name::<api::RenderingContextCreateTextureRequest>() => {
+            topic_hash if topic_hash == type_name_hash::<api::RenderingContextCreateTextureRequest>() => {
                 let session = self.create_texture();
                 Ok((ret, Some(Box::new(session))))
             }
@@ -147,12 +147,12 @@ impl BufferInstance
 impl Session
 for BufferInstance
 {
-    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
-        match topic {
-            topic if topic == type_name::<api::BufferBindBufferRequest>() => {
-                let request: api::BufferBindBufferRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+    fn call(&mut self, topic_hash: u128, format: BusDataFormat, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
+        match topic_hash {
+            topic_hash if topic_hash == type_name_hash::<api::BufferBindBufferRequest>() => {
+                let request: api::BufferBindBufferRequest = decode_request(format, request)?;
                 self.bind_buffer(request.kind);
-                Ok((ResultInvokable::new_strong(SerializationFormat::Bincode, ()), None))
+                Ok((ResultInvokable::new_strong(conv_format(format), ()), None))
             }
             _ => Err(BusError::InvalidTopic)
         }
@@ -190,20 +190,20 @@ impl TextureInstance {
 impl Session
 for TextureInstance
 {
-    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
-        match topic {
-            topic if topic == type_name::<api::TextureBindTextureRequest>() => {
-                let request: api::TextureBindTextureRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+    fn call(&mut self, topic_hash: u128, format: BusDataFormat, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
+        match topic_hash {
+            topic_hash if topic_hash == type_name_hash::<api::TextureBindTextureRequest>() => {
+                let request: api::TextureBindTextureRequest = decode_request(format, request)?;
                 self.bind_texture(request.target);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::TextureBindTextureCubeRequest>() => {
-                let request: api::TextureBindTextureCubeRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::TextureBindTextureCubeRequest>() => {
+                let request: api::TextureBindTextureCubeRequest = decode_request(format, request)?;
                 self.bind_texture_cube(request.target);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::TextureFramebufferTexture2DRequest>() => {
-                let request: api::TextureFramebufferTexture2DRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::TextureFramebufferTexture2DRequest>() => {
+                let request: api::TextureFramebufferTexture2DRequest = decode_request(format, request)?;
                 self.framebuffer_texture2d(request.target, request.attachment, request.textarget, request.level);
                 Ok((self.std_ret.deref().clone(), None))
             }
@@ -369,170 +369,170 @@ impl RasterInstance
 impl Session
 for RasterInstance
 {
-    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
-        match topic {
-            topic if topic == type_name::<api::RasterClearColorRequest>() => {
-                let request: api::RasterClearColorRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+    fn call(&mut self, topic_hash: u128, format: BusDataFormat, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
+        match topic_hash {
+            topic_hash if topic_hash == type_name_hash::<api::RasterClearColorRequest>() => {
+                let request: api::RasterClearColorRequest = decode_request(format, request)?;
                 self.clear_color(request.red, request.green, request.blue, request.alpha);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::RasterClearRequest>() => {
-                let request: api::RasterClearRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::RasterClearRequest>() => {
+                let request: api::RasterClearRequest = decode_request(format, request)?;
                 self.clear(request.bit);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::RasterClearDepthRequest>() => {
-                let request: api::RasterClearDepthRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::RasterClearDepthRequest>() => {
+                let request: api::RasterClearDepthRequest = decode_request(format, request)?;
                 self.clear_depth(request.value);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::RasterDrawArraysRequest>() => {
-                let request: api::RasterDrawArraysRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::RasterDrawArraysRequest>() => {
+                let request: api::RasterDrawArraysRequest = decode_request(format, request)?;
                 self.draw_arrays(request.mode, request.first, request.count);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::RasterDrawElementsRequest>() => {
-                let request: api::RasterDrawElementsRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::RasterDrawElementsRequest>() => {
+                let request: api::RasterDrawElementsRequest = decode_request(format, request)?;
                 self.draw_elements(request.mode, request.count, request.kind, request.offset);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::RasterEnableRequest>() => {
-                let request: api::RasterEnableRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::RasterEnableRequest>() => {
+                let request: api::RasterEnableRequest = decode_request(format, request)?;
                 self.enable(request.flag);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::RasterDisableRequest>() => {
-                let request: api::RasterDisableRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::RasterDisableRequest>() => {
+                let request: api::RasterDisableRequest = decode_request(format, request)?;
                 self.disable(request.flag);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::RasterCullFaceRequest>() => {
-                let request: api::RasterCullFaceRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::RasterCullFaceRequest>() => {
+                let request: api::RasterCullFaceRequest = decode_request(format, request)?;
                 self.cull_face(request.culling);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::RasterDepthMaskRequest>() => {
-                let request: api::RasterDepthMaskRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::RasterDepthMaskRequest>() => {
+                let request: api::RasterDepthMaskRequest = decode_request(format, request)?;
                 self.depth_mask(request.val);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::RasterDepthFunctRequest>() => {
-                let request: api::RasterDepthFunctRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::RasterDepthFunctRequest>() => {
+                let request: api::RasterDepthFunctRequest = decode_request(format, request)?;
                 self.depth_funct(request.val);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::RasterViewportRequest>() => {
-                let request: api::RasterViewportRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::RasterViewportRequest>() => {
+                let request: api::RasterViewportRequest = decode_request(format, request)?;
                 self.viewport(request.x, request.y, request.width, request.height);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::RasterBufferDataRequest>() => {
-                let request: api::RasterBufferDataRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::RasterBufferDataRequest>() => {
+                let request: api::RasterBufferDataRequest = decode_request(format, request)?;
                 self.buffer_data(request.kind, request.data, request.draw);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::RasterReadPixelsRequest>() => {
-                let request: api::RasterReadPixelsRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::RasterReadPixelsRequest>() => {
+                let request: api::RasterReadPixelsRequest = decode_request(format, request)?;
                 let ret = self.read_pixels(request.x, request.y, request.width, request.height, request.format, request.kind);
                 Ok((Box::new(ret), None))
             }
-            topic if topic == type_name::<api::RasterPixelStoreiRequest>() => {
-                let request: api::RasterPixelStoreiRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::RasterPixelStoreiRequest>() => {
+                let request: api::RasterPixelStoreiRequest = decode_request(format, request)?;
                 self.pixel_storei(request.storage, request.value);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::RasterGenerateMipmapRequest>() => {
+            topic_hash if topic_hash == type_name_hash::<api::RasterGenerateMipmapRequest>() => {
                 self.generate_mipmap();
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::RasterGenerateMipmapCubeRequest>() => {
+            topic_hash if topic_hash == type_name_hash::<api::RasterGenerateMipmapCubeRequest>() => {
                 self.generate_mipmap_cube();
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::RasterTexImage2DRequest>() => {
-                let request: api::RasterTexImage2DRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::RasterTexImage2DRequest>() => {
+                let request: api::RasterTexImage2DRequest = decode_request(format, request)?;
                 self.tex_image2d(request.target, request.level, request.width, request.height, request.format, request.kind, request.pixels);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::RasterTexSubImage2DRequest>() => {
-                let request: api::RasterTexSubImage2DRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::RasterTexSubImage2DRequest>() => {
+                let request: api::RasterTexSubImage2DRequest = decode_request(format, request)?;
                 self.tex_sub_image2d(request.target, request.level, request.xoffset, request.yoffset, request.width, request.height, request.format, request.kind, request.pixels);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::RasterCompressedTexImage2DRequest>() => {
-                let request: api::RasterCompressedTexImage2DRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::RasterCompressedTexImage2DRequest>() => {
+                let request: api::RasterCompressedTexImage2DRequest = decode_request(format, request)?;
                 self.compressed_tex_image2d(request.target, request.level, request.compression, request.width, request.height, request.pixels);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::TextureActiveTextureRequest>() => {
-                let request: api::TextureActiveTextureRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::TextureActiveTextureRequest>() => {
+                let request: api::TextureActiveTextureRequest = decode_request(format, request)?;
                 self.active_texture(request.active);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::RasterBlendEquationRequest>() => {
-                let request: api::RasterBlendEquationRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::RasterBlendEquationRequest>() => {
+                let request: api::RasterBlendEquationRequest = decode_request(format, request)?;
                 self.blend_equation(request.eq);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::RasterBlendEquationRequest>() => {
-                let request: api::RasterBlendEquationRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::RasterBlendEquationRequest>() => {
+                let request: api::RasterBlendEquationRequest = decode_request(format, request)?;
                 self.blend_equation(request.eq);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::RasterBlendFuncRequest>() => {
-                let request: api::RasterBlendFuncRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::RasterBlendFuncRequest>() => {
+                let request: api::RasterBlendFuncRequest = decode_request(format, request)?;
                 self.blend_func(request.b1, request.b2);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::RasterBlendColorRequest>() => {
-                let request: api::RasterBlendColorRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::RasterBlendColorRequest>() => {
+                let request: api::RasterBlendColorRequest = decode_request(format, request)?;
                 self.blend_color(request.red, request.green, request.blue, request.alpha);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::RasterTexParameteriRequest>() => {
-                let request: api::RasterTexParameteriRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::RasterTexParameteriRequest>() => {
+                let request: api::RasterTexParameteriRequest = decode_request(format, request)?;
                 self.tex_parameteri(request.kind, request.pname, request.param);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::RasterTexParameterfvRequest>() => {
-                let request: api::RasterTexParameterfvRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::RasterTexParameterfvRequest>() => {
+                let request: api::RasterTexParameterfvRequest = decode_request(format, request)?;
                 self.tex_parameterfv(request.kind, request.pname, request.param);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::RasterDrawBuffersRequest>() => {
-                let request: api::RasterDrawBuffersRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::RasterDrawBuffersRequest>() => {
+                let request: api::RasterDrawBuffersRequest = decode_request(format, request)?;
                 self.draw_buffers(request.buffers);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::RasterCreateFramebufferRequest>() => {
+            topic_hash if topic_hash == type_name_hash::<api::RasterCreateFramebufferRequest>() => {
                 let session = self.create_framebuffer();
                 Ok((self.std_ret_leaked.deref().clone(), Some(Box::new(session))))
             }
-            topic if topic == type_name::<api::RasterUnbindBufferRequest>() => {
-                let request: api::RasterUnbindBufferRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::RasterUnbindBufferRequest>() => {
+                let request: api::RasterUnbindBufferRequest = decode_request(format, request)?;
                 self.unbind_buffer(request.kind);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::RasterUnbindTextureRequest>() => {
-                let request: api::RasterUnbindTextureRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::RasterUnbindTextureRequest>() => {
+                let request: api::RasterUnbindTextureRequest = decode_request(format, request)?;
                 self.unbind_texture(request.active);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::RasterUnbindTextureCubeRequest>() => {
-                let request: api::RasterUnbindTextureCubeRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::RasterUnbindTextureCubeRequest>() => {
+                let request: api::RasterUnbindTextureCubeRequest = decode_request(format, request)?;
                 self.unbind_texture_cube(request.active);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::RasterUnbindVertexArrayRequest>() => {
+            topic_hash if topic_hash == type_name_hash::<api::RasterUnbindVertexArrayRequest>() => {
                 self.unbind_vertex_array();
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::RasterUnbindFramebufferRequest>() => {
-                let request: api::RasterUnbindFramebufferRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::RasterUnbindFramebufferRequest>() => {
+                let request: api::RasterUnbindFramebufferRequest = decode_request(format, request)?;
                 self.unbind_framebuffer(request.buffer);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::RasterSyncRequest>() => {
+            topic_hash if topic_hash == type_name_hash::<api::RasterSyncRequest>() => {
                 let ret = self.sync();
                 Ok((Box::new(ret), None))
             }
@@ -556,10 +556,10 @@ impl FrameBufferInstance {
 impl Session
 for FrameBufferInstance
 {
-    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
-        match topic {
-            topic if topic == type_name::<api::FrameBufferBindFramebufferRequest>() => {
-                let request: api::FrameBufferBindFramebufferRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+    fn call(&mut self, topic_hash: u128, format: BusDataFormat, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
+        match topic_hash {
+            topic_hash if topic_hash == type_name_hash::<api::FrameBufferBindFramebufferRequest>() => {
+                let request: api::FrameBufferBindFramebufferRequest = decode_request(format, request)?;
                 self.bind_framebuffer(request.buffer);
                 Ok((self.std_ret.deref().clone(), None))
             }
@@ -633,33 +633,33 @@ impl ProgramInstance {
 impl Session
 for ProgramInstance
 {
-    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
-        match topic {
-            topic if topic == type_name::<api::ProgramCreateShaderRequest>() => {
-                let request: api::ProgramCreateShaderRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+    fn call(&mut self, topic_hash: u128, format: BusDataFormat, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
+        match topic_hash {
+            topic_hash if topic_hash == type_name_hash::<api::ProgramCreateShaderRequest>() => {
+                let request: api::ProgramCreateShaderRequest = decode_request(format, request)?;
                 let session = self.create_shader(request.kind);
                 Ok((self.std_ret_leaked.deref().clone(), Some(Box::new(session))))
             }
-            topic if topic == type_name::<api::ProgramLinkProgramRequest>() => {
+            topic_hash if topic_hash == type_name_hash::<api::ProgramLinkProgramRequest>() => {
                 let ret = self.link_program();
                 Ok((Box::new(ret), None))
             }
-            topic if topic == type_name::<api::ProgramUseProgramRequest>() => {
+            topic_hash if topic_hash == type_name_hash::<api::ProgramUseProgramRequest>() => {
                 self.use_program();
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::ProgramGetAttribLocationRequest>() => {
-                let request: api::ProgramGetAttribLocationRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::ProgramGetAttribLocationRequest>() => {
+                let request: api::ProgramGetAttribLocationRequest = decode_request(format, request)?;
                 let session = self.get_attrib_location(request.name);
                 Ok((self.std_ret_leaked.deref().clone(), Some(Box::new(session))))
             }
-            topic if topic == type_name::<api::ProgramGetUniformLocationRequest>() => {
-                let request: api::ProgramGetUniformLocationRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::ProgramGetUniformLocationRequest>() => {
+                let request: api::ProgramGetUniformLocationRequest = decode_request(format, request)?;
                 let session = self.get_uniform_location(request.name);
                 Ok((self.std_ret_leaked.deref().clone(), Some(Box::new(session))))
             }
-            topic if topic == type_name::<api::ProgramGetProgramParameterRequest>() => {
-                let request: api::ProgramGetProgramParameterRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::ProgramGetProgramParameterRequest>() => {
+                let request: api::ProgramGetProgramParameterRequest = decode_request(format, request)?;
                 let session = self.get_program_parameter(request.pname);
                 Ok((self.std_ret_leaked.deref().clone(), Some(Box::new(session))))
             }
@@ -690,7 +690,7 @@ impl ProgramParameterInstance {
 impl Session
 for ProgramParameterInstance
 {
-    fn call(&mut self, _topic: &str, _request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
+    fn call(&mut self, _topic_hash: u128, _format: BusDataFormat, _request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
         Err(BusError::InvalidTopic)
     }
 }
@@ -722,14 +722,14 @@ for ProgramLocationInstance
 impl Session
 for ProgramLocationInstance
 {
-    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
-        match topic {
-            topic if topic == type_name::<api::ProgramLocationVertexAttribPointerRequest>() => {
-                let request: api::ProgramLocationVertexAttribPointerRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+    fn call(&mut self, topic_hash: u128, format: BusDataFormat, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
+        match topic_hash {
+            topic_hash if topic_hash == type_name_hash::<api::ProgramLocationVertexAttribPointerRequest>() => {
+                let request: api::ProgramLocationVertexAttribPointerRequest = decode_request(format, request)?;
                 self.vertex_attrib_pointer(request.size, request.kind, request.normalized, request.stride, request.offset);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::ProgramLocationEnableVertexAttribArrayRequest>() => {
+            topic_hash if topic_hash == type_name_hash::<api::ProgramLocationEnableVertexAttribArrayRequest>() => {
                 self.enable_vertex_attrib_array();
                 Ok((self.std_ret.deref().clone(), None))
             }
@@ -753,9 +753,9 @@ impl VertexArrayInstance {
 impl Session
 for VertexArrayInstance
 {
-    fn call(&mut self, topic: &str, _request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
-        match topic {
-            topic if topic == type_name::<api::VertexArrayBindVertexArrayRequest>() => {
+    fn call(&mut self, topic_hash: u128, _format: BusDataFormat, _request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
+        match topic_hash {
+            topic_hash if topic_hash == type_name_hash::<api::VertexArrayBindVertexArrayRequest>() => {
                 self.bind_vertex_array();
                 Ok((self.std_ret.deref().clone(), None))
             }
@@ -816,45 +816,45 @@ impl UniformLocationInstance {
 impl Session
 for UniformLocationInstance
 {
-    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
-        match topic {
-            topic if topic == type_name::<api::UniformLocationUniformMatrix4FvRequest>() => {
-                let request: api::UniformLocationUniformMatrix4FvRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+    fn call(&mut self, topic_hash: u128, format: BusDataFormat, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
+        match topic_hash {
+            topic_hash if topic_hash == type_name_hash::<api::UniformLocationUniformMatrix4FvRequest>() => {
+                let request: api::UniformLocationUniformMatrix4FvRequest = decode_request(format, request)?;
                 self.uniform_matrix_4fv(request.transpose, request.value);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::UniformLocationUniformMatrix3FvRequest>() => {
-                let request: api::UniformLocationUniformMatrix3FvRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::UniformLocationUniformMatrix3FvRequest>() => {
+                let request: api::UniformLocationUniformMatrix3FvRequest = decode_request(format, request)?;
                 self.uniform_matrix_3fv(request.transpose, request.value);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::UniformLocationUniformMatrix2FvRequest>() => {
-                let request: api::UniformLocationUniformMatrix2FvRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::UniformLocationUniformMatrix2FvRequest>() => {
+                let request: api::UniformLocationUniformMatrix2FvRequest = decode_request(format, request)?;
                 self.uniform_matrix_2fv(request.transpose, request.value);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::UniformLocationUniform1IRequest>() => {
-                let request: api::UniformLocationUniform1IRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::UniformLocationUniform1IRequest>() => {
+                let request: api::UniformLocationUniform1IRequest = decode_request(format, request)?;
                 self.uniform_1i(request.value);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::UniformLocationUniform1FRequest>() => {
-                let request: api::UniformLocationUniform1FRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::UniformLocationUniform1FRequest>() => {
+                let request: api::UniformLocationUniform1FRequest = decode_request(format, request)?;
                 self.uniform_1f(request.value);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::UniformLocationUniform2FRequest>() => {
-                let request: api::UniformLocationUniform2FRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::UniformLocationUniform2FRequest>() => {
+                let request: api::UniformLocationUniform2FRequest = decode_request(format, request)?;
                 self.uniform_2f(request.value);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::UniformLocationUniform3FRequest>() => {
-                let request: api::UniformLocationUniform3FRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::UniformLocationUniform3FRequest>() => {
+                let request: api::UniformLocationUniform3FRequest = decode_request(format, request)?;
                 self.uniform_3f(request.value);
                 Ok((self.std_ret.deref().clone(), None))
             }
-            topic if topic == type_name::<api::UniformLocationUniform4FRequest>() => {
-                let request: api::UniformLocationUniform4FRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+            topic_hash if topic_hash == type_name_hash::<api::UniformLocationUniform4FRequest>() => {
+                let request: api::UniformLocationUniform4FRequest = decode_request(format, request)?;
                 self.uniform_4f(request.value);
                 Ok((self.std_ret.deref().clone(), None))
             }
@@ -886,18 +886,18 @@ impl ShaderInstance {
 impl Session
 for ShaderInstance
 {
-    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
-        match topic {
-            topic if topic == type_name::<api::ShaderShaderSourceRequest>() => {
-                let request: api::ShaderShaderSourceRequest = decode_request(SerializationFormat::Bincode, request.as_ref())?;
+    fn call(&mut self, topic_hash: u128, format: BusDataFormat, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
+        match topic_hash {
+            topic_hash if topic_hash == type_name_hash::<api::ShaderShaderSourceRequest>() => {
+                let request: api::ShaderShaderSourceRequest = decode_request(format, request)?;
                 self.shader_source(request.source);
-                Ok((ResultInvokable::new(SerializationFormat::Bincode, ()), None))
+                Ok((ResultInvokable::new(conv_format(format), ()), None))
             }
-            topic if topic == type_name::<api::ShaderShaderCompileRequest>() => {
+            topic_hash if topic_hash == type_name_hash::<api::ShaderShaderCompileRequest>() => {
                 let ret = self.shader_compile();
                 Ok((Box::new(ret), None))
             }
-            topic if topic == type_name::<api::ShaderAttachShaderRequest>() => {
+            topic_hash if topic_hash == type_name_hash::<api::ShaderAttachShaderRequest>() => {
                 let ret = self.attach_shader();
                 Ok((Box::new(ret), None))
             }

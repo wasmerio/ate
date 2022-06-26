@@ -113,9 +113,18 @@ pub struct Fd {
 impl Fd {
     pub fn new(
         tx: Option<mpsc::Sender<FdMsg>>,
-        rx: Option<Arc<AsyncMutex<ReactorPipeReceiver>>>,
+        rx: Option<mpsc::Receiver<FdMsg>>,
+        mode: ReceiverMode,
         flag: FdFlag,
     ) -> Fd {
+        let rx = rx.map(|rx| {
+            Arc::new(AsyncMutex::new(ReactorPipeReceiver {
+                rx,
+                buffer: BytesMut::new(),
+                mode,
+                cur_flag: flag,
+            }))
+        });
         Fd {
             flag,
             ctx: WasmCallerContext::default(),

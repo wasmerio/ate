@@ -4,17 +4,17 @@ use std::fmt;
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CallHandle {
-    pub id: u32,
+    pub id: u64,
 }
 
-impl From<u32> for CallHandle {
-    fn from(val: u32) -> CallHandle {
+impl From<u64> for CallHandle {
+    fn from(val: u64) -> CallHandle {
         CallHandle { id: val }
     }
 }
 
-impl Into<u32> for CallHandle {
-    fn into(self) -> u32 {
+impl Into<u64> for CallHandle {
+    fn into(self) -> u64 {
         self.id
     }
 }

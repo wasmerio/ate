@@ -8,6 +8,9 @@ cd ..
 cd multi-threading
 cargo wasix build --release
 cd ..
+cd crypto-bus
+cargo wasix build --release
+cd ..
 #cd thread-local
 #cargo wasix build --release
 #cd ..
@@ -17,5 +20,6 @@ cd ..
 cp -f ../target/wasm32-wasmer-wasi/release/tcp-listener.wasix.wasm /prog/ate/tokweb/public/bin/example-tcp-listener.wasm
 cp -f ../target/wasm32-wasmer-wasi/release/tcp-client.wasix.wasm /prog/ate/tokweb/public/bin/example-tcp-client.wasm
 cp -f ../target/wasm32-wasmer-wasi/release/multi-threading.wasix.wasm /prog/ate/tokweb/public/bin/example-multi-threading.wasm
+cp -f ../target/wasm32-wasmer-wasi/release/crypto-bus.wasix.wasm /prog/ate/tokweb/public/bin/crypto-bus.wasm
 #cp -f ../target/wasm32-wasmer-wasi/release/thread-local.wasix.wasm /prog/ate/tokweb/public/bin/example-thread-local.wasm
 cp -f ../target/wasm64-wasmer-wasi/release/wasm64-example.wasm /prog/ate/tokweb/public/bin/example-wasm64.wasm

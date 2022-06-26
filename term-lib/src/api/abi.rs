@@ -171,7 +171,7 @@ pub trait SystemAbiExt {
 
     /// Attempts to send the message instantly however if that does not
     /// work it spawns a background thread and sends it there instead
-    fn fork_send<T: Send + 'static>(&self, sender: &mpsc::Sender<T>, msg: T);
+    fn fire_and_forget<T: Send + 'static>(&self, sender: &mpsc::Sender<T>, msg: T);
 
     /// Starts an asynchronous task will will run on a dedicated thread
     /// pulled from the worker pool that has a stateful thread local variable
@@ -272,7 +272,7 @@ impl SystemAbiExt for dyn SystemAbi {
         }));
     }
 
-    fn fork_send<T: Send + 'static>(&self, sender: &mpsc::Sender<T>, msg: T) {
+    fn fire_and_forget<T: Send + 'static>(&self, sender: &mpsc::Sender<T>, msg: T) {
         if let Err(mpsc::error::TrySendError::Full(msg)) = sender.try_send(msg) {
             let sender = sender.clone();
             self.task_shared(Box::new(move || {

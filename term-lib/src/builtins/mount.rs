@@ -108,25 +108,6 @@ pub(super) fn mount(
             }
         };
 
-        print(format!("Waiting for poll\r\n"), &mut stdio, false).await;
-
-        let mut ready = false;
-        tokio::select! {
-            _ = ctx.system.sleep(5000) => { },
-            r = sub_process.main.async_wait_for_poll() => {
-                ready = r;
-            }
-        }
-        if ready == false {
-            print(
-                format!("mount: wapm program failed to poll\r\n"),
-                &mut stdio,
-                true,
-            )
-            .await;
-            return ExecResponse::Immediate(ctx, 1);
-        }
-
         print(format!("Executing the mount\r\n"), &mut stdio, false).await;
 
         let fs = match FuseFileSystem::new(sub_process, target.as_str(), stdio.clone()).await {

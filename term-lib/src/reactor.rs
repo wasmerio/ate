@@ -15,7 +15,6 @@ use tokio::sync::Mutex as AsyncMutex;
 use tracing::{debug, error, info, trace, warn};
 
 use super::api::*;
-use super::bus::WasmBusThreadPool;
 use super::bus::WasmCallerContext;
 use super::common::*;
 use super::environment::*;
@@ -63,7 +62,6 @@ impl Reactor {
 
     pub fn generate_pid(
         &mut self,
-        thread_pool: Arc<WasmBusThreadPool>,
         ctx: WasmCallerContext,
     ) -> Result<Pid, u32> {
         for _ in 0..10000 {
@@ -75,7 +73,6 @@ impl Reactor {
                     Process {
                         system: self.system,
                         pid,
-                        thread_pool,
                         ctx,
                     },
                 );

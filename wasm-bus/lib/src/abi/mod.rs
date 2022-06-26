@@ -61,7 +61,8 @@ where
     T: Serialize,
 {
     let topic = type_name::<T>();
-    let call = Call::new_call(wapm, topic.into(), instance);
+    let topic_hash = crate::engine::hash_topic(&topic.into());
+    let call = Call::new_call(wapm, topic_hash, instance);
 
     let req = match format.serialize(request) {
         Ok(req) => Data::Prepared(req),
@@ -80,7 +81,8 @@ where
     T: Serialize,
 {
     let topic = type_name::<T>();
-    let call = Call::new_subcall(parent, topic.into());
+    let topic_hash = crate::engine::hash_topic(&topic.into());
+    let call = Call::new_subcall(parent, topic_hash);
 
     let req = match format.serialize(request) {
         Ok(req) => Data::Prepared(req),

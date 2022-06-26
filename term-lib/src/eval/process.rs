@@ -6,7 +6,6 @@ use std::sync::Arc;
 use tracing::{debug, error, info, trace, warn};
 
 use crate::api::*;
-use crate::bus::WasmBusThreadPool;
 use crate::bus::WasmCallerContext;
 use crate::common::*;
 use crate::err::*;
@@ -15,7 +14,6 @@ use crate::wasmer_wasi::WasiEnv;
 pub struct Process {
     pub(crate) system: System,
     pub(crate) pid: Pid,
-    pub(crate) thread_pool: Arc<WasmBusThreadPool>,
     pub(crate) ctx: WasmCallerContext,
 }
 
@@ -31,7 +29,6 @@ impl Clone for Process {
             system: System::default(),
             pid: self.pid,
             ctx: self.ctx.clone(),
-            thread_pool: self.thread_pool.clone(),
         }
     }
 }

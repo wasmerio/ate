@@ -46,12 +46,8 @@ pub fn bidirectional(
     let (tx_write, rx_write) = mpsc::channel(buffer_size_rx);
     let fd = Fd::new(
         Some(tx_write),
-        Some(Arc::new(AsyncMutex::new(ReactorPipeReceiver {
-            rx: rx_read,
-            buffer: BytesMut::new(),
-            mode,
-            cur_flag: flag,
-        }))),
+        Some(rx_read),
+        mode,
         flag,
     );
     (fd, tx_read, rx_write)
@@ -65,19 +61,13 @@ pub fn bidirectional_with_defaults(
 
 pub fn pipe_out(flag: FdFlag) -> (Fd, mpsc::Receiver<FdMsg>) {
     let (tx, rx) = mpsc::channel(MAX_MPSC);
-    let fd = Fd::new(Some(tx), None, flag);
+    let fd = Fd::new(Some(tx), None, ReceiverMode::Stream, flag);
     (fd, rx)
 }
 
 pub fn pipe_in(mode: ReceiverMode, flag: FdFlag) -> (Fd, mpsc::Sender<FdMsg>) {
     let (tx, rx) = mpsc::channel(MAX_MPSC);
-    let rx = ReactorPipeReceiver {
-        rx,
-        buffer: BytesMut::new(),
-        mode,
-        cur_flag: flag,
-    };
-    let fd = Fd::new(None, Some(Arc::new(AsyncMutex::new(rx))), flag);
+    let fd = Fd::new(None, Some(rx), mode, flag);
     (fd, tx)
 }
 

@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use wasmer_vbus::BusDataFormat;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -33,19 +34,20 @@ impl BusFactory {
         parent: Option<CallHandle>,
         handle: CallHandle,
         wapm: String,
-        topic: String,
+        topic_hash: u128,
+        format: BusDataFormat,
         request: Vec<u8>,
-        this_callback: Arc<dyn BusFeeder + Send + Sync + 'static>,
-        client_callbacks: HashMap<String, Arc<dyn BusFeeder + Send + Sync + 'static>>,
+        this_callback: Arc<dyn BusStatefulFeeder + Send + Sync + 'static>,
+        client_callbacks: HashMap<String, Arc<dyn BusStatefulFeeder + Send + Sync + 'static>>,
         ctx: WasmCallerContext,
         keepalive: bool,
         env: LaunchEnvironment,
-    ) -> Box<dyn Invokable + 'static> {
+    ) -> Box<dyn Processable + 'static> {
         // If it has a parent then we need to make the call relative to this parents session
         if let Some(parent) = parent {
             let mut sessions = self.sessions.lock().unwrap();
             if let Some(session) = sessions.get_mut(&parent) {
-                match session.call(topic.as_ref(), request, keepalive) {
+                match session.call(topic_hash, format, request, keepalive) {
                     Ok((ret, session)) => {
                         // If it returns a session then start it
                         if let Some(session) = session {
@@ -73,12 +75,13 @@ impl BusFactory {
             sub_processes: self.sub_processes.clone(),
             sessions: self.sessions.clone(),
             wapm,
-            topic,
+            topic_hash,
+            format,
             request: Some(request),
             this_callback,
             client_callbacks,
             ctx,
-            keepalive,
+            keep_alive: keepalive,
         })
     }
 
@@ -103,16 +106,17 @@ where
     sub_processes: SubProcessFactory,
     sessions: Arc<Mutex<HashMap<CallHandle, Box<dyn Session>>>>,
     wapm: String,
-    topic: String,
+    topic_hash: u128,
+    format: BusDataFormat,
     request: Option<Vec<u8>>,
-    this_callback: Arc<dyn BusFeeder + Send + Sync + 'static>,
-    client_callbacks: HashMap<String, Arc<dyn BusFeeder + Send + Sync + 'static>>,
+    this_callback: Arc<dyn BusStatefulFeeder + Send + Sync + 'static>,
+    client_callbacks: HashMap<String, Arc<dyn BusStatefulFeeder + Send + Sync + 'static>>,
     ctx: WasmCallerContext,
-    keepalive: bool,
+    keep_alive: bool,
 }
 
 #[async_trait]
-impl Invokable for BusStartInvokable
+impl Processable for BusStartInvokable
 where
     Self: Send + 'static,
 {
@@ -133,7 +137,8 @@ where
             .standard
             .create(
                 self.wapm.as_str(),
-                self.topic.as_str(),
+                self.topic_hash,
+                self.format,
                 &request,
                 &self.this_callback,
                 &client_callbacks,
@@ -168,11 +173,12 @@ where
 
         // Next we kick off the call itself into the process (with assocated callbacks)
         let call = sub_process.create(
-            self.topic.as_str(),
+            self.topic_hash,
+            self.format,
             request,
             self.ctx.clone(),
             client_callbacks,
-            self.keepalive,
+            self.keep_alive,
         )?;
         let mut invoker = match call {
             (invoker, Some(session)) => {

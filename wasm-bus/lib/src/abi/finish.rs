@@ -37,7 +37,7 @@ impl FinishOps for Finish {
 }
 
 impl Finish {
-    pub fn id(&self) -> u32 {
+    pub fn id(&self) -> u64 {
         self.handle.id
     }
 }

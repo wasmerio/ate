@@ -22,7 +22,7 @@ where
     REQ: de::DeserializeOwned,
     RES: Serialize,
 {
-    pub fn id(&self) -> u32 {
+    pub fn id(&self) -> u64 {
         self.scope.cid().id
     }
 

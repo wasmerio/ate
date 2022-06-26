@@ -445,11 +445,11 @@ pub struct SessionFeeder {
 
 impl SessionFeeder {
     fn send(&self, reply: InstanceReply) {
-        self.sys.fork_send(&self.tx_reply, reply);
+        self.sys.fire_and_forget(&self.tx_reply, reply);
     }
 }
 
-impl BusFeeder
+impl BusStatelessFeeder
 for SessionFeeder {
     fn feed_bytes(&self, data: Vec<u8>) {
         trace!("feed-bytes(handle={}, data={} bytes)", self.handle, data.len());
@@ -473,7 +473,10 @@ for SessionFeeder {
             handle: self.handle,
         });
     }
+}
 
+impl BusStatefulFeeder
+for SessionFeeder {
     fn handle(&self) -> CallHandle {
         self.handle
     }

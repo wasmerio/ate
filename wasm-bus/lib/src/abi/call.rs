@@ -29,11 +29,11 @@ where
 {
     fn data(&self, data: Vec<u8>, format: SerializationFormat);
 
-    fn callback(&self, topic: Cow<'static, str>, data: Vec<u8>, format: SerializationFormat) -> CallbackResult;
+    fn callback(&self, topic_hash: u128, data: Vec<u8>, format: SerializationFormat) -> CallbackResult;
 
     fn error(&self, error: BusError);
 
-    fn topic(&self) -> &str;
+    fn topic_hash(&self) -> u128;
 }
 
 #[derive(Debug)]
@@ -116,9 +116,9 @@ for CallSmartPointerInside {
 #[must_use = "you must 'wait' or 'await' to actually send this call to other modules"]
 pub struct Call {
     pub(crate) ctx: CallContext,
-    pub(crate) topic: Cow<'static, str>,
+    pub(crate) topic_hash: u128,
     #[derivative(Debug = "ignore")]
-    pub(crate) callbacks: HashMap<Cow<'static, str>, Arc<dyn Fn(Vec<u8>, SerializationFormat) -> CallbackResult + Send + Sync + 'static>>,
+    pub(crate) callbacks: HashMap<u128, Arc<dyn Fn(Vec<u8>, SerializationFormat) -> CallbackResult + Send + Sync + 'static>>,
     pub(crate) handle: Option<CallSmartHandle>,
     pub(crate) keepalive: bool,
     pub(crate) state: Arc<Mutex<CallState>>,
@@ -128,7 +128,7 @@ pub struct Call {
 impl Call {
     pub fn new_call(
         wapm: Cow<'static, str>,
-        topic: Cow<'static, str>,
+        topic_hash: u128,
         instance: Option<CallInstance>,
     ) -> Call {
         Call {
@@ -139,14 +139,14 @@ impl Call {
             callbacks: Default::default(),
             handle: None,
             keepalive: false,
-            topic,
+            topic_hash,
             drop_on_data: Arc::new(AtomicBool::new(true)),
         }
     }
 
     pub fn new_subcall(
         parent: CallSmartHandle,
-        topic: Cow<'static, str>,
+        topic_hash: u128,
     ) -> Call {
         Call {
             ctx: CallContext::SubCall { parent },
@@ -156,7 +156,7 @@ impl Call {
             callbacks: Default::default(),
             handle: None,
             keepalive: false,
-            topic,
+            topic_hash,
             drop_on_data: Arc::new(AtomicBool::new(true)),
         }
     }
@@ -187,8 +187,8 @@ impl CallOps for Call {
         }
     }
 
-    fn callback(&self, topic: Cow<'static, str>, data: Vec<u8>, format: SerializationFormat) -> CallbackResult {
-        if let Some(funct) = self.callbacks.get(&topic) {
+    fn callback(&self, topic_hash: u128, data: Vec<u8>, format: SerializationFormat) -> CallbackResult {
+        if let Some(funct) = self.callbacks.get(&topic_hash) {
             funct(data, format)
         } else {
             CallbackResult::InvalidTopic
@@ -205,13 +205,12 @@ impl CallOps for Call {
         }
     }
 
-    fn topic(&self) -> &str {
-        self.topic.as_ref()
+    fn topic_hash(&self) -> u128 {
+        self.topic_hash
     }
 }
 
-#[derive(Derivative)]
-#[derivative(Debug)]
+#[derive(Debug)]
 #[must_use = "you must 'invoke' the builder for it to actually call anything"]
 pub struct CallBuilder {
     call: Option<Call>,
@@ -300,7 +299,7 @@ impl CallBuilder {
                             crate::abi::syscall::bus_call(
                                 bid,
                                 call.keepalive,
-                                &call.topic,
+                                call.topic_hash,
                                 &req[..],
                                 self.format,
                             )
@@ -310,7 +309,7 @@ impl CallBuilder {
                         crate::abi::syscall::bus_subcall(
                             parent.cid(),
                             call.keepalive,
-                            &call.topic,
+                            call.topic_hash,
                             &req[..],
                             self.format,
                         )
@@ -346,6 +345,7 @@ impl Call {
         F: Send + Sync + 'static,
     {
         let topic = std::any::type_name::<C>();
+        let topic_hash = crate::engine::hash_topic(&topic.into());
         let callback = move |data, format: SerializationFormat| {
             if let Ok(data) = format.deserialize(data) {
                 callback(data);
@@ -355,7 +355,7 @@ impl Call {
                 CallbackResult::Error
             }
         };
-        self.callbacks.insert(topic.into(), Arc::new(callback));
+        self.callbacks.insert(topic_hash, Arc::new(callback));
     }
 
     /// Returns the result of the call
@@ -368,7 +368,7 @@ impl Call {
                 Ok(CallJoin::new(self, scope))
             },
             None => {
-                trace!("must invoke the call before attempting to join on it (topic={})", self.topic());
+                trace!("must invoke the call before attempting to join on it");
                 Err(BusError::BusInvocationFailed)
             }
         }

@@ -1,5 +1,6 @@
 use crate::common::MAX_MPSC;
 use async_trait::async_trait;
+use wasmer_vbus::BusDataFormat;
 use std::any::type_name;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -19,8 +20,8 @@ use crate::api::*;
 
 pub fn web_socket(
     connect: api::SocketBuilderConnectRequest,
-    this_callback: Arc<dyn BusFeeder + Send + Sync + 'static>,
-    mut client_callbacks: HashMap<String, Arc<dyn BusFeeder + Send + Sync + 'static>>,
+    this_callback: Arc<dyn BusStatefulFeeder + Send + Sync + 'static>,
+    mut client_callbacks: HashMap<String, Arc<dyn BusStatefulFeeder + Send + Sync + 'static>>,
 ) -> Result<(WebSocketInvoker, WebSocketSession), BusError> {
     let system = System::default();
 
@@ -174,7 +175,7 @@ pub fn web_socket(
 pub struct WebSocket {
     #[allow(dead_code)]
     tx_keepalive: mpsc::Sender<()>,
-    this: Arc<dyn BusFeeder + Send + Sync + 'static>,
+    this: Arc<dyn BusStatefulFeeder + Send + Sync + 'static>,
     rx_state: broadcast::Receiver<model::SocketState>,
 }
 
@@ -209,13 +210,14 @@ pub struct WebSocketInvoker {
 }
 
 #[async_trait]
-impl Invokable for WebSocketInvoker {
+impl Processable for WebSocketInvoker {
     async fn process(&mut self) -> Result<InvokeResult, BusError> {
         let ws = self.ws.take();
         if let Some(ws) = ws {
             let fut = Box::pin(ws.run());
             Ok(InvokeResult::ResponseThenWork(
-                encode_response(SerializationFormat::Bincode, &())?,
+                SerializationFormat::Bincode,
+                SerializationFormat::Bincode.serialize(&())?,
                 fut,
             ))
         } else {
@@ -229,11 +231,11 @@ pub struct WebSocketSession {
 }
 
 impl Session for WebSocketSession {
-    fn call(&mut self, topic: &str, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
-        if topic == type_name::<api::WebSocketSendRequest>() {
+    fn call(&mut self, topic_hash: u128, format: BusDataFormat, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
+        if topic_hash == type_name_hash::<api::WebSocketSendRequest>() {
             let data = decode_request::<api::WebSocketSendRequest>(
-                SerializationFormat::Bincode,
-                request.as_ref(),
+                format,
+                request,
             )?.data;
             let data_len = data.len();
 
@@ -245,6 +247,7 @@ impl Session for WebSocketSession {
             if let Some(data) = again {
                 Ok((
                     Box::new(DelayedSend {
+                        format: conv_format(format),
                         data: Some(data),
                         tx: self.tx_send.clone(),
                     }),
@@ -253,7 +256,7 @@ impl Session for WebSocketSession {
             } else {
                 Ok((
                     ResultInvokable::new(
-                        SerializationFormat::Bincode,
+                        conv_format(format),
                         model::SendResult::Success(data_len),
                     ),
                     None
@@ -266,19 +269,20 @@ impl Session for WebSocketSession {
 }
 
 struct DelayedSend {
+    format: SerializationFormat,
     data: Option<Vec<u8>>,
     tx: mpsc::Sender<Vec<u8>>,
 }
 
 #[async_trait]
-impl Invokable for DelayedSend {
+impl Processable for DelayedSend {
     async fn process(&mut self) -> Result<InvokeResult, BusError> {
         let mut size = 0usize;
         if let Some(data) = self.data.take() {
             size = data.len();
             let _ = self.tx.send(data).await;
         }
-        ResultInvokable::new(SerializationFormat::Bincode, model::SendResult::Success(size))
+        ResultInvokable::new(self.format, model::SendResult::Success(size))
             .process()
             .await
     }

@@ -10,9 +10,13 @@ pub(crate) mod factory;
 pub(crate) mod load_bin;
 pub(crate) mod process;
 pub(crate) mod runtime;
+pub(crate) mod bus_feeder;
+pub(crate) mod bus_listener;
+pub(crate) mod bus_handle;
 
 pub use andor_list::*;
 pub use complete_command::*;
+use derivative::Derivative;
 pub use eval_arg::*;
 pub use exec::*;
 pub use exec_pipeline::*;
@@ -20,6 +24,9 @@ pub use factory::*;
 pub use load_bin::*;
 pub use process::*;
 pub use runtime::*;
+pub use bus_feeder::*;
+pub use bus_listener::*;
+pub use bus_handle::*;
 
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -59,6 +66,7 @@ use super::stdio::*;
 use super::bus::LaunchEnvironment;
 use super::grammar::ast::Redirect;
 
+#[derive(Debug)]
 pub enum EvalStatus {
     Executed { code: u32, show_result: bool },
     MoreInput,
@@ -66,8 +74,11 @@ pub enum EvalStatus {
     InternalError,
 }
 
+#[derive(Derivative)]
+#[derivative(Debug)]
 pub struct EvalResult {
     pub ctx: EvalContext,
+    #[derivative(Debug = "ignore")]
     pub status: EvalStatus,
 }
 
@@ -120,7 +131,7 @@ impl Compiler
     {
         // Build the features list
         let mut features = wasmer_compiler::Features::new();
-        features.threads(true);
+        //features.threads(true);       // TODO: This needs to be enabled again when threading is fixed
         features.memory64(true);
         #[cfg(feature = "singlepass")]
         if let Compiler::Singlepass = self {
@@ -208,20 +219,30 @@ for Compiler
     }
 }
 
-#[derive(Clone)]
+#[derive(Derivative, Clone)]
+#[derivative(Debug)]
 pub struct EvalContext {
+    #[derivative(Debug = "ignore")]
     pub system: System,
+    #[derivative(Debug = "ignore")]
     pub abi: Arc<dyn ConsoleAbi>,
+    #[derivative(Debug = "ignore")]
     pub env: Environment,
+    #[derivative(Debug = "ignore")]
     pub bins: BinFactory,
     pub last_return: u32,
+    #[derivative(Debug = "ignore")]
     pub reactor: Arc<RwLock<Reactor>>,
     pub chroot: bool,
     pub working_dir: String,
     pub pre_open: Vec<String>,
+    #[derivative(Debug = "ignore")]
     pub stdio: Stdio,
+    #[derivative(Debug = "ignore")]
     pub root: UnionFileSystem,
+    #[derivative(Debug = "ignore")]
     pub exec_factory: EvalFactory,
+    #[derivative(Debug = "ignore")]
     pub job: Job,
     pub compiler: Compiler,
     pub extra_args: Vec<String>,

@@ -8,11 +8,14 @@ use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::BusError;
 use wasm_bus_process::api;
 use wasm_bus_process::prelude::*;
+use wasmer_vbus::BusDataFormat;
 
 use crate::api::AsyncResult;
 use crate::api::System;
 use crate::eval::EvalContext;
 use crate::eval::Process;
+use crate::eval::RuntimeCallOutsideTask;
+use crate::eval::WasiRuntime;
 
 use super::*;
 
@@ -87,20 +90,11 @@ impl SubProcessFactory {
                 pre_open: Vec::new(),
             },
         };
-        let (process, process_result, thread_pool) = self
+        let (process, process_result, runtime) = self
             .inner
             .process_factory
             .create(spawn, &env, empty_client_callbacks)
             .await?;
-
-        // Get the main thread
-        let main = match thread_pool.first() {
-            Some(a) => a,
-            None => {
-                error!("no threads within spawned thread pool of running process");
-                return Err(BusError::Unknown);
-            }
-        };
 
         // Add it to the list of sub processes and return it
         let ctx = self.ctx.clone();
@@ -108,9 +102,8 @@ impl SubProcessFactory {
             wapm.as_str(),
             process,
             process_result,
-            thread_pool,
+            runtime,
             ctx,
-            main,
         ));
         {
             let mut processes = self.inner.multiplexer.processes.lock().unwrap();
@@ -129,8 +122,7 @@ pub struct SubProcess {
     pub process: Process,
     pub process_result: Arc<Mutex<AsyncResult<(EvalContext, u32)>>>,
     pub inner: Arc<SubProcessInner>,
-    pub threads: Arc<WasmBusThreadPool>,
-    pub main: WasmBusThread,
+    pub runtime: Arc<WasiRuntime>,
     pub ctx: Arc<Mutex<Option<EvalContext>>>,
 }
 
@@ -139,9 +131,8 @@ impl SubProcess {
         wapm: &str,
         process: Process,
         process_result: AsyncResult<(EvalContext, u32)>,
-        threads: Arc<WasmBusThreadPool>,
+        runtime: Arc<WasiRuntime>,
         ctx: Arc<Mutex<Option<EvalContext>>>,
-        main: WasmBusThread,
     ) -> SubProcess {
         SubProcess {
             system: System::default(),
@@ -150,53 +141,46 @@ impl SubProcess {
             inner: Arc::new(SubProcessInner {
                 wapm: wapm.to_string(),
             }),
-            threads,
+            runtime,
             ctx,
-            main,
         }
     }
 
     pub fn create(
         self: &Arc<Self>,
-        topic: &str,
+        topic_hash: u128,
+        format: BusDataFormat,
         request: Vec<u8>,
         ctx: WasmCallerContext,
-        _client_callbacks: HashMap<String, Arc<dyn BusFeeder + Send + Sync + 'static>>,
-        keepalive: bool,
-    ) -> Result<(Box<dyn Invokable>, Option<Box<dyn Session>>), BusError> {
-        let threads = match self.threads.first() {
-            Some(a) => a,
-            None => {
-                return Err(BusError::Unsupported);
-            }
-        };
-
-        let topic = topic.to_string();
-        let invoker = threads.call_raw(None, topic, request, ctx.clone(), keepalive);
+        _client_callbacks: HashMap<String, Arc<dyn BusStatefulFeeder + Send + Sync + 'static>>,
+        keep_alive: bool,
+    ) -> Result<(Box<dyn Processable>, Option<Box<dyn Session>>), BusError> {
+        let feeder = self.runtime.feeder();
+        let handle = feeder.call_raw(topic_hash, format, request, keep_alive);
         let sub_process = self.clone();
 
-        let session = SubProcessSession::new(threads.clone(), invoker.handle(), sub_process, ctx);
-        Ok((Box::new(invoker), Some(Box::new(session))))
+        let session = SubProcessSession::new(self.runtime.clone(), handle.clone_task(), sub_process, ctx);
+        Ok((Box::new(handle), Some(Box::new(session))))
     }
 }
 
 pub struct SubProcessSession {
-    pub handle: WasmBusThreadHandle,
-    pub thread: WasmBusThread,
+    pub runtime: Arc<WasiRuntime>,
+    pub task: RuntimeCallOutsideTask,
     pub sub_process: Arc<SubProcess>,
     pub ctx: WasmCallerContext,
 }
 
 impl SubProcessSession {
     pub fn new(
-        thread: WasmBusThread,
-        handle: WasmBusThreadHandle,
+        runtime: Arc<WasiRuntime>,
+        task: RuntimeCallOutsideTask,
         sub_process: Arc<SubProcess>,
         ctx: WasmCallerContext,
     ) -> SubProcessSession {
         SubProcessSession {
-            thread,
-            handle,
+            runtime,
+            task,
             sub_process,
             ctx,
         }
@@ -204,17 +188,10 @@ impl SubProcessSession {
 }
 
 impl Session for SubProcessSession {
-    fn call(&mut self, topic: &str, request: Vec<u8>, leak: bool) -> Result<(Box<dyn Invokable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
-        let topic = topic.to_string();
+    fn call(&mut self, topic_hash: u128, format: BusDataFormat, request: Vec<u8>, leak: bool) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
         let invoker =
-            self.thread
-                .call_raw(Some(self.handle.handle()), topic, request, self.ctx.clone(), leak);
+            self.task
+                .call_raw(topic_hash, format, request, leak);
         Ok((Box::new(invoker), None))
-    }
-}
-
-impl Drop for SubProcessSession {
-    fn drop(&mut self) {
-        self.thread.drop_call(self.handle.handle());
     }
 }

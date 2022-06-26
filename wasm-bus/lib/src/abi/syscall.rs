@@ -80,30 +80,50 @@ fn convert_err_back(val: BusError) -> wasi::BusError {
     }
 }
 
-fn convert_topic(topic_ptr: *mut u8, topic_len: usize) -> &'static str {
+fn convert_hash(hash: wasi::Hash) -> u128 {
+    #[repr(C)]
+    union HashUnion {
+        h1: (u64, u64),
+        h2: u128,
+    }
+
     unsafe {
-        // The operating system will resubmit the topic buffer rather than keep allocating it
-        // thus the receiver should not free the buffer
-        let buf = std::slice::from_raw_parts(topic_ptr, topic_len);
-        std::str::from_utf8_unchecked(buf) as &'static str
+        let hash = HashUnion {
+            h1: (hash.b0, hash.b1)
+        };
+        hash.h2
     }
 }
 
-/// Function used to allocate memory during operations like polling
-#[no_mangle]
-pub extern "C" fn _bus_malloc(len: u64) -> u64 {
-    trace!("bus_malloc (len={})", len);
-    let mut buf = Vec::with_capacity(len as usize);
-    let ptr: *mut u8 = buf.as_mut_ptr();
-    std::mem::forget(buf);
-    return ptr as u64;
+fn convert_hash_back(hash: u128) -> wasi::Hash {
+    #[repr(C)]
+    union HashUnion {
+        h1: (u64, u64),
+        h2: u128,
+    }
+
+    unsafe {
+        let hash = HashUnion {
+            h2: hash
+        };
+        wasi::Hash {
+            b0: hash.h1.0,
+            b1: hash.h1.1,
+        }
+    }
 }
 
-/// Callback thats invoked whenever the main BUS needs to do some work
-#[no_mangle]
-pub extern "C" fn _bus_work(_user_data: u64)
-{
-    crate::rt::RUNTIME.tick();
+fn read_file_descriptor(fd: u32) -> Result<Vec<u8>, ()> {
+    use std::os::wasi::io::FromRawFd;
+    use std::io::Read;
+    let fd = fd as std::os::wasi::io::RawFd;
+    let mut file = unsafe { std::fs::File::from_raw_fd(fd) };
+    let mut req = Vec::new();
+    if let Err(err) = file.read_to_end(&mut req) {
+        warn!("failed to read call request data - {}", err);
+        return Err(());
+    }
+    Ok(req)
 }
 
 pub fn bus_poll_once() -> usize {
@@ -119,7 +139,7 @@ pub fn bus_poll_once() -> usize {
     let events = unsafe {
         let events_len = events.len();
         let events_ptr = events.as_mut_ptr();
-        match wasi::bus_poll(timeout, events_ptr, events_len, "_bus_malloc") {
+        match wasi::bus_poll(timeout, events_ptr, events_len) {
             Ok(nevents) => {
                 // No more events to process
                 if nevents <= 0 {
@@ -153,16 +173,12 @@ pub fn bus_poll_once() -> usize {
             }
             wasi::BUS_EVENT_TYPE_CALL => {
                 let handle: CallHandle = unsafe { event.u.call.cid.into() };
-                let topic = unsafe {
-                    convert_topic(
-                        event.u.call.topic,
-                        event.u.call.topic_len
-                    )
-                };
+                let topic_hash = unsafe { convert_hash(event.u.call.topic_hash) };
                 let request = unsafe {
-                    let buf_ptr = event.u.call.buf;
-                    let buf_len = event.u.call.buf_len;
-                    Vec::from_raw_parts(buf_ptr as *mut u8, buf_len as usize, buf_len as usize)
+                    match read_file_descriptor(event.u.call.fd) {
+                        Ok(a) => a,
+                        Err(()) => { continue; }
+                    }
                 };
                 let parent: Option<CallHandle> = unsafe {
                     match event.u.call.parent.tag.into() {
@@ -173,22 +189,22 @@ pub fn bus_poll_once() -> usize {
                 let format = unsafe { convert_format(event.u.call.format) };
 
                 trace!(
-                    "wasm_bus_start (parent={:?}, handle={}, topic={}, request={} bytes)",
+                    "wasm_bus_start (parent={:?}, handle={}, request={} bytes)",
                     parent,
                     handle,
-                    topic,
                     request.len()
                 );
-                if let Err(err) = crate::engine::BusEngine::start(topic.into(), parent, handle, request, format) {
+                if let Err(err) = crate::engine::BusEngine::start(topic_hash, parent, handle, request, format) {
                     call_fault(handle.into(), err);
                 }
             }
             wasi::BUS_EVENT_TYPE_RESULT => {
                 let handle: CallHandle = unsafe { event.u.result.cid.into() };
                 let response = unsafe {
-                    let buf_ptr = event.u.result.buf;
-                    let buf_len = event.u.result.buf_len;
-                    Vec::from_raw_parts(buf_ptr as *mut u8, buf_len as usize, buf_len as usize)
+                    match read_file_descriptor(event.u.result.fd) {
+                        Ok(a) => a,
+                        Err(()) => { continue; }
+                    }
                 };
                 let format = unsafe { convert_format(event.u.result.format) };
                 crate::engine::BusEngine::result(handle, response, format);
@@ -259,18 +275,19 @@ pub fn bus_open_remote(
 pub fn bus_call(
     bid: BusHandle,
     keepalive: bool,
-    topic: &str,
+    topic_hash: u128,
     request: &[u8],
     format: SerializationFormat
 ) -> Result<CallHandle, BusError> {
     let bid: wasi::Bid = bid.into();
     let keepalive = if keepalive { wasi::BOOL_TRUE } else { wasi::BOOL_FALSE };
-    let format = convert_format_back(format);        
+    let format = convert_format_back(format);
+    let topic_hash = convert_hash_back(topic_hash);
     let ret = unsafe {
         wasi::bus_call(
             bid,
             keepalive,
-            topic,
+            &topic_hash,
             format,
             request
         )
@@ -284,18 +301,19 @@ pub fn bus_call(
 pub fn bus_subcall(
     parent: CallHandle,
     keepalive: bool,
-    topic: &str,
+    topic_hash: u128,
     request: &[u8],
     format: SerializationFormat
 ) -> Result<CallHandle, BusError> {
     let parent = parent.into();
     let keepalive = if keepalive { wasi::BOOL_TRUE } else { wasi::BOOL_FALSE };
     let format = convert_format_back(format);
+    let topic_hash = convert_hash_back(topic_hash);
     let ret = unsafe {
         wasi::bus_subcall(
             parent,
             keepalive,
-            topic,
+            &topic_hash,
             format,
             request
         )
@@ -342,12 +360,21 @@ pub fn call_reply(
     }
 }
 
+#[cfg(all(target_os = "wasi", target_vendor = "wasmer"))]
+pub fn spawn_reactor() {
+    std::thread::reactor(|| {
+        crate::rt::RUNTIME.tick();
+    });
+}
+
+#[no_mangle]
+pub extern "C" fn _react(_entry: u64) {
+    crate::rt::RUNTIME.tick();
+}
+
+#[cfg(not(all(target_os = "wasi", target_vendor = "wasmer")))]
 pub fn spawn_reactor() {
     unsafe {
-        wasi::thread_spawn(
-            "_bus_work",
-            0,
-            wasi::BOOL_TRUE
-        ).unwrap();
+        wasi::thread_spawn(0u64, wasi::BOOL_TRUE).unwrap();
     }
 }

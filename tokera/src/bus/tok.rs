@@ -89,7 +89,7 @@ impl api::TokSimplified for TokServer {
         _email: String,
         _password: String,
         _code: Option<String>
-    ) -> Result<Arc<dyn api::Session + Send + Sync + 'static>, BusError> {
-        return Err(BusError::Unsupported);
+    ) -> Result<Arc<dyn api::Session + Send + Sync + 'static>, wasm_bus_tok::prelude::BusError> {
+        return Err(wasm_bus_tok::prelude::BusError::Unsupported);
     }
 }

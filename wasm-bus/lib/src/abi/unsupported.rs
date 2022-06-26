@@ -26,7 +26,7 @@ pub fn bus_open_remote(
 pub fn bus_call(
     bid: BusHandle,
     keepalive: bool,
-    topic: &str,
+    topic_hash: u128,
     request: &[u8],
     format: SerializationFormat
 ) -> Result<CallHandle, BusError> {
@@ -36,7 +36,7 @@ pub fn bus_call(
 pub fn bus_subcall(
     parent: CallHandle,
     keepalive: bool,
-    topic: &str,
+    topic_hash: u128,
     request: &[u8],
     format: SerializationFormat
 ) -> Result<CallHandle, BusError> {

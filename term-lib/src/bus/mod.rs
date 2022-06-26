@@ -2,38 +2,46 @@ mod caller_context;
 mod factory;
 mod feeder;
 mod invokable;
-mod namespace;
 mod process;
 mod reqwest;
 mod standard;
 mod sub_process;
-pub(crate) mod syscalls;
-mod thread;
 mod time;
 mod util;
 mod ws;
 mod tty;
 mod webgl;
 
+use std::convert::TryInto;
+
 pub use caller_context::*;
 pub(crate) use invokable::*;
-use namespace::*;
 pub(crate) use process::*;
 use standard::*;
 pub(crate) use sub_process::*;
-pub(crate) use thread::*;
 use util::*;
 
 pub use factory::BusFactory;
 pub use process::ProcessExecFactory;
 pub use process::LaunchEnvironment;
-pub use feeder::WasmBusFeeder;
-pub use feeder::FeedData;
-pub use feeder::BusFeeder;
+pub use feeder::BusStatefulFeeder;
 pub use feeder::BusFeederUtils;
 pub use feeder::CallHandle;
 pub use feeder::BusError;
 pub use sub_process::SubProcessMultiplexer;
-pub use invokable::Invokable;
+pub use invokable::Processable;
 pub use invokable::InvokeResult;
 pub use invokable::Session;
+pub use util::*;
+
+pub fn hash_topic(topic: &str) -> u128 {
+    use sha2::{Sha256, Digest};
+    let mut hasher = Sha256::new();
+    hasher.update(&topic.bytes().collect::<Vec<_>>());
+    let hash: [u8; 16] = hasher.finalize()[..16].try_into().unwrap();
+    u128::from_le_bytes(hash)
+}
+
+pub fn type_name_hash<T: ?Sized>() -> u128 {
+    hash_topic(std::any::type_name::<T>())
+}

@@ -1,4 +1,0 @@
-[toolchain]
-channel = "wasix"
-components = [ "rustfmt", "rust-src", "clippy" ]
-profile = "minimal"

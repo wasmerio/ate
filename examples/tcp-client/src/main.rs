@@ -9,5 +9,5 @@ fn main() {
             println!("Failed to connect: {}", e);
         }
     }
-    println!("Terminated.");
+    println!("Finished.");
 }

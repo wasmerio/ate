@@ -1,4 +1,5 @@
 #!/bin/bash -e
+
 echo "Compiling"
 cargo wasi build --release --features client_web,bus,force_tty --no-default-features
 #cp -f ../target/wasm32-wasi/release/tok.wasi.wasm ../target/wasm32-wasi/release/tok.small.wasm

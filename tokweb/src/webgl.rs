@@ -182,7 +182,7 @@ impl GlContext
     }
 
     pub fn new(tx: &mpsc::Sender<WebGlCommand>) -> GlContext {
-        System::default().fork_send(&tx, WebGlCommand::ShowCanvas);
+        System::default().fire_and_forget(&tx, WebGlCommand::ShowCanvas);
         GlContext {
             tx: tx.clone()
         }
@@ -617,305 +617,305 @@ for GlContext
 {
     fn create_program(&self) -> ProgramId {
         let id = ProgramId::new();
-        System::default().fork_send(&self.tx, WebGlCommand::CreateProgram(id));
+        System::default().fire_and_forget(&self.tx, WebGlCommand::CreateProgram(id));
         id
     }
 
     fn create_buffer(&self) -> BufferId {
         let id = BufferId::new();
-        System::default().fork_send(&self.tx, WebGlCommand::CreateBuffer(id));
+        System::default().fire_and_forget(&self.tx, WebGlCommand::CreateBuffer(id));
         id
     }
 
     fn create_vertex_array(&self) -> VertexArrayId {
         let id = VertexArrayId::new();
-        System::default().fork_send(&self.tx, WebGlCommand::CreateVertexArray(id));
+        System::default().fire_and_forget(&self.tx, WebGlCommand::CreateVertexArray(id));
         id
     }
 
     fn create_texture(&self) -> TextureId {
         let id = TextureId::new();
-        System::default().fork_send(&self.tx, WebGlCommand::CreateTexture(id));
+        System::default().fire_and_forget(&self.tx, WebGlCommand::CreateTexture(id));
         id
     }
 
     fn bind_buffer(&self, buffer: BufferId, kind: BufferKind) {
-        System::default().fork_send(&self.tx, WebGlCommand::BindBuffer { buffer, kind });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::BindBuffer { buffer, kind });
     }
 
     fn delete_buffer(&self, buffer: BufferId) {
-        System::default().fork_send(&self.tx, WebGlCommand::DeleteBuffer { buffer });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::DeleteBuffer { buffer });
     }
 
     fn delete_texture(&self, texture: TextureId) {
-        System::default().fork_send(&self.tx, WebGlCommand::DeleteTexture { texture });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::DeleteTexture { texture });
     }
 
     fn active_texture(&self, active: u32) {
-        System::default().fork_send(&self.tx, WebGlCommand::ActiveTexture { active });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::ActiveTexture { active });
     }
 
     fn bind_texture(&self, texture: TextureId, target: TextureKind) {
-        System::default().fork_send(&self.tx, WebGlCommand::BindTexture { texture, target });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::BindTexture { texture, target });
     }
 
     fn bind_texture_cube(&self, texture: TextureId, target: TextureKind) {
-        System::default().fork_send(&self.tx, WebGlCommand::BindTextureCube { texture, target });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::BindTextureCube { texture, target });
     }
 
     fn framebuffer_texture2d(&self, texture: TextureId, target: Buffers, attachment: Buffers, textarget: TextureBindPoint, level: i32) {
-        System::default().fork_send(&self.tx, WebGlCommand::FramebufferTexture2D { texture, target, attachment, textarget, level });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::FramebufferTexture2D { texture, target, attachment, textarget, level });
     }
 
     fn clear_color(&self, red: f32, green: f32, blue: f32, alpha: f32) {
-        System::default().fork_send(&self.tx, WebGlCommand::ClearColor { red, green, blue, alpha });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::ClearColor { red, green, blue, alpha });
     }
     
     fn clear(&self, bit: BufferBit) {
-        System::default().fork_send(&self.tx, WebGlCommand::Clear { bit });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::Clear { bit });
     }
 
     fn clear_depth(&self, value: f32) {
-        System::default().fork_send(&self.tx, WebGlCommand::ClearDepth { value });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::ClearDepth { value });
     }
 
     fn draw_arrays(&self, mode: Primitives, first: i32, count: i32) {
-        System::default().fork_send(&self.tx, WebGlCommand::DrawArrays { mode, first, count });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::DrawArrays { mode, first, count });
     }
 
     fn draw_elements(&self, mode: Primitives, count: i32, kind: DataType, offset: u32) {
-        System::default().fork_send(&self.tx, WebGlCommand::DrawElements { mode, count, kind, offset });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::DrawElements { mode, count, kind, offset });
     }
 
     fn enable(&self, flag: Flag) {
-        System::default().fork_send(&self.tx, WebGlCommand::Enable { flag });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::Enable { flag });
     }
 
     fn disable(&self, flag: Flag) {
-        System::default().fork_send(&self.tx, WebGlCommand::Disable { flag });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::Disable { flag });
     }
 
     fn cull_face(&self, culling: Culling) {
-        System::default().fork_send(&self.tx, WebGlCommand::CullFace { culling });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::CullFace { culling });
     }
 
     fn depth_mask(&self, val: bool) {
-        System::default().fork_send(&self.tx, WebGlCommand::DepthMask { val });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::DepthMask { val });
     }
 
     fn depth_funct(&self, val: DepthTest) {
-        System::default().fork_send(&self.tx, WebGlCommand::DepthFunct { val });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::DepthFunct { val });
     }
 
     fn viewport(&self, x: i32, y: i32, width: u32, height: u32) {
-        System::default().fork_send(&self.tx, WebGlCommand::Viewport { x, y, width, height });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::Viewport { x, y, width, height });
     }
 
     fn buffer_data(&self, kind: BufferKind, data: Vec<u8>, draw: DrawMode) {
-        System::default().fork_send(&self.tx, WebGlCommand::BufferData { kind, data, draw });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::BufferData { kind, data, draw });
     }
 
     fn unbind_buffer(&self, kind: BufferKind) {
-        System::default().fork_send(&self.tx, WebGlCommand::UnbindBuffer { kind });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::UnbindBuffer { kind });
     }
 
     fn read_pixels(&self, x: u32, y: u32, width: u32, height: u32, format: PixelFormat, kind: PixelType, serialization_format: SerializationFormat) -> AsyncResult<Result<Vec<u8>, String>> {
         let (tx, rx) = mpsc::channel(1);
-        System::default().fork_send(&self.tx, WebGlCommand::ReadPixels { x, y, width, height, format, kind, tx });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::ReadPixels { x, y, width, height, format, kind, tx });
         AsyncResult::new(serialization_format, rx)
     }
 
     fn pixel_storei(&self, storage: PixelStorageMode, value: i32) {
-        System::default().fork_send(&self.tx, WebGlCommand::PixelStorei { storage, value });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::PixelStorei { storage, value });
     }
 
     fn generate_mipmap(&self) {
-        System::default().fork_send(&self.tx, WebGlCommand::GenerateMipMap);
+        System::default().fire_and_forget(&self.tx, WebGlCommand::GenerateMipMap);
     }
 
     fn generate_mipmap_cube(&self) {
-        System::default().fork_send(&self.tx, WebGlCommand::GenerateMipMapCube);
+        System::default().fire_and_forget(&self.tx, WebGlCommand::GenerateMipMapCube);
     }
 
     fn tex_image2d(&self, target: TextureBindPoint, level: u8, width: u32, height: u32, format: PixelFormat, kind: PixelType, pixels: Vec<u8>) {
-        System::default().fork_send(&self.tx, WebGlCommand::TexImage2D { target, level, width, height, format, kind, pixels });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::TexImage2D { target, level, width, height, format, kind, pixels });
     }
 
     fn tex_sub_image2d(&self, target: TextureBindPoint, level: u8, xoffset: u32, yoffset: u32, width: u32, height: u32, format: PixelFormat, kind: PixelType, pixels: Vec<u8>) {
-        System::default().fork_send(&self.tx, WebGlCommand::TexSubImage2D { target, level, xoffset, yoffset, width, height, format, kind, pixels });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::TexSubImage2D { target, level, xoffset, yoffset, width, height, format, kind, pixels });
     }
 
     fn compressed_tex_image2d(&self, target: TextureBindPoint, level: u8, compression: TextureCompression, width: u32, height: u32, data: Vec<u8>) {
-        System::default().fork_send(&self.tx, WebGlCommand::CompressedTexImage2D { target, level, compression, width, height, data });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::CompressedTexImage2D { target, level, compression, width, height, data });
     }
 
     fn unbind_texture(&self, target: u32) {
-        System::default().fork_send(&self.tx, WebGlCommand::UnbindTexture { target });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::UnbindTexture { target });
     }
 
     fn unbind_texture_cube(&self, target: u32) {
-        System::default().fork_send(&self.tx, WebGlCommand::UnbindTextureCube { target });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::UnbindTextureCube { target });
     }
 
     fn blend_equation(&self, eq: BlendEquation) {
-        System::default().fork_send(&self.tx, WebGlCommand::BlendEquation { eq });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::BlendEquation { eq });
     }
 
     fn blend_func(&self, b1: BlendMode, b2: BlendMode) {
-        System::default().fork_send(&self.tx, WebGlCommand::BlendFunc { b1, b2 });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::BlendFunc { b1, b2 });
     }
 
     fn blend_color(&self, red: f32, green: f32, blue: f32, alpha: f32) {
-        System::default().fork_send(&self.tx, WebGlCommand::BlendColor { red, green, blue, alpha });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::BlendColor { red, green, blue, alpha });
     }
 
     fn tex_parameteri(&self, kind: TextureKind, pname: TextureParameter, param: i32) {
-        System::default().fork_send(&self.tx, WebGlCommand::TexParameteri { kind, pname, param});
+        System::default().fire_and_forget(&self.tx, WebGlCommand::TexParameteri { kind, pname, param});
     }
 
     fn tex_parameterfv(&self, kind: TextureKind, pname: TextureParameter, param: f32) {
-        System::default().fork_send(&self.tx, WebGlCommand::TexParameterfv { kind, pname, param });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::TexParameterfv { kind, pname, param });
     }
 
     fn draw_buffers(&self, buffers: Vec<ColorBuffer>) {
-        System::default().fork_send(&self.tx, WebGlCommand::DrawBuffers { buffers });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::DrawBuffers { buffers });
     }
 
     fn create_framebuffer(&self) -> FrameBufferId {
         let id = FrameBufferId::new();
-        System::default().fork_send(&self.tx, WebGlCommand::CreateFramebuffer(id));
+        System::default().fire_and_forget(&self.tx, WebGlCommand::CreateFramebuffer(id));
         id
     }
 
     fn unbind_framebuffer(&self, buffer: Buffers) {
-        System::default().fork_send(&self.tx, WebGlCommand::UnbindFramebuffer { buffer });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::UnbindFramebuffer { buffer });
     }
 
     fn delete_framebuffer(&self, framebuffer: FrameBufferId) {
-        System::default().fork_send(&self.tx, WebGlCommand::DeleteFramebuffer { framebuffer });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::DeleteFramebuffer { framebuffer });
     }
 
     fn bind_framebuffer(&self, framebuffer: FrameBufferId, buffer: Buffers) {
-        System::default().fork_send(&self.tx, WebGlCommand::BindFramebuffer { framebuffer, buffer });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::BindFramebuffer { framebuffer, buffer });
     }
 
     fn delete_program(&self, program: ProgramId) {
-        System::default().fork_send(&self.tx, WebGlCommand::DeleteProgram { program });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::DeleteProgram { program });
     }
 
     fn link_program(&self, program: ProgramId, serialization_format: SerializationFormat) -> AsyncResult<Result<(), String>> {
         let (tx, rx) = mpsc::channel(1);
-        System::default().fork_send(&self.tx, WebGlCommand::LinkProgram { program, tx });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::LinkProgram { program, tx });
         AsyncResult::new(serialization_format, rx)
     }
 
     fn use_program(&self, program: ProgramId) {
-        System::default().fork_send(&self.tx, WebGlCommand::UseProgram { program });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::UseProgram { program });
     }
 
     fn get_attrib_location(&self, program: ProgramId, name: String) -> ProgramLocationId {
         let id = ProgramLocationId::new();
-        System::default().fork_send(&self.tx, WebGlCommand::GetAttribLocation { program, name, id });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::GetAttribLocation { program, name, id });
         id
     }
 
     fn delete_attrib_location(&self, location: ProgramLocationId) {
-        System::default().fork_send(&self.tx, WebGlCommand::DeleteAttribLocation { id: location });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::DeleteAttribLocation { id: location });
     }
 
     fn get_uniform_location(&self, program: ProgramId, name: String) -> UniformLocationId {
         let id = UniformLocationId::new();
-        System::default().fork_send(&self.tx, WebGlCommand::GetUniformLocation { program, name, id });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::GetUniformLocation { program, name, id });
         id
     }
 
     fn get_program_parameter(&self, program: ProgramId, pname: ShaderParameter) -> ProgramParameterId {
         let id = ProgramParameterId::new();
-        System::default().fork_send(&self.tx, WebGlCommand::GetProgramParameter { program, pname, id });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::GetProgramParameter { program, pname, id });
         id
     }
 
     fn vertex_attrib_pointer(&self, location: ProgramLocationId, size: AttributeSize, kind: DataType, normalized: bool, stride: u32, offset: u32) {
-        System::default().fork_send(&self.tx, WebGlCommand::VertexAttribPointer { location, size, kind, normalized, stride, offset });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::VertexAttribPointer { location, size, kind, normalized, stride, offset });
     }
 
     fn enable_vertex_attrib_array(&self, location: ProgramLocationId) {
-        System::default().fork_send(&self.tx, WebGlCommand::EnableVertexAttribArray { location });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::EnableVertexAttribArray { location });
     }
     
     fn delete_vertex_array(&self, vertex_array: VertexArrayId) {
-        System::default().fork_send(&self.tx, WebGlCommand::DeleteVertexArray { vertex_array });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::DeleteVertexArray { vertex_array });
     }
 
     fn bind_vertex_array(&self, vertex_array: VertexArrayId) {
-        System::default().fork_send(&self.tx, WebGlCommand::BindVertexArray { vertex_array });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::BindVertexArray { vertex_array });
     }
 
     fn unbind_vertex_array(&self) {
-        System::default().fork_send(&self.tx, WebGlCommand::UnbindVertexArray);
+        System::default().fire_and_forget(&self.tx, WebGlCommand::UnbindVertexArray);
     }
 
     fn uniform_matrix_4fv(&self, location: UniformLocationId, transpose: bool, value: [[f32; 4]; 4]) {
-        System::default().fork_send(&self.tx, WebGlCommand::UniformMatrix4fv { location, transpose, value });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::UniformMatrix4fv { location, transpose, value });
     }
 
     fn uniform_matrix_3fv(&self, location: UniformLocationId, transpose: bool, value: [[f32; 3]; 3]) {
-        System::default().fork_send(&self.tx, WebGlCommand::UniformMatrix3fv { location, transpose, value });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::UniformMatrix3fv { location, transpose, value });
     }
 
     fn uniform_matrix_2fv(&self, location: UniformLocationId, transpose: bool, value: [[f32; 2]; 2]) {
-        System::default().fork_send(&self.tx, WebGlCommand::UniformMatrix2fv { location, transpose, value });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::UniformMatrix2fv { location, transpose, value });
     }
 
     fn uniform_1i(&self, location: UniformLocationId, value: i32) {
-        System::default().fork_send(&self.tx, WebGlCommand::Uniform1i { location, value });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::Uniform1i { location, value });
     }
 
     fn uniform_1f(&self, location: UniformLocationId, value: f32) {
-        System::default().fork_send(&self.tx, WebGlCommand::Uniform1f { location, value });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::Uniform1f { location, value });
     }
 
     fn uniform_2f(&self, location: UniformLocationId, value: (f32, f32)) {
-        System::default().fork_send(&self.tx, WebGlCommand::Uniform2f { location, value });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::Uniform2f { location, value });
     }
 
     fn uniform_3f(&self, location: UniformLocationId, value: (f32, f32, f32)) {
-        System::default().fork_send(&self.tx, WebGlCommand::Uniform3f { location, value });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::Uniform3f { location, value });
     }
 
     fn uniform_4f(&self, location: UniformLocationId, value: (f32, f32, f32, f32)) {
-        System::default().fork_send(&self.tx, WebGlCommand::Uniform4f { location, value });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::Uniform4f { location, value });
     }
 
     fn create_shader(&self, kind: ShaderKind) -> ShaderId {
         let id = ShaderId::new();
-        System::default().fork_send(&self.tx, WebGlCommand::CreateShader { kind, id });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::CreateShader { kind, id });
         id
     }
 
     fn delete_shader(&self, shader: ShaderId) {
-        System::default().fork_send(&self.tx, WebGlCommand::DeleteShader { shader });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::DeleteShader { shader });
     }
 
     fn shader_source(&self, shader: ShaderId, source: String) {
-        System::default().fork_send(&self.tx, WebGlCommand::ShaderSource { shader, source });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::ShaderSource { shader, source });
     }
 
     fn shader_compile(&self, shader: ShaderId, serialization_format: SerializationFormat) -> AsyncResult<Result<(), String>> {
         let (tx, rx) = mpsc::channel(1);
-        System::default().fork_send(&self.tx, WebGlCommand::ShaderCompile { shader, tx });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::ShaderCompile { shader, tx });
         AsyncResult::new(serialization_format, rx)
     }
 
     fn attach_shader(&self, program: ProgramId, shader: ShaderId, serialization_format: SerializationFormat) -> AsyncResult<Result<(), String>> {
         let (tx, rx) = mpsc::channel(1);
-        System::default().fork_send(&self.tx, WebGlCommand::AttachShader { program, shader, tx });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::AttachShader { program, shader, tx });
         AsyncResult::new(serialization_format, rx)
     }
 
     fn sync(&self, serialization_format: SerializationFormat) -> AsyncResult<()> {
         let (tx, rx) = mpsc::channel(1);
-        System::default().fork_send(&self.tx, WebGlCommand::Sync { tx });
+        System::default().fire_and_forget(&self.tx, WebGlCommand::Sync { tx });
         AsyncResult::new(serialization_format, rx)
     }
 }
@@ -924,6 +924,6 @@ impl Drop
 for GlContext
 {
     fn drop(&mut self) {
-        System::default().fork_send(&self.tx, WebGlCommand::ShowTerminal);
+        System::default().fire_and_forget(&self.tx, WebGlCommand::ShowTerminal);
     }
 }
