@@ -6,7 +6,6 @@ use std::future::Future;
 use std::marker::PhantomData;
 use std::ops::*;
 use std::pin::Pin;
-use std::sync::atomic::*;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::task::Context;
@@ -120,9 +119,7 @@ pub struct Call {
     #[derivative(Debug = "ignore")]
     pub(crate) callbacks: HashMap<u128, Arc<dyn Fn(Vec<u8>, SerializationFormat) -> CallbackResult + Send + Sync + 'static>>,
     pub(crate) handle: Option<CallSmartHandle>,
-    pub(crate) keepalive: bool,
     pub(crate) state: Arc<Mutex<CallState>>,
-    pub(crate) drop_on_data: Arc<AtomicBool>,
 }
 
 impl Call {
@@ -138,9 +135,7 @@ impl Call {
             })),
             callbacks: Default::default(),
             handle: None,
-            keepalive: false,
             topic_hash,
-            drop_on_data: Arc::new(AtomicBool::new(true)),
         }
     }
 
@@ -155,9 +150,7 @@ impl Call {
             })),
             callbacks: Default::default(),
             handle: None,
-            keepalive: false,
             topic_hash,
-            drop_on_data: Arc::new(AtomicBool::new(true)),
         }
     }
 
@@ -168,22 +161,13 @@ impl Call {
 
 impl CallOps for Call {
     fn data(&self, data: Vec<u8>, format: SerializationFormat) {
-        {
-            let mut state = self.state.lock().unwrap();
-            state.result = Some(Ok(CallResult {
-                data,
-                format
-            }));
-        }
-        if self
-            .drop_on_data
-            .compare_exchange(true, false, Ordering::Release, Ordering::Relaxed)
-            .is_ok()
-        {
-            if let Some(scope) = self.handle.as_ref() {
-                super::syscall::call_close(scope.cid());
-                crate::engine::BusEngine::close(&scope.cid(), "call has finished (with data)");
-            }
+        let mut state = self.state.lock().unwrap();
+        state.result = Some(Ok(CallResult {
+            data,
+            format
+        }));        
+        if let Some(scope) = self.handle.as_ref() {
+            crate::engine::BusEngine::close(&scope.cid(), "call has finished (with data)");
         }
     }
 
@@ -244,24 +228,13 @@ impl CallBuilder {
         self
     }
 
-    // Completes the call but leaves the resources present
-    // for the duration of the life of 'DetachedCall'
-    pub async fn detach<T>(mut self) -> Result<DetachedCall<T>, BusError>
-    where
-        T: de::DeserializeOwned,
+    // Invokes the call and detaches it so that it can be
+    // using a contextual session
+    pub fn detach(mut self) -> Result<CallSmartHandle, BusError>
     {
         let mut call = self.call.take().unwrap();
-        call.keepalive = true;
-        call.drop_on_data.store(false, Ordering::Release);
-        let scope = self.invoke_internal(&mut call)?;
-        
-        let result = call.join::<T>()?
-            .await?;
-
-        Ok(DetachedCall {
-            handle: scope,
-            result,
-        })
+        let handle = self.invoke_internal(&mut call)?;
+        Ok(handle)
     }
 
     /// Invokes the call with the specified callbacks
@@ -298,7 +271,6 @@ impl CallBuilder {
                         }.and_then(|bid| {
                             crate::abi::syscall::bus_call(
                                 bid,
-                                call.keepalive,
                                 call.topic_hash,
                                 &req[..],
                                 self.format,
@@ -308,7 +280,6 @@ impl CallBuilder {
                     CallContext::SubCall { parent } => {
                         crate::abi::syscall::bus_subcall(
                             parent.cid(),
-                            call.keepalive,
                             call.topic_hash,
                             &req[..],
                             self.format,

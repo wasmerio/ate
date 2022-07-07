@@ -1,11 +1,11 @@
 use wasm_bus_tty::prelude::*;
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     wasm_bus::task::block_on(main_async())
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     main_async().await?;

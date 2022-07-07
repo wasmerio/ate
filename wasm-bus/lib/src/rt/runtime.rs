@@ -1,38 +1,40 @@
 use cooked_waker::IntoWaker;
 use cooked_waker::Wake;
 use once_cell::sync::Lazy;
+use std::cell::Cell;
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::task::Context;
 use std::task::Poll;
 use std::task::Waker;
+use std::time::Duration;
 
 use super::*;
 
 pub(crate) static RUNTIME: Lazy<Runtime> = Lazy::new(|| Runtime::default());
 
+// Set a thread local variable
+thread_local! { static IS_BLOCKING: Cell<bool>  = Cell::new(false); }
+
 // This guard is used to prevent double blocking which would
 // break the asynchronous event loop
 pub struct RuntimeBlockingGuard {
-    is_blocking: Arc<AtomicBool>,
 }
 impl RuntimeBlockingGuard {
-    pub fn new(runtime: &Runtime) -> RuntimeBlockingGuard {
+    pub fn new() -> RuntimeBlockingGuard {
         // If the blocking flag is set then we should not enter a main processing loop
         // as we are already in one!
-        if runtime
-            .is_blocking
-            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
-            .is_ok()
-            == false
-        {
+        let val = IS_BLOCKING.with(|f| {
+            let val = f.get();
+            f.set(false);
+            val
+        });
+        if val == true {
             panic!("nesting block_on calls are not supported by wasm_bus");
         }
         RuntimeBlockingGuard {
-            is_blocking: runtime.is_blocking.clone(),
         }
     }
 }
@@ -40,7 +42,7 @@ impl Drop for RuntimeBlockingGuard {
     fn drop(&mut self) {
         // We are no longer in a blocking state (as this loop is guarantee to exit
         // and it won't perform any more polls)
-        self.is_blocking.store(false, Ordering::Release);
+        IS_BLOCKING.with(|f| f.set(false));
     }
 }
 
@@ -48,7 +50,6 @@ impl Drop for RuntimeBlockingGuard {
 pub struct Runtime {
     waker: Arc<RuntimeWaker>,
     tasks: Arc<Mutex<Vec<Pin<Box<dyn Future<Output = ()> + Send + 'static>>>>>,
-    is_blocking: Arc<AtomicBool>,
 }
 
 impl Runtime {
@@ -58,7 +59,7 @@ impl Runtime {
     {
         // The blocking guard prevents re-entrance on the blocking lock which would
         // otherwise break the main event processing loop
-        let blocking_guard = RuntimeBlockingGuard::new(self);
+        let blocking_guard = RuntimeBlockingGuard::new();
 
         // The waker is used to make sure that any asynchronous code that wakes up
         // this main thread (likely because it sent something somewhere else) will
@@ -105,7 +106,7 @@ impl Runtime {
             }
 
             // Process any BUS work that needs to be done
-            let bus_events = crate::abi::syscall::bus_poll_once();
+            let bus_events = crate::abi::syscall::bus_poll_once(Duration::from_secs(60));
             if bus_events > 0 {
                 continue;
             }
@@ -155,7 +156,7 @@ impl Runtime {
             }
 
             // Process any BUS work that needs to be done
-            let bus_events = crate::abi::syscall::bus_poll_once();
+            let bus_events = crate::abi::syscall::bus_poll_once(Duration::from_nanos(0));
             if bus_events > 0 {
                 continue;
             }

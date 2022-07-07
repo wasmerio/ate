@@ -25,7 +25,6 @@ for RuntimeBusListener
                     system: Default::default(),
                     tx: call.tx,
                     rx: call.rx,
-                    keep_alive: call.keep_alive,
                 };
                 Poll::Ready(BusCallEvent {
                     topic_hash: call.topic_hash,
@@ -44,8 +43,7 @@ struct RuntimeCallInsideHandle
 {
     system: System,
     rx: mpsc::Receiver<RuntimeNewCall>,
-    tx: mpsc::Sender<RuntimeCallStateChange>,    
-    keep_alive: bool,
+    tx: mpsc::Sender<RuntimeCallStateChange>,
 }
 
 impl VirtualBusCalled
@@ -59,7 +57,6 @@ for RuntimeCallInsideHandle
                     system: Default::default(),
                     tx: call.tx,
                     rx: call.rx,
-                    keep_alive: call.keep_alive,
                 };
                 Poll::Ready(BusCallEvent {
                     topic_hash: call.topic_hash,
@@ -94,9 +91,5 @@ for RuntimeCallInsideHandle
         self.system.fire_and_forget(&self.tx, RuntimeCallStateChange::Fault {
             fault
         });
-    }
-
-    fn keep_alive(&self) -> bool {
-        self.keep_alive
     }
 }

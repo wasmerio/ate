@@ -165,9 +165,8 @@ impl BusEngine {
         format: SerializationFormat,
     ) {
         {
-            let state = BusEngine::read();
-            if let Some(call) = state.calls.get(&handle) {
-                let call = Arc::clone(call);
+            let mut state = BusEngine::write();
+            if let Some(call) = state.calls.remove(&handle) {
                 drop(state);
                 trace!(
                     "wasm_bus_finish (handle={}, response={} bytes)",
@@ -193,9 +192,8 @@ impl BusEngine {
 
     pub fn error(handle: CallHandle, err: BusError) {
         {
-            let state = BusEngine::read();
-            if let Some(call) = state.calls.get(&handle) {
-                let call = Arc::clone(call);
+            let mut state = BusEngine::write();
+            if let Some(call) = state.calls.remove(&handle) {
                 drop(state);
                 trace!(
                     "wasm_bus_err (handle={}, error={})",
@@ -279,7 +277,7 @@ impl BusEngine {
     }
 
     #[cfg(feature = "rt")]
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(target_family = "wasm")]
     pub(crate) fn listen_internal<F, Fut>(
         format: SerializationFormat,
         topic: String,
@@ -309,7 +307,7 @@ impl BusEngine {
     }
 
     #[cfg(feature = "rt")]
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(target_family = "wasm"))]
     pub(crate) fn listen_internal<F, Fut>(
         _format: SerializationFormat,
         _topic: String,
@@ -325,7 +323,7 @@ impl BusEngine {
     }
 
     #[cfg(feature = "rt")]
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(target_family = "wasm")]
     pub(crate) fn respond_to_internal<F, Fut>(
         format: SerializationFormat,
         topic: String,
@@ -358,7 +356,7 @@ impl BusEngine {
     }
 
     #[cfg(feature = "rt")]
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(target_family = "wasm"))]
     pub(crate) fn respond_to_internal<F, Fut>(
         _format: SerializationFormat,
         _topic: String,

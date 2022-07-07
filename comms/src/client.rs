@@ -50,7 +50,7 @@ impl StreamClient
             let mut certs = Vec::new();
 
             #[cfg(feature = "dns")]
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(not(target_family = "wasm"))]
             {
                 let dns_server = dns_server.as_ref().map(|a| a.as_ref()).unwrap_or("8.8.8.8");
                 let mut dns = crate::Dns::connect(dns_server, dns_sec).await;

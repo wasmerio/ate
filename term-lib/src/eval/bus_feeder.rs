@@ -25,17 +25,16 @@ impl RuntimeBusFeeder
     where T: serde::ser::Serialize {
         let topic_hash = type_name_hash::<T>();
         let data = format.serialize(data)?;
-        Ok(self.call_raw(topic_hash, crate::bus::conv_format_back(format), data, keep_alive))
+        Ok(self.call_raw(topic_hash, crate::bus::conv_format_back(format), data))
     }
 
-    pub fn call_raw(&self, topic_hash: u128, format: BusDataFormat, data: Vec<u8>, keep_alive: bool) -> RuntimeCallOutsideHandle {
+    pub fn call_raw(&self, topic_hash: u128, format: BusDataFormat, data: Vec<u8>) -> RuntimeCallOutsideHandle {
         let (tx1, rx1) = mpsc::channel(MAX_MPSC);
         let (tx2, rx2) = mpsc::channel(MAX_MPSC);
         self.system.fire_and_forget(&self.listener, RuntimeNewCall {
             topic_hash,
             format,
             data,
-            keep_alive,
             tx: tx1,
             rx: rx2,
         });
@@ -46,7 +45,6 @@ impl RuntimeBusFeeder
                 system: self.system.clone(),
                 tx: tx2
             },
-            keep_alive,
             callbacks: Default::default(),
         }
     }
@@ -57,7 +55,6 @@ pub(crate) struct RuntimeNewCall
     pub topic_hash: u128,
     pub format: BusDataFormat,
     pub data: Vec<u8>,
-    pub keep_alive: bool,
     pub rx: mpsc::Receiver<RuntimeNewCall>,
     pub tx: mpsc::Sender<RuntimeCallStateChange>,
 }

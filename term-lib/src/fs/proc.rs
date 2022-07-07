@@ -4,10 +4,13 @@ use std::io::prelude::*;
 use std::io::SeekFrom;
 use std::io::{self};
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::result::Result as StdResult;
 use std::sync::atomic::AtomicU32;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::task::Context;
+use std::task::Poll;
 use tokio::sync::mpsc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
@@ -207,6 +210,11 @@ impl TtyFile {
 
     pub async fn read_async(&mut self) -> io::Result<FdMsg> {
         self.fd_stdin.read_async().await
+    }
+
+    pub fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<FdMsg>> {
+        let fd_stdin = Pin::new(&mut self.fd_stdin);
+        fd_stdin.poll_read(cx)
     }
 }
 

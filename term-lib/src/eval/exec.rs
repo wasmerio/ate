@@ -4,6 +4,11 @@ use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use sha2::digest::generic_array::sequence::Lengthen;
 use wasmer::Extern;
+use wasmer::ExternType;
+use wasmer::ImportType;
+use wasmer::Memory;
+use wasmer::MemoryType;
+use wasmer::Pages;
 use std::collections::HashMap;
 use std::future::Future;
 use std::io::Read;
@@ -466,11 +471,23 @@ pub async fn exec_process(
             };
 
             // List all the exports
+            let mut imported_memory = None;
             for ns in module.exports() {
                 trace!("module::export - {}", ns.name());
             }
             for ns in module.imports() {
                 trace!("module::import - {}::{}", ns.module(), ns.name());
+                if ns.module() == "env" && ns.name() == "memory" {
+                    if let ExternType::Memory(mem) = ns.ty() {
+                        trace!("module::import - using imported memory (min={:?}, max={:?}, shared={})", mem.minimum, mem.maximum, mem.shared);
+                        imported_memory = Some(MemoryType {
+                            minimum: Pages(100u32.max(mem.minimum.0)),
+                            //maximum: Some(mem.maximum.unwrap_or_else(|| Pages(65536))),
+                            maximum: Some(mem.maximum.unwrap_or_else(|| Pages(32768))),
+                            shared: mem.shared
+                        });
+                    }
+                }
             }
 
             // Generate an `ImportObject`.
@@ -482,6 +499,19 @@ pub async fn exec_process(
                     return (ctx, ERR_ENOEXEC);
                 }
             };
+
+            // If its using shared memory then add this as an import
+            if let Some(ty) = imported_memory {
+                let store = module.store();
+                imports.define("env", "memory", match Memory::new(store, ty) {
+                    Ok(mem) => mem,
+                    Err(err) => {
+                        let _ = stderr.write(format!("memory error ({})\n", err.to_string()).as_bytes()).await;
+                        let ctx = ctx_taker.take_context().unwrap();
+                        return (ctx, ERR_ENOEXEC);
+                    }
+                });
+            }
             
             // Let's instantiate the module with the imports.
             let instance = match Instance::new(&module, &imports) {

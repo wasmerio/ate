@@ -17,7 +17,6 @@ use std::convert::TryInto;
 pub use caller_context::*;
 pub(crate) use invokable::*;
 pub(crate) use process::*;
-use standard::*;
 pub(crate) use sub_process::*;
 use util::*;
 
@@ -33,6 +32,7 @@ pub use invokable::Processable;
 pub use invokable::InvokeResult;
 pub use invokable::Session;
 pub use util::*;
+pub use standard::StandardBus;
 
 pub fn hash_topic(topic: &str) -> u128 {
     use sha2::{Sha256, Digest};

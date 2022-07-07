@@ -2,7 +2,7 @@
 name = "atenet"
 version = "1.0.0"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
-edition = "2018"
+edition = "2021"
 description = "High performance virtual networking stack built on top of ate"
 license = "MIT OR Apache-2.0"
 keywords = [

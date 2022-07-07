@@ -2,7 +2,7 @@
 name = "ateweb"
 version = "1.2.0"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
-edition = "2018"
+edition = "2021"
 description = "High performance web server built on top of atefs"
 license = "MIT OR Apache-2.0"
 keywords = [

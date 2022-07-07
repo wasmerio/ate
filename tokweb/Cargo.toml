@@ -2,7 +2,7 @@
 name = "tokweb"
 version = "0.2.0"
 authors = ["John Sharratt <johnathan.sharratt@gmail.com>"]
-edition = "2018"
+edition = "2021"
 publish = false
 description = "Tokera Web Terminal built on WASMER and ATE"
 license = "MIT OR Apache-2.0"

@@ -2,7 +2,7 @@
 name = "tokera"
 version = "1.3.0"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
-edition = "2018"
+edition = "2021"
 description = "Provides an interface into Tokera and its supporting services"
 license = "MIT OR Apache-2.0"
 keywords = [ "authentication", "cli", "authorization", "crypto" ]

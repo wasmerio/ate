@@ -1,12 +1,8 @@
 #!/bin/bash -e
 
 echo "Compiling"
-cargo wasi build --release --features client_web,bus,force_tty --no-default-features
-#cp -f ../target/wasm32-wasi/release/tok.wasi.wasm ../target/wasm32-wasi/release/tok.small.wasm
-wasm-opt --strip-debug --detect-features --enable-reference-types -Oz -o ../target/wasm32-wasi/release/tok.small.wasm ../target/wasm32-wasi/release/tok.wasi.wasm
-#cargo wasi build --features client_web --no-default-features
-#wasm-opt --strip-debug --detect-features --enable-reference-types -Oz -o ../target/wasm32-wasi/release/tok.small.wasm ../target/wasm32-wasi/debug/tok.wasi.wasm
+cargo wasix build --release --features client_web,bus,force_tty --no-default-features
 
 echo "Release"
-cp -f ../target/wasm32-wasi/release/tok.small.wasm ../tokterm/public/bin/tok.wasm
+cp -f ../target/wasm32-wasmer-wasi/release/tok.wasm ../tokterm/public/bin/tok.wasm
 chmod +x ../tokterm/public/bin/tok.wasm

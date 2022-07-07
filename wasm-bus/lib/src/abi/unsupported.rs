@@ -1,10 +1,12 @@
 #![allow(unused_variables)]
+use std::time::Duration;
+
 use super::*;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
-pub fn bus_poll_once() -> usize {
-    0
+pub fn bus_poll_once(timeout: Duration) -> usize {
+    panic!("unsupported on this platform");
 }
 
 pub fn bus_open_local(
@@ -25,7 +27,6 @@ pub fn bus_open_remote(
 
 pub fn bus_call(
     bid: BusHandle,
-    keepalive: bool,
     topic_hash: u128,
     request: &[u8],
     format: SerializationFormat
@@ -35,7 +36,6 @@ pub fn bus_call(
 
 pub fn bus_subcall(
     parent: CallHandle,
-    keepalive: bool,
     topic_hash: u128,
     request: &[u8],
     format: SerializationFormat

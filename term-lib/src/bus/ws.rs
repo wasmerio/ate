@@ -1,16 +1,22 @@
 use crate::common::MAX_MPSC;
-use async_trait::async_trait;
-use wasmer_vbus::BusDataFormat;
-use std::any::type_name;
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::ops::Deref;
-use tokio::select;
+use derivative::Derivative;
 use tokio::sync::broadcast;
+use wasm_bus_ws::model::SendResult;
+use wasmer_vbus::BusDataFormat;
+use wasmer_vbus::BusInvocationEvent;
+use wasmer_vbus::InstantInvocation;
+use wasmer_vbus::VirtualBusError;
+use wasmer_vbus::VirtualBusInvocation;
+use wasmer_vbus::VirtualBusInvokable;
+use wasmer_vbus::VirtualBusInvoked;
+use std::future::Future;
+use std::pin::Pin;
+use std::task::Context;
+use std::task::Poll;
+use tokio::select;
 use tokio::sync::mpsc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use wasm_bus::abi::BusError;
 use wasm_bus::abi::SerializationFormat;
 use wasm_bus_ws::api;
 use wasm_bus_ws::model;
@@ -20,83 +26,51 @@ use crate::api::*;
 
 pub fn web_socket(
     connect: api::SocketBuilderConnectRequest,
-    this_callback: Arc<dyn BusStatefulFeeder + Send + Sync + 'static>,
-    mut client_callbacks: HashMap<String, Arc<dyn BusStatefulFeeder + Send + Sync + 'static>>,
-) -> Result<(WebSocketInvoker, WebSocketSession), BusError> {
+) -> WebSocket {
     let system = System::default();
-
-    // Build all the callbacks
-    let on_state_change = client_callbacks
-        .remove(&type_name::<api::SocketBuilderConnectStateChangeCallback>().to_string());
-    let on_received = client_callbacks
-        .remove(&type_name::<api::SocketBuilderConnectReceiveCallback>().to_string());
-    if on_state_change.is_none() || on_received.is_none() {
-        return Err(BusError::MissingCallbacks);
-    }
-    let on_state_change = on_state_change.unwrap();
-    let on_received = on_received.unwrap();
 
     // Construct the channels
     let (tx_keepalive, mut rx_keepalive) = mpsc::channel(1);
-    let (tx_state, rx_state) = broadcast::channel::<model::SocketState>(10);
+    let (tx_state, rx_state) = mpsc::channel::<model::SocketState>(MAX_MPSC);
     let (tx_send, mut rx_send) = mpsc::channel::<Vec<u8>>(MAX_MPSC);
+    let (tx_recv, rx_recv) = mpsc::channel::<Vec<u8>>(MAX_MPSC);
 
     // The web socket will be started in a background thread as it
     // is an asynchronous IO primative
+    let sub_system = system.clone();
     system.spawn_dedicated(move || async move {
-        let mut rx_state = tx_state.subscribe();
 
         // Open the web socket
+        let (tx_state2, mut rx_state2) = broadcast::channel::<model::SocketState>(10);
         let mut ws_sys = match system.web_socket(connect.url.as_str()).await {
             Ok(a) => a,
             Err(err) => {
                 debug!("failed to create web socket ({}): {}", connect.url, err);
-                let _ = tx_state.send(model::SocketState::Failed);
-                BusFeederUtils::feed(
-                    on_state_change.deref(),
-                    SerializationFormat::Bincode,
-                    api::SocketBuilderConnectStateChangeCallback(model::SocketState::Failed),
-                );
+                let _ = tx_state2.send(model::SocketState::Failed);
                 return;
             }
         };
 
         {
-            let tx_state = tx_state.clone();
-            let on_state_change = on_state_change.clone();
+            let tx_state2 = tx_state2.clone();  
             ws_sys.set_onopen(Box::new(move || {
                 debug!("websocket set_onopen()");
-                let _ = tx_state.send(model::SocketState::Opened);
-                BusFeederUtils::feed(
-                    on_state_change.deref(),
-                    SerializationFormat::Bincode,
-                    api::SocketBuilderConnectStateChangeCallback(model::SocketState::Opened),
-                );
+                let _ = tx_state2.send(model::SocketState::Opened);
             }));
         }
 
         {
-            let tx_state = tx_state.clone();
-            let on_state_change = on_state_change.clone();
+            let tx_state2 = tx_state2.clone();
             ws_sys.set_onclose(Box::new(move || {
                 debug!("websocket set_onclose()");
-                let _ = tx_state.send(model::SocketState::Closed);
-                BusFeederUtils::feed(
-                    on_state_change.deref(),
-                    SerializationFormat::Bincode,
-                    api::SocketBuilderConnectStateChangeCallback(model::SocketState::Closed),
-                );
+                let _ = tx_state2.send(model::SocketState::Closed);
             }));
         }
 
         {
             ws_sys.set_onmessage(Box::new(move |data| {
                 debug!("websocket recv {} bytes", data.len());
-                BusFeederUtils::feed(
-                    on_received.deref(),
-                    SerializationFormat::Bincode,
-                    api::SocketBuilderConnectReceiveCallback(data),
-                );
+                sub_system.fire_and_forget(&tx_recv, data);
             }));
         }
 
@@ -106,9 +80,10 @@ pub fn web_socket(
                 _ = rx_keepalive.recv() => {
                     return;
                 }
-                state = rx_state.recv() => {
+                state = rx_state2.recv() => {
                     match state {
                         Ok(state) => {
+                            let _ = tx_state.send(state.clone()).await;
                             if state != model::SocketState::Opened {
                                 return;
                             }
@@ -121,15 +96,28 @@ pub fn web_socket(
                 }
             }
         }
+
+        trace!("websocket is active");
+
         // The main loop does all the processing
         loop {
             select! {
                 _ = rx_keepalive.recv() => {
+                    trace!("websocket no longer alive");
                     break;
                 }
-                state = rx_state.recv() => {
-                    if state != Ok(model::SocketState::Opened) {
-                        break;
+                state = rx_state2.recv() => {
+                    match state {
+                        Ok(state) => {
+                            trace!("websocket state change(val={})", state);
+                            let _ = tx_state.send(state.clone()).await;
+                            if state != model::SocketState::Opened {
+                                break;
+                            }
+                        }
+                        Err(_) => {
+                            break;
+                        }
                     }
                 }
                 request = rx_send.recv() => {
@@ -147,143 +135,166 @@ pub fn web_socket(
                             trace!("websocket sent {} bytes", data_len);
                         }
                     } else {
+                        trace!("websocket send-side closed");
                         break;
                     }
                 }
             }
         }
 
-        BusFeederUtils::feed(
-            on_state_change.deref(),
-            SerializationFormat::Bincode,
-            api::SocketBuilderConnectStateChangeCallback(model::SocketState::Closed),
-        );
+        let _ = tx_state.send(model::SocketState::Closed).await;
     });
 
-    // Return the invokers
-    let invoker = WebSocketInvoker {
-        ws: Some(WebSocket {
-            tx_keepalive,
-            this: this_callback,
-            rx_state,
-        }),
-    };
-    let session = WebSocketSession { tx_send };
-    Ok((invoker, session))
+    // Return the WebSocket
+    WebSocket {
+        tx_keepalive,
+        tx_send,
+        rx_recv,
+        rx_state,
+    }
 }
 
+#[derive(Debug)]
 pub struct WebSocket {
     #[allow(dead_code)]
     tx_keepalive: mpsc::Sender<()>,
-    this: Arc<dyn BusStatefulFeeder + Send + Sync + 'static>,
-    rx_state: broadcast::Receiver<model::SocketState>,
+    tx_send: mpsc::Sender<Vec<u8>>,
+    rx_recv: mpsc::Receiver<Vec<u8>>,
+    rx_state: mpsc::Receiver<model::SocketState>,
 }
 
-impl WebSocket {
-    pub async fn run(mut self) {
+impl VirtualBusInvocation
+for WebSocket
+{
+    fn poll_event(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<BusInvocationEvent> {
         loop {
-            let state = self.rx_state.recv().await;
-            match state {
-                Ok(model::SocketState::Opened) => {
-                    debug!("confirmed websocket successfully opened");
+            match self.rx_recv.poll_recv(cx) {
+                Poll::Ready(Some(data)) => {
+                    let data = api::SocketBuilderConnectReceiveCallback(data);
+                    return Poll::Ready(BusInvocationEvent::Callback {
+                        topic_hash: type_name_hash::<api::SocketBuilderConnectReceiveCallback>(),
+                        format: BusDataFormat::Bincode,
+                        data: match SerializationFormat::Bincode.serialize(data) {
+                            Ok(d) => d,
+                            Err(err) => {
+                                debug!("failed to serialize web socket received data");
+                                return Poll::Ready(BusInvocationEvent::Fault { fault: conv_error_back(err) });
+                            }
+                        }
+                    });
+                },
+                Poll::Ready(None) => {
+                    return Poll::Ready(BusInvocationEvent::Fault { fault: VirtualBusError::Aborted });
                 }
-                Ok(model::SocketState::Closed) => {
-                    debug!("confirmed websocket closed before it opened");
-                    break;
-                }
-                Ok(_) => {
-                    debug!("confirmed websocket failed before it opened");
-                    break;
-                }
-                Err(_) => {
-                    debug!("confirmed websocket closed by client");
-                    break;
+                Poll::Pending => { },
+            }
+            let mut rx = Pin::new(&mut self.rx_state);
+            match rx.poll_recv(cx) {
+                Poll::Ready(Some(state)) => {
+                    match state {
+                        model::SocketState::Opened => {
+                            debug!("confirmed websocket successfully opened");
+                            let data = api::SocketBuilderConnectStateChangeCallback(state);
+                            return Poll::Ready(BusInvocationEvent::Callback {
+                                topic_hash: type_name_hash::<api::SocketBuilderConnectStateChangeCallback>(),
+                                format: BusDataFormat::Bincode,
+                                data: match SerializationFormat::Bincode.serialize(data) {
+                                    Ok(d) => d,
+                                    Err(err) => {
+                                        debug!("failed to serialize web socket received data");
+                                        return Poll::Ready(BusInvocationEvent::Fault { fault: conv_error_back(err) });
+                                    }
+                                }
+                            });
+                        },
+                        _ => {
+                            debug!("confirmed websocket closed");
+                            return Poll::Ready(BusInvocationEvent::Fault { fault: VirtualBusError::Aborted });
+                        }
+                    }
+                },                
+                Poll::Ready(None) => {
+                    debug!("confirmed websocket closed");
+                    return Poll::Ready(BusInvocationEvent::Fault { fault: VirtualBusError::Aborted });
+                },
+                Poll::Pending => {
+                    return Poll::Pending;
                 }
             }
         }
-        self.this.terminate();
     }
 }
 
-pub struct WebSocketInvoker {
-    ws: Option<WebSocket>,
-}
-
-#[async_trait]
-impl Processable for WebSocketInvoker {
-    async fn process(&mut self) -> Result<InvokeResult, BusError> {
-        let ws = self.ws.take();
-        if let Some(ws) = ws {
-            let fut = Box::pin(ws.run());
-            Ok(InvokeResult::ResponseThenWork(
-                SerializationFormat::Bincode,
-                SerializationFormat::Bincode.serialize(&())?,
-                fut,
-            ))
-        } else {
-            Err(BusError::Unknown)
-        }
-    }
-}
-
-pub struct WebSocketSession {
-    tx_send: mpsc::Sender<Vec<u8>>,
-}
-
-impl Session for WebSocketSession {
-    fn call(&mut self, topic_hash: u128, format: BusDataFormat, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
+impl VirtualBusInvokable
+for WebSocket {
+    /// Invokes a service within this instance
+    fn invoke(
+        &self,
+        topic_hash: u128,
+        format: BusDataFormat,
+        buf: Vec<u8>,
+    ) -> Box<dyn VirtualBusInvoked> {
         if topic_hash == type_name_hash::<api::WebSocketSendRequest>() {
-            let data = decode_request::<api::WebSocketSendRequest>(
+            debug!("websocket send {} bytes", buf.len());
+            let data = match decode_request::<api::WebSocketSendRequest>(
                 format,
-                request,
-            )?.data;
+                buf,
+            ) {
+                Ok(a) => a.data,
+                Err(err) => {
+                    return Box::new(InstantInvocation::fault(conv_error_back(err)));
+                }
+            };
             let data_len = data.len();
 
-            let again = match self.tx_send.try_send(data) {
-                Ok(_) => None,
-                Err(mpsc::error::TrySendError::Closed(a)) => Some(a),
-                Err(mpsc::error::TrySendError::Full(a)) => Some(a),
+            let tx = self.tx_send.clone();
+            let fut = async move {
+                tx.send(data).await
             };
-            if let Some(data) = again {
-                Ok((
-                    Box::new(DelayedSend {
-                        format: conv_format(format),
-                        data: Some(data),
-                        tx: self.tx_send.clone(),
-                    }),
-                    None
-                ))
-            } else {
-                Ok((
-                    ResultInvokable::new(
-                        conv_format(format),
-                        model::SendResult::Success(data_len),
-                    ),
-                    None
-                ))
-            }
+            Box::new(DelayedSend {
+                data_len,
+                fut: Box::pin(fut)
+            })
         } else {
-            Err(BusError::InvalidTopic)
+            debug!("websocket invalid topic (hash={})", topic_hash);
+            Box::new(InstantInvocation::fault(VirtualBusError::InvalidTopic))
         }
     }
 }
 
-struct DelayedSend {
-    format: SerializationFormat,
-    data: Option<Vec<u8>>,
-    tx: mpsc::Sender<Vec<u8>>,
+impl Drop
+for WebSocket
+{
+    fn drop(&mut self) {
+        trace!("websocket dropped");
+    }
 }
 
-#[async_trait]
-impl Processable for DelayedSend {
-    async fn process(&mut self) -> Result<InvokeResult, BusError> {
-        let mut size = 0usize;
-        if let Some(data) = self.data.take() {
-            size = data.len();
-            let _ = self.tx.send(data).await;
+#[derive(Derivative)]
+#[derivative(Debug)]
+struct DelayedSend
+{
+    data_len: usize,
+    #[derivative(Debug = "ignore")]
+    fut: Pin<Box<dyn Future<Output = Result<(), mpsc::error::SendError<Vec<u8>>>>>>
+}
+
+impl VirtualBusInvoked
+for DelayedSend
+{
+    fn poll_invoked(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<Box<dyn VirtualBusInvocation + Sync>, VirtualBusError>>
+    {
+        let fut = self.fut.as_mut();
+        match fut.poll(cx) {
+            Poll::Ready(Ok(())) => {
+                Poll::Ready(Ok(Box::new(encode_instant_response(BusDataFormat::Bincode,
+                    &SendResult::Success(self.data_len)))))
+            },
+            Poll::Ready(Err(err)) => {
+                Poll::Ready(Ok(Box::new(encode_instant_response(BusDataFormat::Bincode,
+                    &SendResult::Failed(err.to_string())))))
+            },
+            Poll::Pending => Poll::Pending
         }
-        ResultInvokable::new(self.format, model::SendResult::Success(size))
-            .process()
-            .await
     }
 }

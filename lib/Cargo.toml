@@ -2,7 +2,7 @@
 name = "ate"
 version = "1.2.2"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
-edition = "2018"
+edition = "2021"
 description = "Distributed immutable data store with strong encryption and authentication"
 license = "MIT OR Apache-2.0"
 keywords = ["immutable", "database", "crypto", "nosql", "async"]
@@ -76,7 +76,7 @@ wasm-bus = { version = "^1", path = "../wasm-bus/lib", default_features = false 
 wasm-bus-ws = { version = "^1", path = "../wasm-bus/ws", default_features = false }
 wasm-bus-time = { version = "^1", path = "../wasm-bus/time" }
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
 pnet = { version = "^0.27", optional = true }
 tokio-tungstenite = { version = "^0.16", optional = true }
 hyper-tungstenite = { version = "^0.6", optional = true }

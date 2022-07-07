@@ -2,7 +2,7 @@
 name = "wasm-bus-ws"
 version = "1.1.0"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
-edition = "2018"
+edition = "2021"
 description = "WebAssembly Web Socket Interface"
 license = "MIT OR Apache-2.0"
 keywords = [ "wasi", "wasm", "bus", "websocket" ]
@@ -23,7 +23,7 @@ derivative = { version = "^2" }
 tokio = { version = "^1", features = [ "sync", "macros" ], default_features = false }
 wasm-bus = { version = "^1", path = "../lib", default_features = false, features = [ "rt", "macros" ] }
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
 tokio-tungstenite = { version = "^0.16", features = [ "native-tls" ], optional = true }
 futures = { version = "^0.3", optional = true }
 futures-util = { version = "^0.3", optional = true }

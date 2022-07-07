@@ -20,7 +20,6 @@ pub trait Process {
     async fn stdin(&self, data: Vec<u8>) -> usize;
     async fn close_stdin(&self);
     async fn kill(&self);
-    async fn work(&self);
     async fn flush(&self);
 }
 

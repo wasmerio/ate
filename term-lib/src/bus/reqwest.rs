@@ -1,14 +1,17 @@
+#![allow(dead_code)]
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bus_reqwest::api;
 use wasm_bus_reqwest::prelude::*;
+use wasmer_vbus::InstantInvocation;
+use wasmer_vbus::VirtualBusInvoked;
 
 use crate::api::*;
 
 pub fn reqwest(
     system: System,
     request: api::ReqwestMakeRequest,
-) -> AsyncResult<Result<api::Response, u32>> {
+) -> Box<dyn VirtualBusInvoked> {
     let url = request.url;
     let method = request.method;
     let headers = request.headers;
@@ -23,7 +26,7 @@ pub fn reqwest(
     debug!("executing HTTP {}", method);
 
     let ret = system.reqwest(&url, &method, options, headers, data);
-    system.spawn_shared(move || async move {
+    let result = system.spawn_shared(move || async move {
         if let Some(a) = ret.await {
             match a {
                 Ok(a) => Ok(Response {
@@ -40,5 +43,7 @@ pub fn reqwest(
         } else {
             Err(crate::err::ERR_ECONNABORTED)
         }
-    })
+    });
+
+    Box::new(InstantInvocation::call(Box::new(result)))
 }

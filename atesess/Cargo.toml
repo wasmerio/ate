@@ -2,7 +2,7 @@
 name = "atesess"
 version = "1.2.0"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
-edition = "2018"
+edition = "2021"
 description = "ATE Execution Environment Session Server that provides terminal sessions for running processes"
 license = "MIT OR Apache-2.0"
 keywords = [

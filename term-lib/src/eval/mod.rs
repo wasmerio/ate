@@ -86,6 +86,13 @@ impl EvalResult {
     pub fn new(ctx: EvalContext, status: EvalStatus) -> EvalResult {
         EvalResult { ctx, status }
     }
+
+    pub fn raw(self) -> u32 {
+        match &self.status {
+            EvalStatus::Executed { code, .. } => *code,
+            _ => 1,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -131,7 +138,7 @@ impl Compiler
     {
         // Build the features list
         let mut features = wasmer_compiler::Features::new();
-        //features.threads(true);       // TODO: This needs to be enabled again when threading is fixed
+        features.threads(true);
         features.memory64(true);
         #[cfg(feature = "singlepass")]
         if let Compiler::Singlepass = self {
@@ -309,9 +316,9 @@ pub(crate) fn eval(cmd: String, mut ctx: EvalContext) -> mpsc::Receiver<EvalResu
         }
     };
 
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(target_family = "wasm")]
     system.fork_local(work);
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(target_family = "wasm"))]
     system.fork_shared(move || work);
     rx
 }

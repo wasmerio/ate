@@ -5,7 +5,7 @@ use derivative::Derivative;
 use serde::*;
 use tokio::sync::mpsc;
 use wasm_bus::{abi::SerializationFormat, prelude::BusError};
-use wasmer_vbus::{VirtualBusError, BusDataFormat, VirtualBusInvocation, BusInvocationEvent, VirtualBusScope, VirtualBusInvokable};
+use wasmer_vbus::{VirtualBusError, BusDataFormat, VirtualBusInvocation, BusInvocationEvent, VirtualBusScope, VirtualBusInvokable, InstantInvocation, VirtualBusInvoked};
 use crate::{bus::{conv_format, Processable, InvokeResult}, api::abi::SystemAbiExt};
 
 #[allow(unused_imports, dead_code)]
@@ -22,7 +22,6 @@ pub struct RuntimeCallOutsideHandle
     pub(crate) system: System,
     pub(crate) task: RuntimeCallOutsideTask,
     pub(crate) rx: mpsc::Receiver<RuntimeCallStateChange>,
-    pub(crate) keep_alive: bool,
     #[derivative(Debug = "ignore")]
     pub(crate) callbacks: HashMap<u128, Box<dyn FnMut(SerializationFormat, Vec<u8>) + Send + Sync + 'static>>,
 }
@@ -159,11 +158,7 @@ for RuntimeCallOutsideHandle
         while let Some(msg) = self.rx.recv().await {
             if let Some((format, data)) = self.process_msg(msg)? {
                 return Ok(
-                    if self.keep_alive {
-                        InvokeResult::ResponseThenLeak(format, data)
-                    } else {
-                        InvokeResult::Response(format, data)
-                    }
+                    InvokeResult::Response(format, data)
                 );
             }
         }
@@ -173,33 +168,32 @@ for RuntimeCallOutsideHandle
 
 impl RuntimeCallOutsideHandle
 {
-    pub fn call<T>(&self, format: SerializationFormat, data: T, keep_alive: bool) -> Result<RuntimeCallOutsideHandle, BusError>
+    pub fn call<T>(&self, format: SerializationFormat, data: T) -> Result<RuntimeCallOutsideHandle, BusError>
     where T: ser::Serialize {
-        self.task.call(format, data, keep_alive)
+        self.task.call(format, data)
     }
 
-    pub fn call_raw(&self, topic_hash: u128, format: BusDataFormat, data: Vec<u8>, keep_alive: bool) -> RuntimeCallOutsideHandle {
-        self.task.call_raw(topic_hash, format, data, keep_alive)
+    pub fn call_raw(&self, topic_hash: u128, format: BusDataFormat, data: Vec<u8>) -> RuntimeCallOutsideHandle {
+        self.task.call_raw(topic_hash, format, data)
     }
 }
 
 impl RuntimeCallOutsideTask
 {
-    pub fn call<T>(&self, format: SerializationFormat, data: T, keep_alive: bool) -> Result<RuntimeCallOutsideHandle, BusError>
+    pub fn call<T>(&self, format: SerializationFormat, data: T) -> Result<RuntimeCallOutsideHandle, BusError>
     where T: ser::Serialize {
         let topic_hash = type_name_hash::<T>();
         let data = format.serialize(data)?;
-        Ok(self.call_raw(topic_hash, crate::bus::conv_format_back(format), data, keep_alive))
+        Ok(self.call_raw(topic_hash, crate::bus::conv_format_back(format), data))
     }
 
-    pub fn call_raw(&self, topic_hash: u128, format: BusDataFormat, data: Vec<u8>, keep_alive: bool) -> RuntimeCallOutsideHandle {
+    pub fn call_raw(&self, topic_hash: u128, format: BusDataFormat, data: Vec<u8>) -> RuntimeCallOutsideHandle {
         let (tx1, rx1) = mpsc::channel(MAX_MPSC);
         let (tx2, rx2) = mpsc::channel(MAX_MPSC);
         self.system.fire_and_forget(&self.tx, RuntimeNewCall {
             topic_hash,
             format,
             data,
-            keep_alive,
             tx: tx1,
             rx: rx2,
         });
@@ -210,7 +204,6 @@ impl RuntimeCallOutsideTask
                 system: self.system.clone(),
                 tx: tx2,
             },
-            keep_alive,
             callbacks: Default::default(),
         }
     }
@@ -224,9 +217,8 @@ for RuntimeCallOutsideHandle
         topic_hash: u128,
         format: BusDataFormat,
         buf: Vec<u8>,
-        keep_alive: bool,
-    ) -> Result<Box<dyn VirtualBusInvocation + Sync>, VirtualBusError> {
-        self.task.invoke(topic_hash, format, buf, keep_alive)
+    ) -> Box<dyn VirtualBusInvoked> {
+        self.task.invoke(topic_hash, format, buf)
     }
 }
 
@@ -238,10 +230,9 @@ for RuntimeCallOutsideTask
         topic_hash: u128,
         format: BusDataFormat,
         buf: Vec<u8>,
-        keep_alive: bool,
-    ) -> Result<Box<dyn VirtualBusInvocation + Sync>, VirtualBusError> {
-        Ok(
-            Box::new(self.call_raw(topic_hash, format, buf, keep_alive))
+    ) -> Box<dyn VirtualBusInvoked> {
+        Box::new(
+            InstantInvocation::call(Box::new(self.call_raw(topic_hash, format, buf)))
         )
     }
 }

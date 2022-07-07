@@ -111,6 +111,7 @@ pub struct LaunchEnvironment {
     pub inherit_log: WeakFd,
 }
 
+#[derive(Debug)]
 pub struct LaunchResult<T>
 {
     pub finish: AsyncResult<Result<T, u32>>,
@@ -641,7 +642,7 @@ pub struct ProcessExecSession {
 }
 
 impl Session for ProcessExecSession {
-    fn call(&mut self, topic_hash: u128, format: BusDataFormat, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
+    fn call(&mut self, topic_hash: u128, format: BusDataFormat, request: Vec<u8>) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
         let ret = {
             if topic_hash == type_name_hash::<api::ProcessStdinRequest>() {
                 let request: api::ProcessStdinRequest =

@@ -333,15 +333,14 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                                 let request = #request_name {
                                     #field_idents
                                 };
-                                let task = wasm_bus::abi::call(
+                                let handle = wasm_bus::abi::call(
                                         self.ctx.clone(),
                                         #format,
                                         request
                                     )
                                     #( #method_callbacks )*
-                                    .detach()
-                                    .await?;
-                                Ok(Arc::new(#ret_client::attach(task)))
+                                    .detach()?;
+                                Ok(Arc::new(#ret_client::attach(handle)))
                             }
                         });
                         blocking_methods.push(quote! {
@@ -541,9 +540,9 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                             }
                         }
 
-                        pub fn attach(task: wasm_bus::abi::DetachedCall<()>) -> Self {
+                        pub fn attach(handle: wasm_bus::abi::CallSmartHandle) -> Self {
                             Self {
-                                ctx: wasm_bus::abi::CallContext::SubCall { parent: task.handle() },
+                                ctx: wasm_bus::abi::CallContext::SubCall { parent: handle },
                                 task: None,
                                 join: None,
                             }
@@ -606,6 +605,19 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                 }
                 .into_iter(),
             );
+
+            /*
+            // Convert all the code into a string literal which can be
+            // acquired directly for pre-build steps
+            let code = proc_macro::TokenStream::from(output.clone()).to_string();
+            output.extend(quote! {
+                impl #trait_name {
+                    pub fn code() -> &'static str {
+                        #code
+                    }
+                }
+            });
+            */
 
             // Return the token stream
             //panic!("CODE {}", proc_macro::TokenStream::from(output));

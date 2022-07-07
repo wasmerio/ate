@@ -34,8 +34,6 @@ members = [
     "examples/tcp-client",
     "examples/multi-threading",
     "examples/thread-local",
-    "examples/wasm64-example"
+    "examples/wasm64-example",
+    "examples/ws-client"
 ]
-
-[profile.release]
-debug = 1

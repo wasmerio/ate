@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use wasm_bus_webgl::api::glenum::*;
 use wasmer_vbus::BusDataFormat;
 use std::sync::Arc;
@@ -33,7 +34,7 @@ impl WebGlInstance {
 impl Session
 for WebGlInstance
 {
-    fn call(&mut self, topic_hash: u128, format: BusDataFormat, _request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
+    fn call(&mut self, topic_hash: u128, format: BusDataFormat, _request: Vec<u8>) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
         match topic_hash {
             topic_hash if topic_hash == type_name_hash::<api::WebGlContextRequest>() => {
                 let session = self.context();
@@ -104,7 +105,7 @@ impl RenderingContextInstance {
 impl Session
 for RenderingContextInstance
 {
-    fn call(&mut self, topic_hash: u128, _format: BusDataFormat, _request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
+    fn call(&mut self, topic_hash: u128, _format: BusDataFormat, _request: Vec<u8>) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
         let ret = self.std_ret_leaked.deref().clone();
         match topic_hash {
             topic_hash if topic_hash == type_name_hash::<api::RenderingContextRasterRequest>() => {
@@ -147,7 +148,7 @@ impl BufferInstance
 impl Session
 for BufferInstance
 {
-    fn call(&mut self, topic_hash: u128, format: BusDataFormat, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
+    fn call(&mut self, topic_hash: u128, format: BusDataFormat, request: Vec<u8>) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
         match topic_hash {
             topic_hash if topic_hash == type_name_hash::<api::BufferBindBufferRequest>() => {
                 let request: api::BufferBindBufferRequest = decode_request(format, request)?;
@@ -190,7 +191,7 @@ impl TextureInstance {
 impl Session
 for TextureInstance
 {
-    fn call(&mut self, topic_hash: u128, format: BusDataFormat, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
+    fn call(&mut self, topic_hash: u128, format: BusDataFormat, request: Vec<u8>) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
         match topic_hash {
             topic_hash if topic_hash == type_name_hash::<api::TextureBindTextureRequest>() => {
                 let request: api::TextureBindTextureRequest = decode_request(format, request)?;
@@ -369,7 +370,7 @@ impl RasterInstance
 impl Session
 for RasterInstance
 {
-    fn call(&mut self, topic_hash: u128, format: BusDataFormat, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
+    fn call(&mut self, topic_hash: u128, format: BusDataFormat, request: Vec<u8>) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
         match topic_hash {
             topic_hash if topic_hash == type_name_hash::<api::RasterClearColorRequest>() => {
                 let request: api::RasterClearColorRequest = decode_request(format, request)?;
@@ -556,7 +557,7 @@ impl FrameBufferInstance {
 impl Session
 for FrameBufferInstance
 {
-    fn call(&mut self, topic_hash: u128, format: BusDataFormat, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
+    fn call(&mut self, topic_hash: u128, format: BusDataFormat, request: Vec<u8>) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
         match topic_hash {
             topic_hash if topic_hash == type_name_hash::<api::FrameBufferBindFramebufferRequest>() => {
                 let request: api::FrameBufferBindFramebufferRequest = decode_request(format, request)?;
@@ -633,7 +634,7 @@ impl ProgramInstance {
 impl Session
 for ProgramInstance
 {
-    fn call(&mut self, topic_hash: u128, format: BusDataFormat, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
+    fn call(&mut self, topic_hash: u128, format: BusDataFormat, request: Vec<u8>) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
         match topic_hash {
             topic_hash if topic_hash == type_name_hash::<api::ProgramCreateShaderRequest>() => {
                 let request: api::ProgramCreateShaderRequest = decode_request(format, request)?;
@@ -690,7 +691,7 @@ impl ProgramParameterInstance {
 impl Session
 for ProgramParameterInstance
 {
-    fn call(&mut self, _topic_hash: u128, _format: BusDataFormat, _request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
+    fn call(&mut self, _topic_hash: u128, _format: BusDataFormat, _request: Vec<u8>) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
         Err(BusError::InvalidTopic)
     }
 }
@@ -722,7 +723,7 @@ for ProgramLocationInstance
 impl Session
 for ProgramLocationInstance
 {
-    fn call(&mut self, topic_hash: u128, format: BusDataFormat, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
+    fn call(&mut self, topic_hash: u128, format: BusDataFormat, request: Vec<u8>) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
         match topic_hash {
             topic_hash if topic_hash == type_name_hash::<api::ProgramLocationVertexAttribPointerRequest>() => {
                 let request: api::ProgramLocationVertexAttribPointerRequest = decode_request(format, request)?;
@@ -753,7 +754,7 @@ impl VertexArrayInstance {
 impl Session
 for VertexArrayInstance
 {
-    fn call(&mut self, topic_hash: u128, _format: BusDataFormat, _request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
+    fn call(&mut self, topic_hash: u128, _format: BusDataFormat, _request: Vec<u8>) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
         match topic_hash {
             topic_hash if topic_hash == type_name_hash::<api::VertexArrayBindVertexArrayRequest>() => {
                 self.bind_vertex_array();
@@ -816,7 +817,7 @@ impl UniformLocationInstance {
 impl Session
 for UniformLocationInstance
 {
-    fn call(&mut self, topic_hash: u128, format: BusDataFormat, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
+    fn call(&mut self, topic_hash: u128, format: BusDataFormat, request: Vec<u8>) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
         match topic_hash {
             topic_hash if topic_hash == type_name_hash::<api::UniformLocationUniformMatrix4FvRequest>() => {
                 let request: api::UniformLocationUniformMatrix4FvRequest = decode_request(format, request)?;
@@ -886,7 +887,7 @@ impl ShaderInstance {
 impl Session
 for ShaderInstance
 {
-    fn call(&mut self, topic_hash: u128, format: BusDataFormat, request: Vec<u8>, _keepalive: bool) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
+    fn call(&mut self, topic_hash: u128, format: BusDataFormat, request: Vec<u8>) -> Result<(Box<dyn Processable + 'static>, Option<Box<dyn Session + 'static>>), BusError> {
         match topic_hash {
             topic_hash if topic_hash == type_name_hash::<api::ShaderShaderSourceRequest>() => {
                 let request: api::ShaderShaderSourceRequest = decode_request(format, request)?;

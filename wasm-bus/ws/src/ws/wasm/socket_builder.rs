@@ -22,6 +22,12 @@ impl SocketBuilder {
         SocketBuilder { url }
     }
 
+    pub fn new_str(url: &str) -> SocketBuilder {
+        SocketBuilder {
+            url: url::Url::parse(url).unwrap()
+        }
+    }
+
     pub fn blocking_open(self) -> Result<WebSocket, std::io::Error> {
         wasm_bus::task::block_on(self.open())
     }

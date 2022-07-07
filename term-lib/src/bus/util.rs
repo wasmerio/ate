@@ -4,6 +4,7 @@ use tracing::{debug, error, info, trace, warn};
 use wasm_bus::abi::BusError;
 use wasm_bus::abi::SerializationFormat;
 use wasmer_vbus::BusDataFormat;
+use wasmer_vbus::InstantInvocation;
 use wasmer_vbus::VirtualBusError;
 
 pub fn conv_error(fault: VirtualBusError) -> BusError {
@@ -95,4 +96,19 @@ where
 {
     let format = conv_format(format);
     format.serialize(response)
+}
+
+pub fn encode_instant_response<T>(format: BusDataFormat, response: &T) -> InstantInvocation
+where
+    T: Serialize,
+{
+    match encode_response(format, response) {
+        Ok(data) => {
+            InstantInvocation::response(format, data)
+        },
+        Err(err) => {
+            InstantInvocation::fault(conv_error_back(err))
+        }
+    }
+    
 }

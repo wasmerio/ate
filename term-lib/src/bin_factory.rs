@@ -193,7 +193,7 @@ impl BinFactory {
         }
 
         // Tell the console we are fetching
-        #[cfg(target_arch = "wasm32")]
+        #[cfg(target_family = "wasm")]
         {
             if stderr.is_tty() {
                 stderr.write_clear_line().await;
@@ -210,7 +210,7 @@ impl BinFactory {
 
         // Check the cache
         if let Some(data) = cache.get(&name) {
-            #[cfg(target_arch = "wasm32")]
+            #[cfg(target_family = "wasm")]
             if stderr.is_tty() {
                 stderr.write_clear_line().await;
             }
@@ -224,7 +224,7 @@ impl BinFactory {
         {
             let data = BinaryPackage::new(Bytes::from(data));
             cache.insert(name, Some(data.clone()));
-            #[cfg(target_arch = "wasm32")]
+            #[cfg(target_family = "wasm")]
             if stderr.is_tty() {
                 stderr.write_clear_line().await;
             }
@@ -233,7 +233,7 @@ impl BinFactory {
 
         // NAK
         cache.insert(name, None);
-        #[cfg(target_arch = "wasm32")]
+        #[cfg(target_family = "wasm")]
         if stderr.is_tty() {
             stderr.write_clear_line().await;
         }

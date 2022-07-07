@@ -2,7 +2,7 @@
 name = "ate-comms"
 version = "1.0.0"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
-edition = "2018"
+edition = "2021"
 description = "Provides the communication library integrates with ate"
 license = "MIT OR Apache-2.0"
 keywords = [ "networking" ]

@@ -146,9 +146,9 @@ impl Tty {
                 }
                 info!("main IO loop exited");
             };
-            #[cfg(target_arch = "wasm32")]
+            #[cfg(target_family = "wasm")]
             system.fork_local(work);
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(not(target_family = "wasm"))]
             system.fork_shared(move || work);
         }
 

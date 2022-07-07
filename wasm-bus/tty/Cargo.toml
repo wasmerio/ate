@@ -2,7 +2,7 @@
 name = "wasm-bus-tty"
 version = "1.2.1"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
-edition = "2018"
+edition = "2021"
 description = "WebAssembly Terminal Interface"
 license = "MIT OR Apache-2.0"
 keywords = [ "wasi", "wasm", "bus", "websocket" ]
@@ -20,10 +20,10 @@ url = "2"
 async-trait = "^0.1"
 wasm-bus = { version = "^1", path = "../lib", default_features = false, features = [ "rt", "macros" ] }
 
-[target.'cfg(target_arch = "wasm32")'.dependencies]
+[target.'cfg(target_family = "wasm")'.dependencies]
 tokio = { version = "^1", features = [ "sync", "macros" ], default_features = false }
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
 libc = { version = "0.2", optional = true }
 tokio = { version = "^1", features = [ "io-util", "io-std", "macros", "sync", "fs" ], default_features = false }
 

@@ -54,7 +54,7 @@ fn main() {
             thread::sleep(Duration::from_secs(4));
             println!("thread {} finished", n);
         }));
-        //thread::sleep(Duration::from_millis(100));
+        thread::sleep(Duration::from_millis(100));
     }
     
     for join in joins {

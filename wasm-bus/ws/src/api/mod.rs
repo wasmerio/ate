@@ -262,7 +262,7 @@ impl SocketBuilderClient {
             Ok(None)
         }
     }
-    pub async fn connect(
+    pub fn connect(
         &self,
         url: String,
         state_change: Box<dyn Fn(SocketState) + Send + Sync + 'static>,
@@ -272,7 +272,7 @@ impl SocketBuilderClient {
         wasm_bus::abi::BusError,
     > {
         let request = SocketBuilderConnectRequest { url };
-        let task = wasm_bus::abi::call(
+        let handle = wasm_bus::abi::call(
             self.ctx.clone(),
             wasm_bus::abi::SerializationFormat::Bincode,
             request,
@@ -283,20 +283,8 @@ impl SocketBuilderClient {
         .callback(
             move |req: SocketBuilderConnectReceiveCallback| receive(req.0),
         )
-        .detach()
-        .await?;
-        Ok(Arc::new(WebSocketClient::attach(task)))
-    }
-    pub fn blocking_connect(
-        &self,
-        url: String,
-        state_change: Box<dyn Fn(SocketState) + Send + Sync + 'static>,
-        receive: Box<dyn Fn(Vec<u8>) + Send + Sync + 'static>,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn WebSocket + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    > {
-        wasm_bus::task::block_on(self.connect(url, state_change, receive))
+        .detach()?;
+        Ok(Arc::new(WebSocketClient::attach(handle)))
     }
 }
 impl std::future::Future for SocketBuilderClient {

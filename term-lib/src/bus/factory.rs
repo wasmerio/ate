@@ -15,7 +15,6 @@ use crate::bus::WasmCallerContext;
 // A BUS factory is created for every running process and allows them
 // to spawn operating system commands and/or other sub processes
 pub struct BusFactory {
-    standard: StandardBus,
     sub_processes: SubProcessFactory,
     sessions: Arc<Mutex<HashMap<CallHandle, Box<dyn Session>>>>,
 }
@@ -23,7 +22,6 @@ pub struct BusFactory {
 impl BusFactory {
     pub fn new(process_factory: ProcessExecFactory, multiplexer: SubProcessMultiplexer) -> BusFactory {
         BusFactory {
-            standard: StandardBus::new(process_factory.clone()),
             sub_processes: SubProcessFactory::new(process_factory, multiplexer),
             sessions: Arc::new(Mutex::new(HashMap::default())),
         }
@@ -37,17 +35,15 @@ impl BusFactory {
         topic_hash: u128,
         format: BusDataFormat,
         request: Vec<u8>,
-        this_callback: Arc<dyn BusStatefulFeeder + Send + Sync + 'static>,
         client_callbacks: HashMap<String, Arc<dyn BusStatefulFeeder + Send + Sync + 'static>>,
         ctx: WasmCallerContext,
-        keepalive: bool,
         env: LaunchEnvironment,
     ) -> Box<dyn Processable + 'static> {
         // If it has a parent then we need to make the call relative to this parents session
         if let Some(parent) = parent {
             let mut sessions = self.sessions.lock().unwrap();
             if let Some(session) = sessions.get_mut(&parent) {
-                match session.call(topic_hash, format, request, keepalive) {
+                match session.call(topic_hash, format, request) {
                     Ok((ret, session)) => {
                         // If it returns a session then start it
                         if let Some(session) = session {
@@ -69,7 +65,6 @@ impl BusFactory {
 
         // Push this into an asynchronous operation
         Box::new(BusStartInvokable {
-            standard: self.standard.clone(),
             env: env.clone(),
             handle,
             sub_processes: self.sub_processes.clone(),
@@ -78,10 +73,8 @@ impl BusFactory {
             topic_hash,
             format,
             request: Some(request),
-            this_callback,
             client_callbacks,
             ctx,
-            keep_alive: keepalive,
         })
     }
 
@@ -100,7 +93,6 @@ pub struct BusStartInvokable
 where
     Self: Send + 'static,
 {
-    standard: StandardBus,
     env: LaunchEnvironment,
     handle: CallHandle,
     sub_processes: SubProcessFactory,
@@ -109,10 +101,8 @@ where
     topic_hash: u128,
     format: BusDataFormat,
     request: Option<Vec<u8>>,
-    this_callback: Arc<dyn BusStatefulFeeder + Send + Sync + 'static>,
     client_callbacks: HashMap<String, Arc<dyn BusStatefulFeeder + Send + Sync + 'static>>,
     ctx: WasmCallerContext,
-    keep_alive: bool,
 }
 
 #[async_trait]
@@ -132,35 +122,6 @@ where
             }
         };
 
-        // The standard bus allows for things like web sockets, http requests, etc...
-        match self
-            .standard
-            .create(
-                self.wapm.as_str(),
-                self.topic_hash,
-                self.format,
-                &request,
-                &self.this_callback,
-                &client_callbacks,
-                &self.env,
-            )
-            .await
-        {
-            Ok((mut invoker, Some(session))) => {
-                {
-                    let mut sessions = self.sessions.lock().unwrap();
-                    sessions.insert(self.handle, session);
-                }
-                return invoker.process().await;
-            }
-            Ok((mut invoker, None)) => {
-                return invoker.process().await;
-            }
-            Err(BusError::InvalidTopic) if self.wapm.as_str() != "os" => { /* fall through */ }
-            Err(BusError::InvalidTopic) => return Err(BusError::InvalidTopic),
-            Err(err) => return Err(err),
-        };
-
         // First we get or start the sub_process that will handle the requests
         let sub_process = self
             .sub_processes
@@ -178,7 +139,6 @@ where
             request,
             self.ctx.clone(),
             client_callbacks,
-            self.keep_alive,
         )?;
         let mut invoker = match call {
             (invoker, Some(session)) => {

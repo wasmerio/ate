@@ -90,23 +90,9 @@ impl SendHalf {
     }
 
     pub fn blocking_send(&self, data: Vec<u8>) -> io::Result<usize> {
-        if *self.state.borrow() != SocketState::Opened {
-            return Err(io::Error::new(
-                io::ErrorKind::ConnectionReset,
-                "connection is not open",
-            ));
-        }
-        self.client
-            .blocking_send(data)
-            .map_err(|err| err.into_io_error())
-            .map(|ret| match ret {
-                SendResult::Success(a) => Ok(a),
-                SendResult::Failed(err) => Err(io::Error::new(io::ErrorKind::Other, err)),
-            })?
+        wasm_bus::task::block_on(self.send(data))
     }
 }
-
-
 
 impl AsyncWrite
 for SendHalf
@@ -181,7 +167,7 @@ impl RecvHalf {
     }
 
     pub fn blocking_recv(&mut self) -> Option<Vec<u8>> {
-        self.rx.blocking_recv()
+        wasm_bus::task::block_on(self.rx.recv())
     }
 }
 

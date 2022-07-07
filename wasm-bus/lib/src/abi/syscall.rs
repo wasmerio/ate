@@ -126,8 +126,8 @@ fn read_file_descriptor(fd: u32) -> Result<Vec<u8>, ()> {
     Ok(req)
 }
 
-pub fn bus_poll_once() -> usize {
-    let timeout: wasi::Timestamp = 0;
+pub fn bus_poll_once(timeout: std::time::Duration) -> usize {
+    let timeout = timeout.as_nanos() as wasi::Timestamp;
     
     // Read all the events
     let mut events = [wasi::BusEvent {
@@ -154,10 +154,6 @@ pub fn bus_poll_once() -> usize {
         }
     };
     let nevents = events.len();
-
-    // The blocking guard is to prevent blocking as the loop that called
-    // this function is already blocking hence it would deadlock.
-    let _blocking_guard = crate::task::blocking_guard();
 
     // Process the event
     for event in events {
@@ -227,10 +223,12 @@ pub fn bus_poll_once() -> usize {
     // This function is the one that actually processing the call but it will
     // not necessarily complete the call in one go - if it idles then thats
     // because its waiting for something else from the wasm_bus hence we return
-    #[cfg(feature = "rt")]
-    crate::task::wake();
-    #[cfg(feature = "rt")]
-    crate::task::work_it();
+    if nevents > 0 {
+        #[cfg(feature = "rt")]
+        crate::task::wake();
+        #[cfg(feature = "rt")]
+        crate::task::work_it();
+    }
     
     // Returns the number of events that were processed
     nevents
@@ -274,19 +272,16 @@ pub fn bus_open_remote(
 
 pub fn bus_call(
     bid: BusHandle,
-    keepalive: bool,
     topic_hash: u128,
     request: &[u8],
     format: SerializationFormat
 ) -> Result<CallHandle, BusError> {
     let bid: wasi::Bid = bid.into();
-    let keepalive = if keepalive { wasi::BOOL_TRUE } else { wasi::BOOL_FALSE };
     let format = convert_format_back(format);
     let topic_hash = convert_hash_back(topic_hash);
     let ret = unsafe {
         wasi::bus_call(
             bid,
-            keepalive,
             &topic_hash,
             format,
             request
@@ -300,19 +295,16 @@ pub fn bus_call(
 
 pub fn bus_subcall(
     parent: CallHandle,
-    keepalive: bool,
     topic_hash: u128,
     request: &[u8],
     format: SerializationFormat
 ) -> Result<CallHandle, BusError> {
     let parent = parent.into();
-    let keepalive = if keepalive { wasi::BOOL_TRUE } else { wasi::BOOL_FALSE };
     let format = convert_format_back(format);
     let topic_hash = convert_hash_back(topic_hash);
     let ret = unsafe {
         wasi::bus_subcall(
             parent,
-            keepalive,
             &topic_hash,
             format,
             request
@@ -368,6 +360,7 @@ pub fn spawn_reactor() {
 }
 
 #[no_mangle]
+#[cfg(not(all(target_os = "wasi", target_vendor = "wasmer")))]
 pub extern "C" fn _react(_entry: u64) {
     crate::rt::RUNTIME.tick();
 }

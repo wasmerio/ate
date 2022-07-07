@@ -22,7 +22,7 @@ use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 pub struct TaskEngine {}
 
 impl TaskEngine {
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(target_family = "wasm"))]
     pub fn spawn<T>(task: T) -> tokio::task::JoinHandle<T::Output>
     where
         T: Future + Send + 'static,
@@ -31,7 +31,7 @@ impl TaskEngine {
         tokio::spawn(task)
     }
 
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(target_family = "wasm")]
     pub fn spawn<T>(task: T)
     where
         T: Future + Send + 'static,
@@ -50,12 +50,12 @@ impl TaskEngine {
     }
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 pub async fn sleep(duration: Duration) {
     wasm_bus_time::prelude::sleep(duration).await;
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 pub async fn timeout<T>(
     duration: Duration,
     future: T,
@@ -66,12 +66,12 @@ where
     wasm_bus_time::prelude::timeout(duration, future).await
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 pub async fn sleep(duration: Duration) {
     tokio::time::sleep(duration).await;
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 pub fn timeout<T>(duration: Duration, future: T) -> tokio::time::Timeout<T>
 where
     T: Future,

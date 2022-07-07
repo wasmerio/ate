@@ -82,7 +82,6 @@ impl FuseFileSystem {
             .call(
                 SerializationFormat::Json,
                 backend::FileSystemInitRequest {},
-                false,
             )
             .map_err(|err| {
                 debug!("fuse_file_system::new() - mount call failed - {}", err);
@@ -149,7 +148,6 @@ impl FileSystem for FuseFileSystem {
                 backend::FileSystemReadDirRequest {
                     path: path.to_string_lossy().to_string(),
                 },
-                false,
             )
             .map_err(|_| FsError::IOError)?
             .block_on()
@@ -170,7 +168,6 @@ impl FileSystem for FuseFileSystem {
                 backend::FileSystemCreateDirRequest {
                     path: path.to_string_lossy().to_string(),
                 },
-                false,
             )
             .map_err(|_| FsError::IOError)?
             .block_on()
@@ -190,7 +187,6 @@ impl FileSystem for FuseFileSystem {
                 backend::FileSystemRemoveDirRequest {
                     path: path.to_string_lossy().to_string(),
                 },
-                false,
             )
             .map_err(|_| FsError::IOError)?
             .block_on()
@@ -210,7 +206,6 @@ impl FileSystem for FuseFileSystem {
                     from: from.to_string_lossy().to_string(),
                     to: to.to_string_lossy().to_string(),
                 },
-                false,
             )
             .map_err(|_| FsError::IOError)?
             .block_on()
@@ -230,7 +225,6 @@ impl FileSystem for FuseFileSystem {
                 backend::FileSystemReadMetadataRequest {
                     path: path.to_string_lossy().to_string(),
                 },
-                false,
             )
             .map_err(|_| FsError::IOError)?
             .block_on()
@@ -251,7 +245,6 @@ impl FileSystem for FuseFileSystem {
                 backend::FileSystemReadSymlinkMetadataRequest {
                     path: path.to_string_lossy().to_string(),
                 },
-                false,
             )
             .map_err(|_| FsError::IOError)?
             .block_on()
@@ -271,7 +264,6 @@ impl FileSystem for FuseFileSystem {
                 backend::FileSystemRemoveFileRequest {
                     path: path.to_string_lossy().to_string(),
                 },
-                false,
             )
             .map_err(|_| FsError::IOError)?
             .block_on()
@@ -325,7 +317,6 @@ impl FileOpener for FuseFileOpener {
                     },
                     path: path.to_string_lossy().to_string(),
                 },
-                true,
             )
             .map_err(|err| {
                 debug!("fuse_file_system::open() - open meta call failed - {}", err);
@@ -345,7 +336,6 @@ impl FileOpener for FuseFileOpener {
             .call(
                 SerializationFormat::Json,
                 backend::OpenedFileMetaRequest {},
-                false,
             )
             .map_err(|err| {
                 debug!("fuse_file_system::open() - open meta call failed - {}", err);
@@ -379,7 +369,6 @@ impl FileOpener for FuseFileOpener {
             .call(
                 SerializationFormat::Json,
                 backend::OpenedFileIoRequest {},
-                false
             )
             .map_err(|err| {
                 error!("fuse_file_system::open() - open io call failed - {}", err);
@@ -447,7 +436,6 @@ impl Seek for FuseVirtualFile {
             .call(
                 SerializationFormat::Bincode,
                 seek,
-                false,
             )
             .map_err(|err| err.into_io_error())?
             .block_on()
@@ -469,7 +457,6 @@ impl Write for FuseVirtualFile {
             .call(
                 SerializationFormat::Bincode,
                 backend::FileIoWriteRequest { data: buf.to_vec() },
-                false,
             )
             .map_err(|err| err.into_io_error())?
             .block_on()
@@ -490,7 +477,6 @@ impl Write for FuseVirtualFile {
             .call(
                 SerializationFormat::Bincode,
                 backend::FileIoFlushRequest {},
-                false,
             )
             .map_err(|err| err.into_io_error())?
             .block_on()
@@ -515,7 +501,6 @@ impl Read for FuseVirtualFile {
                 backend::FileIoReadRequest {
                     len: buf.len() as u64,
                 },
-                false,
             )
             .map_err(|err| err.into_io_error())?
             .block_on()
@@ -560,7 +545,6 @@ impl VirtualFile for FuseVirtualFile {
             .call(
                 SerializationFormat::Json,
                 backend::OpenedFileSetLenRequest { len: new_size },
-                false,
             )
             .map_err(|_| FsError::IOError)?
             .block_on()
@@ -578,7 +562,6 @@ impl VirtualFile for FuseVirtualFile {
             .call(
                 SerializationFormat::Json,
                 backend::OpenedFileUnlinkRequest {},
-                false,
             )
             .map_err(|_| FsError::IOError)?
             .block_on()

@@ -2,7 +2,7 @@
 name = "ate-auth"
 version = "1.9.0"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
-edition = "2018"
+edition = "2021"
 description = "Represents a standardized data model and API for authenticating an ATE chain-of-trust"
 license = "MIT OR Apache-2.0"
 keywords = [ "authentication", "cli", "authorization", "crypto" ]

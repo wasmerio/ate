@@ -5,7 +5,7 @@ mod key_exchange;
 mod protocol;
 mod certificate_validation;
 #[cfg(feature = "dns")]
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 mod dns;
 mod security;
 
@@ -30,5 +30,5 @@ pub use protocol::StreamTx;
 pub use security::StreamSecurity;
 pub use client::StreamClient;
 #[cfg(feature = "dns")]
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 pub use dns::Dns;

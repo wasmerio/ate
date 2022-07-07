@@ -1,17 +1,21 @@
-
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::pin::Pin;
+use std::task::Context;
+use std::task::Poll;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
-use wasm_bus::abi::BusError;
 use wasmer_vbus::BusDataFormat;
+use wasmer_vbus::InstantInvocation;
+use wasmer_vbus::VirtualBusError;
+use wasmer_vbus::VirtualBusInvokable;
+use wasmer_vbus::VirtualBusInvoked;
+use wasmer_vbus::VirtualBusProcess;
+use wasmer_vbus::VirtualBusScope;
 
 use crate::api::System;
-use crate::fs::TtyFile;
 use crate::fd::*;
+use crate::fs::TtyFile;
 use crate::stdio::*;
 use crate::stdout::*;
-use crate::bus::webgl::WebGlInstance;
 
 use super::*;
 
@@ -24,7 +28,7 @@ pub struct StandardBus {
 impl StandardBus {
     pub fn new(process_factory: ProcessExecFactory) -> StandardBus {
         StandardBus {
-            system: System::default(),
+            system: Default::default(),
             process_factory,
         }
     }
@@ -45,87 +49,109 @@ impl StandardBus {
     pub fn stderr(&self, env: &LaunchEnvironment) -> Fd {
         self.process_factory.stderr(env)
     }
+}
 
-    pub(crate) async fn create(
+impl VirtualBusProcess
+for StandardBus
+{
+    fn exit_code(&self) -> Option<u32> {
+        None
+    }
+}
+
+impl VirtualBusScope
+for StandardBus
+{
+    fn poll_finished(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<()> {
+        Poll::Pending
+    }
+}
+
+impl VirtualBusInvokable
+for StandardBus
+{
+    fn invoke(
         &self,
-        wapm: &str,
         topic_hash: u128,
         format: BusDataFormat,
-        request: &Vec<u8>,
-        this_callback: &Arc<dyn BusStatefulFeeder + Send + Sync + 'static>,
-        client_callbacks: &HashMap<String, Arc<dyn BusStatefulFeeder + Send + Sync + 'static>>,
-        env: &LaunchEnvironment
-    ) -> Result<(Box<dyn Processable>, Option<Box<dyn Session>>), BusError> {
+        buf: Vec<u8>,
+    ) -> Box<dyn VirtualBusInvoked> {
         let format = conv_format(format);
-        match (wapm, topic_hash) {
-            ("os", topic_hash)
-                if topic_hash == type_name_hash::<wasm_bus_ws::api::SocketBuilderConnectRequest>() =>
+        match topic_hash {
+            h if h == type_name_hash::<wasm_bus_ws::api::SocketBuilderConnectRequest>() =>
             {
-                let request = format.deserialize(request.to_owned())?;
-                let (invoker, session) = ws::web_socket(request, this_callback.clone(), client_callbacks.clone())?;
-                Ok((Box::new(invoker), Some(Box::new(session))))
-            }
-            ("os", topic_hash) if topic_hash == type_name_hash::<wasm_bus_time::api::TimeSleepRequest>() => {
-                let request: wasm_bus_time::api::TimeSleepRequest = format.deserialize(request.to_owned())?;
-                let invoker = time::sleep(self.system, request.duration_ms);
-                Ok((Box::new(invoker), None))
-            }
-            ("os", topic_hash) if topic_hash == type_name_hash::<wasm_bus_reqwest::api::ReqwestMakeRequest>() => {
-                let request = format.deserialize(request.to_owned())?;
-                let invoker = reqwest::reqwest(self.system, request);
-                Ok((Box::new(invoker), None))
-            }
-            ("os", topic_hash) if topic_hash == type_name_hash::<wasm_bus_process::api::PoolSpawnRequest>() => {
-                let request = format.deserialize(request.to_owned())?;
-                let created = self
-                    .process_factory
-                    .eval(request, &env, this_callback.clone(), client_callbacks.clone())
-                    .await?;
-                Ok((Box::new(created.invoker), Some(Box::new(created.session))))
-            }
-            ("os", topic_hash) if topic_hash == type_name_hash::<wasm_bus_tty::api::TtyStdinRequest>() => {
-                let stdio = self.stdio(env);
-                let tty = TtyFile::new(&stdio);
-                let request = format.deserialize(request.to_owned())?;
-                let (invoker, session) = tty::stdin(request, tty, this_callback, client_callbacks.clone())?;
-                Ok((Box::new(invoker), Some(Box::new(session))))
-            }
-            ("os", topic_hash) if topic_hash == type_name_hash::<wasm_bus_tty::api::TtyStdoutRequest>() => {
-                let stdout = self.stdout(env);
-                let request = format.deserialize(request.to_owned())?;
-                let (invoker, session) = tty::stdout(request, stdout, client_callbacks.clone())?;
-                Ok((Box::new(invoker), Some(Box::new(session))))
-            }
-            ("os", topic_hash) if topic_hash == type_name_hash::<wasm_bus_tty::api::TtyStderrRequest>() => {
-                let stderr = self.stderr(env);
-                let request = format.deserialize(request.to_owned())?;
-                let (invoker, session) = tty::stderr(request, stderr, client_callbacks.clone())?;
-                Ok((Box::new(invoker), Some(Box::new(session))))
-            }
-            ("os", topic_hash) if topic_hash == type_name_hash::<wasm_bus_tty::api::TtyRectRequest>() => {
-                let request = format.deserialize(request.to_owned())?;
-                let invoker = tty::rect(request, &env.abi)?;
-                Ok((Box::new(invoker), None))
-            }
-            ("os", topic_hash) if topic_hash == type_name_hash::<wasm_bus_webgl::api::WebGlContextRequest>() => {
-                let _request = format.deserialize(request.to_owned())?;
-                let webgl = WebGlInstance::new(self.system).await;
-                match webgl {
-                    Some(webgl) => {
-                        let session = webgl.context();
-                        Ok((ResultInvokable::new_leaked(format, ()), Some(Box::new(session))))
-                    },
-                    None => {
-                        Err(BusError::Unsupported)
+                let request = match format.deserialize(buf) {
+                    Ok(a) => a,
+                    Err(err) => {
+                        return Box::new(InstantInvocation::fault(conv_error_back(err)))
                     }
-                }
-                
+                };
+                Box::new(
+                    InstantInvocation::call(
+                        Box::new(ws::web_socket(request))
+                    )
+                )
             }
-            ("os", topic_hash) => {
+            h if h == type_name_hash::<wasm_bus_time::api::TimeSleepRequest>() => {
+                let request: wasm_bus_time::api::TimeSleepRequest = match format.deserialize(buf) {
+                    Ok(a) => a,
+                    Err(err) => {
+                        return Box::new(InstantInvocation::fault(conv_error_back(err)))
+                    }
+                };
+                time::sleep(self.system, request.duration_ms)
+            }
+            h if h == type_name_hash::<wasm_bus_reqwest::api::ReqwestMakeRequest>() => {
+                let request: wasm_bus_reqwest::api::ReqwestMakeRequest = match format.deserialize(buf) {
+                    Ok(a) => a,
+                    Err(err) => {
+                        return Box::new(InstantInvocation::fault(conv_error_back(err)))
+                    }
+                };
+                reqwest::reqwest(self.system, request)
+            }
+            h if h == type_name_hash::<wasm_bus_tty::api::TtyStdinRequest>() => {
+                let env = self.process_factory.launch_env();
+                let stdio = self.stdio(&env);
+                let tty = TtyFile::new(&stdio);
+                tty::stdin(tty)
+            }
+            h if h == type_name_hash::<wasm_bus_tty::api::TtyStdoutRequest>() => {
+                let env = self.process_factory.launch_env();
+                let stdout = self.stdout(&env);
+                tty::stdout(self.system, stdout.fd())
+            }
+            h if h == type_name_hash::<wasm_bus_tty::api::TtyStderrRequest>() => {
+                let env = self.process_factory.launch_env();
+                let stderr = self.stderr(&env);
+                tty::stderr(self.system, stderr)
+            }
+            h if h == type_name_hash::<wasm_bus_tty::api::TtyRectRequest>() => {
+                let env = self.process_factory.launch_env();
+                tty::rect(self.system, &env.abi)
+            }
+            h if h == type_name_hash::<wasm_bus_process::api::PoolSpawnRequest>() => {
+                let request = match format.deserialize(buf) {
+                    Ok(a) => a,
+                    Err(err) => {
+                        return Box::new(InstantInvocation::fault(conv_error_back(err)))
+                    }
+                };
+                let factory = self.process_factory.clone();
+                sub_process::process_spawn(factory, request)
+            }
+            /*
+            h if h == type_name_hash::<wasm_bus_webgl::api::WebGlContextRequest>() => {
+                let _request = format.deserialize(buf)?;
+                WebGlInstance::new(self.system)
+            }
+            */
+            _ => {
                 error!("the os function ({}) is not supported", topic_hash);
-                return Err(BusError::Unsupported);
-            }
-            _ => Err(BusError::InvalidTopic),
+                Box::new(
+                    InstantInvocation::fault(VirtualBusError::Unsupported)
+                )
+            },
         }
     }
 }

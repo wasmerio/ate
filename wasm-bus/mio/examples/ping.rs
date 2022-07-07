@@ -8,9 +8,9 @@ use byteorder::WriteBytesExt;
 use byteorder::LittleEndian;
 
 use wasm_bus_mio::prelude::*;
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 use wasm_bus_time::prelude::sleep;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 use tokio::time::sleep;
 
 use clap::Parser;
@@ -152,12 +152,12 @@ pub struct Opts {
     pub token_path: String,
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(target_family = "wasm")]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     wasm_bus::task::block_on(main_async())
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     main_async().await?;

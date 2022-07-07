@@ -59,6 +59,20 @@ impl FdFlag {
             _ => false,
         }
     }
+
+    pub fn is_stdout(&self) -> bool {
+        match self {
+            FdFlag::Stdout(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_stderr(&self) -> bool {
+        match self {
+            FdFlag::Stderr(_) => true,
+            _ => false,
+        }
+    }
 }
 
 impl std::fmt::Display
@@ -260,6 +274,52 @@ impl Fd {
         }
         rx.recv().await;
         Ok(())
+    }
+
+    pub fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<FdMsg>> {
+        if let Err(err) = self.check_closed() {
+            return Poll::Ready(Err(err));
+        }        
+        if let Some(receiver) = self.receiver.as_mut() {
+            let mut guard = receiver.blocking_lock();
+            if guard.buffer.has_remaining() {
+                let mut buffer = BytesMut::new();
+                std::mem::swap(&mut guard.buffer, &mut buffer);
+                return Poll::Ready(Ok(FdMsg::new(buffer.to_vec(), guard.cur_flag)));
+            }            
+            if guard.mode == ReceiverMode::Message(true) {
+                guard.mode = ReceiverMode::Message(false);
+                return Poll::Ready(Ok(FdMsg::new(Vec::new(), guard.cur_flag)));
+            }
+            let msg = match guard
+                .rx
+                .poll_recv(cx)
+            {
+                Poll::Ready(Some(msg)) => msg,
+                Poll::Ready(None) => {
+                    FdMsg::new(Vec::new(), guard.cur_flag)
+                },
+                Poll::Pending => {return Poll::Pending; }
+            };
+            if let FdMsg::Data { flag, .. } = &msg {
+                guard.cur_flag = flag.clone();
+            }
+            if msg.len() <= 0 {
+                drop(guard);
+                drop(receiver);
+                if self.flip_to_abort {
+                    return Poll::Ready(Err(std::io::ErrorKind::BrokenPipe.into()));
+                }
+                self.flip_to_abort = true;
+            }
+            Poll::Ready(Ok(msg))
+        } else {
+            if self.flip_to_abort {
+                return Poll::Ready(Err(std::io::ErrorKind::BrokenPipe.into()));
+            }
+            self.flip_to_abort = true;
+            Poll::Ready(Ok(FdMsg::new(Vec::new(), self.flag)))
+        }
     }
 
     pub async fn read_async(&mut self) -> io::Result<FdMsg> {

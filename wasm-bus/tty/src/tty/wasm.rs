@@ -133,7 +133,7 @@ pub struct BlockingStdin {
 
 impl BlockingStdin {
     pub fn read(&mut self) -> Option<Vec<u8>> {
-        if let Some(data) = self.rx_data.blocking_recv() {
+        if let Some(data) = wasm_bus::task::block_on(self.rx_data.recv()) {
             if data.len() > 0 {
                 return Some(data);
             }
@@ -142,7 +142,7 @@ impl BlockingStdin {
     }
 
     pub fn wait_for_flush(&mut self) -> Option<()> {
-        self.rx_flush.blocking_recv()
+        wasm_bus::task::block_on(self.rx_flush.recv())
     }
 }
 

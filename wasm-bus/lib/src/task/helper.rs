@@ -1,7 +1,6 @@
 use serde::*;
 use std::any::type_name;
 use std::future::Future;
-use std::ops::Deref;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
@@ -10,7 +9,6 @@ use crate::abi::CallHandle;
 use crate::abi::CallSmartHandle;
 use crate::abi::SerializationFormat;
 use crate::engine::BusEngine;
-use crate::rt::RuntimeBlockingGuard;
 use crate::rt::RUNTIME;
 
 #[cfg(target_os = "wasi")]
@@ -41,10 +39,6 @@ where
     F: Future,
 {
     unimplemented!();
-}
-
-pub fn blocking_guard() -> RuntimeBlockingGuard {
-    RuntimeBlockingGuard::new(RUNTIME.deref())
 }
 
 #[cfg(target_os = "wasi")]

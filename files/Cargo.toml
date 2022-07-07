@@ -2,7 +2,7 @@
 name = "ate-files"
 version = "1.2.0"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
-edition = "2018"
+edition = "2021"
 description = "Model and helper functions for access files stored in ATEs"
 license = "MIT OR Apache-2.0"
 keywords = ["immutable", "filesystem", "fs" ]
