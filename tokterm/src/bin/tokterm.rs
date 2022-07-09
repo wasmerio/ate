@@ -63,7 +63,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Read keys in a dedicated thread
     let (tx_data, mut rx_data) = tokio::sync::mpsc::channel(term_lib::common::MAX_MPSC);
-    system.fork_dedicated(move || async move {
+    system.fork_dedicated_async(move || async move {
         let mut buf = [0u8; 1024];
         while let Ok(read) = tty.read(&mut buf) {
             let buf = &buf[..read];

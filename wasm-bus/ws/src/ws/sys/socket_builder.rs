@@ -15,6 +15,11 @@ impl SocketBuilder {
         SocketBuilder { url }
     }
 
+    pub fn new_str(url: &str) -> Result<SocketBuilder, url::ParseError> {
+        let url = url::Url::parse(url)?;
+        Ok(SocketBuilder { url })
+    }
+
     pub fn blocking_open(self) -> Result<WebSocket<MaybeTlsStream<TcpStream>>, std::io::Error> {
         tokio::task::block_in_place(move || {
             tokio::runtime::Handle::current().block_on(async move {

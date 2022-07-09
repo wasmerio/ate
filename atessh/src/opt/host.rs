@@ -29,4 +29,7 @@ pub struct OptsHost {
     /// Location where the native binary files are stored
     #[clap(long, default_value = "tokera.sh/www")]
     pub native_files: String,
+    /// Uses a local directory for native files rather than the published ate chain
+    #[clap(long)]
+    pub native_files_path: Option<String>,
 }

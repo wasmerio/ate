@@ -75,7 +75,7 @@ pub async fn exec(
         return Ok(builtin(&args, ctx, stdio).await);
     }
 
-    let (process, process_result, _) =
+    let (process, process_result, _, _) =
         exec_process(ctx, cmd, args, env_vars, show_result, stdio, redirect).await?;
 
     Ok(ExecResponse::Process(process, process_result))
@@ -94,6 +94,7 @@ pub async fn exec_process(
         Process,
         AsyncResult<(EvalContext, u32)>,
         Arc<WasiRuntime>,
+        Arc<WasmCheckpoint>,
     ),
     u32,
 > {
@@ -147,8 +148,12 @@ pub async fn exec_process(
     #[cfg(feature = "cached_compiling")]
     let mut module = { ctx.bins.get_compiled_module(&data_hash, ctx.compiler).await };
 
+    // This wait point is so that the main thread is created before it returns
+    let (checkpoint1_tx, mut checkpoint1) = ctx.checkpoint1.take().unwrap_or_else(|| WasmCheckpoint::new());
+    let (checkpoint2_tx, mut checkpoint2) = ctx.checkpoint2.take().unwrap_or_else(|| WasmCheckpoint::new());
+
     // We listen for any forced exits using this channel
-    let caller_ctx = WasmCallerContext::default();
+    let caller_ctx = WasmCallerContext::new(&checkpoint2);
     fs_private.set_ctx(&caller_ctx);
 
     // Create the filesystem
@@ -321,9 +326,6 @@ pub async fn exec_process(
         sub_process_factory,
         caller_ctx.clone()));
     let ctx_taker = wasi_runtime.prepare_take_context();
-
-    // This wait point is so that the main thread is created before it returns
-    let (checkpoint_tx, mut checkpoint_rx) = mpsc::channel(1);
 
     // Spawn the process on a background thread
     let cmd = cmd.clone();
@@ -529,8 +531,8 @@ pub async fn exec_process(
                 .get_native_function::<(), ()>("_start")
                 .ok();
 
-            // We are ready for the checkpoint
-            checkpoint_tx.send(()).await;
+            // The first checkpoint is just before we invoke the start method
+            checkpoint1_tx.send(()).await;
 
             // If there is a start function
             debug!("called main() on {}", cmd);
@@ -556,6 +558,11 @@ pub async fn exec_process(
                     .await;
                 err::ERR_ENOEXEC
             };
+            debug!("main() has exited on {}", cmd);
+
+            // The second checkpoint is after the start method completes but before
+            // all the background threads have exited
+            checkpoint2_tx.send(()).await;
 
             // If the main thread exited normally and there are still active threads
             // running then we need to wait for them all to exit before we terminate
@@ -582,7 +589,7 @@ pub async fn exec_process(
 
     // Wait for the checkpoint (either it triggers or it fails because its never reached
     // but whatever happens this checkpoint will be released)
-    checkpoint_rx.recv().await;
+    checkpoint1.wait().await;
 
     // Generate a PID for this process
     let (pid, process) = {
@@ -598,5 +605,5 @@ pub async fn exec_process(
     };
     debug!("process created (pid={})", pid);
 
-    Ok((process, process_result, wasi_runtime))
+    Ok((process, process_result, wasi_runtime, checkpoint2))
 }

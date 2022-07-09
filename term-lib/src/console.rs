@@ -425,7 +425,7 @@ impl Console {
         let state = self.state.clone();
         let mut stdout = ctx.stdout.clone();
         let mut stderr = ctx.stderr.clone();
-        system.fork_dedicated(move || {
+        system.fork_dedicated_async(move || {
             let mut process = exec.eval(cmd.clone(), ctx);
             async move {
                 // Wait for the process to finish

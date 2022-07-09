@@ -27,6 +27,6 @@ cooked-waker = { version = "^5", optional = true }
 wasm-bus-macros = { version = "^1", path = "../macros", optional = true }
 wasm-bus-types = { version = "^1", path = "../types" }
 tokio = { version = "^1", features = [ "macros", "sync" ], default_features = false }
-#wasi = { package = "wasix", version = "0.11" }
-wasi = { package = "wasix", path = "/prog/wasix", version = "0.11" }
+wasi = { package = "wasix", version = "0.11" }
 sha2 = { version = "0.10" }
+async-trait = "^0.1"

@@ -84,6 +84,6 @@ tokio = { version = "^1", features = [ "rt", "io-util", "macros", "sync", "time"
 [target.'cfg(target_os = "wasi")'.dependencies]
 tokio = { version = "^1", features = [ "macros", "sync" ], default_features = false }
 backtrace = "^0.3"
-wasi = { version = "^0.10" }
+wasi = { package = "wasix", version = "0.11" }
 wasm-timer = { version = "^0.2" }
 wasm-bus-process = { version = "^1", path = "../wasm-bus/process" }

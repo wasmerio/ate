@@ -1,0 +1,16 @@
+[package]
+name = "fuse"
+version = "0.0.1"
+authors = ["John Sharratt <john.sharratt@gmail.com>"]
+license = "MIT OR Apache-2.0"
+description = "An example TCP client."
+repository = "https://github.com/tokera.com/ate"
+readme = "README.md"
+keywords = [
+    "wasm",
+    "tcp",
+]
+edition = "2021"
+
+[dependencies]
+wasm-bus-fuse = { version = "^1", path = "../../wasm-bus/fuse" }

@@ -59,7 +59,7 @@ impl api::FuseSimplified for FuseServer {
     async fn mount(
         &self,
         name: String,
-    ) -> Result<Arc<dyn api::FileSystem + Send + Sync + 'static>, wasm_bus_tok::prelude::BusError> {
+    ) -> Result<Arc<dyn api::FileSystem>, wasm_bus_tok::prelude::BusError> {
         // Derive the group from the mount address
         let mut group = None;
         if let Some((group_str, _)) = name.split_once("/") {

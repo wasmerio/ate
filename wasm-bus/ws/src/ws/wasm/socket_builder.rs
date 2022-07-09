@@ -22,10 +22,9 @@ impl SocketBuilder {
         SocketBuilder { url }
     }
 
-    pub fn new_str(url: &str) -> SocketBuilder {
-        SocketBuilder {
-            url: url::Url::parse(url).unwrap()
-        }
+    pub fn new_str(url: &str) -> Result<SocketBuilder, url::ParseError> {
+        let url = url::Url::parse(url)?;
+        Ok(SocketBuilder { url })
     }
 
     pub fn blocking_open(self) -> Result<WebSocket, std::io::Error> {

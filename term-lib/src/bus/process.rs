@@ -115,6 +115,11 @@ pub struct LaunchEnvironment {
 pub struct LaunchResult<T>
 {
     pub finish: AsyncResult<Result<T, u32>>,
+    // Checkpoint just before the start function is invoked
+    pub checkpoint1: Arc<WasmCheckpoint>,
+    // Checkpoint after the start function is invoked but before the
+    // background threads return
+    pub checkpoint2: Arc<WasmCheckpoint>,
     pub stdin: Option<mpsc::Sender<FdMsg>>,
     pub stdout: Option<mpsc::Receiver<FdMsg>>,
     pub stderr: Option<mpsc::Receiver<FdMsg>>,
@@ -146,7 +151,7 @@ impl ProcessExecFactory {
         funct: F,
     ) -> Result<T, BusError>
     where
-        F: Fn(LaunchContext) -> Pin<Box<dyn Future<Output = Result<T, u32>>>>,
+        F: FnOnce(LaunchContext) -> Pin<Box<dyn Future<Output = Result<T, u32>>>>,
         F: Send + 'static,
         T: Send,
     {
@@ -180,7 +185,7 @@ impl ProcessExecFactory {
         funct: F,
     ) -> LaunchResult<T>
     where
-        F: Fn(LaunchContext) -> Pin<Box<dyn Future<Output = Result<T, u32>>>>,
+        F: FnOnce(LaunchContext) -> Pin<Box<dyn Future<Output = Result<T, u32>>>>,
         F: Send + 'static,
         T: Send,
     {
@@ -251,6 +256,10 @@ impl ProcessExecFactory {
             stolen_stderr = stderr_rx.take();
         };
 
+        // This wait point is so that the main thread is created before it returns
+        let (checkpoint1_tx, checkpoint1) = WasmCheckpoint::new();
+        let (checkpoint2_tx, checkpoint2) = WasmCheckpoint::new();
+
         // Push all the cloned variables into a background thread so
         // that it does not hurt anything
         let result = {
@@ -262,8 +271,10 @@ impl ProcessExecFactory {
             let reactor = self.reactor.clone();
             let compiler = self.compiler;
             let exec_factory = self.exec_factory.clone();
+            let checkpoint1 = checkpoint1.clone();
+            let checkpoint2 = checkpoint2.clone();
 
-            self.system.spawn_dedicated(move || async move {
+            self.system.spawn_dedicated_async(move || async move {
                 let path = create.request.spawn.path;
                 let args = create.request.spawn.args;
                 let chroot = create.request.spawn.chroot;
@@ -307,7 +318,7 @@ impl ProcessExecFactory {
                             return Err(err::ERR_ENOEXEC);
                         }
                     };
-                    SpawnContext::new(
+                    let mut spawn = SpawnContext::new(
                         abi,
                         ctx.env.clone(),
                         job.clone(),
@@ -322,7 +333,10 @@ impl ProcessExecFactory {
                         pre_open,
                         ctx.root.clone(),
                         compiler,
-                    )
+                    );
+                    spawn.checkpoint1 = Some((checkpoint1_tx, checkpoint1));
+                    spawn.checkpoint2 = Some((checkpoint2_tx, checkpoint2));
+                    spawn
                 };
                 let eval = exec_factory.create_context(spawn);
 
@@ -346,6 +360,8 @@ impl ProcessExecFactory {
 
         LaunchResult {
             finish: result,
+            checkpoint1,
+            checkpoint2,
             stdin: stolen_stdin,
             stdout: stolen_stdout,
             stderr: stolen_stderr,
@@ -361,8 +377,6 @@ impl ProcessExecFactory {
     ) -> Result<EvalCreated, BusError> {
         let dst = Arc::clone(&self.ctx);
         self.launch(request, env, client_callbacks, move |ctx: LaunchContext| {
-            let dst = dst.clone();
-            let this_callback = this_callback.clone();
             Box::pin(async move {
                 let cmd = ctx.path.clone();
                 let eval_rx = crate::eval::eval(cmd, ctx.eval);
@@ -408,6 +422,7 @@ impl ProcessExecFactory {
             Process,
             AsyncResult<(EvalContext, u32)>,
             Arc<WasiRuntime>,
+            Arc<WasmCheckpoint>,
         ),
         BusError,
     > {

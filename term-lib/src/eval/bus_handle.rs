@@ -1,4 +1,4 @@
-use std::{task::{Poll, Context}, pin::Pin, collections::HashMap, ops::DerefMut, marker::PhantomData};
+use std::{task::{Poll, Context}, pin::Pin, collections::HashMap, ops::DerefMut, marker::PhantomData, time::Duration};
 
 use async_trait::async_trait;
 use derivative::Derivative;
@@ -133,16 +133,25 @@ impl RuntimeCallOutsideHandle
     }
 
     pub fn block_on(mut self) -> Result<RuntimeCallResult, BusError> {
-        while let Some(msg) = self.rx.blocking_recv() {
-            if let Some((format, value)) = self.process_msg(msg)? {
-                return Ok(RuntimeCallResult {
-                    handle: self,
-                    format,
-                    value,
-                });
+        loop {
+            match self.rx.try_recv() {
+                Ok(msg) => {
+                    if let Some((format, value)) = self.process_msg(msg)? {
+                        return Ok(RuntimeCallResult {
+                            handle: self,
+                            format,
+                            value,
+                        });
+                    }
+                },
+                Err(mpsc::error::TryRecvError::Disconnected) => {
+                    return Err(BusError::Aborted);
+                }
+                Err(mpsc::error::TryRecvError::Empty) => {
+                    std::thread::sleep(Duration::from_millis(1));
+                }
             }
         }
-        Err(BusError::Aborted)
     }
 
     pub fn clone_task(&self) -> RuntimeCallOutsideTask {

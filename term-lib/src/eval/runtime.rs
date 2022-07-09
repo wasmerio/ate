@@ -22,7 +22,7 @@ use wasmer_vbus::{VirtualBus, VirtualBusError, SpawnOptions, VirtualBusListener,
 
 use crate::api::{System, AsyncResult};
 use crate::api::abi::SystemAbiExt;
-use crate::bus::{ProcessExecFactory, WasmCallerContext, EvalContextTaker, ProcessExecInvokable, LaunchContext, LaunchEnvironment, StandardBus, LaunchResult};
+use crate::bus::{ProcessExecFactory, WasmCallerContext, EvalContextTaker, ProcessExecInvokable, LaunchContext, LaunchEnvironment, StandardBus, LaunchResult, WasmCheckpoint};
 use crate::common::MAX_MPSC;
 use crate::err;
 use crate::fd::{Fd, WeakFd};
@@ -104,7 +104,6 @@ for WasiRuntime
         let system = System::default();
         system.task_dedicated(Box::new(move || {
             task();
-            Box::pin(async move { })
         }));
         Ok(())
     }
@@ -153,15 +152,21 @@ pub(crate) struct RuntimeProcessSpawner
     pub(crate) process_factory: ProcessExecFactory,
 }
 
+struct RuntimeProcessSpawned
+{
+    pub result: LaunchResult<EvalResult>,
+    pub runtime: mpsc::Receiver<Arc<WasiRuntime>>,
+}
+
 impl RuntimeProcessSpawner
 {
     pub fn spawn(&mut self, name: &str, config: &SpawnOptionsConfig) -> Result<LaunchResult<EvalResult>, VirtualBusError>
     {
-        let (result, _) = self.spawn_internal(name, config)?;
-        Ok(result)
+        let spawned = self.spawn_internal(name, config)?;
+        Ok(spawned.result)
     }
     
-    fn spawn_internal(&mut self, name: &str, config: &SpawnOptionsConfig) -> Result<(LaunchResult<EvalResult>, mpsc::Receiver<Arc<WasiRuntime>>), VirtualBusError>
+    fn spawn_internal(&mut self, name: &str, config: &SpawnOptionsConfig) -> Result<RuntimeProcessSpawned, VirtualBusError>
     {
         let conv_stdio_mode = |mode| {
             use wasmer_vfs::StdioMode as S1;
@@ -202,7 +207,7 @@ impl RuntimeProcessSpawner
                     let mut show_result = false;
                     let redirect = Vec::new();
 
-                    let (process, eval_rx, runtime) = exec_process(
+                    let (process, eval_rx, runtime, checkpoint) = exec_process(
                         ctx.eval,
                         &ctx.path,
                         &ctx.args,
@@ -230,7 +235,12 @@ impl RuntimeProcessSpawner
                 })
             });
 
-        Ok((result, runtime_rx))
+        Ok(
+            RuntimeProcessSpawned {
+                result,
+                runtime: runtime_rx,
+            }
+        )
     }
 } 
 
@@ -253,14 +263,15 @@ for RuntimeProcessSpawner
             });
         }
 
-        let (result, runtime_rx) = RuntimeProcessSpawner::spawn_internal(self, name, config)?;
+        let spawned = RuntimeProcessSpawner::spawn_internal(self, name, config)?;
 
         let process = RuntimeSpawnedProcess {
             exit_code: None,
-            finish: result.finish,
+            finish: spawned.result.finish,
+            checkpoint: spawned.result.checkpoint2,
             runtime: Arc::new(
                 DelayedRuntime {
-                    rx: Mutex::new(runtime_rx),
+                    rx: Mutex::new(spawned.runtime),
                     val: RwLock::new(None)
                 }
             )
@@ -271,9 +282,9 @@ for RuntimeProcessSpawner
                 name: name.to_string(),
                 config: config.clone(),
                 inst: Box::new(process),
-                stdin: Some(Box::new(Fd::new(result.stdin, None, ReceiverMode::Stream, crate::fd::FdFlag::Stdin(false)))),
-                stdout: Some(Box::new(Fd::new(None, result.stdout, ReceiverMode::Stream, crate::fd::FdFlag::Stdout(false)))),
-                stderr: Some(Box::new(Fd::new(None, result.stderr, ReceiverMode::Stream, crate::fd::FdFlag::Stderr(false)))),
+                stdin: Some(Box::new(Fd::new(spawned.result.stdin, None, ReceiverMode::Stream, crate::fd::FdFlag::Stdin(false)))),
+                stdout: Some(Box::new(Fd::new(None, spawned.result.stdout, ReceiverMode::Stream, crate::fd::FdFlag::Stdout(false)))),
+                stderr: Some(Box::new(Fd::new(None, spawned.result.stderr, ReceiverMode::Stream, crate::fd::FdFlag::Stderr(false)))),
             }
         )
     }
@@ -334,6 +345,7 @@ struct RuntimeSpawnedProcess
     exit_code: Option<u32>,
     #[derivative(Debug = "ignore")]
     finish: AsyncResult<Result<EvalResult, u32>>,
+    checkpoint: Arc<WasmCheckpoint>,
     runtime: Arc<DelayedRuntime>,
 }
 
@@ -343,6 +355,11 @@ for RuntimeSpawnedProcess
     fn exit_code(&self) -> Option<u32>
     {
         self.exit_code.clone()
+    }
+
+    fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {
+        let checkpoint = Pin::new(self.checkpoint.deref());
+        checkpoint.poll(cx)
     }
 }
 

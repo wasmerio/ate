@@ -329,7 +329,7 @@ impl api::FileSystemSimplified for FileSystem {
         &self,
         path: String,
         options: api::OpenOptions,
-    ) -> Result<Arc<dyn api::OpenedFile + Send + Sync + 'static>, BusError> {
+    ) -> Result<Arc<dyn api::OpenedFile>, BusError> {
         let ret = FileSystem::open(self, path, options).await;
         Ok(ret)
     }

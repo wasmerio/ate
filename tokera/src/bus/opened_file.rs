@@ -93,7 +93,7 @@ impl api::OpenedFileSimplified for OpenedFile {
         }
     }
 
-    async fn io(&self) -> Result<Arc<dyn api::FileIO + Send + Sync + 'static>, BusError> {
+    async fn io(&self) -> Result<Arc<dyn api::FileIO>, BusError> {
         let ret = OpenedFile::io(self).await?;
         Ok(ret)
     }

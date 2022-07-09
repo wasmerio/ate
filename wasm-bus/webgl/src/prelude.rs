@@ -6,3 +6,4 @@ pub use super::api::glenum;
 
 pub use super::error::WebGlError;
 pub use super::webgl::*;
+pub use async_trait::async_trait;

@@ -38,7 +38,7 @@ pub fn web_socket(
     // The web socket will be started in a background thread as it
     // is an asynchronous IO primative
     let sub_system = system.clone();
-    system.spawn_dedicated(move || async move {
+    system.spawn_dedicated_async(move || async move {
 
         // Open the web socket
         let (tx_state2, mut rx_state2) = broadcast::channel::<model::SocketState>(10);

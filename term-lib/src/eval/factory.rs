@@ -2,6 +2,7 @@ use tokio::sync::oneshot;
 
 use crate::api::*;
 use crate::bin_factory::*;
+use crate::bus::WasmCheckpoint;
 use crate::eval::*;
 use crate::fd::*;
 use crate::pipe::*;
@@ -23,7 +24,9 @@ pub struct SpawnContext {
     pub root: UnionFileSystem,
     pub compiler: Compiler,
     pub extra_args: Vec<String>,
-    pub extra_redirects: Vec<Redirect>,
+    pub extra_redirects: Vec<Redirect>,    
+    pub(crate) checkpoint1: Option<(mpsc::Sender<()>, Arc<WasmCheckpoint>)>,
+    pub(crate) checkpoint2: Option<(mpsc::Sender<()>, Arc<WasmCheckpoint>)>,
 }
 
 impl SpawnContext {
@@ -54,6 +57,8 @@ impl SpawnContext {
             compiler,
             extra_args: Vec::new(),
             extra_redirects: Vec::new(),
+            checkpoint1: None,
+            checkpoint2: None,
         }
     }
 }
@@ -146,7 +151,9 @@ impl EvalFactory {
             job: ctx.job,
             compiler: ctx.compiler,
             extra_args: ctx.extra_args,
-            extra_redirects: ctx.extra_redirects,
+            extra_redirects: ctx.extra_redirects,            
+            checkpoint1: ctx.checkpoint1,
+            checkpoint2: ctx.checkpoint2,
         };
 
         ctx

@@ -11,8 +11,22 @@ use wasm_bus_types::SerializationFormat;
 use crate::abi::BusError;
 use crate::abi::CallHandle;
 
+pub enum RespondAction
+{
+    Response(Vec<u8>),
+    Fault(BusError),
+    Detach
+}
+
+pub enum RespondActionTyped<T>
+{
+    Response(T),
+    Fault(BusError),
+    Detach
+}
+
 type CallbackHandler = Arc<
-    dyn Fn(CallHandle, Vec<u8>) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, BusError>> + Send>>
+    dyn Fn(CallHandle, Vec<u8>) -> Pin<Box<dyn Future<Output = RespondAction> + Send>>
         + Send
         + Sync,
 >;
@@ -23,15 +37,13 @@ pub struct RespondToService {
     pub(crate) format: SerializationFormat,
     #[derivative(Debug = "ignore")]
     pub(crate) callbacks: Arc<Mutex<HashMap<CallHandle, CallbackHandler>>>,
-    pub(crate) persistent: bool,
 }
 
 impl RespondToService {
-    pub fn new(format: SerializationFormat, persistent: bool) -> RespondToService {
+    pub fn new(format: SerializationFormat) -> RespondToService {
         RespondToService {
             format,
             callbacks: Default::default(),
-            persistent,
         }
     }
 
@@ -43,7 +55,7 @@ impl RespondToService {
                     CallHandle,
                     Vec<u8>,
                 )
-                    -> Pin<Box<dyn Future<Output = Result<Vec<u8>, BusError>> + Send>>
+                    -> Pin<Box<dyn Future<Output = RespondAction> + Send>>
                 + Send
                 + Sync,
         >,
@@ -64,22 +76,25 @@ impl RespondToService {
                 Arc::clone(callback)
             } else {
                 crate::abi::syscall::call_fault(handle, BusError::InvalidHandle);
-                crate::engine::BusEngine::close(&handle, "invalid callback handle");
                 return;
             }
         };
 
+        let mut leak = false;
         let res = callback.as_ref()(handle, request);
         match res.await {
-            Ok(a) => {
+            RespondAction::Response(a) => {
                 crate::abi::syscall::call_reply(handle, &a[..], format);
             }
-            Err(err) => {
+            RespondAction::Fault(err) => {
                 crate::abi::syscall::call_fault(handle, err);
             }
+            RespondAction::Detach => {
+                leak = true;
+            }
         }
-        if self.persistent == false {
-            crate::engine::BusEngine::close(&handle, "request was processed (by respond_to)");
+        if leak == false {
+            crate::engine::BusEngine::close(&handle, "request was processed (by listener)");
         }
     }
 }

@@ -42,19 +42,27 @@ pub async fn main_opts_login(
     // If we are in WASM mode and there is a login script then run it
     #[cfg(target_os = "wasi")]
     if std::path::Path::new("/etc/login.sh").exists() == true {
-        Command::new(format!("export USER={}", identity).as_str())
+        Command::new("export")
+            .args(&[format!("USER={}", identity).as_str()])
             .execute()
             .await?;
 
-        Command::new(format!("source /etc/login.sh").as_str())
+        Command::new("source")
+            .args(&["/etc/login.sh"])
             .execute()
             .await?;
-
-        if std::path::Path::new("/usr/etc/login.sh").exists() == true {
-            Command::new(format!("source /usr/etc/login.sh").as_str())
-                .execute()
-                .await?;
-        }
+    }
+    #[cfg(target_os = "wasi")]
+    if std::path::Path::new("/usr/etc/login.sh").exists() == true {
+        Command::new("export")
+            .args(&[format!("USER={}", identity).as_str()])
+            .execute()
+            .await?;
+            
+        Command::new("source")
+            .args(&["/usr/etc/login.sh"])
+            .execute()
+            .await?;
     }
 
     Ok(())

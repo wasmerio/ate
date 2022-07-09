@@ -71,7 +71,7 @@ impl SendHalf {
         Ok(())
     }
 
-    pub async fn send(&self, data: Vec<u8>) -> io::Result<usize> {
+    pub async fn send(&mut self, data: Vec<u8>) -> io::Result<usize> {
         let state = self.wait_till_opened().await;
         if state != SocketState::Opened {
             return Err(io::Error::new(
@@ -89,7 +89,7 @@ impl SendHalf {
             })?
     }
 
-    pub fn blocking_send(&self, data: Vec<u8>) -> io::Result<usize> {
+    pub fn blocking_send(&mut self, data: Vec<u8>) -> io::Result<usize> {
         wasm_bus::task::block_on(self.send(data))
     }
 }

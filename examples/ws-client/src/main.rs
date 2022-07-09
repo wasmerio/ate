@@ -3,13 +3,14 @@ use wasm_bus_ws::prelude::*;
 fn main() {
     println!("creating web socket and opening");
     let ws = SocketBuilder::new_str("wss://ws.postman-echo.com/raw")
+        .unwrap()
         .blocking_open()
         .unwrap();
 
     let data = vec![ 1u8, 2u8, 3u8 ];
     
     println!("sending data to socket");
-    let (tx, mut rx) = ws.split();
+    let (mut tx, mut rx) = ws.split();
     tx.blocking_send(data).unwrap();
 
     println!("receiving data from socket");

@@ -34,6 +34,9 @@ use super::interval::*;
 use super::tty::Tty;
 
 pub type BoxRun<'a, T> =
+    Box<dyn FnOnce() + Send + 'a>;
+
+pub type BoxRunAsync<'a, T> =
     Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = T> + 'static>> + Send + 'a>;
 
 pub type BoxRunWithThreadLocal<'a, T> = Box<
@@ -53,6 +56,7 @@ pub struct WebThreadPool {
 
 enum Message {
     Run(BoxRun<'static, ()>),
+    RunAsync(BoxRunAsync<'static, ()>),
     RunWithThreadLocal(BoxRunWithThreadLocal<'static, ()>),
 }
 
@@ -60,6 +64,7 @@ impl Debug for Message {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Message::Run(_) => write!(f, "run"),
+            Message::RunAsync(_) => write!(f, "run-async"),
             Message::RunWithThreadLocal(_) => write!(f, "run-with-thread-local"),
         }
     }
@@ -227,8 +232,8 @@ impl WebThreadPool {
         Self::new(pool_size)
     }
 
-    pub fn spawn_shared(&self, task: BoxRun<'static, ()>) {
-        self.pool_reactors.spawn(Message::Run(task));
+    pub fn spawn_shared(&self, task: BoxRunAsync<'static, ()>) {
+        self.pool_reactors.spawn(Message::RunAsync(task));
     }
 
     pub fn spawn_stateful(&self, task: BoxRunWithThreadLocal<'static, ()>) {
@@ -237,6 +242,10 @@ impl WebThreadPool {
 
     pub fn spawn_dedicated(&self, task: BoxRun<'static, ()>) {
         self.pool_dedicated.spawn(Message::Run(task));
+    }
+
+    pub fn spawn_dedicated_async(&self, task: BoxRunAsync<'static, ()>) {
+        self.pool_dedicated.spawn(Message::RunAsync(task));
     }
 }
 
@@ -384,6 +393,9 @@ impl ThreadState {
                             }
                         }
                         Message::Run(task) => {
+                            task();
+                        }
+                        Message::RunAsync(task) => {
                             let future = task();
                             if pool.blocking {
                                 future.await;

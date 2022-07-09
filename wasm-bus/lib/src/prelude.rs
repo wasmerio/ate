@@ -15,3 +15,4 @@ pub use wasm_bus_macros::*;
 pub use crate::abi::BusError;
 pub use crate::abi::CallHandle;
 pub use crate::abi::WasmBusSession;
+pub use async_trait::async_trait;

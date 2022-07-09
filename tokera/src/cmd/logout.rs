@@ -25,14 +25,16 @@ pub async fn main_opts_logout(
 
     // If we are in WASM mode and there is a logout script then run it
     #[cfg(target_os = "wasi")]
+    if std::path::Path::new("/usr/etc/logout.sh").exists() == true {
+        Command::new(format!("source").as_str())
+            .args(&["/usr/etc/logout.sh"])
+            .execute()
+            .await?;
+    }
+    #[cfg(target_os = "wasi")]
     if std::path::Path::new("/etc/logout.sh").exists() == true {
-        if std::path::Path::new("/usr/etc/logout.sh").exists() == true {
-            Command::new(format!("source /usr/etc/logout.sh").as_str())
-                .execute()
-                .await?;
-        }
-
-        Command::new(format!("source /etc/logout.sh").as_str())
+        Command::new(format!("source").as_str())
+            .args(&["/etc/logout.sh"])
             .execute()
             .await?;
     }

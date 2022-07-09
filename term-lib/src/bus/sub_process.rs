@@ -16,7 +16,6 @@ use wasm_bus_process::prelude::*;
 use wasmer_vbus::BusDataFormat;
 use wasmer_vbus::BusInvocationEvent;
 use wasmer_vbus::InstantInvocation;
-use wasmer_vbus::SpawnOptionsConfig;
 use wasmer_vbus::VirtualBusError;
 use wasmer_vbus::VirtualBusInvocation;
 use wasmer_vbus::VirtualBusInvokable;
@@ -28,7 +27,6 @@ use crate::eval::EvalContext;
 use crate::eval::EvalResult;
 use crate::eval::Process;
 use crate::eval::RuntimeCallOutsideTask;
-use crate::eval::RuntimeProcessSpawner;
 use crate::eval::WasiRuntime;
 use crate::fd::FdMsg;
 
@@ -105,7 +103,7 @@ impl SubProcessFactory {
                 pre_open: Vec::new(),
             },
         };
-        let (process, process_result, runtime) = self
+        let (process, process_result, runtime, checkpoint2) = self
             .inner
             .process_factory
             .create(spawn, &env, empty_client_callbacks)
@@ -117,6 +115,7 @@ impl SubProcessFactory {
             wapm.as_str(),
             process,
             process_result,
+            checkpoint2,
             runtime,
             ctx,
         ));
@@ -136,6 +135,7 @@ pub struct SubProcess {
     pub system: System,
     pub process: Process,
     pub process_result: Arc<Mutex<AsyncResult<(EvalContext, u32)>>>,
+    pub checkpoint2: Arc<WasmCheckpoint>,
     pub inner: Arc<SubProcessInner>,
     pub runtime: Arc<WasiRuntime>,
     pub ctx: Arc<Mutex<Option<EvalContext>>>,
@@ -146,6 +146,7 @@ impl SubProcess {
         wapm: &str,
         process: Process,
         process_result: AsyncResult<(EvalContext, u32)>,
+        checkpoint2: Arc<WasmCheckpoint>,
         runtime: Arc<WasiRuntime>,
         ctx: Arc<Mutex<Option<EvalContext>>>,
     ) -> SubProcess {
@@ -153,6 +154,7 @@ impl SubProcess {
             system: System::default(),
             process,
             process_result: Arc::new(Mutex::new(process_result)),
+            checkpoint2,
             inner: Arc::new(SubProcessInner {
                 wapm: wapm.to_string(),
             }),
@@ -173,7 +175,12 @@ impl SubProcess {
         let handle = feeder.call_raw(topic_hash, format, request);
         let sub_process = self.clone();
 
-        let session = SubProcessSession::new(self.runtime.clone(), handle.clone_task(), sub_process, ctx);
+        let session = SubProcessSession::new(
+            self.runtime.clone(),
+            handle.clone_task(),
+            sub_process,
+            ctx
+        );
         Ok((Box::new(handle), Some(Box::new(session))))
     }
 }
@@ -214,41 +221,26 @@ pub fn process_spawn(
     factory: ProcessExecFactory,
     request: api::PoolSpawnRequest,
 ) -> Box<dyn VirtualBusInvoked> {
-    let mut spawner = RuntimeProcessSpawner {
-        process_factory: factory
-    };
-
-    let conv_stdio_mode = |mode: wasm_bus_process::prelude::StdioMode| -> wasmer_vfs::StdioMode {
-        use wasm_bus_process::prelude::StdioMode::*;
-        match mode {
-            Piped => wasmer_vfs::StdioMode::Piped,
-            Inherit => wasmer_vfs::StdioMode::Inherit,
-            Null => wasmer_vfs::StdioMode::Null,
-            Log => wasmer_vfs::StdioMode::Log,
-        }
-    };
-
-    let config = SpawnOptionsConfig {
-        reuse: false,
-        chroot: request.spawn.chroot,
-        args: request.spawn.args,
-        preopen: request.spawn.pre_open,
-        stdin_mode: conv_stdio_mode(request.spawn.stdin_mode),
-        stdout_mode: conv_stdio_mode(request.spawn.stdout_mode),
-        stderr_mode: conv_stdio_mode(request.spawn.stderr_mode),
-        working_dir: request.spawn.working_dir,
-        remote_instance: None,
-        access_token: None,
-    };
+    let mut cmd = request.spawn.path.clone();
+    for arg in request.spawn.args.iter() {
+        cmd.push_str(" ");
+        cmd.push_str(arg.as_str());
+    }
+    let dst = Arc::clone(&factory.ctx);
+    let env = factory.launch_env();
+    let result = factory
+        .launch_ext(request, &env, None, None, None, true,
+            move |ctx: LaunchContext| {
+                let mut eval_rx = crate::eval::eval(cmd, ctx.eval);
+                Box::pin(async move {
+                    Ok(eval_rx.recv().await)
+                })
+            }
+        );
     
-    let result = match spawner.spawn(request.spawn.path.as_str(), &config) {
-        Ok(a) => a,
-        Err(err) => {
-            return Box::new(InstantInvocation::fault(err));
-        }
-    };
     Box::new(InstantInvocation::call(
         Box::new(SubProcessHandler {
+            dst,
             result: Mutex::new(result)
         })
     ))
@@ -256,7 +248,9 @@ pub fn process_spawn(
 
 #[derive(Debug)]
 pub struct SubProcessHandler {
-    result: Mutex<LaunchResult<EvalResult>>
+    
+    dst: Arc<Mutex<Option<EvalContext>>>,
+    result: Mutex<LaunchResult<Option<EvalResult>>>
 }
 
 impl VirtualBusInvocation
@@ -310,22 +304,38 @@ for SubProcessHandler
         }
         let finish = Pin::new(&mut result.finish);
         if let Poll::Ready(finish) = finish.poll(cx) {
-            if let Some(finish) = finish {
-                let code = finish.map(|a| a.raw()).unwrap_or_else(|a| a);
-                let data = api::PoolSpawnExitCallback(code as i32);
-                return Poll::Ready(BusInvocationEvent::Callback {
-                    topic_hash: type_name_hash::<api::PoolSpawnExitCallback>(),
-                    format: BusDataFormat::Bincode,
-                    data: match SerializationFormat::Bincode.serialize(data) {
-                        Ok(d) => d,
-                        Err(err) => {
-                            return Poll::Ready(BusInvocationEvent::Fault { fault: conv_error_back(err) });
-                        }
+            let code = match finish {
+                Some(Ok(Some(result))) => {
+                    let code = result.raw();
+                    let mut guard = self.dst.lock().unwrap();
+                    if let Some(dst) = guard.as_mut() {
+                        dst.env = result.ctx.env;
+                        dst.root = result.ctx.root;
+                        dst.working_dir = result.ctx.working_dir;
                     }
-                });
-            } else {
-                return Poll::Ready(BusInvocationEvent::Fault { fault: VirtualBusError::Aborted });
-            }
+                    code
+                },
+                Some(Ok(None)) => {
+                    return Poll::Ready(BusInvocationEvent::Fault { fault: VirtualBusError::Aborted });    
+                }
+                Some(Err(err)) => {
+                    err
+                },
+                None => {
+                    return Poll::Ready(BusInvocationEvent::Fault { fault: VirtualBusError::Aborted });    
+                }
+            };
+            let data = api::PoolSpawnExitCallback(code as i32);
+            return Poll::Ready(BusInvocationEvent::Callback {
+                topic_hash: type_name_hash::<api::PoolSpawnExitCallback>(),
+                format: BusDataFormat::Bincode,
+                data: match SerializationFormat::Bincode.serialize(data) {
+                    Ok(d) => d,
+                    Err(err) => {
+                        return Poll::Ready(BusInvocationEvent::Fault { fault: conv_error_back(err) });
+                    }
+                }
+            });
         }
         Poll::Pending
     }

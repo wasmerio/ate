@@ -69,8 +69,11 @@ pub enum CallContext {
         wapm: Cow<'static, str>,
         instance: Option<CallInstance>,
     },
-    SubCall {
+    OwnedSubCall {
         parent: CallSmartHandle,
+    },
+    SubCall {
+        parent: CallHandle,
     }
 }
 
@@ -118,7 +121,7 @@ pub struct Call {
     pub(crate) topic_hash: u128,
     #[derivative(Debug = "ignore")]
     pub(crate) callbacks: HashMap<u128, Arc<dyn Fn(Vec<u8>, SerializationFormat) -> CallbackResult + Send + Sync + 'static>>,
-    pub(crate) handle: Option<CallSmartHandle>,
+    pub(crate) handle: Option<CallHandle>,
     pub(crate) state: Arc<Mutex<CallState>>,
 }
 
@@ -140,7 +143,7 @@ impl Call {
     }
 
     pub fn new_subcall(
-        parent: CallSmartHandle,
+        parent: CallHandle,
         topic_hash: u128,
     ) -> Call {
         Call {
@@ -154,7 +157,7 @@ impl Call {
         }
     }
 
-    pub fn handle(&self) -> Option<CallSmartHandle> {
+    pub fn handle(&self) -> Option<CallHandle> {
         self.handle.clone()
     }
 }
@@ -167,7 +170,7 @@ impl CallOps for Call {
             format
         }));        
         if let Some(scope) = self.handle.as_ref() {
-            crate::engine::BusEngine::close(&scope.cid(), "call has finished (with data)");
+            crate::engine::BusEngine::close(scope, "call has finished (with data)");
         }
     }
 
@@ -185,7 +188,7 @@ impl CallOps for Call {
             state.result = Some(Err(error));
         }
         if let Some(scope) = self.handle.as_ref() {
-            crate::engine::BusEngine::close(&scope.cid(), "call has failed");
+            crate::engine::BusEngine::close(scope, "call has failed");
         }
     }
 
@@ -230,7 +233,7 @@ impl CallBuilder {
 
     // Invokes the call and detaches it so that it can be
     // using a contextual session
-    pub fn detach(mut self) -> Result<CallSmartHandle, BusError>
+    pub fn detach(mut self) -> Result<CallHandle, BusError>
     {
         let mut call = self.call.take().unwrap();
         let handle = self.invoke_internal(&mut call)?;
@@ -251,7 +254,7 @@ impl CallBuilder {
         call
     }
 
-    fn invoke_internal(&self, call: &mut Call) -> Result<CallSmartHandle, BusError> {
+    fn invoke_internal(&self, call: &mut Call) -> Result<CallHandle, BusError> {
         let handle = match &self.request {
             Data::Prepared(req) => {
                 match &call.ctx {
@@ -277,26 +280,33 @@ impl CallBuilder {
                             )
                         })
                     },
-                    CallContext::SubCall { parent } => {
+                    CallContext::OwnedSubCall { parent } => {
                         crate::abi::syscall::bus_subcall(
                             parent.cid(),
                             call.topic_hash,
                             &req[..],
                             self.format,
                         )
-                    }
+                    },
+                    CallContext::SubCall { parent } => {
+                        crate::abi::syscall::bus_subcall(
+                            parent.clone(),
+                            call.topic_hash,
+                            &req[..],
+                            self.format,
+                        )
+                    },
                 }
             }
             Data::Error(err) => {
                 return Err(err.clone());
             }
-        }
-        .map(|a| CallSmartHandle::new(a));
+        };
 
         if let Ok(scope) = &handle {
             let mut state = crate::engine::BusEngine::write();
-            state.handles.insert(scope.cid());
-            state.calls.insert(scope.cid(), Arc::new(call.clone()));
+            state.handles.insert(scope.clone());
+            state.calls.insert(scope.clone(), Arc::new(call.clone()));
             call.handle.replace(scope.clone());
         }
         handle
@@ -346,40 +356,6 @@ impl Call {
     }
 }
 
-#[derive(Debug)]
-pub struct DetachedCall<T> {
-    handle: CallSmartHandle,
-    result: T,
-}
-
-impl<T> DetachedCall<T> {
-    /// Creates another call relative to this call
-    /// This can be useful for creating contextual objects using thread calls
-    /// and then passing data or commands back and forth to it
-    pub fn subcall<A>(&self, format: SerializationFormat, req: A) -> CallBuilder
-    where
-        A: Serialize,
-    {
-        super::subcall(
-            self.handle.clone(),
-            format,
-            req,
-        )
-    }
-
-    pub fn handle(&self) -> CallSmartHandle {
-        self.handle.clone()
-    }
-}
-
-impl<T> Deref for DetachedCall<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        &self.result
-    }
-}
-
 #[derive(Debug, Clone)]
 #[must_use = "this `Call` only does something when you consume it"]
 pub struct CallJoin<T>
@@ -387,7 +363,7 @@ where
     T: de::DeserializeOwned,
 {
     call: Call,
-    scope: CallSmartHandle,
+    scope: CallHandle,
     _marker1: PhantomData<T>,
 }
 
@@ -395,7 +371,7 @@ impl<T> CallJoin<T>
 where
     T: de::DeserializeOwned,
 {
-    fn new(call: Call, scope: CallSmartHandle) -> CallJoin<T> {
+    fn new(call: Call, scope: CallHandle) -> CallJoin<T> {
         CallJoin {
             call,
             scope,
@@ -466,7 +442,7 @@ where
             }
             Some(Err(err)) => Poll::Ready(Err(err)),
             None => {
-                crate::engine::BusEngine::subscribe(&self.scope.cid(), cx);
+                crate::engine::BusEngine::subscribe(&self.scope, cx);
                 Poll::Pending
             }
         }

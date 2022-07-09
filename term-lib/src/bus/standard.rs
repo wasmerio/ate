@@ -57,6 +57,10 @@ for StandardBus
     fn exit_code(&self) -> Option<u32> {
         None
     }
+
+    fn poll_ready(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<()> {
+        Poll::Ready(())
+    }
 }
 
 impl VirtualBusScope

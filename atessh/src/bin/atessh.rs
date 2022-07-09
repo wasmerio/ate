@@ -42,9 +42,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             tx_exit, runtime,
                         ));
 
+                        let native_files = if let Some(path) = host.native_files_path.clone() {
+                            NativeFileType::LocalFileSystem(path)
+                        } else {
+                            NativeFileType::AteFileSystem(host.native_files.clone())
+                        };
+
                         // Start the system and add the native files
                         let db_url = ate_auth::prelude::origin_url(&host.db_url, "db");
-                        let sys = atessh::system::System::new(sys, registry.clone(), db_url, NativeFileType::AteFileSystem(host.native_files.clone())).await;
+                        let sys = atessh::system::System::new(sys, registry.clone(), db_url, native_files).await;
                         let native_files = sys.native_files.clone();
                         term_lib::api::set_system_abi(sys);
 

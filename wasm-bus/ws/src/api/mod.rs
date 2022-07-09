@@ -28,7 +28,7 @@ pub struct SocketBuilderConnectReceiveCallback(pub Vec<u8>);
 pub struct SocketBuilderConnectRequest {
     pub url: String,
 }
-#[async_trait::async_trait]
+#[wasm_bus::async_trait]
 pub trait SocketBuilder
 where
     Self: std::fmt::Debug + Send + Sync,
@@ -38,22 +38,16 @@ where
         url: String,
         state_change: Box<dyn Fn(SocketState) + Send + Sync + 'static>,
         receive: Box<dyn Fn(Vec<u8>) + Send + Sync + 'static>,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn WebSocket + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    >;
+    ) -> std::result::Result<std::sync::Arc<dyn WebSocket>, wasm_bus::abi::BusError>;
     fn blocking_connect(
         &self,
         url: String,
         state_change: Box<dyn Fn(SocketState) + Send + Sync + 'static>,
         receive: Box<dyn Fn(Vec<u8>) + Send + Sync + 'static>,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn WebSocket + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    >;
+    ) -> std::result::Result<std::sync::Arc<dyn WebSocket>, wasm_bus::abi::BusError>;
     fn as_client(&self) -> Option<SocketBuilderClient>;
 }
-#[async_trait::async_trait]
+#[wasm_bus::async_trait]
 pub trait SocketBuilderSimplified
 where
     Self: std::fmt::Debug + Send + Sync,
@@ -63,12 +57,9 @@ where
         url: String,
         state_change: Box<dyn Fn(SocketState) + Send + Sync + 'static>,
         receive: Box<dyn Fn(Vec<u8>) + Send + Sync + 'static>,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn WebSocket + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    >;
+    ) -> std::result::Result<std::sync::Arc<dyn WebSocket>, wasm_bus::abi::BusError>;
 }
-#[async_trait::async_trait]
+#[wasm_bus::async_trait]
 impl<T> SocketBuilder for T
 where
     T: SocketBuilderSimplified,
@@ -78,10 +69,7 @@ where
         url: String,
         state_change: Box<dyn Fn(SocketState) + Send + Sync + 'static>,
         receive: Box<dyn Fn(Vec<u8>) + Send + Sync + 'static>,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn WebSocket + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    > {
+    ) -> std::result::Result<std::sync::Arc<dyn WebSocket>, wasm_bus::abi::BusError> {
         SocketBuilderSimplified::connect(self, url, state_change, receive).await
     }
     fn blocking_connect(
@@ -89,10 +77,7 @@ where
         url: String,
         state_change: Box<dyn Fn(SocketState) + Send + Sync + 'static>,
         receive: Box<dyn Fn(Vec<u8>) + Send + Sync + 'static>,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn WebSocket + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    > {
+    ) -> std::result::Result<std::sync::Arc<dyn WebSocket>, wasm_bus::abi::BusError> {
         wasm_bus::task::block_on(SocketBuilderSimplified::connect(
             self,
             url,
@@ -109,7 +94,7 @@ pub struct SocketBuilderService {}
 impl SocketBuilderService {
     #[allow(dead_code)]
     pub(crate) fn attach(
-        wasm_me: std::sync::Arc<dyn SocketBuilder + Send + Sync + 'static>,
+        wasm_me: std::sync::Arc<dyn SocketBuilder>,
         call_handle: wasm_bus::abi::CallSmartHandle,
     ) {
         {
@@ -158,7 +143,7 @@ impl SocketBuilderService {
             );
         }
     }
-    pub fn listen(wasm_me: std::sync::Arc<dyn SocketBuilder + Send + Sync + 'static>) {
+    pub fn listen(wasm_me: std::sync::Arc<dyn SocketBuilder>) {
         {
             let wasm_me = wasm_me.clone();
             wasm_bus::task::listen(
@@ -199,7 +184,6 @@ impl SocketBuilderService {
                         Ok(())
                     }
                 },
-                true,
             );
         }
     }
@@ -234,11 +218,9 @@ impl SocketBuilderClient {
             join: None,
         }
     }
-    pub fn attach(task: wasm_bus::abi::DetachedCall<()>) -> Self {
+    pub fn attach(handle: wasm_bus::abi::CallSmartHandle) -> Self {
         Self {
-            ctx: wasm_bus::abi::CallContext::SubCall {
-                parent: task.handle(),
-            },
+            ctx: wasm_bus::abi::CallContext::SubCall { parent: handle },
             task: None,
             join: None,
         }
@@ -262,29 +244,30 @@ impl SocketBuilderClient {
             Ok(None)
         }
     }
-    pub fn connect(
+    pub async fn connect(
         &self,
         url: String,
         state_change: Box<dyn Fn(SocketState) + Send + Sync + 'static>,
         receive: Box<dyn Fn(Vec<u8>) + Send + Sync + 'static>,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn WebSocket + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    > {
+    ) -> std::result::Result<std::sync::Arc<dyn WebSocket>, wasm_bus::abi::BusError> {
         let request = SocketBuilderConnectRequest { url };
         let handle = wasm_bus::abi::call(
             self.ctx.clone(),
             wasm_bus::abi::SerializationFormat::Bincode,
             request,
         )
-        .callback(
-            move |req: SocketBuilderConnectStateChangeCallback| state_change(req.0),
-        )
-        .callback(
-            move |req: SocketBuilderConnectReceiveCallback| receive(req.0),
-        )
+        .callback(move |req: SocketBuilderConnectStateChangeCallback| state_change(req.0))
+        .callback(move |req: SocketBuilderConnectReceiveCallback| receive(req.0))
         .detach()?;
         Ok(Arc::new(WebSocketClient::attach(handle)))
+    }
+    pub fn blocking_connect(
+        &self,
+        url: String,
+        state_change: Box<dyn Fn(SocketState) + Send + Sync + 'static>,
+        receive: Box<dyn Fn(Vec<u8>) + Send + Sync + 'static>,
+    ) -> std::result::Result<std::sync::Arc<dyn WebSocket>, wasm_bus::abi::BusError> {
+        wasm_bus::task::block_on(self.connect(url, state_change, receive))
     }
 }
 impl std::future::Future for SocketBuilderClient {
@@ -304,17 +287,14 @@ impl std::future::Future for SocketBuilderClient {
         }
     }
 }
-#[async_trait::async_trait]
+#[wasm_bus::async_trait]
 impl SocketBuilder for SocketBuilderClient {
     async fn connect(
         &self,
         url: String,
         state_change: Box<dyn Fn(SocketState) + Send + Sync + 'static>,
         receive: Box<dyn Fn(Vec<u8>) + Send + Sync + 'static>,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn WebSocket + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    > {
+    ) -> std::result::Result<std::sync::Arc<dyn WebSocket>, wasm_bus::abi::BusError> {
         SocketBuilderClient::connect(self, url, state_change, receive).await
     }
     fn blocking_connect(
@@ -322,10 +302,7 @@ impl SocketBuilder for SocketBuilderClient {
         url: String,
         state_change: Box<dyn Fn(SocketState) + Send + Sync + 'static>,
         receive: Box<dyn Fn(Vec<u8>) + Send + Sync + 'static>,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn WebSocket + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    > {
+    ) -> std::result::Result<std::sync::Arc<dyn WebSocket>, wasm_bus::abi::BusError> {
         SocketBuilderClient::blocking_connect(self, url, state_change, receive)
     }
     fn as_client(&self) -> Option<SocketBuilderClient> {
@@ -337,7 +314,7 @@ impl SocketBuilder for SocketBuilderClient {
 pub struct WebSocketSendRequest {
     pub data: Vec<u8>,
 }
-#[async_trait::async_trait]
+#[wasm_bus::async_trait]
 pub trait WebSocket
 where
     Self: std::fmt::Debug + Send + Sync,
@@ -350,14 +327,14 @@ where
     ) -> std::result::Result<SendResult, wasm_bus::abi::BusError>;
     fn as_client(&self) -> Option<WebSocketClient>;
 }
-#[async_trait::async_trait]
+#[wasm_bus::async_trait]
 pub trait WebSocketSimplified
 where
     Self: std::fmt::Debug + Send + Sync,
 {
     async fn send(&self, data: Vec<u8>) -> SendResult;
 }
-#[async_trait::async_trait]
+#[wasm_bus::async_trait]
 impl<T> WebSocket for T
 where
     T: WebSocketSimplified,
@@ -385,7 +362,7 @@ pub struct WebSocketService {}
 impl WebSocketService {
     #[allow(dead_code)]
     pub(crate) fn attach(
-        wasm_me: std::sync::Arc<dyn WebSocket + Send + Sync + 'static>,
+        wasm_me: std::sync::Arc<dyn WebSocket>,
         call_handle: wasm_bus::abi::CallSmartHandle,
     ) {
         {
@@ -395,28 +372,26 @@ impl WebSocketService {
                 call_handle,
                 wasm_bus::abi::SerializationFormat::Bincode,
                 #[allow(unused_variables)]
-                move |_wasm_handle: wasm_bus::abi::CallHandle, wasm_req: WebSocketSendRequest| {
-                    let wasm_me = wasm_me.clone();
-                    let data = wasm_req.data;
-                    async move { wasm_me.send(data).await }
-                },
-                false,
-            );
-        }
-    }
-    pub fn listen(wasm_me: std::sync::Arc<dyn WebSocket + Send + Sync + 'static>) {
-        {
-            let wasm_me = wasm_me.clone();
-            wasm_bus::task::listen(
-                wasm_bus::abi::SerializationFormat::Bincode,
-                #[allow(unused_variables)]
                 move |wasm_handle: wasm_bus::abi::CallHandle, wasm_req: WebSocketSendRequest| {
                     let wasm_me = wasm_me.clone();
                     let wasm_handle = wasm_bus::abi::CallSmartHandle::new(wasm_handle);
                     let data = wasm_req.data;
                     async move { wasm_me.send(data).await }
                 },
-                false,
+            );
+        }
+    }
+    pub fn listen(wasm_me: std::sync::Arc<dyn WebSocket>) {
+        {
+            let wasm_me = wasm_me.clone();
+            wasm_bus::task::listen(
+                wasm_bus::abi::SerializationFormat::Bincode,
+                #[allow(unused_variables)]
+                move |_wasm_handle: wasm_bus::abi::CallHandle, wasm_req: WebSocketSendRequest| {
+                    let wasm_me = wasm_me.clone();
+                    let data = wasm_req.data;
+                    async move { wasm_me.send(data).await }
+                },
             );
         }
     }
@@ -451,11 +426,9 @@ impl WebSocketClient {
             join: None,
         }
     }
-    pub fn attach(task: wasm_bus::abi::DetachedCall<()>) -> Self {
+    pub fn attach(handle: wasm_bus::abi::CallSmartHandle) -> Self {
         Self {
-            ctx: wasm_bus::abi::CallContext::SubCall {
-                parent: task.handle(),
-            },
+            ctx: wasm_bus::abi::CallContext::SubCall { parent: handle },
             task: None,
             join: None,
         }
@@ -517,7 +490,7 @@ impl std::future::Future for WebSocketClient {
         }
     }
 }
-#[async_trait::async_trait]
+#[wasm_bus::async_trait]
 impl WebSocket for WebSocketClient {
     async fn send(
         &self,

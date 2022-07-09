@@ -114,10 +114,22 @@ impl SystemAbi for SysSystem {
         */
     }
 
-    /// Starts an asynchronous task will will run on a dedicated thread
+    /// Starts an synchronous task will will run on a dedicated thread
     /// pulled from the worker pool. It is ok for this task to block execution
     /// and any async futures within its scope
     fn task_dedicated(
+        &self,
+        task: Box<dyn FnOnce() + Send + 'static>,
+    ) {
+        self.runtime.spawn_blocking(move || {
+            task();
+        });
+    }
+
+    /// Starts an asynchronous task will will run on a dedicated thread
+    /// pulled from the worker pool. It is ok for this task to block execution
+    /// and any async futures within its scope
+    fn task_dedicated_async(
         &self,
         task: Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
     ) {
@@ -157,7 +169,7 @@ impl SystemAbi for SysSystem {
         };
 
         let (tx_done, rx_done) = mpsc::channel(1);
-        self.task_dedicated(Box::new(move || {
+        self.task_dedicated_async(Box::new(move || {
             Box::pin(async move {
                 #[cfg(not(feature = "embedded_files"))]
                 let ret = Err(err::ERR_ENOENT);

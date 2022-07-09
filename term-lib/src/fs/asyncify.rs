@@ -27,7 +27,7 @@ impl AsyncifyFileSystem {
     {
         let fs = self.fs.clone();
         self.system
-            .spawn_dedicated(move || async move { funct(fs.deref()) })
+            .spawn_dedicated_async(move || async move { funct(fs.deref()) })
             .await
             .unwrap()
     }
@@ -170,7 +170,7 @@ impl AsyncifyFileOpener {
         let parent = self.parent.clone();
 
         self.system
-            .spawn_dedicated(move || async move {
+            .spawn_dedicated_async(move || async move {
                 let mut options = parent.fs.new_open_options();
                 options.read(conf.read);
                 options.write(conf.write);
@@ -206,7 +206,7 @@ impl AsyncifyVirtualFile {
     {
         let file = self.file.clone();
         self.system
-            .spawn_dedicated(move || async move {
+            .spawn_dedicated_async(move || async move {
                 let mut file = file.lock().unwrap();
                 let file = file.deref_mut().deref_mut();
                 funct(file)

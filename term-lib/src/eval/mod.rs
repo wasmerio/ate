@@ -39,6 +39,7 @@ use tracing::{debug, error, info, trace, warn};
 
 #[cfg(feature = "wasmer-compiler")]
 use {crate::wasmer::Universal, crate::wasmer_compiler::CompilerConfig};
+use crate::bus::WasmCheckpoint;
 use crate::wasmer::{Store};
 #[cfg(feature = "wasmer-compiler-cranelift")]
 use crate::wasmer_compiler_cranelift::Cranelift;
@@ -87,7 +88,7 @@ impl EvalResult {
         EvalResult { ctx, status }
     }
 
-    pub fn raw(self) -> u32 {
+    pub fn raw(&self) -> u32 {
         match &self.status {
             EvalStatus::Executed { code, .. } => *code,
             _ => 1,
@@ -253,7 +254,11 @@ pub struct EvalContext {
     pub job: Job,
     pub compiler: Compiler,
     pub extra_args: Vec<String>,
-    pub extra_redirects: Vec<Redirect>,
+    pub extra_redirects: Vec<Redirect>,    
+    #[derivative(Debug = "ignore")]
+    pub checkpoint1: Option<(mpsc::Sender<()>, Arc<WasmCheckpoint>)>,
+    #[derivative(Debug = "ignore")]
+    pub checkpoint2: Option<(mpsc::Sender<()>, Arc<WasmCheckpoint>)>,
 }
 
 impl EvalContext {

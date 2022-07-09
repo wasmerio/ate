@@ -21,16 +21,21 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
     let program = args[0].clone();
 
     if args.len() != 3 && args.len() != 5 {
-        eprintln!("usage: {} <db-name> <filename> [instance] [access-code]", program);
+        eprintln!(
+            "usage: {} <db-name> <filename> [instance] [access-code]",
+            program
+        );
         return Ok(());
     }
     let name = args[1].clone();
     let file = args[2].clone();
-    
+
     let fs = if args.len() == 5 {
         let instance = args[3].clone();
         let access_code = args[4].clone();
-        FileSystem::mount_instance(instance.as_str(), access_code.as_str(), "tok", &name).await.map_err(conv_err)?
+        FileSystem::mount_instance(instance.as_str(), access_code.as_str(), "tok", &name)
+            .await
+            .map_err(conv_err)?
     } else {
         FileSystem::mount("tok", &name).await.map_err(conv_err)?
     };

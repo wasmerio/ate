@@ -180,8 +180,8 @@ impl Runtime {
     /// of the main thread which will call back into the process whenever
     /// there is work to be done (i.e. IO or BUS arrived)
     pub fn serve(&self) {
-        // Upon calling fork then after the main function exits
-        // it will run a working thread that processes any inbound
+        // Upon spawning a reactor then after the main function exits
+        // it will run a reactor thread that processes any inbound
         // messages for the wasm_bus - it will also send all responses
         // back when there are no calls coming back in thus there
         // is no need for the main thread to stick around (even if

@@ -35,5 +35,7 @@ members = [
     "examples/multi-threading",
     "examples/thread-local",
     "examples/wasm64-example",
-    "examples/ws-client"
+    "examples/ws-client",
+    "examples/sub-process",
+    "examples/fuse"
 ]

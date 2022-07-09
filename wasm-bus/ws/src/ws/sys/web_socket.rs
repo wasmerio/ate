@@ -108,6 +108,10 @@ where S: AsyncRead + AsyncWrite + Unpin
             .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
         Ok(data_len)
     }
+
+    pub fn blocking_send(&mut self, data: Vec<u8>) -> io::Result<usize> {
+        wasm_bus::task::block_on(self.send(data))
+    }
 }
 
 impl<S> AsyncWrite

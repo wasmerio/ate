@@ -45,6 +45,9 @@ where
         CallContext::NewBusCall { wapm, instance } => {
             call_new(wapm, instance, format, request)
         },
+        CallContext::OwnedSubCall { parent } => {
+            subcall(parent.cid(), format, request)
+        },
         CallContext::SubCall { parent } => {
             subcall(parent, format, request)
         }
@@ -73,7 +76,7 @@ where
 }
 
 pub fn subcall<T>(
-    parent: CallSmartHandle,
+    parent: CallHandle,
     format: SerializationFormat,
     request: T,
 ) -> CallBuilder

@@ -4,6 +4,7 @@ use std::sync::Arc;
 #[allow(unused_imports)]
 use wasm_bus::macros::*;
 
+/*
 #[wasm_bus(format = "json")]
 pub trait Fuse {
     async fn mount(&self, name: String) -> Arc<dyn FileSystem>;
@@ -37,6 +38,7 @@ pub trait FileIO {
     async fn write(&self, data: Vec<u8>) -> FsResult<u64>;
     async fn read(&self, len: u64) -> FsResult<Vec<u8>>;
 }
+*/
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpenOptions {
@@ -216,12 +218,11 @@ impl Into<Box<dyn std::error::Error>> for FsError {
 
 pub type FsResult<T> = Result<T, FsError>;
 
-/*
 #[derive(Debug, Clone, serde :: Serialize, serde :: Deserialize)]
 pub struct FuseMountRequest {
     pub name: String,
 }
-#[async_trait::async_trait]
+#[wasm_bus::async_trait]
 pub trait Fuse
 where
     Self: std::fmt::Debug + Send + Sync,
@@ -229,20 +230,14 @@ where
     async fn mount(
         &self,
         name: String,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn FileSystem + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    >;
+    ) -> std::result::Result<std::sync::Arc<dyn FileSystem>, wasm_bus::abi::BusError>;
     fn blocking_mount(
         &self,
         name: String,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn FileSystem + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    >;
+    ) -> std::result::Result<std::sync::Arc<dyn FileSystem>, wasm_bus::abi::BusError>;
     fn as_client(&self) -> Option<FuseClient>;
 }
-#[async_trait::async_trait]
+#[wasm_bus::async_trait]
 pub trait FuseSimplified
 where
     Self: std::fmt::Debug + Send + Sync,
@@ -250,12 +245,9 @@ where
     async fn mount(
         &self,
         name: String,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn FileSystem + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    >;
+    ) -> std::result::Result<std::sync::Arc<dyn FileSystem>, wasm_bus::abi::BusError>;
 }
-#[async_trait::async_trait]
+#[wasm_bus::async_trait]
 impl<T> Fuse for T
 where
     T: FuseSimplified,
@@ -263,19 +255,13 @@ where
     async fn mount(
         &self,
         name: String,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn FileSystem + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    > {
+    ) -> std::result::Result<std::sync::Arc<dyn FileSystem>, wasm_bus::abi::BusError> {
         FuseSimplified::mount(self, name).await
     }
     fn blocking_mount(
         &self,
         name: String,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn FileSystem + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    > {
+    ) -> std::result::Result<std::sync::Arc<dyn FileSystem>, wasm_bus::abi::BusError> {
         wasm_bus::task::block_on(FuseSimplified::mount(self, name))
     }
     fn as_client(&self) -> Option<FuseClient> {
@@ -287,11 +273,12 @@ pub struct FuseService {}
 impl FuseService {
     #[allow(dead_code)]
     pub(crate) fn attach(
-        wasm_me: std::sync::Arc<dyn Fuse + Send + Sync + 'static>,
+        wasm_me: std::sync::Arc<dyn Fuse>,
         call_handle: wasm_bus::abi::CallHandle,
     ) {
         {
             let wasm_me = wasm_me.clone();
+            let call_handle = call_handle.clone();
             wasm_bus::task::respond_to(
                 call_handle,
                 wasm_bus::abi::SerializationFormat::Json,
@@ -300,16 +287,19 @@ impl FuseService {
                     let wasm_me = wasm_me.clone();
                     let name = wasm_req.name;
                     async move {
-                        let svc = wasm_me.mount(name).await?;
-                        FileSystemService::attach(svc, wasm_handle);
-                        Ok(())
+                        match wasm_me.mount(name).await {
+                            Ok(svc) => {
+                                FileSystemService::attach(svc, wasm_handle);
+                                wasm_bus::abi::RespondActionTyped::<()>::Detach
+                            },
+                            Err(err) => wasm_bus::abi::RespondActionTyped::<()>::Fault(err)
+                        }
                     }
                 },
-                true,
             );
         }
     }
-    pub fn listen(wasm_me: std::sync::Arc<dyn Fuse + Send + Sync + 'static>) {
+    pub fn listen(wasm_me: std::sync::Arc<dyn Fuse>) {
         {
             let wasm_me = wasm_me.clone();
             wasm_bus::task::listen(
@@ -319,12 +309,15 @@ impl FuseService {
                     let wasm_me = wasm_me.clone();
                     let name = wasm_req.name;
                     async move {
-                        let svc = wasm_me.mount(name).await?;
-                        FileSystemService::attach(svc, wasm_handle);
-                        Ok(())
+                        match wasm_me.mount(name).await {
+                            Ok(svc) => {
+                                FileSystemService::attach(svc, wasm_handle);
+                                wasm_bus::abi::ListenActionTyped::<()>::Detach
+                            },
+                            Err(err) => wasm_bus::abi::ListenActionTyped::<()>::Fault(err)
+                        }
                     }
                 },
-                true,
             );
         }
     }
@@ -343,7 +336,7 @@ impl FuseClient {
         Self {
             ctx: wasm_bus::abi::CallContext::NewBusCall {
                 wapm: wapm.to_string().into(),
-                instance: None
+                instance: None,
             },
             task: None,
             join: None,
@@ -359,9 +352,10 @@ impl FuseClient {
             join: None,
         }
     }
-    pub fn attach(task: wasm_bus::abi::DetachedCall<()>) -> Self {
+    pub fn attach(handle: wasm_bus::abi::CallHandle) -> Self {
+        let handle = wasm_bus::abi::CallSmartHandle::new(handle);
         Self {
-            ctx: wasm_bus::abi::CallContext::SubCall { parent: task.handle() },
+            ctx: wasm_bus::abi::CallContext::OwnedSubCall { parent: handle },
             task: None,
             join: None,
         }
@@ -388,27 +382,20 @@ impl FuseClient {
     pub async fn mount(
         &self,
         name: String,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn FileSystem + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    > {
+    ) -> std::result::Result<std::sync::Arc<dyn FileSystem>, wasm_bus::abi::BusError> {
         let request = FuseMountRequest { name };
-        let task = wasm_bus::abi::call(
+        let handle = wasm_bus::abi::call(
             self.ctx.clone(),
             wasm_bus::abi::SerializationFormat::Json,
             request,
         )
-        .detach()
-        .await?;
-        Ok(Arc::new(FileSystemClient::attach(task)))
+        .detach()?;
+        Ok(Arc::new(FileSystemClient::attach(handle)))
     }
     pub fn blocking_mount(
         &self,
         name: String,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn FileSystem + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    > {
+    ) -> std::result::Result<std::sync::Arc<dyn FileSystem>, wasm_bus::abi::BusError> {
         wasm_bus::task::block_on(self.mount(name))
     }
 }
@@ -429,24 +416,18 @@ impl std::future::Future for FuseClient {
         }
     }
 }
-#[async_trait::async_trait]
+#[wasm_bus::async_trait]
 impl Fuse for FuseClient {
     async fn mount(
         &self,
         name: String,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn FileSystem + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    > {
+    ) -> std::result::Result<std::sync::Arc<dyn FileSystem>, wasm_bus::abi::BusError> {
         FuseClient::mount(self, name).await
     }
     fn blocking_mount(
         &self,
         name: String,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn FileSystem + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    > {
+    ) -> std::result::Result<std::sync::Arc<dyn FileSystem>, wasm_bus::abi::BusError> {
         FuseClient::blocking_mount(self, name)
     }
     fn as_client(&self) -> Option<FuseClient> {
@@ -490,7 +471,7 @@ pub struct FileSystemOpenRequest {
     pub path: String,
     pub options: OpenOptions,
 }
-#[async_trait::async_trait]
+#[wasm_bus::async_trait]
 pub trait FileSystem
 where
     Self: std::fmt::Debug + Send + Sync,
@@ -529,10 +510,7 @@ where
         &self,
         path: String,
         options: OpenOptions,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn OpenedFile + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    >;
+    ) -> std::result::Result<std::sync::Arc<dyn OpenedFile>, wasm_bus::abi::BusError>;
     fn blocking_init(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError>;
     fn blocking_read_dir(
         &self,
@@ -567,13 +545,10 @@ where
         &self,
         path: String,
         options: OpenOptions,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn OpenedFile + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    >;
+    ) -> std::result::Result<std::sync::Arc<dyn OpenedFile>, wasm_bus::abi::BusError>;
     fn as_client(&self) -> Option<FileSystemClient>;
 }
-#[async_trait::async_trait]
+#[wasm_bus::async_trait]
 pub trait FileSystemSimplified
 where
     Self: std::fmt::Debug + Send + Sync,
@@ -590,12 +565,9 @@ where
         &self,
         path: String,
         options: OpenOptions,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn OpenedFile + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    >;
+    ) -> std::result::Result<std::sync::Arc<dyn OpenedFile>, wasm_bus::abi::BusError>;
 }
-#[async_trait::async_trait]
+#[wasm_bus::async_trait]
 impl<T> FileSystem for T
 where
     T: FileSystemSimplified,
@@ -710,20 +682,14 @@ where
         &self,
         path: String,
         options: OpenOptions,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn OpenedFile + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    > {
+    ) -> std::result::Result<std::sync::Arc<dyn OpenedFile>, wasm_bus::abi::BusError> {
         FileSystemSimplified::open(self, path, options).await
     }
     fn blocking_open(
         &self,
         path: String,
         options: OpenOptions,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn OpenedFile + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    > {
+    ) -> std::result::Result<std::sync::Arc<dyn OpenedFile>, wasm_bus::abi::BusError> {
         wasm_bus::task::block_on(FileSystemSimplified::open(self, path, options))
     }
     fn as_client(&self) -> Option<FileSystemClient> {
@@ -735,130 +701,170 @@ pub struct FileSystemService {}
 impl FileSystemService {
     #[allow(dead_code)]
     pub(crate) fn attach(
-        wasm_me: std::sync::Arc<dyn FileSystem + Send + Sync + 'static>,
+        wasm_me: std::sync::Arc<dyn FileSystem>,
         call_handle: wasm_bus::abi::CallHandle,
     ) {
         {
             let wasm_me = wasm_me.clone();
+            let call_handle = call_handle.clone();
             wasm_bus::task::respond_to(
                 call_handle,
                 wasm_bus::abi::SerializationFormat::Json,
                 #[allow(unused_variables)]
-                move |_wasm_handle: wasm_bus::abi::CallHandle, wasm_req: FileSystemInitRequest| {
+                move |wasm_handle: wasm_bus::abi::CallHandle, wasm_req: FileSystemInitRequest| {
                     let wasm_me = wasm_me.clone();
-                    async move { wasm_me.init().await }
+                    async move {
+                        match wasm_me.init().await {
+                            Ok(res) => wasm_bus::abi::RespondActionTyped::Response(res),
+                            Err(err) => wasm_bus::abi::RespondActionTyped::Fault(err)
+                        }
+                    }
                 },
-                false,
             );
         }
         {
             let wasm_me = wasm_me.clone();
+            let call_handle = call_handle.clone();
             wasm_bus::task::respond_to(
                 call_handle,
                 wasm_bus::abi::SerializationFormat::Json,
                 #[allow(unused_variables)]
-                move |_wasm_handle: wasm_bus::abi::CallHandle,
+                move |wasm_handle: wasm_bus::abi::CallHandle,
                       wasm_req: FileSystemReadDirRequest| {
                     let wasm_me = wasm_me.clone();
                     let path = wasm_req.path;
-                    async move { wasm_me.read_dir(path).await }
+                    async move {
+                        match wasm_me.read_dir(path).await {
+                            Ok(res) => wasm_bus::abi::RespondActionTyped::Response(res),
+                            Err(err) => wasm_bus::abi::RespondActionTyped::Fault(err)
+                        }
+                    }
                 },
-                false,
             );
         }
         {
             let wasm_me = wasm_me.clone();
+            let call_handle = call_handle.clone();
             wasm_bus::task::respond_to(
                 call_handle,
                 wasm_bus::abi::SerializationFormat::Json,
                 #[allow(unused_variables)]
-                move |_wasm_handle: wasm_bus::abi::CallHandle,
+                move |wasm_handle: wasm_bus::abi::CallHandle,
                       wasm_req: FileSystemCreateDirRequest| {
                     let wasm_me = wasm_me.clone();
                     let path = wasm_req.path;
-                    async move { wasm_me.create_dir(path).await }
+                    async move {
+                        match wasm_me.create_dir(path).await {
+                            Ok(res) => wasm_bus::abi::RespondActionTyped::Response(res),
+                            Err(err) => wasm_bus::abi::RespondActionTyped::Fault(err)
+                        }
+                    }
                 },
-                false,
             );
         }
         {
             let wasm_me = wasm_me.clone();
+            let call_handle = call_handle.clone();
             wasm_bus::task::respond_to(
                 call_handle,
                 wasm_bus::abi::SerializationFormat::Json,
                 #[allow(unused_variables)]
-                move |_wasm_handle: wasm_bus::abi::CallHandle,
+                move |wasm_handle: wasm_bus::abi::CallHandle,
                       wasm_req: FileSystemRemoveDirRequest| {
                     let wasm_me = wasm_me.clone();
                     let path = wasm_req.path;
-                    async move { wasm_me.remove_dir(path).await }
+                    async move {
+                        match wasm_me.remove_dir(path).await {
+                            Ok(res) => wasm_bus::abi::RespondActionTyped::Response(res),
+                            Err(err) => wasm_bus::abi::RespondActionTyped::Fault(err)
+                        }
+                    }
                 },
-                false,
             );
         }
         {
             let wasm_me = wasm_me.clone();
+            let call_handle = call_handle.clone();
             wasm_bus::task::respond_to(
                 call_handle,
                 wasm_bus::abi::SerializationFormat::Json,
                 #[allow(unused_variables)]
-                move |_wasm_handle: wasm_bus::abi::CallHandle,
-                      wasm_req: FileSystemRenameRequest| {
+                move |wasm_handle: wasm_bus::abi::CallHandle, wasm_req: FileSystemRenameRequest| {
                     let wasm_me = wasm_me.clone();
                     let from = wasm_req.from;
                     let to = wasm_req.to;
-                    async move { wasm_me.rename(from, to).await }
+                    async move {
+                        match wasm_me.rename(from, to).await {
+                            Ok(res) => wasm_bus::abi::RespondActionTyped::Response(res),
+                            Err(err) => wasm_bus::abi::RespondActionTyped::Fault(err)
+                        }
+                    }
                 },
-                false,
             );
         }
         {
             let wasm_me = wasm_me.clone();
+            let call_handle = call_handle.clone();
             wasm_bus::task::respond_to(
                 call_handle,
                 wasm_bus::abi::SerializationFormat::Json,
                 #[allow(unused_variables)]
-                move |_wasm_handle: wasm_bus::abi::CallHandle,
+                move |wasm_handle: wasm_bus::abi::CallHandle,
                       wasm_req: FileSystemRemoveFileRequest| {
                     let wasm_me = wasm_me.clone();
                     let path = wasm_req.path;
-                    async move { wasm_me.remove_file(path).await }
+                    async move {
+                        match wasm_me.remove_file(path).await {
+                            Ok(res) => wasm_bus::abi::RespondActionTyped::Response(res),
+                            Err(err) => wasm_bus::abi::RespondActionTyped::Fault(err)
+                        }
+                    }
                 },
-                false,
             );
         }
         {
             let wasm_me = wasm_me.clone();
+            let call_handle = call_handle.clone();
             wasm_bus::task::respond_to(
                 call_handle,
                 wasm_bus::abi::SerializationFormat::Json,
                 #[allow(unused_variables)]
-                move |_wasm_handle: wasm_bus::abi::CallHandle,
+                move |wasm_handle: wasm_bus::abi::CallHandle,
                       wasm_req: FileSystemReadMetadataRequest| {
                     let wasm_me = wasm_me.clone();
                     let path = wasm_req.path;
-                    async move { wasm_me.read_metadata(path).await }
+                    async move {
+                        match wasm_me.read_metadata(path).await {
+                            Ok(res) => wasm_bus::abi::RespondActionTyped::Response(res),
+                            Err(err) => wasm_bus::abi::RespondActionTyped::Fault(err)
+                        }
+                    }
                 },
-                false,
             );
         }
         {
             let wasm_me = wasm_me.clone();
+            let call_handle = call_handle.clone();
             wasm_bus::task::respond_to(
                 call_handle,
                 wasm_bus::abi::SerializationFormat::Json,
                 #[allow(unused_variables)]
-                move |_wasm_handle: wasm_bus::abi::CallHandle,
+                move |wasm_handle: wasm_bus::abi::CallHandle,
                       wasm_req: FileSystemReadSymlinkMetadataRequest| {
                     let wasm_me = wasm_me.clone();
                     let path = wasm_req.path;
-                    async move { wasm_me.read_symlink_metadata(path).await }
+                    async move {
+                        match wasm_me.read_symlink_metadata(path).await {
+                            Ok(res) => wasm_bus::abi::RespondActionTyped::Response(res),
+                            Err(err) => wasm_bus::abi::RespondActionTyped::Fault(err)
+                        }
+                    }
                 },
-                false,
             );
         }
         {
             let wasm_me = wasm_me.clone();
+            let call_handle = call_handle.clone();
             wasm_bus::task::respond_to(
                 call_handle,
                 wasm_bus::abi::SerializationFormat::Json,
@@ -868,16 +874,19 @@ impl FileSystemService {
                     let path = wasm_req.path;
                     let options = wasm_req.options;
                     async move {
-                        let svc = wasm_me.open(path, options).await?;
-                        OpenedFileService::attach(svc, wasm_handle);
-                        Ok(())
+                        match wasm_me.open(path, options).await {
+                            Ok(svc) => {
+                                OpenedFileService::attach(svc, wasm_handle);
+                                wasm_bus::abi::RespondActionTyped::<()>::Detach
+                            },
+                            Err(err) => wasm_bus::abi::RespondActionTyped::<()>::Fault(err)
+                        }
                     }
                 },
-                true,
             );
         }
     }
-    pub fn listen(wasm_me: std::sync::Arc<dyn FileSystem + Send + Sync + 'static>) {
+    pub fn listen(wasm_me: std::sync::Arc<dyn FileSystem>) {
         {
             let wasm_me = wasm_me.clone();
             wasm_bus::task::listen(
@@ -885,9 +894,13 @@ impl FileSystemService {
                 #[allow(unused_variables)]
                 move |_wasm_handle: wasm_bus::abi::CallHandle, wasm_req: FileSystemInitRequest| {
                     let wasm_me = wasm_me.clone();
-                    async move { wasm_me.init().await }
+                    async move {
+                        match wasm_me.init().await {
+                            Ok(res) => wasm_bus::abi::ListenActionTyped::Response(res),
+                            Err(err) => wasm_bus::abi::ListenActionTyped::Fault(err)
+                        }
+                    }
                 },
-                false,
             );
         }
         {
@@ -899,9 +912,13 @@ impl FileSystemService {
                       wasm_req: FileSystemReadDirRequest| {
                     let wasm_me = wasm_me.clone();
                     let path = wasm_req.path;
-                    async move { wasm_me.read_dir(path).await }
+                    async move {
+                        match wasm_me.read_dir(path).await {
+                            Ok(res) => wasm_bus::abi::ListenActionTyped::Response(res),
+                            Err(err) => wasm_bus::abi::ListenActionTyped::Fault(err)
+                        }
+                    }
                 },
-                false,
             );
         }
         {
@@ -913,9 +930,13 @@ impl FileSystemService {
                       wasm_req: FileSystemCreateDirRequest| {
                     let wasm_me = wasm_me.clone();
                     let path = wasm_req.path;
-                    async move { wasm_me.create_dir(path).await }
+                    async move {
+                        match wasm_me.create_dir(path).await {
+                            Ok(res) => wasm_bus::abi::ListenActionTyped::Response(res),
+                            Err(err) => wasm_bus::abi::ListenActionTyped::Fault(err)
+                        }
+                    }
                 },
-                false,
             );
         }
         {
@@ -927,9 +948,13 @@ impl FileSystemService {
                       wasm_req: FileSystemRemoveDirRequest| {
                     let wasm_me = wasm_me.clone();
                     let path = wasm_req.path;
-                    async move { wasm_me.remove_dir(path).await }
+                    async move {
+                        match wasm_me.remove_dir(path).await {
+                            Ok(res) => wasm_bus::abi::ListenActionTyped::Response(res),
+                            Err(err) => wasm_bus::abi::ListenActionTyped::Fault(err)
+                        }
+                    }
                 },
-                false,
             );
         }
         {
@@ -942,9 +967,13 @@ impl FileSystemService {
                     let wasm_me = wasm_me.clone();
                     let from = wasm_req.from;
                     let to = wasm_req.to;
-                    async move { wasm_me.rename(from, to).await }
+                    async move {
+                        match wasm_me.rename(from, to).await {
+                            Ok(res) => wasm_bus::abi::ListenActionTyped::Response(res),
+                            Err(err) => wasm_bus::abi::ListenActionTyped::Fault(err)
+                        }
+                    }
                 },
-                false,
             );
         }
         {
@@ -956,9 +985,13 @@ impl FileSystemService {
                       wasm_req: FileSystemRemoveFileRequest| {
                     let wasm_me = wasm_me.clone();
                     let path = wasm_req.path;
-                    async move { wasm_me.remove_file(path).await }
+                    async move {
+                        match wasm_me.remove_file(path).await {
+                            Ok(res) => wasm_bus::abi::ListenActionTyped::Response(res),
+                            Err(err) => wasm_bus::abi::ListenActionTyped::Fault(err)
+                        }
+                    }
                 },
-                false,
             );
         }
         {
@@ -970,9 +1003,13 @@ impl FileSystemService {
                       wasm_req: FileSystemReadMetadataRequest| {
                     let wasm_me = wasm_me.clone();
                     let path = wasm_req.path;
-                    async move { wasm_me.read_metadata(path).await }
+                    async move {
+                        match wasm_me.read_metadata(path).await {
+                            Ok(res) => wasm_bus::abi::ListenActionTyped::Response(res),
+                            Err(err) => wasm_bus::abi::ListenActionTyped::Fault(err)
+                        }
+                    }
                 },
-                false,
             );
         }
         {
@@ -984,9 +1021,13 @@ impl FileSystemService {
                       wasm_req: FileSystemReadSymlinkMetadataRequest| {
                     let wasm_me = wasm_me.clone();
                     let path = wasm_req.path;
-                    async move { wasm_me.read_symlink_metadata(path).await }
+                    async move {
+                        match wasm_me.read_symlink_metadata(path).await {
+                            Ok(res) => wasm_bus::abi::ListenActionTyped::Response(res),
+                            Err(err) => wasm_bus::abi::ListenActionTyped::Fault(err)
+                        }
+                    }
                 },
-                false,
             );
         }
         {
@@ -999,12 +1040,15 @@ impl FileSystemService {
                     let path = wasm_req.path;
                     let options = wasm_req.options;
                     async move {
-                        let svc = wasm_me.open(path, options).await?;
-                        OpenedFileService::attach(svc, wasm_handle);
-                        Ok(())
+                        match wasm_me.open(path, options).await {
+                            Ok(svc) => {
+                                OpenedFileService::attach(svc, wasm_handle);
+                                wasm_bus::abi::ListenActionTyped::<()>::Detach
+                            },
+                            Err(err) => wasm_bus::abi::ListenActionTyped::<()>::Fault(err)
+                        }
                     }
                 },
-                true,
             );
         }
     }
@@ -1023,7 +1067,7 @@ impl FileSystemClient {
         Self {
             ctx: wasm_bus::abi::CallContext::NewBusCall {
                 wapm: wapm.to_string().into(),
-                instance: None
+                instance: None,
             },
             task: None,
             join: None,
@@ -1039,9 +1083,10 @@ impl FileSystemClient {
             join: None,
         }
     }
-    pub fn attach(task: wasm_bus::abi::DetachedCall<()>) -> Self {
+    pub fn attach(handle: wasm_bus::abi::CallHandle) -> Self {
+        let handle = wasm_bus::abi::CallSmartHandle::new(handle);
         Self {
-            ctx: wasm_bus::abi::CallContext::SubCall { parent: task.handle() },
+            ctx: wasm_bus::abi::CallContext::OwnedSubCall { parent: handle },
             task: None,
             join: None,
         }
@@ -1179,19 +1224,15 @@ impl FileSystemClient {
         &self,
         path: String,
         options: OpenOptions,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn OpenedFile + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    > {
+    ) -> std::result::Result<std::sync::Arc<dyn OpenedFile>, wasm_bus::abi::BusError> {
         let request = FileSystemOpenRequest { path, options };
-        let task = wasm_bus::abi::call(
+        let handle = wasm_bus::abi::call(
             self.ctx.clone(),
             wasm_bus::abi::SerializationFormat::Json,
             request,
         )
-        .detach()
-        .await?;
-        Ok(Arc::new(OpenedFileClient::attach(task)))
+        .detach()?;
+        Ok(Arc::new(OpenedFileClient::attach(handle)))
     }
     pub fn blocking_init(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         wasm_bus::task::block_on(self.init())
@@ -1243,10 +1284,7 @@ impl FileSystemClient {
         &self,
         path: String,
         options: OpenOptions,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn OpenedFile + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    > {
+    ) -> std::result::Result<std::sync::Arc<dyn OpenedFile>, wasm_bus::abi::BusError> {
         wasm_bus::task::block_on(self.open(path, options))
     }
 }
@@ -1267,7 +1305,7 @@ impl std::future::Future for FileSystemClient {
         }
     }
 }
-#[async_trait::async_trait]
+#[wasm_bus::async_trait]
 impl FileSystem for FileSystemClient {
     async fn init(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         FileSystemClient::init(self).await
@@ -1365,20 +1403,14 @@ impl FileSystem for FileSystemClient {
         &self,
         path: String,
         options: OpenOptions,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn OpenedFile + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    > {
+    ) -> std::result::Result<std::sync::Arc<dyn OpenedFile>, wasm_bus::abi::BusError> {
         FileSystemClient::open(self, path, options).await
     }
     fn blocking_open(
         &self,
         path: String,
         options: OpenOptions,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn OpenedFile + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    > {
+    ) -> std::result::Result<std::sync::Arc<dyn OpenedFile>, wasm_bus::abi::BusError> {
         FileSystemClient::blocking_open(self, path, options)
     }
     fn as_client(&self) -> Option<FileSystemClient> {
@@ -1396,23 +1428,16 @@ pub struct OpenedFileSetLenRequest {
 }
 #[derive(Debug, Clone, serde :: Serialize, serde :: Deserialize)]
 pub struct OpenedFileIoRequest {}
-#[async_trait::async_trait]
+#[wasm_bus::async_trait]
 pub trait OpenedFile
 where
     Self: std::fmt::Debug + Send + Sync,
 {
     async fn meta(&self) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError>;
     async fn unlink(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError>;
-    async fn set_len(
-        &self,
-        len: u64,
-    ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError>;
-    async fn io(
-        &self,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn FileIO + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    >;
+    async fn set_len(&self, len: u64)
+        -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError>;
+    async fn io(&self) -> std::result::Result<std::sync::Arc<dyn FileIO>, wasm_bus::abi::BusError>;
     fn blocking_meta(&self) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError>;
     fn blocking_unlink(&self) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError>;
     fn blocking_set_len(
@@ -1421,13 +1446,10 @@ where
     ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError>;
     fn blocking_io(
         &self,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn FileIO + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    >;
+    ) -> std::result::Result<std::sync::Arc<dyn FileIO>, wasm_bus::abi::BusError>;
     fn as_client(&self) -> Option<OpenedFileClient>;
 }
-#[async_trait::async_trait]
+#[wasm_bus::async_trait]
 pub trait OpenedFileSimplified
 where
     Self: std::fmt::Debug + Send + Sync,
@@ -1435,14 +1457,9 @@ where
     async fn meta(&self) -> FsResult<Metadata>;
     async fn unlink(&self) -> FsResult<()>;
     async fn set_len(&self, len: u64) -> FsResult<()>;
-    async fn io(
-        &self,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn FileIO + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    >;
+    async fn io(&self) -> std::result::Result<std::sync::Arc<dyn FileIO>, wasm_bus::abi::BusError>;
 }
-#[async_trait::async_trait]
+#[wasm_bus::async_trait]
 impl<T> OpenedFile for T
 where
     T: OpenedFileSimplified,
@@ -1473,20 +1490,12 @@ where
             self, len,
         )))
     }
-    async fn io(
-        &self,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn FileIO + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    > {
+    async fn io(&self) -> std::result::Result<std::sync::Arc<dyn FileIO>, wasm_bus::abi::BusError> {
         OpenedFileSimplified::io(self).await
     }
     fn blocking_io(
         &self,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn FileIO + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    > {
+    ) -> std::result::Result<std::sync::Arc<dyn FileIO>, wasm_bus::abi::BusError> {
         wasm_bus::task::block_on(OpenedFileSimplified::io(self))
     }
     fn as_client(&self) -> Option<OpenedFileClient> {
@@ -1498,53 +1507,67 @@ pub struct OpenedFileService {}
 impl OpenedFileService {
     #[allow(dead_code)]
     pub(crate) fn attach(
-        wasm_me: std::sync::Arc<dyn OpenedFile + Send + Sync + 'static>,
+        wasm_me: std::sync::Arc<dyn OpenedFile>,
         call_handle: wasm_bus::abi::CallHandle,
     ) {
         {
             let wasm_me = wasm_me.clone();
+            let call_handle = call_handle.clone();
             wasm_bus::task::respond_to(
                 call_handle,
                 wasm_bus::abi::SerializationFormat::Json,
                 #[allow(unused_variables)]
-                move |_wasm_handle: wasm_bus::abi::CallHandle, wasm_req: OpenedFileMetaRequest| {
+                move |wasm_handle: wasm_bus::abi::CallHandle, wasm_req: OpenedFileMetaRequest| {
                     let wasm_me = wasm_me.clone();
-                    async move { wasm_me.meta().await }
+                    async move {
+                        match wasm_me.meta().await {
+                            Ok(res) => wasm_bus::abi::RespondActionTyped::Response(res),
+                            Err(err) => wasm_bus::abi::RespondActionTyped::Fault(err)
+                        }
+                    }
                 },
-                false,
             );
         }
         {
             let wasm_me = wasm_me.clone();
+            let call_handle = call_handle.clone();
             wasm_bus::task::respond_to(
                 call_handle,
                 wasm_bus::abi::SerializationFormat::Json,
                 #[allow(unused_variables)]
-                move |_wasm_handle: wasm_bus::abi::CallHandle,
-                      wasm_req: OpenedFileUnlinkRequest| {
+                move |wasm_handle: wasm_bus::abi::CallHandle, wasm_req: OpenedFileUnlinkRequest| {
                     let wasm_me = wasm_me.clone();
-                    async move { wasm_me.unlink().await }
+                    async move {
+                        match wasm_me.unlink().await {
+                            Ok(res) => wasm_bus::abi::RespondActionTyped::Response(res),
+                            Err(err) => wasm_bus::abi::RespondActionTyped::Fault(err)
+                        }
+                    }
                 },
-                false,
             );
         }
         {
             let wasm_me = wasm_me.clone();
+            let call_handle = call_handle.clone();
             wasm_bus::task::respond_to(
                 call_handle,
                 wasm_bus::abi::SerializationFormat::Json,
                 #[allow(unused_variables)]
-                move |_wasm_handle: wasm_bus::abi::CallHandle,
-                      wasm_req: OpenedFileSetLenRequest| {
+                move |wasm_handle: wasm_bus::abi::CallHandle, wasm_req: OpenedFileSetLenRequest| {
                     let wasm_me = wasm_me.clone();
                     let len = wasm_req.len;
-                    async move { wasm_me.set_len(len).await }
+                    async move {
+                        match wasm_me.set_len(len).await {
+                            Ok(res) => wasm_bus::abi::RespondActionTyped::Response(res),
+                            Err(err) => wasm_bus::abi::RespondActionTyped::Fault(err)
+                        }
+                    }
                 },
-                false,
             );
         }
         {
             let wasm_me = wasm_me.clone();
+            let call_handle = call_handle.clone();
             wasm_bus::task::respond_to(
                 call_handle,
                 wasm_bus::abi::SerializationFormat::Json,
@@ -1552,16 +1575,19 @@ impl OpenedFileService {
                 move |wasm_handle: wasm_bus::abi::CallHandle, wasm_req: OpenedFileIoRequest| {
                     let wasm_me = wasm_me.clone();
                     async move {
-                        let svc = wasm_me.io().await?;
-                        FileIOService::attach(svc, wasm_handle);
-                        Ok(())
+                        match wasm_me.io().await {
+                            Ok(svc) => {
+                                FileIOService::attach(svc, wasm_handle);
+                                wasm_bus::abi::RespondActionTyped::<()>::Detach
+                            },
+                            Err(err) => wasm_bus::abi::RespondActionTyped::<()>::Fault(err)
+                        }
                     }
                 },
-                true,
             );
         }
     }
-    pub fn listen(wasm_me: std::sync::Arc<dyn OpenedFile + Send + Sync + 'static>) {
+    pub fn listen(wasm_me: std::sync::Arc<dyn OpenedFile>) {
         {
             let wasm_me = wasm_me.clone();
             wasm_bus::task::listen(
@@ -1569,9 +1595,13 @@ impl OpenedFileService {
                 #[allow(unused_variables)]
                 move |_wasm_handle: wasm_bus::abi::CallHandle, wasm_req: OpenedFileMetaRequest| {
                     let wasm_me = wasm_me.clone();
-                    async move { wasm_me.meta().await }
+                    async move {
+                        match wasm_me.meta().await {
+                            Ok(res) => wasm_bus::abi::ListenActionTyped::Response(res),
+                            Err(err) => wasm_bus::abi::ListenActionTyped::Fault(err)
+                        }
+                    }
                 },
-                false,
             );
         }
         {
@@ -1582,9 +1612,13 @@ impl OpenedFileService {
                 move |_wasm_handle: wasm_bus::abi::CallHandle,
                       wasm_req: OpenedFileUnlinkRequest| {
                     let wasm_me = wasm_me.clone();
-                    async move { wasm_me.unlink().await }
+                    async move {
+                        match wasm_me.unlink().await {
+                            Ok(res) => wasm_bus::abi::ListenActionTyped::Response(res),
+                            Err(err) => wasm_bus::abi::ListenActionTyped::Fault(err)
+                        }
+                    }
                 },
-                false,
             );
         }
         {
@@ -1596,9 +1630,13 @@ impl OpenedFileService {
                       wasm_req: OpenedFileSetLenRequest| {
                     let wasm_me = wasm_me.clone();
                     let len = wasm_req.len;
-                    async move { wasm_me.set_len(len).await }
+                    async move {
+                        match wasm_me.set_len(len).await {
+                            Ok(res) => wasm_bus::abi::ListenActionTyped::Response(res),
+                            Err(err) => wasm_bus::abi::ListenActionTyped::Fault(err)
+                        }
+                    }
                 },
-                false,
             );
         }
         {
@@ -1609,12 +1647,15 @@ impl OpenedFileService {
                 move |wasm_handle: wasm_bus::abi::CallHandle, wasm_req: OpenedFileIoRequest| {
                     let wasm_me = wasm_me.clone();
                     async move {
-                        let svc = wasm_me.io().await?;
-                        FileIOService::attach(svc, wasm_handle);
-                        Ok(())
+                        match wasm_me.io().await {
+                            Ok(svc) => {
+                                FileIOService::attach(svc, wasm_handle);
+                                wasm_bus::abi::ListenActionTyped::<()>::Detach
+                            },
+                            Err(err) => wasm_bus::abi::ListenActionTyped::<()>::Fault(err)
+                        }
                     }
                 },
-                true,
             );
         }
     }
@@ -1633,7 +1674,7 @@ impl OpenedFileClient {
         Self {
             ctx: wasm_bus::abi::CallContext::NewBusCall {
                 wapm: wapm.to_string().into(),
-                instance: None
+                instance: None,
             },
             task: None,
             join: None,
@@ -1649,9 +1690,10 @@ impl OpenedFileClient {
             join: None,
         }
     }
-    pub fn attach(task: wasm_bus::abi::DetachedCall<()>) -> Self {
+    pub fn attach(handle: wasm_bus::abi::CallHandle) -> Self {
+        let handle = wasm_bus::abi::CallSmartHandle::new(handle);
         Self {
-            ctx: wasm_bus::abi::CallContext::SubCall { parent: task.handle() },
+            ctx: wasm_bus::abi::CallContext::OwnedSubCall { parent: handle },
             task: None,
             join: None,
         }
@@ -1713,19 +1755,15 @@ impl OpenedFileClient {
     }
     pub async fn io(
         &self,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn FileIO + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    > {
+    ) -> std::result::Result<std::sync::Arc<dyn FileIO>, wasm_bus::abi::BusError> {
         let request = OpenedFileIoRequest {};
-        let task = wasm_bus::abi::call(
+        let handle = wasm_bus::abi::call(
             self.ctx.clone(),
             wasm_bus::abi::SerializationFormat::Json,
             request,
         )
-        .detach()
-        .await?;
-        Ok(Arc::new(FileIOClient::attach(task)))
+        .detach()?;
+        Ok(Arc::new(FileIOClient::attach(handle)))
     }
     pub fn blocking_meta(
         &self,
@@ -1743,10 +1781,7 @@ impl OpenedFileClient {
     }
     pub fn blocking_io(
         &self,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn FileIO + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    > {
+    ) -> std::result::Result<std::sync::Arc<dyn FileIO>, wasm_bus::abi::BusError> {
         wasm_bus::task::block_on(self.io())
     }
 }
@@ -1767,7 +1802,7 @@ impl std::future::Future for OpenedFileClient {
         }
     }
 }
-#[async_trait::async_trait]
+#[wasm_bus::async_trait]
 impl OpenedFile for OpenedFileClient {
     async fn meta(&self) -> std::result::Result<FsResult<Metadata>, wasm_bus::abi::BusError> {
         OpenedFileClient::meta(self).await
@@ -1793,20 +1828,12 @@ impl OpenedFile for OpenedFileClient {
     ) -> std::result::Result<FsResult<()>, wasm_bus::abi::BusError> {
         OpenedFileClient::blocking_set_len(self, len)
     }
-    async fn io(
-        &self,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn FileIO + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    > {
+    async fn io(&self) -> std::result::Result<std::sync::Arc<dyn FileIO>, wasm_bus::abi::BusError> {
         OpenedFileClient::io(self).await
     }
     fn blocking_io(
         &self,
-    ) -> std::result::Result<
-        std::sync::Arc<dyn FileIO + Send + Sync + 'static>,
-        wasm_bus::abi::BusError,
-    > {
+    ) -> std::result::Result<std::sync::Arc<dyn FileIO>, wasm_bus::abi::BusError> {
         OpenedFileClient::blocking_io(self)
     }
     fn as_client(&self) -> Option<OpenedFileClient> {
@@ -1828,7 +1855,7 @@ pub struct FileIoWriteRequest {
 pub struct FileIoReadRequest {
     pub len: u64,
 }
-#[async_trait::async_trait]
+#[wasm_bus::async_trait]
 pub trait FileIO
 where
     Self: std::fmt::Debug + Send + Sync,
@@ -1861,7 +1888,7 @@ where
     ) -> std::result::Result<FsResult<Vec<u8>>, wasm_bus::abi::BusError>;
     fn as_client(&self) -> Option<FileIOClient>;
 }
-#[async_trait::async_trait]
+#[wasm_bus::async_trait]
 pub trait FileIOSimplified
 where
     Self: std::fmt::Debug + Send + Sync,
@@ -1871,7 +1898,7 @@ where
     async fn write(&self, data: Vec<u8>) -> FsResult<u64>;
     async fn read(&self, len: u64) -> FsResult<Vec<u8>>;
 }
-#[async_trait::async_trait]
+#[wasm_bus::async_trait]
 impl<T> FileIO for T
 where
     T: FileIOSimplified,
@@ -1929,66 +1956,86 @@ pub struct FileIOService {}
 impl FileIOService {
     #[allow(dead_code)]
     pub(crate) fn attach(
-        wasm_me: std::sync::Arc<dyn FileIO + Send + Sync + 'static>,
+        wasm_me: std::sync::Arc<dyn FileIO>,
         call_handle: wasm_bus::abi::CallHandle,
     ) {
         {
             let wasm_me = wasm_me.clone();
+            let call_handle = call_handle.clone();
             wasm_bus::task::respond_to(
                 call_handle,
                 wasm_bus::abi::SerializationFormat::Bincode,
                 #[allow(unused_variables)]
-                move |_wasm_handle: wasm_bus::abi::CallHandle, wasm_req: FileIoSeekRequest| {
+                move |wasm_handle: wasm_bus::abi::CallHandle, wasm_req: FileIoSeekRequest| {
                     let wasm_me = wasm_me.clone();
                     let from = wasm_req.from;
-                    async move { wasm_me.seek(from).await }
+                    async move {
+                        match wasm_me.seek(from).await {
+                            Ok(res) => wasm_bus::abi::RespondActionTyped::Response(res),
+                            Err(err) => wasm_bus::abi::RespondActionTyped::Fault(err)
+                        }
+                    }
                 },
-                false,
             );
         }
         {
             let wasm_me = wasm_me.clone();
+            let call_handle = call_handle.clone();
             wasm_bus::task::respond_to(
                 call_handle,
                 wasm_bus::abi::SerializationFormat::Bincode,
                 #[allow(unused_variables)]
-                move |_wasm_handle: wasm_bus::abi::CallHandle, wasm_req: FileIoFlushRequest| {
+                move |wasm_handle: wasm_bus::abi::CallHandle, wasm_req: FileIoFlushRequest| {
                     let wasm_me = wasm_me.clone();
-                    async move { wasm_me.flush().await }
+                    async move {
+                        match wasm_me.flush().await {
+                            Ok(res) => wasm_bus::abi::RespondActionTyped::Response(res),
+                            Err(err) => wasm_bus::abi::RespondActionTyped::Fault(err)
+                        }
+                    }
                 },
-                false,
             );
         }
         {
             let wasm_me = wasm_me.clone();
+            let call_handle = call_handle.clone();
             wasm_bus::task::respond_to(
                 call_handle,
                 wasm_bus::abi::SerializationFormat::Bincode,
                 #[allow(unused_variables)]
-                move |_wasm_handle: wasm_bus::abi::CallHandle, wasm_req: FileIoWriteRequest| {
+                move |wasm_handle: wasm_bus::abi::CallHandle, wasm_req: FileIoWriteRequest| {
                     let wasm_me = wasm_me.clone();
                     let data = wasm_req.data;
-                    async move { wasm_me.write(data).await }
+                    async move {
+                        match wasm_me.write(data).await {
+                            Ok(res) => wasm_bus::abi::RespondActionTyped::Response(res),
+                            Err(err) => wasm_bus::abi::RespondActionTyped::Fault(err)
+                        }
+                    }
                 },
-                false,
             );
         }
         {
             let wasm_me = wasm_me.clone();
+            let call_handle = call_handle.clone();
             wasm_bus::task::respond_to(
                 call_handle,
                 wasm_bus::abi::SerializationFormat::Bincode,
                 #[allow(unused_variables)]
-                move |_wasm_handle: wasm_bus::abi::CallHandle, wasm_req: FileIoReadRequest| {
+                move |wasm_handle: wasm_bus::abi::CallHandle, wasm_req: FileIoReadRequest| {
                     let wasm_me = wasm_me.clone();
                     let len = wasm_req.len;
-                    async move { wasm_me.read(len).await }
+                    async move {
+                        match wasm_me.read(len).await {
+                            Ok(res) => wasm_bus::abi::RespondActionTyped::Response(res),
+                            Err(err) => wasm_bus::abi::RespondActionTyped::Fault(err)
+                        }
+                    }
                 },
-                false,
             );
         }
     }
-    pub fn listen(wasm_me: std::sync::Arc<dyn FileIO + Send + Sync + 'static>) {
+    pub fn listen(wasm_me: std::sync::Arc<dyn FileIO>) {
         {
             let wasm_me = wasm_me.clone();
             wasm_bus::task::listen(
@@ -1997,9 +2044,13 @@ impl FileIOService {
                 move |_wasm_handle: wasm_bus::abi::CallHandle, wasm_req: FileIoSeekRequest| {
                     let wasm_me = wasm_me.clone();
                     let from = wasm_req.from;
-                    async move { wasm_me.seek(from).await }
+                    async move {
+                        match wasm_me.seek(from).await {
+                            Ok(res) => wasm_bus::abi::ListenActionTyped::Response(res),
+                            Err(err) => wasm_bus::abi::ListenActionTyped::Fault(err)
+                        }
+                    }
                 },
-                false,
             );
         }
         {
@@ -2009,9 +2060,13 @@ impl FileIOService {
                 #[allow(unused_variables)]
                 move |_wasm_handle: wasm_bus::abi::CallHandle, wasm_req: FileIoFlushRequest| {
                     let wasm_me = wasm_me.clone();
-                    async move { wasm_me.flush().await }
+                    async move {
+                        match wasm_me.flush().await {
+                            Ok(res) => wasm_bus::abi::ListenActionTyped::Response(res),
+                            Err(err) => wasm_bus::abi::ListenActionTyped::Fault(err)
+                        }
+                    }
                 },
-                false,
             );
         }
         {
@@ -2022,9 +2077,13 @@ impl FileIOService {
                 move |_wasm_handle: wasm_bus::abi::CallHandle, wasm_req: FileIoWriteRequest| {
                     let wasm_me = wasm_me.clone();
                     let data = wasm_req.data;
-                    async move { wasm_me.write(data).await }
+                    async move {
+                        match wasm_me.write(data).await {
+                            Ok(res) => wasm_bus::abi::ListenActionTyped::Response(res),
+                            Err(err) => wasm_bus::abi::ListenActionTyped::Fault(err)
+                        }
+                    }
                 },
-                false,
             );
         }
         {
@@ -2035,9 +2094,13 @@ impl FileIOService {
                 move |_wasm_handle: wasm_bus::abi::CallHandle, wasm_req: FileIoReadRequest| {
                     let wasm_me = wasm_me.clone();
                     let len = wasm_req.len;
-                    async move { wasm_me.read(len).await }
+                    async move {
+                        match wasm_me.read(len).await {
+                            Ok(res) => wasm_bus::abi::ListenActionTyped::Response(res),
+                            Err(err) => wasm_bus::abi::ListenActionTyped::Fault(err)
+                        }
+                    }
                 },
-                false,
             );
         }
     }
@@ -2056,7 +2119,7 @@ impl FileIOClient {
         Self {
             ctx: wasm_bus::abi::CallContext::NewBusCall {
                 wapm: wapm.to_string().into(),
-                instance: None
+                instance: None,
             },
             task: None,
             join: None,
@@ -2072,9 +2135,10 @@ impl FileIOClient {
             join: None,
         }
     }
-    pub fn attach(task: wasm_bus::abi::DetachedCall<()>) -> Self {
+    pub fn attach(handle: wasm_bus::abi::CallHandle) -> Self {
+        let handle = wasm_bus::abi::CallSmartHandle::new(handle);
         Self {
-            ctx: wasm_bus::abi::CallContext::SubCall { parent: task.handle() },
+            ctx: wasm_bus::abi::CallContext::OwnedSubCall { parent: handle },
             task: None,
             join: None,
         }
@@ -2190,7 +2254,7 @@ impl std::future::Future for FileIOClient {
         }
     }
 }
-#[async_trait::async_trait]
+#[wasm_bus::async_trait]
 impl FileIO for FileIOClient {
     async fn seek(
         &self,
@@ -2238,4 +2302,3 @@ impl FileIO for FileIOClient {
         Some(self.clone())
     }
 }
-*/

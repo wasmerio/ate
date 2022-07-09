@@ -71,9 +71,16 @@ impl SystemAbi for WebSystem {
 
     fn task_dedicated(
         &self,
-        task: Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
+        task: Box<dyn FnOnce() + Send + 'static>,
     ) {
         self.pool.spawn_dedicated(task);
+    }
+
+    fn task_dedicated_async(
+        &self,
+        task: Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
+    ) {
+        self.pool.spawn_dedicated_async(task);
     }
 
     fn task_local(&self, task: Pin<Box<dyn Future<Output = ()> + 'static>>) {

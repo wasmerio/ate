@@ -252,16 +252,18 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                                     #[allow(unused_variables)]
                                     move |wasm_handle: wasm_bus::abi::CallHandle, wasm_req: #request_name| {
                                         let wasm_me = wasm_me.clone();
-                                        let wasm_handle = wasm_bus::abi::CallSmartHandle::new(wasm_handle);
                                         #( #method_lets )*
                                         async move {
                                             #( #method_callback_handlers )*
-                                            let svc = wasm_me.#method_ident(#field_idents_plus).await?;
-                                            #svc::attach(svc, wasm_handle);
-                                            Ok(())
+                                            match wasm_me.#method_ident(#field_idents_plus).await {
+                                                Ok(svc) => {
+                                                    #svc::attach(svc, wasm_handle);
+                                                    wasm_bus::abi::RespondActionTyped::<()>::Detach
+                                                },
+                                                Err(err) => wasm_bus::abi::RespondActionTyped::<()>::Fault(err)
+                                            }
                                         }
                                     },
-                                    true
                                 );
                             }
                         });
@@ -281,14 +283,15 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                                     #[allow(unused_variables)]
                                     move |wasm_handle: wasm_bus::abi::CallHandle, wasm_req: #request_name| {
                                         let wasm_me = wasm_me.clone();
-                                        let wasm_handle = wasm_bus::abi::CallSmartHandle::new(wasm_handle);
                                         #( #method_lets )*
                                         async move {
                                             #( #method_callback_handlers )*
-                                            wasm_me.#method_ident(#field_idents_plus).await
+                                            match wasm_me.#method_ident(#field_idents_plus).await {
+                                                Ok(res) => wasm_bus::abi::RespondActionTyped::Response(res),
+                                                Err(err) => wasm_bus::abi::RespondActionTyped::Fault(err)
+                                            }
                                         }
                                     },
-                                    false,
                                 );
                             }
                         });
@@ -306,16 +309,18 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                                     #[allow(unused_variables)]
                                     move |wasm_handle: wasm_bus::abi::CallHandle, wasm_req: #request_name| {
                                         let wasm_me = wasm_me.clone();
-                                        let wasm_handle = wasm_bus::abi::CallSmartHandle::new(wasm_handle);
                                         #( #method_lets )*
                                         async move {
                                             #( #method_callback_handlers )*
-                                            let svc = wasm_me.#method_ident(#field_idents_plus).await?;
-                                            #svc::attach(svc, wasm_handle);
-                                            Ok(())
+                                            match wasm_me.#method_ident(#field_idents_plus).await {
+                                                Ok(svc) => {
+                                                    #svc::attach(svc, wasm_handle);
+                                                    wasm_bus::abi::ListenActionTyped::<()>::Detach
+                                                },
+                                                Err(err) => wasm_bus::abi::ListenActionTyped::<()>::Fault(err)
+                                            }
                                         }
                                     },
-                                    true
                                 );
                             }
                         });
@@ -323,13 +328,13 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                         let ret = method_ret.ident();
                         let ret_client = method_ret.ident_client();
                         trait_methods.push(quote! {
-                            async fn #method_ident ( &self, #method_transformed_inputs ) -> std::result::Result<std::sync::Arc<dyn #ret + Send + Sync + 'static>, wasm_bus::abi::BusError>;
+                            async fn #method_ident ( &self, #method_transformed_inputs ) -> std::result::Result<std::sync::Arc<dyn #ret>, wasm_bus::abi::BusError>;
                         });
                         trait_simplified_methods.push(quote! {
-                            async fn #method_ident ( &self, #method_transformed_inputs ) -> std::result::Result<std::sync::Arc<dyn #ret + Send + Sync + 'static>, wasm_bus::abi::BusError>;
+                            async fn #method_ident ( &self, #method_transformed_inputs ) -> std::result::Result<std::sync::Arc<dyn #ret>, wasm_bus::abi::BusError>;
                         });
                         client_method_impls.push(quote! {
-                            pub async fn #method_ident ( &self, #method_transformed_inputs ) -> std::result::Result<std::sync::Arc<dyn #ret + Send + Sync + 'static>, wasm_bus::abi::BusError> {
+                            pub async fn #method_ident ( &self, #method_transformed_inputs ) -> std::result::Result<std::sync::Arc<dyn #ret>, wasm_bus::abi::BusError> {
                                 let request = #request_name {
                                     #field_idents
                                 };
@@ -344,26 +349,26 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                             }
                         });
                         blocking_methods.push(quote! {
-                            fn #blocking_method_ident ( &self, #method_transformed_inputs ) -> std::result::Result<std::sync::Arc<dyn #ret + Send + Sync + 'static>, wasm_bus::abi::BusError>;
+                            fn #blocking_method_ident ( &self, #method_transformed_inputs ) -> std::result::Result<std::sync::Arc<dyn #ret>, wasm_bus::abi::BusError>;
                         });
                         blocking_client_method_impls.push(quote! {
-                            pub fn #blocking_method_ident ( &self, #method_transformed_inputs ) -> std::result::Result<std::sync::Arc<dyn #ret + Send + Sync + 'static>, wasm_bus::abi::BusError> {
+                            pub fn #blocking_method_ident ( &self, #method_transformed_inputs ) -> std::result::Result<std::sync::Arc<dyn #ret>, wasm_bus::abi::BusError> {
                                 wasm_bus::task::block_on(self.#method_ident(#field_idents_plus))
                             }
                         });
                         passthru_client_methods.push(quote! {
-                            async fn #method_ident ( &self, #method_transformed_inputs ) -> std::result::Result<std::sync::Arc<dyn #ret + Send + Sync + 'static>, wasm_bus::abi::BusError> {
+                            async fn #method_ident ( &self, #method_transformed_inputs ) -> std::result::Result<std::sync::Arc<dyn #ret>, wasm_bus::abi::BusError> {
                                 #trait_client_ident::#method_ident(self, #field_idents_plus).await
                             }
-                            fn #blocking_method_ident ( &self, #method_transformed_inputs ) -> std::result::Result<std::sync::Arc<dyn #ret + Send + Sync + 'static>, wasm_bus::abi::BusError> {
+                            fn #blocking_method_ident ( &self, #method_transformed_inputs ) -> std::result::Result<std::sync::Arc<dyn #ret>, wasm_bus::abi::BusError> {
                                 #trait_client_ident::#blocking_method_ident(self, #field_idents_plus)
                             }
                         });
                         passthru_simplified_methods.push(quote! {
-                            async fn #method_ident ( &self, #method_transformed_inputs ) -> std::result::Result<std::sync::Arc<dyn #ret + Send + Sync + 'static>, wasm_bus::abi::BusError> {
+                            async fn #method_ident ( &self, #method_transformed_inputs ) -> std::result::Result<std::sync::Arc<dyn #ret>, wasm_bus::abi::BusError> {
                                 #trait_simplified_ident::#method_ident(self, #field_idents_plus).await
                             }
-                            fn #blocking_method_ident ( &self, #method_transformed_inputs ) -> std::result::Result<std::sync::Arc<dyn #ret + Send + Sync + 'static>, wasm_bus::abi::BusError> {
+                            fn #blocking_method_ident ( &self, #method_transformed_inputs ) -> std::result::Result<std::sync::Arc<dyn #ret>, wasm_bus::abi::BusError> {
                                 wasm_bus::task::block_on(#trait_simplified_ident::#method_ident(self, #field_idents_plus))
                             }
                         });
@@ -379,10 +384,12 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                                         #( #method_lets )*
                                         async move {
                                             #( #method_callback_handlers )*
-                                            wasm_me.#method_ident(#field_idents_plus).await
+                                            match wasm_me.#method_ident(#field_idents_plus).await {
+                                                Ok(res) => wasm_bus::abi::ListenActionTyped::Response(res),
+                                                Err(err) => wasm_bus::abi::ListenActionTyped::Fault(err)
+                                            }
                                         }
                                     },
-                                    false
                                 );
                             }
                         });
@@ -448,7 +455,7 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
             // for the removal of the wasm_bus key word and replacement
             // of it with the async-trait
             output.extend(quote! {
-                #[async_trait::async_trait]
+                #[wasm_bus::async_trait]
                 pub trait #trait_ident
                 where Self: std::fmt::Debug + Send + Sync
                 {
@@ -459,14 +466,14 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                     fn as_client(&self) -> Option<#trait_client_ident>;
                 }
 
-                #[async_trait::async_trait]
+                #[wasm_bus::async_trait]
                 pub trait #trait_simplified_ident
                 where Self: std::fmt::Debug + Send + Sync
                 {
                     #( #trait_simplified_methods )*
                 }
 
-                #[async_trait::async_trait]
+                #[wasm_bus::async_trait]
                 impl<T> #trait_ident
                 for T
                 where T: #trait_simplified_ident
@@ -490,11 +497,11 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                     impl #trait_service_ident
                     {
                         #[allow(dead_code)]
-                        pub(crate) fn attach(wasm_me: std::sync::Arc<dyn #trait_ident + Send + Sync + 'static>, call_handle: wasm_bus::abi::CallSmartHandle) {
+                        pub(crate) fn attach(wasm_me: std::sync::Arc<dyn #trait_ident>, call_handle: wasm_bus::abi::CallHandle) {
                             #( #service_attach_points )*
                         }
 
-                        pub fn listen(wasm_me: std::sync::Arc<dyn #trait_ident + Send + Sync + 'static>) {
+                        pub fn listen(wasm_me: std::sync::Arc<dyn #trait_ident>) {
                             #( #listens )*
                         }
     
@@ -540,9 +547,10 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                             }
                         }
 
-                        pub fn attach(handle: wasm_bus::abi::CallSmartHandle) -> Self {
+                        pub fn attach(handle: wasm_bus::abi::CallHandle) -> Self {
+                            let handle = wasm_bus::abi::CallSmartHandle::new(handle);
                             Self {
-                                ctx: wasm_bus::abi::CallContext::SubCall { parent: handle },
+                                ctx: wasm_bus::abi::CallContext::OwnedSubCall { parent: handle },
                                 task: None,
                                 join: None,
                             }
@@ -592,7 +600,7 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                         }
                     }
 
-                    #[async_trait::async_trait]
+                    #[wasm_bus::async_trait]
                     impl #trait_ident
                     for #trait_client_ident
                     {

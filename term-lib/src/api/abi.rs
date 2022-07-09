@@ -91,6 +91,14 @@ where
     /// and any async futures within its scope
     fn task_dedicated(
         &self,
+        task: Box<dyn FnOnce() + Send + 'static>,
+    );
+
+    /// Starts an asynchronous task will will run on a dedicated thread
+    /// pulled from the worker pool. It is ok for this task to block execution
+    /// and any async futures within its scope
+    fn task_dedicated_async(
+        &self,
         task: Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
     );
 
@@ -147,12 +155,22 @@ pub trait SystemAbiExt {
         Fut: Future + 'static,
         Fut::Output: Send;
 
+    /// Starts an synchronous task will will run on a dedicated thread
+    /// pulled from the worker pool. It is ok for this task to block execution
+    /// and any async futures within its scope
+    /// The return value of the spawned thread can be read either synchronously
+    /// or asynchronously
+    fn spawn_dedicated<F>(&self, task: F)
+    where
+        F: FnOnce(),
+        F: Send + 'static;
+
     /// Starts an asynchronous task will will run on a dedicated thread
     /// pulled from the worker pool. It is ok for this task to block execution
     /// and any async futures within its scope
     /// The return value of the spawned thread can be read either synchronously
     /// or asynchronously
-    fn spawn_dedicated<F, Fut>(&self, task: F) -> AsyncResult<Fut::Output>
+    fn spawn_dedicated_async<F, Fut>(&self, task: F) -> AsyncResult<Fut::Output>
     where
         F: FnOnce() -> Fut,
         F: Send + 'static,
@@ -187,7 +205,16 @@ pub trait SystemAbiExt {
     /// pulled from the worker pool. It is ok for this task to block execution
     /// and any async futures within its scope
     /// This is the fire-and-forget variet of spawning background work
-    fn fork_dedicated<F, Fut>(&self, task: F)
+    fn fork_dedicated<F>(&self, task: F)
+    where
+        F: FnOnce(),
+        F: Send + 'static;
+
+    /// Starts an asynchronous task will will run on a dedicated thread
+    /// pulled from the worker pool. It is ok for this task to block execution
+    /// and any async futures within its scope
+    /// This is the fire-and-forget variet of spawning background work
+    fn fork_dedicated_async<F, Fut>(&self, task: F)
     where
         F: FnOnce() -> Fut,
         F: Send + 'static,
@@ -239,7 +266,17 @@ impl SystemAbiExt for dyn SystemAbi {
         AsyncResult::new(SerializationFormat::Bincode, rx_result)
     }
 
-    fn spawn_dedicated<F, Fut>(&self, task: F) -> AsyncResult<Fut::Output>
+    fn spawn_dedicated<F>(&self, task: F)
+    where
+        F: FnOnce(),
+        F: Send + 'static,
+    {
+        self.task_dedicated(Box::new(move || {
+            task();
+        }));
+    }
+
+    fn spawn_dedicated_async<F, Fut>(&self, task: F) -> AsyncResult<Fut::Output>
     where
         F: FnOnce() -> Fut,
         F: Send + 'static,
@@ -247,7 +284,7 @@ impl SystemAbiExt for dyn SystemAbi {
         Fut::Output: Send,
     {
         let (tx_result, rx_result) = mpsc::channel(1);
-        self.task_dedicated(Box::new(move || {
+        self.task_dedicated_async(Box::new(move || {
             let task = task();
             Box::pin(async move {
                 let ret = task.await;
@@ -297,13 +334,23 @@ impl SystemAbiExt for dyn SystemAbi {
         }));
     }
 
-    fn fork_dedicated<F, Fut>(&self, task: F)
+    fn fork_dedicated<F>(&self, task: F)
+    where
+        F: FnOnce(),
+        F: Send + 'static,
+    {
+        self.task_dedicated(Box::new(move || {
+            task();
+        }));
+    }
+
+    fn fork_dedicated_async<F, Fut>(&self, task: F)
     where
         F: FnOnce() -> Fut,
         F: Send + 'static,
         Fut: Future + 'static,
     {
-        self.task_dedicated(Box::new(move || {
+        self.task_dedicated_async(Box::new(move || {
             let task = task();
             Box::pin(async move {
                 let _ = task.await;

@@ -35,7 +35,7 @@ use crate::stdio::Stdio;
 pub struct FuseFileSystem {
     system: System,
     #[derivative(Debug = "ignore")]
-    sub: Arc<SubProcess>,
+    process: Arc<SubProcess>,
     target: String,
     #[derivative(Debug = "ignore")]
     task: Arc<RuntimeCallOutsideHandle>,
@@ -60,16 +60,9 @@ impl FuseFileSystem {
                 true,
             )
             .map_err(|err| {
-                debug!("fuse_file_system::new() - mount call failed - {}", err);
+                debug!("fuse_file_system::new() - mount call failed(r1) - {}", err);
                 FsError::IOError
-            })?
-            .join()
-            .await
-            .map_err(|err| {
-                debug!("fuse_file_system::new() - mount call failed - {}", err);
-                FsError::IOError
-            })?
-            .handle();
+            })?;
         info!(
             "file system (target={}) opened",
             target,
@@ -84,7 +77,7 @@ impl FuseFileSystem {
                 backend::FileSystemInitRequest {},
             )
             .map_err(|err| {
-                debug!("fuse_file_system::new() - mount call failed - {}", err);
+                debug!("fuse_file_system::new() - mount call failed(r3) - {}", err);
                 FsError::IOError
             })?;
             
@@ -92,12 +85,12 @@ impl FuseFileSystem {
             .join()
             .await
             .map_err(|err| {
-                debug!("fuse_file_system::new() - mount call failed - {}", err);
+                debug!("fuse_file_system::new() - mount call failed(r4) - {}", err);
                 FsError::IOError
             })?
             .value::<Result<(), backend::FsError>>()
             .map_err(|err| {
-                debug!("fuse_file_system::new() - mount call failed - {}", err);
+                debug!("fuse_file_system::new() - mount call failed(r5) - {}", err);
                 FsError::IOError
             })?
             .map_err(|err| {
@@ -110,7 +103,7 @@ impl FuseFileSystem {
 
         let ret = FuseFileSystem {
             system: System::default(),
-            sub: process,
+            process,
             target: target.to_string(),
             task: Arc::new(task),
             stdio,
@@ -125,7 +118,7 @@ impl FuseFileSystem {
         if let Some(ctx) = guard.as_ref() {
             ctx.clone()
         } else {
-            WasmCallerContext::default()
+            WasmCallerContext::new(&self.process.checkpoint2)
         }
     }
 }
@@ -321,16 +314,7 @@ impl FileOpener for FuseFileOpener {
             .map_err(|err| {
                 debug!("fuse_file_system::open() - open meta call failed - {}", err);
                 FsError::IOError
-            })?
-            .block_on()
-            .map_err(|err| {
-                debug!(
-                    "fuse_file_system::open() - detached open meta call failed - {}",
-                    err
-                );
-                FsError::IOError
-            })?
-            .handle();
+            })?;
 
         let meta = task
             .call(
@@ -373,17 +357,8 @@ impl FileOpener for FuseFileOpener {
             .map_err(|err| {
                 error!("fuse_file_system::open() - open io call failed - {}", err);
                 FsError::IOError
-            })?
-            .block_on()
-            .map_err(|err| {
-                error!(
-                    "fuse_file_system::open() - detached open io call failed - {}",
-                    err
-                );
-                FsError::IOError
-            })?
-            .handle();
-
+            })?;
+        
         return Ok(Box::new(FuseVirtualFile {
             ctx: self.fs.get_ctx(),
             task,

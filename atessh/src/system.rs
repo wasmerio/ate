@@ -68,14 +68,24 @@ impl term_lib::api::SystemAbi for System {
         self.inner.task_stateful(task)
     }
 
-    /// Starts an asynchronous task will will run on a dedicated thread
+    /// Starts an synchronous task will will run on a dedicated thread
     /// pulled from the worker pool. It is ok for this task to block execution
     /// and any async futures within its scope
     fn task_dedicated(
         &self,
-        task: Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
+        task: Box<dyn FnOnce() + Send + 'static>,
     ) {
         self.inner.task_dedicated(task)
+    }
+
+    /// Starts an asynchronous task will will run on a dedicated thread
+    /// pulled from the worker pool. It is ok for this task to block execution
+    /// and any async futures within its scope
+    fn task_dedicated_async(
+        &self,
+        task: Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
+    ) {
+        self.inner.task_dedicated_async(task)
     }
 
     /// Starts an asynchronous task on the current thread. This is useful for
@@ -144,7 +154,7 @@ impl System
         let path = path.to_string();
         let native_files = native_files.clone();
         let (tx_result, rx_result) = mpsc::channel(1);
-        self.task_dedicated(Box::new(move || {
+        self.task_dedicated_async(Box::new(move || {
             let task = async move {
                 if path.contains("..") || path.contains("~") || path.contains("//") {
                     warn!("relative paths are a security risk - {}", path);
@@ -183,7 +193,7 @@ impl System
         let path = path.to_string();
         let native_files = native_files.clone();
         let (tx_result, rx_result) = mpsc::channel(1);
-        self.task_dedicated(Box::new(move || {
+        self.task_dedicated_async(Box::new(move || {
             let task = async move {
                 let native_files = native_files.get()
                     .await

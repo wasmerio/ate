@@ -277,16 +277,14 @@ impl BusEngine {
     }
 
     #[cfg(feature = "rt")]
-    #[cfg(target_family = "wasm")]
     pub(crate) fn listen_internal<F, Fut>(
         format: SerializationFormat,
         topic: String,
         callback: F,
-        persistent: bool,
     ) where
         F: Fn(CallHandle, Vec<u8>) -> Result<Fut, BusError>,
         F: Send + Sync + 'static,
-        Fut: Future<Output = Result<Vec<u8>, BusError>>,
+        Fut: Future<Output = ListenAction>,
         Fut: Send + 'static,
     {
         let topic_hash = crate::engine::hash_topic(&topic.into());
@@ -298,42 +296,28 @@ impl BusEngine {
                     format,
                     Arc::new(move |handle, req| {
                         let res = callback(handle, req);
-                        Box::pin(async move { Ok(res?.await?) })
+                        Box::pin(async move {
+                            match res {
+                                Ok(res) => res.await,
+                                Err(err) => ListenAction::Fault(err)
+                            }
+                        })
                     }),
-                    persistent,
                 ),
             );
         }
     }
 
     #[cfg(feature = "rt")]
-    #[cfg(not(target_family = "wasm"))]
-    pub(crate) fn listen_internal<F, Fut>(
-        _format: SerializationFormat,
-        _topic: String,
-        _callback: F,
-        _persistent: bool,
-    ) where
-        F: Fn(CallHandle, Vec<u8>) -> Result<Fut, BusError>,
-        F: Send + Sync + 'static,
-        Fut: Future<Output = Result<Vec<u8>, BusError>>,
-        Fut: Send + 'static,
-    {
-        panic!("listen not supported on this platform");
-    }
-
-    #[cfg(feature = "rt")]
-    #[cfg(target_family = "wasm")]
     pub(crate) fn respond_to_internal<F, Fut>(
         format: SerializationFormat,
         topic: String,
-        parent: CallSmartHandle,
+        parent: CallHandle,
         callback: F,
-        persistent: bool,
     ) where
         F: Fn(CallHandle, Vec<u8>) -> Result<Fut, BusError>,
         F: Send + Sync + 'static,
-        Fut: Future<Output = Result<Vec<u8>, BusError>>,
+        Fut: Future<Output = RespondAction>,
         Fut: Send + 'static,
     {
         let topic_hash = crate::engine::hash_topic(&topic.into());
@@ -342,33 +326,21 @@ impl BusEngine {
             if state.respond_to.contains_key(&topic_hash) == false {
                 state
                     .respond_to
-                    .insert(topic_hash, RespondToService::new(format, persistent));
+                    .insert(topic_hash, RespondToService::new(format));
             }
             let respond_to = state.respond_to.get_mut(&topic_hash).unwrap();
             respond_to.add(
-                parent.cid(),
+                parent,
                 Arc::new(move |handle, req| {
                     let res = callback(handle, req);
-                    Box::pin(async move { Ok(res?.await?) })
+                    Box::pin(async move {
+                        match res {
+                            Ok(res) => res.await,
+                            Err(err) => RespondAction::Fault(err)
+                        }
+                    })
                 }),
             );
         }
-    }
-
-    #[cfg(feature = "rt")]
-    #[cfg(not(target_family = "wasm"))]
-    pub(crate) fn respond_to_internal<F, Fut>(
-        _format: SerializationFormat,
-        _topic: String,
-        _parent: CallSmartHandle,
-        _callback: F,
-        _persistent: bool,
-    ) where
-        F: Fn(CallHandle, Vec<u8>) -> Result<Fut, BusError>,
-        F: Send + Sync + 'static,
-        Fut: Future<Output = Result<Vec<u8>, BusError>>,
-        Fut: Send + 'static,
-    {
-        panic!("respond_to not supported on this platform");
     }
 }

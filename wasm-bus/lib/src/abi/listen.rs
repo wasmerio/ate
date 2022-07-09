@@ -7,7 +7,21 @@ use tracing::{debug, error, info, trace, warn};
 use wasm_bus_types::SerializationFormat;
 
 use crate::abi::BusError;
-use crate::abi::CallHandle;
+use super::CallHandle;
+
+pub enum ListenAction
+{
+    Response(Vec<u8>),
+    Fault(BusError),
+    Detach
+}
+
+pub enum ListenActionTyped<T>
+{
+    Response(T),
+    Fault(BusError),
+    Detach
+}
 
 #[derive(Derivative, Clone)]
 #[derivative(Debug)]
@@ -18,11 +32,10 @@ pub struct ListenService {
         dyn Fn(
                 CallHandle,
                 Vec<u8>,
-            ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, BusError>> + Send>>
+            ) -> Pin<Box<dyn Future<Output = ListenAction> + Send>>
             + Send
             + Sync,
     >,
-    pub(crate) persistent: bool,
 }
 
 impl ListenService {
@@ -33,31 +46,34 @@ impl ListenService {
                     CallHandle,
                     Vec<u8>,
                 )
-                    -> Pin<Box<dyn Future<Output = Result<Vec<u8>, BusError>> + Send>>
+                    -> Pin<Box<dyn Future<Output = ListenAction> + Send>>
                 + Send
                 + Sync,
         >,
-        persistent: bool,
     ) -> ListenService {
         ListenService {
             format,
             callback,
-            persistent,
         }
     }
 
     pub async fn process(&self, handle: CallHandle, request: Vec<u8>, format: SerializationFormat) {
         let callback = Arc::clone(&self.callback);
         let res = callback.as_ref()(handle, request);
+
+        let mut leak = false;
         match res.await {
-            Ok(a) => {
+            ListenAction::Response(a) => {
                 crate::abi::syscall::call_reply(handle, &a[..], format);
             }
-            Err(err) => {
+            ListenAction::Fault(err) => {
                 crate::abi::syscall::call_fault(handle, err);
             }
+            ListenAction::Detach => {
+                leak = true;
+            }
         }
-        if self.persistent == false {
+        if leak == false {
             crate::engine::BusEngine::close(&handle, "request was processed (by listener)");
         }
     }

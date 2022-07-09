@@ -6,7 +6,10 @@ use tracing::{debug, error, info, trace, warn};
 
 use crate::abi::BusError;
 use crate::abi::CallHandle;
-use crate::abi::CallSmartHandle;
+use crate::abi::ListenAction;
+use crate::abi::ListenActionTyped;
+use crate::abi::RespondAction;
+use crate::abi::RespondActionTyped;
 use crate::abi::SerializationFormat;
 use crate::engine::BusEngine;
 use crate::rt::RUNTIME;
@@ -86,13 +89,13 @@ pub fn work_it() -> usize {
     RUNTIME.tick()
 }
 
-pub fn listen<RES, REQ, F, Fut>(format: SerializationFormat, callback: F, persistent: bool)
+pub fn listen<RES, REQ, F, Fut>(format: SerializationFormat, callback: F)
 where
     REQ: de::DeserializeOwned,
     RES: Serialize,
     F: Fn(CallHandle, REQ) -> Fut,
     F: Send + Sync + 'static,
-    Fut: Future<Output = Result<RES, BusError>> + Send + 'static,
+    Fut: Future<Output = ListenActionTyped<RES>> + Send + 'static,
 {
     let topic = type_name::<REQ>();
     BusEngine::listen_internal(
@@ -110,35 +113,45 @@ where
             let res = callback(handle, req);
 
             Ok(async move {
-                let res = res.await?;
-                let res = format.serialize(res)
-                    .map_err(|err| {
-                        debug!(
-                            "failed to serialize the response object (type={}, format={}) - {}",
-                            type_name::<RES>(),
-                            format,
-                            err
-                        );
-                        BusError::SerializationFailed
-                    })?;
-                Ok(res)
+                match res.await {
+                    ListenActionTyped::Response(res) => {
+                        let res = format.serialize(res)
+                            .map_err(|err| {
+                                debug!(
+                                    "failed to serialize the response object (type={}, format={}) - {}",
+                                    type_name::<RES>(),
+                                    format,
+                                    err
+                                );
+                                BusError::SerializationFailed
+                            });
+                        match res {
+                            Ok(res) => ListenAction::Response(res),
+                            Err(err) => ListenAction::Fault(err)
+                        }
+                    }
+                    ListenActionTyped::Fault(err) => {
+                        ListenAction::Fault(err)
+                    }
+                    ListenActionTyped::Detach => {
+                        ListenAction::Detach
+                    }
+                }
             })
         },
-        persistent,
     );
 }
 
 pub fn respond_to<RES, REQ, F, Fut>(
-    parent: CallSmartHandle,
+    parent: CallHandle,
     format: SerializationFormat,
     callback: F,
-    persistent: bool,
 ) where
     REQ: de::DeserializeOwned,
     RES: Serialize,
     F: Fn(CallHandle, REQ) -> Fut,
     F: Send + Sync + 'static,
-    Fut: Future<Output = Result<RES, BusError>> + Send + 'static,
+    Fut: Future<Output = RespondActionTyped<RES>> + Send + 'static,
 {
     let topic = type_name::<REQ>();
     BusEngine::respond_to_internal(
@@ -157,19 +170,26 @@ pub fn respond_to<RES, REQ, F, Fut>(
             let res = callback(handle, req);
 
             Ok(async move {
-                let res = res.await?;
-                let res = format.serialize(res) .map_err(|err| {
-                    debug!(
-                        "failed to serialize the response object (type={}, format={}) - {}",
-                        type_name::<RES>(),
-                        format,
-                        err
-                    );
-                    BusError::SerializationFailed
-                })?;
-                Ok(res)
+                match res.await {
+                    RespondActionTyped::Response(res) => {
+                        let res = format.serialize(res) .map_err(|err| {
+                            debug!(
+                                "failed to serialize the response object (type={}, format={}) - {}",
+                                type_name::<RES>(),
+                                format,
+                                err
+                            );
+                            BusError::SerializationFailed
+                        });
+                        match res {
+                            Ok(res) => RespondAction::Response(res),
+                            Err(err) => RespondAction::Fault(err)
+                        }
+                    },
+                    RespondActionTyped::Fault(err) => RespondAction::Fault(err),
+                    RespondActionTyped::Detach => RespondAction::Detach
+                }
             })
         },
-        persistent,
     );
 }

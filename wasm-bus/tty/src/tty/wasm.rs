@@ -107,7 +107,7 @@ pub struct TtyRect {
 pub struct Stdin {
     rx_data: mpsc::Receiver<Vec<u8>>,
     rx_flush: mpsc::Receiver<()>,
-    client: Arc<dyn api::Stdin + Send + Sync>,
+    client: Arc<dyn api::Stdin>,
 }
 
 impl Stdin {
@@ -128,7 +128,7 @@ impl Stdin {
 pub struct BlockingStdin {
     rx_data: mpsc::Receiver<Vec<u8>>,
     rx_flush: mpsc::Receiver<()>,
-    client: Arc<dyn api::Stdin + Send + Sync>,
+    client: Arc<dyn api::Stdin>,
 }
 
 impl BlockingStdin {
@@ -147,7 +147,7 @@ impl BlockingStdin {
 }
 
 pub struct Stdout {
-    client: Arc<dyn api::Stdout + Send + Sync>,
+    client: Arc<dyn api::Stdout>,
 }
 
 impl Stdout {
@@ -184,7 +184,7 @@ impl Stdout {
 }
 
 pub struct Stderr {
-    client: Arc<dyn api::Stderr + Send + Sync>,
+    client: Arc<dyn api::Stderr>,
 }
 
 impl Stderr {
