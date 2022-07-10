@@ -19,7 +19,7 @@ as a distributed redo log.
 
 Other projects use this backend for persistent storage - projects such as
 
-- [tokfs](../tokfs/README.md)
+- [wasmer-dfs](../wasmer-dfs/README.md)
 
 ## How it works
 
@@ -90,7 +90,7 @@ cargo install auth-server
 # Launch AteDB with all the defaults which is a good balance of security, performance
 # and simplfied setup. This instance will use the default authentication when it creates
 # new chains setting the root write key to that of the owner. The authentication server
-# that is queried will default to ws://tokera.sh/auth.
+# that is queried will default to ws://wasmer.sh/auth.
 # The instance will listen on all ports and all network addresses.
 atedb solo
 ```
@@ -110,7 +110,7 @@ atedb --wire-encryption 256 --trust distributed solo
 ```
 
 ```sh
-# Load and store log files in a different path than the default of ~/ate
+# Load and store log files in a different path than the default of ~/wasmer
 atedb solo ~/another-path/
 ```
 
@@ -152,7 +152,7 @@ FLAGS:
 
 OPTIONS:
     -a, --auth <auth>
-            URL where the user is authenticated [default: ws://tokera.sh/auth]
+            URL where the user is authenticated [default: ws://wasmer.sh/auth]
 
         --dns-server <dns-server>
             Address that DNS queries will be sent to [default: 8.8.8.8]

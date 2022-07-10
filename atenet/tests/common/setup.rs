@@ -5,10 +5,10 @@ use std::future::Future;
 use ate::prelude::*;
 use atenet::opt::OptsNetworkServer;
 use tokio::runtime::Builder;
-use wasm_bus_mio::prelude::Port;
-use wasm_bus_mio::prelude::TokenSource;
-use wasm_bus_mio::prelude::NetworkToken;
-use wasm_bus_mio::prelude::StreamSecurity;
+use wasmer_bus_mio::prelude::Port;
+use wasmer_bus_mio::prelude::TokenSource;
+use wasmer_bus_mio::prelude::NetworkToken;
+use wasmer_bus_mio::prelude::StreamSecurity;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
@@ -19,10 +19,10 @@ fn create_solo(ip: IpAddr, node_id: u32) -> OptsNetworkServer
         http_port: Some(8080),
         tls_port: Some(4443),
         udp_port: Some(2222),
-        token_path: "~/ate/token".to_string(),
-        db_url: url::Url::parse("ws://tokera.sh/db").unwrap(),
-        auth_url: url::Url::parse("ws://tokera.sh/auth").unwrap(),
-        inst_url: url::Url::parse("ws://tokera.sh/inst").unwrap(),
+        token_path: "~/wasmer/token".to_string(),
+        db_url: url::Url::parse("ws://wasmer.sh/db").unwrap(),
+        auth_url: url::Url::parse("ws://wasmer.sh/auth").unwrap(),
+        inst_url: url::Url::parse("ws://wasmer.sh/inst").unwrap(),
         node_id: Some(node_id),
         ttl: 300,
     }   
@@ -90,7 +90,7 @@ pub async fn client(node: url::Url, chain: ChainKey, access_token: String, stati
 
 pub async fn clients(cross_switch: bool, use_dhcp: bool) -> (Port, Port)
 {
-    let chain1 = ChainKey::from("tokera.com/c789bd1b7f2a9bba3111d707ce40bffa_edge");
+    let chain1 = ChainKey::from("wasmer.com/c789bd1b7f2a9bba3111d707ce40bffa_edge");
     let access_token1 = "80f5bdf28ce21947795de68c93c57fcb";
     let addr1 = if use_dhcp == false {
         Some((IpAddr::V4(Ipv4Addr::new(10, 35, 196, 2)), IpAddr::V4(Ipv4Addr::new(10, 35, 196, 1))))
@@ -99,7 +99,7 @@ pub async fn clients(cross_switch: bool, use_dhcp: bool) -> (Port, Port)
     };
 
     let (chain2, access_token2, addr2) = if cross_switch == true {
-        let chain2 = ChainKey::from("tokera.com/d237f26dbb0c4cdc17b43d3720009e5d_edge");
+        let chain2 = ChainKey::from("wasmer.com/d237f26dbb0c4cdc17b43d3720009e5d_edge");
         let access_token2 = "69aec1eaa6cb5a69acac91a8c38d7498";
         let addr2 = if use_dhcp == false {
             Some((IpAddr::V4(Ipv4Addr::new(10, 127, 26, 2)), IpAddr::V4(Ipv4Addr::new(10, 127, 26, 1))))

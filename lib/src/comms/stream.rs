@@ -27,9 +27,9 @@ use tokio::io::AsyncRead;
 use tokio::io::AsyncWrite;
 use tokio::io::ReadBuf;
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
-use wasm_bus_ws::prelude::RecvHalf as WasmRecvHalf;
-use wasm_bus_ws::prelude::SendHalf as WasmSendHalf;
-use wasm_bus_ws::prelude::WebSocket as WasmWebSocket;
+use wasmer_bus_ws::prelude::RecvHalf as WasmRecvHalf;
+use wasmer_bus_ws::prelude::SendHalf as WasmSendHalf;
+use wasmer_bus_ws::prelude::WebSocket as WasmWebSocket;
 use bytes::Bytes;
 
 use crate::comms::PacketData;
@@ -204,8 +204,8 @@ impl StreamProtocol {
                 let (sink, stream) = stream.split();
 
                 Ok((
-                    Box::new(wasm_bus_ws::ws::RecvHalf::new(stream)),
-                    Box::new(wasm_bus_ws::ws::SendHalf::new(sink))
+                    Box::new(wasmer_bus_ws::ws::RecvHalf::new(stream)),
+                    Box::new(wasmer_bus_ws::ws::SendHalf::new(sink))
                 ))
             },
             wire_protocol => {
@@ -242,8 +242,8 @@ impl StreamProtocol {
                 use futures_util::StreamExt;
                 let (sink, stream) = socket.split();
                 Ok((
-                    Box::new(wasm_bus_ws::ws::RecvHalf::new(stream)),
-                    Box::new(wasm_bus_ws::ws::SendHalf::new(sink))
+                    Box::new(wasmer_bus_ws::ws::RecvHalf::new(stream)),
+                    Box::new(wasmer_bus_ws::ws::SendHalf::new(sink))
                 ))
             }
         }

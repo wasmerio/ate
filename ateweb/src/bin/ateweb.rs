@@ -1,12 +1,12 @@
 use std::time::Duration;
-use ate_auth::flow::ChainFlow;
+use wasmer_auth::flow::ChainFlow;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use clap::Parser;
 
 use ate::prelude::*;
-use ate_auth::helper::*;
+use wasmer_auth::helper::*;
 use ateweb::opt::*;
 use ateweb::*;
 
@@ -53,7 +53,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 contract_key,
                 &run.url,
             );
-            flow.terms_and_conditions = Some(ate_auth::GENERIC_TERMS_AND_CONDITIONS.to_string());
+            flow.terms_and_conditions = Some(wasmer_auth::GENERIC_TERMS_AND_CONDITIONS.to_string());
             let mut cfg_mesh =
                 ConfMesh::solo_from_url(&conf, &run.url, &run.listen, None, run.node_id).await?;
             cfg_mesh.wire_protocol = StreamProtocol::parse(&run.url)?;
@@ -119,7 +119,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 contract_key,
                 &run.auth_url,
             );
-            flow.terms_and_conditions = Some(ate_auth::GENERIC_TERMS_AND_CONDITIONS.to_string());
+            flow.terms_and_conditions = Some(wasmer_auth::GENERIC_TERMS_AND_CONDITIONS.to_string());
 
             root.add_route(Box::new(flow), &conf).await?;
 

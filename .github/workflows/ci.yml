@@ -22,8 +22,8 @@ jobs:
         cd lib
         cargo test
 
-  atefs:
-    name: Test ATE FileSystem
+  wasmer-dfs:
+    name: Test Wasmer Distributed FileSystem
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
@@ -34,11 +34,11 @@ jobs:
         sudo apt-get install fuse libfuse-dev libfuse3-dev
     - name: First the Unit Tests
       run: |
-        cd atefs
+        cd wasmer-dfs
         cargo test
 
-  tokterm:
-    name: Build Tokera/Wasmer Terminal
+  wasmer-term:
+    name: Build Wasmer/Wasmer Terminal
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
@@ -46,7 +46,7 @@ jobs:
         submodules: true
     - name: Build
       run: |
-        cd tokweb
+        cd wasmer-web
         npm install
         npm run build
 

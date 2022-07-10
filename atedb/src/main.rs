@@ -21,7 +21,7 @@ struct Opts {
     #[clap(short, long)]
     debug: bool,
     /// URL where the user is authenticated
-    #[clap(short, long, default_value = "ws://tokera.sh/auth")]
+    #[clap(short, long, default_value = "ws://wasmer.sh/auth")]
     auth: Url,
     /// Indicates no authentication server will be used meaning all new chains
     /// created by clients allow anyone to write new root nodes.

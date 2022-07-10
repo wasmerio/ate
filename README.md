@@ -60,7 +60,7 @@ This library is a way of working with data in modern distributed computing.
 ## Projects
 
 - [atedb](atedb/README.md)
-- [atefs](atefs/README.md)
+- [wasmer-dfs](wasmer-dfs/README.md)
 
 ## Typical Deployment Pattern
 
@@ -82,7 +82,7 @@ This library is a way of working with data in modern distributed computing.
                       '-----------------'
 
 The easiest way to get up and running is to just build your app and point the
-database URL at ws://tokera.sh/db. You will need to register an account and verify
+database URL at ws://wasmer.sh/db. You will need to register an account and verify
 your identity however after this you can use the free databases and/or paid option.
 
 Alternatively, if you wish to host your own ATE servers in infrastructure that you
@@ -91,8 +91,8 @@ manage and run then follow these high-level steps.
 1. Server runs the 'atedb' process on some network reachable location
 2. Create several records for each IP address under the same A-record in your DNS
 3. Either create your own authentication server as well using the auth-server binary
-   or just use the authentication servers hosted at Tokera by pointing to
-   ws://tokera.sh/auth.
+   or just use the authentication servers hosted at Wasmer by pointing to
+   ws://wasmer.sh/auth.
 ```
 
 ## Quick Start
@@ -104,14 +104,14 @@ Cargo.toml
 tokio = { version = "*", features = ["full", "signal", "process"] }
 serde = { version = "*", features = ["derive"] }
 ate = { version = "*" }
-ate_auth = { version = "*" }
+wasmer-auth = { version = "*" }
 ```
 
 main.rs
 
 ```rust
 use serde::{Serialize, Deserialize};
-use ate_auth::prelude::*;
+use wasmer_auth::prelude::*;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct MyData
@@ -168,11 +168,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>>
         + Fixed a serious deadlock situation when commiting transactions that was causing timeouts
 
 1.0.2  -= WASM BUS =-
-       + Integrated with the WASM bus (wasm-bus) which allows for ATE to use
+       + Integrated with the WASM bus (wasmer-bus) which allows for ATE to use
          the web sockets while running in a controlled sandbox.
 
 1.0.0  -= Major Release =-
-       + See [README.md](https://github.com/tokera-com/ate/blob/e0beedbbbd84f95cd6c7a9a45b8903058f65b6fd/README.md)
+       + See [README.md](https://github.com/wasmerio/ate/blob/e0beedbbbd84f95cd6c7a9a45b8903058f65b6fd/README.md)
 
 <=0.8.0 See commit history
 ```

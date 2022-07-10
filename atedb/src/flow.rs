@@ -6,9 +6,9 @@ use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 use async_trait::async_trait;
 use ate::spec::TrustMode;
 use ate::{error::ChainCreationError, prelude::*};
-use ate_auth::cmd::query_command;
-use ate_auth::helper::conf_auth;
-use ate_auth::request::*;
+use wasmer_auth::cmd::query_command;
+use wasmer_auth::helper::conf_auth;
+use wasmer_auth::request::*;
 
 pub struct ChainFlow {
     pub cfg: ConfAte,

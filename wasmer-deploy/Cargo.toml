@@ -1,0 +1,89 @@
+[package]
+name = "wasmer-deploy"
+version = "1.3.0"
+authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
+edition = "2021"
+description = "Provides an interface into Wasmer and its supporting services"
+license = "MIT OR Apache-2.0"
+keywords = [ "authentication", "cli", "authorization", "crypto" ]
+categories = [ "data-structures", "command-line-utilities", "authentication", "cryptography" ]
+repository = "https://github.com/wasmerio/ate"
+readme = "README.md"
+
+[features]
+default = [ "client", "server" ]
+client_web = [ "ate/client_web" ]
+client = [ "sys", "enable_full", "ate/client" ]
+server = [ "sys", "enable_full", "ctrlc-async", "ate/server", "ate/enable_mt" ]
+force_tty = [ "wasmer-auth/force_tty" ]
+bus = []
+sys = [ "wasmer-bus-ws/sys", "wasmer-bus-tty/sys", "wasmer-bus-mio/sys", "wasmer-bus/sys", "ate-comms/sys", "smoltcp" ]
+enable_full = [ "enable_tcp", "enable_bridge" ]
+enable_tcp = [ "enable_ntp", "enable_dns" ]
+enable_dns = [ "ate-comms/dns" ]
+enable_ntp = []
+enable_bridge = [ "tokio-tun" ]
+
+[dependencies]
+ate = { version = "^1.2", path = "../lib", default_features = false }
+wasmer-auth = { version = "^1.9", path = "../wasmer-auth", default_features = false }
+ate-files = { version = "^1.2", path = "../files", default_features = false }
+ate-crypto = { version = "^1.0", path = "../crypto", features = [ "quantum" ], default_features = false }
+ate-comms = { version = "^1.0", path = "../comms", features = [ "quantum" ], default_features = false }
+wasmer-bus = { version = "^1", path = "../wasmer-bus/lib", default_features = false }
+wasmer-bus-fuse = { version = "^1", path = "../wasmer-bus/fuse", default_features = false }
+wasmer-bus-ws = { version = "^1", path = "../wasmer-bus/ws", default_features = false }
+wasmer-bus-tty = { version = "^1", path = "../wasmer-bus/tty", default_features = false }
+wasmer-bus-deploy = { version = "^1", path = "../wasmer-bus/deploy", default_features = false }
+wasmer-bus-mio = { version = "^1", path = "../wasmer-bus/mio", default_features = false }
+error-chain = { version = "^0.12", default_features = false }
+serde = { version = "^1", features = ["derive"] }
+serde_json = "^1"
+tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
+#tracing = { version = "^0.1", features = [ "log", "release_max_level_trace" ] }
+tracing-futures = { version = "^0.2" }
+tracing-subscriber = { version = "^0.2" }
+futures = "^0.3"
+futures-util = "^0.3"
+async-trait = "^0.1"
+bytes = "^1"
+fxhash = "^0.2"
+fastrand = "^1"
+chrono = { version = "^0.4", git = "https://github.com/john-sharratt/chrono.git", features = ["serde"] }
+url = "^2"
+rpassword-wasi = "^5"
+regex = "^1"
+hex = "^0.4"
+google-authenticator = "^0.2"
+qrcode = "^0.12"
+base64 = "^0.13"
+shellexpand = "^2"
+clap = { version = "^3.0.0-rc.7", features = [ "derive" ] }
+ctrlc-async = { version = "^3", optional = true }
+bincode = "^1"
+once_cell = "^1"
+atty = "^0.2"
+strum = "^0.21"
+strum_macros = "^0.21"
+rust_decimal = "^1"
+num-traits = { version = "^0.2" }
+wild = "^2"
+pbr = "^1"
+derivative = { version = "^2" }
+async-stream = "^0.3"
+
+[target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
+tokio-tun = { version = "^0.5", git = "https://github.com/john-sharratt/tokio-tun.git", optional = true }
+sudo = { version = "^0.6" }
+fork = { version = "^0.1" }
+
+[target.'cfg(not(target_os = "wasi"))'.dependencies]
+smoltcp = { version = "0.8.0", git = "https://github.com/john-sharratt/smoltcp.git", features = [ "async" ], optional = true }
+tokio = { version = "^1", features = [ "rt", "io-util", "macros", "sync", "time", "fs" ], default_features = false }
+
+[target.'cfg(target_os = "wasi")'.dependencies]
+tokio = { version = "^1", features = [ "macros", "sync" ], default_features = false }
+backtrace = "^0.3"
+wasi = { package = "wasix", version = "0.11" }
+wasm-timer = { version = "^0.2" }
+wasmer-bus-process = { version = "^1", path = "../wasmer-bus/process" }

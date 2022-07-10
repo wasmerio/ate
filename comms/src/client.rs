@@ -1,7 +1,7 @@
 use std::io;
 #[allow(unused_imports)]
 use std::ops::DerefMut;
-use wasm_bus_ws::prelude::*;
+use wasmer_bus_ws::prelude::*;
 use tokio::io::AsyncRead;
 use tokio::io::AsyncWrite;
 #[allow(unused_imports, dead_code)]

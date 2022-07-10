@@ -1,4 +1,4 @@
-use wasm_bus_process::prelude::*;
+use wasmer_bus_process::prelude::*;
 
 fn main() {
     let mut task = Command::new("ls")

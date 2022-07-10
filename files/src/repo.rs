@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use ate::prelude::*;
-use ate_auth::error::GatherError;
+use wasmer_auth::error::GatherError;
 use bytes::Bytes;
 use derivative::*;
 use std::sync::Arc;

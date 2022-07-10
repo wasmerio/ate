@@ -6,7 +6,7 @@ use clap::Parser;
 use super::*;
 
 #[derive(Parser)]
-#[clap(version = "1.0", author = "Tokera Pty Ltd <info@tokera.com>")]
+#[clap(version = "1.0", author = "Wasmer Inc <info@wasmer.io>")]
 pub struct Opts {
     /// Sets the level of log verbosity, can be used multiple times
     #[allow(dead_code)]
@@ -22,14 +22,14 @@ pub struct Opts {
     #[clap(long, default_value = "8.8.8.8")]
     pub dns_server: String,
     /// Token file to read that holds a previously created token to be used for this operation
-    #[clap(long, default_value = "~/tok/token")]
+    #[clap(long, default_value = "~/wasmer/token")]
     pub token_path: String,
     /// Path to the certificate file that will be used by an listening servers
     /// (there must be TXT records in the host domain servers for this cert)
-    #[clap(long, default_value = "~/tok/cert")]
+    #[clap(long, default_value = "~/wasmer/cert")]
     pub cert_path: String,
     /// Path to the secret server key
-    #[clap(default_value = "~/tok/ssh.server.key")]
+    #[clap(default_value = "~/wasmer/ssh.server.key")]
     pub ssh_key_path: String,
     /// Indicates if ATE will use quantum resistant wire encryption (possible values
     /// are 128, 192, 256). When running in 'centralized' mode wire encryption will

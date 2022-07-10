@@ -13,7 +13,7 @@ readme = "README.md"
 [features]
 default = [ "quantum", "sys", "dns" ]
 quantum = [ "ate-crypto/quantum" ]
-sys = [ "wasm-bus-ws/sys" ]
+sys = [ "wasmer-bus-ws/sys" ]
 dns = [ "trust-dns-proto", "trust-dns-client" ]
 
 [dependencies]
@@ -36,8 +36,8 @@ base64 = "^0.13"
 bincode = "^1"
 once_cell = "^1"
 derivative = { version = "^2" }
-wasm-bus = { version = "^1", path = "../wasm-bus/lib", default_features = false, features = [ "rt", "macros" ] }
-wasm-bus-ws = { version = "^1", path = "../wasm-bus/ws" }
+wasmer-bus = { version = "^1", path = "../wasmer-bus/lib", default_features = false, features = [ "rt", "macros" ] }
+wasmer-bus-ws = { version = "^1", path = "../wasmer-bus/ws" }
 
 [target.'cfg(not(target_os = "wasi"))'.dependencies]
 tokio = { version = "^1", features = [ "rt", "io-util", "macros", "sync", "time", "fs" ], default_features = false }

@@ -15,7 +15,7 @@ use tokio::runtime::Builder;
 
 use ate::comms::StreamRouter;
 
-use ate_auth::helper::try_load_key;
+use wasmer_auth::helper::try_load_key;
 
 use atenet::opt::*;
 

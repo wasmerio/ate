@@ -13,8 +13,8 @@ use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, instrument, span, trace, warn, event, Level};
-use ate_auth::service::AuthService;
-use ate_auth::cmd::gather_command;
+use wasmer_auth::service::AuthService;
+use wasmer_auth::cmd::gather_command;
 
 use hyper;
 use hyper::header::HeaderValue;

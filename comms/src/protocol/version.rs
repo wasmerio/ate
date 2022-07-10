@@ -4,7 +4,7 @@ use tokio::io::AsyncWrite;
 
 use super::MessageProtocolApi;
 
-/// Version of the stream protocol used to talk to Tokera services
+/// Version of the stream protocol used to talk to Wasmer services
 #[repr(u16)]
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub enum MessageProtocolVersion

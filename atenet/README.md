@@ -12,11 +12,11 @@ Below is the design rationale for many of the design decisions
 
 # Design
 
-- MIO uses wasm-bus-mio as an interface to the operating system
+- MIO uses wasmer-bus-mio as an interface to the operating system
 - atenet will be a distributed vswitch built on top of ATE as a route table
-- wasm-bus-mio must implement TCP/IP stack in atenet
+- wasmer-bus-mio must implement TCP/IP stack in atenet
   (https://github.com/smoltcp-rs/smoltcp)
-- The 'tok' binary will be extended with tun/tap support so that users
+- The 'deploy' binary will be extended with tun/tap support so that users
   can connect to arbitary networkings from their machines
 - The browser based version will connect to the vSwitch using web sockets
 - x86 implementations will connect using encrypted (AES) UDP packets
@@ -25,18 +25,18 @@ Below is the design rationale for many of the design decisions
 
 ```
                                                      (tun/tap)
-             browser                                    tok
+             browser                                   deploy
                 |                                        |
-              (wss)                 .---------.        (wss)
-                |                   | atesess |          |
-           .----^----.              |---------|     .----^----.
-           | atenet  |- - (udp) - - | atenet  | - - | atenet  |
-           '----|----'              '----|----'     '----|---'
+              (wss)                 .----------.        (wss)
+                |                   | instance |          |
+           .----^----.              |----------|    .----^----.
+           | atenet  |- - (udp) - - | atenet   | - -| atenet  |
+           '----|----'              '----|-----'    '----|---'
                 \                        |               /
                  \                  (subscribe)         /
                   \                      |             /
                   .^---------------------^------------^.
-                  |      tokdb - chain-of-trust        |
+                  |   wasmer-server chain-of-trust     |
                   '------------------------------------'
 
 ```
@@ -58,8 +58,8 @@ The security of the distributed networking is built upon the strong security of 
 itself however there are few specifics that make this viable
 
 1. The 'atenet' binaries need to have access to the chains in order to read the
-   configuration hence they reuse the master keys that are also used by 'atesess'.
-2. Creating an 'instance' in Tokera is the same chain also used for the vSwitch
+   configuration hence they reuse the master keys that are also used by 'instance'.
+2. Creating an 'instance' in Wasmer is the same chain also used for the vSwitch
    and hence there is no need to associate a network with a instance.
 3. Exporting access to a vSwitch gives an access key - more than one can be
    exported thus allowing for easier issuance and revoking for VPN users.
@@ -92,7 +92,7 @@ All packets are encrypted and signed using the access token.
 - Client can connect using web-socket connections
 - Web socket connections will drop packets (random chance) when they are saturated
 - UDP connections will remain active for 60 seconds after receiving data
-- wasm-bus connections will remain active as long as they have active WASM programs
+- wasmer-bus connections will remain active as long as they have active WASM programs
 - The vSwitch will maintain diagnostic information in the redo log for everything its managing
 
 # vRouter
@@ -102,9 +102,9 @@ they need to be able to route packets between different subnets. For this a vRou
 needed.
 
 In the chain-of-trust is a list of routes to other vSwitches that is updated using
-the 'tok' command line utility - this utility will also associate an access key with
+the 'deploy' command line utility - this utility will also associate an access key with
 the route for security reasons. The list of 'active' access keys is also maintained in
-the chain of trust for others to use and modified using the 'tok' util.
+the chain of trust for others to use and modified using the 'deploy' util.
 
 Each vSwitch will create a 'ethereal interface' that is only visible to local clients
 connected to the vSwitch (thus preventing loops). This ethereal interface represents
@@ -129,11 +129,11 @@ resolve where to forward.
 
 ```
 
-                                                        .---------.
-                                 .-----.                | atesess |
-      .---------.       .--------| tun .--------.       |---------|
-      | browser --HTTPS-- ateweb ---/--- atenet --HTTPS---> hyper |
-      '---------'       '--------| tap |--------'       '---------'
+                                                        .----------.
+                                 .-----.                | instance |
+      .---------.       .--------| tun .--------.       |----------|
+      | browser --HTTPS-- ateweb ---/--- atenet --HTTPS---> hyper  |
+      '---------'       '--------| tap |--------'       '----------'
                                  '-----'
 
 ```
@@ -146,7 +146,7 @@ The TCP / TLS traffic is re-encoded using a rust library.
 
 # VPN
 
-The 'tok' binary will be enhanced to support Linux based tun/tap devices that connect
+The 'deploy' binary will be enhanced to support Linux based tun/tap devices that connect
 to a vSwitch using standard UDP packets. The VPN should send out periodic ARP packets
 every 15 seconds to ensure that it stays subscribed in the vSwitch.
 
@@ -185,5 +185,5 @@ will mean the packets are only sent to those that subscribed.
 # Fun Experiments
 
 - Compile hyper to wasm32-wasi
-- Compile NGINX to wasm32-wasi (how to make wasm-bus work with c++?)
+- Compile NGINX to wasm32-wasi (how to make wasmer-bus work with c++?)
 - Compile Postgres to wasm32-wasi

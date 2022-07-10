@@ -1,0 +1,29 @@
+[package]
+name = "wasmer-bus-ws"
+version = "1.1.0"
+authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
+edition = "2021"
+description = "WebAssembly Web Socket Interface"
+license = "MIT OR Apache-2.0"
+keywords = [ "wasi", "wasm", "bus", "websocket" ]
+repository = "https://github.com/john-sharratt/ate"
+readme = "README.md"
+
+[features]
+default = []
+sys = [ "tokio-tungstenite", "futures", "futures-util", "tokio/rt", "tokio/rt-multi-thread", "tokio/time", "tokio/net" ]
+
+[dependencies]
+tracing = { version = "^0.1", features = [ "log" ] }
+serde = { version = "^1", features = ["derive"] }
+url = "2"
+bytes = "^1"
+async-trait = "^0.1"
+derivative = { version = "^2" }
+tokio = { version = "^1", features = [ "sync", "macros" ], default_features = false }
+wasmer-bus = { version = "^1", path = "../lib", default_features = false, features = [ "rt", "macros" ] }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+tokio-tungstenite = { version = "^0.16", features = [ "native-tls" ], optional = true }
+futures = { version = "^0.3", optional = true }
+futures-util = { version = "^0.3", optional = true }

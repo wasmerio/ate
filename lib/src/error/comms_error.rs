@@ -121,8 +121,8 @@ impl From<tokio::time::error::Elapsed> for CommsError {
 }
 
 #[cfg(target_family = "wasm")]
-impl From<wasm_bus_time::prelude::Elapsed> for CommsError {
-    fn from(_err: wasm_bus_time::prelude::Elapsed) -> CommsError {
+impl From<wasmer_bus_time::prelude::Elapsed> for CommsError {
+    fn from(_err: wasmer_bus_time::prelude::Elapsed) -> CommsError {
         CommsErrorKind::IO(std::io::Error::new(
             std::io::ErrorKind::TimedOut,
             format!("Timeout while waiting for communication channel").to_string(),

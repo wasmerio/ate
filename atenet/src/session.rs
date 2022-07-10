@@ -2,9 +2,9 @@ use std::net::SocketAddr;
 use std::time::Duration;
 use ate::prelude::*;
 use ate::comms::*;
-use tokera::model::PortCommand;
-use tokera::model::PortResponse;
-use tokera::model::SwitchHello;
+use wasmer_deploy::model::PortCommand;
+use wasmer_deploy::model::PortResponse;
+use wasmer_deploy::model::SwitchHello;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 

@@ -5,8 +5,8 @@ use std::collections::HashMap;
 use ate::prelude::*;
 use ate_files::repo::Repository;
 use smoltcp::wire::IpAddress;
-use tokera::model::ServiceInstance;
-use tokera::model::INSTANCE_ROOT_ID;
+use wasmer_deploy::model::ServiceInstance;
+use wasmer_deploy::model::INSTANCE_ROOT_ID;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 

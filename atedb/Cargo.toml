@@ -12,13 +12,13 @@ readme = "README.md"
 
 [features]
 default = [ "client", "server" ]
-client_web = [ "ate/client_web", "ate-auth/client_web" ]
-client = [ "ate/client", "ate-auth/client", "libc" ]
-server = [ "ate/server", "ate-auth/server", "ate/enable_mt", "libc" ]
+client_web = [ "ate/client_web", "wasmer-auth/client_web" ]
+client = [ "ate/client", "wasmer-auth/client", "libc" ]
+server = [ "ate/server", "wasmer-auth/server", "ate/enable_mt", "libc" ]
 
 [dependencies]
 ate = { version = "^1.2", path = "../lib", default_features = false }
-ate-auth = { version = "^1.9", path = "../auth", default_features = false }
+wasmer-auth = { version = "^1.9", path = "../wasmer-auth", default_features = false }
 error-chain = { version = "^0.12", default_features = false }
 tokio = { version = "^1", features = ["full", "signal", "process"] }
 serde = { version = "^1", features = ["derive"] }

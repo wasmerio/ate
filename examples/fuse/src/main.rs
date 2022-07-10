@@ -2,12 +2,12 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 
-use wasm_bus_fuse::api;
-use wasm_bus_fuse::api::FuseSimplified;
-use wasm_bus_fuse::prelude::*;
-use wasm_bus_fuse::api::FileSystemSimplified;
-use wasm_bus_fuse::api::FileIOSimplified;
-use wasm_bus_fuse::api::OpenedFileSimplified;
+use wasmer_bus_fuse::api;
+use wasmer_bus_fuse::api::FuseSimplified;
+use wasmer_bus_fuse::prelude::*;
+use wasmer_bus_fuse::api::FileSystemSimplified;
+use wasmer_bus_fuse::api::FileIOSimplified;
+use wasmer_bus_fuse::api::OpenedFileSimplified;
 
 #[derive(Debug)]
 struct MyFuse { }

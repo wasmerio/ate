@@ -37,7 +37,7 @@ impl TaskEngine {
         T: Future + Send + 'static,
         T::Output: Send + 'static,
     {
-        wasm_bus::task::spawn(task)
+        wasmer_bus::task::spawn(task)
     }
 
     pub async fn spawn_blocking<F, R>(f: F) -> R
@@ -52,18 +52,18 @@ impl TaskEngine {
 
 #[cfg(target_family = "wasm")]
 pub async fn sleep(duration: Duration) {
-    wasm_bus_time::prelude::sleep(duration).await;
+    wasmer_bus_time::prelude::sleep(duration).await;
 }
 
 #[cfg(target_family = "wasm")]
 pub async fn timeout<T>(
     duration: Duration,
     future: T,
-) -> Result<T::Output, wasm_bus_time::prelude::Elapsed>
+) -> Result<T::Output, wasmer_bus_time::prelude::Elapsed>
 where
     T: Future,
 {
-    wasm_bus_time::prelude::timeout(duration, future).await
+    wasmer_bus_time::prelude::timeout(duration, future).await
 }
 
 #[cfg(not(target_family = "wasm"))]

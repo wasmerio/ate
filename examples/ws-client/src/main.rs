@@ -1,4 +1,4 @@
-use wasm_bus_ws::prelude::*;
+use wasmer_bus_ws::prelude::*;
 
 fn main() {
     println!("creating web socket and opening");

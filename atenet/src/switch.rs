@@ -40,11 +40,11 @@ use tokio::sync::broadcast;
 use ate::prelude::*;
 use ttl_cache::TtlCache;
 use crossbeam::queue::SegQueue;
-use tokera::model::MeshNode;
-use tokera::model::HardwareAddress;
-use tokera::model::ServiceInstance;
-use tokera::model::DhcpReservation;
-use tokera::model::INSTANCE_ROOT_ID;
+use wasmer_deploy::model::MeshNode;
+use wasmer_deploy::model::HardwareAddress;
+use wasmer_deploy::model::ServiceInstance;
+use wasmer_deploy::model::DhcpReservation;
+use wasmer_deploy::model::INSTANCE_ROOT_ID;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
@@ -421,7 +421,7 @@ impl Switch
 
     async fn allocate_ipv4(&self, mac: EthernetAddress) -> Option<Ipv4Address>
     {
-        let mac = tokera::model::HardwareAddress::from_bytes(mac.as_bytes());
+        let mac = wasmer::model::HardwareAddress::from_bytes(mac.as_bytes());
         let mac_str = hex::encode(mac.as_bytes()).to_uppercase();
         let cidrs = self.cidrs();
 

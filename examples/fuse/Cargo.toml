@@ -4,7 +4,7 @@ version = "0.0.1"
 authors = ["John Sharratt <john.sharratt@gmail.com>"]
 license = "MIT OR Apache-2.0"
 description = "An example TCP client."
-repository = "https://github.com/tokera.com/ate"
+repository = "https://github.com/wasmerio/ate"
 readme = "README.md"
 keywords = [
     "wasm",
@@ -13,4 +13,4 @@ keywords = [
 edition = "2021"
 
 [dependencies]
-wasm-bus-fuse = { version = "^1", path = "../../wasm-bus/fuse" }
+wasmer-bus-fuse = { version = "^1", path = "../../wasmer-bus/fuse" }

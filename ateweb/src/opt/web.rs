@@ -5,7 +5,7 @@ use url::Url;
 
 use clap::Parser;
 
-/// Runs a web server that will serve content from a Tokera file system
+/// Runs a web server that will serve content from a Wasmer file system
 #[derive(Parser)]
 pub struct OptsWeb {
     /// IP address that the web server will isten on
@@ -18,7 +18,7 @@ pub struct OptsWeb {
     #[clap(long, default_value = "60")]
     pub ttl: u64,
     /// URL where the data is remotely stored on a distributed commit log.
-    #[clap(short, long, default_value = "ws://tokera.sh/db")]
+    #[clap(short, long, default_value = "ws://wasmer.sh/db")]
     pub remote: Url,
     /// Location where all the websites will be cached
     #[clap(long, default_value = "/tmp/www")]

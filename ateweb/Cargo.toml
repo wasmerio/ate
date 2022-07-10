@@ -3,7 +3,7 @@ name = "ateweb"
 version = "1.2.0"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2021"
-description = "High performance web server built on top of atefs"
+description = "High performance web server built on top of wasmer-dfs"
 license = "MIT OR Apache-2.0"
 keywords = [
     "static-web-server",
@@ -11,18 +11,18 @@ keywords = [
     "http-server",
 ]
 categories = ["network-programming", "web-programming::http-server"]
-repository = "https://github.com/john-sharratt/ate/tree/master/atefs"
+repository = "https://github.com/john-sharratt/ate/tree/master/wasmer-dfs"
 readme = "README.md"
 
 [features]
 default = [ "sys" ]
-sys = [ "wasm-bus-ws/sys" ]
+sys = [ "wasmer-bus-ws/sys" ]
 
 [dependencies]
 ate = { version = "^1.2", path = "../lib", features = [ "client", "server" ], default_features = false }
-ate-auth = { version = "^1.9", path = "../auth", features = [ "client", "server" ], default_features = false }
+wasmer-auth = { version = "^1.9", path = "../wasmer-auth", features = [ "client", "server" ], default_features = false }
 ate-files = { version = "^1.2", path = "../files" }
-wasm-bus-ws = { version = "^1", path = "../wasm-bus/ws" }
+wasmer-bus-ws = { version = "^1", path = "../wasmer-bus/ws" }
 hyper = { version = "^0.14", features = ["full"] }
 hyper-tls = "^0.5"
 rustls = { version = "^0.19" }

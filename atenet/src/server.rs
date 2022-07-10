@@ -21,13 +21,13 @@ use ate_files::repo::RepositorySessionFactory;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 use url::Url;
-use tokera::model::MasterAuthority;
-use tokera::model::MASTER_AUTHORITY_ID;
+use wasmer_deploy::model::MasterAuthority;
+use wasmer_deploy::model::MASTER_AUTHORITY_ID;
 #[allow(unused_imports)]
-use tokera::model::InstanceCall;
-use tokera::model::SwitchHello;
-use ate_auth::cmd::impersonate_command;
-use ate_auth::helper::b64_to_session;
+use wasmer_deploy::model::InstanceCall;
+use wasmer_deploy::model::SwitchHello;
+use wasmer_auth::cmd::impersonate_command;
+use wasmer_auth::helper::b64_to_session;
 use std::sync::RwLock;
 
 use super::factory::*;
@@ -237,7 +237,7 @@ for Server
         let hello_switch = SwitchHello {
             chain: chain.clone(),
             access_token: auth.to_str().unwrap().to_string(),
-            version: tokera::model::PORT_COMMAND_VERSION,
+            version: wasmer::model::PORT_COMMAND_VERSION,
         };
 
         // Build the rx and tx
@@ -289,7 +289,7 @@ for SessionFactory
                     b64_to_session(token)
                 } else {
                     warn!("token is missing - {}", self.token_path);
-                    let err: ate_auth::error::GatherError = ate_auth::error::GatherErrorKind::NoMasterKey.into();
+                    let err: wasmer_auth::error::GatherError = wasmer_auth::error::GatherErrorKind::NoMasterKey.into();
                     return Err(err.into());
                 };
 
@@ -325,7 +325,7 @@ for SessionFactory
             key.clone()
         } else {
             error!("failed to get the broker key from the master edge session");
-            let err: ate_auth::error::GatherError = ate_auth::error::GatherErrorKind::NoMasterKey.into();
+            let err: wasmer_auth::error::GatherError = wasmer_auth::error::GatherErrorKind::NoMasterKey.into();
             return Err(err.into());
         };
         let master_authority = master_authority.inner_broker.unwrap(&access_key)?;

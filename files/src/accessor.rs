@@ -124,7 +124,7 @@ impl FileAccessor {
                 let root = Inode::new("/".to_string(), mode, uid, gid, FileKind::Directory);
                 match dio.store_with_key(root, PrimaryKey::from(1)) {
                     Ok(mut root) => {
-                        self.update_auth(mode, uid, gid, root.auth_mut())?;
+                        self.updwasmer_auth(mode, uid, gid, root.auth_mut())?;
                         root
                     }
                     Err(err) => {
@@ -392,7 +392,7 @@ impl FileAccessor {
         let child = Inode::new(name.to_string(), mode, uid, gid, FileKind::RegularFile);
 
         let mut child = data.as_mut().children.push(child)?;
-        self.update_auth(mode, uid, gid, child.auth_mut())?;
+        self.updwasmer_auth(mode, uid, gid, child.auth_mut())?;
         return Ok(child);
     }
 
@@ -439,7 +439,7 @@ impl FileAccessor {
         Ok(())
     }
 
-    pub fn update_auth(
+    pub fn updwasmer_auth(
         &self,
         mode: u32,
         uid: u32,
@@ -688,7 +688,7 @@ impl FileAccessor {
         }
 
         if changed == true {
-            self.update_auth(
+            self.updwasmer_auth(
                 dao.dentry.mode,
                 dao.dentry.uid,
                 dao.dentry.gid,
@@ -709,12 +709,12 @@ impl FileAccessor {
         flags: u32,
     ) -> Result<Arc<OpenHandle>> {
         self.tick().await?;
-        debug!("atefs::opendir inode={}", inode);
+        debug!("wasmer-dfs::opendir inode={}", inode);
 
         let open = self.create_open_handle(inode, req, flags as i32).await?;
 
         if open.attr.kind != FileKind::Directory {
-            debug!("atefs::opendir not-a-directory");
+            debug!("wasmer-dfs::opendir not-a-directory");
             bail!(FileSystemErrorKind::NotDirectory);
         }
 
@@ -735,7 +735,7 @@ impl FileAccessor {
         _flags: u32,
     ) -> Result<()> {
         self.tick().await?;
-        debug!("atefs::releasedir inode={}", inode);
+        debug!("wasmer-dfs::releasedir inode={}", inode);
 
         let open = self.open_handles.lock().unwrap().remove(&fh);
         if let Some(open) = open {
@@ -754,7 +754,7 @@ impl FileAccessor {
         let open = self.create_open_handle(parent, req, O_RDONLY).await?;
 
         if open.attr.kind != FileKind::Directory {
-            debug!("atefs::lookup parent={} not-a-directory", parent);
+            debug!("wasmer-dfs::lookup parent={} not-a-directory", parent);
             bail!(FileSystemErrorKind::NotDirectory);
         }
 
@@ -764,11 +764,11 @@ impl FileAccessor {
             .filter(|c| c.name.as_str() == name)
             .next()
         {
-            debug!("atefs::lookup parent={} name={}: found", parent, name);
+            debug!("wasmer-dfs::lookup parent={} name={}: found", parent, name);
             return Ok(Some(entry.attr.clone()));
         }
 
-        debug!("atefs::lookup parent={} name={}: not found", parent, name);
+        debug!("wasmer-dfs::lookup parent={} name={}: not found", parent, name);
         Ok(None)
     }
 
@@ -843,7 +843,7 @@ impl FileAccessor {
         _datasync: bool,
     ) -> Result<()> {
         self.tick().await?;
-        debug!("atefs::fsync inode={}", inode);
+        debug!("wasmer-dfs::fsync inode={}", inode);
 
         Ok(())
     }
@@ -857,7 +857,7 @@ impl FileAccessor {
     ) -> Result<()> {
         self.tick().await?;
         self.commit().await?;
-        debug!("atefs::flush inode={}", inode);
+        debug!("wasmer-dfs::flush inode={}", inode);
 
         let open = {
             let lock = self.open_handles.lock().unwrap();
@@ -898,7 +898,7 @@ impl FileAccessor {
         mode: u32,
     ) -> Result<FileAttr> {
         self.tick().await?;
-        debug!("atefs::mkdir parent={}", parent);
+        debug!("wasmer-dfs::mkdir parent={}", parent);
 
         let dio = self.dio.trans(self.scope_meta).await;
         let mut data = dio.load::<Inode>(&PrimaryKey::from(parent)).await?;
@@ -912,7 +912,7 @@ impl FileAccessor {
         let child = Inode::new(name.to_string(), mode, uid, gid, FileKind::Directory);
 
         let mut child = data.as_mut().children.push(child)?;
-        self.update_auth(mode, uid, gid, child.auth_mut())?;
+        self.updwasmer_auth(mode, uid, gid, child.auth_mut())?;
         dio.commit().await?;
 
         let child_spec = Inode::as_file_spec(
@@ -927,12 +927,12 @@ impl FileAccessor {
 
     pub async fn rmdir(&self, req: &RequestContext, parent: u64, name: &str) -> Result<()> {
         self.tick().await?;
-        debug!("atefs::rmdir parent={}", parent);
+        debug!("wasmer-dfs::rmdir parent={}", parent);
 
         let open = self.create_open_handle(parent, req, O_RDONLY).await?;
 
         if open.attr.kind != FileKind::Directory {
-            debug!("atefs::rmdir parent={} not-a-directory", parent);
+            debug!("wasmer-dfs::rmdir parent={} not-a-directory", parent);
             bail!(FileSystemErrorKind::NotDirectory);
         }
 
@@ -942,7 +942,7 @@ impl FileAccessor {
             .filter(|c| c.name.as_str() == name)
             .next()
         {
-            debug!("atefs::rmdir parent={} name={}: found", parent, name);
+            debug!("wasmer-dfs::rmdir parent={} name={}: found", parent, name);
 
             let dio = self.dio.trans(self.scope_meta).await;
             dio.delete(&PrimaryKey::from(entry.inode)).await?;
@@ -950,13 +950,13 @@ impl FileAccessor {
             return Ok(());
         }
 
-        debug!("atefs::rmdir parent={} name={}: not found", parent, name);
+        debug!("wasmer-dfs::rmdir parent={} name={}: not found", parent, name);
         bail!(FileSystemErrorKind::NoEntry);
     }
 
     pub async fn interrupt(&self, _req: &RequestContext, unique: u64) -> Result<()> {
         self.tick().await?;
-        debug!("atefs::interrupt unique={}", unique);
+        debug!("wasmer-dfs::interrupt unique={}", unique);
 
         Ok(())
     }
@@ -969,7 +969,7 @@ impl FileAccessor {
         mode: u32,
     ) -> Result<FileAttr> {
         self.tick().await?;
-        debug!("atefs::mknod parent={} name={}", parent, name);
+        debug!("wasmer-dfs::mknod parent={} name={}", parent, name);
 
         let dao = self.mknod_internal(&req, parent, name, mode).await?;
         dao.trans().commit().await?;
@@ -992,7 +992,7 @@ impl FileAccessor {
         mode: u32,
     ) -> Result<Arc<OpenHandle>> {
         self.tick().await?;
-        debug!("atefs::create parent={} name={}", parent, name);
+        debug!("wasmer-dfs::create parent={} name={}", parent, name);
 
         let data = self.mknod_internal(req, parent, name, mode).await?;
         data.trans().commit().await?;
@@ -1028,14 +1028,14 @@ impl FileAccessor {
 
     pub async fn unlink(&self, _req: &RequestContext, parent: u64, name: &str) -> Result<()> {
         self.tick().await?;
-        debug!("atefs::unlink parent={} name={}", parent, name);
+        debug!("wasmer-dfs::unlink parent={} name={}", parent, name);
 
         let parent_key = PrimaryKey::from(parent);
 
         let data_parent = self.dio.load::<Inode>(&parent_key).await?;
 
         if data_parent.kind != FileKind::Directory {
-            debug!("atefs::unlink parent={} not-a-directory", parent);
+            debug!("wasmer-dfs::unlink parent={} not-a-directory", parent);
             bail!(FileSystemErrorKind::NotDirectory);
         }
 
@@ -1048,7 +1048,7 @@ impl FileAccessor {
         {
             if data.kind == FileKind::Directory {
                 debug!(
-                    "atefs::unlink parent={} name={} is-a-directory",
+                    "wasmer-dfs::unlink parent={} name={} is-a-directory",
                     parent, name
                 );
                 bail!(FileSystemErrorKind::IsDirectory);
@@ -1072,11 +1072,11 @@ impl FileAccessor {
         new_name: &str,
     ) -> Result<()> {
         self.tick().await?;
-        debug!("atefs::rename name={} new_name={}", name, new_name);
+        debug!("wasmer-dfs::rename name={} new_name={}", name, new_name);
 
         let mut parent_data = self.load_mut(parent).await?;
         if parent_data.kind != FileKind::Directory {
-            debug!("atefs::rename parent={} not-a-directory", parent);
+            debug!("wasmer-dfs::rename parent={} not-a-directory", parent);
             bail!(FileSystemErrorKind::NotDirectory);
         }
 
@@ -1095,7 +1095,7 @@ impl FileAccessor {
                 let new_parent_data = self.dio.load::<Inode>(&new_parent_key).await?;
 
                 if new_parent_data.kind != FileKind::Directory {
-                    debug!("atefs::rename new_parent={} not-a-directory", new_parent);
+                    debug!("wasmer-dfs::rename new_parent={} not-a-directory", new_parent);
                     bail!(FileSystemErrorKind::NotDirectory);
                 }
 
@@ -1138,11 +1138,11 @@ impl FileAccessor {
         flags: u32,
     ) -> Result<Arc<OpenHandle>> {
         self.tick().await?;
-        debug!("atefs::open inode={}", inode);
+        debug!("wasmer-dfs::open inode={}", inode);
 
         let open = self.create_open_handle(inode, &req, flags as i32).await?;
         if open.kind == FileKind::Directory {
-            debug!("atefs::open is-a-directory");
+            debug!("wasmer-dfs::open is-a-directory");
             bail!(FileSystemErrorKind::IsDirectory);
         }
 
@@ -1165,7 +1165,7 @@ impl FileAccessor {
         flush: bool,
     ) -> Result<()> {
         self.tick().await?;
-        debug!("atefs::release inode={}", inode);
+        debug!("wasmer-dfs::release inode={}", inode);
 
         let open = self.open_handles.lock().unwrap().remove(&fh);
         if let Some(open) = open {
@@ -1189,7 +1189,7 @@ impl FileAccessor {
     ) -> Result<Bytes> {
         self.tick().await?;
         debug!(
-            "atefs::read inode={} offset={} size={}",
+            "wasmer-dfs::read inode={} offset={} size={}",
             inode, offset, size
         );
 
@@ -1232,7 +1232,7 @@ impl FileAccessor {
     ) -> Result<u64> {
         self.tick().await?;
         debug!(
-            "atefs::write inode={} offset={} size={}",
+            "wasmer-dfs::write inode={} offset={} size={}",
             inode,
             offset,
             data.len()
@@ -1244,7 +1244,7 @@ impl FileAccessor {
                 Some(a) => Arc::clone(a),
                 None => {
                     debug!(
-                        "atefs::write-failed inode={} offset={} size={}",
+                        "wasmer-dfs::write-failed inode={} offset={} size={}",
                         inode,
                         offset,
                         data.len()
@@ -1264,7 +1264,7 @@ impl FileAccessor {
         }
 
         debug!(
-            "atefs::wrote inode={} offset={} size={}",
+            "wasmer-dfs::wrote inode={} offset={} size={}",
             inode, offset, wrote
         );
         Ok(wrote)
@@ -1280,7 +1280,7 @@ impl FileAccessor {
         _mode: u32,
     ) -> Result<()> {
         self.tick().await?;
-        debug!("atefs::fallocate inode={}", inode);
+        debug!("wasmer-dfs::fallocate inode={}", inode);
 
         if fh > 0 {
             let open = {
@@ -1319,7 +1319,7 @@ impl FileAccessor {
         whence: u32,
     ) -> Result<u64> {
         self.tick().await?;
-        debug!("atefs::lseek inode={}", inode);
+        debug!("wasmer-dfs::lseek inode={}", inode);
 
         let offset = if whence == SEEK_CUR as u32 || whence == SEEK_SET as u32 {
             offset
@@ -1351,7 +1351,7 @@ impl FileAccessor {
     ) -> Result<FileAttr> {
         self.tick().await?;
         debug!(
-            "atefs::symlink parent={}, name={}, link={}",
+            "wasmer-dfs::symlink parent={}, name={}, link={}",
             parent, name, link
         );
 
@@ -1394,7 +1394,7 @@ impl FileAccessor {
     /// remove an extended attribute.
     pub async fn removexattr(&self, req: &RequestContext, inode: u64, name: &str) -> Result<bool> {
         self.tick().await?;
-        debug!("atefs::removexattr not-implemented");
+        debug!("wasmer-dfs::removexattr not-implemented");
 
         let flags = O_RDWR;
         let mut open = self.create_open_handle(inode, &req, flags).await?;
@@ -1420,7 +1420,7 @@ impl FileAccessor {
         inode: u64,
     ) -> Result<FxHashMap<String, String>> {
         self.tick().await?;
-        debug!("atefs::listxattr not-implemented");
+        debug!("wasmer-dfs::listxattr not-implemented");
 
         let flags = O_RDONLY;
         let open = self.create_open_handle(inode, &req, flags).await?;

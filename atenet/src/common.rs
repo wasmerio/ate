@@ -182,9 +182,9 @@ pub async fn setup_server
 
     let mut instance_authority = solo.inst_url.domain()
         .map(|a| a.to_string())
-        .unwrap_or_else(|| "tokera.sh".to_string());
+        .unwrap_or_else(|| "wasmer.sh".to_string());
     if instance_authority == "localhost" {
-        instance_authority = "tokera.sh".to_string();
+        instance_authority = "wasmer.sh".to_string();
     }
 
     let mut router = ate::comms::StreamRouter::new(
@@ -215,7 +215,7 @@ pub async fn setup_server
     )
 }
 
-pub fn subnet_to_cidrs(subnet: &tokera::model::InstanceSubnet) -> Vec<IpCidr>
+pub fn subnet_to_cidrs(subnet: &wasmer::model::InstanceSubnet) -> Vec<IpCidr>
 {
     subnet.cidrs.iter()
             .map(|cidr| IpCidr::new(cidr.ip.into(), cidr.prefix))

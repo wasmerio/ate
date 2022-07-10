@@ -55,8 +55,8 @@ impl From<tokio::time::error::Elapsed> for InvokeError {
 }
 
 #[cfg(target_family = "wasm")]
-impl From<wasm_bus_time::prelude::Elapsed> for InvokeError {
-    fn from(_elapsed: wasm_bus_time::prelude::Elapsed) -> InvokeError {
+impl From<wasmer_bus_time::prelude::Elapsed> for InvokeError {
+    fn from(_elapsed: wasmer_bus_time::prelude::Elapsed) -> InvokeError {
         InvokeErrorKind::Timeout.into()
     }
 }
