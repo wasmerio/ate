@@ -58,7 +58,7 @@ where
             ));
         }
         let data = key.decrypt(&self.sd_iv, &self.sd_encrypted[..]).unwrap();
-        Ok(match self.format.deserialize(&data[..]) {
+        Ok(match self.format.deserialize_ref(&data[..]) {
             Ok(a) => a,
             Err(err) => {
                 return Err(std::io::Error::new(ErrorKind::Other, err.to_string()));
@@ -152,7 +152,7 @@ where
             Some(a) => {
                 let shared_key = a.unwrap(key)?;
                 let data = shared_key.decrypt(&self.sd_iv, &self.sd_encrypted[..]);
-                Some(match self.format.deserialize::<T>(&data[..]) {
+                Some(match self.format.deserialize_ref::<T>(&data[..]) {
                     Ok(a) => a,
                     Err(err) => {
                         return Err(std::io::Error::new(ErrorKind::Other, err.to_string()));
@@ -170,7 +170,7 @@ where
             return Ok(None);
         }
 
-        Ok(match self.format.deserialize::<T>(&data[..]) {
+        Ok(match self.format.deserialize::<T>(data) {
             Ok(a) => Some(a),
             Err(err) => {
                 return Err(std::io::Error::new(ErrorKind::Other, err.to_string()));

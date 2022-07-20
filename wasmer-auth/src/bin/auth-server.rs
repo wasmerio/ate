@@ -1,4 +1,5 @@
 use ate::prelude::*;
+use ate::utils::load_node_list;
 use clap::Parser;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
@@ -30,6 +31,9 @@ enum SubCommand {
 /// Runs the login authentication and authorization server
 #[derive(Parser)]
 struct Run {
+    /// Optional list of the nodes that make up this cluster
+    #[clap(long)]
+    nodes_list: String,
     /// Path to the secret key that helps protect key operations like creating users and resetting passwords
     #[clap(long, default_value = "~/wasmer/auth.key")]
     auth_key_path: String,
@@ -42,6 +46,10 @@ struct Run {
     /// Path to the secret key that grants access to the contracts
     #[clap(long, default_value = "~/wasmer/contract.key")]
     contract_key_path: String,
+    /// Path to the certificate file that will be used by an listening servers
+    /// (there must be TXT records in the host domain servers for this cert)
+    #[clap(long, default_value = "~/wasmer/cert")]
+    cert_path: String,
     /// Path to the log files where all the authentication data is stored
     #[clap(index = 1, default_value = "~/wasmer/auth")]
     logs_path: String,
@@ -92,7 +100,7 @@ async fn main() -> Result<(), AteError> {
             // Open the key file
             let root_write_key: PrivateSignKey = load_key(run.auth_key_path.clone(), ".write");
             let root_read_key: EncryptKey = load_key(run.auth_key_path.clone(), ".read");
-            let root_cert_key: PrivateEncryptKey = load_key(run.auth_key_path.clone(), ".cert");
+            let root_cert_key: PrivateEncryptKey = load_key(run.cert_path.clone(), "");
             let web_key: EncryptKey = load_key(run.web_key_path.clone(), ".read");
             let edge_key: EncryptKey = load_key(run.edge_key_path.clone(), ".read");
             let contract_key: EncryptKey = load_key(run.contract_key_path.clone(), ".read");
@@ -104,6 +112,7 @@ async fn main() -> Result<(), AteError> {
                 cfg_ate.backup_path = Some(shellexpand::tilde(&backup_path).to_string());
             }
             cfg_ate.compact_mode = CompactMode::Never;
+            cfg_ate.nodes = load_node_list(Some(run.nodes_list));
 
             let mut session = AteSessionUser::new();
             session.user.add_read_key(&root_read_key);
@@ -151,7 +160,7 @@ async fn main() -> Result<(), AteError> {
             save_key(key_path.clone(), write_key, "auth.key.write");
 
             let cert_key = PrivateEncryptKey::generate(generate.strength);
-            save_key(key_path.clone(), cert_key, "auth.key.cert");
+            save_key(key_path.clone(), cert_key, "cert");
 
             let web_key = EncryptKey::generate(generate.strength);
             save_key(key_path.clone(), web_key, "web.key.read");

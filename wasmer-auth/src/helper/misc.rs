@@ -41,7 +41,7 @@ pub fn b64_to_session(val: String) -> AteSessionType {
     let val = val.trim().to_string();
     let format = SerializationFormat::MessagePack;
     let bytes = base64::decode(val).unwrap();
-    format.deserialize(&bytes).unwrap()
+    format.deserialize(bytes).unwrap()
 }
 
 #[allow(dead_code)]

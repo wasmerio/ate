@@ -77,13 +77,6 @@ impl Into<io::Error> for BusError {
     }
 }
 
-impl Into<Box<dyn std::error::Error>> for BusError {
-    fn into(self) -> Box<dyn std::error::Error> {
-        let err: io::Error = self.into();
-        err.into()
-    }
-}
-
 impl fmt::Display for BusError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -122,4 +115,9 @@ impl fmt::Display for BusError {
             BusError::Unknown => write!(f, "unknown error."),
         }
     }
+}
+
+impl std::error::Error
+for BusError
+{
 }

@@ -33,6 +33,9 @@ pub struct OptsNetworkServer {
     /// Ensures that this combined server(s) runs as a specific node_id
     #[clap(short, long)]
     pub node_id: Option<u32>,
+    /// Optional list of the nodes that make up this cluster
+    #[clap(long)]
+    pub nodes_list: Option<String>,
     /// Time-to-live for virtual switches remain active
     #[clap(long, default_value = "300")]
     pub ttl: u64,

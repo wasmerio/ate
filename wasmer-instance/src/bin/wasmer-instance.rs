@@ -1,5 +1,6 @@
 #![recursion_limit="256"]
 use ate::mesh::MeshHashTable;
+use ate::utils::load_node_list;
 use wasmer_instance::server::Server;
 use tokio::sync::watch;
 #[allow(unused_imports, dead_code)]
@@ -53,10 +54,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
     let ret = runtime.clone().block_on(async move {
         match opts.subcmd {
             SubCommand::Run(solo) => {
+                conf.nodes = load_node_list(solo.nodes_list);
+
                 let protocol = StreamProtocol::parse(&solo.inst_url)?;
                 let port = solo.auth_url.port().unwrap_or(protocol.default_port());
                 let domain = solo.auth_url.domain().unwrap_or("localhost").to_string();
                 let ttl = std::time::Duration::from_secs(solo.ttl);
+                let nodes = load_node_list(solo.nodes_list);
 
                 let mut cfg_mesh = ConfMesh::skeleton(&conf, domain, port, solo.node_id).await?;
                 cfg_mesh.wire_protocol = protocol;

@@ -163,7 +163,8 @@ where
             }
 
             // Deserialize it
-            let msg: M = wire_format.deserialize(&buf[..])?;
+            let msg: M = wire_format.deserialize_ref(&buf)
+                .map_err(SerializationError::from)?;
             let pck = Packet { msg };
 
             // Process it

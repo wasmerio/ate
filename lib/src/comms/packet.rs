@@ -71,7 +71,8 @@ impl PacketData {
         M: Send + Sync + Serialize + DeserializeOwned + Clone,
     {
         let pck = PacketData {
-            bytes: Bytes::from(wire_format.serialize(&msg)?),
+            bytes: Bytes::from(wire_format.serialize(msg)
+                .map_err(SerializationError::from)?),
             wire_format,
         };
 
@@ -105,7 +106,8 @@ where
         self,
         wire_format: SerializationFormat,
     ) -> Result<PacketData, CommsError> {
-        let buf = wire_format.serialize(&self.msg)?;
+        let buf = wire_format.serialize(self.msg)
+            .map_err(SerializationError::from)?;
         Ok(PacketData {
             bytes: Bytes::from(buf),
             wire_format,

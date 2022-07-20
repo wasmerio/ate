@@ -207,7 +207,7 @@ impl RuntimeProcessSpawner
                     let mut show_result = false;
                     let redirect = Vec::new();
 
-                    let (process, eval_rx, runtime, checkpoint) = exec_process(
+                    let (process, eval_rx, runtime, checkpoint2) = exec_process(
                         ctx.eval,
                         &ctx.path,
                         &ctx.args,
@@ -268,7 +268,7 @@ for RuntimeProcessSpawner
         let process = RuntimeSpawnedProcess {
             exit_code: None,
             finish: spawned.result.finish,
-            checkpoint: spawned.result.checkpoint2,
+            checkpoint2: spawned.result.checkpoint2,
             runtime: Arc::new(
                 DelayedRuntime {
                     rx: Mutex::new(spawned.runtime),
@@ -345,7 +345,7 @@ struct RuntimeSpawnedProcess
     exit_code: Option<u32>,
     #[derivative(Debug = "ignore")]
     finish: AsyncResult<Result<EvalResult, u32>>,
-    checkpoint: Arc<WasmCheckpoint>,
+    checkpoint2: Arc<WasmCheckpoint>,
     runtime: Arc<DelayedRuntime>,
 }
 
@@ -358,8 +358,8 @@ for RuntimeSpawnedProcess
     }
 
     fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {
-        let checkpoint = Pin::new(self.checkpoint.deref());
-        checkpoint.poll(cx)
+        let checkpoint2 = Pin::new(self.checkpoint2.deref());
+        checkpoint2.poll(cx)
     }
 }
 

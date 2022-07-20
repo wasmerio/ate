@@ -51,7 +51,7 @@ impl NativeFiles {
         // we will present natively to the consumers
         // Note: These are the same files presenting to the web-site version of the terminal
         let native_files_key = ate::prelude::ChainKey::from(self.native_files_name.clone());
-        let native_files = self.registry.open(&self.db_url, &native_files_key).await
+        let native_files = self.registry.open(&self.db_url, &native_files_key, false).await
             .map_err(|err| FileSystemErrorKind::AteError(AteErrorKind::ChainCreationError(err.0)))?;
         let native_files = Arc::new(
             FileAccessor::new(

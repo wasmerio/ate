@@ -129,7 +129,7 @@ impl ConfMesh {
         listen_port: Option<u16>,
         domain: String,
         connect_port: u16,
-        node_id: Option<u32>,
+        node_id: Option<u32>
     ) -> Result<ConfMesh, CommsError> {
         let registry = Registry::new(cfg_ate).await;
         let addr = MeshAddress::new(listen.clone(), connect_port);

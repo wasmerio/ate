@@ -15,7 +15,7 @@ use smoltcp::wire::Icmpv4Packet;
 use smoltcp::wire::Icmpv4Message;
 use smoltcp::wire::Icmpv6Packet;
 use smoltcp::wire::Icmpv6Message;
-use wasmer_deploy::model::InstancePeering;
+use wasmer_deploy_cli::model::InstancePeering;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 use async_recursion::async_recursion;

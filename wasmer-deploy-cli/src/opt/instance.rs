@@ -1,5 +1,6 @@
 use std::net::IpAddr;
 
+use ate_crypto::SerializationFormat;
 use clap::Parser;
 use url::Url;
 
@@ -249,10 +250,13 @@ pub struct OptsInstanceCall {
     pub name: String,
     /// WAPM name of the process to be invoked
     #[clap(index = 2)]
-    pub binary: String,
+    pub data: String,
     /// Topic of the invocation call
     #[clap(index = 3)]
     pub topic: String,
+    /// Format of the data passed into this call
+    #[clap(short, long, default_value = "json")]
+    pub format: SerializationFormat,
 }
 
 #[derive(Parser, Clone)]

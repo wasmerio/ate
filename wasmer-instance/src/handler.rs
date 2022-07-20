@@ -12,7 +12,7 @@ use wasmer_os::api::ConsoleRect;
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 use tokio::sync::mpsc;
 
-use wasmer_deploy::model::InstanceReply;
+use wasmer_deploy_cli::model::InstanceReply;
 
 pub enum SessionTx {
     None,

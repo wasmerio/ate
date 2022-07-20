@@ -88,7 +88,8 @@ impl RecoverableSessionPipe {
 
         // Create pipes to all the target root nodes
         trace!("building node cfg connect to");
-        let node_cfg = MeshConfig::new(self.cfg_mesh.clone()).connect_to(self.addr.clone());
+        let node_cfg = MeshConfig::new(self.cfg_mesh.clone())
+            .connect_to(self.addr.clone());
 
         let inbound_conversation = Arc::new(ConversationSession::default());
         let outbound_conversation = Arc::new(ConversationSession::default());
@@ -166,6 +167,7 @@ impl RecoverableSessionPipe {
         };
 
         // Now we subscribe to the chain
+        trace!("sending subscribe (key={}, omit_data={})", self.key, self.lazy_data);
         node_tx
             .send_reply_msg(Message::Subscribe {
                 chain_key: self.key.clone(),
@@ -336,6 +338,8 @@ impl EventPipe for RecoverableSessionPipe {
             composite_loader.loaders.push(loader);
         }
 
+        trace!("perf-checkpoint: create_active_pipe");
+
         // Set the pipe and drop the lock so that events can be fed correctly
         let (status_tx, status_rx) = mpsc::channel(1);
         let pipe = self
@@ -350,6 +354,8 @@ impl EventPipe for RecoverableSessionPipe {
         // until all the chain is loaded
         self.active.write().await.replace(pipe);
 
+        trace!("perf-checkpoint: pre-loading");
+
         // Wait for all the messages to start loading
         match loading_receiver.recv().await {
             Some(result) => result?,
@@ -362,6 +368,7 @@ impl EventPipe for RecoverableSessionPipe {
             }
         }
         debug!("loading {}", self.key.to_string());
+        trace!("perf-checkpoint: chain::loading");
 
         // Wait for all the messages to load before we give it to the caller
         match loading_receiver.recv().await {
@@ -376,6 +383,7 @@ impl EventPipe for RecoverableSessionPipe {
             }
         }
         debug!("loaded {}", self.key.to_string());
+        trace!("perf-checkpoint: chain::loaded");
 
         // Now we need to send all the events over that have been delayed
         let chain = self.chain.lock().unwrap().as_ref().map(|a| a.upgrade());
@@ -388,6 +396,8 @@ impl EventPipe for RecoverableSessionPipe {
 
                 let mut lock = self.active.write().await;
                 if let Some(pipe_tx) = lock.as_mut().map(|a| &mut a.tx) {
+                    trace!("perf-checkpoint: streaming events to server");
+
                     // We send all the events for this delayed upload to the server by streaming
                     // it in a controlled and throttled way
                     stream_history_range(
@@ -398,9 +408,11 @@ impl EventPipe for RecoverableSessionPipe {
                         usize::MAX,
                     )
                     .await?;
+                    trace!("perf-checkpoint: streamed events to the server");
 
                     // We complete a dummy transaction to confirm that all the data has been
                     // successfully received by the server and processed before we clear our flag
+                    trace!("perf-checkpoint: sync");
                     match chain.multi().await.sync().await {
                         Ok(_) => {
                             // Finally we clear the pending upload by writing a record for it
@@ -428,6 +440,7 @@ impl EventPipe for RecoverableSessionPipe {
             }
             trace!("pipe connected {}", self.key.to_string());
         }
+        trace!("perf-checkpoint: pipe::connected");
 
         Ok(status_rx)
     }

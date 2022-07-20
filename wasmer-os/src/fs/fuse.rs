@@ -57,7 +57,6 @@ impl FuseFileSystem {
                 backend::FuseMountRequest {
                     name: target.to_string(),
                 },
-                true,
             )
             .map_err(|err| {
                 debug!("fuse_file_system::new() - mount call failed(r1) - {}", err);

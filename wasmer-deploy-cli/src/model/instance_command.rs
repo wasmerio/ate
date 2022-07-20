@@ -1,3 +1,4 @@
+use ate_crypto::SerializationFormat;
 use serde::*;
 pub use wasmer_bus::prelude::CallHandle;
 pub use wasmer_bus::prelude::BusError;
@@ -6,8 +7,9 @@ use std::fmt;
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct InstanceCall {
     #[serde(default)]
-    pub parent: Option<u32>,
-    pub handle: u32,
+    pub parent: Option<u64>,
+    pub handle: u64,
+    pub format: SerializationFormat,
     pub binary: String,
     pub topic: String,
 }
@@ -45,6 +47,7 @@ for InstanceCommand
 pub enum InstanceReply {
     FeedBytes {
         handle: CallHandle,
+        format: SerializationFormat,
         data: Vec<u8>
     },
     Stdout {
@@ -70,7 +73,7 @@ for InstanceReply
         match self {
             InstanceReply::Stdout { data } => write!(f, "stdout(len={})", data.len()),
             InstanceReply::Stderr{ data } => write!(f, "stdout(len={})", data.len()),
-            InstanceReply::FeedBytes { handle, data} => write!(f, "feed-bytes(handle={}, len={})", handle, data.len()),
+            InstanceReply::FeedBytes { handle, format, data} => write!(f, "feed-bytes(handle={}, format={}, len={})", handle, format, data.len()),
             InstanceReply::Error { handle, error } => write!(f, "error(handle={}, {})", handle, error),
             InstanceReply::Terminate { handle, .. } => write!(f, "terminate(handle={})", handle),
             InstanceReply::Exit => write!(f, "exit"),

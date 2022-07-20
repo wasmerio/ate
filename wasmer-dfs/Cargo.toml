@@ -22,11 +22,12 @@ server = [ "ate/server", "wasmer-auth/server", "ate-files/sys", "ate/enable_mt" 
 ate = { version = "^1.2", path = "../lib", default_features = false }
 wasmer-auth = { version = "^1.9", path = "../wasmer-auth", default_features = false }
 ate-files = { version = "^1.2", path = "../files", default_features = false }
-wasmer-deploy = { version = "^1.3", path = "../wasmer-deploy" }
+wasmer-deploy-cli = { version = "^1.3", path = "../wasmer-deploy-cli" }
 error-chain = { version = "^0.12", default_features = false }
 tokio = { version = "^1", features = ["full", "signal", "process"] }
 serde = { version = "^1", features = ["derive"] }
-tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
+#tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
+tracing = { version = "^0.1", features = [ "log" ] }
 tracing-futures = { version = "^0.2" }
 tracing-subscriber = { version = "^0.2" }
 futures = "^0.3"

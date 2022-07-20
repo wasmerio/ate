@@ -137,6 +137,7 @@ pub async fn main_mount(
                 .open_ext(
                     &mount.remote,
                     &ChainKey::from(remote),
+                    false,
                     progress_local,
                     progress_remote,
                 )

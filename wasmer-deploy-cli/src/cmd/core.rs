@@ -283,7 +283,7 @@ where
         let chain_key = chain_key_4hex(&identity, Some("redo"));
         debug!("chain_url={}", auth_url);
         debug!("chain_key={}", chain_key);
-        let chain = registry.open(&auth_url, &chain_key).await?;
+        let chain = registry.open(&auth_url, &chain_key, true).await?;
 
         // Open the DIO
         let dio = chain.dio_trans(&session, TransactionScope::Full).await;

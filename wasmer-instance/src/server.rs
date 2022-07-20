@@ -22,18 +22,18 @@ use ate_files::repo::Repository;
 use ate_files::repo::RepositorySessionFactory;
 use wasmer_ssh::wasmer_os::api::System;
 use wasmer_ssh::wasmer_os::api::SystemAbiExt;
-use wasmer_deploy::model::InstanceHello;
+use wasmer_deploy_cli::model::InstanceHello;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 use url::Url;
 use percent_encoding::{percent_decode};
-use wasmer_deploy::model::MasterAuthority;
-use wasmer_deploy::model::ServiceInstance;
-use wasmer_deploy::model::InstanceReply;
-use wasmer_deploy::model::INSTANCE_ROOT_ID;
-use wasmer_deploy::model::MASTER_AUTHORITY_ID;
+use wasmer_deploy_cli::model::MasterAuthority;
+use wasmer_deploy_cli::model::ServiceInstance;
+use wasmer_deploy_cli::model::InstanceReply;
+use wasmer_deploy_cli::model::INSTANCE_ROOT_ID;
+use wasmer_deploy_cli::model::MASTER_AUTHORITY_ID;
 #[allow(unused_imports)]
-use wasmer_deploy::model::InstanceCall;
+use wasmer_deploy_cli::model::InstanceCall;
 use wasmer_ssh::wasmer_os;
 use wasmer_os::api::ConsoleRect;
 use wasmer_os::fs::UnionFileSystem;
@@ -388,7 +388,36 @@ for Server
         }
         let auth = headers[http::header::AUTHORIZATION].clone();
 
-        debug!("accept-raw-put-request: uri: {}", uri);
+        // Get and check the data format
+        if headers.contains_key(http::header::CONTENT_TYPE) == false {
+            let msg = format!("Must supply a content type in the request").as_bytes().to_vec();
+            return Err((msg, StatusCode::BAD_REQUEST));
+        }
+        let format = match headers[http::header::CONTENT_TYPE].to_str().unwrap() {
+            "text/xml" |
+            "application/xml" |
+            "application/xhtml+xml" => SerializationFormat::Xml,
+            "application/octet-stream" => SerializationFormat::Raw,
+            "application/json" |
+            "application/x-javascript" |
+            "application/ld+json" |
+            "text/javascript" |
+            "text/x-javascript" |
+            "text/x-json" => SerializationFormat::Json,
+            "text/x-yaml" |
+            "text/yaml" |
+            "text/yml" |
+            "application/x-yaml" |
+            "application/x-yml" |
+            "application/yaml" |
+            "application/yml" => SerializationFormat::Yaml,
+            a => {
+                let msg = format!("Unsupported http content type [{}]", a).as_bytes().to_vec();
+                return Err((msg, StatusCode::BAD_REQUEST));
+            }
+        };
+
+        debug!("accept-raw-put-request: uri: {} (format={})", uri, format);
 
         // Make a fake hello from the HTTP metadata
         let hello = HelloMetadata {
@@ -439,7 +468,8 @@ for Server
         let (tx_reply, mut rx_reply) = mpsc::channel(1);
         session.call(InstanceCall {
                 parent: None,
-                handle: fastrand::u32(..),
+                handle: fastrand::u64(..),
+                format,
                 binary,
                 topic,
             },
@@ -699,7 +729,7 @@ for SessionFactory
         };
 
         // Now we read the chain of trust and attempt to get the master authority object
-        let chain = self.registry.open(&self.db_url, &key).await?;
+        let chain = self.registry.open(&self.db_url, &key, false).await?;
         let dio = chain.dio(&edge_session).await;
         let master_authority = dio.load::<MasterAuthority>(&PrimaryKey::from(MASTER_AUTHORITY_ID)).await?;
 

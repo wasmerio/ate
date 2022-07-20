@@ -20,13 +20,13 @@ use crossbeam::queue::SegQueue;
 use derivative::*;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
-use wasmer_deploy::model::PortCommand;
-use wasmer_deploy::model::PortResponse;
-use wasmer_deploy::model::PortNopType;
-use wasmer_deploy::model::HardwareAddress;
-use wasmer_deploy::model::SocketHandle;
-use wasmer_deploy::model::SocketError;
-use wasmer_deploy::model::SocketErrorKind;
+use wasmer_deploy_cli::model::PortCommand;
+use wasmer_deploy_cli::model::PortResponse;
+use wasmer_deploy_cli::model::PortNopType;
+use wasmer_deploy_cli::model::HardwareAddress;
+use wasmer_deploy_cli::model::SocketHandle;
+use wasmer_deploy_cli::model::SocketError;
+use wasmer_deploy_cli::model::SocketErrorKind;
 use smoltcp::wire::EthernetAddress;
 use smoltcp::wire::IpCidr;
 use smoltcp::iface;
@@ -558,11 +558,11 @@ impl Port
                                 Route {
                                     via_router: route.via_router.into(),
                                     preferred_until: route.preferred_until.map(|d| {
-                                        let diff = d.signed_duration_since(wasmer::model::Utc::now());
+                                        let diff = d.signed_duration_since(wasmer_deploy_cli::model::Utc::now());
                                         Instant::from_micros(Instant::now().micros() + diff.num_microseconds().unwrap_or(0))
                                     }),
                                     expires_at: route.expires_at.map(|d| {
-                                        let diff = d.signed_duration_since(wasmer::model::Utc::now());
+                                        let diff = d.signed_duration_since(wasmer_deploy_cli::model::Utc::now());
                                         Instant::from_micros(Instant::now().micros() + diff.num_microseconds().unwrap_or(0))
                                     })
                                 }
@@ -724,7 +724,7 @@ impl Port
                             });
                             ret.push(PortResponse::DhcpConfigured {
                                 handle: *handle,
-                                address: wasmer::model::IpCidr {
+                                address: wasmer_deploy_cli::model::IpCidr {
                                     ip: IpAddr::V4(config.address.address().into()),
                                     prefix: config.address.prefix_len(),
                                 },

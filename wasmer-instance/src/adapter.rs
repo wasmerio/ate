@@ -26,7 +26,7 @@ use tracing::{debug, error, info, trace, warn};
 pub struct FileAccessorAdapter
 {
     ctx: Arc<Mutex<Option<WasmCallerContext>>>,
-    inner: wasmer::bus::file_system::FileSystem,
+    inner: wasmer_deploy_cli::bus::file_system::FileSystem,
 }
 
 impl FileAccessorAdapter
@@ -34,7 +34,7 @@ impl FileAccessorAdapter
     pub fn new(accessor: &Arc<FileAccessor>) -> Self {
         Self {
             ctx: Arc::new(Mutex::new(None)),
-            inner: wasmer::bus::file_system::FileSystem::new(
+            inner: wasmer_deploy_cli::bus::file_system::FileSystem::new(
                 accessor.clone(),
                 RequestContext {
                     uid: 0,
@@ -200,7 +200,7 @@ impl FileOpener for FileAccessorOpener {
         &mut self,
         path: &Path,
         conf: &OpenOptionsConfig,
-    ) -> Result<Box<dyn VirtualFile + Sync>> {
+    ) -> Result<Box<dyn VirtualFile + Send + Sync>> {
         debug!("open: path={}", path.display());
 
         let path = path.to_string_lossy().to_string();
@@ -241,8 +241,8 @@ impl FileOpener for FileAccessorOpener {
 #[derive(Debug)]
 pub struct FileAccessorVirtualFile {
     fs: FileAccessorAdapter,
-    of: Arc<wasmer::bus::opened_file::OpenedFile>,
-    io: Arc<wasmer::bus::file_io::FileIo>,
+    of: Arc<wasmer_deploy_cli::bus::opened_file::OpenedFile>,
+    io: Arc<wasmer_deploy_cli::bus::file_io::FileIo>,
     meta: backend::Metadata,
     dirty: bool,
 }

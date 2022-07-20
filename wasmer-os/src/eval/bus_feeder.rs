@@ -21,7 +21,7 @@ pub struct RuntimeBusFeeder
 
 impl RuntimeBusFeeder
 {
-    pub fn call<T>(&self, format: SerializationFormat, data: T, keep_alive: bool) -> Result<RuntimeCallOutsideHandle, BusError>
+    pub fn call<T>(&self, format: SerializationFormat, data: T) -> Result<RuntimeCallOutsideHandle, BusError>
     where T: serde::ser::Serialize {
         let topic_hash = type_name_hash::<T>();
         let data = format.serialize(data)?;

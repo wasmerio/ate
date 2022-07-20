@@ -21,11 +21,11 @@ use ate_files::repo::RepositorySessionFactory;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 use url::Url;
-use wasmer_deploy::model::MasterAuthority;
-use wasmer_deploy::model::MASTER_AUTHORITY_ID;
+use wasmer_deploy_cli::model::MasterAuthority;
+use wasmer_deploy_cli::model::MASTER_AUTHORITY_ID;
 #[allow(unused_imports)]
-use wasmer_deploy::model::InstanceCall;
-use wasmer_deploy::model::SwitchHello;
+use wasmer_deploy_cli::model::InstanceCall;
+use wasmer_deploy_cli::model::SwitchHello;
 use wasmer_auth::cmd::impersonate_command;
 use wasmer_auth::helper::b64_to_session;
 use std::sync::RwLock;
@@ -237,7 +237,7 @@ for Server
         let hello_switch = SwitchHello {
             chain: chain.clone(),
             access_token: auth.to_str().unwrap().to_string(),
-            version: wasmer::model::PORT_COMMAND_VERSION,
+            version: wasmer_deploy_cli::model::PORT_COMMAND_VERSION,
         };
 
         // Build the rx and tx
@@ -306,7 +306,7 @@ for SessionFactory
         };
 
         // Now we read the chain of trust and attempt to get the master authority object
-        let chain = self.registry.open(&self.db_url, &key).await?;
+        let chain = self.registry.open(&self.db_url, &key, true).await?;
         let dio = chain.dio(&edge_session).await;
         let master_authority = dio.load::<MasterAuthority>(&PrimaryKey::from(MASTER_AUTHORITY_ID)).await?;
 

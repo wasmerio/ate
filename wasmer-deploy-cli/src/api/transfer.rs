@@ -99,7 +99,7 @@ impl DeployApi {
         let chain_key = chain_key_4hex(&identity, Some("redo"));
         debug!("chain_url={}", self.auth);
         debug!("chain_key={}", chain_key);
-        let chain = registry.open(&self.auth, &chain_key).await?;
+        let chain = registry.open(&self.auth, &chain_key, true).await?;
 
         // Load the API for the destination
         // Open the DIO and load the wallet

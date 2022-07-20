@@ -224,7 +224,7 @@ impl MeshHashTable {
                 {
                     Some(a) => a,
                     None => {
-                        bail!(CommsErrorKind::RequredExplicitNodeId);
+                        bail!(CommsErrorKind::RequiredExplicitNodeId);
                     }
                 }
             }
@@ -330,7 +330,7 @@ where
             let evt = MessageEvent {
                 meta,
                 data: match evt.data.data_bytes {
-                    Some(a) if a.len() >= strip_data => MessageData::Some(a.to_vec()),
+                    Some(a) if a.len() <= strip_data => MessageData::Some(a.to_vec()),
                     Some(a) => {
                         let data = a.to_vec();
                         MessageData::LazySome(LazyData {

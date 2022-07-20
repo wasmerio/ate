@@ -1,6 +1,7 @@
 #![recursion_limit="256"]
 #![allow(unused_imports)]
 use ate::mesh::MeshHashTable;
+use ate::utils::load_node_list;
 use atenet::common::setup_server;
 use atenet::server::Server;
 use tokio::sync::watch;
@@ -54,6 +55,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
     let ret = runtime.clone().block_on(async move {
         match opts.subcmd {
             SubCommand::Run(solo) => {
+                conf.nodes = load_node_list(solo.nodes_list.clone());
                 let (_server, hard_exit) = setup_server(
                     solo,
                     conf,

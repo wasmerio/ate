@@ -1,5 +1,6 @@
 #![cfg_attr(debug_assertions, allow(dead_code, unused_imports))]
 #![allow(unused_imports)]
+use tracing::trace;
 use tracing::{debug, error, info};
 
 mod active_session_pipe;
@@ -71,7 +72,7 @@ pub use crate::mesh::registry::Registry;
 #[cfg(feature = "enable_server")]
 pub use crate::mesh::server::MeshRoot;
 
-fn create_prepare<'a, 'b>(cfg_mesh: &'b ConfMesh) -> Vec<MeshAddress> {
+fn create_prepare<'a, 'b>(cfg_mesh: &'b ConfMesh) -> (Vec<MeshAddress>, Vec<MeshAddress>) {
     let mut hash_table = BTreeMap::new();
     for addr in cfg_mesh.roots.iter() {
         hash_table.insert(addr.hash(), addr.clone());
@@ -79,29 +80,68 @@ fn create_prepare<'a, 'b>(cfg_mesh: &'b ConfMesh) -> Vec<MeshAddress> {
 
     #[allow(unused_mut)]
     let mut listen_root_addresses = Vec::new();
+    #[allow(unused_mut)]
+    let mut all_root_addresses = Vec::new();
 
     #[cfg(feature = "enable_server")]
     if let Some(addr) = &cfg_mesh.force_listen {
         listen_root_addresses.push(addr.clone());
+        all_root_addresses.push(addr.clone());
     }
 
     #[cfg(feature = "enable_dns")]
-    if listen_root_addresses.len() <= 0 && cfg_mesh.force_client_only == false {
+    {
         let local_ips = pnet::datalink::interfaces()
             .iter()
             .flat_map(|i| i.ips.iter())
             .map(|i| i.ip())
             .collect::<Vec<_>>();
-        for local_ip in local_ips.iter() {
-            for root in cfg_mesh.roots.iter() {
-                if root.host == *local_ip {
-                    listen_root_addresses.push(root.clone());
+        if listen_root_addresses.len() <= 0 && cfg_mesh.force_client_only == false {
+            for local_ip in local_ips.iter() {
+                trace!("Found Local IP - {}", local_ip);
+                for root in cfg_mesh.roots.iter() {
+                    if root.host == *local_ip {
+                        listen_root_addresses.push(root.clone());
+                    }
                 }
             }
         }
+
+        #[cfg(feature = "enable_server")]
+        let port = {
+            match cfg_mesh.force_port {
+                Some(a) => a,
+                None => match &cfg_mesh.force_listen {
+                    Some(a) => a.port,
+                    None => {
+                        match StreamProtocol::parse(&cfg_mesh.remote) {
+                            Ok(protocol) => {
+                                cfg_mesh.remote.port().unwrap_or(protocol.default_port())
+                            }
+                            _ => 443
+                        }
+                    }
+                }
+            }
+        };
+
+        #[cfg(not(feature = "enable_server"))]
+        let port = match StreamProtocol::parse(&cfg_mesh.remote) {
+            Ok(protocol) => {
+                cfg_mesh.remote.port().unwrap_or(protocol.default_port())
+            }
+            _ => 443
+        };
+
+        for local_ip in local_ips.iter() {
+            all_root_addresses.push(MeshAddress {
+                host: local_ip.clone(),
+                port,
+            });
+        }
     }
 
-    listen_root_addresses
+    (listen_root_addresses, all_root_addresses)
 }
 
 #[cfg(feature = "enable_server")]
@@ -150,8 +190,11 @@ pub async fn create_ethereal_distributed_server(
 
 #[cfg(feature = "enable_server")]
 pub async fn create_server(cfg_mesh: &ConfMesh) -> Result<Arc<MeshRoot>, CommsError> {
-    let listen_root_addresses = create_prepare(cfg_mesh);
-    let ret = MeshRoot::new(&cfg_mesh, listen_root_addresses).await?;
+    let (listen_root_addresses, all_root_addresses) = create_prepare(cfg_mesh);
+    for addr in listen_root_addresses.iter() {
+        trace!("listen address: {}", addr);
+    }
+    let ret = MeshRoot::new(&cfg_mesh, listen_root_addresses, all_root_addresses).await?;
 
     Ok(ret)
 }

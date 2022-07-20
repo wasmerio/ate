@@ -114,19 +114,20 @@ impl MeshRoot {
     pub(super) async fn new(
         cfg: &ConfMesh,
         listen_addrs: Vec<MeshAddress>,
+        all_addrs: Vec<MeshAddress>,
     ) -> Result<Arc<Self>, CommsError> {
         let lookup = MeshHashTable::new(&cfg);
         let node_id = match cfg.force_node_id {
             Some(a) => a,
             None => {
-                match listen_addrs
+                match all_addrs
                     .iter()
                     .filter_map(|a| lookup.derive_id(a))
                     .next()
                 {
                     Some(a) => a,
                     None => {
-                        bail!(CommsErrorKind::RequredExplicitNodeId);
+                        bail!(CommsErrorKind::RequiredExplicitNodeId);
                     }
                 }
             }
@@ -715,7 +716,7 @@ async fn inbox_subscribe<'b>(
     context: Arc<SessionContext>,
     tx: &'b mut Tx,
 ) -> Result<(), CommsError> {
-    trace!("subscribe: {}", chain_key.to_string());
+    trace!("subscribe: (key={}, omit_data={})", chain_key.to_string(), omit_data);
 
     // Randomize the conversation ID and clear its state
     context.conversation.clear();
@@ -727,13 +728,16 @@ async fn inbox_subscribe<'b>(
         false
     };
     if conv_updated {
+        trace!("sending Message::NewConversation(conv_id={})", conv_id);
         tx.send_reply_msg(Message::NewConversation {
             conversation_id: conv_id,
         })
         .await?;
     } else {
+        let err = "failed to generate a new conversation id".to_string();
+        trace!("sending Message::FatalTerminate(other={})", err);
         tx.send_reply_msg(Message::FatalTerminate(FatalTerminate::Other {
-            err: "failed to generate a new conversation id".to_string(),
+            err,
         }))
         .await?;
         return Ok(());
@@ -744,6 +748,7 @@ async fn inbox_subscribe<'b>(
     let (node_addr, node_id) = match root.lookup.lookup(&chain_key) {
         Some(a) => a,
         None => {
+            trace!("sending Message::FatalTerminate(not_this_root)");
             tx.send_reply_msg(Message::FatalTerminate(FatalTerminate::NotThisRoot))
                 .await?;
             return Ok(());
@@ -772,6 +777,7 @@ async fn inbox_subscribe<'b>(
             return Ok(());
         } else {
             // Fail to redirect
+            trace!("sending Message::FatalTerminate(redirect actual={} expected={})", node_id, root.node_id);
             tx.send_reply_msg(Message::FatalTerminate(FatalTerminate::RootRedirect {
                 actual: node_id,
                 expected: root.node_id,
@@ -790,11 +796,13 @@ async fn inbox_subscribe<'b>(
     // If we can't find a chain for this subscription then fail and tell the caller
     let opened_chain = match open_internal(Arc::clone(&root), route.clone(), tx).await {
         Err(ChainCreationError(ChainCreationErrorKind::NotThisRoot, _)) => {
+            trace!("sending Message::FatalTerminate(not_this_root)");
             tx.send_reply_msg(Message::FatalTerminate(FatalTerminate::NotThisRoot))
                 .await?;
             return Ok(());
         }
         Err(ChainCreationError(ChainCreationErrorKind::NoRootFoundInConfig, _)) => {
+            trace!("sending Message::FatalTerminate(not_this_root)");
             tx.send_reply_msg(Message::FatalTerminate(FatalTerminate::NotThisRoot))
                 .await?;
             return Ok(());
@@ -804,6 +812,7 @@ async fn inbox_subscribe<'b>(
                 Ok(a) => a,
                 Err(err) => {
                     let err = err.to_string();
+                    trace!("sending Message::FatalTerminate(other={})", err);
                     tx.send_reply_msg(Message::FatalTerminate(FatalTerminate::Other {
                         err: err.clone(),
                     }))
@@ -822,6 +831,7 @@ async fn inbox_subscribe<'b>(
 
     // If there is a message of the day then transmit it to the caller
     if let Some(message_of_the_day) = opened_chain.message_of_the_day {
+        trace!("sending Message::HumanMessage(msg={})", message_of_the_day);
         tx.send_reply_msg(Message::HumanMessage {
             message: message_of_the_day,
         })

@@ -24,6 +24,7 @@ fn create_solo(ip: IpAddr, node_id: u32) -> OptsNetworkServer
         auth_url: url::Url::parse("ws://wasmer.sh/auth").unwrap(),
         inst_url: url::Url::parse("ws://wasmer.sh/inst").unwrap(),
         node_id: Some(node_id),
+        nodes_list: None,
         ttl: 300,
     }   
 }

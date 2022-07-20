@@ -15,7 +15,7 @@ use crate::model::NetworkToken;
 pub fn decode_access_token(token: String) -> Result<NetworkToken, SerializationError> {
     let val = token.trim().to_string();
     let bytes = base64::decode(val).unwrap();
-    Ok(SerializationFormat::MessagePack.deserialize(&bytes)?)
+    Ok(SerializationFormat::MessagePack.deserialize(bytes)?)
 }
 
 pub fn load_access_token(token_path: String) -> Result<Option<NetworkToken>, SerializationError> {
@@ -29,7 +29,7 @@ pub fn load_access_token(token_path: String) -> Result<Option<NetworkToken>, Ser
 }
 
 pub fn encode_access_token(token: &NetworkToken) -> Result<String, SerializationError> {
-    let bytes = SerializationFormat::MessagePack.serialize(&token)?;
+    let bytes = SerializationFormat::MessagePack.serialize_ref(&token)?;
     let bytes = base64::encode(bytes);
     Ok(bytes)
 }

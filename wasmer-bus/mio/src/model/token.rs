@@ -27,6 +27,6 @@ for NetworkToken
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let bytes = base64::decode(s)?;
-        Ok(SerializationFormat::MessagePack.deserialize(&bytes[..])?)
+        Ok(SerializationFormat::MessagePack.deserialize(bytes)?)
     }
 }

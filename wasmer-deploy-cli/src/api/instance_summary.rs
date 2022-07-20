@@ -105,7 +105,7 @@ impl DeployApi {
         let instance = self.instance_find(name).await?;
         let instance_key = ChainKey::from(instance.chain.clone());
         let db_url: Result<_, InstanceError> = self.db_url.clone().ok_or_else(|| InstanceErrorKind::Unsupported.into());
-        let chain = self.registry.open(&db_url?, &instance_key).await?;
+        let chain = self.registry.open(&db_url?, &instance_key, true).await?;
         Ok(chain.as_arc())
     }
 }

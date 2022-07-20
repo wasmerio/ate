@@ -8,7 +8,7 @@ use wasmer_dfs::opts::*;
 use wasmer_auth::cmd::*;
 use wasmer_auth::helper::*;
 
-use wasmer_deploy::cmd::{
+use wasmer_deploy_cli::cmd::{
     main_opts_contract, main_opts_login, main_opts_logout, main_opts_service, main_opts_wallet,
 };
 

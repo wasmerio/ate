@@ -57,7 +57,6 @@ where Self: Send + 'static,
 {
     ret: Option<Result<Vec<u8>, BusError>>,
     format: SerializationFormat,
-    leak: bool,
 }
 
 impl ResultInvokable
@@ -76,18 +75,6 @@ where Self: Send + 'static,
         Box::new(ResultInvokable {
             ret: Some(ret),
             format,
-            leak: false
-        })
-    }
-
-    pub fn new_leaked<T>(format: SerializationFormat, value: T) -> Box<ResultInvokable>
-    where T: Serialize + Send,
-    {
-        let ret = format.serialize(&value);
-        Box::new(ResultInvokable {
-            ret: Some(ret),
-            format,
-            leak: true
         })
     }
 }
@@ -98,15 +85,9 @@ where Self: Send + 'static,
 {
     async fn process(&mut self) -> Result<InvokeResult, BusError> {
         if let Some(ret) = self.ret.take() {
-            if self.leak {
-                ret.map(|ret| {
-                    InvokeResult::ResponseThenLeak(self.format, ret)
-                })
-            } else {
-                ret.map(|ret| {
-                    InvokeResult::Response(self.format, ret)
-                })
-            }
+            ret.map(|ret| {
+                InvokeResult::Response(self.format, ret)
+            })
         } else {
             Err(BusError::AlreadyConsumed)
         }

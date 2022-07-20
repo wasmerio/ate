@@ -55,7 +55,7 @@ impl AuthService {
 
         // Compute which chain the user should exist within
         let chain_key = chain_key_4hex(request.email.as_str(), Some("redo"));
-        let chain = self.registry.open(&self.auth_url, &chain_key).await?;
+        let chain = self.registry.open(&self.auth_url, &chain_key, true).await?;
         let dio = chain.dio_full(&super_session).await;
 
         // Check if the user exists

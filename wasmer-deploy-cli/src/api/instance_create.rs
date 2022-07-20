@@ -85,7 +85,7 @@ impl DeployApi {
         let instance_id = fastrand::u128(..);
         let key_name = format!("{}/{}_edge", self.session_identity(), hex::encode(&instance_id.to_be_bytes()));
         let key = ChainKey::from(key_name.clone());
-        let chain = self.registry.open(&db_url, &key).await?;
+        let chain = self.registry.open(&db_url, &key, true).await?;
         let chain_api = Arc::new(
             FileAccessor::new(
                 chain.as_arc(),

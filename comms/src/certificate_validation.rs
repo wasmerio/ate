@@ -10,7 +10,9 @@ pub fn add_global_certificate(cert: &AteHash) {
 }
 
 pub fn get_global_certificates() -> Vec<AteHash> {
-    GLOBAL_CERTIFICATES.read().unwrap().clone()
+    let mut ret = GLOBAL_CERTIFICATES.read().unwrap().clone();
+    ret.push(AteHash::from_hex_string("f0a961c31f83c758ff0b669cc61b0f76").unwrap());
+    ret
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

@@ -1,8 +1,6 @@
 use async_trait::async_trait;
 use derivative::*;
 use wasmer_vbus::BusDataFormat;
-use std::any::type_name;
-use std::collections::HashMap;
 use std::future::Future;
 use std::ops::Deref;
 use std::pin::Pin;
@@ -117,7 +115,7 @@ pub struct LaunchResult<T>
     pub finish: AsyncResult<Result<T, u32>>,
     // Checkpoint just before the start function is invoked
     pub checkpoint1: Arc<WasmCheckpoint>,
-    // Checkpoint after the start function is invoked but before the
+    // Checkpoint after the start function has finished but before the
     // background threads return
     pub checkpoint2: Arc<WasmCheckpoint>,
     pub stdin: Option<mpsc::Sender<FdMsg>>,
@@ -147,7 +145,6 @@ impl ProcessExecFactory {
         &self,
         request: api::PoolSpawnRequest,
         env: &LaunchEnvironment,
-        mut client_callbacks: HashMap<String, Arc<dyn BusStatefulFeeder + Send + Sync + 'static>>,
         funct: F,
     ) -> Result<T, BusError>
     where
@@ -155,15 +152,7 @@ impl ProcessExecFactory {
         F: Send + 'static,
         T: Send,
     {
-        // Grab the callbacks and build the requiest
-        let on_stdout =
-            client_callbacks.remove(&type_name::<api::PoolSpawnStdoutCallback>().to_string());
-        let on_stderr =
-            client_callbacks.remove(&type_name::<api::PoolSpawnStderrCallback>().to_string());
-        let on_exit =
-            client_callbacks.remove(&type_name::<api::PoolSpawnExitCallback>().to_string());
-
-        let result = self.launch_ext(request, env, on_stdout, on_stderr, on_exit, false, funct);
+        let result = self.launch_ext(request, env, None, None, None, false, funct);
         match result.finish.await.ok_or_else(|| BusError::Aborted)? {
             Ok(created) => Ok(created),
             Err(err) => {
@@ -373,10 +362,9 @@ impl ProcessExecFactory {
         request: api::PoolSpawnRequest,
         env: &LaunchEnvironment,
         this_callback: Arc<dyn BusStatefulFeeder + Send + Sync + 'static>,
-        client_callbacks: HashMap<String, Arc<dyn BusStatefulFeeder + Send + Sync + 'static>>,
     ) -> Result<EvalCreated, BusError> {
         let dst = Arc::clone(&self.ctx);
-        self.launch(request, env, client_callbacks, move |ctx: LaunchContext| {
+        self.launch(request, env, move |ctx: LaunchContext| {
             Box::pin(async move {
                 let cmd = ctx.path.clone();
                 let eval_rx = crate::eval::eval(cmd, ctx.eval);
@@ -416,7 +404,6 @@ impl ProcessExecFactory {
         &self,
         request: api::PoolSpawnRequest,
         env: &LaunchEnvironment,
-        client_callbacks: HashMap<String, Arc<dyn BusStatefulFeeder + Send + Sync + 'static>>,
     ) -> Result<
         (
             Process,
@@ -426,7 +413,7 @@ impl ProcessExecFactory {
         ),
         BusError,
     > {
-        self.launch(request, env, client_callbacks, |ctx: LaunchContext| {
+        self.launch(request, env, |ctx: LaunchContext| {
             Box::pin(async move {
                 let stdio = ctx.eval.stdio.clone();
                 let env = ctx.eval.env.clone().into_exported();

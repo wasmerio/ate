@@ -78,17 +78,21 @@ impl Repository {
 
     pub async fn get_accessor(&self, key: &ChainKey, sni: &str) -> Result<Arc<FileAccessor>, GatherError> {
         // Get the session
+        trace!("perf-checkpoint: get_session");
         let sni = sni.to_string();
         let session = self.get_session(&sni, key.clone()).await?;
 
         // Now get the chain for this host
+        trace!("perf-checkpoint: open start (db_url={})", self.db_url);
         let chain = {
             let mut chains = self.chains.lock().await;
             if let Some(ret) = chains.remove(key) {
+                trace!("perf-checkpoint: open cache_hit");
                 chains.insert(key.clone(), Arc::clone(&ret), self.ttl);
                 ret
             } else {
-                let chain = self.registry.open(&self.db_url, &key).await?;
+                trace!("perf-checkpoint: open chain");
+                let chain = self.registry.open(&self.db_url, &key, false).await?;
                 let accessor = Arc::new(
                     FileAccessor::new(
                         chain.as_arc(),
@@ -113,10 +117,14 @@ impl Repository {
         let path = path.to_string();
         let context = RequestContext::default();
 
+        trace!("perf-checkpoint: get_accessor (key={}, sni={})", key, sni);
         let chain = self.get_accessor(key, sni).await?;
+
+        trace!("perf-checkpoint: search (path={})", path);
         Ok(match chain.search(&context, path.as_str()).await {
             Ok(Some(a)) => {
                 let flags = crate::codes::O_RDONLY as u32;
+                trace!("perf-checkpoint: open (ino={}, flags={})", a.ino, flags);
                 let oh = match chain.open(&context, a.ino, flags).await {
                     Ok(a) => Some(a),
                     Err(FileSystemError(FileSystemErrorKind::IsDirectory, _)) => None,
@@ -124,6 +132,7 @@ impl Repository {
                         return Err(err.into());
                     }
                 };
+                trace!("perf-checkpoint: read_from_handle");
                 match oh {
                     Some(oh) => Some(chain.read(&context, a.ino, oh.fh, 0, u32::MAX).await?),
                     None => None,

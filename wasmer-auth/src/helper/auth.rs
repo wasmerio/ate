@@ -138,7 +138,7 @@ pub async fn load_credentials(
 
     // Generate a chain key that matches this username on the authentication server
     let chain_key = chain_key_4hex(username.as_str(), Some("redo"));
-    let chain = registry.open(&auth, &chain_key).await?;
+    let chain = registry.open(&auth, &chain_key, true).await?;
 
     // Load the user
     let dio = chain.dio(&session).await;

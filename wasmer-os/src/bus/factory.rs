@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use wasmer_bus::abi::SerializationFormat;
 use wasmer_vbus::BusDataFormat;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -33,12 +34,13 @@ impl BusFactory {
         handle: CallHandle,
         wapm: String,
         topic_hash: u128,
-        format: BusDataFormat,
+        format: SerializationFormat,
         request: Vec<u8>,
-        client_callbacks: HashMap<String, Arc<dyn BusStatefulFeeder + Send + Sync + 'static>>,
         ctx: WasmCallerContext,
         env: LaunchEnvironment,
     ) -> Box<dyn Processable + 'static> {
+        let format = crate::bus::conv_format_back(format);
+        
         // If it has a parent then we need to make the call relative to this parents session
         if let Some(parent) = parent {
             let mut sessions = self.sessions.lock().unwrap();
@@ -73,7 +75,6 @@ impl BusFactory {
             topic_hash,
             format,
             request: Some(request),
-            client_callbacks,
             ctx,
         })
     }
@@ -101,7 +102,6 @@ where
     topic_hash: u128,
     format: BusDataFormat,
     request: Option<Vec<u8>>,
-    client_callbacks: HashMap<String, Arc<dyn BusStatefulFeeder + Send + Sync + 'static>>,
     ctx: WasmCallerContext,
 }
 
@@ -111,9 +111,6 @@ where
     Self: Send + 'static,
 {
     async fn process(&mut self) -> Result<InvokeResult, BusError> {
-        // Get the client callbacks
-        let client_callbacks = self.client_callbacks.clone();
-
         // Get the request data
         let request = match self.request.take() {
             Some(a) => a,
@@ -138,7 +135,6 @@ where
             self.format,
             request,
             self.ctx.clone(),
-            client_callbacks,
         )?;
         let mut invoker = match call {
             (invoker, Some(session)) => {

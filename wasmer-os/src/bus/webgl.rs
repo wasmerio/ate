@@ -1,12 +1,17 @@
 #![allow(dead_code)]
 use wasmer_bus_webgl::api::glenum::*;
-use wasmer_vbus::BusDataFormat;
-use std::sync::Arc;
+use wasmer_bus_webgl::api::WebGlContextRequest;
+use wasmer_vbus::{BusDataFormat, VirtualBusInvoked, VirtualBusInvocation};
+use std::{sync::Arc, task::{Poll, Context}, pin::Pin};
 use wasmer_bus_webgl::api;
 use std::ops::Deref;
 
 use super::*;
 use crate::api::*;
+
+pub fn webgl2(system: System, _request: WebGlContextRequest) -> Box<dyn VirtualBusInvoked> {
+    Box::new(WebGlInstance::new(system))
+}
 
 pub struct WebGlInstance {
     webgl: Box<dyn WebGlAbi>,
@@ -28,6 +33,14 @@ impl WebGlInstance {
             ctx: Arc::new(ctx),
             std_ret_leaked: Arc::new(ResultInvokable::new_leaked(SerializationFormat::Bincode, ())),
         }
+    }
+}
+
+impl VirtualBusInvoked
+for WebGlInstance
+{
+    fn poll_invoked(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<Box<dyn VirtualBusInvocation + Sync>>> {
+        
     }
 }
 

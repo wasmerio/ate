@@ -35,7 +35,7 @@ pub fn get_local_ip() -> IpAddr
             return local_ip.clone();
         }
     }
-    panic!("unable to determine the local global IP address");
+    panic!("unable to determine the global IP address");
 }
 
 pub const fn is_ip_global(ip: &IpAddr) -> bool {
@@ -215,7 +215,7 @@ pub async fn setup_server
     )
 }
 
-pub fn subnet_to_cidrs(subnet: &wasmer::model::InstanceSubnet) -> Vec<IpCidr>
+pub fn subnet_to_cidrs(subnet: &wasmer_deploy_cli::model::InstanceSubnet) -> Vec<IpCidr>
 {
     subnet.cidrs.iter()
             .map(|cidr| IpCidr::new(cidr.ip.into(), cidr.prefix))

@@ -34,7 +34,7 @@ impl AuthService {
 
         // Compute which chain the group should exist within
         let group_chain_key = chain_key_4hex(&request.group, Some("redo"));
-        let chain = self.registry.open(&self.auth_url, &group_chain_key).await?;
+        let chain = self.registry.open(&self.auth_url, &group_chain_key, true).await?;
 
         // Create the super session that has all the rights we need
         let mut super_session = self.master_session.clone();

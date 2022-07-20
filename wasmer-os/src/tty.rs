@@ -59,6 +59,24 @@ impl TtyInnerAsync {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum TtyOuter {
+    Normal,
+    Mobile,
+    SSH,
+}
+
+impl TtyOuter {
+    pub fn is_mobile(&self) -> bool {
+        use TtyOuter::*;
+        match self {
+            Normal => false,
+            Mobile => true,
+            SSH => false    
+        }
+    }
+}
+
 #[derive(Derivative, Clone)]
 #[derivative(Debug)]
 pub struct Tty {
@@ -68,11 +86,11 @@ pub struct Tty {
     stdout: Stdout,
     stderr: Fd,
     log: Fd,
-    is_mobile: bool,
+    outer: TtyOuter,
 }
 
 impl Tty {
-    pub fn new(stdout: Stdout, stderr: Fd, log: Fd, is_mobile: bool) -> Tty {
+    pub fn new(stdout: Stdout, stderr: Fd, log: Fd, outer: TtyOuter) -> Tty {
         let mut stdout = stdout.clone();
         stdout.set_flag(FdFlag::Stdout(true));
         Tty {
@@ -95,11 +113,11 @@ impl Tty {
             stdout,
             stderr,
             log,
-            is_mobile,
+            outer,
         }
     }
 
-    pub fn channel(abi: &Arc<dyn ConsoleAbi>, unfinished_line: &Arc<AtomicBool>, is_mobile: bool) -> Tty {
+    pub fn channel(abi: &Arc<dyn ConsoleAbi>, unfinished_line: &Arc<AtomicBool>, outer: TtyOuter) -> Tty {
         let (stdio, mut stdio_rx) = pipe_out(FdFlag::None);
         let mut stdout = stdio.clone();
         let mut stderr = stdio.clone();
@@ -108,7 +126,7 @@ impl Tty {
         stderr.set_flag(FdFlag::Stderr(true));
         log.set_flag(FdFlag::Log);
         let stdout = Stdout::new(stdout);
-        let tty = Tty::new(stdout, stderr, log, is_mobile);
+        let tty = Tty::new(stdout, stderr, log, outer);
 
         // Stdout, Stderr and Logging (this is serialized in order for a good reason!)
         let unfinished_line = unfinished_line.clone();
@@ -448,10 +466,10 @@ impl Tty {
     }
 
     pub async fn draw_welcome(&mut self) {
-        let welcome = if self.is_mobile {
-            Tty::WELCOME_SMALL
-        } else {
-            Tty::WELCOME
+        let welcome = match self.outer {
+            TtyOuter::Normal => Tty::WELCOME,
+            TtyOuter::SSH => Tty::WELCOME_MEDIUM,
+            TtyOuter::Mobile => Tty::WELCOME_SMALL
         };
         let mut data = welcome
             .replace("\\x1B", "\x1B")

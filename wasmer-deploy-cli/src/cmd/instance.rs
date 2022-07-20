@@ -226,6 +226,7 @@ pub async fn main_opts_instance_call(
     api: &mut DeployApi,
     inst_url: url::Url,
     name: &str,
+    format: SerializationFormat,
     binary: &str,
     topic: &str,
     security: StreamSecurity
@@ -258,7 +259,8 @@ pub async fn main_opts_instance_call(
 
     client.send_cmd(InstanceCommand::Call(InstanceCall {
         parent: None,
-        handle: fastrand::u32(..),
+        handle: fastrand::u64(..),
+        format,
         binary: binary.to_string(),
         topic: topic.to_string(),
     })).await.unwrap();
@@ -507,7 +509,7 @@ pub async fn main_opts_instance(
         OptsInstanceAction::Call(opts_call) => {
             if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }
             let name = name.unwrap();
-            main_opts_instance_call(&mut context.api, inst_url, name.as_str(), opts_call.binary.as_str(), opts_call.topic.as_str(), security).await?;
+            main_opts_instance_call(&mut context.api, inst_url, name.as_str(), opts_call.format, opts_call.data.as_str(), opts_call.topic.as_str(), security).await?;
         }
         OptsInstanceAction::Export(opts_export) => {
             if name.is_none() { bail!(InstanceErrorKind::InvalidInstance); }

@@ -65,7 +65,7 @@ impl AuthService {
 
         // Compute which chain the user should exist within
         let chain_key = chain_key_4hex(identity.as_str(), Some("redo"));
-        let chain = self.registry.open(&self.auth_url, &chain_key).await?;
+        let chain = self.registry.open(&self.auth_url, &chain_key, true).await?;
         let dio = chain.dio_full(&super_session).await;
 
         // Attempt to load the object (if it fails we will tell the caller)

@@ -113,7 +113,8 @@ impl<D> Row<D> {
                     let _pop1 = DioScope::new(dio);
                     let _pop2 = PrimaryKeyScope::new(key);
 
-                    evt.format.data.deserialize(&data)
+                    evt.format.data.deserialize_ref(&data)
+                        .map_err(SerializationError::from)
                         .map_err(|err| {
                             //trace!("{}", String::from_utf8_lossy(&data[..]));
                             err
@@ -154,7 +155,8 @@ impl<D> Row<D> {
             let _pop1 = DioScope::new(dio);
             let _pop2 = PrimaryKeyScope::new(row.key);
 
-            row.format.data.deserialize(&row.data)?
+            row.format.data.deserialize_ref(&row.data)
+                .map_err(SerializationError::from)?
         };
 
         Ok((

@@ -59,6 +59,7 @@ pub async fn main_opts_db(
         .open_ext(
             &remote,
             &ChainKey::from(db_name.clone()),
+            false,
             progress_local,
             progress_remote,
         )

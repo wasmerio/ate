@@ -4,6 +4,7 @@ use rmp_serde::encode::Error as RmpEncodeError;
 use serde_json::Error as JsonError;
 
 use crate::spec::PrimaryKey;
+pub use wasmer_bus_types::BusError;
 
 error_chain! {
     types {
@@ -18,6 +19,7 @@ error_chain! {
         JsonError(JsonError);
         BincodeError(bincode::Error);
         Base64Error(base64::DecodeError);
+        BusError(BusError);
     }
     errors {
         NoPrimarykey {

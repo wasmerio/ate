@@ -109,7 +109,13 @@ impl Console {
         reactor: Arc<RwLock<Reactor>>,
     ) -> Console {
         let location = url::Url::parse(&location).unwrap();
-        let is_mobile = is_mobile(&user_agent);
+        let outer = if is_ssh(&user_agent) {
+            TtyOuter::SSH
+        } else if is_mobile(&user_agent) {
+            TtyOuter::Mobile
+        } else {
+            TtyOuter::Normal
+        };
         
         let unfinished_line = Arc::new(AtomicBool::new(false));
         let mut state = ConsoleState::new(fs, unfinished_line.clone());
@@ -119,7 +125,7 @@ impl Console {
         state.env.set_var("LOCATION", location.to_string());
 
         let state = Arc::new(Mutex::new(state));
-        let tty = Tty::channel(&abi, &unfinished_line, is_mobile);
+        let tty = Tty::channel(&abi, &unfinished_line, outer);
         
         let exec_factory = EvalFactory::new(
             bins.clone(),
@@ -134,7 +140,7 @@ impl Console {
 
         let mut ret = Console {
             location,
-            is_mobile,
+            is_mobile: outer.is_mobile(),
             user_agent,
             bins,
             state,

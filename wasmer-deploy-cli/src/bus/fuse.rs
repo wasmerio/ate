@@ -103,7 +103,7 @@ impl api::FuseSimplified for FuseServer {
         let key = ChainKey::from(name.clone());
         let chain = match self
             .registry
-            .open_ext(&remote, &key, progress_local, progress_remote)
+            .open_ext(&remote, &key, false, progress_local, progress_remote)
             .await
         {
             Ok(a) => a,

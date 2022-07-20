@@ -5,10 +5,10 @@ use std::collections::HashMap;
 use tokio::sync::Mutex as AsyncMutex;
 use ate::prelude::*;
 use ate::comms::*;
-use wasmer_deploy::model::InstanceCall;
-use wasmer_deploy::model::InstanceCommand;
-use wasmer_deploy::model::InstanceHello;
-use wasmer_deploy::model::InstanceReply;
+use wasmer_deploy_cli::model::InstanceCall;
+use wasmer_deploy_cli::model::InstanceCommand;
+use wasmer_deploy_cli::model::InstanceHello;
+use wasmer_deploy_cli::model::InstanceReply;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 use wasmer_ssh::wasmer_os;
@@ -21,6 +21,7 @@ use std::task::Poll;
 use wasmer_os::api::ConsoleRect;
 use wasmer_os::bus;
 use wasmer_os::bus::*;
+use wasmer_os::bus::BusError;
 use wasmer_os::eval::EvalStatus;
 use wasmer_os::environment::Environment;
 use wasmer_os::api::System;
@@ -310,7 +311,6 @@ impl Session
             handle: call.handle.into(),
         };
         let feeder = this_callback.clone();
-        let client_callbacks = HashMap::default();
 
         // Check the access code matches what was passed in
         if self.basics.service_instance
@@ -351,10 +351,9 @@ impl Session
             call.parent.map(|a| a.into()),
             call.handle.into(),
             call.binary,
-            call.topic,
+            hash_topic(&call.topic),
+            call.format,
             request,
-            Arc::new(this_callback),
-            client_callbacks,
             caller_ctx.clone(),
             launch_env
         );
@@ -450,10 +449,11 @@ impl SessionFeeder {
 
 impl BusStatelessFeeder
 for SessionFeeder {
-    fn feed_bytes(&self, data: Vec<u8>) {
+    fn feed_bytes(&self, format: SerializationFormat, data: Vec<u8>) {
         trace!("feed-bytes(handle={}, data={} bytes)", self.handle, data.len());
         self.send(InstanceReply::FeedBytes {
             handle: self.handle,
+            format,
             data
         });
     }

@@ -198,7 +198,8 @@ impl RedoLog {
     pub(crate) fn read_chain_header(&self) -> Result<ChainHeader, SerializationError> {
         let header_bytes = self.header(u32::MAX);
         Ok(if header_bytes.len() > 0 {
-            SerializationFormat::Json.deserialize(&header_bytes[..])?
+            SerializationFormat::Json.deserialize(header_bytes)
+                .map_err(SerializationError::from)?
         } else {
             ChainHeader::default()
         })

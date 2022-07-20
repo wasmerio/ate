@@ -81,7 +81,8 @@ impl<'a> Chain {
 
             // Build the header
             let header = ChainHeader { cut_off };
-            let header_bytes = SerializationFormat::Json.serialize(&header)?;
+            let header_bytes = SerializationFormat::Json.serialize(&header)
+                .map_err(SerializationError::from)?;
 
             // Now start the flip
             let ret = single

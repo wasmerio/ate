@@ -76,7 +76,7 @@ error_chain! {
             description("the supplied domain name is not valid")
             display("the supplied domain name is not valid")
         }
-        RequredExplicitNodeId {
+        RequiredExplicitNodeId {
             description("ate is unable to determine the node_id of this root and thus you must explicily specify it in cfg")
             display("ate is unable to determine the node_id of this root and thus you must explicily specify it in cfg")
         }

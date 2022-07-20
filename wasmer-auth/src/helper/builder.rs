@@ -124,7 +124,7 @@ impl DioBuilder {
     pub async fn build(&mut self, name: &str) -> Result<Arc<DioMut>, LoginError> {
         let key = ChainKey::new(self.generate_key(name));
         let registry = self.get_registry().await;
-        let chain = registry.open(&self.url_db, &key).await?;
+        let chain = registry.open(&self.url_db, &key, true).await?;
         Ok(chain.dio_mut(self.session.deref()).await)
     }
 }

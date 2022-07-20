@@ -7,6 +7,9 @@ use wasmer_ssh::wasmer_os;
 /// Runs the session server
 #[derive(Parser)]
 pub struct OptsSessionServer {
+    /// Optional list of the nodes that make up this cluster
+    #[clap(long)]
+    pub nodes_list: Option<String>,
     /// IP address that the datachain server will isten on
     #[clap(short, long, default_value = "::")]
     pub listen: IpAddr,

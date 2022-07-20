@@ -25,7 +25,7 @@ members = [
     "wasmer-ssh",
     "wasmer-os",
     "wasmer-os-grammar",
-    "wasmer-deploy",
+    "wasmer-deploy-cli",
     "wasmer-term",
     "wasmer-web",
     "wasmer-instance",

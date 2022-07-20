@@ -6,6 +6,9 @@ use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 /// Runs the login authentication and authorization server
 #[derive(Parser)]
 pub struct OptsAuth {
+    /// Optional list of the nodes that make up this cluster
+    #[clap(long)]
+    pub nodes_list: Option<String>,
     /// Path to the secret key that helps protect key operations like creating users and resetting passwords
     #[clap(long, default_value = "~/wasmer/auth.key")]
     pub auth_key_path: String,
@@ -18,6 +21,10 @@ pub struct OptsAuth {
     /// Path to the secret key that grants access to the contracts
     #[clap(long, default_value = "~/wasmer/contract.key")]
     pub contract_key_path: String,
+    /// Path to the certificate file that will be used by an listening servers
+    /// (there must be TXT records in the host domain servers for this cert)
+    #[clap(long, default_value = "~/wasmer/cert")]
+    pub cert_path: String,
     /// Path to the log files where all the authentication data is stored
     #[clap(index = 1, default_value = "~/wasmer/auth")]
     pub logs_path: String,

@@ -2,7 +2,7 @@ use std::sync::Arc;
 use tokio::sync::broadcast;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
-use wasmer_deploy::model::HardwareAddress;
+use wasmer_deploy_cli::model::HardwareAddress;
 
 use super::switch::Switch;
 

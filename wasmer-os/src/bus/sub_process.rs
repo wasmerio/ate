@@ -90,7 +90,6 @@ impl SubProcessFactory {
         }
 
         // None was found so go ahead and start a new process
-        let empty_client_callbacks = HashMap::default();
         let spawn = api::PoolSpawnRequest {
             spawn: api::Spawn {
                 path: wapm.clone(),
@@ -103,10 +102,10 @@ impl SubProcessFactory {
                 pre_open: Vec::new(),
             },
         };
-        let (process, process_result, runtime, checkpoint2) = self
+        let (process, finish, runtime, checkpoint2) = self
             .inner
             .process_factory
-            .create(spawn, &env, empty_client_callbacks)
+            .create(spawn, &env)
             .await?;
 
         // Add it to the list of sub processes and return it
@@ -114,7 +113,7 @@ impl SubProcessFactory {
         let process = Arc::new(SubProcess::new(
             wapm.as_str(),
             process,
-            process_result,
+            finish,
             checkpoint2,
             runtime,
             ctx,
@@ -134,7 +133,7 @@ pub struct SubProcessInner {
 pub struct SubProcess {
     pub system: System,
     pub process: Process,
-    pub process_result: Arc<Mutex<AsyncResult<(EvalContext, u32)>>>,
+    pub finish: Arc<Mutex<AsyncResult<(EvalContext, u32)>>>,
     pub checkpoint2: Arc<WasmCheckpoint>,
     pub inner: Arc<SubProcessInner>,
     pub runtime: Arc<WasiRuntime>,
@@ -145,7 +144,7 @@ impl SubProcess {
     pub fn new(
         wapm: &str,
         process: Process,
-        process_result: AsyncResult<(EvalContext, u32)>,
+        finish: AsyncResult<(EvalContext, u32)>,
         checkpoint2: Arc<WasmCheckpoint>,
         runtime: Arc<WasiRuntime>,
         ctx: Arc<Mutex<Option<EvalContext>>>,
@@ -153,7 +152,7 @@ impl SubProcess {
         SubProcess {
             system: System::default(),
             process,
-            process_result: Arc::new(Mutex::new(process_result)),
+            finish: Arc::new(Mutex::new(finish)),
             checkpoint2,
             inner: Arc::new(SubProcessInner {
                 wapm: wapm.to_string(),
@@ -169,7 +168,6 @@ impl SubProcess {
         format: BusDataFormat,
         request: Vec<u8>,
         ctx: WasmCallerContext,
-        _client_callbacks: HashMap<String, Arc<dyn BusStatefulFeeder + Send + Sync + 'static>>,
     ) -> Result<(Box<dyn Processable>, Option<Box<dyn Session>>), BusError> {
         let feeder = self.runtime.feeder();
         let handle = feeder.call_raw(topic_hash, format, request);

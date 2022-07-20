@@ -73,6 +73,9 @@ pub struct OptsWeb {
 /// Runs a web server that will serve content from a Wasmer file system
 #[derive(Parser)]
 pub struct OptsAll {
+    /// Optional list of the nodes that make up this cluster
+    #[clap(long)]
+    pub nodes_list: Option<String>,
     /// IP address that the datachain server will isten on
     #[clap(short, long, default_value = "::")]
     pub listen: IpAddr,
@@ -97,6 +100,10 @@ pub struct OptsAll {
     /// Path to the secret key that grants access to the contracts
     #[clap(long, default_value = "~/wasmer/contract.key")]
     pub contract_key_path: String,
+    /// Path to the certificate file that will be used by an listening servers
+    /// (there must be TXT records in the host domain servers for this cert)
+    #[clap(long, default_value = "~/wasmer/cert")]
+    pub cert_path: String,
     /// Path to the log files where all the authentication data is stored
     #[clap(long, default_value = "~/wasmer/auth")]
     pub auth_logs_path: String,

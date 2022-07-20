@@ -65,6 +65,7 @@ bincode = "^1"
 async-executor = { version = "^1", optional = true }
 url = { version = "^2", features = ["serde"] }
 btreemultimap = { version = "^0.1" }
+shellexpand = "^2"
 base64 = "^0.13"
 num_enum = "^0.5"
 pin-project-lite = "^0.2"

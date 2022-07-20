@@ -146,8 +146,8 @@ for StandardBus
             }
             /*
             h if h == type_name_hash::<wasmer_bus_webgl::api::WebGlContextRequest>() => {
-                let _request = format.deserialize(buf)?;
-                WebGlInstance::new(self.system)
+                let request = format.deserialize(buf)?;
+                webgl::webgl2(self.system, request)
             }
             */
             _ => {

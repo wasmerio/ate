@@ -30,6 +30,7 @@ async fn main() -> Result<(), AteError> {
             .open(
                 &url::Url::from_str("ws://localhost:5000/").unwrap(),
                 &ChainKey::from("test-chain"),
+                false
             )
             .await?;
         let session = AteSessionUser::new();
@@ -47,6 +48,7 @@ async fn main() -> Result<(), AteError> {
             .open(
                 &url::Url::from_str("ws://localhost:5000/").unwrap(),
                 &ChainKey::from("test-chain"),
+                false
             )
             .await?;
         let session = AteSessionUser::new();

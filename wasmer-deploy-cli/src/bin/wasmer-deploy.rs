@@ -5,11 +5,11 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 #[cfg(feature = "bus")]
-use wasmer_deploy::bus::*;
-use wasmer_deploy::cmd::*;
-use wasmer_deploy::error::*;
-use wasmer_deploy::opt::*;
-use wasmer_deploy::prelude::*;
+use wasmer_deploy_cli::bus::*;
+use wasmer_deploy_cli::cmd::*;
+use wasmer_deploy_cli::error::*;
+use wasmer_deploy_cli::opt::*;
+use wasmer_deploy_cli::prelude::*;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 

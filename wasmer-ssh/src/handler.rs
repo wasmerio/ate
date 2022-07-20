@@ -140,7 +140,7 @@ impl server::Handler for Handler {
                     // Create the console
                     let fs = wasmer_os::fs::create_root_fs(None);
                     let location = "ssh://wasmer.sh/?no_welcome".to_string();
-                    let user_agent = "noagent".to_string();
+                    let user_agent = "ssh".to_string();
                     let compiled_modules = self.compiled_modules.clone();
                     let mut console = Console::new(
                         location,

@@ -153,7 +153,8 @@ impl LogFile for LogFileMemDb {
         let data_size = result.data.size();
 
         // Convert the result into a deserialized result
-        let meta = result.header.format.meta.deserialize(&result.meta[..])?;
+        let meta = result.header.format.meta.deserialize_ref(&result.meta[..])
+            .map_err(SerializationError::from)?;
         let ret = LoadData {
             header: EventHeaderRaw::new(
                 AteHash::from_bytes(&result.meta[..]),

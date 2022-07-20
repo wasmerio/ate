@@ -18,6 +18,10 @@ pub fn is_mobile(user_agent: &str) -> bool {
         || user_agent.contains("WPDesktop")
 }
 
+pub fn is_ssh(user_agent: &str) -> bool {
+    user_agent.contains("ssh")
+}
+
 static PANIC_COUNTER: once_cell::sync::Lazy<std::sync::Mutex<u32>> = once_cell::sync::Lazy::new(|| std::sync::Mutex::new(0u32));
 
 pub fn panic_on_thrash(max: u32, file: &str, line: u32) {

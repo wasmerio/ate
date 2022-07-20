@@ -31,6 +31,10 @@ pub struct ConfAte {
     #[cfg(feature = "enable_local_fs")]
     pub log_path: Option<String>,
 
+    /// (Optional) List of nodes that make up the mesh, otherwise they will be
+    /// built from the DNS A records if not supplied here
+    pub nodes: Option<Vec<String>>,
+
     /// Directory path that the backup files will be stored and fetched.
     /// (if this option is none then the logs will not be backed up)
     #[cfg(feature = "enable_local_fs")]
@@ -122,6 +126,7 @@ impl Default for ConfAte {
             lock_attempt_timeout: Duration::from_secs(20),
             load_timeout: Duration::from_secs(20),
             record_type_name: false,
+            nodes: None,
         }
     }
 }

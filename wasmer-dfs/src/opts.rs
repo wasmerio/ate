@@ -6,7 +6,7 @@ use url::Url;
 
 use ate::compact::CompactMode;
 
-use wasmer_deploy::opt::{OptsContract, OptsLogin, OptsLogout, OptsService, OptsWallet};
+use wasmer_deploy_cli::opt::{OptsContract, OptsLogin, OptsLogout, OptsService, OptsWallet};
 
 use clap::Parser;
 

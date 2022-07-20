@@ -1,4 +1,5 @@
 use std::time::Duration;
+use ate::utils::load_node_list;
 use wasmer_auth::flow::ChainFlow;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
@@ -31,14 +32,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Run the server
     match opts.subcmd {
         SubCommand::Auth(run) => {
+            conf.nodes = load_node_list(run.nodes_list);
+
             // Open the key file
             let root_write_key: PrivateSignKey = load_key(run.auth_key_path.clone(), ".write");
             let root_read_key: EncryptKey = load_key(run.auth_key_path.clone(), ".read");
-            let root_cert_key: PrivateEncryptKey = load_key(run.auth_key_path.clone(), ".cert");
+            let root_cert_key: PrivateEncryptKey = load_key(run.cert_path.clone(), "");
             let web_key: EncryptKey = load_key(run.web_key_path.clone(), ".read");
             let edge_key: EncryptKey = load_key(run.edge_key_path.clone(), ".read");
             let contract_key: EncryptKey = load_key(run.contract_key_path.clone(), ".read");
-
+            
             let mut session = AteSessionUser::new();
             session.user.add_read_key(&root_read_key);
             session.user.add_write_key(&root_write_key);
@@ -87,14 +90,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         SubCommand::All(run) => {
+            conf.nodes = load_node_list(run.nodes_list);
+
             // Open the key file
             let root_write_key: PrivateSignKey = load_key(run.auth_key_path.clone(), ".write");
             let root_read_key: EncryptKey = load_key(run.auth_key_path.clone(), ".read");
-            let root_cert_key: PrivateEncryptKey = load_key(run.auth_key_path.clone(), ".cert");
+            let root_cert_key: PrivateEncryptKey = load_key(run.cert_path.clone(), "");
             let web_key: EncryptKey = load_key(run.web_key_path.clone(), ".read");
             let edge_key: EncryptKey = load_key(run.edge_key_path.clone(), ".read");
             let contract_key: EncryptKey = load_key(run.contract_key_path.clone(), ".read");
-
+            
             let mut session = AteSessionUser::new();
             session.user.add_read_key(&root_read_key);
             session.user.add_write_key(&root_write_key);
@@ -126,6 +131,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut router = ate::comms::StreamRouter::new(
                 cfg_mesh.wire_format.clone(),
                 cfg_mesh.wire_protocol.clone(),
+                None,
                 cfg_mesh.listen_certificate.clone(),
                 root.server_id(),
                 cfg_mesh.accept_timeout,

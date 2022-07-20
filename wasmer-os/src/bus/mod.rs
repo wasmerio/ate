@@ -10,7 +10,7 @@ mod time;
 mod util;
 mod ws;
 mod tty;
-mod webgl;
+//mod webgl;
 
 use std::convert::TryInto;
 
@@ -24,6 +24,7 @@ pub use factory::BusFactory;
 pub use process::ProcessExecFactory;
 pub use process::LaunchEnvironment;
 pub use feeder::BusStatefulFeeder;
+pub use feeder::BusStatelessFeeder;
 pub use feeder::BusFeederUtils;
 pub use feeder::CallHandle;
 pub use feeder::BusError;

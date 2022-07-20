@@ -32,7 +32,7 @@ where
         data: T,
     ) -> Result<EncryptedSecureData<T>, std::io::Error> {
         let format = SerializationFormat::Bincode;
-        let data = match format.serialize(&data) {
+        let data = match format.serialize(data) {
             Ok(a) => a,
             Err(err) => {
                 return Err(std::io::Error::new(ErrorKind::Other, err.to_string()));
@@ -51,7 +51,7 @@ where
 
     pub fn unwrap(&self, key: &EncryptKey) -> Result<T, std::io::Error> {
         let data = key.decrypt(&self.sd_iv, &self.sd_encrypted[..]);
-        Ok(match self.format.deserialize(&data[..]) {
+        Ok(match self.format.deserialize_ref(&data[..]) {
             Ok(a) => a,
             Err(err) => {
                 return Err(std::io::Error::new(ErrorKind::Other, err.to_string()));

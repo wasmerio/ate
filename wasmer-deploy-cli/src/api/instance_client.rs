@@ -108,6 +108,7 @@ impl InstanceClient
                     match reply {
                         InstanceReply::FeedBytes {
                             handle: _,
+                            format: _,
                             data,
                         } => {
                             stdout.write(data).await?;
