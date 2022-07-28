@@ -1,6 +1,8 @@
 use async_trait::async_trait;
 #[cfg(feature = "embedded_files")]
 use include_dir::{include_dir, Dir};
+use wasmer_os::wasmer::{Module, Store, AsStoreRef};
+use wasmer_os::wasmer::vm::VMMemory;
 use std::cell::RefCell;
 use std::convert::TryFrom;
 use std::future::Future;
@@ -82,22 +84,39 @@ impl SystemAbi for SysSystem {
     /// Starts an asynchronous task will will run on a dedicated thread
     /// pulled from the worker pool that has a stateful thread local variable
     /// It is ok for this task to block execution and any async futures within its scope
-    fn task_stateful(
+    fn task_wasm(
         &self,
-        task: Box<
-            dyn FnOnce(Rc<RefCell<ThreadLocal>>) -> Pin<Box<dyn Future<Output = ()> + 'static>>
-                + Send
-                + 'static,
-        >,
-    ) {
+        task: Box<dyn FnOnce(Store, Module, Option<VMMemory>) -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
+        store: Store,
+        module: Module,
+        memory_spawn: SpawnType,
+    ) -> Result<(), WasiThreadError> {
+        use tracing::error;
+
+        let memory = match memory_spawn {
+            SpawnType::CreateWithMemory(ty) => {
+                let style = store
+                    .as_store_ref()
+                    .tunables()
+                    .memory_style(&ty);
+                Some(
+                    VMMemory::new(&ty, &style)
+                        .map_err(|err| {
+                            error!("failed to create memory - {}", err);
+                        })
+                        .unwrap()
+                )
+            },
+            SpawnType::NewThread(mem) => Some(mem),
+            SpawnType::Create => None,
+        };
+        
         let rt = self.runtime.clone();
         self.runtime.spawn_blocking(move || {
-            THREAD_LOCAL.with(|local| {
-                let local = local.clone();
-                let fut = task(local);
-                rt.block_on(fut)
-            });
+            let fut = task(store, module, memory);
+            rt.block_on(fut)
         });
+        Ok(())
         /*
         use std::ops::Deref;
         self.runtime.spawn_blocking(move || {

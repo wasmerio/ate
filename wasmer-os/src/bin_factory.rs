@@ -1,18 +1,20 @@
 #![allow(dead_code)]
 #![allow(unused)]
-#[cfg(feature = "cached_compiling")]
 use crate::wasmer::Module;
-#[cfg(feature = "cached_compiling")]
 use crate::wasmer::Store;
 use bytes::Bytes;
 use derivative::*;
 use serde::*;
 use sha2::{Digest, Sha256};
+use wasmer::AsStoreRef;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::ops::Deref;
+use std::ops::DerefMut;
 use std::sync::atomic::AtomicU32;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::cell::RefCell;
 use tokio::sync::oneshot;
 use tokio::sync::RwLock;
 #[allow(unused_imports, dead_code)]
@@ -72,54 +74,99 @@ pub struct AliasConfig {
 }
 
 #[derive(Debug)]
-#[cfg(feature = "cached_compiling")]
 pub struct CachedCompiledModules {
-    modules: RwLock<HashMap<String, Option<Module>>>,
+    module_bytes: RwLock<HashMap<String, Option<Bytes>>>,
     cache_dir: Option<String>,
 }
 
-#[cfg(feature = "cached_compiling")]
+thread_local! {
+    static THREAD_LOCAL_CACHED_MODULES: std::cell::RefCell<HashMap<String, Module>> 
+        = RefCell::new(HashMap::new());
+}
+
 impl CachedCompiledModules
 {
     pub fn new(cache_dir: Option<String>) -> CachedCompiledModules {
         let cache_dir = cache_dir.map(|a| shellexpand::tilde(&a).to_string());
         CachedCompiledModules {
-            modules: RwLock::new(HashMap::default()),
+            module_bytes: RwLock::new(HashMap::default()),
             cache_dir,
         }
     }
 
-    pub async fn get_compiled_module(&self, data_hash: &String, compiler: Compiler) -> Option<Module> {
+    pub async fn get_compiled_module(&self, store: &impl AsStoreRef, data_hash: &String, compiler: Compiler) -> Option<Module> {
         let key = format!("{}-{}", data_hash, compiler);
 
-        // fast path
+        // fastest path
         {
-            let cache = self.modules.read().await;
-            if let Some(module) = cache.get(&key).map(|a| a.clone()).flatten() {
+            let module = THREAD_LOCAL_CACHED_MODULES.with(|cache| {
+                let cache = cache.borrow();
+                let cache = cache.deref();
+                cache.get(&key).map(|m| m.clone())
+            });
+            if let Some(module) = module {
                 return Some(module);
             }
         }
 
-        // slow path
-        let mut cache = self.modules.write().await;
-        if let Some(module) = cache.get(&key).map(|a| a.clone()).flatten() {
-            return Some(module);
+        // fast path
+        {
+            let bytes = {
+                let cache = self.module_bytes.read().await;
+                cache.get(&key).map(|a| a.clone()).flatten().map(|b| b.clone())
+            };
+                
+            if let Some(bytes) = bytes {
+                let module = THREAD_LOCAL_CACHED_MODULES.with(|cache| {
+                    let mut cache = cache.borrow_mut();
+                    let cache = cache.deref_mut();
+                    let module = unsafe { Module::deserialize(store, &bytes[..]).ok() };
+                    if let Some(module) = module.clone() {
+                        cache.insert(key.clone(), module);
+                    }
+                    module
+                });
+                if let Some(module) = module {
+                    return Some(module);
+                }
+            }
         }
 
-        // Attempt to read it from the cache directory and populate the cache
-        if let Some(cache_dir) = &self.cache_dir {
-            unsafe {
-                let store = compiler.new_store();
-                let path = std::path::Path::new(cache_dir.as_str()).join(format!("{}.bin", key).as_str());
-                if let Ok(data) = std::fs::read(path) {
-                    let mut decoder = weezl::decode::Decoder::new(weezl::BitOrder::Msb, 8);
-                    if let Ok(data) = decoder.decode(&data[..]) {
-                        if let Ok(module) = Module::deserialize(&store, &data[..]) {
-                            cache.insert(key.clone(), Some(module.clone()));
-                            return Some(module);
+        // slow path
+
+        let bytes = {
+            let mut static_cache = self.module_bytes.write().await;
+            let mut bytes = static_cache.get(&key).map(|a| a.clone()).flatten();
+
+            // If we don't have the bytes then attempt to read them from the cache directory
+            if bytes.is_none() {
+                if let Some(cache_dir) = &self.cache_dir {
+                    unsafe {
+                        let path = std::path::Path::new(cache_dir.as_str()).join(format!("{}.bin", key).as_str());
+                        if let Ok(data) = std::fs::read(path) {
+                            let mut decoder = weezl::decode::Decoder::new(weezl::BitOrder::Msb, 8);
+                            if let Ok(data) = decoder.decode(&data[..]) {
+                                let data = Bytes::from(data);
+                                static_cache.insert(key.clone(), Some(data.clone()));
+                                bytes = Some(data);
+                            }
                         }
                     }
                 }
+            }
+            bytes
+        };
+        
+        // We have the compiled bytes now attempt to deserialize the module and return it
+        if let Some(bytes) = bytes {
+            let module = unsafe { Module::deserialize(store, &bytes[..]).ok() };
+            if let Some(module) = module {
+                THREAD_LOCAL_CACHED_MODULES.with(|cache| {
+                    let mut cache = cache.borrow_mut();
+                    let cache = cache.deref_mut();
+                    cache.insert(key.clone(), module.clone());
+                });
+                return Some(module);
             }
         }
 
@@ -127,27 +174,30 @@ impl CachedCompiledModules
         return None;
     }
 
-    pub async fn set_compiled_module(&self, data_hash: String, compiler: Compiler, compiled_module: Module) {
+    pub async fn set_compiled_module(&self, data_hash: String, compiler: Compiler, module: &Module) {
         let key = format!("{}-{}", data_hash, compiler);
 
-        // Attempt to insert it
-        {
-            let mut cache = self.modules.write().await;
-            if cache.contains_key(&key) {
-                return;
-            }
-            cache.insert(key.clone(), Some(compiled_module.clone()));
-        }
+        // Add the module to the local thread cache
+        THREAD_LOCAL_CACHED_MODULES.with(|cache| {
+            let mut cache = cache.borrow_mut();
+            let cache = cache.deref_mut();
+            cache.insert(key.clone(), module.clone());
+        });
 
-        // If its inserted then we should try and update the cache directory
+        // Serialize the compiled module into bytes and insert it into the cache
+        let compiled_bytes = Bytes::from(module.serialize().unwrap());
+        {
+            let mut cache = self.module_bytes.write().await;
+            cache.insert(key.clone(), Some(compiled_bytes.clone()));
+        }
+        
+        // We should also attempt to store it in the cache directory
         if let Some(cache_dir) = &self.cache_dir {
             let path = std::path::Path::new(cache_dir.as_str()).join(format!("{}.bin", key).as_str());
             let _ = std::fs::create_dir_all(path.parent().unwrap().clone());
-            if let Ok(data) = compiled_module.serialize() {
-                let mut encoder = weezl::encode::Encoder::new(weezl::BitOrder::Msb, 8);
-                if let Ok(data) = encoder.encode(&data[..]) {
-                    let _ = std::fs::write(path, &data[..]);
-                }
+            let mut encoder = weezl::encode::Encoder::new(weezl::BitOrder::Msb, 8);
+            if let Ok(compiled_bytes) = encoder.encode(&compiled_bytes[..]) {
+                let _ = std::fs::write(path, &compiled_bytes[..]);
             }
         }
     }
@@ -158,19 +208,17 @@ pub struct BinFactory {
     pub wax: Arc<Mutex<HashSet<String>>>,
     pub alias: Arc<RwLock<HashMap<String, Option<AliasConfig>>>>,
     pub cache: Arc<RwLock<HashMap<String, Option<BinaryPackage>>>>,
-    #[cfg(feature = "cached_compiling")]
     pub compiled_modules: Arc<CachedCompiledModules>,
 }
 
 impl BinFactory {
     pub fn new(
-        #[cfg(feature = "cached_compiling")] compiled_modules: Arc<CachedCompiledModules>,
+        compiled_modules: Arc<CachedCompiledModules>,
     ) -> BinFactory {
         BinFactory {
             wax: Arc::new(Mutex::new(HashSet::new())),
             alias: Arc::new(RwLock::new(HashMap::new())),
             cache: Arc::new(RwLock::new(HashMap::new())),
-            #[cfg(feature = "cached_compiling")]
             compiled_modules,
         }
     }
@@ -193,7 +241,6 @@ impl BinFactory {
         }
 
         // Tell the console we are fetching
-        #[cfg(target_family = "wasm")]
         {
             if stderr.is_tty() {
                 stderr.write_clear_line().await;
@@ -203,6 +250,7 @@ impl BinFactory {
                     .write(format!("[console] fetching '{}' from site", name).as_bytes())
                     .await;
             }
+            let _ = stderr.flush_async().await;
         }
 
         // Slow path
@@ -210,7 +258,6 @@ impl BinFactory {
 
         // Check the cache
         if let Some(data) = cache.get(&name) {
-            #[cfg(target_family = "wasm")]
             if stderr.is_tty() {
                 stderr.write_clear_line().await;
             }
@@ -224,7 +271,6 @@ impl BinFactory {
         {
             let data = BinaryPackage::new(Bytes::from(data));
             cache.insert(name, Some(data.clone()));
-            #[cfg(target_family = "wasm")]
             if stderr.is_tty() {
                 stderr.write_clear_line().await;
             }
@@ -233,20 +279,19 @@ impl BinFactory {
 
         // NAK
         cache.insert(name, None);
-        #[cfg(target_family = "wasm")]
         if stderr.is_tty() {
             stderr.write_clear_line().await;
         }
         return None;
     }
 
-    #[cfg(feature = "cached_compiling")]
-    pub async fn get_compiled_module(&self, data_hash: &String, compiler: Compiler) -> Option<Module> {
-        self.compiled_modules.get_compiled_module(data_hash, compiler).await
+    pub async fn get_compiled_module(&self, store: &impl AsStoreRef, data_hash: &String, compiler: Compiler) -> Option<Module> {
+        self.compiled_modules
+            .get_compiled_module(store, data_hash, compiler)
+            .await
     }
 
-    #[cfg(feature = "cached_compiling")]
-    pub async fn set_compiled_module(&self, data_hash: String, compiler: Compiler, compiled_module: Module) {
+    pub async fn set_compiled_module(&self, data_hash: String, compiler: Compiler, compiled_module: &Module) {
         self.compiled_modules
             .set_compiled_module(data_hash, compiler, compiled_module)
             .await
@@ -298,7 +343,7 @@ fn fetch_file(path: &str) -> AsyncResult<Result<Vec<u8>, u32>> {
     system.fetch_file(path)
 }
 
-fn hash_of_binary(data: &Bytes) -> String {
+pub fn hash_of_binary(data: &Bytes) -> String {
     let mut hasher = Sha256::default();
     hasher.update(data.as_ref());
     let hash = hasher.finalize();

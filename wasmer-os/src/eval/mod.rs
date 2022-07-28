@@ -141,6 +141,7 @@ impl Compiler
         let mut features = wasmer_compiler::Features::new();
         features.threads(true);
         features.memory64(true);
+        features.bulk_memory(true);
         #[cfg(feature = "singlepass")]
         if let Compiler::Singlepass = self {
             features.multi_value(false);
@@ -151,21 +152,21 @@ impl Compiler
             #[cfg(feature = "cranelift")]
             Compiler::Cranelift => {
                 let compiler = Cranelift::default();
-                Store::new(&Universal::new(compiler)
+                Store::new_with_engine(&Universal::new(compiler)
                     .features(features)
                     .engine())
             }
             #[cfg(feature = "llvm")]
             Compiler::LLVM => {
                 let compiler = LLVM::default();
-                Store::new(&Universal::new(compiler)
+                Store::new_with_engine(&Universal::new(compiler)
                     .features(features)
                     .engine())
             }
             #[cfg(feature = "singlepass")]
             Compiler::Singlepass => {
                 let compiler = Singlepass::default();
-                Store::new(&Universal::new(compiler)
+                Store::new_with_engine(&Universal::new(compiler)
                     .features(features)
                     .engine())
             }

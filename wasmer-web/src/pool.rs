@@ -3,21 +3,33 @@
 use tracing::{debug, error, info, trace, warn};
 
 use derivative::*;
+use wasm_bindgen_futures::JsFuture;
+use wasmer_os::api::SpawnType;
+use wasmer_os::wasmer::MemoryType;
+use wasmer_os::wasmer::Module;
+use wasmer_os::wasmer::Store;
+use wasmer_os::wasmer::WASM_MAX_PAGES;
+use wasmer_os::wasmer::vm::VMMemory;
+use wasmer_os::wasmer_wasi::WasiThreadError;
 use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::VecDeque;
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::future::Future;
+use std::num::NonZeroU32;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::Mutex;
+use std::sync::atomic::AtomicU32;
 use tokio::select;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tokio::sync::Semaphore;
+use once_cell::sync::Lazy;
 
 use js_sys::{JsString, Promise};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -39,9 +51,47 @@ pub type BoxRun<'a> =
 pub type BoxRunAsync<'a, T> =
     Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = T> + 'static>> + Send + 'a>;
 
-pub type BoxRunWithThreadLocal<'a, T> = Box<
-    dyn FnOnce(Rc<RefCell<ThreadLocal>>) -> Pin<Box<dyn Future<Output = T> + 'static>> + Send + 'a,
->;
+#[derive(Debug, Clone, Copy)]
+enum WasmRunType {
+    Create,
+    CreateWithMemory(MemoryType),
+    Existing(u32),
+}
+
+struct WasmRunCommand {
+    run: Box<dyn FnOnce(Store, Module, Option<VMMemory>) -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
+    store: Store, 
+    module: Vec<u8>,
+    ty: WasmRunType,
+    free_memory: Arc<mpsc::Sender<u32>>,
+}
+
+enum WasmRunMemory {
+    WithoutMemory,
+    WithMemory(MemoryType)
+}
+
+struct WasmRunContext {
+    id: u32,
+    cmd: WasmRunCommand,
+    memory: WasmRunMemory,
+}
+
+#[derive(Clone)]
+struct WasmMemoryInstance
+{
+    ref_cnt: u32,
+    memory: js_sys::WebAssembly::Memory,
+    memory_type: MemoryType,
+}
+
+thread_local! {
+    static THREAD_LOCAL_ROOT_MEMORIES: std::cell::RefCell<HashMap<u32, WasmMemoryInstance>> 
+        = RefCell::new(HashMap::new());
+    static THREAD_LOCAL_CURRENT_WASM: std::cell::RefCell<Option<u32>>
+        = RefCell::new(None);
+}
+static WASM_SEED: Lazy<AtomicU32> = Lazy::new(|| AtomicU32::new(1));
 
 trait AssertSendSync: Send + Sync {}
 impl AssertSendSync for WebThreadPool {}
@@ -50,14 +100,14 @@ impl AssertSendSync for WebThreadPool {}
 #[derive(Debug, Clone)]
 pub struct WebThreadPool {
     pool_reactors: Arc<PoolState>,
-    pool_stateful: Arc<PoolState>,
     pool_dedicated: Arc<PoolState>,
+    spawn_wasm: Arc<mpsc::Sender<WasmRunCommand>>,
+    free_memory: Arc<mpsc::Sender<u32>>,
 }
 
 enum Message {
     Run(BoxRun<'static>),
     RunAsync(BoxRunAsync<'static, ()>),
-    RunWithThreadLocal(BoxRunWithThreadLocal<'static, ()>),
 }
 
 impl Debug for Message {
@@ -65,7 +115,6 @@ impl Debug for Message {
         match self {
             Message::Run(_) => write!(f, "run"),
             Message::RunAsync(_) => write!(f, "run-async"),
-            Message::RunWithThreadLocal(_) => write!(f, "run-with-thread-local"),
         }
     }
 }
@@ -73,7 +122,6 @@ impl Debug for Message {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum PoolType {
     Shared,
-    Stateful,
     Dedicated,
 }
 
@@ -146,6 +194,16 @@ extern "C" {
         opts: WorkerOptions,
         builder: LoaderHelper,
     ) -> Promise;
+    
+    #[wasm_bindgen(js_name = "startWasm")]
+    fn start_wasm(
+        module: JsValue,
+        memory: JsValue,
+        ctx: JsValue,
+        opts: WorkerOptions,
+        builder: LoaderHelper,
+        wasm_memory: JsValue,
+    ) -> Promise;
 }
 
 impl WebThreadPool {
@@ -153,12 +211,12 @@ impl WebThreadPool {
         info!("pool::create(size={})", size);
 
         let (idle_tx1, idle_rx1) = mpsc::channel(MAX_MPSC);
-        let (idle_tx2, idle_rx2) = mpsc::channel(MAX_MPSC);
         let (idle_tx3, idle_rx3) = mpsc::channel(MAX_MPSC);
 
         let (spawn_tx1, mut spawn_rx1) = mpsc::channel(MAX_MPSC);
         let (spawn_tx2, mut spawn_rx2) = mpsc::channel(MAX_MPSC);
         let (spawn_tx3, mut spawn_rx3) = mpsc::channel(MAX_MPSC);
+        let (free_tx4, mut free_rx4) = mpsc::channel(MAX_MPSC);
 
         let pool_reactors = Arc::new(PoolState {
             idle_rx: Mutex::new(idle_rx1),
@@ -168,16 +226,6 @@ impl WebThreadPool {
             idle_size: 2usize.max(size),
             type_: PoolType::Shared,
             spawn: spawn_tx1,
-        });
-
-        let pool_stateful = Arc::new(PoolState {
-            idle_rx: Mutex::new(idle_rx2),
-            idle_tx: idle_tx2,
-            idx_seed: AtomicUsize::new(0),
-            blocking: true,
-            idle_size: 2usize.max(size),
-            type_: PoolType::Stateful,
-            spawn: spawn_tx2,
         });
 
         let pool_dedicated = Arc::new(PoolState {
@@ -191,11 +239,10 @@ impl WebThreadPool {
         });
 
         let pool1 = pool_reactors.clone();
-        let pool2 = pool_stateful.clone();
         let pool3 = pool_dedicated.clone();
 
         // The management thread will spawn other threads - this thread is safe from
-        // being blocked by other thrads
+        // being blocked by other threads
         wasm_bindgen_futures::spawn_local(async move {
             loop {
                 select! {
@@ -203,10 +250,13 @@ impl WebThreadPool {
                         if let Some(spawn) = spawn { pool1.expand(spawn); } else { break; }
                     }
                     spawn = spawn_rx2.recv() => {
-                        if let Some(spawn) = spawn { pool2.expand(spawn); } else { break; }
+                        if let Some(spawn) = spawn { _spawn_wasm(spawn); } else { break; }
                     }
                     spawn = spawn_rx3.recv() => {
                         if let Some(spawn) = spawn { pool3.expand(spawn); } else { break; }
+                    }
+                    free = free_rx4.recv() => {
+                        if let Some(free) = free { _free_memory(free) } else { break; }
                     }
                 }
             }
@@ -214,8 +264,9 @@ impl WebThreadPool {
 
         let pool = WebThreadPool {
             pool_reactors,
-            pool_stateful,
             pool_dedicated,
+            spawn_wasm: Arc::new(spawn_tx2),
+            free_memory: Arc::new(free_tx4),
         };
 
         Ok(pool)
@@ -232,20 +283,211 @@ impl WebThreadPool {
         Self::new(pool_size)
     }
 
-    pub fn spawn_shared(&self, task: BoxRunAsync<'static, ()>) {
+    pub fn spawn_shared(
+        &self,
+        task: BoxRunAsync<'static, ()>
+    ) {
         self.pool_reactors.spawn(Message::RunAsync(task));
     }
+    
+    pub fn spawn_wasm(
+        &self,
+        run: impl FnOnce(Store, Module, Option<VMMemory>) -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static,
+        store: Store,
+        module: Module,
+        spawn_type: SpawnType,
+    ) -> Result<(), WasiThreadError> {
+        let run_type = match spawn_type {
+            SpawnType::Create => WasmRunType::Create,
+            SpawnType::CreateWithMemory(ty) => WasmRunType::CreateWithMemory(ty),
+            SpawnType::NewThread(_) => {
+                let wasm_id = match THREAD_LOCAL_CURRENT_WASM.with(|c| c.borrow().clone()) {
+                    Some(id) => id,
+                    None => {
+                        return Err(WasiThreadError::InvalidWasmContext);
+                    }
+                };
+                WasmRunType::Existing(wasm_id)
+            }
+        };
 
-    pub fn spawn_stateful(&self, task: BoxRunWithThreadLocal<'static, ()>) {
-        self.pool_stateful.spawn(Message::RunWithThreadLocal(task));
+        let module_bytes = module.serialize().unwrap();
+        let msg = WasmRunCommand {
+            run: Box::new(run),
+            ty: run_type,
+            store,
+            module: module_bytes,
+            free_memory: self.free_memory.clone(),
+        };
+        _spawn_send(&self.spawn_wasm, msg);
+        Ok(())
     }
 
-    pub fn spawn_dedicated(&self, task: BoxRun<'static>) {
+    pub fn spawn_dedicated(
+        &self,
+        task: BoxRun<'static>
+    ) {
         self.pool_dedicated.spawn(Message::Run(task));
     }
 
-    pub fn spawn_dedicated_async(&self, task: BoxRunAsync<'static, ()>) {
+    pub fn spawn_dedicated_async(
+        &self,
+        task: BoxRunAsync<'static, ()>
+    ) {
         self.pool_dedicated.spawn(Message::RunAsync(task));
+    }
+}
+
+fn _spawn_wasm(run: WasmRunCommand) {
+    let mut opts = WorkerOptions::new();
+    opts.type_(WorkerType::Module);
+    opts.name(&*format!("WasmWorker"));
+
+    let result = match run.ty.clone() {
+        WasmRunType::Create => {
+            let wasm_id = WASM_SEED.fetch_add(1, Ordering::AcqRel);
+            let ctx = WasmRunContext {
+                id: wasm_id,
+                cmd: run,
+                memory: WasmRunMemory::WithoutMemory
+            };
+            let ctx = Box::into_raw(Box::new(ctx));
+
+            wasm_bindgen_futures::JsFuture::from(start_wasm(
+                wasm_bindgen::module(),
+                wasm_bindgen::memory(),
+                JsValue::from(ctx as u32),
+                opts,
+                LoaderHelper {},
+                JsValue::null(),
+            ))
+        }
+        WasmRunType::CreateWithMemory(ty) => {
+            let wasm_memory = {
+                let descriptor = js_sys::Object::new();
+                js_sys::Reflect::set(&descriptor, &"initial".into(), &ty.minimum.0.into()).unwrap();
+                if let Some(max) = ty.maximum {
+                    js_sys::Reflect::set(&descriptor, &"maximum".into(), &max.0.into()).unwrap();
+                }
+                js_sys::Reflect::set(&descriptor, &"shared".into(), &ty.shared.into()).unwrap();
+                
+                match js_sys::WebAssembly::Memory::new(&descriptor) {
+                    Ok(a) => a,
+                    Err(err) => {
+                        error!("WebAssembly failed to create the memory - {}", err.as_string().unwrap_or_else(|| format!("{:?}", err)));
+                        return;
+                    }
+                }
+            };
+
+            let wasm_id = WASM_SEED.fetch_add(1, Ordering::AcqRel);
+            THREAD_LOCAL_ROOT_MEMORIES.with(|c| {
+                let mut root = c.borrow_mut();
+                let root = root.deref_mut();
+                root.insert(wasm_id, WasmMemoryInstance {
+                    ref_cnt: 1,
+                    memory: wasm_memory.clone(),
+                    memory_type: ty.clone()
+                })
+            });
+
+            let ctx = WasmRunContext {
+                id: wasm_id,
+                cmd: run,
+                memory: WasmRunMemory::WithMemory(ty)
+            };
+            let ctx = Box::into_raw(Box::new(ctx));
+
+            wasm_bindgen_futures::JsFuture::from(start_wasm(
+                wasm_bindgen::module(),
+                wasm_bindgen::memory(),
+                JsValue::from(ctx as u32),
+                opts,
+                LoaderHelper {},
+                JsValue::from(wasm_memory),
+            ))
+        },
+        WasmRunType::Existing(wasm_id) => {
+            let wasm_memory = THREAD_LOCAL_ROOT_MEMORIES.with(|c| {
+                let mut root = c.borrow_mut();
+                let root = root.deref_mut();
+                if let Some(mem) = root.get_mut(&wasm_id) {
+                    mem.ref_cnt += 1;
+                    Some(mem.clone())
+                } else {
+                    None
+                }
+            });
+            let (wasm_memory, wasm_memory_type) = match wasm_memory {
+                Some(mem) => {
+                    (mem.memory, mem.memory_type)
+                },
+                None => {
+                    error!("WebAssembly Memory must be sent to the management thread before attempting to reuse it in a new WebWorker");
+                    return;
+                }
+            };
+
+            let ctx = WasmRunContext {
+                id: wasm_id,
+                cmd: run,
+                memory: WasmRunMemory::WithMemory(wasm_memory_type)
+            };
+            let ctx = Box::into_raw(Box::new(ctx));
+        
+            wasm_bindgen_futures::JsFuture::from(start_wasm(
+                wasm_bindgen::module(),
+                wasm_bindgen::memory(),
+                JsValue::from(ctx as u32),
+                opts,
+                LoaderHelper {},
+                JsValue::from(wasm_memory),
+            ))
+        }
+    };
+
+    _process_worker_result(result, None);
+}
+
+fn _free_memory(wasm_id: u32) {
+    THREAD_LOCAL_ROOT_MEMORIES.with(|c| {
+        let mut root = c.borrow_mut();
+        let root = root.deref_mut();
+        let should_remove = if let Some(mem) = root.get_mut(&wasm_id) {
+            mem.ref_cnt -= 1;
+            mem.ref_cnt <= 0
+        } else {
+            false
+        };
+        if should_remove {
+            root.remove(&wasm_id);
+        }
+    })
+}
+
+fn _spawn_send<T: 'static>(tx: &mpsc::Sender<T>, mut msg: T) {
+    for _ in 0..100 {
+        match tx.try_send(msg) {
+            Ok(_) => {
+                return;
+            }
+            Err(mpsc::error::TrySendError::Closed(_)) => {
+                return;
+            }
+            Err(mpsc::error::TrySendError::Full(m)) => {
+                msg = m;
+            }
+        }
+        std::thread::yield_now();
+    }
+
+    if crate::common::is_worker() {
+        let _ = tx.blocking_send(msg);
+    } else {
+        let spawn = tx.clone();
+        wasm_bindgen_futures::spawn_local(async move {
+            let _ = spawn.send(msg).await;
+        });
     }
 }
 
@@ -269,29 +511,7 @@ impl PoolState {
             std::thread::yield_now();
         }
 
-        for _ in 0..100 {
-            match self.spawn.try_send(msg) {
-                Ok(_) => {
-                    return;
-                }
-                Err(mpsc::error::TrySendError::Closed(_)) => {
-                    return;
-                }
-                Err(mpsc::error::TrySendError::Full(m)) => {
-                    msg = m;
-                }
-            }
-            std::thread::yield_now();
-        }
-
-        if crate::common::is_worker() {
-            let _ = self.spawn.blocking_send(msg);
-        } else {
-            let spawn = self.spawn.clone();
-            wasm_bindgen_futures::spawn_local(async move {
-                let _ = spawn.send(msg).await;
-            });
-        }
+        _spawn_send(&self.spawn, msg);   
     }
 
     fn expand(self: &Arc<Self>, init: Message) {
@@ -326,28 +546,32 @@ impl PoolState {
             LoaderHelper {},
         ));
 
-        wasm_bindgen_futures::spawn_local(async move {
-            let ret = result.await;
-            if let Err(err) = ret {
-                let err = err
-                    .as_string()
-                    .unwrap_or_else(|| "unknown error".to_string());
-                error!("failed to start worker thread - {}", err);
-
-                if let Some(term) = should_warn_on_error {
-                    term.write(
-                        Tty::BAD_WORKER
-                            .replace("\n", "\r\n")
-                            .replace("\\x1B", "\x1B")
-                            .replace("{error}", err.as_str())
-                            .as_str(),
-                    );
-                }
-
-                return;
-            }
-        });
+        _process_worker_result(result, should_warn_on_error);
     }
+}
+
+fn _process_worker_result(result: JsFuture, should_warn_on_error: Option<Terminal>) {
+    wasm_bindgen_futures::spawn_local(async move {
+        let ret = result.await;
+        if let Err(err) = ret {
+            let err = err
+                .as_string()
+                .unwrap_or_else(|| format!("{:?}", err));
+            error!("failed to start worker thread - {}", err);
+
+            if let Some(term) = should_warn_on_error {
+                term.write(
+                    Tty::BAD_WORKER
+                        .replace("\n", "\r\n")
+                        .replace("\\x1B", "\x1B")
+                        .replace("{error}", err.as_str())
+                        .as_str(),
+                );
+            }
+
+            return;
+        }
+    });
 }
 
 impl ThreadState {
@@ -372,7 +596,6 @@ impl ThreadState {
         };
 
         // The work is done in an asynchronous engine (that supports Javascript)
-        let thread_local = Rc::new(RefCell::new(ThreadLocal::default()));
         let work_tx = state.tx.clone();
         let pool = Arc::clone(&state.pool);
         let driver = async move {
@@ -382,16 +605,6 @@ impl ThreadState {
                 // Process work until we need to go idle
                 while let Some(task) = work {
                     match task {
-                        Message::RunWithThreadLocal(task) => {
-                            let thread_local = thread_local.clone();
-                            if pool.blocking {
-                                task(thread_local).await;
-                            } else {
-                                wasm_bindgen_futures::spawn_local(async move {
-                                    task(thread_local).await;
-                                });
-                            }
-                        }
                         Message::Run(task) => {
                             task();
                         }
@@ -504,4 +717,58 @@ pub fn worker_entry_point(state_ptr: u32) {
         .name();
     debug!("{}: Entry", name);
     ThreadState::work(state);
+}
+
+#[wasm_bindgen(skip_typescript)]
+pub fn wasm_entry_point(ctx_ptr: u32, wasm_memory: JsValue)
+{
+    // Grab the run wrapper that passes us the rust variables (and extract the callback)
+    let ctx = ctx_ptr as *mut WasmRunContext;
+    let ctx = unsafe { Box::from_raw(ctx) };
+    let run_callback = (*ctx).cmd.run;
+
+    // Compile the web assembly module
+    let wasm_store = ctx.cmd.store;
+    let wasm_module = match Module::new(&wasm_store, &ctx.cmd.module[..]) {
+        Ok(a) => a,
+        Err(err) => {
+            error!("Failed to compile module - {}", err);
+            _spawn_send(ctx.cmd.free_memory.deref(), ctx.id);
+            return;
+        }
+    };
+
+    // If memory was passed to the web worker then construct it
+    let wasm_memory = match ctx.memory {
+        WasmRunMemory::WithoutMemory => None,
+        WasmRunMemory::WithMemory(wasm_memory_type) => {
+            let wasm_memory = match wasm_memory.dyn_into::<js_sys::WebAssembly::Memory>() {
+                Ok(a) => a,
+                Err(err) => {
+                    error!("Failed to receive memory for module - {}", err.as_string().unwrap_or_else(|| format!("{:?}", err)));
+                    _spawn_send(ctx.cmd.free_memory.deref(), ctx.id);
+                    return;
+                }
+            };
+            Some(VMMemory::new(wasm_memory, wasm_memory_type))
+        }
+    };
+    
+    let name = js_sys::global()
+        .unchecked_into::<DedicatedWorkerGlobalScope>()
+        .name();
+    debug!("{}: Entry", name);
+
+    // Invoke the callback which will run the web assembly module
+    let wasm_id = ctx.id;
+    let free_memory = ctx.cmd.free_memory.clone();
+    let driver = async move {
+        THREAD_LOCAL_CURRENT_WASM.with(|c| c.borrow_mut().replace(wasm_id));
+        run_callback(wasm_store, wasm_module, wasm_memory).await;
+        THREAD_LOCAL_CURRENT_WASM.with(|c| c.borrow_mut().take());
+
+        // Reduce the reference count on the memory
+        _spawn_send(free_memory.deref(), wasm_id);
+    };
+    wasm_bindgen_futures::spawn_local(driver);
 }

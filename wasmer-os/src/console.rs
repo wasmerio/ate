@@ -79,10 +79,9 @@ impl Console {
         abi: Arc<dyn ConsoleAbi>,
         wizard: Option<Box<dyn WizardAbi + Send + Sync + 'static>>,
         fs: UnionFileSystem,
-        #[cfg(feature = "cached_compiling")] compiled_modules: Arc<CachedCompiledModules>,
+        compiled_modules: Arc<CachedCompiledModules>,
     ) -> Console {
         let bins = BinFactory::new(
-            #[cfg(feature = "cached_compiling")]
             compiled_modules,
         );
         let reactor = Arc::new(RwLock::new(Reactor::new()));

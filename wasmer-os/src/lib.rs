@@ -36,3 +36,6 @@ pub use wasmer_compiler_llvm;
 pub use wasmer_compiler_singlepass;
 pub use wasmer_vfs;
 pub use wasmer_wasi;
+
+#[cfg(all(not(feature = "sys"), not(feature = "js")))]
+compile_error!("At least the `sys` or the `js` feature must be enabled. Please, pick one.");

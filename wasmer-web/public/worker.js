@@ -21,6 +21,25 @@ export function startWorker(module, memory, state, opts, helper) {
       worker.onerror = rej;
     });
 }
+export function startWasm(module, memory, ctx, opts, helper, wasm_memory) {
+    const worker = new Worker(new URL('./worker.js',
+        import.meta.url), opts);
+
+    try {
+        worker.postMessage([module, memory, ctx, helper.mainJS(), wasm_memory]);
+    } catch(err) {
+        return new Promise((res, rej) => {
+            rej(err);
+        });
+    }
+
+    return new Promise((res, rej) => {
+      worker.onmessage = ev => {
+        if (ev.data === 'started') res();
+      };
+      worker.onerror = rej;
+    });
+}
 
 export function isWorker() {
     return 'WorkerGlobalScope' in self && self instanceof WorkerGlobalScope;
@@ -28,14 +47,12 @@ export function isWorker() {
 
 // Second: Entry script for the actual web worker.
 if (isWorker()) {
-
     //console.log("pool::worker(entry) started");
     Error.stackTraceLimit = 50;
 
     // Initialize wasm module, and memory. `state` is the shared state,
     // to be used with `worker_entry_point`.
     self.onmessage = async event => {
-        let [module, memory, state, mainJS] = event.data;
         // This crate only works with bundling via webpack or not
         // using a bundler at all:
         // When bundling with webpack, this file is relative to the wasm
@@ -44,28 +61,57 @@ if (isWorker()) {
         // When using it without any bundlers, the module that
         // provided the `helper` object below is loaded; in other words
         // the main wasm module.
-        const importFrom = (typeof __webpack_require__ === 'function') ? import('../../..') : import(mainJS);
-        try {
-            const {
-                default: init,
-                worker_entry_point
-            } = await importFrom;
-            await init(module, memory);
+        if (event.data.length == 4) {
+            let [module, memory, state, mainJS] = event.data;
+            const importFrom = (typeof __webpack_require__ === 'function') ? import('../../..') : import(mainJS);
+            try {
+                const {
+                    default: init,
+                    worker_entry_point,
+                    worker_entry_point_with_val
+                } = await importFrom;
+                await init(module, memory);
 
-            worker_entry_point(state);
-            postMessage('started');
-            // There shouldn't be any additional messages after the first.
-            self.onmessage = event => {
-                console.error("Unexpected message", event);
-            }
-        } catch (err) {
-            // Propagate to main `onerror`:
-            setTimeout(() => {
+                worker_entry_point(state);
+                postMessage('started');
+                // There shouldn't be any additional messages after the first.
+                self.onmessage = event => {
+                    console.error("Unexpected message", event);
+                }
+            } catch (err) {
+                // Propagate to main `onerror`:
+                setTimeout(() => {
+                    throw err;
+                    //Terminate the worker
+                    close();
+                });
                 throw err;
-                //Terminate the worker
-                close();
-            });
-            throw err;
+            }   
+        } else {
+            let [module, memory, ctx, mainJS, wasm_memory] = event.data;
+            const importFrom = (typeof __webpack_require__ === 'function') ? import('../../..') : import(mainJS);
+            try {
+                const {
+                    default: init,
+                    wasm_entry_point,
+                } = await importFrom;
+                await init(module, memory);
+
+                wasm_entry_point(ctx, wasm_memory);
+                postMessage('started');
+                // There shouldn't be any additional messages after the first.
+                self.onmessage = event => {
+                    console.error("Unexpected message", event);
+                }
+            } catch (err) {
+                // Propagate to main `onerror`:
+                setTimeout(() => {
+                    throw err;
+                    //Terminate the worker
+                    close();
+                });
+                throw err;
+            }
         }
     }
 }

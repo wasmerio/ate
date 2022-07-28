@@ -1,4 +1,5 @@
 use chrono::prelude::*;
+use wasmer_os::bin_factory::CachedCompiledModules;
 use std::sync::Arc;
 use wasmer_os::api::*;
 use wasmer_os::common::MAX_MPSC;
@@ -134,6 +135,7 @@ pub fn start() -> Result<(), JsValue> {
     let web_console = WebConsole::new(term_tx);
     wasmer_os::api::set_system_abi(web_system);
     let system = System::default();
+    let compiled_modules = Arc::new(CachedCompiledModules::new(None));
 
     let fs = wasmer_os::fs::create_root_fs(None);
     let mut console = Console::new(
@@ -143,6 +145,7 @@ pub fn start() -> Result<(), JsValue> {
         Arc::new(web_console),
         None,
         fs,
+        compiled_modules,
     );
     let tty = console.tty().clone();
 

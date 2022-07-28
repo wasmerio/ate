@@ -44,6 +44,7 @@ fn main() {
     let lock = Arc::new(Mutex::new(()));
     
     for n in 1..10u32 {
+        let _guard = lock.lock().unwrap();
         let lock = lock.clone();
 
         joins.push(thread::spawn(move || {
@@ -51,6 +52,7 @@ fn main() {
                 let _guard = lock.lock().unwrap();
                 println!("thread {} started", n);
             }
+            //println!("thread {} waiting", n);
             thread::sleep(Duration::from_secs(4));
             println!("thread {} finished", n);
         }));

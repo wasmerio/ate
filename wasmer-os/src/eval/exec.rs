@@ -9,6 +9,7 @@ use wasmer::ImportType;
 use wasmer::Memory;
 use wasmer::MemoryType;
 use wasmer::Pages;
+use wasmer_wasi::import_object_for_all_wasi_versions;
 use std::collections::HashMap;
 use std::future::Future;
 use std::io::Read;
@@ -115,7 +116,7 @@ pub async fn exec_process(
     let mut set_pwd = false;
     let mut base_dir = None;
     let mut chroot = ctx.chroot;
-    let (data_hash, data, mut fs_private) = match load_bin(&ctx, cmd, &mut stdio).await {
+    let (program_data_hash, program_data, mut fs_private) = match load_bin(&ctx, cmd, &mut stdio).await {
         Some(a) => {
             if a.chroot {
                 chroot = true;
@@ -144,9 +145,14 @@ pub async fn exec_process(
         envs.insert("PWD".to_string(), pwd.clone());
     };
 
+    // Create a store for the module and memory
+    let mut store = ctx.compiler.new_store();
+
+    // TODO: This caching of the modules was disabled as there is a bug within
+    //       wasmer Module and JsValue that causes a panic in certain race conditions
+    // Load or compile the module (they are cached in therad local storage)
     // If compile caching is enabled the load the module
-    #[cfg(feature = "cached_compiling")]
-    let mut module = { ctx.bins.get_compiled_module(&data_hash, ctx.compiler).await };
+    let cached_module_bytes = { ctx.bins.get_compiled_module(&store, &program_data_hash, ctx.compiler).await };
 
     // This wait point is so that the main thread is created before it returns
     let (checkpoint1_tx, mut checkpoint1) = ctx.checkpoint1.take().unwrap_or_else(|| WasmCheckpoint::new());
@@ -295,12 +301,88 @@ pub async fn exec_process(
     let sys = ctx.system;
     let mut stderr = ctx.stdio.stderr.clone();
     let bins = ctx.bins.clone();
-    let compiler = ctx.compiler;
     let reactor = ctx.reactor.clone();
     let chroot = if chroot {
         Some(ctx.working_dir.clone())
     } else {
         None
+    };
+
+    // Create the store that holds all the data for this module
+    // Build the module either from the cached results or compiler it
+    let mut cached_module = match cached_module_bytes {
+        Some(compiled_bytes) => {
+            // Cache hit - deserialize the module
+            debug!("cached-deserializing {}", cmd);
+            let compiled_module = unsafe {
+                match Module::deserialize(&store, &program_data[..]) {
+                    Ok(m) => {
+                        info!("deserialized {}", m.name().unwrap_or_else(|| cmd.as_str()));
+                        Some(m)
+                    },
+                    Err(err) => {
+                        debug!("cached-deserialize-error: {}\n", err);
+                        None
+                    }
+                }
+            };
+                
+            compiled_module
+        },
+        None => None
+    };
+
+    // If no module is loaded then we need to compile it again
+    let module = match cached_module {
+        Some(a) => a,
+        None => {
+            if stderr.is_tty() {
+                let _ = stderr.write("Compiling...".as_bytes()).await;
+                let _ = stderr.flush_async().await;
+            }
+
+            // Cache miss - compile the module
+            debug!("compiling {}", cmd);
+            let compiled_module = match Module::new(&store, &program_data[..]) {
+                Ok(a) => a,
+                Err(err) => {
+                    if stderr.is_tty() {
+                        stderr.write_clear_line().await;
+                    }
+                    let _ = stderr
+                        .write(format!("compile-error: {}\n", err).as_bytes())
+                        .await;
+                    return on_early_exit(None, err::ERR_ENOEXEC).await;
+                }
+            };
+            if stderr.is_tty() {
+                stderr.write_clear_line().await;
+            }
+            info!(
+                "compiled {}",
+                compiled_module.name().unwrap_or_else(|| cmd.as_str())
+            );
+
+            bins.set_compiled_module(program_data_hash.clone(), ctx.compiler, &compiled_module)
+                .await;
+
+            compiled_module
+        }
+    };
+
+    // Determine if shared memory needs to be created and imported
+    let shared_memory = module
+        .imports()
+        .filter_map(|i| match i.ty() {
+            ExternType::Memory(mem) => Some(mem.clone()),
+            _ => None
+        })
+        .next();
+
+    // Determine if we are going to create memory and import it or just rely on self creation of memory
+    let memory_spawn = match shared_memory {
+        Some(ty) => SpawnType::CreateWithMemory(ty),
+        None => SpawnType::Create,
     };
 
     // Create the process factory that used by this process to create sub-processes
@@ -313,7 +395,7 @@ pub async fn exec_process(
     };
     let sub_process_factory = ProcessExecFactory::new(
         ctx.reactor.clone(),
-        compiler,
+        ctx.compiler,
         ctx.exec_factory.clone(),
         ctx,
     );
@@ -333,60 +415,9 @@ pub async fn exec_process(
     let process_result = {
         let wasi_runtime = wasi_runtime.clone();
         let forced_exit = Arc::clone(&forced_exit);
-        sys.spawn_stateful(move |mut thread_local| async move {
-            let mut thread_local = thread_local.borrow_mut();
 
-            // TODO: This caching of the modules was disabled as there is a bug within
-            //       wasmer Module and JsValue that causes a panic in certain race conditions
-            // Load or compile the module (they are cached in therad local storage)
-            //let mut module = thread_local.modules.get_mut(&data_hash);
-            #[cfg(not(feature = "cached_compiling"))]
-            let mut module = None;
-
-            if module.is_none() {
-                if stderr.is_tty() {
-                    let _ = stderr.write("Compiling...".as_bytes()).await;
-                }
-
-                // Choose the right compiler
-                let store = compiler.new_store();
-
-                // Cache miss - compile the module
-                debug!("compiling {}", cmd);
-                let compiled_module = match Module::new(&store, &data[..]) {
-                    Ok(a) => a,
-                    Err(err) => {
-                        if stderr.is_tty() {
-                            stderr.write_clear_line().await;
-                        }
-                        let _ = stderr
-                            .write(format!("compile-error: {}\n", err).as_bytes())
-                            .await;
-                        let ctx = ctx_taker.take_context().unwrap();
-                        return (ctx, ERR_ENOEXEC);
-                    }
-                };
-                if stderr.is_tty() {
-                    stderr.write_clear_line().await;
-                }
-                info!(
-                    "compiled {}",
-                    compiled_module.name().unwrap_or_else(|| cmd.as_str())
-                );
-
-                #[cfg(feature = "cached_compiling")]
-                bins.set_compiled_module(data_hash.clone(), compiler, compiled_module.clone())
-                    .await;
-
-                thread_local
-                    .modules
-                    .insert(data_hash.clone(), compiled_module);
-
-                module = thread_local.modules.get(&data_hash).map(|m| m.clone());
-            }
-            drop(thread_local);
-            let mut module = module.unwrap();
-
+        sys.spawn_wasm(move |mut store, module, memory| async move
+        {
             // Build the list of arguments
             let args = args.iter().skip(1).map(|a| a.as_str()).collect::<Vec<_>>();
             let envs = envs.iter().map(|(a, b)| (a.as_str(), b.as_str())).collect::<HashMap<_,_>>();
@@ -457,7 +488,7 @@ pub async fn exec_process(
             }            
 
             // Build the environment
-            let mut wasi_env = match wasi_env.finalize() {
+            let mut wasi_env = match wasi_env.finalize(&mut store) {
                 Ok(a) => a,
                 Err(err) => {
                     drop(module);
@@ -473,50 +504,19 @@ pub async fn exec_process(
             };
 
             // List all the exports
-            let mut imported_memory = None;
             for ns in module.exports() {
                 trace!("module::export - {}", ns.name());
             }
             for ns in module.imports() {
                 trace!("module::import - {}::{}", ns.module(), ns.name());
-                if ns.module() == "env" && ns.name() == "memory" {
-                    if let ExternType::Memory(mem) = ns.ty() {
-                        trace!("module::import - using imported memory (min={:?}, max={:?}, shared={})", mem.minimum, mem.maximum, mem.shared);
-                        imported_memory = Some(MemoryType {
-                            minimum: Pages(100u32.max(mem.minimum.0)),
-                            //maximum: Some(mem.maximum.unwrap_or_else(|| Pages(65536))),
-                            maximum: Some(mem.maximum.unwrap_or_else(|| Pages(32768))),
-                            shared: mem.shared
-                        });
-                    }
-                }
             }
 
-            // Generate an `ImportObject`.
-            let mut imports = match wasi_env.import_object_for_all_wasi_versions(&module) {
-                Ok(a) => a,
-                Err(err) => {
-                    let _ = stderr.write(format!("wasi error ({})\n", err.to_string()).as_bytes()).await;
-                    let ctx = ctx_taker.take_context().unwrap();
-                    return (ctx, ERR_ENOEXEC);
-                }
-            };
-
-            // If its using shared memory then add this as an import
-            if let Some(ty) = imported_memory {
-                let store = module.store();
-                imports.define("env", "memory", match Memory::new(store, ty) {
-                    Ok(mem) => mem,
-                    Err(err) => {
-                        let _ = stderr.write(format!("memory error ({})\n", err.to_string()).as_bytes()).await;
-                        let ctx = ctx_taker.take_context().unwrap();
-                        return (ctx, ERR_ENOEXEC);
-                    }
-                });
-            }
-            
             // Let's instantiate the module with the imports.
-            let instance = match Instance::new(&module, &imports) {
+            let mut import_object = import_object_for_all_wasi_versions(&mut store, &wasi_env.env);
+            if let Some(memory) = memory {
+                import_object.define("env", "memory", Memory::new_from_existing(&mut store, memory));
+            }
+            let instance = match Instance::new(&mut store, &module, &import_object) {
                 Ok(a) => a,
                 Err(err) => {
                     let _ = stderr.write(format!("instantiate error ({})\n", err.to_string()).as_bytes()).await;
@@ -525,10 +525,36 @@ pub async fn exec_process(
                 }
             };
 
+            // Initialize the WASI environment
+            if let Err(err) = wasi_env.initialize(&mut store, &instance) {
+                let _ = stderr.write(format!("instantiate error ({})\n", err.to_string()).as_bytes()).await;
+                let ctx = ctx_taker.take_context().unwrap();
+                return (ctx, ERR_ENOEXEC);
+            }
+
+            // If this module exports an _initialize function, run that first.
+            if let Ok(initialize) = instance.exports.get_function("_initialize") {
+                if let Err(e) = initialize.call(&mut store, &[]) {
+                    let ctx = ctx_taker.take_context().unwrap();
+                    return (ctx, match e.downcast::<WasiError>() {
+                        Ok(WasiError::Exit(code)) => code,
+                        Ok(WasiError::UnknownWasiVersion) => {
+                            let _ = stderr
+                                .write(
+                                    &format!("exec-failed: unknown wasi version\n").as_bytes()[..],
+                                )
+                                .await;
+                            err::ERR_ENOEXEC
+                        }
+                        Err(err) => err::ERR_PANIC,
+                    });
+                }
+            }
+
             // Let's call the `_start` function, which is our `main` function in Rust.
             let start = instance
                 .exports
-                .get_native_function::<(), ()>("_start")
+                .get_function("_start")
                 .ok();
 
             // The first checkpoint is just before we invoke the start method
@@ -537,7 +563,7 @@ pub async fn exec_process(
             // If there is a start function
             debug!("called main() on {}", cmd);
             let mut ret = if let Some(start) = start {
-                match start.call() {
+                match start.call(&mut store, &[]) {
                     Ok(a) => err::ERR_OK,
                     Err(e) => match e.downcast::<WasiError>() {
                         Ok(WasiError::Exit(code)) => code,
@@ -566,7 +592,7 @@ pub async fn exec_process(
 
             // If there are any chained workers then run them
             while ret == 0 {
-                if let Some(worker) = wasi_env.state.next_chained_worker() {
+                if let Some(worker) = wasi_env.data(&store).state.next_chained_worker() {
                     ret = worker();
                 } else {
                     break;
@@ -576,8 +602,8 @@ pub async fn exec_process(
             // If the main thread exited normally and there are still active threads
             // running then we need to wait for them all to exit before we terminate
             if ret == 0 {
-                while wasi_env.active_threads() > 0 {
-                    if let Err(err) = wasi_env.sleep(Duration::from_millis(50)) {
+                while wasi_env.data(&store).active_threads() > 0 {
+                    if let Err(err) = wasi_env.data(&store).sleep(Duration::from_millis(50)) {
                         match err {
                             WasiError::Exit(code) => {
                                 ret = code;
@@ -593,7 +619,7 @@ pub async fn exec_process(
             debug!("exited (name={}) with code {}", cmd, ret);
             let ctx = ctx_taker.take_context().unwrap();
             (ctx, ret)
-        })
+        }, store, module, memory_spawn)
     };
 
     // Wait for the checkpoint (either it triggers or it fails because its never reached

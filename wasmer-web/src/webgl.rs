@@ -326,7 +326,7 @@ impl GlContext
                 let mut data = vec![0u8; size];
                 let ret  = inner.ctx
                     .read_pixels_with_opt_u8_array(x as i32, y as i32, width as i32, height as i32, format as u32, kind as u32, Some(&mut data[..]))
-                    .map_err(|err| err.as_string().unwrap_or_else(|| "unknown error occured".to_string()));
+                    .map_err(|err| err.as_string().unwrap_or_else(|| format!("{:?}", err)));
                 let ret = ret.map(|_| data);
                 let _ = tx.send(ret).await;
             },

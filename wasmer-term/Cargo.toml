@@ -10,14 +10,14 @@ repository = "https://github.com/john-sharratt/ate"
 readme = "../README.md"
 
 [features]
-default = [ "embedded_files" ]
+default = [ "embedded_files", "host-net" ]
 host-net = [ "wasmer-os/host-net" ]
 mesh-net = [ "wasmer-os/mesh-net" ]
 embedded_files = [ "include_dir" ]
 
 [dependencies]
-wasmer-os = { version = "^1.0", path = "../wasmer-os", features = [ "singlepass", "cranelift", "cached_compiling", "async_ws" ] }
-#wasmer-os = { version = "^1.0", path = "../wasmer-os", features = [ "singlepass", "cranelift", "llvm", "cached_compiling", "async_ws" ] }
+wasmer-os = { version = "^1.0", path = "../wasmer-os", features = [ "singlepass", "cranelift", "async_ws", "sys" ] }
+#wasmer-os = { version = "^1.0", path = "../wasmer-os", features = [ "singlepass", "cranelift", "llvm", "async_ws" ] }
 #tracing = { version = "^0.1", features = [ "log", "release_max_level_warn" ] }
 #log = { version = "^0.4", features = [ "release_max_level_warn" ] }
 tracing = { version = "^0.1", features = [ "log" ] }

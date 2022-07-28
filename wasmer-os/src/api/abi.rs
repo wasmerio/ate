@@ -1,8 +1,10 @@
 use async_trait::async_trait;
-use std::cell::RefCell;
+use tracing::error;
+use wasmer::{MemoryType, Module, Store};
+use wasmer::vm::VMMemory;
+use wasmer_wasi::WasiThreadError;
 use std::future::Future;
 use std::pin::Pin;
-use std::rc::Rc;
 use tokio::sync::mpsc;
 use wasmer_bus::abi::SerializationFormat;
 
@@ -77,14 +79,13 @@ where
     /// Starts an asynchronous task will will run on a dedicated thread
     /// pulled from the worker pool that has a stateful thread local variable
     /// It is ok for this task to block execution and any async futures within its scope
-    fn task_stateful(
+    fn task_wasm(
         &self,
-        task: Box<
-            dyn FnOnce(Rc<RefCell<ThreadLocal>>) -> Pin<Box<dyn Future<Output = ()> + 'static>>
-                + Send
-                + 'static,
-        >,
-    );
+        task: Box<dyn FnOnce(Store, Module, Option<VMMemory>) -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
+        store: Store,
+        module: Module,
+        spawn_type: SpawnType,
+    ) -> Result<(), WasiThreadError>;
 
     /// Starts an asynchronous task will will run on a dedicated thread
     /// pulled from the worker pool. It is ok for this task to block execution
@@ -129,6 +130,13 @@ where
     async fn webgl(&self) -> Option<Box<dyn WebGlAbi>>;
 }
 
+#[derive(Debug)]
+pub enum SpawnType {
+    Create,
+    CreateWithMemory(MemoryType),
+    NewThread(VMMemory),
+}
+
 // System call extensions that provide generics
 #[async_trait]
 pub trait SystemAbiExt {
@@ -143,15 +151,14 @@ pub trait SystemAbiExt {
         Fut: Future + Send + 'static,
         Fut::Output: Send;
 
-    /// Starts an asynchronous task will will run on a dedicated thread
-    /// pulled from the worker pool that has a stateful thread local variable
+    /// Starts an web assembly task will will run on a dedicated thread
     /// It is ok for this task to block execution and any async futures within its scope
     /// The return value of the spawned thread can be read either synchronously
     /// or asynchronously
-    fn spawn_stateful<F, Fut>(&self, task: F) -> AsyncResult<Fut::Output>
+    fn spawn_wasm<F, Fut>(&self, task: F, store: Store, module: Module, memory: SpawnType) -> AsyncResult<Fut::Output>
     where
-        F: FnOnce(Rc<RefCell<ThreadLocal>>) -> Fut,
-        F: Send + 'static,
+        F: FnOnce(Store, Module, Option<VMMemory>) -> Fut,
+        F: Send + 'static,        
         Fut: Future + 'static,
         Fut::Output: Send;
 
@@ -195,11 +202,12 @@ pub trait SystemAbiExt {
     /// pulled from the worker pool that has a stateful thread local variable
     /// It is ok for this task to block execution and any async futures within its scope
     /// This is the fire-and-forget variet of spawning background work
-    fn fork_stateful<F, Fut>(&self, task: F)
+    fn fork_wasm<F, Fut>(&self, task: F, store: Store, module: Module, spawn_type: SpawnType)
     where
-        F: FnOnce(Rc<RefCell<ThreadLocal>>) -> Fut,
+        F: FnOnce(Store, Module, Option<VMMemory>) -> Fut,
         F: Send + 'static,
-        Fut: Future + 'static;
+        Fut: Future + 'static,
+        Fut::Output: Send;
 
     /// Starts an asynchronous task will will run on a dedicated thread
     /// pulled from the worker pool. It is ok for this task to block execution
@@ -248,21 +256,23 @@ impl SystemAbiExt for dyn SystemAbi {
         AsyncResult::new(SerializationFormat::Bincode, rx_result)
     }
 
-    fn spawn_stateful<F, Fut>(&self, task: F) -> AsyncResult<Fut::Output>
+    fn spawn_wasm<F, Fut>(&self, task: F, store: Store, module: Module, spawn_type: SpawnType) -> AsyncResult<Fut::Output>
     where
-        F: FnOnce(Rc<RefCell<ThreadLocal>>) -> Fut,
+        F: FnOnce(Store, Module, Option<VMMemory>) -> Fut,
         F: Send + 'static,
         Fut: Future + 'static,
         Fut::Output: Send,
     {
         let (tx_result, rx_result) = mpsc::channel(1);
-        self.task_stateful(Box::new(move |thread_local| {
-            let task = task(thread_local);
+        if let Err(err) = self.task_wasm(Box::new(move |store, module, memory| {
+            let task = task(store, module, memory);
             Box::pin(async move {
                 let ret = task.await;
                 let _ = tx_result.send(ret).await;
             })
-        }));
+        }), store, module, spawn_type) {
+            error!("Error while spawning WebAssembly process - {}", err);
+        }
         AsyncResult::new(SerializationFormat::Bincode, rx_result)
     }
 
@@ -320,18 +330,14 @@ impl SystemAbiExt for dyn SystemAbi {
         }
     }
 
-    fn fork_stateful<F, Fut>(&self, task: F)
+    fn fork_wasm<F, Fut>(&self, task: F, store: Store, module: Module, spawn_type: SpawnType)
     where
-        F: FnOnce(Rc<RefCell<ThreadLocal>>) -> Fut,
+        F: FnOnce(Store, Module, Option<VMMemory>) -> Fut,
         F: Send + 'static,
         Fut: Future + 'static,
+        Fut::Output: Send
     {
-        self.task_stateful(Box::new(move |thread_local| {
-            let task = task(thread_local);
-            Box::pin(async move {
-                let _ = task.await;
-            })
-        }));
+        self.spawn_wasm(task, store, module, spawn_type);
     }
 
     fn fork_dedicated<F>(&self, task: F)

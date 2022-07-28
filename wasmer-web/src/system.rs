@@ -1,9 +1,11 @@
 use async_trait::async_trait;
 use js_sys::Promise;
-use std::cell::RefCell;
+use wasmer_os::wasmer::Module;
+use wasmer_os::wasmer::Store;
+use wasmer_os::wasmer::vm::VMMemory;
+use wasmer_os::wasmer_wasi::WasiThreadError;
 use std::future::Future;
 use std::pin::Pin;
-use std::rc::Rc;
 use wasmer_os::api::abi::SystemAbi;
 use tokio::sync::mpsc;
 #[allow(unused_imports, dead_code)]
@@ -58,15 +60,17 @@ impl SystemAbi for WebSystem {
         }));
     }
 
-    fn task_stateful(
+    fn task_wasm(
         &self,
-        task: Box<
-            dyn FnOnce(Rc<RefCell<ThreadLocal>>) -> Pin<Box<dyn Future<Output = ()> + 'static>>
-                + Send
-                + 'static,
-        >,
-    ) {
-        self.pool.spawn_stateful(task);
+        task: Box<dyn FnOnce(Store, Module, Option<VMMemory>) -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
+        store: Store,
+        module: Module,
+        spawn_type: SpawnType,
+    ) -> Result<(), WasiThreadError> {
+        let run = move |store, module, memory| {
+            task(store, module, memory)
+        };
+        self.pool.spawn_wasm(run, store, module, spawn_type)
     }
 
     fn task_dedicated(

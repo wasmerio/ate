@@ -1,6 +1,8 @@
 use async_trait::async_trait;
 use ate::mesh::Registry;
 use ate_files::prelude::*;
+use wasmer_term::wasmer_os::wasmer::Module;
+use wasmer_term::wasmer_os::wasmer::vm::VMMemory;
 use std::cell::RefCell;
 use std::future::Future;
 use std::pin::Pin;
@@ -57,15 +59,18 @@ impl wasmer_os::api::SystemAbi for System {
     /// Starts an asynchronous task will will run on a dedicated thread
     /// pulled from the worker pool that has a stateful thread local variable
     /// It is ok for this task to block execution and any async futures within its scope
-    fn task_stateful(
+    fn task_wasm(
         &self,
         task: Box<
-            dyn FnOnce(Rc<RefCell<ThreadLocal>>) -> Pin<Box<dyn Future<Output = ()> + 'static>>
+            dyn FnOnce(Rc<RefCell<ThreadLocal>>, VMMemory) -> Pin<Box<dyn Future<Output = ()> + 'static>>
                 + Send
                 + 'static,
         >,
-    ) {
-        self.inner.task_stateful(task)
+        store: Store,
+        module: Module,
+        spawn_type: SpawnType,
+    ) -> Result<(), WasiThreadError> {
+        self.inner.task_wasm(task, store, module, spawn_type)
     }
 
     /// Starts an synchronous task will will run on a dedicated thread

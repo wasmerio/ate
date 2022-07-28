@@ -10,15 +10,14 @@ repository = "https://github.com/john-sharratt/ate"
 readme = "../README.md"
 
 [features]
-default = [ "sys" ]
-js = [ "wasmer/js-default", "wasmer-wasi/js-default" ]
+default = [ ]
+js = [ "wasmer/js-default", "wasmer/js-serializable-module", "wasmer-wasi/js-default" ]
 sys = [ "wasmer/sys-default", "wasmer-wasi/sys", "wasmer-wasi/logging", "tokio/rt-multi-thread", "wasmer-bus-tty/sys", "wasmer-bus-ws/sys" ]
 host-net = [ "wasmer-wasi-local-networking", "wasmer-wasi/host-vnet" ]
 mesh-net = [ ]
 llvm = [ "wasmer-compiler-llvm", "wasmer-compiler" ]
 cranelift = [ "wasmer-compiler-cranelift", "wasmer-compiler" ]
 singlepass = [ "wasmer-compiler-singlepass", "wasmer-compiler" ]
-cached_compiling = [ ]
 async_ws = [ ]
 
 [dependencies]
@@ -44,7 +43,7 @@ wasmer-compiler-cranelift = { version = "^2", path = "../../wasmer/lib/compiler-
 wasmer-compiler-llvm = { version = "^2", path = "../../wasmer/lib/compiler-llvm", optional = true }
 wasmer-compiler-singlepass = { version = "^2", path = "../../wasmer/lib/compiler-singlepass", optional = true }
 wasmer-compiler = { version = "^2", path = "../../wasmer/lib/compiler", optional = true }
-wasmer-wasi-local-networking = { version = "^2", path = "../../wasmer/lib/wasi-local-networking", features = [ "wasix" ], optional = true }
+wasmer-wasi-local-networking = { version = "^2", path = "../../wasmer/lib/wasi-local-networking", optional = true }
 
 chrono = { version = "^0.4", git = "https://github.com/john-sharratt/chrono.git" }
 tracing = { version = "^0.1" }
