@@ -29,7 +29,7 @@ ate = { version = "^1.2", path = "../lib", default_features = false }
 wasmer-auth = { version = "^1.9", path = "../wasmer-auth", default_features = false }
 ate-files = { version = "^1.2", path = "../files", default_features = false }
 ate-crypto = { version = "^1.1", path = "../crypto", features = [ "quantum" ], default_features = false }
-ate-comms = { version = "^1.0", path = "../comms", features = [ "quantum" ], default_features = false }
+ate-comms = { version = "^1.1", path = "../comms", features = [ "quantum" ], default_features = false }
 wasmer-bus = { version = "^1", path = "../wasmer-bus/lib", default_features = false }
 wasmer-bus-fuse = { version = "^1", path = "../wasmer-bus/fuse", default_features = false }
 wasmer-bus-ws = { version = "^1", path = "../wasmer-bus/ws", default_features = false }
