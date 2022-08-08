@@ -75,7 +75,8 @@ pub struct AliasConfig {
 
 #[derive(Debug)]
 pub struct CachedCompiledModules {
-    module_bytes: RwLock<HashMap<String, Option<Bytes>>>,
+    #[cfg(feature = "sys")]
+    modules: RwLock<HashMap<String, Module>>,
     cache_dir: Option<String>,
 }
 
@@ -89,19 +90,19 @@ impl CachedCompiledModules
     pub fn new(cache_dir: Option<String>) -> CachedCompiledModules {
         let cache_dir = cache_dir.map(|a| shellexpand::tilde(&a).to_string());
         CachedCompiledModules {
-            module_bytes: RwLock::new(HashMap::default()),
+            #[cfg(feature = "sys")]
+            modules: RwLock::new(HashMap::default()),
             cache_dir,
         }
     }
 
     pub async fn get_compiled_module(&self, store: &impl AsStoreRef, data_hash: &String, compiler: Compiler) -> Option<Module> {
         let key = format!("{}-{}", data_hash, compiler);
-
+        
         // fastest path
         {
             let module = THREAD_LOCAL_CACHED_MODULES.with(|cache| {
                 let cache = cache.borrow();
-                let cache = cache.deref();
                 cache.get(&key).map(|m| m.clone())
             });
             if let Some(module) = module {
@@ -110,73 +111,52 @@ impl CachedCompiledModules
         }
 
         // fast path
+        #[cfg(feature = "sys")]
         {
-            let bytes = {
-                let cache = self.module_bytes.read().await;
-                cache.get(&key).map(|a| a.clone()).flatten().map(|b| b.clone())
-            };
-                
-            if let Some(bytes) = bytes {
-                let module = THREAD_LOCAL_CACHED_MODULES.with(|cache| {
+            let cache = self.modules.read().await;
+            if let Some(module) = cache.get(&key) {
+                THREAD_LOCAL_CACHED_MODULES.with(|cache| {
                     let mut cache = cache.borrow_mut();
-                    let cache = cache.deref_mut();
-                    let module = unsafe { Module::deserialize(store, &bytes[..]).ok() };
-                    if let Some(module) = module.clone() {
-                        cache.insert(key.clone(), module);
-                    }
-                    module
+                    cache.insert(key.clone(), module.clone());
                 });
-                if let Some(module) = module {
+                return Some(module.clone());
+            }
+        }
+
+        // slow path
+        if let Some(cache_dir) = &self.cache_dir {
+            let path = std::path::Path::new(cache_dir.as_str()).join(format!("{}.bin", key).as_str());
+            if let Ok(data) = std::fs::read(path) {
+                let mut decoder = weezl::decode::Decoder::new(weezl::BitOrder::Msb, 8);
+                if let Ok(data) = decoder.decode(&data[..]) {
+                    let module_bytes = Bytes::from(data);
+
+                    // Load the module
+                    let module = unsafe { Module::deserialize(store, &module_bytes[..])
+                        .unwrap()
+                    };
+
+                    #[cfg(feature = "sys")]
+                    {
+                        let mut cache = self.modules.write().await;
+                        cache.insert(key.clone(), module.clone());
+                    }
+                    THREAD_LOCAL_CACHED_MODULES.with(|cache| {
+                        let mut cache = cache.borrow_mut();
+                        cache.insert(key.clone(), module.clone());
+                    });
                     return Some(module);
                 }
             }
         }
 
-        // slow path
-
-        let bytes = {
-            let mut static_cache = self.module_bytes.write().await;
-            let mut bytes = static_cache.get(&key).map(|a| a.clone()).flatten();
-
-            // If we don't have the bytes then attempt to read them from the cache directory
-            if bytes.is_none() {
-                if let Some(cache_dir) = &self.cache_dir {
-                    unsafe {
-                        let path = std::path::Path::new(cache_dir.as_str()).join(format!("{}.bin", key).as_str());
-                        if let Ok(data) = std::fs::read(path) {
-                            let mut decoder = weezl::decode::Decoder::new(weezl::BitOrder::Msb, 8);
-                            if let Ok(data) = decoder.decode(&data[..]) {
-                                let data = Bytes::from(data);
-                                static_cache.insert(key.clone(), Some(data.clone()));
-                                bytes = Some(data);
-                            }
-                        }
-                    }
-                }
-            }
-            bytes
-        };
-        
-        // We have the compiled bytes now attempt to deserialize the module and return it
-        if let Some(bytes) = bytes {
-            let module = unsafe { Module::deserialize(store, &bytes[..]).ok() };
-            if let Some(module) = module {
-                THREAD_LOCAL_CACHED_MODULES.with(|cache| {
-                    let mut cache = cache.borrow_mut();
-                    let cache = cache.deref_mut();
-                    cache.insert(key.clone(), module.clone());
-                });
-                return Some(module);
-            }
-        }
-
         // Not found
-        return None;
+        None
     }
 
     pub async fn set_compiled_module(&self, data_hash: String, compiler: Compiler, module: &Module) {
         let key = format!("{}-{}", data_hash, compiler);
-
+        
         // Add the module to the local thread cache
         THREAD_LOCAL_CACHED_MODULES.with(|cache| {
             let mut cache = cache.borrow_mut();
@@ -185,14 +165,16 @@ impl CachedCompiledModules
         });
 
         // Serialize the compiled module into bytes and insert it into the cache
-        let compiled_bytes = Bytes::from(module.serialize().unwrap());
+        #[cfg(feature = "sys")]
         {
-            let mut cache = self.module_bytes.write().await;
-            cache.insert(key.clone(), Some(compiled_bytes.clone()));
+            let mut cache = self.modules.write().await;
+            cache.insert(key.clone(), module.clone());
         }
         
         // We should also attempt to store it in the cache directory
         if let Some(cache_dir) = &self.cache_dir {
+            let compiled_bytes = module.serialize().unwrap();
+
             let path = std::path::Path::new(cache_dir.as_str()).join(format!("{}.bin", key).as_str());
             let _ = std::fs::create_dir_all(path.parent().unwrap().clone());
             let mut encoder = weezl::encode::Encoder::new(weezl::BitOrder::Msb, 8);

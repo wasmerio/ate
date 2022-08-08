@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use include_dir::{include_dir, Dir};
 use wasmer_os::wasmer::{Module, Store, AsStoreRef};
 use wasmer_os::wasmer::vm::VMMemory;
+use wasmer_os::wasmer_wasi::WasiThreadError;
 use std::cell::RefCell;
 use std::convert::TryFrom;
 use std::future::Future;
@@ -110,27 +111,28 @@ impl SystemAbi for SysSystem {
             SpawnType::NewThread(mem) => Some(mem),
             SpawnType::Create => None,
         };
+
+        // Convert the module into bytes (as the module object is not multithread safe!)
+        let module_bytes = module.serialize()
+            .map_err(|err| {
+                error!("failed to serialize module - {}", err);
+                WasiThreadError::InvalidWasmContext
+            })?;
         
         let rt = self.runtime.clone();
         self.runtime.spawn_blocking(move || {
+
+            // Now we deserialize the module
+            let module = unsafe {
+                Module::deserialize(&store, &module_bytes[..])
+                    .unwrap()
+            };
+
+            // Invoke the callback
             let fut = task(store, module, memory);
             rt.block_on(fut)
         });
         Ok(())
-        /*
-        use std::ops::Deref;
-        self.runtime.spawn_blocking(move || {
-            THREAD_LOCAL.with(|local| {
-                let local = local.clone();
-                let set = tokio::task::LocalSet::new();
-                set.block_on(rt.deref(), async move {
-                    let fut = task(local);
-                    fut.await;
-                });
-                rt.block_on(set);
-            });
-        });
-        */
     }
 
     /// Starts an synchronous task will will run on a dedicated thread

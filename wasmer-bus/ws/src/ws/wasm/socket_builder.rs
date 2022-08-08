@@ -45,7 +45,9 @@ impl SocketBuilder {
                     let _ = tx_state.send(data);
                 }),
                 Box::new(move |data: Vec<u8>| {
-                    let _ = tx_recv.blocking_send(data);
+                    let _ = wasmer_bus::task::block_on(
+                        tx_recv.send(data)
+                    );
                 }),
             )
             .await

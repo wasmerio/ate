@@ -18,10 +18,10 @@ embedded_files = [ "include_dir" ]
 [dependencies]
 wasmer-os = { version = "^1.0", path = "../wasmer-os", features = [ "singlepass", "cranelift", "async_ws", "sys" ] }
 #wasmer-os = { version = "^1.0", path = "../wasmer-os", features = [ "singlepass", "cranelift", "llvm", "async_ws" ] }
-#tracing = { version = "^0.1", features = [ "log", "release_max_level_warn" ] }
-#log = { version = "^0.4", features = [ "release_max_level_warn" ] }
-tracing = { version = "^0.1", features = [ "log" ] }
-log = { version = "^0.4" }
+tracing = { version = "^0.1", features = [ "log", "release_max_level_warn" ] }
+log = { version = "^0.4", features = [ "release_max_level_warn" ] }
+#tracing = { version = "^0.1", features = [ "log" ] }
+#log = { version = "^0.4" }
 tracing-futures = { version = "^0.2" }
 tracing-subscriber = { version = "^0.2" }
 tracing-wasm = { version = "^0.2" }

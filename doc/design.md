@@ -561,7 +561,7 @@ See this example below for the [Wasmer company](https://mxtoolbox.com/SuperTool.
 that publishes its root public key that allows the owner of the private key to
 write records to ATE trees that are associated with this company.
 
-Reference: https://mxtoolbox.com/SuperTool.aspx?action=txt%3atokauth.wasmer.com&run=toolpage  
+Reference: https://mxtoolbox.com/SuperTool.aspx?action=txt%3atokauth.wasmer.sh&run=toolpage  
 Reference: https://letsencrypt.org/how-it-works/  
 Reference: https://en.wikipedia.org/wiki/NTRU  
 

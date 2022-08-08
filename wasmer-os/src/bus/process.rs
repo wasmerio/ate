@@ -656,7 +656,9 @@ impl Session for ProcessExecSession {
                     };
                 if let Some(stdin) = self.stdin.as_ref() {
                     let tx_send = stdin.clone();
-                    let _ = tx_send.blocking_send(FdMsg::new(request.data, FdFlag::Stdin(false)));
+                    let _ = wasmer_bus::task::block_on(
+                        tx_send.send(FdMsg::new(request.data, FdFlag::Stdin(false)))
+                    );
                 }
                 ResultInvokable::new(conv_format(format), ())
             } else if topic_hash == type_name_hash::<api::ProcessCloseStdinRequest>() {

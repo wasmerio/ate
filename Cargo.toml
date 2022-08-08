@@ -33,6 +33,7 @@ members = [
     "examples/tcp-listener",
     "examples/tcp-client",
     "examples/multi-threading",
+    "examples/condvar",
     "examples/thread-local",
     "examples/wasm64-example",
     "examples/ws-client",

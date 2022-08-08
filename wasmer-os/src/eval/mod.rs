@@ -38,7 +38,7 @@ use tokio::sync::RwLock;
 use tracing::{debug, error, info, trace, warn};
 
 #[cfg(feature = "wasmer-compiler")]
-use {crate::wasmer::Universal, crate::wasmer_compiler::CompilerConfig};
+use crate::wasmer_compiler::CompilerConfig;
 use crate::bus::WasmCheckpoint;
 use crate::wasmer::{Store};
 #[cfg(feature = "wasmer-compiler-cranelift")]
@@ -47,6 +47,8 @@ use crate::wasmer_compiler_cranelift::Cranelift;
 use crate::wasmer_compiler_llvm::LLVM;
 #[cfg(feature = "wasmer-compiler-singlepass")]
 use crate::wasmer_compiler_singlepass::Singlepass;
+#[cfg(feature = "wasmer-compiler")]
+use crate::wasmer_compiler::EngineBuilder;
 
 use crate::api::*;
 use crate::ast;
@@ -152,22 +154,22 @@ impl Compiler
             #[cfg(feature = "cranelift")]
             Compiler::Cranelift => {
                 let compiler = Cranelift::default();
-                Store::new_with_engine(&Universal::new(compiler)
-                    .features(features)
+                Store::new(EngineBuilder::new(compiler)
+                    .set_features(Some(features))
                     .engine())
             }
             #[cfg(feature = "llvm")]
             Compiler::LLVM => {
                 let compiler = LLVM::default();
-                Store::new_with_engine(&Universal::new(compiler)
-                    .features(features)
+                Store::new(EngineBuilder::new(compiler)
+                    .set_features(Some(features))
                     .engine())
             }
             #[cfg(feature = "singlepass")]
             Compiler::Singlepass => {
                 let compiler = Singlepass::default();
-                Store::new_with_engine(&Universal::new(compiler)
-                    .features(features)
+                Store::new(EngineBuilder::new(compiler)
+                    .set_features(Some(features))
                     .engine())
             }
             #[cfg(feature = "js")]

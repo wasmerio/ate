@@ -363,14 +363,27 @@ fn _spawn_wasm(run: WasmRunCommand) {
             ))
         }
         WasmRunType::CreateWithMemory(ty) => {
+            if ty.shared == false {
+                // We can only pass memory around between web workers when its a shared memory
+                error!("Failed to create WASM process with external memory as only shared memory is supported yet this web assembly binary imports non-shared memory.");
+                return;
+            }
+            if ty.maximum.is_none() {
+                // Browsers require maximum number defined on shared memory
+                error!("Failed to create WASM process with external memory as shared memory must have a maximum size however this web assembly binary imports shared memory with no maximum defined.");
+                return;
+            }
+
             let wasm_memory = {
                 let descriptor = js_sys::Object::new();
                 js_sys::Reflect::set(&descriptor, &"initial".into(), &ty.minimum.0.into()).unwrap();
+                //let min = 100u32.max(ty.minimum.0);
+                //js_sys::Reflect::set(&descriptor, &"initial".into(), &min.into()).unwrap();
                 if let Some(max) = ty.maximum {
                     js_sys::Reflect::set(&descriptor, &"maximum".into(), &max.0.into()).unwrap();
                 }
                 js_sys::Reflect::set(&descriptor, &"shared".into(), &ty.shared.into()).unwrap();
-                
+
                 match js_sys::WebAssembly::Memory::new(&descriptor) {
                     Ok(a) => a,
                     Err(err) => {

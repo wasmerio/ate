@@ -249,12 +249,12 @@ async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
         conf.ntp_port = port;
     }
 
-    // If the domain is localhost then load certificates from dev.wasmer.com
+    // If the domain is localhost then load certificates from dev.wasmer.sh
     #[cfg(feature = "enable_dns")]
     if let Some(domain) = auth.domain() {
         if domain == "localhost" {
             let test_registry = Registry::new(&conf).await;
-            for cert in test_registry.dns_certs("dev.wasmer.com").await.unwrap() {
+            for cert in test_registry.dns_certs("dev.wasmer.sh").await.unwrap() {
                 add_global_certificate(&cert);
             }
         }

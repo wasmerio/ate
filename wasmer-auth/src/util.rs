@@ -7,7 +7,7 @@ pub fn origin_url_ext(url: &Option<url::Url>, postfix: &str, force_insecure: boo
 {
     let origin = if let Ok(origin) = std::env::var("ORIGIN") {
         if origin.eq_ignore_ascii_case("localhost") {
-            "wasmer.com".to_string()
+            "wasmer.sh".to_string()
         } else {
             origin
         }

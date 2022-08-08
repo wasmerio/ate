@@ -91,7 +91,7 @@ pub async fn client(node: url::Url, chain: ChainKey, access_token: String, stati
 
 pub async fn clients(cross_switch: bool, use_dhcp: bool) -> (Port, Port)
 {
-    let chain1 = ChainKey::from("wasmer.com/c789bd1b7f2a9bba3111d707ce40bffa_edge");
+    let chain1 = ChainKey::from("wasmer.sh/c789bd1b7f2a9bba3111d707ce40bffa_edge");
     let access_token1 = "80f5bdf28ce21947795de68c93c57fcb";
     let addr1 = if use_dhcp == false {
         Some((IpAddr::V4(Ipv4Addr::new(10, 35, 196, 2)), IpAddr::V4(Ipv4Addr::new(10, 35, 196, 1))))
@@ -100,7 +100,7 @@ pub async fn clients(cross_switch: bool, use_dhcp: bool) -> (Port, Port)
     };
 
     let (chain2, access_token2, addr2) = if cross_switch == true {
-        let chain2 = ChainKey::from("wasmer.com/d237f26dbb0c4cdc17b43d3720009e5d_edge");
+        let chain2 = ChainKey::from("wasmer.sh/d237f26dbb0c4cdc17b43d3720009e5d_edge");
         let access_token2 = "69aec1eaa6cb5a69acac91a8c38d7498";
         let addr2 = if use_dhcp == false {
             Some((IpAddr::V4(Ipv4Addr::new(10, 127, 26, 2)), IpAddr::V4(Ipv4Addr::new(10, 127, 26, 1))))

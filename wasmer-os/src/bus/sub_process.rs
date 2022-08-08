@@ -363,7 +363,7 @@ for SubProcessHandler
             let data_len = data.len();
             
             if let Some(stdin) = &result.stdin {
-                match stdin.blocking_send(FdMsg::Data { data, flag: crate::fd::FdFlag::Stdin(false) }) {
+                match wasmer_bus::task::block_on(stdin.send(FdMsg::Data { data, flag: crate::fd::FdFlag::Stdin(false) })) {
                     Ok(_) => {
                         Box::new(encode_instant_response(BusDataFormat::Bincode, &data_len))
                     }
@@ -371,8 +371,7 @@ for SubProcessHandler
                         debug!("failed to send data to stdin of process - {}", err);
                         Box::new(InstantInvocation::fault(VirtualBusError::InternalError))
                     }
-                }
-                
+                }                
             } else {
                 Box::new(InstantInvocation::fault(VirtualBusError::BadHandle))
             }

@@ -20,10 +20,14 @@ impl Tty {
         let client = api::TtyClient::new(WAPM_NAME)
             .stdin(
                 Box::new(move |data: Vec<u8>| {
-                    let _ = tx_data.blocking_send(data);
+                    let _ = wasmer_bus::task::block_on(
+                        tx_data.send(data)
+                    );
                 }),
                 Box::new(move |_| {
-                    let _ = tx_flush.blocking_send(());
+                    let _ = wasmer_bus::task::block_on(
+                        tx_flush.send(())
+                    );
                 }),
             )
             .await
@@ -42,10 +46,14 @@ impl Tty {
         let client = api::TtyClient::new(WAPM_NAME)
             .blocking_stdin(
                 Box::new(move |data: Vec<u8>| {
-                    let _ = tx_data.blocking_send(data);
+                    let _ = wasmer_bus::task::block_on(
+                        tx_data.send(data)
+                    );
                 }),
                 Box::new(move |_| {
-                    let _ = tx_flush.blocking_send(());
+                    let _ = wasmer_bus::task::block_on(
+                        tx_flush.send(())
+                    );
                 }),
             )
             .map_err(|err| err.into_io_error())?;

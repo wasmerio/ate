@@ -152,7 +152,7 @@ pub async fn exec_process(
     //       wasmer Module and JsValue that causes a panic in certain race conditions
     // Load or compile the module (they are cached in therad local storage)
     // If compile caching is enabled the load the module
-    let cached_module_bytes = { ctx.bins.get_compiled_module(&store, &program_data_hash, ctx.compiler).await };
+    let cached_module = { ctx.bins.get_compiled_module(&store, &program_data_hash, ctx.compiler).await };
 
     // This wait point is so that the main thread is created before it returns
     let (checkpoint1_tx, mut checkpoint1) = ctx.checkpoint1.take().unwrap_or_else(|| WasmCheckpoint::new());
@@ -308,30 +308,6 @@ pub async fn exec_process(
         None
     };
 
-    // Create the store that holds all the data for this module
-    // Build the module either from the cached results or compiler it
-    let mut cached_module = match cached_module_bytes {
-        Some(compiled_bytes) => {
-            // Cache hit - deserialize the module
-            debug!("cached-deserializing {}", cmd);
-            let compiled_module = unsafe {
-                match Module::deserialize(&store, &program_data[..]) {
-                    Ok(m) => {
-                        info!("deserialized {}", m.name().unwrap_or_else(|| cmd.as_str()));
-                        Some(m)
-                    },
-                    Err(err) => {
-                        debug!("cached-deserialize-error: {}\n", err);
-                        None
-                    }
-                }
-            };
-                
-            compiled_module
-        },
-        None => None
-    };
-
     // If no module is loaded then we need to compile it again
     let module = match cached_module {
         Some(a) => a,
@@ -373,11 +349,9 @@ pub async fn exec_process(
     // Determine if shared memory needs to be created and imported
     let shared_memory = module
         .imports()
-        .filter_map(|i| match i.ty() {
-            ExternType::Memory(mem) => Some(mem.clone()),
-            _ => None
-        })
-        .next();
+        .memories()
+        .next()
+        .map(|a| *a.ty());
 
     // Determine if we are going to create memory and import it or just rely on self creation of memory
     let memory_spawn = match shared_memory {
@@ -502,15 +476,7 @@ pub async fn exec_process(
                     return (ctx, ERR_ENOEXEC);
                 }
             };
-
-            // List all the exports
-            for ns in module.exports() {
-                trace!("module::export - {}", ns.name());
-            }
-            for ns in module.imports() {
-                trace!("module::import - {}::{}", ns.module(), ns.name());
-            }
-
+            
             // Let's instantiate the module with the imports.
             let mut import_object = import_object_for_all_wasi_versions(&mut store, &wasi_env.env);
             if let Some(memory) = memory {
