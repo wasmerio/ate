@@ -33,6 +33,9 @@ impl System {
             NativeFileType::LocalFileSystem(native_files) => {
                 let path = PathBuf::from(native_files);
                 NativeFileInterface::LocalFileSystem(path)
+            },
+            NativeFileType::EmbeddedFiles => {
+                NativeFileInterface::EmbeddedFiles
             }
         };
         Self {
@@ -107,6 +110,9 @@ impl wasmer_os::api::SystemAbi for System {
             },
             NativeFileInterface::LocalFileSystem(native_files) => {
                 self.fetch_file_via_local_fs(native_files, path)
+            },
+            NativeFileInterface::EmbeddedFiles => {
+                self.inner.fetch_file(path)
             }
         }
     }

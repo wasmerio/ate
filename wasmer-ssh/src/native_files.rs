@@ -14,12 +14,14 @@ use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 pub enum NativeFileType {
     AteFileSystem(String),
     LocalFileSystem(String),
+    EmbeddedFiles,
 }
 
 #[derive(Debug, Clone)]
 pub enum NativeFileInterface {
     AteFileSystem(NativeFiles),
     LocalFileSystem(PathBuf),
+    EmbeddedFiles
 }
 
 #[derive(Debug, Clone)]
