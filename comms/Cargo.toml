@@ -17,7 +17,7 @@ sys = [ "wasmer-bus-ws/sys" ]
 dns = [ "trust-dns-proto", "trust-dns-client" ]
 
 [dependencies]
-ate-crypto = { version = "^1", path = "../crypto", default_features = false }
+ate-crypto = { version = "^1.1", path = "../crypto", default_features = false }
 error-chain = { version = "^0.12", default_features = false }
 serde = { version = "^1", features = ["derive"] }
 serde_json = "^1"

@@ -16,7 +16,7 @@ sys = [ "ate-comms/sys", "ate-comms/dns", "wasmer-bus/sys" ]
 
 [dependencies]
 tracing = { version = "^0.1", features = [ "log" ] }
-ate-crypto = { version = "^1", path = "../../crypto", default_features = false }
+ate-crypto = { version = "^1.1", path = "../../crypto", default_features = false }
 ate-comms = { version = "^1", path = "../../comms", default_features = false }
 wasmer-bus = { version = "^1", path = "../lib", default_features = false, features = [ "rt", "macros" ] }
 wasmer-bus-ws = { version = "^1", path = "../ws" }

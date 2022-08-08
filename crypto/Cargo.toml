@@ -1,6 +1,6 @@
 [package]
 name = "ate-crypto"
-version = "1.0.0"
+version = "1.1.0"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2021"
 description = "Provides all the cryptographic functions"
