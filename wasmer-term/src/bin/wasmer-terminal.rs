@@ -34,6 +34,9 @@ struct Opts {
     /// Location where cached compiled modules are stored
     #[clap(long, default_value = "~/wasmer/compiled")]
     pub compiler_cache_path: String,
+    /// Uses a local directory for native files rather than the published ate chain
+    #[clap(long)]
+    pub native_files_path: Option<String>,
     /// Runs a particular command after loading
     #[clap(index = 1)]
     pub run: Option<String>,
@@ -56,7 +59,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Set the system
     let (tx_exit, mut rx_exit) = watch::channel(false);
-    let sys = wasmer_term::system::SysSystem::new(tx_exit);
+    let sys = wasmer_term::system::SysSystem::new(opts.native_files_path, tx_exit);
     let con = Arc::new(sys.clone());
     wasmer_os::api::set_system_abi(sys.clone());
     let system = System::default();

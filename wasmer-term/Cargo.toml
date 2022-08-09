@@ -10,7 +10,7 @@ repository = "https://github.com/john-sharratt/ate"
 readme = "../README.md"
 
 [features]
-default = [ "embedded_files", "host-net" ]
+default = [ "host-net" ]
 host-net = [ "wasmer-os/host-net" ]
 mesh-net = [ "wasmer-os/mesh-net" ]
 embedded_files = [ "include_dir" ]

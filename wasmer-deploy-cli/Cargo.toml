@@ -71,6 +71,7 @@ wild = "^2"
 pbr = "^1"
 derivative = { version = "^2" }
 async-stream = "^0.3"
+tokio = { version = "^1", features = [ "rt", "io-util", "macros", "sync", "time", "fs" ], default_features = false }
 
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
 tokio-tun = { version = "^0.5", git = "https://github.com/john-sharratt/tokio-tun.git", optional = true }
@@ -79,10 +80,8 @@ fork = { version = "^0.1" }
 
 [target.'cfg(not(target_os = "wasi"))'.dependencies]
 smoltcp = { version = "0.8.0", git = "https://github.com/john-sharratt/smoltcp.git", features = [ "async" ], optional = true }
-tokio = { version = "^1", features = [ "rt", "io-util", "macros", "sync", "time", "fs" ], default_features = false }
 
 [target.'cfg(target_os = "wasi")'.dependencies]
-tokio = { version = "^1", features = [ "macros", "sync" ], default_features = false }
 backtrace = "^0.3"
 wasi = { package = "wasix", version = "0.11" }
 wasm-timer = { version = "^0.2" }

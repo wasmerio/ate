@@ -7,7 +7,8 @@ use wasmer_os::wasmer_wasi::WasiThreadError;
 use std::cell::RefCell;
 use std::convert::TryFrom;
 use std::future::Future;
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
+use std::path::PathBuf;
 use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -39,23 +40,31 @@ pub struct SysSystem {
     exit_tx: Arc<watch::Sender<bool>>,
     runtime: Arc<Runtime>,
     stdio_lock: Arc<Mutex<()>>,
+    native_files_path: Option<PathBuf>,
 }
 
 impl SysSystem {
-    pub fn new(exit: watch::Sender<bool>) -> SysSystem {
+    pub fn new(native_files_path: Option<String>, exit: watch::Sender<bool>) -> SysSystem {
         let runtime = Builder::new_multi_thread().enable_all().build().unwrap();
+        let native_files_path = native_files_path
+            .map(PathBuf::from);
 
         SysSystem {
             exit_tx: Arc::new(exit),
             runtime: Arc::new(runtime),
             stdio_lock: Arc::new(Mutex::new(())),
+            native_files_path,
         }
     }
-    pub fn new_with_runtime(exit: watch::Sender<bool>, runtime: Arc<Runtime>) -> SysSystem {
+    pub fn new_with_runtime(native_files_path: Option<String>, exit: watch::Sender<bool>, runtime: Arc<Runtime>) -> SysSystem {
+        let native_files_path = native_files_path
+            .map(PathBuf::from);
+
         SysSystem {
             exit_tx: Arc::new(exit),
             runtime,
             stdio_lock: Arc::new(Mutex::new(())),
+            native_files_path,
         }
     }
 
@@ -189,15 +198,50 @@ impl SystemAbi for SysSystem {
             path = path[1..].to_string();
         };
 
+        let native_files_path = self.native_files_path.clone();
         let (tx_done, rx_done) = mpsc::channel(1);
         self.task_dedicated_async(Box::new(move || {
             Box::pin(async move {
                 #[cfg(not(feature = "embedded_files"))]
-                let ret = Err(err::ERR_ENOENT);
+                let mut ret = Err(err::ERR_ENOENT);
                 #[cfg(feature = "embedded_files")]
-                let ret = PUBLIC_DIR
+                let mut ret = PUBLIC_DIR
                     .get_file(path.as_str())
                     .map_or(Err(err::ERR_ENOENT), |file| Ok(file.contents().to_vec()));
+
+                if ret.is_err() {
+                    if let Some(native_files) = native_files_path.as_ref() {
+                        if path.contains("..") || path.contains("~") || path.contains("//") {
+                            warn!("relative paths are a security risk - {}", path);
+                            ret = Err(err::ERR_EACCES);
+                        } else {
+                            let mut path = path.as_str();
+                            while path.starts_with("/") {
+                                path = &path[1..];
+                            }
+                            let path = native_files.join(path);
+            
+                            // Attempt to open the file
+                            ret = match std::fs::File::open(path.clone()) {
+                                Ok(mut file) => {
+                                    let mut data = Vec::new();
+                                    file
+                                        .read_to_end(&mut data)
+                                        .map_err(|err| {
+                                            debug!("failed to read local file ({}) - {}", path.to_string_lossy(), err);
+                                            err::ERR_EIO
+                                        })
+                                        .map(|_| data)
+                                },
+                                Err(err) => {
+                                    debug!("failed to open local file ({}) - {}", path.to_string_lossy(), err);
+                                    Err(err::ERR_EIO)
+                                }
+                            };
+                        }
+                    }
+                }
+
                 let _ = tx_done.send(ret).await;
             })
         }));
