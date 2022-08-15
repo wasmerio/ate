@@ -12,9 +12,3 @@ keywords = [
 ]
 categories = ["network-programming"]
 edition = "2021"
-
-[dependencies]
-#socket2 = { git = "https://github.com/john-sharratt/socket2.git" }
-#libc = { git = "https://github.com/john-sharratt/libc.git" }
-#tokio = { git = "https://github.com/john-sharratt/tokio.git" }
-#ring = { git = "https://github.com/john-sharratt/ring.git", branch = "v0.16.20" }

@@ -248,13 +248,25 @@ for WebSocket {
             let data_len = data.len();
 
             let tx = self.tx_send.clone();
-            let fut = async move {
-                tx.send(data).await
-            };
-            Box::new(DelayedSend {
-                data_len,
-                fut: Box::pin(fut)
-            })
+            match tx.try_send(data) {
+                Ok(()) => {
+                    Box::new(encode_instant_response(BusDataFormat::Bincode,
+                        &SendResult::Success(data_len)))
+                },
+                Err(mpsc::error::TrySendError::Full(data)) => {
+                    Box::new(DelayedSend {
+                        data_len,
+                        fut: Box::pin(async move {
+                            tx.send(data).await
+                        })
+                    })
+                },
+                Err(mpsc::error::TrySendError::Closed(_)) => {
+                    debug!("websocket is closed");
+                    Box::new(InstantInvocation::fault(VirtualBusError::Aborted))        
+                }
+            }
+            
         } else {
             debug!("websocket invalid topic (hash={})", topic_hash);
             Box::new(InstantInvocation::fault(VirtualBusError::InvalidTopic))

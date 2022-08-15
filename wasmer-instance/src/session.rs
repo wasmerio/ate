@@ -45,6 +45,7 @@ pub struct Session
     pub sock_addr: SocketAddr,
     pub wire_encryption: Option<EncryptKey>,
     pub rect: Arc<Mutex<ConsoleRect>>,
+    pub engine: Option<wasmer_os::wasmer::Engine>,
     pub compiler: wasmer_os::eval::Compiler,
     pub handler: Arc<SessionHandler>,
     pub console: Console,
@@ -64,6 +65,7 @@ impl Session
         sock_addr: SocketAddr,
         wire_encryption: Option<EncryptKey>,
         rect: Arc<Mutex<ConsoleRect>>,
+        engine: Option<wasmer_os::wasmer::Engine>,
         compiler: wasmer_os::eval::Compiler,
         basics: SessionBasics,
         first_init: bool,
@@ -112,6 +114,7 @@ impl Session
             sock_addr,
             wire_encryption,
             rect,
+            engine,
             compiler,
             exit_rx,
             handler,
@@ -138,6 +141,7 @@ impl Session
         // Create the process factory that used by this process to create sub-processes
         let sub_process_factory = ProcessExecFactory::new(
             self.console.reactor(),
+            self.engine.clone(),
             self.compiler,
             exec_factory,
             ctx,

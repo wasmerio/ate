@@ -71,7 +71,7 @@ num_enum = "^0.5"
 pin-project-lite = "^0.2"
 cooked-waker = "^5"
 http = { version = "^0.2" }
-tokio = { version = "^1", features = [ "macros", "sync" ], default_features = false }
+tokio = { version = "1.20.1", features = [ "macros", "sync" ], default_features = false }
 derivative = { version = "^2" }
 wasmer-bus = { version = "^1", path = "../wasmer-bus/lib", default_features = false }
 wasmer-bus-ws = { version = "^1", path = "../wasmer-bus/ws", default_features = false }

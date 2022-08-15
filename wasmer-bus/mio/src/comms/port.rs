@@ -16,7 +16,6 @@ use tokio::sync::mpsc;
 use derivative::*;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
-use wasmer_bus::task::spawn;
 
 use crate::model::HardwareAddress;
 use crate::model::IpCidr;
@@ -75,7 +74,7 @@ impl Port
 
         {
             let state = state.clone();
-            spawn(async move {
+            tokio::spawn(async move {
                 Self::run(rx, state, init_tx).await
             });
         }

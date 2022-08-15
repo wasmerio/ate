@@ -66,6 +66,8 @@ pub(super) fn mount(
     let multiplexer = SubProcessMultiplexer::new();
     let factory = ProcessExecFactory::new(
         ctx.reactor.clone(),
+        #[cfg(feature = "sys")]
+        ctx.engine.clone(),
         ctx.compiler,
         ctx.exec_factory.clone(),
         ctx.clone(),

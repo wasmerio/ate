@@ -24,10 +24,9 @@ pub struct BusEngineState {
     pub handles: HashSet<CallHandle>,
     pub calls: HashMap<CallHandle, Arc<dyn CallOps>>,
     pub children: HashMap<CallHandle, Vec<CallHandle>>,
-    #[cfg(feature = "rt")]
     pub listening: HashMap<u128, ListenService>,
-    #[cfg(feature = "rt")]
     pub respond_to: HashMap<u128, RespondToService>,
+    pub initialized_reactors: bool,
 }
 
 #[derive(Default)]
@@ -60,6 +59,18 @@ impl BusEngine {
 
     fn wakers<'a>() -> MutexGuard<'a, HashMap<CallHandle, Waker>> {
         GLOBAL_ENGINE.wakers.lock().unwrap()
+    }
+
+    // If we don't have a runtime we can't start anything
+    #[cfg(not(feature = "rt"))]
+    pub fn start(
+        _topic_hash: u128,
+        _parent: Option<CallHandle>,
+        _handle: CallHandle,
+        _request: Vec<u8>,
+        _format: SerializationFormat,
+    ) -> Result<(), BusError> {
+        Err(BusError::Unsupported)
     }
 
     // This function will block
@@ -241,7 +252,6 @@ impl BusEngine {
             
             {
                 let mut state = BusEngine::write();
-                #[cfg(feature = "rt")]
                 state.handles.remove(handle);
                 if let Some(mut c) = state.children.remove(handle) {
                     children.append(&mut c);
@@ -276,7 +286,6 @@ impl BusEngine {
         wakers.remove(handle);
     }
 
-    #[cfg(feature = "rt")]
     pub(crate) fn listen_internal<F, Fut>(
         format: SerializationFormat,
         topic: String,
@@ -308,7 +317,6 @@ impl BusEngine {
         }
     }
 
-    #[cfg(feature = "rt")]
     pub(crate) fn respond_to_internal<F, Fut>(
         format: SerializationFormat,
         topic: String,
@@ -342,5 +350,52 @@ impl BusEngine {
                 }),
             );
         }
+    }
+
+    /// Initializes the reactors so that the system may handle requests in the
+    /// wasmer runtime
+    #[cfg(all(target_os = "wasi", target_vendor = "wasmer"))]
+    pub(crate) fn init_reactors()
+    {        
+        // fast path
+        {
+            let engine = GLOBAL_ENGINE.state.read().unwrap();
+            if engine.initialized_reactors == true {
+                return;
+            }
+        }
+        
+        // slow path
+        let mut engine = GLOBAL_ENGINE.state.write().unwrap();
+        if engine.initialized_reactors == true {
+            return;
+        }
+        engine.initialized_reactors = true;
+        
+        /*
+         * Reactors are not yet working!
+         * 
+        // Start a reactor
+        std::thread::reactor(move || {
+            loop {
+                if crate::abi::syscall::bus_poll_once(std::time::Duration::from_millis(0)) <= 0 {
+                    break;
+                }
+            }
+        });
+        */
+
+        // Start the thread
+        std::thread::spawn(move || {
+            loop {
+                crate::abi::syscall::bus_poll_once(std::time::Duration::from_secs(60));
+            }
+        });
+    }
+
+    /// When not running the wasmer runtime there is no need for reactors as
+    /// it can not receive any BUS events
+    #[cfg(not(all(target_os = "wasi", target_vendor = "wasmer")))]
+    pub(crate) fn init_reactors() {
     }
 }

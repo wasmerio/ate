@@ -41,7 +41,7 @@ impl DnsClient {
         let (stream, sender) = TcpClientStream::<AsyncIoTokioAsStd<TokioTcpStream>>::new(addr);
         let client = AsyncClient::new(stream, sender, None);
         let (client, bg) = client.await.expect("client failed to connect");
-        wasmer_bus::task::spawn(bg);
+        tokio::task::spawn(bg);
 
         let client = MemoizeClientHandle::new(client);
 

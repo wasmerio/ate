@@ -152,13 +152,7 @@ pub struct Opts {
     pub token_path: String,
 }
 
-#[cfg(target_family = "wasm")]
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    wasmer_bus::task::block_on(main_async())
-}
-
-#[cfg(not(target_family = "wasm"))]
-#[tokio::main(flavor = "current_thread")]
+#[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     main_async().await?;
     std::process::exit(0);

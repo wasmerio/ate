@@ -27,6 +27,8 @@ pub use runtime::*;
 pub use bus_feeder::*;
 pub use bus_listener::*;
 pub use bus_handle::*;
+#[cfg(feature = "sys")]
+use wasmer::Engine;
 
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -137,7 +139,7 @@ for Compiler
 impl Compiler
 {
     #[cfg(feature = "wasmer-compiler")]
-    pub fn new_store(&self) -> Store
+    pub fn new_engine(&self) -> Option<Engine>
     {
         // Build the features list
         let mut features = wasmer_compiler::Features::new();
@@ -150,34 +152,39 @@ impl Compiler
         }
 
         // Choose the right compiler
-        let store = match self {
+        match self {
             #[cfg(feature = "cranelift")]
             Compiler::Cranelift => {
                 let compiler = Cranelift::default();
-                Store::new(EngineBuilder::new(compiler)
-                    .set_features(Some(features))
-                    .engine())
+                Some(
+                    EngineBuilder::new(compiler)
+                        .set_features(Some(features))
+                        .engine()
+                )
             }
             #[cfg(feature = "llvm")]
             Compiler::LLVM => {
                 let compiler = LLVM::default();
-                Store::new(EngineBuilder::new(compiler)
-                    .set_features(Some(features))
-                    .engine())
+                Some(
+                    EngineBuilder::new(compiler)
+                        .set_features(Some(features))
+                        .engine()
+                )
             }
             #[cfg(feature = "singlepass")]
             Compiler::Singlepass => {
                 let compiler = Singlepass::default();
-                Store::new(EngineBuilder::new(compiler)
-                    .set_features(Some(features))
-                    .engine())
+                Some(
+                    EngineBuilder::new(compiler)
+                        .set_features(Some(features))
+                        .engine()
+                )
             }
             #[cfg(feature = "js")]
             Compiler::Browser => {
-                Store::default()
+                None
             }
-        };
-        store
+        }
     }
 
     #[cfg(not(feature = "wasmer-compiler"))]
@@ -255,6 +262,9 @@ pub struct EvalContext {
     pub exec_factory: EvalFactory,
     #[derivative(Debug = "ignore")]
     pub job: Job,
+    #[cfg(feature = "sys")]
+    #[derivative(Debug = "ignore")]
+    pub engine: Option<Engine>,
     pub compiler: Compiler,
     pub extra_args: Vec<String>,
     pub extra_redirects: Vec<Redirect>,    

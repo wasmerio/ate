@@ -4,7 +4,6 @@ use std::sync::Arc;
 #[allow(unused_imports)]
 use wasmer_bus::macros::*;
 
-/*
 #[wasmer_bus(format = "json")]
 pub trait Fuse {
     async fn mount(&self, name: String) -> Arc<dyn FileSystem>;
@@ -38,7 +37,6 @@ pub trait FileIO {
     async fn write(&self, data: Vec<u8>) -> FsResult<u64>;
     async fn read(&self, len: u64) -> FsResult<Vec<u8>>;
 }
-*/
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpenOptions {
@@ -218,6 +216,7 @@ impl Into<Box<dyn std::error::Error>> for FsError {
 
 pub type FsResult<T> = Result<T, FsError>;
 
+/*
 #[derive(Debug, Clone, serde :: Serialize, serde :: Deserialize)]
 pub struct FuseMountRequest {
     pub name: String,
@@ -2302,3 +2301,4 @@ impl FileIO for FileIOClient {
         Some(self.clone())
     }
 }
+*/

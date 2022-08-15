@@ -505,8 +505,8 @@ pub fn convert(args: Args, input: Item) -> proc_macro::TokenStream {
                             #( #listens )*
                         }
     
-                        pub fn serve() {
-                            wasmer_bus::task::serve();
+                        pub async fn serve() {
+                            wasmer_bus::task::serve().await;
                         }
                     }
                 }

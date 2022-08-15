@@ -9,6 +9,8 @@ use tokio::sync::mpsc;
 use tokio::sync::RwLock;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
+#[cfg(feature = "sys")]
+use wasmer::Engine;
 
 use crate::tty::TtyMode;
 
@@ -42,6 +44,8 @@ pub struct Console {
     stdout: Stdout,
     stderr: Fd,
     exec: EvalFactory,
+    #[cfg(feature = "sys")]
+    engine: Option<Engine>,
     compiler: Compiler,
     abi: Arc<dyn ConsoleAbi>,
     wizard: Option<WizardExecutor>,
@@ -136,6 +140,8 @@ impl Console {
         );
 
         let wizard = wizard.map(|a| WizardExecutor::new(a));
+        #[cfg(feature = "sys")]
+        let engine = compiler.new_engine();
 
         let mut ret = Console {
             location,
@@ -148,6 +154,8 @@ impl Console {
             tty,
             reactor,
             exec: exec_factory,
+            #[cfg(feature = "sys")]
+            engine,
             compiler,
             abi,
             wizard,
@@ -338,6 +346,8 @@ impl Console {
                 state.path.clone(),
                 Vec::new(),
                 state.rootfs.clone(),
+                #[cfg(feature = "sys")]
+                self.engine.clone(),
                 self.compiler,
             )
         };

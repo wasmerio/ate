@@ -2,10 +2,8 @@ mod call;
 mod data;
 mod finish;
 mod handle;
-#[cfg(feature = "rt")]
 mod listen;
 mod reply;
-#[cfg(feature = "rt")]
 mod respond_to;
 mod session;
 #[cfg(target_os = "wasi")]
@@ -23,15 +21,15 @@ pub use call::*;
 pub use data::*;
 pub use finish::*;
 pub use handle::*;
-#[cfg(feature = "rt")]
 pub use listen::*;
 pub use reply::*;
-#[cfg(feature = "rt")]
 pub use respond_to::*;
 use serde::Serialize;
 pub use session::*;
 
 pub use wasmer_bus_types::*;
+
+pub const MAX_BUS_POLL_EVENTS: usize = 50;
 
 pub fn call<T>(
     ctx: CallContext,

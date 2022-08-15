@@ -74,6 +74,7 @@ pub struct Server
     pub repo: Arc<Repository>,
     pub db_url: url::Url,
     pub auth_url: url::Url,
+    pub engine: Option<wasmer_os::wasmer::Engine>,
     pub compiler: wasmer_os::eval::Compiler,
     pub compiled_modules: Arc<CachedCompiledModules>,
     pub instance_authority: String,
@@ -114,6 +115,7 @@ impl Server
         .await?;
 
         let sessions = RwLock::new(TtlCache::new(usize::MAX));
+        let engine = compiler.new_engine();
 
         Ok(Self {
             system: System::default(),
@@ -121,6 +123,7 @@ impl Server
             auth_url,
             registry,
             repo,
+            engine,
             compiler,
             compiled_modules,
             instance_authority,
@@ -202,6 +205,7 @@ impl Server
             sock_addr,
             wire_encryption,
             Arc::new(Mutex::new(ConsoleRect { cols: 80, rows: 25 })),
+            self.engine.clone(),
             self.compiler.clone(),
             basics.clone(),
             first_init
@@ -453,6 +457,7 @@ for Server
             sock_addr,
             None,
             Arc::new(Mutex::new(ConsoleRect { cols: 80, rows: 25 })),
+            self.engine.clone(),
             self.compiler.clone(),
             basics.clone(),
             first_init
@@ -616,6 +621,7 @@ for Server
             sock_addr,
             None,
             Arc::new(Mutex::new(ConsoleRect { cols: 80, rows: 25 })),
+            self.engine.clone(),
             self.compiler.clone(),
             basics.clone(),
             first_init

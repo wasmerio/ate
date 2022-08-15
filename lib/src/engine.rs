@@ -22,22 +22,12 @@ use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 pub struct TaskEngine {}
 
 impl TaskEngine {
-    #[cfg(not(target_family = "wasm"))]
     pub fn spawn<T>(task: T) -> tokio::task::JoinHandle<T::Output>
     where
         T: Future + Send + 'static,
         T::Output: Send + 'static,
     {
         tokio::spawn(task)
-    }
-
-    #[cfg(target_family = "wasm")]
-    pub fn spawn<T>(task: T)
-    where
-        T: Future + Send + 'static,
-        T::Output: Send + 'static,
-    {
-        wasmer_bus::task::spawn(task)
     }
 
     pub async fn spawn_blocking<F, R>(f: F) -> R

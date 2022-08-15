@@ -1,5 +1,7 @@
 use async_trait::async_trait;
 use derivative::*;
+#[cfg(feature = "sys")]
+use wasmer::Engine;
 use wasmer_vbus::BusDataFormat;
 use std::future::Future;
 use std::ops::Deref;
@@ -40,6 +42,9 @@ struct ProcessExecCreate {
 #[derivative(Debug)]
 pub struct ProcessExecFactory {
     system: System,
+    #[cfg(feature = "sys")]
+    #[derivative(Debug = "ignore")]
+    engine: Option<Engine>,
     compiler: Compiler,
     #[derivative(Debug = "ignore")]
     reactor: Arc<RwLock<Reactor>>,
@@ -126,6 +131,8 @@ pub struct LaunchResult<T>
 impl ProcessExecFactory {
     pub fn new(
         reactor: Arc<RwLock<Reactor>>,
+        #[cfg(feature = "sys")]
+        engine: Option<Engine>,
         compiler: Compiler,
         exec_factory: EvalFactory,
         ctx: EvalContext,
@@ -134,6 +141,8 @@ impl ProcessExecFactory {
         ProcessExecFactory {
             system,
             reactor,
+            #[cfg(feature = "sys")]
+            engine,
             compiler,
             exec_factory,
             abi: ctx.abi.clone(),
@@ -258,6 +267,8 @@ impl ProcessExecFactory {
             let abi = env.abi.clone();
             let ctx = self.ctx.clone();
             let reactor = self.reactor.clone();
+            #[cfg(feature = "sys")]
+            let engine = self.engine.clone();
             let compiler = self.compiler;
             let exec_factory = self.exec_factory.clone();
             let checkpoint1 = checkpoint1.clone();
@@ -321,6 +332,8 @@ impl ProcessExecFactory {
                             .unwrap_or(ctx.working_dir.clone()),
                         pre_open,
                         ctx.root.clone(),
+                        #[cfg(feature = "sys")]
+                        engine,
                         compiler,
                     );
                     spawn.checkpoint1 = Some((checkpoint1_tx, checkpoint1));

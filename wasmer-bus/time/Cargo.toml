@@ -13,8 +13,8 @@ readme = "README.md"
 default = []
 
 [dependencies]
-wasmer-bus = { version = "^1", path = "../lib", default_features = false, features = [ "rt", "macros" ] }
+wasmer-bus = { version = "^1", path = "../lib", default_features = false, features = [ "macros" ] }
 tracing = { version = "^0.1", features = [ "log" ] }
 serde = { version = "^1", features = ["derive"] }
-tokio = { version = "^1", features = [ "sync", "macros", "time" ], default_features = false }
+tokio = { version = "1.20.1", features = [ "sync", "macros", "time" ], default_features = false }
 async-trait = "^0.1"

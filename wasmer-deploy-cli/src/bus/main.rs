@@ -64,9 +64,8 @@ pub async fn main_opts_bus(
     DeployServer::listen(opts.clone(), registry.clone(), session_user.clone(), conf.clone(), auth_url.clone()).await?;
     debug!("listing for fuse commands");
     FuseServer::listen(opts.clone(), registry.clone(), session_user.clone(), conf.clone(), auth_url.clone()).await?;
-    debug!("registering wasmer_bus server");
-    wasmer_bus::task::serve();
-    info!("switching from command to reactor pattern");
+    debug!("switching to request serving mode");
+    wasmer_bus::task::serve().await;
     Ok(())
 }
 

@@ -14,6 +14,6 @@ default = []
 backend = []
 
 [dependencies]
-wasmer-bus = { version = "^1", path = "../lib", default_features = false, features = [ "rt", "macros" ] }
+wasmer-bus = { version = "^1", path = "../lib", default_features = false, features = [ "macros" ] }
 serde = { version = "^1", features = ["derive"] }
 async-trait = "^0.1"

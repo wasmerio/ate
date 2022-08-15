@@ -22,6 +22,8 @@ pub struct SpawnContext {
     pub working_dir: String,
     pub pre_open: Vec<String>,
     pub root: UnionFileSystem,
+    #[cfg(feature = "sys")]
+    pub engine: Option<Engine>,
     pub compiler: Compiler,
     pub extra_args: Vec<String>,
     pub extra_redirects: Vec<Redirect>,    
@@ -41,6 +43,8 @@ impl SpawnContext {
         working_dir: String,
         pre_open: Vec<String>,
         root: UnionFileSystem,
+        #[cfg(feature = "sys")]
+        engine: Option<Engine>,
         compiler: Compiler,
     ) -> SpawnContext {
         SpawnContext {
@@ -54,6 +58,8 @@ impl SpawnContext {
             working_dir,
             pre_open,
             root,
+            #[cfg(feature = "sys")]
+            engine,
             compiler,
             extra_args: Vec::new(),
             extra_redirects: Vec::new(),
@@ -149,6 +155,8 @@ impl EvalFactory {
             root: ctx.root,
             exec_factory: self.clone(),
             job: ctx.job,
+            #[cfg(feature = "sys")]
+            engine: ctx.engine.clone(),
             compiler: ctx.compiler,
             extra_args: ctx.extra_args,
             extra_redirects: ctx.extra_redirects,            

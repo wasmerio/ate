@@ -7,8 +7,6 @@ pub use crate::abi::Call;
 pub use crate::task::listen;
 #[cfg(feature = "rt")]
 pub use crate::task::respond_to;
-#[cfg(feature = "rt")]
-pub use crate::task::serve;
 #[cfg(feature = "macros")]
 pub use wasmer_bus_macros::*;
 

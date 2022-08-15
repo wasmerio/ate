@@ -17,7 +17,7 @@ default = []
 
 [dependencies]
 clap = { version = "^3.0.0-rc.7", features = [ "derive" ] }
-tokio = { version = "^1", features = [ "rt", "io-util", "macros", "sync", "time", "fs" ], default_features = false }
+tokio = { version = "1.20.1", features = [ "rt", "io-util", "macros", "sync", "time", "fs" ], default_features = false }
 #tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
 tracing = { version = "^0.1", features = [ "log" ] }
 tracing-futures = { version = "^0.2" }

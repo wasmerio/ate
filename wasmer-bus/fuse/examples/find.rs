@@ -6,11 +6,8 @@ use wasmer_bus_fuse::prelude::*;
 //use tracing_subscriber::EnvFilter;
 use tracing::metadata::LevelFilter;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    wasmer_bus::task::block_on(main_async())
-}
-
-async fn main_async() -> Result<(), Box<dyn std::error::Error>> {
+#[tokio::main(flavor = "multi_thread")]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     SubscriberBuilder::default()
         .with_writer(std::io::stderr)
         .with_max_level(LevelFilter::DEBUG)

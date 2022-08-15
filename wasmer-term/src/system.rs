@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 #[cfg(feature = "embedded_files")]
 use include_dir::{include_dir, Dir};
-use wasmer_os::wasmer::{Module, Store, AsStoreRef};
-use wasmer_os::wasmer::vm::VMMemory;
+use wasmer_os::wasmer::VMMemory;
+use wasmer_os::wasmer::vm::VMSharedMemory;
 use wasmer_os::wasmer_wasi::WasiThreadError;
 use std::cell::RefCell;
 use std::convert::TryFrom;
@@ -96,49 +96,31 @@ impl SystemAbi for SysSystem {
     /// It is ok for this task to block execution and any async futures within its scope
     fn task_wasm(
         &self,
-        task: Box<dyn FnOnce(Store, Module, Option<VMMemory>) -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
-        store: Store,
-        module: Module,
+        task: Box<dyn FnOnce(Option<VMMemory>) -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
         memory_spawn: SpawnType,
     ) -> Result<(), WasiThreadError> {
         use tracing::error;
 
-        let memory = match memory_spawn {
-            SpawnType::CreateWithMemory(ty) => {
-                let style = store
-                    .as_store_ref()
-                    .tunables()
-                    .memory_style(&ty);
+        let memory: Option<VMMemory> = match memory_spawn {
+            SpawnType::CreateWithTypeAndStyle(ty, style) => {
                 Some(
-                    VMMemory::new(&ty, &style)
-                        .map_err(|err| {
-                            error!("failed to create memory - {}", err);
-                        })
-                        .unwrap()
+                    VMMemory::Shared(
+                        VMSharedMemory::new(&ty, &style)
+                            .map_err(|err| {
+                                error!("failed to create memory - {}", err);
+                            })
+                            .unwrap()
+                    )
                 )
             },
             SpawnType::NewThread(mem) => Some(mem),
             SpawnType::Create => None,
         };
-
-        // Convert the module into bytes (as the module object is not multithread safe!)
-        let module_bytes = module.serialize()
-            .map_err(|err| {
-                error!("failed to serialize module - {}", err);
-                WasiThreadError::InvalidWasmContext
-            })?;
         
         let rt = self.runtime.clone();
         self.runtime.spawn_blocking(move || {
-
-            // Now we deserialize the module
-            let module = unsafe {
-                Module::deserialize(&store, &module_bytes[..])
-                    .unwrap()
-            };
-
             // Invoke the callback
-            let fut = task(store, module, memory);
+            let fut = task(memory);
             rt.block_on(fut)
         });
         Ok(())
@@ -325,7 +307,7 @@ impl SystemAbi for SysSystem {
     }
 
     async fn web_socket(&self, url: &str) -> Result<Box<dyn WebSocketAbi>, String> {
-        return Ok(Box::new(SysWebSocket::new(url).await));
+        return Ok(Box::new(SysWebSocket::new(url).await?));
     }
 
     // WebGL is not supported here

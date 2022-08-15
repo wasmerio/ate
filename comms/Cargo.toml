@@ -36,14 +36,14 @@ base64 = "^0.13"
 bincode = "^1"
 once_cell = "^1"
 derivative = { version = "^2" }
-wasmer-bus = { version = "^1", path = "../wasmer-bus/lib", default_features = false, features = [ "rt", "macros" ] }
+wasmer-bus = { version = "^1", path = "../wasmer-bus/lib", default_features = false, features = [ "macros" ] }
 wasmer-bus-ws = { version = "^1", path = "../wasmer-bus/ws" }
 
 [target.'cfg(not(target_os = "wasi"))'.dependencies]
-tokio = { version = "^1", features = [ "rt", "io-util", "macros", "sync", "time", "fs" ], default_features = false }
+tokio = { version = "1.20.1", features = [ "rt", "io-util", "macros", "sync", "time", "fs" ], default_features = false }
 trust-dns-proto = { version = "^0.20", optional = true }
 trust-dns-client = { version = "^0.20", features = ["dnssec"], optional = true }
 
 [target.'cfg(target_os = "wasi")'.dependencies]
-tokio = { version = "^1", features = [ "macros", "sync" ], default_features = false }
+tokio = { version = "1.20.1", features = [ "macros", "sync" ], default_features = false }
 backtrace = "^0.3"

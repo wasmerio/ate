@@ -1,8 +1,6 @@
 use async_trait::async_trait;
 use js_sys::Promise;
-use wasmer_os::wasmer::Module;
-use wasmer_os::wasmer::Store;
-use wasmer_os::wasmer::vm::VMMemory;
+use wasmer_os::wasmer::VMMemory;
 use wasmer_os::wasmer_wasi::WasiThreadError;
 use std::future::Future;
 use std::pin::Pin;
@@ -62,15 +60,13 @@ impl SystemAbi for WebSystem {
 
     fn task_wasm(
         &self,
-        task: Box<dyn FnOnce(Store, Module, Option<VMMemory>) -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
-        store: Store,
-        module: Module,
+        task: Box<dyn FnOnce(Option<VMMemory>) -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
         spawn_type: SpawnType,
     ) -> Result<(), WasiThreadError> {
-        let run = move |store, module, memory| {
-            task(store, module, memory)
+        let run = move | memory| {
+            task(memory)
         };
-        self.pool.spawn_wasm(run, store, module, spawn_type)
+        self.pool.spawn_wasm(run, spawn_type)
     }
 
     fn task_dedicated(

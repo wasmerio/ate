@@ -135,7 +135,7 @@ pub fn bus_poll_once(timeout: std::time::Duration) -> usize {
         u: wasi::BusEventU {
             noop: 0
         }
-    }; 50];
+    }; MAX_BUS_POLL_EVENTS];
     let events = unsafe {
         let events_len = events.len();
         let events_ptr = events.as_mut_ptr();
@@ -218,16 +218,6 @@ pub fn bus_poll_once(timeout: std::time::Duration) -> usize {
                 debug!("unknown bus event type ({})", a.raw());
             }
         }
-    }
-
-    // This function is the one that actually processing the call but it will
-    // not necessarily complete the call in one go - if it idles then thats
-    // because its waiting for something else from the wasmer_bus hence we return
-    if nevents > 0 {
-        #[cfg(feature = "rt")]
-        crate::task::wake();
-        #[cfg(feature = "rt")]
-        crate::task::work_it();
     }
     
     // Returns the number of events that were processed
@@ -349,25 +339,5 @@ pub fn call_reply(
         {
             debug!("call reply ({}) failed - {}", handle, err.message())
         }
-    }
-}
-
-#[cfg(all(target_os = "wasi", target_vendor = "wasmer"))]
-pub fn spawn_reactor() {
-    std::thread::reactor(|| {
-        crate::rt::RUNTIME.tick();
-    });
-}
-
-#[no_mangle]
-#[cfg(not(all(target_os = "wasi", target_vendor = "wasmer")))]
-pub extern "C" fn _react(_entry: u64) {
-    crate::rt::RUNTIME.tick();
-}
-
-#[cfg(not(all(target_os = "wasi", target_vendor = "wasmer")))]
-pub fn spawn_reactor() {
-    unsafe {
-        wasi::thread_spawn(0u64, wasi::BOOL_TRUE).unwrap();
     }
 }

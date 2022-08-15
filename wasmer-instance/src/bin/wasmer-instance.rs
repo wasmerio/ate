@@ -81,7 +81,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
                 // Set the system
                 let (tx_exit, _) = watch::channel(false);
                 let sys = Arc::new(wasmer_term::system::SysSystem::new_with_runtime(
-                    tx_exit, runtime,
+                    solo.native_files_path.clone(), tx_exit, runtime,
                 ));
                 let sys = wasmer_ssh::system::System::new(sys, registry.clone(), solo.db_url.clone(), native_files).await;
                 wasmer_ssh::wasmer_os::api::set_system_abi(sys);

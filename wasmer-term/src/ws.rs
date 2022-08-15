@@ -23,18 +23,22 @@ pub struct SysWebSocket {
 }
 
 impl SysWebSocket {
-    pub async fn new(url: &str) -> SysWebSocket {
-        let url = url::Url::parse(url).unwrap();
+    pub async fn new(url: &str) -> Result<SysWebSocket, String> {
+        let url = url::Url::parse(url)
+            .map_err(|err| err.to_string())?;
 
-        let (ws_stream, _) = connect_async(url).await.expect("Failed to connect");
+        let (ws_stream, _) = connect_async(url).await
+            .map_err(|err| format!("failed to connect - {}", err))?;
         let (sink, stream) = ws_stream.split();
 
-        SysWebSocket {
-            system: System::default(),
-            sink,
-            stream: Some(stream),
-            on_close: Arc::new(Mutex::new(None)),
-        }
+        Ok(
+            SysWebSocket {
+                system: System::default(),
+                sink,
+                stream: Some(stream),
+                on_close: Arc::new(Mutex::new(None)),
+            }
+        )
     }
 }
 

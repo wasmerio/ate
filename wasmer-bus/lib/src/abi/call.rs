@@ -8,10 +8,15 @@ use std::ops::*;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::task::Context;
-use std::task::Poll;
+use std::task::{
+    Context,
+    Poll
+};
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
+
+#[cfg(feature = "rt")]
+use crate::task::init_reactors;
 
 use super::*;
 
@@ -259,6 +264,9 @@ impl CallBuilder {
             Data::Prepared(req) => {
                 match &call.ctx {
                     CallContext::NewBusCall { wapm, instance } => {
+                        #[cfg(feature = "rt")]
+                        init_reactors();
+                        
                         if let Some(ref instance) = instance {
                             crate::abi::syscall::bus_open_remote(
                                 wapm.as_ref(),
@@ -380,10 +388,14 @@ where
     }
 
     /// Waits for the call to complete and returns the response from
-    /// the server
+    /// the server    
     #[cfg(feature = "rt")]
     pub fn wait(self) -> Result<T, BusError> {
         crate::task::block_on(self)
+    }
+    #[cfg(not(feature = "rt"))]
+    pub fn wait(self) -> Result<T, BusError> {
+        Err(BusError::Unsupported)
     }
 
     /// Spawns the work on a background thread
@@ -393,6 +405,13 @@ where
         T: Send + 'static,
     {
         crate::task::spawn(self);
+    }
+    #[cfg(not(feature = "rt"))]
+    pub fn spawn(self)
+    where
+        T: Send + 'static,
+    {
+        panic!("spawning of calls is not supported on this platform");
     }
 
     /// Tries to get the result of the call to the server but will not

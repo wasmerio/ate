@@ -9,7 +9,7 @@ use wasmer_os::wasmer::MemoryType;
 use wasmer_os::wasmer::Module;
 use wasmer_os::wasmer::Store;
 use wasmer_os::wasmer::WASM_MAX_PAGES;
-use wasmer_os::wasmer::vm::VMMemory;
+use wasmer_os::wasmer::VMMemory;
 use wasmer_os::wasmer_wasi::WasiThreadError;
 use std::borrow::Borrow;
 use std::cell::RefCell;
@@ -59,9 +59,7 @@ enum WasmRunType {
 }
 
 struct WasmRunCommand {
-    run: Box<dyn FnOnce(Store, Module, Option<VMMemory>) -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
-    store: Store, 
-    module: Vec<u8>,
+    run: Box<dyn FnOnce(Option<VMMemory>) -> Pin<Box<dyn Future<Output = ()> + 'static>> + 'static>,
     ty: WasmRunType,
     free_memory: Arc<mpsc::Sender<u32>>,
 }
@@ -292,14 +290,12 @@ impl WebThreadPool {
     
     pub fn spawn_wasm(
         &self,
-        run: impl FnOnce(Store, Module, Option<VMMemory>) -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static,
-        store: Store,
-        module: Module,
+        run: impl FnOnce(Option<VMMemory>) -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static,
         spawn_type: SpawnType,
     ) -> Result<(), WasiThreadError> {
         let run_type = match spawn_type {
             SpawnType::Create => WasmRunType::Create,
-            SpawnType::CreateWithMemory(ty) => WasmRunType::CreateWithMemory(ty),
+            SpawnType::CreateWithType(ty) => WasmRunType::CreateWithMemory(ty),
             SpawnType::NewThread(_) => {
                 let wasm_id = match THREAD_LOCAL_CURRENT_WASM.with(|c| c.borrow().clone()) {
                     Some(id) => id,
@@ -311,12 +307,9 @@ impl WebThreadPool {
             }
         };
 
-        let module_bytes = module.serialize().unwrap();
         let msg = WasmRunCommand {
             run: Box::new(run),
             ty: run_type,
-            store,
-            module: module_bytes,
             free_memory: self.free_memory.clone(),
         };
         _spawn_send(&self.spawn_wasm, msg);

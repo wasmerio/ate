@@ -203,8 +203,9 @@ for MyFile {
     }
 }
 
-fn main() {
+#[tokio::main(flavor = "multi_thread")]
+async fn main() {
     let fuse = MyFuse { };
     api::FuseService::listen(Arc::new(fuse));
-    api::FuseService::serve();
+    api::FuseService::serve().await;
 }

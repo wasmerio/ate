@@ -146,11 +146,15 @@ pub async fn exec_process(
     };
 
     // Create a store for the module and memory
-    let mut store = ctx.compiler.new_store();
+    #[cfg(feature = "sys")]
+    let mut store = match ctx.engine.clone() {
+        Some(engine) => Store::new(engine),
+        None => Store::default()
+    };
+    #[cfg(feature = "js")]
+    let mut store = Store::default();
 
-    // TODO: This caching of the modules was disabled as there is a bug within
-    //       wasmer Module and JsValue that causes a panic in certain race conditions
-    // Load or compile the module (they are cached in therad local storage)
+    // Load or compile the module (they are cached in thread local storage)
     // If compile caching is enabled the load the module
     let cached_module = { ctx.bins.get_compiled_module(&store, &program_data_hash, ctx.compiler).await };
 
@@ -355,7 +359,20 @@ pub async fn exec_process(
 
     // Determine if we are going to create memory and import it or just rely on self creation of memory
     let memory_spawn = match shared_memory {
-        Some(ty) => SpawnType::CreateWithMemory(ty),
+        #[cfg(feature = "sys")]
+        Some(ty) => {
+            let style = match &ctx.engine {
+                    Some(engine) => Store::new(engine.clone()),
+                    None => Store::default()
+                }
+                .tunables()
+                .memory_style(&ty);            
+            SpawnType::CreateWithTypeAndStyle(ty, style)
+        },
+        #[cfg(feature = "js")]
+        Some(ty) => {
+            SpawnType::CreateWithType(ty)
+        },
         None => SpawnType::Create,
     };
 
@@ -369,6 +386,8 @@ pub async fn exec_process(
     };
     let sub_process_factory = ProcessExecFactory::new(
         ctx.reactor.clone(),
+        #[cfg(feature = "sys")]
+        ctx.engine.clone(),
         ctx.compiler,
         ctx.exec_factory.clone(),
         ctx,
@@ -390,7 +409,7 @@ pub async fn exec_process(
         let wasi_runtime = wasi_runtime.clone();
         let forced_exit = Arc::clone(&forced_exit);
 
-        sys.spawn_wasm(move |mut store, module, memory| async move
+        sys.spawn_wasm(move |memory| async move
         {
             // Build the list of arguments
             let args = args.iter().skip(1).map(|a| a.as_str()).collect::<Vec<_>>();
@@ -556,14 +575,8 @@ pub async fn exec_process(
             // all the background threads have exited
             checkpoint2_tx.send(()).await;
 
-            // If there are any chained workers then run them
-            while ret == 0 {
-                if let Some(worker) = wasi_env.data(&store).state.next_chained_worker() {
-                    ret = worker();
-                } else {
-                    break;
-                }
-            }
+            // Force everything to exit (if it has not already)
+            forced_exit.compare_exchange(0, err::ERR_EINTR, Ordering::AcqRel, Ordering::Relaxed);
 
             // If the main thread exited normally and there are still active threads
             // running then we need to wait for them all to exit before we terminate
@@ -572,7 +585,9 @@ pub async fn exec_process(
                     if let Err(err) = wasi_env.data(&store).sleep(Duration::from_millis(50)) {
                         match err {
                             WasiError::Exit(code) => {
-                                ret = code;
+                                if code != err::ERR_EINTR {
+                                    ret = code;
+                                }
                             },
                             _ => { }
                         }
@@ -585,7 +600,7 @@ pub async fn exec_process(
             debug!("exited (name={}) with code {}", cmd, ret);
             let ctx = ctx_taker.take_context().unwrap();
             (ctx, ret)
-        }, store, module, memory_spawn)
+        }, memory_spawn)
     };
 
     // Wait for the checkpoint (either it triggers or it fails because its never reached

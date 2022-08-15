@@ -13,7 +13,7 @@ readme = "README.md"
 default = []
 
 [dependencies]
-wasmer-bus = { version = "^1", path = "../lib", default_features = false, features = [ "rt", "macros" ] }
+wasmer-bus = { version = "^1", path = "../lib", default_features = false, features = [ "macros" ] }
 tracing = { version = "^0.1", features = [ "log" ] }
 serde = { version = "^1", features = ["derive"] }
 serde_json = "^1.0"
@@ -27,5 +27,5 @@ futures-util = "^0.3"
 pin-project-lite = "^0.2"
 url = "^2"
 urlencoding = "^2"
-tokio = { version = "^1", features = [ "sync", "macros" ], default_features = false }
+tokio = { version = "1.20.1", features = [ "sync", "macros" ], default_features = false }
 async-trait = "^0.1"

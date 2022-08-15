@@ -16,7 +16,8 @@ for HelloService
     }
 }
 
-fn main() {
+#[tokio::main(flavor = "multi_thread")]
+async fn main() {
     WorldService::listen(Arc::new(HelloService::default()));
-    WorldService::serve();
+    WorldService::serve().await;
 }

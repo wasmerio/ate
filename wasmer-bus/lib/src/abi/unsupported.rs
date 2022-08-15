@@ -5,6 +5,7 @@ use super::*;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
+#[allow(dead_code)]
 pub fn bus_poll_once(timeout: Duration) -> usize {
     panic!("unsupported on this platform");
 }
@@ -56,9 +57,5 @@ pub fn call_reply(
     response: &[u8],
     format: SerializationFormat
 ) {
-    panic!("unsupported on this platform");
-}
-
-pub fn spawn_reactor() {
     panic!("unsupported on this platform");
 }
