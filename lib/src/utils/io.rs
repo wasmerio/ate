@@ -1,6 +1,7 @@
 use std::fmt;
 use std::fs::File;
-use std::io::{BufReader, BufRead, Error};
+use std::str::FromStr;
+use std::io::{BufReader, BufRead, Error, Read};
 
 pub fn load_node_list(list: Option<String>) -> Option<Vec<String>>
 {
@@ -17,6 +18,25 @@ pub fn load_node_list(list: Option<String>) -> Option<Vec<String>>
                 ret.push(line.unwrap());
             }
             Some(ret)
+        },
+        None => None
+    }
+}
+
+pub fn load_node_id(path: Option<String>) -> Option<u32>
+{
+    match path {
+        Some(path) => {
+            let path = shellexpand::tilde(&path).to_string();
+            let mut file = File::open(path.as_str())
+                .map_err(|err| conv_file_open_err(path.as_str(), err))
+                .unwrap();
+            let mut ret = String::new();
+            if let Ok(_) = file.read_to_string(&mut ret) {
+                u32::from_str(ret.as_str()).ok()
+            } else {
+                None
+            }
         },
         None => None
     }

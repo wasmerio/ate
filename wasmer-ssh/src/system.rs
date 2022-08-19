@@ -1,7 +1,9 @@
 use async_trait::async_trait;
 use ate::mesh::Registry;
 use ate_files::prelude::*;
-use wasmer_term::wasmer_os::wasmer::VMMemory;
+use wasmer_term::wasmer_os::wasmer::Module;
+use wasmer_term::wasmer_os::wasmer::Store;
+use wasmer_term::wasmer_os::wasmer::vm::VMMemory;
 use wasmer_term::wasmer_os::wasmer_wasi::WasiThreadError;
 use std::future::Future;
 use std::pin::Pin;
@@ -62,10 +64,12 @@ impl wasmer_os::api::SystemAbi for System {
     /// It is ok for this task to block execution and any async futures within its scope
     fn task_wasm(
         &self,
-        task: Box<dyn FnOnce(Option<VMMemory>) -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
+        task: Box<dyn FnOnce(Store, Module, Option<VMMemory>) -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
+        store: Store,
+        module: Module,
         spawn_type: SpawnType,
     ) -> Result<(), WasiThreadError> {
-        self.inner.task_wasm(task, spawn_type)
+        self.inner.task_wasm(task, store, module, spawn_type)
     }
 
     /// Starts an synchronous task will will run on a dedicated thread

@@ -147,12 +147,12 @@ pub async fn exec_process(
 
     // Create a store for the module and memory
     #[cfg(feature = "sys")]
-    let mut store = match ctx.engine.clone() {
+    let store = match ctx.engine.clone() {
         Some(engine) => Store::new(engine),
         None => Store::default()
     };
     #[cfg(feature = "js")]
-    let mut store = Store::default();
+    let store = Store::default();
 
     // Load or compile the module (they are cached in thread local storage)
     // If compile caching is enabled the load the module
@@ -359,19 +359,19 @@ pub async fn exec_process(
 
     // Determine if we are going to create memory and import it or just rely on self creation of memory
     let memory_spawn = match shared_memory {
-        #[cfg(feature = "sys")]
         Some(ty) => {
+            #[cfg(feature = "sys")]
             let style = match &ctx.engine {
                     Some(engine) => Store::new(engine.clone()),
                     None => Store::default()
                 }
                 .tunables()
                 .memory_style(&ty);            
-            SpawnType::CreateWithTypeAndStyle(ty, style)
-        },
-        #[cfg(feature = "js")]
-        Some(ty) => {
-            SpawnType::CreateWithType(ty)
+            SpawnType::CreateWithType(SpawnedMemory {
+                ty,
+                #[cfg(feature = "sys")]
+                style
+            })
         },
         None => SpawnType::Create,
     };
@@ -409,7 +409,7 @@ pub async fn exec_process(
         let wasi_runtime = wasi_runtime.clone();
         let forced_exit = Arc::clone(&forced_exit);
 
-        sys.spawn_wasm(move |memory| async move
+        sys.spawn_wasm(move |mut store, module, memory| async move
         {
             // Build the list of arguments
             let args = args.iter().skip(1).map(|a| a.as_str()).collect::<Vec<_>>();
@@ -600,7 +600,7 @@ pub async fn exec_process(
             debug!("exited (name={}) with code {}", cmd, ret);
             let ctx = ctx_taker.take_context().unwrap();
             (ctx, ret)
-        }, memory_spawn)
+        }, store, module, memory_spawn)
     };
 
     // Wait for the checkpoint (either it triggers or it fails because its never reached

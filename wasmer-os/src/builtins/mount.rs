@@ -110,14 +110,6 @@ pub(super) fn mount(
             }
         };
 
-        print(format!("Waiting for process to ready\r\n"), &mut stdio, false).await;
-
-        // Wait for the sub_process to hit checkpoint2
-        // (start finishes but reactors are still running)
-        sub_process.checkpoint2
-            .wait()
-            .await;
-
         print(format!("Executing the mount\r\n"), &mut stdio, false).await;
 
         let fs = match FuseFileSystem::new(sub_process, target.as_str(), stdio.clone()).await {

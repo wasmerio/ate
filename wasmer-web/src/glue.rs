@@ -58,7 +58,7 @@ pub fn start() -> Result<(), JsValue> {
     tracing_wasm::set_as_global_default_with_config(
         tracing_wasm::WASMLayerConfigBuilder::new()
             .set_report_logs_in_timings(false)
-            .set_max_level(tracing::Level::DEBUG)
+            .set_max_level(tracing::Level::TRACE)
             .build(),
     );
 

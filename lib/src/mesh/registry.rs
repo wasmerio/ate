@@ -192,7 +192,7 @@ impl Registry {
             match lock.get(&url) {
                 Some(a) => Arc::clone(a),
                 None => {
-                    trace!("perf-checkpoint: createing mesh client");
+                    trace!("perf-checkpoint: creating mesh client");
                     trace!("building mesh client for {}", url);
                     let cfg_mesh = self.cfg_for_url(url).await?;
                     let mesh = MeshClient::new(

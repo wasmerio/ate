@@ -1,9 +1,11 @@
 use async_trait::async_trait;
 use tracing::error;
-#[cfg(feature = "sys")]
-use wasmer::MemoryStyle;
+use wasmer::Store;
 use wasmer::MemoryType;
-use wasmer::VMMemory;
+use wasmer::Module;
+#[cfg(feature = "sys")]
+use wasmer::vm::MemoryStyle;
+use wasmer::vm::VMMemory;
 use wasmer_wasi::WasiThreadError;
 use std::future::Future;
 use std::pin::Pin;
@@ -83,7 +85,9 @@ where
     /// It is ok for this task to block execution and any async futures within its scope
     fn task_wasm(
         &self,
-        task: Box<dyn FnOnce(Option<VMMemory>) -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
+        task: Box<dyn FnOnce(Store, Module, Option<VMMemory>) -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
+        store: Store,
+        module: Module,
         spawn_type: SpawnType,
     ) -> Result<(), WasiThreadError>;
 
@@ -131,12 +135,17 @@ where
 }
 
 #[derive(Debug)]
+pub struct SpawnedMemory
+{
+    pub ty: MemoryType,
+    #[cfg(feature = "sys")]
+    pub style: MemoryStyle,
+}
+
+#[derive(Debug)]
 pub enum SpawnType {
     Create,
-    #[cfg(feature = "sys")]
-    CreateWithTypeAndStyle(MemoryType, MemoryStyle),
-    #[cfg(feature = "js")]
-    CreateWithType(MemoryType),
+    CreateWithType(SpawnedMemory),
     NewThread(VMMemory),
 }
 
@@ -158,23 +167,10 @@ pub trait SystemAbiExt {
     /// It is ok for this task to block execution and any async futures within its scope
     /// The return value of the spawned thread can be read either synchronously
     /// or asynchronously
-    #[cfg(feature = "sys")]
-    fn spawn_wasm<F, Fut>(&self, task: F, memory: SpawnType) -> AsyncResult<Fut::Output>
+    fn spawn_wasm<F, Fut>(&self, task: F, store: Store, module: Module, memory: SpawnType) -> AsyncResult<Fut::Output>
     where
-        F: FnOnce(Option<VMMemory>) -> Fut,
+        F: FnOnce(Store, Module, Option<VMMemory>) -> Fut,
         F: Send + 'static,
-        Fut: Future + 'static,
-        Fut::Output: Send;
-
-    /// Starts an web assembly task will will run on a dedicated thread
-    /// It is ok for this task to block execution and any async futures within its scope
-    /// The return value of the spawned thread can be read either synchronously
-    /// or asynchronously
-    #[cfg(feature = "js")]
-    fn spawn_wasm<F, Fut>(&self, task: F, memory: SpawnType) -> AsyncResult<Fut::Output>
-    where
-        F: FnOnce(Option<VMMemory>) -> Fut,
-        F: 'static,
         Fut: Future + 'static,
         Fut::Output: Send;
 
@@ -218,9 +214,9 @@ pub trait SystemAbiExt {
     /// pulled from the worker pool that has a stateful thread local variable
     /// It is ok for this task to block execution and any async futures within its scope
     /// This is the fire-and-forget variet of spawning background work
-    fn fork_wasm<F, Fut>(&self, task: F, spawn_type: SpawnType)
+    fn fork_wasm<F, Fut>(&self, task: F, store: Store, module: Module, spawn_type: SpawnType)
     where
-        F: FnOnce(Option<VMMemory>) -> Fut,
+        F: FnOnce(Store, Module, Option<VMMemory>) -> Fut,
         F: Send + 'static,
         Fut: Future + 'static,
         Fut::Output: Send;
@@ -272,43 +268,21 @@ impl SystemAbiExt for dyn SystemAbi {
         AsyncResult::new(SerializationFormat::Bincode, rx_result)
     }
 
-    #[cfg(feature = "sys")]
-    fn spawn_wasm<F, Fut>(&self, task: F, spawn_type: SpawnType) -> AsyncResult<Fut::Output>
+    fn spawn_wasm<F, Fut>(&self, task: F, store: Store, module: Module, spawn_type: SpawnType) -> AsyncResult<Fut::Output>
     where
-        F: FnOnce(Option<VMMemory>) -> Fut,
+        F: FnOnce(Store, Module, Option<VMMemory>) -> Fut,
         F: Send + 'static,
         Fut: Future + 'static,
         Fut::Output: Send,
     {
         let (tx_result, rx_result) = mpsc::channel(1);
-        if let Err(err) = self.task_wasm(Box::new(move |memory| {
-            let task = task(memory);
+        if let Err(err) = self.task_wasm(Box::new(move |store, module, memory| {
+            let task = task(store, module, memory);
             Box::pin(async move {
                 let ret = task.await;
                 let _ = tx_result.send(ret).await;
             })
-        }), spawn_type) {
-            error!("Error while spawning WebAssembly process - {}", err);
-        }
-        AsyncResult::new(SerializationFormat::Bincode, rx_result)
-    }
-
-    #[cfg(feature = "js")]
-    fn spawn_wasm<F, Fut>(&self, task: F, spawn_type: SpawnType) -> AsyncResult<Fut::Output>
-    where
-        F: FnOnce(Option<VMMemory>) -> Fut,
-        F: 'static,
-        Fut: Future + 'static,
-        Fut::Output: Send,
-    {
-        let (tx_result, rx_result) = mpsc::channel(1);
-        if let Err(err) = self.task_wasm(Box::new(move |memory| {
-            let task = task(memory);
-            Box::pin(async move {
-                let ret = task.await;
-                let _ = tx_result.send(ret).await;
-            })
-        }), spawn_type) {
+        }), store, module, spawn_type) {
             error!("Error while spawning WebAssembly process - {}", err);
         }
         AsyncResult::new(SerializationFormat::Bincode, rx_result)
@@ -368,14 +342,14 @@ impl SystemAbiExt for dyn SystemAbi {
         }
     }
 
-    fn fork_wasm<F, Fut>(&self, task: F, spawn_type: SpawnType)
+    fn fork_wasm<F, Fut>(&self, task: F, store: Store, module: Module, spawn_type: SpawnType)
     where
-        F: FnOnce(Option<VMMemory>) -> Fut,
+        F: FnOnce(Store, Module, Option<VMMemory>) -> Fut,
         F: Send + 'static,
         Fut: Future + 'static,
         Fut::Output: Send
     {
-        self.spawn_wasm(task, spawn_type);
+        self.spawn_wasm(task, store, module, spawn_type);
     }
 
     fn fork_dedicated<F>(&self, task: F)

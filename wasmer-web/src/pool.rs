@@ -1,4 +1,6 @@
 #![allow(unused_imports)]
+use bytes::Bytes;
+use js_sys::Uint8Array;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 
@@ -9,7 +11,7 @@ use wasmer_os::wasmer::MemoryType;
 use wasmer_os::wasmer::Module;
 use wasmer_os::wasmer::Store;
 use wasmer_os::wasmer::WASM_MAX_PAGES;
-use wasmer_os::wasmer::VMMemory;
+use wasmer_os::wasmer::vm::VMMemory;
 use wasmer_os::wasmer_wasi::WasiThreadError;
 use std::borrow::Borrow;
 use std::cell::RefCell;
@@ -59,8 +61,10 @@ enum WasmRunType {
 }
 
 struct WasmRunCommand {
-    run: Box<dyn FnOnce(Option<VMMemory>) -> Pin<Box<dyn Future<Output = ()> + 'static>> + 'static>,
+    run: Box<dyn FnOnce(Store, Module, Option<VMMemory>) -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
     ty: WasmRunType,
+    store: Store,
+    module_bytes: Bytes,
     free_memory: Arc<mpsc::Sender<u32>>,
 }
 
@@ -76,15 +80,17 @@ struct WasmRunContext {
 }
 
 #[derive(Clone)]
-struct WasmMemoryInstance
+struct WasmInstance
 {
     ref_cnt: u32,
+    module: js_sys::WebAssembly::Module,
+    module_bytes: Bytes,
     memory: js_sys::WebAssembly::Memory,
     memory_type: MemoryType,
 }
 
 thread_local! {
-    static THREAD_LOCAL_ROOT_MEMORIES: std::cell::RefCell<HashMap<u32, WasmMemoryInstance>> 
+    static THREAD_LOCAL_ROOT_WASM_INSTANCES: std::cell::RefCell<HashMap<u32, WasmInstance>> 
         = RefCell::new(HashMap::new());
     static THREAD_LOCAL_CURRENT_WASM: std::cell::RefCell<Option<u32>>
         = RefCell::new(None);
@@ -200,6 +206,7 @@ extern "C" {
         ctx: JsValue,
         opts: WorkerOptions,
         builder: LoaderHelper,
+        wasm_module: JsValue,
         wasm_memory: JsValue,
     ) -> Promise;
 }
@@ -248,7 +255,7 @@ impl WebThreadPool {
                         if let Some(spawn) = spawn { pool1.expand(spawn); } else { break; }
                     }
                     spawn = spawn_rx2.recv() => {
-                        if let Some(spawn) = spawn { _spawn_wasm(spawn); } else { break; }
+                        if let Some(spawn) = spawn { let _ = _spawn_wasm(spawn).await; } else { break; }
                     }
                     spawn = spawn_rx3.recv() => {
                         if let Some(spawn) = spawn { pool3.expand(spawn); } else { break; }
@@ -290,12 +297,14 @@ impl WebThreadPool {
     
     pub fn spawn_wasm(
         &self,
-        run: impl FnOnce(Option<VMMemory>) -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static,
+        run: impl FnOnce(Store, Module, Option<VMMemory>) -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static,
+        store: Store,
+        mut module_bytes: Bytes,
         spawn_type: SpawnType,
     ) -> Result<(), WasiThreadError> {
         let run_type = match spawn_type {
             SpawnType::Create => WasmRunType::Create,
-            SpawnType::CreateWithType(ty) => WasmRunType::CreateWithMemory(ty),
+            SpawnType::CreateWithType(mem) => WasmRunType::CreateWithMemory(mem.ty),
             SpawnType::NewThread(_) => {
                 let wasm_id = match THREAD_LOCAL_CURRENT_WASM.with(|c| c.borrow().clone()) {
                     Some(id) => id,
@@ -307,9 +316,19 @@ impl WebThreadPool {
             }
         };
 
+        if module_bytes.starts_with(b"\0asm") == false {
+            let parsed_bytes = wat::parse_bytes(module_bytes.as_ref()).map_err(|e| {
+                error!("failed to parse WAT - {}", e);
+                WasiThreadError::Unsupported
+            })?;
+            module_bytes = Bytes::from(parsed_bytes.to_vec());
+        }        
+
         let msg = WasmRunCommand {
             run: Box::new(run),
             ty: run_type,
+            store,
+            module_bytes,
             free_memory: self.free_memory.clone(),
         };
         _spawn_send(&self.spawn_wasm, msg);
@@ -331,13 +350,38 @@ impl WebThreadPool {
     }
 }
 
-fn _spawn_wasm(run: WasmRunCommand) {
+async fn _compile_module(bytes: &[u8]) -> Result<js_sys::WebAssembly::Module, ()>
+{
+    let js_bytes = unsafe { Uint8Array::view(bytes) };
+    Ok(
+        match wasm_bindgen_futures::JsFuture::from(
+            js_sys::WebAssembly::compile(&js_bytes.into())
+        ).await {
+            Ok(a) => match a.dyn_into::<js_sys::WebAssembly::Module>() {
+                Ok(a) => a,
+                Err(err) => {
+                    error!("Failed to compile module - {}", err.as_string().unwrap_or_else(|| format!("{:?}", err)));
+                    return Err(());
+                }
+            },
+            Err(err) => {
+                error!("WebAssembly failed to compile - {}", err.as_string().unwrap_or_else(|| format!("{:?}", err)));
+                return Err(());
+            }
+        }
+        //js_sys::WebAssembly::Module::new(&js_bytes.into()).unwrap()
+    )
+}
+
+async fn _spawn_wasm(mut run: WasmRunCommand) -> Result<(),()> {
     let mut opts = WorkerOptions::new();
     opts.type_(WorkerType::Module);
     opts.name(&*format!("WasmWorker"));
 
     let result = match run.ty.clone() {
         WasmRunType::Create => {
+            let wasm_module = _compile_module(&run.module_bytes[..]).await?;
+
             let wasm_id = WASM_SEED.fetch_add(1, Ordering::AcqRel);
             let ctx = WasmRunContext {
                 id: wasm_id,
@@ -352,6 +396,7 @@ fn _spawn_wasm(run: WasmRunCommand) {
                 JsValue::from(ctx as u32),
                 opts,
                 LoaderHelper {},
+                JsValue::from(wasm_module),
                 JsValue::null(),
             ))
         }
@@ -359,13 +404,15 @@ fn _spawn_wasm(run: WasmRunCommand) {
             if ty.shared == false {
                 // We can only pass memory around between web workers when its a shared memory
                 error!("Failed to create WASM process with external memory as only shared memory is supported yet this web assembly binary imports non-shared memory.");
-                return;
+                return Err(());
             }
             if ty.maximum.is_none() {
                 // Browsers require maximum number defined on shared memory
                 error!("Failed to create WASM process with external memory as shared memory must have a maximum size however this web assembly binary imports shared memory with no maximum defined.");
-                return;
+                return Err(());
             }
+
+            let wasm_module = _compile_module(&run.module_bytes[..]).await?;
 
             let wasm_memory = {
                 let descriptor = js_sys::Object::new();
@@ -381,17 +428,19 @@ fn _spawn_wasm(run: WasmRunCommand) {
                     Ok(a) => a,
                     Err(err) => {
                         error!("WebAssembly failed to create the memory - {}", err.as_string().unwrap_or_else(|| format!("{:?}", err)));
-                        return;
+                        return Err(());
                     }
                 }
             };
 
             let wasm_id = WASM_SEED.fetch_add(1, Ordering::AcqRel);
-            THREAD_LOCAL_ROOT_MEMORIES.with(|c| {
+            THREAD_LOCAL_ROOT_WASM_INSTANCES.with(|c| {
                 let mut root = c.borrow_mut();
                 let root = root.deref_mut();
-                root.insert(wasm_id, WasmMemoryInstance {
+                root.insert(wasm_id, WasmInstance {
                     ref_cnt: 1,
+                    module: wasm_module.clone(),
+                    module_bytes: run.module_bytes.clone(),
                     memory: wasm_memory.clone(),
                     memory_type: ty.clone()
                 })
@@ -410,30 +459,37 @@ fn _spawn_wasm(run: WasmRunCommand) {
                 JsValue::from(ctx as u32),
                 opts,
                 LoaderHelper {},
+                JsValue::from(wasm_module),
                 JsValue::from(wasm_memory),
             ))
         },
         WasmRunType::Existing(wasm_id) => {
-            let wasm_memory = THREAD_LOCAL_ROOT_MEMORIES.with(|c| {
+            let inst = THREAD_LOCAL_ROOT_WASM_INSTANCES.with(|c| {
                 let mut root = c.borrow_mut();
                 let root = root.deref_mut();
-                if let Some(mem) = root.get_mut(&wasm_id) {
-                    mem.ref_cnt += 1;
-                    Some(mem.clone())
+                if let Some(inst) = root.get_mut(&wasm_id) {
+                    inst.ref_cnt += 1;
+                    Some(inst.clone())
                 } else {
+                    error!("WebAssembly Memory must be sent to the management thread before attempting to reuse it in a new WebWorker, it must also use SharedMemory");
                     None
                 }
             });
-            let (wasm_memory, wasm_memory_type) = match wasm_memory {
-                Some(mem) => {
-                    (mem.memory, mem.memory_type)
-                },
-                None => {
-                    error!("WebAssembly Memory must be sent to the management thread before attempting to reuse it in a new WebWorker");
-                    return;
-                }
-            };
 
+            let wasm_module;
+            let wasm_module_bytes;
+            let wasm_memory;
+            let wasm_memory_type;
+            if let Some(inst) = inst {
+                wasm_module = inst.module;
+                wasm_module_bytes = inst.module_bytes;
+                wasm_memory = inst.memory;
+                wasm_memory_type = inst.memory_type;
+            } else {
+                return Err(());
+            }
+            run.module_bytes = wasm_module_bytes;
+            
             let ctx = WasmRunContext {
                 id: wasm_id,
                 cmd: run,
@@ -447,16 +503,18 @@ fn _spawn_wasm(run: WasmRunCommand) {
                 JsValue::from(ctx as u32),
                 opts,
                 LoaderHelper {},
+                JsValue::from(wasm_module),
                 JsValue::from(wasm_memory),
             ))
         }
     };
 
-    _process_worker_result(result, None);
+    _process_worker_result(result, None).await;
+    Ok(())
 }
 
 fn _free_memory(wasm_id: u32) {
-    THREAD_LOCAL_ROOT_MEMORIES.with(|c| {
+    THREAD_LOCAL_ROOT_WASM_INSTANCES.with(|c| {
         let mut root = c.borrow_mut();
         let root = root.deref_mut();
         let should_remove = if let Some(mem) = root.get_mut(&wasm_id) {
@@ -552,32 +610,32 @@ impl PoolState {
             LoaderHelper {},
         ));
 
-        _process_worker_result(result, should_warn_on_error);
+        wasm_bindgen_futures::spawn_local(async move {
+            _process_worker_result(result, should_warn_on_error).await;
+        });
     }
 }
 
-fn _process_worker_result(result: JsFuture, should_warn_on_error: Option<Terminal>) {
-    wasm_bindgen_futures::spawn_local(async move {
-        let ret = result.await;
-        if let Err(err) = ret {
-            let err = err
-                .as_string()
-                .unwrap_or_else(|| format!("{:?}", err));
-            error!("failed to start worker thread - {}", err);
+async fn _process_worker_result(result: JsFuture, should_warn_on_error: Option<Terminal>) {
+    let ret = result.await;
+    if let Err(err) = ret {
+        let err = err
+            .as_string()
+            .unwrap_or_else(|| format!("{:?}", err));
+        error!("failed to start worker thread - {}", err);
 
-            if let Some(term) = should_warn_on_error {
-                term.write(
-                    Tty::BAD_WORKER
-                        .replace("\n", "\r\n")
-                        .replace("\\x1B", "\x1B")
-                        .replace("{error}", err.as_str())
-                        .as_str(),
-                );
-            }
-
-            return;
+        if let Some(term) = should_warn_on_error {
+            term.write(
+                Tty::BAD_WORKER
+                    .replace("\n", "\r\n")
+                    .replace("\\x1B", "\x1B")
+                    .replace("{error}", err.as_str())
+                    .as_str(),
+            );
         }
-    });
+
+        return;
+    }
 }
 
 impl ThreadState {
@@ -726,7 +784,7 @@ pub fn worker_entry_point(state_ptr: u32) {
 }
 
 #[wasm_bindgen(skip_typescript)]
-pub fn wasm_entry_point(ctx_ptr: u32, wasm_memory: JsValue)
+pub fn wasm_entry_point(ctx_ptr: u32, wasm_module: JsValue, wasm_memory: JsValue)
 {
     // Grab the run wrapper that passes us the rust variables (and extract the callback)
     let ctx = ctx_ptr as *mut WasmRunContext;
@@ -735,12 +793,22 @@ pub fn wasm_entry_point(ctx_ptr: u32, wasm_memory: JsValue)
 
     // Compile the web assembly module
     let wasm_store = ctx.cmd.store;
-    let wasm_module = match Module::new(&wasm_store, &ctx.cmd.module[..]) {
+    let wasm_module = match wasm_module.dyn_into::<js_sys::WebAssembly::Module>() {
         Ok(a) => a,
         Err(err) => {
-            error!("Failed to compile module - {}", err);
+            error!("Failed to receive module - {}", err.as_string().unwrap_or_else(|| format!("{:?}", err)));
             _spawn_send(ctx.cmd.free_memory.deref(), ctx.id);
             return;
+        }
+    };
+    let wasm_module = unsafe {
+        match Module::from_js_module(&wasm_store, wasm_module, ctx.cmd.module_bytes.clone()){
+            Ok(a) => a,
+            Err(err) => {
+                error!("Failed to compile module - {}", err);
+                _spawn_send(ctx.cmd.free_memory.deref(), ctx.id);
+                return;
+            }
         }
     };
 

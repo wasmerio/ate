@@ -27,5 +27,6 @@ pub use log::obscure_error;
 pub use log::obscure_error_str;
 pub use progress::LoadProgress;
 pub use io::load_node_list;
+pub use io::load_node_id;
 pub use io::conv_file_open_err;
 pub use io::FileIOError;

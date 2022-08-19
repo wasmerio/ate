@@ -21,12 +21,12 @@ export function startWorker(module, memory, state, opts, helper) {
       worker.onerror = rej;
     });
 }
-export function startWasm(module, memory, ctx, opts, helper, wasm_memory) {
+export function startWasm(module, memory, ctx, opts, helper, wasm_module, wasm_memory) {
     const worker = new Worker(new URL('./worker.js',
         import.meta.url), opts);
 
     try {
-        worker.postMessage([module, memory, ctx, helper.mainJS(), wasm_memory]);
+        worker.postMessage([module, memory, ctx, helper.mainJS(), wasm_module, wasm_memory]);
     } catch(err) {
         return new Promise((res, rej) => {
             rej(err);
@@ -88,7 +88,7 @@ if (isWorker()) {
                 throw err;
             }   
         } else {
-            let [module, memory, ctx, mainJS, wasm_memory] = event.data;
+            let [module, memory, ctx, mainJS, wasm_module, wasm_memory] = event.data;
             const importFrom = (typeof __webpack_require__ === 'function') ? import('../../..') : import(mainJS);
             try {
                 const {
@@ -97,7 +97,7 @@ if (isWorker()) {
                 } = await importFrom;
                 await init(module, memory);
 
-                wasm_entry_point(ctx, wasm_memory);
+                wasm_entry_point(ctx, wasm_module, wasm_memory);
                 postMessage('started');
                 // There shouldn't be any additional messages after the first.
                 self.onmessage = event => {

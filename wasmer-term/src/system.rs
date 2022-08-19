@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 #[cfg(feature = "embedded_files")]
 use include_dir::{include_dir, Dir};
-use wasmer_os::wasmer::VMMemory;
-use wasmer_os::wasmer::vm::VMSharedMemory;
+use wasmer_os::wasmer::{Module, Store};
+use wasmer_os::wasmer::vm::{VMMemory, VMSharedMemory};
 use wasmer_os::wasmer_wasi::WasiThreadError;
 use std::cell::RefCell;
 use std::convert::TryFrom;
@@ -96,21 +96,22 @@ impl SystemAbi for SysSystem {
     /// It is ok for this task to block execution and any async futures within its scope
     fn task_wasm(
         &self,
-        task: Box<dyn FnOnce(Option<VMMemory>) -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
+        task: Box<dyn FnOnce(Store, Module, Option<VMMemory>) -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
+        store: Store,
+        module: Module,
         memory_spawn: SpawnType,
     ) -> Result<(), WasiThreadError> {
         use tracing::error;
 
         let memory: Option<VMMemory> = match memory_spawn {
-            SpawnType::CreateWithTypeAndStyle(ty, style) => {
+            SpawnType::CreateWithType(mem) => {
                 Some(
-                    VMMemory::Shared(
-                        VMSharedMemory::new(&ty, &style)
-                            .map_err(|err| {
-                                error!("failed to create memory - {}", err);
-                            })
-                            .unwrap()
-                    )
+                    VMSharedMemory::new(&mem.ty, &mem.style)
+                        .map_err(|err| {
+                            error!("failed to create memory - {}", err);
+                        })
+                        .unwrap()
+                        .into()
                 )
             },
             SpawnType::NewThread(mem) => Some(mem),
@@ -120,7 +121,7 @@ impl SystemAbi for SysSystem {
         let rt = self.runtime.clone();
         self.runtime.spawn_blocking(move || {
             // Invoke the callback
-            let fut = task(memory);
+            let fut = task(store, module, memory);
             rt.block_on(fut)
         });
         Ok(())

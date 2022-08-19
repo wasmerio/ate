@@ -27,9 +27,9 @@ pub struct OptsNetworkServer {
     /// URL of the authentication servers
     #[clap(long, default_value = "ws://wasmer.sh/auth")]
     pub auth_url: url::Url,
-    /// URL of the session servers that clients will connect to
-    #[clap(long, default_value = "ws://wasmer.sh/inst")]
-    pub inst_url: url::Url,
+    /// Domain name that has authority on instances
+    #[clap(long, default_value = "wasmer.sh")]
+    pub instance_authority: String,
     /// Ensures that this combined server(s) runs as a specific node_id
     #[clap(short, long)]
     pub node_id: Option<u32>,

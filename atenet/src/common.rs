@@ -165,7 +165,7 @@ pub async fn setup_server
     listen_certificate: Option<PrivateEncryptKey>
 ) -> Result<(Arc<ateweb::server::Server>, watch::Receiver<bool>), Box<dyn std::error::Error>>
 {
-    let protocol = StreamProtocol::parse(&solo.inst_url)?;
+    let protocol = StreamProtocol::parse(&solo.auth_url)?;
     let port = solo.auth_url.port().unwrap_or(protocol.default_port());
     let domain = solo.auth_url.domain().unwrap_or("localhost").to_string();
     let ttl = std::time::Duration::from_secs(solo.ttl);
@@ -180,13 +180,6 @@ pub async fn setup_server
 
     let registry = Arc::new(Registry::new(&conf).await);
 
-    let mut instance_authority = solo.inst_url.domain()
-        .map(|a| a.to_string())
-        .unwrap_or_else(|| "wasmer.sh".to_string());
-    if instance_authority == "localhost" {
-        instance_authority = "wasmer.sh".to_string();
-    }
-
     let mut router = ate::comms::StreamRouter::new(
         cfg_mesh.wire_format.clone(),
         cfg_mesh.wire_protocol.clone(),
@@ -199,7 +192,7 @@ pub async fn setup_server
     let instance_server = Server::new(
         solo.db_url.clone(),
         solo.auth_url.clone(),
-        instance_authority,
+        solo.instance_authority.clone(),
         solo.token_path.clone(),
         registry,
         ttl,

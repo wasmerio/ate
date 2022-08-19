@@ -3,11 +3,12 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex, RwLock};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::task::{Context, Poll};
+use bytes::Bytes;
 use derivative::Derivative;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TryRecvError;
 use wasmer::{Module, Store};
-use wasmer::VMMemory;
+use wasmer::vm::VMMemory;
 use wasmer_bus::abi::SerializationFormat;
 use wasmer_bus_process::api::Spawn;
 use wasmer_wasi::{
@@ -102,12 +103,14 @@ for WasiRuntime
         self.pluggable.thread_id_seed.fetch_add(1, Ordering::Relaxed).into()
     }
 
-    fn thread_spawn(&self, task: Box<dyn FnOnce(VMMemory) + Send + 'static>, memory: VMMemory) -> Result<(), WasiThreadError> {
+    fn thread_spawn(&self, task: Box<dyn FnOnce(Store, Module, VMMemory) + Send + 'static>, store: Store, module: Module, memory: VMMemory) -> Result<(), WasiThreadError> {
         let system = System::default();
-        system.task_wasm(Box::new(move |memory| {
-                task(memory.expect("failed to use existing memory"));
+        system.task_wasm(Box::new(move |store, module, memory| {
+                task(store, module, memory.expect("failed to use existing memory"));
                 Box::pin(async move { })
             }),
+            store,
+            module,
             SpawnType::NewThread(memory))
     }
 
