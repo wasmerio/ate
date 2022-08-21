@@ -1,4 +1,3 @@
-use ate::prelude::*;
 use std::net::IpAddr;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -22,19 +21,18 @@ pub struct Server {
     pub server_key: SshServerKey,
     pub connection_timeout: Duration,
     pub auth_rejection_time: Duration,
+    pub engine: Option<wasmer_os::wasmer::Engine>,
     pub compiler: wasmer_os::eval::Compiler,
-    pub registry: Arc<Registry>,
     pub native_files: NativeFileInterface,
-    pub auth: url::Url,
     pub compiled_modules: Arc<CachedCompiledModules>,
     pub exit_rx: watch::Receiver<bool>,
     pub stdio_lock: Arc<Mutex<()>>,
 }
 
 impl Server {
-    pub async fn new(host: OptsHost, server_key: SshServerKey, registry: Arc<Registry>, compiled_modules: Arc<CachedCompiledModules>, native_files: NativeFileInterface, rx_exit: watch::Receiver<bool>) -> Self {
-        // Succes
-        let auth = wasmer_auth::prelude::origin_url(&host.auth_url, "auth");
+    pub async fn new(host: OptsHost, server_key: SshServerKey, compiled_modules: Arc<CachedCompiledModules>, native_files: NativeFileInterface, rx_exit: watch::Receiver<bool>) -> Self {
+        // Success
+        let engine = host.compiler.new_engine();
         Self {
             native_files,
             listen: host.listen,
@@ -43,8 +41,7 @@ impl Server {
             connection_timeout: Duration::from_secs(600),
             auth_rejection_time: Duration::from_secs(0),
             compiler: host.compiler,
-            registry,
-            auth,
+            engine,
             compiled_modules,
             exit_rx: rx_exit,
             stdio_lock: Arc::new(Mutex::new(())),
@@ -79,14 +76,11 @@ impl server::Server for Server {
         let mut wizard = SshWizard {
             step: SshWizardStep::Init,
             state: SshWizardState::default(),
-            registry: self.registry.clone(),
-            auth: self.auth.clone(),
         };
         wizard.state.welcome = Some(super::cconst::CConst::SSH_WELCOME.to_string());
         super::handler::Handler {
             rect: Arc::new(Mutex::new(ConsoleRect { cols: 80, rows: 25 })),
-            registry: self.registry.clone(),
-            native_files: self.native_files.clone(),
+            engine: self.engine.clone(),
             compiler: self.compiler,
             console: None,
             peer_addr,

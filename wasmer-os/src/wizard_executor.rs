@@ -69,7 +69,13 @@ impl WizardExecutor {
                         WizardExecutorAction::More { echo: false }
                     }
                 }
-                WizardAction::Shell => WizardExecutorAction::Done,
+                WizardAction::Shell { with_message } => {
+                    if let Some(msg) = with_message {
+                        abi.stdout(text_to_bytes(msg)).await;
+                        abi.stdout("\r\n".to_string().into_bytes()).await;
+                    }
+                    WizardExecutorAction::Done
+                },
                 WizardAction::Terminate { with_message } => {
                     if let Some(msg) = with_message {
                         abi.stdout(text_to_bytes(msg)).await;

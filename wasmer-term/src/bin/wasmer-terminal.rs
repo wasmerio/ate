@@ -82,7 +82,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let compiled_modules = Arc::new(CachedCompiledModules::new(Some(opts.compiler_cache_path)));
 
     // If a command is passed in then pass it into the console
+    let mut exit_on_return_to_shell = false;
     let location = if let Some(run) = opts.run {
+        exit_on_return_to_shell = true;
         format!("wss://localhost/?no_welcome&init={}", run)
     } else {
         format!("wss://localhost/")
@@ -92,17 +94,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let fs = wasmer_os::fs::create_root_fs(None);
     let con = con.clone();
     let compiler = opts.compiler;
+    let engine = compiler.new_engine();
     sys.block_on(async move {
         let user_agent = "noagent".to_string();
         let mut console = Console::new(
             location,
             user_agent,
+            engine,
             compiler,
             con.clone(),
             None,
             fs,
             compiled_modules,
         );
+        console.set_exit_on_return_to_shell(exit_on_return_to_shell);
         console.init().await;
 
         // Process data until the console closes

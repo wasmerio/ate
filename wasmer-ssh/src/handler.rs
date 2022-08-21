@@ -1,4 +1,3 @@
-use ate::mesh::Registry;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -19,25 +18,87 @@ use wasmer_term::wasmer_os::bin_factory::CachedCompiledModules;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
-use crate::native_files::NativeFileInterface;
 use crate::wizard::SshWizard;
 
 use super::console_handle::*;
 use super::error::*;
 
 pub struct Handler {
-    pub registry: Arc<Registry>,
-    pub native_files: NativeFileInterface,
     pub peer_addr: Option<std::net::SocketAddr>,
     pub peer_addr_str: String,
     pub user: Option<String>,
     pub client_pubkey: Option<thrussh_keys::key::PublicKey>,
     pub console: Option<Console>,
+    pub engine: Option<wasmer_os::wasmer::Engine>,
     pub compiler: wasmer_os::eval::Compiler,
     pub rect: Arc<Mutex<ConsoleRect>>,
     pub wizard: Option<SshWizard>,
     pub compiled_modules: Arc<CachedCompiledModules>,
     pub stdio_lock: Arc<Mutex<()>>,
+}
+
+impl Handler
+{
+    pub fn start_console(mut self, channel: ChannelId, session: Session, run: Option<String>) -> Pin<Box<dyn Future<Output = Result<(Self, Session), SshServerError>> + Send>>
+    {
+        Box::pin(async move {
+            // Create the handle
+            let handle = Arc::new(ConsoleHandle {
+                rect: self.rect.clone(),
+                channel: channel.clone(),
+                handle: session.handle(),
+                stdio_lock: self.stdio_lock.clone(),
+                enable_stderr: true,
+            });
+
+            // Spawn a dedicated thread and wait for it to do its thing
+            let is_run = run.is_some();
+            let system = System::default();
+            system
+                .spawn_shared(move || async move {
+                    // Get the wizard
+                    let wizard = self.wizard.take().map(|a| {
+                        Box::new(a) as Box<dyn term_api::WizardAbi + Send + Sync + 'static>
+                    });
+
+                    // Create the console
+                    let fs = wasmer_os::fs::create_root_fs(None);
+                    
+                    // If a command is passed in then pass it into the console
+                    let mut exit_on_return_to_shell = false;
+                    let location = if let Some(run) = run.as_ref() {
+                        exit_on_return_to_shell = true;
+                        format!("ssh://wasmer.sh/?no_welcome&init={}", run)
+                    } else {
+                        format!("ssh://wasmer.sh/")
+                    };
+                    
+                    let user_agent = "ssh".to_string();
+                    let compiled_modules = self.compiled_modules.clone();
+                    let mut console = Console::new(
+                        location,
+                        user_agent,
+                        self.engine.clone(),
+                        self.compiler,
+                        handle,
+                        wizard,
+                        fs,
+                        compiled_modules,
+                    );
+                    console.set_exit_on_return_to_shell(exit_on_return_to_shell);
+                    console.init().await;
+                    if is_run {
+                        console.set_raw_mode(true);
+                    }
+                    self.console.replace(console);
+
+                    // We are ready to receive data
+                    Ok((self, session))
+                })
+                .await
+                .unwrap()
+        })
+    }
 }
 
 impl server::Handler for Handler {
@@ -100,65 +161,44 @@ impl server::Handler for Handler {
 
     fn data(mut self, channel: ChannelId, data: &[u8], session: Session) -> Self::FutureUnit {
         trace!("data on channel {:?}: len={:?}", channel, data.len());
-        let data = String::from_utf8(data.to_vec()).map_err(|_| {
-            let err: SshServerError = SshServerErrorKind::BadData.into();
-            err
-        });
+        let data = data.to_vec();
         Box::pin(async move {
-            let data = data?;
             if let Some(console) = self.console.as_mut() {
-                console.on_data(data).await;
+                console.on_data(&data[..]).await;
             }
             Ok((self, session))
         })
     }
 
-    #[allow(unused_variables)]
-    fn shell_request(mut self, channel: ChannelId, session: Session) -> Self::FutureUnit {
+    fn exec_request(self, channel: ChannelId, data: &[u8], session: Session) -> Self::FutureUnit {
+        let cmd = String::from_utf8_lossy(data);
+        debug!("exec_request: {})", cmd);
+
+        self.start_console(channel, session, Some(cmd.to_string()))
+    }
+
+    fn shell_request(self, channel: ChannelId, session: Session) -> Self::FutureUnit {
         debug!("shell_request");
 
-        let native_files = self.native_files.clone();
+        self.start_console(channel, session, None)
+    }
+
+    #[allow(unused_variables)]
+    fn channel_close(self, channel: ChannelId, session: Session) -> Self::FutureUnit {
+        debug!("channel_close");
+
+        self.finished(session)
+    }
+
+    #[allow(unused_variables)]
+    fn channel_eof(self, channel: ChannelId, session: Session) -> Self::FutureUnit {
+        debug!("channel_eof");
+
         Box::pin(async move {
-            // Create the handle
-            let handle = Arc::new(ConsoleHandle {
-                rect: self.rect.clone(),
-                channel: channel.clone(),
-                handle: session.handle(),
-                stdio_lock: self.stdio_lock.clone(),
-                enable_stderr: false,
-            });
-
-            // Spawn a dedicated thread and wait for it to do its thing
-            let system = System::default();
-            system
-                .spawn_shared(move || async move {
-                    // Get the wizard
-                    let wizard = self.wizard.take().map(|a| {
-                        Box::new(a) as Box<dyn term_api::WizardAbi + Send + Sync + 'static>
-                    });
-
-                    // Create the console
-                    let fs = wasmer_os::fs::create_root_fs(None);
-                    let location = "ssh://wasmer.sh/?no_welcome".to_string();
-                    let user_agent = "ssh".to_string();
-                    let compiled_modules = self.compiled_modules.clone();
-                    let mut console = Console::new(
-                        location,
-                        user_agent,
-                        self.compiler,
-                        handle,
-                        wizard,
-                        fs,
-                        compiled_modules,
-                    );
-                    console.init().await;
-                    self.console.replace(console);
-
-                    // We are ready to receive data
-                    Ok((self, session))
-                })
-                .await
-                .unwrap()
+            if let Some(console) = self.console.as_ref() {
+                console.close_stdin().await;
+            }
+            Ok((self, session))
         })
     }
 

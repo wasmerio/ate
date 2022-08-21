@@ -44,7 +44,6 @@ pub struct Console {
     stdout: Stdout,
     stderr: Fd,
     exec: EvalFactory,
-    #[cfg(feature = "sys")]
     engine: Option<Engine>,
     compiler: Compiler,
     abi: Arc<dyn ConsoleAbi>,
@@ -52,6 +51,7 @@ pub struct Console {
     whitelabel: bool,
     bootstrap_token: Option<String>,
     no_welcome: bool,
+    exit_on_return_to_shell: bool
 }
 
 impl Drop
@@ -79,6 +79,7 @@ impl Console {
     pub fn new(
         location: String,
         user_agent: String,
+        engine: Option<Engine>,
         compiler: Compiler,
         abi: Arc<dyn ConsoleAbi>,
         wizard: Option<Box<dyn WizardAbi + Send + Sync + 'static>>,
@@ -93,6 +94,7 @@ impl Console {
         Self::new_ext(
             location,
             user_agent,
+            engine,
             compiler,
             abi,
             wizard,
@@ -104,6 +106,7 @@ impl Console {
     pub fn new_ext(
         location: String,
         user_agent: String,
+        engine: Option<Engine>,
         compiler: Compiler,
         abi: Arc<dyn ConsoleAbi>,
         wizard: Option<Box<dyn WizardAbi + Send + Sync + 'static>>,
@@ -140,9 +143,7 @@ impl Console {
         );
 
         let wizard = wizard.map(|a| WizardExecutor::new(a));
-        #[cfg(feature = "sys")]
-        let engine = compiler.new_engine();
-
+        
         let mut ret = Console {
             location,
             is_mobile: outer.is_mobile(),
@@ -154,7 +155,6 @@ impl Console {
             tty,
             reactor,
             exec: exec_factory,
-            #[cfg(feature = "sys")]
             engine,
             compiler,
             abi,
@@ -162,6 +162,7 @@ impl Console {
             whitelabel: false,
             bootstrap_token: None,
             no_welcome: false,
+            exit_on_return_to_shell: false,
         };
 
         ret.new_init();
@@ -307,6 +308,10 @@ impl Console {
         self.exec.clone()
     }
 
+    pub fn set_exit_on_return_to_shell(&mut self, val: bool) {
+        self.exit_on_return_to_shell = val;
+    }
+
     pub async fn new_job(&mut self) -> Option<Job> {
         // Generate the job and make it the active version
         let job = {
@@ -402,10 +407,10 @@ impl Console {
             self.tty.reset_line().await;
             self.tty.reset_paragraph().await;
             //error!("on_stdin {}", cmd.as_bytes().iter().map(|byte| format!("\\u{{{:04X}}}", byte).to_owned()).collect::<Vec<String>>().join(""));
-            let _ = job
-                .stdin_tx
-                .send(FdMsg::new(cmd.into_bytes(), FdFlag::Stdin(true)))
-                .await;
+            let stdin_tx = job.stdin_tx_lock().as_ref().map(|a| a.clone());
+            if let Some(stdin_tx) = stdin_tx {
+                let _ = stdin_tx.send(FdMsg::new(cmd.into_bytes(), FdFlag::Stdin(true))).await;
+            }
             return;
         }
 
@@ -440,6 +445,8 @@ impl Console {
         let state = self.state.clone();
         let mut stdout = ctx.stdout.clone();
         let mut stderr = ctx.stderr.clone();
+        let abi = ctx.abi.clone();
+        let exit_on_return_to_shell = self.exit_on_return_to_shell;
         system.fork_dedicated_async(move || {
             let mut process = exec.eval(cmd.clone(), ctx);
             async move {
@@ -511,10 +518,15 @@ impl Console {
                     tty.draw(format!("term: command failed\r\n").as_str()).await;
                 }
 
-                // Now draw the prompt ready for the next
-                tty.reset_line().await;
-                Console::update_prompt(multiline_input, &state, &tty).await;
-                tty.draw_prompt().await;
+                // If we are to exit then do so
+                if exit_on_return_to_shell {
+                    abi.exit().await;
+                } else {
+                    // Now draw the prompt ready for the next
+                    tty.reset_line().await;
+                    Console::update_prompt(multiline_input, &state, &tty).await;
+                    tty.draw_prompt().await;
+                }
             }
         });
     }
@@ -596,7 +608,9 @@ impl Console {
         self.tty.set_bounds(rect.cols, rect.rows).await;
     }
 
-    pub async fn on_parse(&mut self, data: &str, job: Option<Job>) {
+    pub async fn on_parse(&mut self, data: &[u8], job: Option<Job>) {
+        let data = String::from_utf8_lossy(data);
+        let data = data.as_ref();
         //error!("on_parse {}", data.as_bytes().iter().map(|byte| format!("\\u{{{:04X}}}", byte).to_owned()).collect::<Vec<String>>().join(""));
         match data {
             "\r" | "\u{000A}" => {
@@ -672,16 +686,42 @@ impl Console {
         // Do nothing for now
     }
 
-    pub async fn on_data(&mut self, mut data: String) {
+    /// Puts the console into RAW mode which will send the
+    /// bytes to the subprocess without changing the,
+    pub fn set_raw_mode(&self, val: bool) {
+        self.tty.set_raw_mode(val);
+    }
+
+    /// Closes the STDIN channel for any running process
+    pub async fn close_stdin(&self) {
+        self.tty.mode_mut(|mode| {
+            if let TtyMode::StdIn(job) = mode {
+                let mut guard = job.stdin_tx_lock();
+                guard.take();
+            }
+        }).await;
+    }
+
+    pub async fn on_data(&mut self, mut data: &[u8]) {
         let mode = self.tty.mode().await;
         match mode {
             TtyMode::StdIn(job) => {
+                // If we are in RAW mode then just send it
+                if self.tty.is_raw_mode() {
+                    let stdin_tx = job.stdin_tx_lock().as_ref().map(|a| a.clone());
+                    if let Some(stdin_tx) = stdin_tx {
+                        let _ = stdin_tx
+                            .send(FdMsg::new(data.to_vec(), FdFlag::Stdin(true)))
+                            .await;
+                    }
+                }
+
                 // Buffered input will only be sent to the process once a return key is pressed
                 // which allows the line to be 'edited' in the terminal before its submitted
-                if self.tty.is_buffering()
+                else if self.tty.is_buffering()
                 {
                     // Ctrl-C is not fed to the process and always actioned
-                    if data == "\u{0003}" {
+                    if data == b"0x03" {
                         self.on_ctrl_c(Some(job)).await
                     }
                     else {
@@ -691,23 +731,27 @@ impl Console {
                 // When we are sending unbuffered keys the return key is turned into a newline so that its compatible
                 // with things like the rpassword crate which simple reads a line of input with a line feed terminator
                 // from TTY.
-                } else if data == "\r" || data == "\u{000A}" {
-                    data = "\n".to_string();
-                    let _ = job
-                        .stdin_tx
-                        .send(FdMsg::new(data.into_bytes(), FdFlag::Stdin(true)))
-                        .await;
+                } else if data == b"\r" || data == b"0x0a" {
+                    data = b"\n";
+                    let stdin_tx = job.stdin_tx_lock().as_ref().map(|a| a.clone());
+                    if let Some(stdin_tx) = stdin_tx {
+                        let _ = stdin_tx
+                            .send(FdMsg::new(data.to_vec(), FdFlag::Stdin(true)))
+                            .await;
+                    }
 
                 // Otherwise we just feed the bytes into the STDIN for the process to handle
                 } else {
-                    let _ = job
-                        .stdin_tx
-                        .send(FdMsg::new(data.into_bytes(), FdFlag::Stdin(true)))
-                        .await;
+                    let stdin_tx = job.stdin_tx_lock().as_ref().map(|a| a.clone());
+                    if let Some(stdin_tx) = stdin_tx {
+                        let _ = stdin_tx
+                            .send(FdMsg::new(data.to_vec(), FdFlag::Stdin(true)))
+                            .await;
+                    }
                 }
             }
             TtyMode::Null => {}
-            TtyMode::Console => self.on_parse(&data, None).await,
+            TtyMode::Console => self.on_parse(data, None).await,
         }
     }
 }

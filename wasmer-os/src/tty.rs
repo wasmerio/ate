@@ -2,6 +2,7 @@
 #![allow(dead_code)]
 use core::sync::atomic::AtomicBool;
 use core::sync::atomic::Ordering;
+use std::borrow::Cow;
 use derivative::*;
 use std::io::Write;
 use std::sync::Arc;
@@ -46,6 +47,7 @@ struct TtyInnerAsync {
 #[derive(Debug)]
 struct TtyInnerSync {
     pub buffering: AtomicBool,
+    pub raw: AtomicBool,
 }
 
 impl TtyInnerAsync {
@@ -109,6 +111,7 @@ impl Tty {
             })),
             inner_sync: Arc::new(TtyInnerSync {
                 buffering: AtomicBool::new(true),
+                raw: AtomicBool::new(false)
             }),
             stdout,
             stderr,
@@ -402,6 +405,17 @@ impl Tty {
         self.inner_sync.buffering.load(Ordering::Relaxed)
     }
 
+    /// Raw mode will send the bytes to the STDIN without doing
+    /// anything to them
+    pub fn set_raw_mode(&self, on: bool) {
+        debug!("set_raw on={}", on);
+        self.inner_sync.raw.store(on, Ordering::Relaxed);
+    }
+
+    pub fn is_raw_mode(&self) -> bool {
+        self.inner_sync.raw.load(Ordering::Relaxed)
+    }
+
     pub async fn set_prompt(&self, prompt: String, prompt_color: String) {
         let mut inner = self.inner_async.lock().await;
         inner.prompt = prompt;
@@ -413,6 +427,12 @@ impl Tty {
         inner.mode.clone()
     }
 
+    pub async fn mode_mut<F>(&self, mut func: F)
+    where F: FnMut(&mut TtyMode) {
+        let mut inner = self.inner_async.lock().await;
+        func(&mut inner.mode);
+    }
+
     pub async fn echo(&mut self, data: &str) {
         let echo = self.inner_async.lock().await.echo;
         if echo {
@@ -420,7 +440,7 @@ impl Tty {
         }
     }
 
-    pub async fn set_echo(&mut self, echo: bool) {
+    pub async fn set_echo(&self, echo: bool) {
         self.inner_async.lock().await.echo = echo;
     }
 
