@@ -2,8 +2,8 @@
 #![allow(unused_imports)]
 use ate::mesh::MeshHashTable;
 use ate::utils::load_node_list;
-use atenet::common::setup_server;
-use atenet::server::Server;
+use wasmer_dnet::common::setup_server;
+use wasmer_dnet::server::Server;
 use tokio::sync::watch;
 #[allow(unused_imports, dead_code)]
 use tracing::{info, error, debug, trace, warn};
@@ -18,7 +18,7 @@ use ate::comms::StreamRouter;
 
 use wasmer_auth::helper::try_load_key;
 
-use atenet::opt::*;
+use wasmer_dnet::opt::*;
 
 #[allow(dead_code)]
 fn ctrl_channel() -> Receiver<bool> {

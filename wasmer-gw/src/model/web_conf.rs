@@ -1,4 +1,5 @@
-use fxhash::FxHashMap;
+use std::collections::HashMap;
+
 use serde::*;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -20,7 +21,7 @@ pub struct WebConf {
     pub default_page: Option<String>,
     /// Redirects certain status codes to specific pages
     #[serde(default)]
-    pub status_pages: FxHashMap<u16, String>,
+    pub status_pages: HashMap<u16, String>,
     /// List of the domains that this domain will reverse proxy for cors
     #[serde(default)]
     pub cors_proxy: Vec<String>,
@@ -34,7 +35,7 @@ impl Default for WebConf {
             ate_proxy: false,
             force_https: false,
             default_page: None,
-            status_pages: FxHashMap::default(),
+            status_pages: HashMap::default(),
             cors_proxy: Vec::new(),
         }
     }

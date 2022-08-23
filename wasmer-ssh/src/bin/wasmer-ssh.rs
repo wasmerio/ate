@@ -34,7 +34,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                         // Set the system
                         let (tx_exit, rx_exit) = watch::channel(false);
-                        let sys = Arc::new(wasmer_term::system::SysSystem::new_with_runtime(
+                        let sys = Arc::new(wasmer_ssh::wasmer_term::system::SysSystem::new_with_runtime(
                             host.native_files_path.clone(), tx_exit, runtime,
                         ));
 
@@ -51,7 +51,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                         // Start the SSH server
                         let compiled_modules = Arc::new(CachedCompiledModules::new(Some(host.compiler_cache_path.clone())));
-                        let server = Server::new(host, server_key, compiled_modules, native_files, rx_exit).await;
+                        let server = Server::new(host, server_key, compiled_modules, Some(host.webc_dir), native_files).await;
                         server.listen().await?;
                         Ok(())
                     })

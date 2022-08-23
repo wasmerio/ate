@@ -257,7 +257,23 @@ impl SerializationFormat
     }
 
     #[cfg(feature = "enable_rkyv")]
-    pub fn deserialize<T>(&self, mut data: Vec<u8>) -> Result<T, BusError>
+    pub fn deserialize<T>(&self, data: Vec<u8>) -> Result<T, BusError>
+    where T: serde::de::DeserializeOwned,
+          T: rkyv::Archive,
+          T::Archived: rkyv::Deserialize<T, rkyv::de::deserializers::SharedDeserializeMap>
+    {
+        self.deserialize_ext(data).map_err(|_err| BusError::SerializationFailed)
+    }
+
+    #[cfg(not(feature = "enable_rkyv"))]
+    pub fn deserialize<T>(&self, data: Vec<u8>) -> Result<T, BusError>
+    where T: serde::de::DeserializeOwned
+    {
+        self.deserialize_ext(data).map_err(|_err| BusError::SerializationFailed)
+    }
+
+    #[cfg(feature = "enable_rkyv")]
+    pub fn deserialize_ext<T>(&self, data: Vec<u8>) -> Result<T, Box<dyn std::error::Error>>
     where T: serde::de::DeserializeOwned,
           T: rkyv::Archive,
           T::Archived: rkyv::Deserialize<T, rkyv::de::deserializers::SharedDeserializeMap>
@@ -275,35 +291,29 @@ impl SerializationFormat
                             r
                         }
                     } else {
-                        return Err(BusError::DeserializationFailed)
+                        return Err(Box::new(BusError::DeserializationFailed.into_io_error()))
                     }
                 }
                 #[cfg(feature = "enable_bincode")]
-                Bincode => bincode::deserialize::<T>(data.as_ref())
-                    .map_err(|_err| BusError::DeserializationFailed)?,
+                Bincode => bincode::deserialize::<T>(data.as_ref())?,
                 #[cfg(feature = "enable_mpack")]
-                MessagePack => rmp_serde::from_read_ref(&data[..])
-                    .map_err(|_err| BusError::DeserializationFailed)?,
+                MessagePack => rmp_serde::from_read_ref(&data[..])?,
                 #[cfg(feature = "enable_json")]
-                Json => serde_json::from_slice::<T>(data.as_ref())
-                    .map_err(|_err| BusError::DeserializationFailed)?,
+                Json => serde_json::from_slice::<T>(data.as_ref())?,
                 #[cfg(feature = "enable_yaml")]
-                Yaml => serde_yaml::from_slice(data.as_ref())
-                    .map_err(|_err| BusError::DeserializationFailed)?,
+                Yaml => serde_yaml::from_slice(data.as_ref())?,
                 #[cfg(feature = "enable_xml")]
-                Xml => serde_xml_rs::from_reader(&data[..])
-                    .map_err(|_err| BusError::DeserializationFailed)?,
+                Xml => serde_xml_rs::from_reader(&data[..])?,
                 #[cfg(feature = "enable_xml")]
                 Rkyv => unsafe {
-                    rkyv::from_bytes_unchecked(&data[..])
-                        .map_err(|_err| BusError::DeserializationFailed)?
+                    rkyv::from_bytes_unchecked(&data[..])?
                 },
             }
         )
     }
 
     #[cfg(not(feature = "enable_rkyv"))]
-    pub fn deserialize<T>(&self, mut data: Vec<u8>) -> Result<T, BusError>
+    pub fn deserialize_ext<T>(&self, mut data: Vec<u8>) -> Result<T, Box<dyn std::error::Error>>
     where T: serde::de::DeserializeOwned
     {
         use SerializationFormat::*;
@@ -319,30 +329,40 @@ impl SerializationFormat
                             r
                         }
                     } else {
-                        return Err(BusError::DeserializationFailed)
+                        return Err(Box::new(BusError::DeserializationFailed.into_io_error()))
                     }
                 }
                 #[cfg(feature = "enable_bincode")]
-                Bincode => bincode::deserialize::<T>(data.as_ref())
-                    .map_err(|_err| BusError::DeserializationFailed)?,
+                Bincode => bincode::deserialize::<T>(data.as_ref())?,
                 #[cfg(feature = "enable_mpack")]
-                MessagePack => rmp_serde::from_read_ref(&data[..])
-                    .map_err(|_err| BusError::DeserializationFailed)?,
+                MessagePack => rmp_serde::from_read_ref(&data[..])?,
                 #[cfg(feature = "enable_json")]
-                Json => serde_json::from_slice::<T>(data.as_ref())
-                    .map_err(|_err| BusError::DeserializationFailed)?,
+                Json => serde_json::from_slice::<T>(data.as_ref())?,
                 #[cfg(feature = "enable_yaml")]
-                Yaml => serde_yaml::from_slice(data.as_ref())
-                    .map_err(|_err| BusError::DeserializationFailed)?,
+                Yaml => serde_yaml::from_slice(data.as_ref())?,
                 #[cfg(feature = "enable_xml")]
-                Xml => serde_xml_rs::from_reader(&data[..])
-                    .map_err(|_err| BusError::DeserializationFailed)?,
+                Xml => serde_xml_rs::from_reader(&data[..])?,
             }
         )
     }
 
     #[cfg(feature = "enable_rkyv")]
-    pub fn serialize<T, const N: usize>(&self, mut data: T) -> Result<Vec<u8>, BusError>
+    pub fn serialize<T, const N: usize>(&self, data: T) -> Result<Vec<u8>, BusError>
+    where T: serde::Serialize,
+          T: rkyv::Serialize<rkyv::ser::serializers::AllocSerializer<N>>
+    {
+        self.serialize_ext(data).map_err(|_err| BusError::SerializationFailed)
+    }    
+
+    #[cfg(not(feature = "enable_rkyv"))]
+    pub fn serialize<T>(&self, data: T) -> Result<Vec<u8>, BusError>
+    where T: serde::ser::Serialize
+    {
+        self.serialize_ext(data).map_err(|_err| BusError::SerializationFailed)
+    }
+
+    #[cfg(feature = "enable_rkyv")]
+    pub fn serialize_ext<T, const N: usize>(&self, mut data: T) -> Result<Vec<u8>, Box<dyn std::error::Error>>
     where T: serde::Serialize,
           T: rkyv::Serialize<rkyv::ser::serializers::AllocSerializer<N>>
     {
@@ -363,37 +383,31 @@ impl SerializationFormat
                             r
                         }
                     } else {
-                        return Err(BusError::SerializationFailed)
+                        return Err(Box::new(BusError::SerializationFailed.into_io_error()))
                     }
                 }
                 #[cfg(feature = "enable_bincode")]
-                Bincode => bincode::serialize::<T>(&data)
-                    .map_err(|_err| BusError::SerializationFailed)?,
+                Bincode => bincode::serialize::<T>(&data)?,
                 #[cfg(feature = "enable_mpack")]
-                MessagePack => rmp_serde::to_vec(&data)
-                    .map_err(|_err| BusError::SerializationFailed)?,
+                MessagePack => rmp_serde::to_vec(&data)?,
                 #[cfg(feature = "enable_json")]
-                Json => serde_json::to_vec::<T>(&data)
-                    .map_err(|_err| BusError::SerializationFailed)?,
+                Json => serde_json::to_vec::<T>(&data)?,
                 #[cfg(feature = "enable_yaml")]
-                Yaml => serde_yaml::to_vec(&data)
-                    .map_err(|_err| BusError::SerializationFailed)?,
+                Yaml => serde_yaml::to_vec(&data)?,
                 #[cfg(feature = "enable_xml")]
                 Xml => {
                     let mut ret = Vec::new();
-                    serde_xml_rs::to_writer(&mut ret, &data)
-                        .map_err(|_err| BusError::SerializationFailed)?;
+                    serde_xml_rs::to_writer(&mut ret, &data)?;
                     ret
                 }
                 Rkyv => rkyv::to_bytes(&data)
-                    .map(|ret| ret.into_vec())
-                    .map_err(|_err| BusError::SerializationFailed)?,
+                    .map(|ret| ret.into_vec())?,
             }
         )
     }    
 
     #[cfg(not(feature = "enable_rkyv"))]
-    pub fn serialize<T>(&self, mut data: T) -> Result<Vec<u8>, BusError>
+    pub fn serialize_ext<T>(&self, mut data: T) -> Result<Vec<u8>, Box<dyn std::error::Error>>
     where T: serde::ser::Serialize
     {
         use SerializationFormat::*;
@@ -413,26 +427,21 @@ impl SerializationFormat
                             r
                         }
                     } else {
-                        return Err(BusError::SerializationFailed)
+                        return Err(Box::new(BusError::SerializationFailed.into_io_error()))
                     }
                 }
                 #[cfg(feature = "enable_json")]
-                Json => serde_json::to_vec::<T>(&data)
-                    .map_err(|_err| BusError::SerializationFailed)?,
+                Json => serde_json::to_vec::<T>(&data)?,
                 #[cfg(feature = "enable_mpack")]
-                MessagePack => rmp_serde::to_vec(&data)
-                    .map_err(|_err| BusError::SerializationFailed)?,
+                MessagePack => rmp_serde::to_vec(&data)?,
                 #[cfg(feature = "enable_bincode")]
-                Bincode => bincode::serialize::<T>(&data)
-                    .map_err(|_err| BusError::SerializationFailed)?,
+                Bincode => bincode::serialize::<T>(&data)?,
                 #[cfg(feature = "enable_yaml")]
-                Yaml => serde_yaml::to_vec(&data)
-                    .map_err(|_err| BusError::SerializationFailed)?,
+                Yaml => serde_yaml::to_vec(&data)?,
                 #[cfg(feature = "enable_xml")]
                 Xml => {
                     let mut ret = Vec::new();
-                    serde_xml_rs::to_writer(&mut ret, &data)
-                        .map_err(|_err| BusError::SerializationFailed)?;
+                    serde_xml_rs::to_writer(&mut ret, &data)?;
                     ret
                 }
             }

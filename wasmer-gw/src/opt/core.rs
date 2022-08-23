@@ -1,12 +1,15 @@
 use std::net::IpAddr;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
+#[allow(unused_imports)]
 use url::Url;
 
 use clap::Parser;
 
+#[cfg(feature = "wasmer-auth")]
 use super::OptsAuth;
 
+#[cfg(feature = "dfs")]
 #[derive(Parser)]
 #[clap(version = "1.6", author = "John S. <johnathan.sharratt@gmail.com>")]
 pub struct Opts {
@@ -44,9 +47,29 @@ pub struct Opts {
     pub subcmd: SubCommand,
 }
 
+#[cfg(not(feature = "dfs"))]
+#[derive(Parser)]
+#[clap(version = "1.6", author = "John S. <johnathan.sharratt@gmail.com>")]
+pub struct Opts {
+    /// Sets the level of log verbosity, can be used multiple times
+    #[allow(dead_code)]
+    #[clap(short, long, parse(from_occurrences))]
+    pub verbose: i32,
+    /// Logs debug info to the console
+    #[clap(short, long)]
+    pub debug: bool,
+
+    #[clap(subcommand)]
+    pub subcmd: SubCommand,
+}
+
 /// Runs a web server that will serve content from a Wasmer file system
+#[cfg(feature = "dfs")]
 #[derive(Parser)]
 pub struct OptsWeb {
+    /// Path where the static websites are stored
+    #[clap(index = 1, default_value = "/opt/www")]
+    pub www_path: String,
     /// IP address that the datachain server will isten on
     #[clap(short, long, default_value = "::")]
     pub listen: IpAddr,
@@ -71,8 +94,30 @@ pub struct OptsWeb {
 }
 
 /// Runs a web server that will serve content from a Wasmer file system
+#[cfg(not(feature = "dfs"))]
+#[derive(Parser)]
+pub struct OptsWeb {
+    /// Path where the static websites are stored
+    #[clap(index = 1, default_value = "/opt/www")]
+    pub www_path: String,
+    /// IP address that the datachain server will isten on
+    #[clap(short, long, default_value = "::")]
+    pub listen: IpAddr,
+    /// Port that the server will listen on for HTTP requests
+    #[clap(long, default_value = "80")]
+    pub port: u16,
+    /// Number of seconds that a website will remain idle in memory before it is evicted
+    #[clap(long, default_value = "60")]
+    pub ttl: u64,
+}
+
+/// Runs a web server that will serve content from a Wasmer file system
+#[cfg(feature = "dfs")]
 #[derive(Parser)]
 pub struct OptsAll {
+    /// Path where the static websites are stored
+    #[clap(index = 1, default_value = "/opt/www")]
+    pub www_path: String,
     /// Optional list of the nodes that make up this cluster
     #[clap(long)]
     pub nodes_list: Option<String>,
@@ -122,9 +167,28 @@ pub struct OptsAll {
     pub node_id: Option<u32>,
 }
 
+/// Runs a web server that will serve content from a Wasmer file system
+#[cfg(not(feature = "dfs"))]
+#[derive(Parser)]
+pub struct OptsAll {
+    /// Path where the static websites are stored
+    #[clap(index = 1, default_value = "/opt/www")]
+    pub www_path: String,
+    /// IP address that the datachain server will isten on
+    #[clap(short, long, default_value = "::")]
+    pub listen: IpAddr,
+    /// Port that the server will listen on for HTTP requests
+    #[clap(long, default_value = "80")]
+    pub port: u16,
+    /// Number of seconds that a website will remain idle in memory before it is evicted
+    #[clap(long, default_value = "60")]
+    pub ttl: u64,
+}
+
 #[derive(Parser)]
 pub enum SubCommand {
     /// Hosts the authentication service
+    #[cfg(feature = "wasmer-auth")]
     #[clap()]
     Auth(OptsAuth),
     /// Starts a web server that will load Wasmer file systems and serve

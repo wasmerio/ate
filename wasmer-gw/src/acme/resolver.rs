@@ -12,7 +12,6 @@ use super::acme::{
 use ate::prelude::*;
 use bytes::Bytes;
 use futures::future::try_join_all;
-use fxhash::FxHashMap;
 use rcgen::{CertificateParams, DistinguishedName, PKCS_ECDSA_P256_SHA256};
 use rustls::sign::any_supported_type;
 use rustls::sign::CertifiedKey;
@@ -20,6 +19,7 @@ use rustls::Certificate as RustlsCertificate;
 use rustls::ClientHello;
 use rustls::PrivateKey;
 use rustls::ResolvesServerCert;
+use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::sync::Arc;
 use std::sync::Mutex as StdMutex;
@@ -45,7 +45,7 @@ pub struct AcmeResolver {
     pub repo: Arc<Repository>,
     pub certs: StdRwLock<TtlCache<String, CertifiedKey>>,
     pub auths: StdRwLock<TtlCache<String, CertifiedKey>>,
-    pub locks: StdMutex<FxHashMap<String, Arc<Mutex<AcmeState>>>>,
+    pub locks: StdMutex<HashMap<String, Arc<Mutex<AcmeState>>>>,
 }
 
 impl AcmeResolver {
@@ -54,7 +54,7 @@ impl AcmeResolver {
             repo: Arc::clone(repo),
             certs: StdRwLock::new(TtlCache::new(65536usize)),
             auths: StdRwLock::new(TtlCache::new(1024usize)),
-            locks: StdMutex::new(FxHashMap::default()),
+            locks: StdMutex::new(HashMap::default()),
         };
         Ok(Arc::new(ret))
     }

@@ -1,0 +1,7 @@
+---
+ate_proxy: true
+coop: true
+force_https: true
+default_page: index.html
+cors_proxy:
+- wasmer.sh

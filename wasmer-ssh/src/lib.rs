@@ -11,3 +11,4 @@ pub mod wizard;
 pub mod native_files;
 
 pub use wasmer_term::wasmer_os;
+pub use wasmer_term;

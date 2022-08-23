@@ -1,9 +1,7 @@
 [workspace]
 members = [
     "lib",
-    "ateweb",
     "atedb",
-    "atenet",
     "comms",
     "crypto",
     "files",
@@ -28,6 +26,8 @@ members = [
     "wasmer-deploy-cli",
     "wasmer-term",
     "wasmer-web",
+    "wasmer-gw",
+    "wasmer-dnet",
     "wasmer-instance",
     "examples/crypto-bus",
     "examples/tcp-listener",
@@ -43,4 +43,6 @@ members = [
 
 [patch.crates-io]
 tokio = { git = "https://github.com/john-sharratt/tokio.git", branch = "wasix" }
+wasmer-vfs = { path = "/prog/wasmer/lib/vfs" }
 #tokio = { path = "/prog/tokio/tokio" }
+

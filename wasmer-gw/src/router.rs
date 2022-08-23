@@ -36,7 +36,7 @@ impl ServerCallback for StreamRouter {
         sock_addr: SocketAddr,
         uri: http::Uri,
         headers: http::HeaderMap,
-    ) -> Result<Vec<u8>, (Vec<u8>, StatusCode)> {
+    ) -> (Vec<u8>, StatusCode) {
         StreamRouter::post_request(self, body, sock_addr, uri, headers).await
     }
 
@@ -46,7 +46,7 @@ impl ServerCallback for StreamRouter {
         sock_addr: SocketAddr,
         uri: http::Uri,
         headers: http::HeaderMap,
-    ) -> Result<Vec<u8>, (Vec<u8>, StatusCode)> {
+    ) -> (Vec<u8>, StatusCode) {
         StreamRouter::put_request(self, body, sock_addr, uri, headers).await
     }
 }

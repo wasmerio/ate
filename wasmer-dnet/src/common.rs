@@ -118,16 +118,16 @@ pub const fn is_ip6_documentation(ip: &Ipv6Addr) -> bool {
 }
 
 #[allow(dead_code)]
-pub async fn setup_web(solo: &OptsNetworkServer, cfg_ate: ConfAte, callback: Option<StreamRouter>) -> Result<(Arc<ateweb::server::Server>, watch::Receiver<bool>), AteError>
+pub async fn setup_web(solo: &OptsNetworkServer, cfg_ate: ConfAte, callback: Option<StreamRouter>) -> Result<(Arc<wasmer_gw::server::Server>, watch::Receiver<bool>), Box<dyn Error>>
 {
     let (hard_exit_tx, hard_exit_rx) = tokio::sync::watch::channel(false);
     let server = setup_web_ext(solo, cfg_ate, callback, hard_exit_tx).await?;
     Ok((server, hard_exit_rx))
 }
 
-pub async fn setup_web_ext(solo: &OptsNetworkServer, cfg_ate: ConfAte, callback: Option<StreamRouter>, hard_exit_tx: watch::Sender<bool>) -> Result<Arc<ateweb::server::Server>, AteError>
+pub async fn setup_web_ext(solo: &OptsNetworkServer, cfg_ate: ConfAte, callback: Option<StreamRouter>, hard_exit_tx: watch::Sender<bool>) -> Result<Arc<wasmer_gw::server::Server>, AteError>
 {
-    let mut builder = ateweb::builder::ServerBuilder::new(solo.db_url.clone(), solo.auth_url.clone())
+    let mut builder = wasmer_gw::builder::ServerBuilder::new(solo.db_url.clone(), solo.auth_url.clone())
         .add_listener(solo.listen, solo.http_port.unwrap_or(80u16), false)
         .add_listener(solo.listen, solo.tls_port.unwrap_or(443u16), true)
         .with_conf(&cfg_ate);
@@ -163,7 +163,7 @@ pub async fn setup_server
     conf: AteConfig,
     wire_encryption: Option<KeySize>,
     listen_certificate: Option<PrivateEncryptKey>
-) -> Result<(Arc<ateweb::server::Server>, watch::Receiver<bool>), Box<dyn std::error::Error>>
+) -> Result<(Arc<wasmer_gw::server::Server>, watch::Receiver<bool>), Box<dyn std::error::Error>>
 {
     let protocol = StreamProtocol::parse(&solo.auth_url)?;
     let port = solo.auth_url.port().unwrap_or(protocol.default_port());

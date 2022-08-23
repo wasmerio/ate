@@ -84,7 +84,7 @@ where Self: Send + Sync
         sock_addr: SocketAddr,
         server_id: NodeId,
         body: Vec<u8>,
-    ) -> Result<Vec<u8>, (Vec<u8>, StatusCode)>;
+    ) -> (Vec<u8>, StatusCode);
 
     async fn accepted_raw_put_request(
         &self,
@@ -93,7 +93,7 @@ where Self: Send + Sync
         sock_addr: SocketAddr,
         server_id: NodeId,
         body: Vec<u8>,
-    ) -> Result<Vec<u8>, (Vec<u8>, StatusCode)>;
+    ) -> (Vec<u8>, StatusCode);
 }
 
 #[allow(dead_code)]
@@ -292,7 +292,7 @@ impl StreamRouter {
         sock_addr: SocketAddr,
         uri: http::Uri,
         headers: http::HeaderMap,
-    ) -> Result<Vec<u8>, (Vec<u8>, StatusCode)> {
+    ) -> (Vec<u8>, StatusCode) {
         // Get the path
         let path = uri.path();
 
@@ -316,7 +316,7 @@ impl StreamRouter {
 
         // Fail
         let msg = format!("Bad Request (No Route)").as_bytes().to_vec();
-        return Err((msg, StatusCode::BAD_REQUEST));
+        return (msg, StatusCode::BAD_REQUEST);
     }
 
     #[cfg(feature = "enable_server")]
@@ -326,7 +326,7 @@ impl StreamRouter {
         sock_addr: SocketAddr,
         uri: http::Uri,
         headers: http::HeaderMap,
-    ) -> Result<Vec<u8>, (Vec<u8>, StatusCode)> {
+    ) -> (Vec<u8>, StatusCode) {
         // Get the path
         let path = uri.path();
 
@@ -350,6 +350,6 @@ impl StreamRouter {
 
         // Fail
         let msg = format!("Bad Request (No Route)").as_bytes().to_vec();
-        return Err((msg, StatusCode::BAD_REQUEST));
+        return (msg, StatusCode::BAD_REQUEST);
     }
 }

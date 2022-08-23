@@ -1,9 +1,13 @@
+#[cfg(feature = "ate")]
 use ate::error::*;
+#[cfg(feature = "ate-files")]
 use ate_files::error::FileSystemError;
+#[cfg(feature = "ate-files")]
 use ate_files::error::FileSystemErrorKind;
 use error_chain::error_chain;
 use hyper::StatusCode;
 
+#[cfg(feature = "ate")]
 error_chain! {
     types {
         WebServerError, WebServerErrorKind, WebServerResultExt, WebServerResult;
@@ -42,12 +46,44 @@ error_chain! {
     }
 }
 
+#[cfg(not(feature = "ate"))]
+error_chain! {
+    types {
+        WebServerError, WebServerErrorKind, WebServerResultExt, WebServerResult;
+    }
+    foreign_links {
+        HeaderStrError(http::header::ToStrError);
+        HeaderValueError(http::header::InvalidHeaderValue);
+        TokioTungsteniteError(tokio_tungstenite::tungstenite::error::ProtocolError);
+        HyperTungsteniteError(hyper_tungstenite::tungstenite::error::ProtocolError);
+    }
+    errors {
+        BadHost(host: String) {
+            description("Bad Host"),
+            display("Bad Host - {}", host),
+        }
+        BadConfiguration(err: String) {
+            description("Bad Configuration"),
+            display("Bad Configuration - {}", err),
+        }
+        BadRequest(err: String) {
+            description("Bad Request"),
+            display("Bad Request - {}", err),
+        }
+        UnknownHost {
+            description("Unknown Host"),
+            display("Unknown Host"),
+        }
+    }
+}
+
 impl WebServerError {
     pub fn status_code(&self) -> StatusCode {
         match self {
             WebServerError(WebServerErrorKind::BadHost(_), _) => StatusCode::BAD_GATEWAY,
             WebServerError(WebServerErrorKind::BadRequest(_), _) => StatusCode::BAD_REQUEST,
             WebServerError(WebServerErrorKind::UnknownHost, _) => StatusCode::BAD_REQUEST,
+            #[cfg(feature = "dfs")]
             WebServerError(
                 WebServerErrorKind::FileSystemError(FileSystemErrorKind::DoesNotExist),
                 _,
@@ -67,6 +103,8 @@ impl WebServerError {
     }
 }
 
+#[cfg(feature = "ate")]
+#[cfg(feature = "acme")]
 error_chain! {
     types {
         OrderError, OrderErrorKind, OrderResultExt, OrderResult;
@@ -78,10 +116,12 @@ error_chain! {
         FileSystemError(FileSystemError, FileSystemErrorKind);
     }
     errors {
+        #[cfg(feature = "pem")]
         Pem(err: pem::PemError) {
             description("could not parse pem"),
             display("could not parse pem: {0}", err)
         }
+        #[cfg(feature = "rcgen")]
         Rcgen(err: rcgen::RcgenError) {
             description("certificate generation error"),
             display("certificate generation error: {0}", err)
@@ -105,18 +145,54 @@ error_chain! {
     }
 }
 
+#[cfg(feature = "ate")]
+#[cfg(not(feature = "acme"))]
+error_chain! {
+    types {
+        OrderError, OrderErrorKind, OrderResultExt, OrderResult;
+    }
+    links {
+        SerializationError(SerializationError, SerializationErrorKind);
+        CommitError(CommitError, CommitErrorKind);
+        FileSystemError(FileSystemError, FileSystemErrorKind);
+    }
+    errors {
+        #[cfg(feature = "pem")]
+        Pem(err: pem::PemError) {
+            description("could not parse pem"),
+            display("could not parse pem: {0}", err)
+        }
+        #[cfg(feature = "rcgen")]
+        Rcgen(err: rcgen::RcgenError) {
+            description("certificate generation error"),
+            display("certificate generation error: {0}", err)
+        }
+        Timeout {
+            description("timeout while waiting for certificate"),
+            display("timeout while waiting for certificate")
+        }
+        TooManyAttemptsAuth(domain: String) {
+            description("authorization failed too many times"),
+            display("authorization for {0} failed too many times", domain)
+        }
+    }
+}
+
+#[cfg(feature = "pem")]
 impl From<pem::PemError> for OrderError {
     fn from(err: pem::PemError) -> OrderError {
         OrderErrorKind::Pem(err).into()
     }
 }
 
+#[cfg(feature = "rcgen")]
 impl From<rcgen::RcgenError> for OrderError {
     fn from(err: rcgen::RcgenError) -> OrderError {
         OrderErrorKind::Rcgen(err).into()
     }
 }
 
+#[cfg(feature = "ring")]
 error_chain! {
     types {
         SecurityError, SecurityErrorKind, SecurityResultExt, SecurityResult;
@@ -127,6 +203,17 @@ error_chain! {
     }
 }
 
+#[cfg(not(feature = "ring"))]
+error_chain! {
+    types {
+        SecurityError, SecurityErrorKind, SecurityResultExt, SecurityResult;
+    }
+    foreign_links {
+        Json(serde_json::Error);
+    }
+}
+
+#[cfg(feature = "acme")]
 error_chain! {
     types {
         AcmeError, AcmeErrorKind, AcmeResultExt, AcmeResult;

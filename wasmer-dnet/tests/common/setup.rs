@@ -3,7 +3,7 @@ use std::net::IpAddr;
 use std::net::Ipv4Addr;
 use std::future::Future;
 use ate::prelude::*;
-use atenet::opt::OptsNetworkServer;
+use wasmer_dnet::opt::OptsNetworkServer;
 use tokio::runtime::Builder;
 use wasmer_bus_mio::prelude::Port;
 use wasmer_bus_mio::prelude::TokenSource;
@@ -22,20 +22,20 @@ fn create_solo(ip: IpAddr, node_id: u32) -> OptsNetworkServer
         token_path: "~/wasmer/token".to_string(),
         db_url: url::Url::parse("ws://wasmer.sh/db").unwrap(),
         auth_url: url::Url::parse("ws://wasmer.sh/auth").unwrap(),
-        inst_url: url::Url::parse("ws://wasmer.sh/inst").unwrap(),
+        instance_authority: "wasmer.sh".to_string(),
         node_id: Some(node_id),
         nodes_list: None,
         ttl: 300,
     }   
 }
 
-async fn create_node(ip: IpAddr, node_id: u32) -> Arc<ateweb::server::Server> {
+async fn create_node(ip: IpAddr, node_id: u32) -> Arc<wasmer_gw::server::Server> {
     let mut conf = AteConfig::default();
     conf.record_type_name = true;
 
     let solo = create_solo(ip, node_id);
     
-    let (server, _exit) = atenet::common::setup_server(
+    let (server, _exit) = wasmer_dnet::common::setup_server(
         solo,
         conf,
         None,
@@ -50,7 +50,7 @@ pub fn run<F: Future>(future: F) -> F::Output {
     runtime.clone().block_on(future)
 }
 
-pub async fn setup() -> Vec<Arc<ateweb::server::Server>> {
+pub async fn setup() -> Vec<Arc<wasmer_gw::server::Server>> {
     ate::log_init(1, false);
     //ate::log_init(2, false);
     //ate::log_init(3, false);

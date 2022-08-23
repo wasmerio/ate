@@ -21,6 +21,7 @@ pub mod stdout;
 pub mod tty;
 pub mod wasi;
 pub mod wizard_executor;
+pub mod wapm;
 
 // Re-exports
 pub use wasmer_os_grammar as grammar;

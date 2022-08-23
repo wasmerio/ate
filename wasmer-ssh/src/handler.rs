@@ -34,6 +34,7 @@ pub struct Handler {
     pub rect: Arc<Mutex<ConsoleRect>>,
     pub wizard: Option<SshWizard>,
     pub compiled_modules: Arc<CachedCompiledModules>,
+    pub webc_dir: Option<String>,
     pub stdio_lock: Arc<Mutex<()>>,
 }
 
@@ -78,13 +79,16 @@ impl Handler
                     let mut console = Console::new(
                         location,
                         user_agent,
-                        self.engine.clone(),
                         self.compiler,
                         handle,
                         wizard,
                         fs,
                         compiled_modules,
+                        self.webc_dir.clone(),
                     );
+                    if let Some(engine) = self.engine.clone() {
+                        console = console.with_engine(engine.clone());
+                    }
                     console.set_exit_on_return_to_shell(exit_on_return_to_shell);
                     console.init().await;
                     if is_run {
@@ -137,11 +141,13 @@ impl server::Handler for Handler {
             }
         };
 
+        /*
         // Root is always rejected (as this is what bots attack on)
         if user == "root" {
             warn!("root attempt rejected from {}", self.peer_addr_str);
             wizard.fail("root not supported - instead use 'ssh joe@blogs.com@wasmer.sh'\r\n");
         }
+        */
 
         // Set the user if its not set
         if wizard.state.email.is_none() {

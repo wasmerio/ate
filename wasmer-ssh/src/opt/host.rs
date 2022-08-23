@@ -20,6 +20,9 @@ pub struct OptsHost {
     /// Location where cached compiled modules are stored
     #[clap(long, default_value = "~/wasmer/compiled")]
     pub compiler_cache_path: String,
+    /// Location where webc files will be stored
+    #[clap(long, default_value = "~/wasmer/webc")]
+    pub webc_dir: String,
     /// Uses a local directory for native files rather than the published ate chain
     #[clap(long)]
     pub native_files_path: Option<String>,

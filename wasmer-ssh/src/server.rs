@@ -4,14 +4,13 @@ use std::sync::Mutex;
 use std::time::Duration;
 use wasmer_os::api::ConsoleRect;
 use thrussh::server;
-use tokio::sync::watch;
 use wasmer_term::wasmer_os;
 use wasmer_os::bin_factory::CachedCompiledModules;
-use crate::native_files::NativeFileInterface;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use crate::key::SshServerKey;
+use crate::native_files::NativeFileType;
 use crate::opt::*;
 use crate::wizard::*;
 
@@ -23,14 +22,14 @@ pub struct Server {
     pub auth_rejection_time: Duration,
     pub engine: Option<wasmer_os::wasmer::Engine>,
     pub compiler: wasmer_os::eval::Compiler,
-    pub native_files: NativeFileInterface,
+    pub native_files: NativeFileType,
     pub compiled_modules: Arc<CachedCompiledModules>,
-    pub exit_rx: watch::Receiver<bool>,
+    pub webc_dir: Option<String>,
     pub stdio_lock: Arc<Mutex<()>>,
 }
 
 impl Server {
-    pub async fn new(host: OptsHost, server_key: SshServerKey, compiled_modules: Arc<CachedCompiledModules>, native_files: NativeFileInterface, rx_exit: watch::Receiver<bool>) -> Self {
+    pub async fn new(host: OptsHost, server_key: SshServerKey, compiled_modules: Arc<CachedCompiledModules>, webc_dir: Option<String>, native_files: NativeFileType) -> Self {
         // Success
         let engine = host.compiler.new_engine();
         Self {
@@ -43,7 +42,7 @@ impl Server {
             compiler: host.compiler,
             engine,
             compiled_modules,
-            exit_rx: rx_exit,
+            webc_dir,
             stdio_lock: Arc::new(Mutex::new(())),
         }
     }
@@ -89,6 +88,7 @@ impl server::Server for Server {
             client_pubkey: None,
             wizard: Some(wizard),
             compiled_modules: self.compiled_modules.clone(),
+            webc_dir: self.webc_dir.clone(),
             stdio_lock: self.stdio_lock.clone(),
         }
     }

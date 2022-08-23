@@ -4,6 +4,7 @@ use std::net::SocketAddr;
 use std::pin::Pin;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::net::TcpStream;
+#[cfg(feature = "tls")]
 use tokio_rustls::server::TlsStream;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
@@ -20,6 +21,7 @@ where
     Self: Send + Sync,
 {
     PlainTcp((TcpStream, SocketAddr)),
+    #[cfg(feature = "tls")]
     Tls((TlsStream<TcpStream>, SocketAddr)),
 }
 
@@ -27,6 +29,7 @@ impl HyperStream {
     pub fn remote_addr(&self) -> &SocketAddr {
         match self {
             HyperStream::PlainTcp((_, addr)) => addr,
+            #[cfg(feature = "tls")]
             HyperStream::Tls((_, addr)) => addr,
         }
     }
@@ -40,6 +43,7 @@ impl AsyncRead for HyperStream {
     ) -> Poll<io::Result<()>> {
         match self.get_mut() {
             HyperStream::PlainTcp((a, _)) => Pin::new(a).poll_read(cx, buf),
+            #[cfg(feature = "tls")]
             HyperStream::Tls((a, _)) => Pin::new(a).poll_read(cx, buf),
         }
     }
@@ -53,6 +57,7 @@ impl AsyncWrite for HyperStream {
     ) -> Poll<io::Result<usize>> {
         match self.get_mut() {
             HyperStream::PlainTcp((a, _)) => Pin::new(a).poll_write(cx, buf),
+            #[cfg(feature = "tls")]
             HyperStream::Tls((a, _)) => Pin::new(a).poll_write(cx, buf),
         }
     }
@@ -64,6 +69,7 @@ impl AsyncWrite for HyperStream {
     ) -> Poll<io::Result<usize>> {
         match self.get_mut() {
             HyperStream::PlainTcp((a, _)) => Pin::new(a).poll_write_vectored(cx, bufs),
+            #[cfg(feature = "tls")]
             HyperStream::Tls((a, _)) => Pin::new(a).poll_write_vectored(cx, bufs),
         }
     }
@@ -71,6 +77,7 @@ impl AsyncWrite for HyperStream {
     fn is_write_vectored(&self) -> bool {
         match self {
             HyperStream::PlainTcp((a, _)) => Pin::new(a).is_write_vectored(),
+            #[cfg(feature = "tls")]
             HyperStream::Tls((a, _)) => Pin::new(a).is_write_vectored(),
         }
     }
@@ -79,6 +86,7 @@ impl AsyncWrite for HyperStream {
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         match self.get_mut() {
             HyperStream::PlainTcp((a, _)) => Pin::new(a).poll_flush(cx),
+            #[cfg(feature = "tls")]
             HyperStream::Tls((a, _)) => Pin::new(a).poll_flush(cx),
         }
     }
@@ -86,6 +94,7 @@ impl AsyncWrite for HyperStream {
     fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         match self.get_mut() {
             HyperStream::PlainTcp((a, _)) => Pin::new(a).poll_shutdown(cx),
+            #[cfg(feature = "tls")]
             HyperStream::Tls((a, _)) => Pin::new(a).poll_shutdown(cx),
         }
     }

@@ -116,7 +116,7 @@ pub async fn exec_process(
     let mut set_pwd = false;
     let mut base_dir = None;
     let mut chroot = ctx.chroot;
-    let (program_data_hash, program_data, mut fs_private) = match load_bin(&ctx, cmd, &mut stdio).await {
+    let (program_data_hash, program_data, mut fs_private, mut fs_webc) = match load_bin(&ctx, cmd, &mut stdio).await {
         Some(a) => {
             if a.chroot {
                 chroot = true;
@@ -134,7 +134,7 @@ pub async fn exec_process(
                 preopen.push(mapping);
             }
 
-            (a.hash, a.data, a.fs)
+            (a.hash, a.entry, a.tmp_fs, a.webc_fs)
         }
         None => {
             return on_early_exit(None, err::ERR_ENOENT).await;
@@ -170,6 +170,9 @@ pub async fn exec_process(
     let (fs, union_base) = {
         let stdio = stdio.clone();
         let mut union = ctx.root.clone();
+        if let Some(fs) = fs_webc {
+            union.mount("webc", "/", true, Box::new(SharedMountedFileSystem::new(fs)), None);
+        }
         union.mount("proc", "/dev", true, Box::new(ProcFileSystem::new(stdio)), None);
         union.mount("tmp", "/tmp", true, Box::new(TmpFileSystem::new()), None);
         union.mount("private", "/.private", true, Box::new(fs_private), None);

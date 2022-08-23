@@ -1,9 +1,9 @@
 [package]
-name = "atenet"
+name = "wasmer-dnet"
 version = "1.0.0"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2021"
-description = "High performance virtual networking stack built on top of ate"
+description = "High performance distributed virtual networking stack built on top of ate"
 license = "MIT OR Apache-2.0"
 keywords = [
     "networking",
@@ -22,7 +22,7 @@ tcpdump = []
 ate = { version = "^1.3", path = "../lib", features = [ "client", "server" ], default_features = false }
 wasmer-auth = { version = "^1.9", path = "../wasmer-auth", features = [ "client", "server" ], default_features = false }
 ate-files = { version = "^1.2", path = "../files" }
-ateweb = { version = "^1.2", path = "../ateweb" }
+wasmer-gw = { version = "^1.2", path = "../wasmer-gw" }
 wasmer-bus-mio = { version = "^1", path = "../wasmer-bus/mio", default_features = false }
 wasmer-deploy-cli = { version = "^1.3", path = "../wasmer-deploy-cli" }
 error-chain = { version = "^0.12", default_features = false }
@@ -50,7 +50,7 @@ rpassword-wasi = "^5"
 url = "^2"
 ttl_cache = "^0.5"
 x509-parser = "^0.12"
-chrono = "^0.4"
+chrono = { version = "^0.4", git = "https://github.com/john-sharratt/chrono.git", features = ["serde"] }
 smoltcp = { version = "0.8.0", git = "https://github.com/john-sharratt/smoltcp.git", features = [ "async" ] }
 ctrlc = { version = "^3" }
 http = { version = "^0.2" }

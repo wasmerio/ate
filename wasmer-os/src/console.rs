@@ -44,6 +44,7 @@ pub struct Console {
     stdout: Stdout,
     stderr: Fd,
     exec: EvalFactory,
+    #[cfg(feature = "sys")]
     engine: Option<Engine>,
     compiler: Compiler,
     abi: Arc<dyn ConsoleAbi>,
@@ -79,22 +80,22 @@ impl Console {
     pub fn new(
         location: String,
         user_agent: String,
-        engine: Option<Engine>,
         compiler: Compiler,
         abi: Arc<dyn ConsoleAbi>,
         wizard: Option<Box<dyn WizardAbi + Send + Sync + 'static>>,
         fs: UnionFileSystem,
         compiled_modules: Arc<CachedCompiledModules>,
+        cache_webc_dir: Option<String>
     ) -> Console {
         let bins = BinFactory::new(
             compiled_modules,
+            cache_webc_dir
         );
         let reactor = Arc::new(RwLock::new(Reactor::new()));
         
         Self::new_ext(
             location,
             user_agent,
-            engine,
             compiler,
             abi,
             wizard,
@@ -106,7 +107,6 @@ impl Console {
     pub fn new_ext(
         location: String,
         user_agent: String,
-        engine: Option<Engine>,
         compiler: Compiler,
         abi: Arc<dyn ConsoleAbi>,
         wizard: Option<Box<dyn WizardAbi + Send + Sync + 'static>>,
@@ -155,8 +155,9 @@ impl Console {
             tty,
             reactor,
             exec: exec_factory,
-            engine,
             compiler,
+            #[cfg(feature = "sys")]
+            engine: None,
             abi,
             wizard,
             whitelabel: false,
@@ -168,6 +169,12 @@ impl Console {
         ret.new_init();
 
         ret
+    }
+
+    #[cfg(feature = "sys")]
+    pub fn with_engine(mut self, engine: Engine) -> Self {
+        self.engine = Some(engine);
+        self
     }
 
     fn new_init(&mut self) {
@@ -507,6 +514,8 @@ impl Console {
                     // Process any changes to the global state
                     {
                         let ctx: EvalContext = rx.ctx;
+                        abi.exit_code(ctx.last_return).await;
+
                         let mut state = state.lock().unwrap();
                         state.rootfs = ctx.root.sanitize();
                         state.env = ctx.env;
@@ -515,6 +524,7 @@ impl Console {
                     }
                 } else {
                     debug!("eval recv erro");
+                    abi.exit_code(1u32).await;
                     tty.draw(format!("term: command failed\r\n").as_str()).await;
                 }
 

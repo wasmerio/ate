@@ -77,6 +77,7 @@ pub struct Server
     pub engine: Option<wasmer_os::wasmer::Engine>,
     pub compiler: wasmer_os::eval::Compiler,
     pub compiled_modules: Arc<CachedCompiledModules>,
+    pub cache_webc_dir: Option<String>,
     pub instance_authority: String,
     pub sessions: RwLock<TtlCache<ChainKey, SessionBasics>>,
     pub ttl: Duration,
@@ -92,6 +93,7 @@ impl Server
         registry: Arc<Registry>,
         compiler: wasmer_os::eval::Compiler,
         compiled_modules: Arc<CachedCompiledModules>,
+        cache_webc_dir: Option<String>,
         ttl: Duration,
     ) -> Result<Self, Box<dyn std::error::Error>>
     {
@@ -126,6 +128,7 @@ impl Server
             engine,
             compiler,
             compiled_modules,
+            cache_webc_dir,
             instance_authority,
             sessions,
             ttl,
@@ -162,7 +165,7 @@ impl Server
         }
 
         // Create the bin factory
-        let bins = BinFactory::new(self.compiled_modules.clone());
+        let bins = BinFactory::new(self.compiled_modules.clone(), self.cache_webc_dir.clone());
         let reactor = Arc::new(RwLock::new(Reactor::new()));
         let multiplexer = SubProcessMultiplexer::new();
         

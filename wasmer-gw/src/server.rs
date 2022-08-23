@@ -1,19 +1,26 @@
 use async_trait::async_trait;
+use bytes::Bytes;
 use error_chain::bail;
-use fxhash::FxHashMap;
+use std::collections::HashMap;
 use std::collections::hash_map::Entry as StdEntry;
 use std::convert::Infallible;
+use std::error::Error;
 use std::net::SocketAddr;
 use std::ops::Deref;
+use std::path::PathBuf;
 use std::sync::Arc;
+#[allow(unused_imports)]
 use std::sync::Weak;
+#[allow(unused_imports)]
 use std::time::Duration;
 use std::time::Instant;
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, instrument, span, trace, warn, event, Level};
+#[cfg(feature = "wasmer-auth")]
 use wasmer_auth::service::AuthService;
+#[cfg(feature = "wasmer-auth")]
 use wasmer_auth::cmd::gather_command;
 
 use hyper;
@@ -27,13 +34,17 @@ use hyper::Response;
 use hyper::StatusCode;
 use hyper_tungstenite::WebSocketStream;
 
+#[cfg(feature = "ate")]
 use ate::prelude::*;
+#[cfg(feature = "ate-files")]
 use ate_files::prelude::*;
+#[cfg(feature = "ate-files")]
 use ate_files::repo::*;
 
 use crate::model::WebConf;
 
 use super::acceptor::*;
+#[cfg(feature = "acme")]
 use super::acme::AcmeResolver;
 use super::builder::*;
 use super::conf::*;
@@ -44,6 +55,7 @@ use super::stream::*;
 
 pub struct ServerWebConf {
     web_conf: WebConf,
+    #[allow(dead_code)]
     web_conf_when: Option<Instant>,
 }
 
@@ -65,9 +77,9 @@ pub trait ServerCallback: Send + Sync {
         _sock_addr: SocketAddr,
         _uri: http::Uri,
         _headers: http::HeaderMap,
-    ) -> Result<Vec<u8>, (Vec<u8>, StatusCode)> {
+    ) -> (Vec<u8>, StatusCode) {
         let msg = format!("Bad Request (Not Implemented)").as_bytes().to_vec();
-        Err((msg, StatusCode::BAD_REQUEST))
+        (msg, StatusCode::BAD_REQUEST)
     }
 
     async fn put_request(
@@ -76,18 +88,20 @@ pub trait ServerCallback: Send + Sync {
         _sock_addr: SocketAddr,
         _uri: http::Uri,
         _headers: http::HeaderMap,
-    ) -> Result<Vec<u8>, (Vec<u8>, StatusCode)> {
+    ) -> (Vec<u8>, StatusCode) {
         let msg = format!("Bad Request (Not Implemented)").as_bytes().to_vec();
-        Err((msg, StatusCode::BAD_REQUEST))
+        (msg, StatusCode::BAD_REQUEST)
     }
 }
 
 pub struct Server {
+    #[cfg(feature = "dfs")]
     repo: Arc<Repository>,
-    web_conf: Mutex<FxHashMap<String, ServerWebConf>>,
+    web_conf: Mutex<HashMap<String, ServerWebConf>>,
     server_conf: ServerConf,
     callback: Option<Arc<dyn ServerCallback + 'static>>,
-    mime: FxHashMap<String, String>,
+    mime: HashMap<String, String>,
+    www_path: Option<String>,
 }
 
 async fn process(
@@ -98,6 +112,7 @@ async fn process(
 ) -> Result<Response<Body>, hyper::Error> {
     trace!("perf-checkpoint: hyper process (addr={})", sock_addr);
 
+    #[allow(unused_variables)]
     let path = req.uri().path().to_string();
     match server.process(req, sock_addr, listen.deref()).await {
         Ok(resp) => {
@@ -105,6 +120,7 @@ async fn process(
             trace!("res: status={}", resp.status().as_u16());
             Ok(resp)
         }
+        #[cfg(feature = "dfs")]
         Err(WebServerError(
             WebServerErrorKind::FileSystemError(FileSystemErrorKind::NoAccess),
             _,
@@ -125,42 +141,51 @@ async fn process(
 }
 
 impl Server {
-    pub(crate) async fn new(mut builder: ServerBuilder) -> Result<Arc<Server>, AteError>
+    pub(crate) async fn new(#[allow(unused_mut)] mut builder: ServerBuilder) -> Result<Arc<Server>, Box<dyn Error>>
     {
         // There are few more tweaks we need to make to the configuration
-        builder.conf.cfg_ate.recovery_mode = RecoveryMode::ReadOnlySync;
-        builder.conf.cfg_ate.backup_mode = BackupMode::None;
+        #[cfg(feature = "dfs")]
+        {
+            builder.conf.cfg_ate.recovery_mode = RecoveryMode::ReadOnlySync;
+            builder.conf.cfg_ate.backup_mode = BackupMode::None;
+        }
         
         // Now we are ready
+        #[cfg(feature = "dfs")]
         let registry = Arc::new(Registry::new(&builder.conf.cfg_ate).await);
 
-        let session_factory = SessionFactory {
-            auth_url: builder.auth_url.clone(),
-            registry: registry.clone(),
-            master_key: builder.web_master_key.clone(),
-        };
-
+        #[cfg(feature = "dfs")]
         let repo = Repository::new(
             &registry,
             builder.remote.clone(),
             builder.auth_url.clone(),
-            Box::new(session_factory),
+            Box::new(SessionFactory {
+                #[cfg(feature = "wasmer-auth")]
+                auth_url: builder.auth_url.clone(),
+                #[cfg(feature = "dfs")]
+                registry: registry.clone(),
+                #[cfg(feature = "ate")]
+                master_key: builder.web_master_key.clone(),
+            }),
             builder.conf.ttl,
         )
         .await?;
 
         Ok(Arc::new(Server {
+            #[cfg(feature = "dfs")]
             repo,
-            web_conf: Mutex::new(FxHashMap::default()),
+            web_conf: Mutex::new(HashMap::default()),
             server_conf: builder.conf,
             callback: builder.callback,
             mime: Server::init_mime(),
+            www_path: builder.www_path,
         }))
     }
 
     pub async fn run(self: &Arc<Self>) -> Result<(), Box<dyn std::error::Error>> {
         trace!("running web server");
 
+        #[cfg(feature = "acme")]
         let acme = AcmeResolver::new(&self.repo).await?;
 
         let mut joins = Vec::new();
@@ -180,9 +205,16 @@ impl Server {
                 })
             };
 
+            #[cfg(feature = "acme")]
             let acme = acme.clone();
             let tcp_listener = TcpListener::bind(&listen.addr).await?;
-            let acceptor = HyperAcceptor::new(tcp_listener, acme, listen.tls);
+            let acceptor = HyperAcceptor::new(
+                tcp_listener,
+                #[cfg(feature = "acme")]
+                acme,
+                #[cfg(feature = "tls")]
+                listen.tls
+            );
             let server = hyper::Server::builder(acceptor)
                 .http1_preserve_header_case(true)
                 .http1_title_case_headers(true)
@@ -193,6 +225,7 @@ impl Server {
 
         // This next background thread will terminate any chains that have gone
         // out-of-scope due to expired TTL (caching cleanup)
+        #[cfg(feature = "dfs")]
         {
             let ttl = self.server_conf.ttl.as_secs();
             let ttl_check = u64::min(ttl, 30u64);
@@ -227,7 +260,9 @@ impl Server {
         Ok(())
     }
 
+    #[allow(dead_code)]
     async fn house_keeping(&self) {
+        #[cfg(feature = "dfs")]
         self.repo.house_keeping().await;
     }
 
@@ -236,7 +271,13 @@ impl Server {
             return Ok(host.to_string());
         }
         match req.headers().get("Host") {
-            Some(a) => Ok(a.to_str()?.to_string()),
+            Some(a) => {
+                let mut host = a.to_str()?.to_string();
+                if let Some((a, _)) = host.split_once(":") {
+                    host = a.to_string();
+                }
+                Ok(host)
+            },
             None => {
                 bail!(WebServerErrorKind::UnknownHost);
             }
@@ -262,41 +303,65 @@ impl Server {
                 return Ok(conf.web_conf.clone());
             }
         };
-        if trigger {
-            let key = ChainKey::from(format!("{}/www", host));
-            conf.web_conf_when = Some(Instant::now());
-            conf.web_conf = match self
-                .repo
-                .get_file(&key, host.as_str(), WEB_CONF_FILES_CONF)
-                .await
-                .ok()
-                .flatten()
-            {
-                Some(data) => {
-                    let data = String::from_utf8_lossy(&data[..]);
-                    serde_yaml::from_str::<WebConf>(&data).map_err(|err| {
-                        WebServerError::from_kind(WebServerErrorKind::BadConfiguration(
-                            err.to_string(),
-                        ))
-                    })?
-                }
-                None => {
-                    let mut ret = WebConf::default();
-                    ret.default_page = Some("index.html".to_string());
-                    ret.force_https = true;
 
-                    if let Some(ret_str) = serde_yaml::to_string(&ret).ok() {
-                        let err = self
-                            .repo
-                            .set_file(&key, host.as_str(), WEB_CONF_FILES_CONF, ret_str.as_bytes())
-                            .await;
-                        if let Err(err) = err {
-                            info!("failed to save default web.yaml - {}", err);
-                        }
-                    }
-                    ret
+        #[allow(unused_assignments, unused_variables)]
+        if trigger {
+            let mut is_done = false;
+
+            if let Some(www_path) = self.www_path.clone() {
+                let abs_path = PathBuf::from(www_path).join(host.as_str()).join(WEB_CONF_FILES_CONF);
+                trace!("searching locally: {}", abs_path.to_string_lossy());
+                if let Ok(data) = tokio::fs::read(abs_path).await {
+                    let data = String::from_utf8_lossy(&data[..]);
+                    conf.web_conf_when = Some(Instant::now());
+                    conf.web_conf =
+                        serde_yaml::from_str::<WebConf>(&data).map_err(|err| {
+                            WebServerError::from_kind(WebServerErrorKind::BadConfiguration(
+                                err.to_string(),
+                            ))
+                        })?;
+                    is_done = true;
                 }
-            };
+            }
+
+            #[cfg(feature = "dfs")]
+            if is_done == false {
+                let key = ChainKey::from(format!("{}/www", host));
+                conf.web_conf_when = Some(Instant::now());
+                conf.web_conf = match self
+                    .repo
+                    .get_file(&key, host.as_str(), WEB_CONF_FILES_CONF)
+                    .await
+                    .ok()
+                    .flatten()
+                {
+                    Some(data) => {
+                        let data = String::from_utf8_lossy(&data[..]);
+                        serde_yaml::from_str::<WebConf>(&data).map_err(|err| {
+                            WebServerError::from_kind(WebServerErrorKind::BadConfiguration(
+                                err.to_string(),
+                            ))
+                        })?
+                    }
+                    None => {
+                        let mut ret = WebConf::default();
+                        ret.default_page = Some("index.html".to_string());
+                        ret.force_https = true;
+
+                        if let Some(ret_str) = serde_yaml::to_string(&ret).ok() {
+                            let err = self
+                                .repo
+                                .set_file(&key, host.as_str(), WEB_CONF_FILES_CONF, ret_str.as_bytes())
+                                .await;
+                            if let Err(err) = err {
+                                info!("failed to save default web.yaml - {}", err);
+                            }
+                        }
+                        ret
+                    }
+                };
+                is_done = true;
+            }
         }
 
         match serde_yaml::to_string(&conf.web_conf) {
@@ -341,16 +406,18 @@ impl Server {
     pub(crate) async fn process_redirect_host(
         &self,
         req: Request<Body>,
+        #[allow(unused_variables)]
         listen: &ServerListen,
         redirect: &str,
     ) -> Result<Response<Body>, WebServerError> {
         let mut uri = http::Uri::builder().authority(redirect);
         if let Some(scheme) = req.uri().scheme() {
             uri = uri.scheme(scheme.clone());
-        } else if listen.tls {
-            uri = uri.scheme("https");
         } else {
             uri = uri.scheme("http");
+        }
+        if listen.tls {
+            uri = uri.scheme("https");
         }
         if let Some(path_and_query) = req.uri().path_and_query() {
             uri = uri.path_and_query(path_and_query.clone());
@@ -377,9 +444,14 @@ impl Server {
         return Ok(resp);
     }
 
-    pub(crate) fn sanitize(&self, mut path: &str) -> Result<(), WebServerError> {
+    pub(crate) fn sanitize<'a>(&self, mut path: &'a str) -> Result<&'a str, WebServerError> {
         while path.starts_with("/") {
             path = &path[1..];
+        }
+        if path.contains("~") {
+            bail!(WebServerErrorKind::BadRequest(
+                "Accessing home directories is forbidden".to_string()
+            ));
         }
         if path.contains("..") {
             bail!(WebServerErrorKind::BadRequest(
@@ -391,20 +463,48 @@ impl Server {
                 "Accessing configuration files is forbidden".to_string()
             ));
         }
-        Ok(())
+
+        // If it has parameters passed to the web server we ignore them
+        path = if let Some((left, _right)) = path.split_once("?") {
+            left
+        } else {
+            path
+        };
+
+        Ok(path)
     }
 
+    #[allow(unused_variables)]
     pub(crate) async fn process_get(
         &self,
         host: &str,
-        path: &str,
+        mut path: &str,
         is_head: bool,
         conf: &WebConf,
     ) -> Result<Option<Response<Body>>, WebServerError> {
-        self.sanitize(path)?;
-        let key = ChainKey::from(format!("{}/www", host));
-        trace!("perf-checkpoint: get_file (path={})", path);
-        if let Some(data) = self.repo.get_file(&key, host, path).await? {
+        path = self.sanitize(path)?;
+
+        let mut data = None;
+        if let Some(www_path) = self.www_path.clone() {
+            let abs_path = PathBuf::from(www_path).join(host).join(path);
+            trace!("searching locally: {}", abs_path.to_string_lossy());
+
+            // Attempt to open the file
+            if let Ok(d) = tokio::fs::read(abs_path).await {
+                data = Some(Bytes::from(d));
+            }
+        }
+
+        #[cfg(feature = "dfs")]
+        if data.is_none() {
+            let key = ChainKey::from(format!("{}/www", host));
+            trace!("perf-checkpoint: get_file (path={})", path);
+            if let Some(d) = self.repo.get_file(&key, host, path).await? {
+                data = Some(d);
+            }
+        }
+
+        if let Some(data) = data {
             let len_str = data.len().to_string();
             trace!("perf-checkpoint: got_file (data_len={})", len_str);
 
@@ -427,12 +527,13 @@ impl Server {
                 );
             }
             *resp.status_mut() = StatusCode::OK;
-            Ok(Some(resp))
-        } else {
-            Ok(None)
+            return Ok(Some(resp));
         }
+
+        Ok(None)
     }
 
+    #[allow(dead_code)]
     pub(crate) fn apply_mime(
         &self,
         path: &str,
@@ -448,8 +549,8 @@ impl Server {
         Ok(())
     }
 
-    fn init_mime() -> FxHashMap<String, String> {
-        let mut ret = FxHashMap::default();
+    fn init_mime() -> HashMap<String, String> {
+        let mut ret = HashMap::default();
         ret.insert("aac".to_string(), "audio/aac".to_string());
         ret.insert("abw".to_string(), "application/x-abiword".to_string());
         ret.insert("arc".to_string(), "application/x-freearc".to_string());
@@ -567,22 +668,15 @@ impl Server {
     pub(crate) async fn process_get_with_default(
         &self,
         host: &str,
-        path: &str,
+        mut path: &str,
         is_head: bool,
         conf: &WebConf,
     ) -> Result<Response<Body>, WebServerError> {
-        self.sanitize(path)?;
-
-        // If it has parameters passed to the web server we ignore them
-        let path = if let Some((left, _right)) = path.split_once("?") {
-            left.to_string()
-        } else {
-            path.to_string()
-        };
+        path = self.sanitize(path)?;
 
         // Attempt to get the file
         trace!("perf-checkpoint: process_get");
-        match self.process_get(host, path.as_str(), is_head, conf).await? {
+        match self.process_get(host, path, is_head, conf).await? {
             Some(a) => {
                 return Ok(a);
             }
@@ -632,24 +726,15 @@ impl Server {
                 let headers = req.headers().clone();
                 if let Some(body) = hyper::body::to_bytes(req.into_body()).await.ok() {
                     let body = body.to_vec();
-                    let ret = match method {
+                    let (resp, status) = match method {
                         Method::POST => callback.post_request(body, sock_addr, uri, headers).await,
                         Method::PUT => callback.put_request(body, sock_addr, uri, headers).await,
-                        _ => Err((Vec::new(), StatusCode::BAD_REQUEST))
+                        _ => (Vec::new(), StatusCode::BAD_REQUEST)
                     };
-                    match ret {
-                        Ok(resp) => {
-                            let resp = Response::new(Body::from(resp));
-                            trace!("res: status={}", resp.status().as_u16());
-                            return Ok(resp);
-                        }
-                        Err((resp, status)) => {
-                            let mut resp = Response::new(Body::from(resp));
-                            *resp.status_mut() = status;
-                            trace!("res: status={}", resp.status().as_u16());
-                            return Ok(resp);
-                        }
-                    };
+                    let mut resp = Response::new(Body::from(resp));
+                    *resp.status_mut() = status;
+                    trace!("res: status={}", resp.status().as_u16());
+                    return Ok(resp);
                 } else {
                     let status = StatusCode::BAD_REQUEST;
                     let err = status.as_str().to_string();
@@ -703,7 +788,7 @@ impl Server {
             let headers = req.headers().clone();
             let callback = Arc::clone(callback);
             let (response, websocket) = hyper_tungstenite::upgrade(req, None)?;
-            TaskEngine::spawn(async move {
+            tokio::task::spawn(async move {
                 match websocket.await {
                     Ok(websocket) => {
                         trace!("perf-checkpoint: begin callback.web_socket");
@@ -724,6 +809,7 @@ impl Server {
         }
     }
 
+    #[cfg(feature = "cors")]
     pub(crate) async fn process_cors(
         &self,
         req: Request<Body>,
@@ -828,17 +914,20 @@ impl Server {
             return self.force_https(req).await;
         }
 
-        let mut cors_proxy = req.uri().path().split("https://");
-        cors_proxy.next();
-        if let Some(next) = cors_proxy.next() {
-            trace!("perf-checkpoint: cors proxy");
-            let next = next.to_string();
-            return Ok(self.process_cors(req, listen, conf, next).await
-                .unwrap_or_else(|code| {
-                    let mut resp = Response::new(Body::from(code.as_str().to_string()));
-                    *resp.status_mut() = code;
-                    resp
-                }));
+        #[cfg(feature = "cors")]
+        {
+            let mut cors_proxy = req.uri().path().split("https://");
+            cors_proxy.next();
+            if let Some(next) = cors_proxy.next() {
+                trace!("perf-checkpoint: cors proxy");
+                let next = next.to_string();
+                return Ok(self.process_cors(req, listen, conf, next).await
+                    .unwrap_or_else(|code| {
+                        let mut resp = Response::new(Body::from(code.as_str().to_string()));
+                        *resp.status_mut() = code;
+                        resp
+                    }));
+            }
         }
 
         let host = self.get_host(&req)?;
@@ -862,13 +951,18 @@ impl Server {
     }
 }
 
+#[allow(dead_code)]
 struct SessionFactory
 {
+    #[cfg(feature = "ate")]
     master_key: Option<EncryptKey>,
+    #[cfg(feature = "dfs")]
     registry: Arc<Registry>,
+    #[cfg(feature = "wasmer-auth")]
     auth_url: url::Url,
 }
 
+#[cfg(feature = "dfs")]
 #[async_trait]
 impl RepositorySessionFactory
 for SessionFactory

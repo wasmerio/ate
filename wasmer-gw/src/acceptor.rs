@@ -1,18 +1,24 @@
+#[cfg(feature = "acme")]
 use super::acme::ACME_TLS_ALPN_NAME;
 use core::task::{Context, Poll};
 use std::future::Future;
 use std::io;
+#[cfg(feature = "tls")]
 use std::net::SocketAddr;
 use std::pin::Pin;
+#[allow(unused_imports)]
 use std::sync::Arc;
 use tokio::net::TcpListener;
+#[cfg(feature = "tls")]
 use tokio::net::TcpStream;
+#[cfg(feature = "tls")]
 use tokio_rustls::TlsAcceptor;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use hyper;
 
+#[cfg(feature = "acme")]
 use super::acme::*;
 use super::stream::*;
 
@@ -21,21 +27,33 @@ where
     Self: Send,
 {
     pub tcp: TcpListener,
+    #[cfg(feature = "tls")]
     pub tls: Option<TlsAcceptor>,
+    #[cfg(feature = "acme")]
     pub acme: Arc<AcmeResolver>,
     pub accepting:
         Vec<Pin<Box<dyn Future<Output = Result<HyperStream, Box<dyn std::error::Error>>> + Send>>>,
 }
 
 impl HyperAcceptor {
-    pub fn new(listener: TcpListener, acme: Arc<AcmeResolver>, enable_tls: bool) -> HyperAcceptor {
+    pub fn new(
+        listener: TcpListener,
+        #[cfg(feature = "acme")]
+        acme: Arc<AcmeResolver>,
+        #[cfg(feature = "tls")]
+        enable_tls: bool
+    ) -> HyperAcceptor {
+        #[cfg(feature = "tls")]
         let tls = match enable_tls {
             false => None,
             true => {
-                let acme = Arc::clone(&acme);
                 let tls_cfg = {
                     let mut cfg = rustls::ServerConfig::new(rustls::NoClientAuth::new());
-                    cfg.cert_resolver = acme;
+                    #[cfg(feature = "acme")]
+                    {
+                        let acme = Arc::clone(&acme);
+                        cfg.cert_resolver = acme;
+                    }
                     cfg.set_protocols(&[
                         b"h2".to_vec(),
                         b"http/1.1".to_vec(),
@@ -48,14 +66,18 @@ impl HyperAcceptor {
         };
         HyperAcceptor {
             tcp: listener,
+            #[cfg(feature = "tls")]
             tls,
+            #[cfg(feature = "acme")]
             acme,
             accepting: Vec::new(),
         }
     }
 
+    #[cfg(feature = "tls")]
     pub async fn accept(
         tls: TlsAcceptor,
+        #[cfg(feature = "acme")]
         acme: Arc<AcmeResolver>,
         socket: TcpStream,
         addr: SocketAddr,
@@ -115,7 +137,9 @@ impl HyperAcceptor {
 
             // If it has an ACME ALPN extension then we dont want to trigger another certificate for it
             // so we instead just attempt to accept the connection
+            #[allow(unused)]
             let mut alpn = false;
+            #[cfg(feature = "acme")]
             for ext in exts.iter() {
                 if let tls_parser::TlsExtension::ALPN(alpn_exts) = ext {
                     for alpn_ext in alpn_exts {
@@ -142,6 +166,7 @@ impl HyperAcceptor {
                     _ => None,
                 })
                 .next();
+            #[allow(unused_variables)]
             let sni = match sni {
                 Some(a) => a,
                 None => {
@@ -150,6 +175,7 @@ impl HyperAcceptor {
             };
 
             // Load the object
+            #[cfg(feature = "acme")]
             if alpn {
                 trace!("alpn challenge for SNI: {}", sni);
                 acme.touch_alpn(sni.to_string()).await?;
@@ -183,6 +209,7 @@ impl hyper::server::accept::Accept for HyperAcceptor {
                 Poll::Ready(Err(err)) => {
                     return Poll::Ready(Some(Err(err)));
                 }
+                #[cfg(feature = "tls")]
                 Poll::Ready(Ok((socket, addr))) => {
                     // For HTTP streams there is nothing more to do
                     let tls = match &self.tls {
@@ -191,11 +218,22 @@ impl hyper::server::accept::Accept for HyperAcceptor {
                         }
                         Some(tls) => tls.clone(),
                     };
-
+                    
                     // Otherwise its time to accept the TLS connection
+                    #[cfg(feature = "acme")]
                     let acme = self.acme.clone();
-                    let accept = HyperAcceptor::accept(tls, acme, socket, addr);
+                    let accept = HyperAcceptor::accept(
+                        tls,
+                        #[cfg(feature = "acme")]
+                        acme,
+                        socket,
+                        addr
+                    );
                     self.accepting.push(Box::pin(accept));
+                }
+                #[cfg(not(feature = "tls"))]
+                Poll::Ready(Ok((socket, addr))) => {
+                    return Poll::Ready(Some(Ok(HyperStream::PlainTcp((socket, addr)))));
                 }
             };
         }

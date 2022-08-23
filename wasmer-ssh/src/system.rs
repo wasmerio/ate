@@ -14,28 +14,15 @@ use wasmer_term::wasmer_os;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 use std::path::PathBuf;
-use super::native_files::NativeFileInterface;
 use super::native_files::NativeFileType;
 
 pub struct System {
     pub inner: Arc<dyn SystemAbi>,
-    pub native_files: NativeFileInterface,
+    pub native_files: NativeFileType,
 }
 
 impl System {
     pub async fn new(inner: Arc<dyn SystemAbi>, native_files: NativeFileType) -> Self {
-        let native_files = match native_files {
-            NativeFileType::LocalFileSystem(native_files) => {
-                let path = PathBuf::from(native_files);
-                NativeFileInterface::LocalFileSystem(path)
-            },
-            NativeFileType::EmbeddedFiles => {
-                NativeFileInterface::EmbeddedFiles
-            },
-            NativeFileType::None => {
-                NativeFileInterface::None
-            }
-        };
         Self {
             inner,
             native_files,
@@ -103,13 +90,14 @@ impl wasmer_os::api::SystemAbi for System {
     /// Fetches a data file from the local context of the process
     fn fetch_file(&self, path: &str) -> AsyncResult<Result<Vec<u8>, u32>> {
         match &self.native_files {
-            NativeFileInterface::LocalFileSystem(native_files) => {
-                self.fetch_file_via_local_fs(native_files, path)
+            NativeFileType::LocalFileSystem(native_files) => {
+                let native_files = PathBuf::from(native_files);
+                self.fetch_file_via_local_fs(&native_files, path)
             },
-            NativeFileInterface::EmbeddedFiles => {
+            NativeFileType::EmbeddedFiles => {
                 self.inner.fetch_file(path)
             },
-            NativeFileInterface::None => {
+            NativeFileType::None => {
                 AsyncResult::new_static(SerializationFormat::Bincode, Err(err::ERR_ENOENT))
             }
         }

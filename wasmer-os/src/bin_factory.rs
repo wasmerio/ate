@@ -7,6 +7,9 @@ use derivative::*;
 use serde::*;
 use sha2::{Digest, Sha256};
 use wasmer::AsStoreRef;
+use wasmer_vfs::FileSystem;
+use std::any::Any;
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::ops::Deref;
@@ -30,30 +33,47 @@ use crate::fd::*;
 #[derive(Derivative, Clone)]
 #[derivative(Debug)]
 pub struct BinaryPackage {
+    pub ownership: Option<Arc<dyn Any + Send + Sync + 'static>>,
     #[derivative(Debug = "ignore")]
-    pub data: Bytes,
+    pub entry: Cow<'static, [u8]>,
     pub hash: String,
     pub chroot: bool,
     pub wapm: Option<String>,
     pub base_dir: Option<String>,
-    pub fs: TmpFileSystem,
+    pub tmp_fs: TmpFileSystem,
+    pub webc_fs: Option<Arc<dyn FileSystem + Send + Sync + 'static>>,
+    pub webc_top_level_dirs: Vec<String>,
     pub mappings: Vec<String>,
     pub envs: HashMap<String, String>,
 }
 
 impl BinaryPackage {
-    pub fn new(data: Bytes) -> BinaryPackage {
+    pub fn new(entry: Cow<'static, [u8]>) -> BinaryPackage {
         let forced_exit = Arc::new(AtomicU32::new(0));
-        let hash = hash_of_binary(&data);
+        let hash = hash_of_binary(entry.clone());
         BinaryPackage {
-            data,
+            ownership: None,
+            entry,
             hash,
             chroot: false,
             wapm: None,
             base_dir: None,
-            fs: TmpFileSystem::new(),
+            tmp_fs: TmpFileSystem::new(),
+            webc_fs: None,
+            webc_top_level_dirs: Default::default(),
             mappings: Vec::new(),
             envs: HashMap::default(),
+        }
+    }
+
+    pub unsafe fn new_with_ownership<'a, T>(entry: Cow<'a, [u8]>, ownership: Arc<T>) -> BinaryPackage
+    where T: 'static
+    {
+        let ownership: Arc<dyn Any> = ownership;
+        unsafe {
+            let mut ret = BinaryPackage::new(std::mem::transmute(entry));
+            ret.ownership = Some(std::mem::transmute(ownership));
+            ret
         }
     }
 }
@@ -77,7 +97,7 @@ pub struct AliasConfig {
 pub struct CachedCompiledModules {
     #[cfg(feature = "sys")]
     modules: RwLock<HashMap<String, Module>>,
-    cache_dir: Option<String>,
+    cache_compile_dir: Option<String>,
 }
 
 thread_local! {
@@ -87,12 +107,12 @@ thread_local! {
 
 impl CachedCompiledModules
 {
-    pub fn new(cache_dir: Option<String>) -> CachedCompiledModules {
-        let cache_dir = cache_dir.map(|a| shellexpand::tilde(&a).to_string());
+    pub fn new(cache_compile_dir: Option<String>) -> CachedCompiledModules {
+        let cache_compile_dir = cache_compile_dir.map(|a| shellexpand::tilde(&a).to_string());
         CachedCompiledModules {
             #[cfg(feature = "sys")]
             modules: RwLock::new(HashMap::default()),
-            cache_dir,
+            cache_compile_dir,
         }
     }
 
@@ -124,7 +144,7 @@ impl CachedCompiledModules
         }
 
         // slow path
-        if let Some(cache_dir) = &self.cache_dir {
+        if let Some(cache_dir) = &self.cache_compile_dir {
             let path = std::path::Path::new(cache_dir.as_str()).join(format!("{}.bin", key).as_str());
             if let Ok(data) = std::fs::read(path) {
                 let mut decoder = weezl::decode::Decoder::new(weezl::BitOrder::Msb, 8);
@@ -172,7 +192,7 @@ impl CachedCompiledModules
         }
         
         // We should also attempt to store it in the cache directory
-        if let Some(cache_dir) = &self.cache_dir {
+        if let Some(cache_dir) = &self.cache_compile_dir {
             let compiled_bytes = module.serialize().unwrap();
 
             let path = std::path::Path::new(cache_dir.as_str()).join(format!("{}.bin", key).as_str());
@@ -191,17 +211,21 @@ pub struct BinFactory {
     pub alias: Arc<RwLock<HashMap<String, Option<AliasConfig>>>>,
     pub cache: Arc<RwLock<HashMap<String, Option<BinaryPackage>>>>,
     pub compiled_modules: Arc<CachedCompiledModules>,
+    pub cache_webc_dir: Option<String>,
 }
 
 impl BinFactory {
     pub fn new(
         compiled_modules: Arc<CachedCompiledModules>,
+        cache_webc_dir: Option<String>
     ) -> BinFactory {
+        let cache_webc_dir = cache_webc_dir.map(|a| shellexpand::tilde(&a).to_string());
         BinFactory {
             wax: Arc::new(Mutex::new(HashSet::new())),
             alias: Arc::new(RwLock::new(HashMap::new())),
             cache: Arc::new(RwLock::new(HashMap::new())),
             compiled_modules,
+            cache_webc_dir,
         }
     }
 
@@ -222,6 +246,7 @@ impl BinFactory {
             }
         }
 
+        /*
         // Tell the console we are fetching
         {
             if stderr.is_tty() {
@@ -234,15 +259,18 @@ impl BinFactory {
             }
             let _ = stderr.flush_async().await;
         }
+        */
 
         // Slow path
         let mut cache = self.cache.write().await;
 
         // Check the cache
         if let Some(data) = cache.get(&name) {
+            /*
             if stderr.is_tty() {
                 stderr.write_clear_line().await;
             }
+            */
             return data.clone();
         }
 
@@ -251,19 +279,30 @@ impl BinFactory {
             .await
             .unwrap()
         {
-            let data = BinaryPackage::new(Bytes::from(data));
+            let data = BinaryPackage::new(data.into());
             cache.insert(name, Some(data.clone()));
+            /*
             if stderr.is_tty() {
                 stderr.write_clear_line().await;
             }
+            */
+            return Some(data);
+        }
+
+        // Now try for the WebC
+        let cache_webc_dir = self.cache_webc_dir.as_ref().map(|a| a.as_str());
+        if let Some(data) = crate::wapm::fetch_webc(cache_webc_dir, name.as_str()).await {
+            cache.insert(name, Some(data.clone()));
             return Some(data);
         }
 
         // NAK
         cache.insert(name, None);
+        /*
         if stderr.is_tty() {
             stderr.write_clear_line().await;
         }
+        */
         return None;
     }
 
@@ -325,7 +364,7 @@ fn fetch_file(path: &str) -> AsyncResult<Result<Vec<u8>, u32>> {
     system.fetch_file(path)
 }
 
-pub fn hash_of_binary(data: &Bytes) -> String {
+pub fn hash_of_binary(data: impl AsRef<[u8]>) -> String {
     let mut hasher = Sha256::default();
     hasher.update(data.as_ref());
     let hash = hasher.finalize();
