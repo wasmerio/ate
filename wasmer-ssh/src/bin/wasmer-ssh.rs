@@ -33,7 +33,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let server_key: SshServerKey = load_key(key_path);
 
                         // Set the system
-                        let (tx_exit, rx_exit) = watch::channel(false);
+                        let (tx_exit, _rx_exit) = watch::channel(false);
                         let sys = Arc::new(wasmer_ssh::wasmer_term::system::SysSystem::new_with_runtime(
                             host.native_files_path.clone(), tx_exit, runtime,
                         ));
@@ -50,8 +50,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         wasmer_os::api::set_system_abi(sys);
 
                         // Start the SSH server
+                        let webc_dir = host.webc_dir.clone();
                         let compiled_modules = Arc::new(CachedCompiledModules::new(Some(host.compiler_cache_path.clone())));
-                        let server = Server::new(host, server_key, compiled_modules, Some(host.webc_dir), native_files).await;
+                        let server = Server::new(host, server_key, compiled_modules, Some(webc_dir), native_files).await;
                         server.listen().await?;
                         Ok(())
                     })

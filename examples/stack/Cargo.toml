@@ -1,0 +1,16 @@
+[package]
+name = "stack"
+version = "0.0.1"
+authors = ["John Sharratt <john.sharratt@gmail.com>"]
+license = "MIT OR Apache-2.0"
+description = "An example of long jumping."
+repository = "https://github.com/wasmerio/ate"
+readme = "README.md"
+keywords = [
+    "wasm",
+    "tcp",
+]
+edition = "2021"
+
+[dependencies]
+wasi = { package = "wasix", version = "0.11", path = "../../../wasix" }

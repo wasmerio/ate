@@ -38,7 +38,8 @@ members = [
     "examples/wasm64-example",
     "examples/ws-client",
     "examples/sub-process",
-    "examples/fuse"
+    "examples/fuse",
+    "examples/stack",
 ]
 
 [patch.crates-io]

@@ -553,17 +553,19 @@ pub async fn exec_process(
             let mut ret = if let Some(start) = start {
                 match start.call(&mut store, &[]) {
                     Ok(a) => err::ERR_OK,
-                    Err(e) => match e.downcast::<WasiError>() {
-                        Ok(WasiError::Exit(code)) => code,
-                        Ok(WasiError::UnknownWasiVersion) => {
-                            let _ = stderr
-                                .write(
-                                    &format!("exec-failed: unknown wasi version\n").as_bytes()[..],
-                                )
-                                .await;
-                            err::ERR_ENOEXEC
+                    Err(e) => {
+                        match e.downcast::<WasiError>() {
+                            Ok(WasiError::Exit(code)) => code,
+                            Ok(WasiError::UnknownWasiVersion) => {
+                                let _ = stderr
+                                    .write(
+                                        &format!("exec-failed: unknown wasi version\n").as_bytes()[..],
+                                    )
+                                    .await;
+                                err::ERR_ENOEXEC
+                            }
+                            Err(err) => err::ERR_PANIC,
                         }
-                        Err(err) => err::ERR_PANIC,
                     },
                 }
             } else {
@@ -585,7 +587,8 @@ pub async fn exec_process(
             // running then we need to wait for them all to exit before we terminate
             if ret == 0 {
                 while wasi_env.data(&store).active_threads() > 0 {
-                    if let Err(err) = wasi_env.data(&store).sleep(Duration::from_millis(50)) {
+                    let env = wasi_env.data(&store).clone();
+                    if let Err(err) = env.sleep(&mut store, Duration::from_millis(50)) {
                         match err {
                             WasiError::Exit(code) => {
                                 if code != err::ERR_EINTR {
