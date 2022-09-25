@@ -1,6 +1,7 @@
 #![allow(unused_imports)]
 #![allow(dead_code)]
 use bytes::{Buf, BytesMut};
+use wasmer_wasi::WasiControlPlane;
 use std::collections::HashMap;
 use std::num::NonZeroU32;
 use std::sync::atomic::AtomicU32;
@@ -29,8 +30,6 @@ use super::stdio::*;
 #[derive(Debug)]
 pub struct Reactor {
     pub(crate) system: System,
-    pub(crate) pid_seed: Pid,
-    pub(crate) pid: HashMap<Pid, Process>,
     pub(crate) job: HashMap<u32, Job>,
     pub(crate) current_job: Option<u32>,
 }
@@ -39,57 +38,25 @@ impl Reactor {
     pub fn new() -> Reactor {
         Reactor {
             system: System::default(),
-            pid_seed: 1,
-            pid: HashMap::default(),
             job: HashMap::default(),
             current_job: None,
         }
     }
 
     pub fn clear(&mut self) {
-        self.pid.clear();
         self.job.clear();
         self.current_job.take();
     }
 
-    pub fn get_process(&self, pid: Pid) -> Option<Process> {
-        if let Some(process) = self.pid.get(&pid) {
-            Some(process.clone())
-        } else {
-            None
-        }
-    }
-
-    pub fn generate_pid(
+    pub fn register_process(
         &mut self,
         ctx: WasmCallerContext,
-    ) -> Result<Pid, u32> {
-        for _ in 0..10000 {
-            let pid = self.pid_seed;
-            self.pid_seed += 1;
-            if self.pid.contains_key(&pid) == false {
-                self.pid.insert(
-                    pid,
-                    Process {
-                        system: self.system,
-                        pid,
-                        ctx,
-                    },
-                );
-                return Ok(pid);
-            }
-        }
-        Err(ERR_EMFILE)
-    }
-
-    pub fn close_process(&mut self, pid: Pid, exit_code: u32) -> u32 {
-        if let Some(process) = self.pid.remove(&pid) {
-            debug!("process closed (pid={})", pid);
-            let exit_code = NonZeroU32::new(exit_code)
-                .unwrap_or_else(|| NonZeroU32::new(ERR_ECONNABORTED).unwrap());
-            process.terminate(exit_code);
-        }
-        ERR_OK as u32
+    ) -> Process {
+        let process = Process {
+            system: self.system,
+            ctx,
+        };
+        process
     }
 
     pub fn generate_job(&mut self) -> Result<(u32, Job), u32> {
@@ -112,7 +79,7 @@ impl Reactor {
             self.current_job.take();
         }
         if let Some(job) = self.job.remove(&job_id) {
-            job.terminate(self, exit_code);
+            job.terminate(exit_code);
             debug!("job closed: id={}", job.id);
         } else {
             debug!("job already closed: id={}", job_id);

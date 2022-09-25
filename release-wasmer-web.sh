@@ -37,7 +37,7 @@ cd ..
 echo "Building package"
 mkdir -p target/release/www
 rm -f -r target/release/www/* 2>/dev/null || true
-cp -f wasmer-web/dist/* target/release/www
+cp -f -r wasmer-web/dist/* target/release/www
 cp -r -f wasmer-web/public/* target/release/www
 
 #echo "Synchronizing the files"

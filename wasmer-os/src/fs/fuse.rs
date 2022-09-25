@@ -117,7 +117,7 @@ impl FuseFileSystem {
         if let Some(ctx) = guard.as_ref() {
             ctx.clone()
         } else {
-            WasmCallerContext::new(&self.process.checkpoint2)
+            WasmCallerContext::new_ext(&self.process.checkpoint2)
         }
     }
 }

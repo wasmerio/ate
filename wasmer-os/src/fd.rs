@@ -141,7 +141,7 @@ impl Fd {
         });
         Fd {
             flag,
-            ctx: WasmCallerContext::default(),
+            ctx: WasmCallerContext::new(),
             closed: Arc::new(AtomicBool::new(false)),
             blocking: Arc::new(AtomicBool::new(true)),
             sender: tx.map(|a| Arc::new(a)),
@@ -183,7 +183,7 @@ impl Fd {
     }
 
     pub fn forced_exit(&self, exit_code: NonZeroU32) {
-        self.ctx.terminate(exit_code);
+        self.ctx.terminate(exit_code.get());
     }
 
     pub fn close(&self) {
@@ -651,7 +651,7 @@ impl WeakFd {
     pub fn null() -> WeakFd {
         WeakFd {
             flag: FdFlag::None,
-            ctx: WasmCallerContext::default(),
+            ctx: WasmCallerContext::new(),
             closed: Weak::new(),
             blocking: Weak::new(),
             sender: None,

@@ -3,6 +3,8 @@ use derivative::*;
 #[cfg(feature = "sys")]
 use wasmer::Engine;
 use wasmer_vbus::BusDataFormat;
+use wasmer_wasi::WasiControlPlane;
+use wasmer_wasi::WasiEnv;
 use std::future::Future;
 use std::ops::Deref;
 use std::pin::Pin;
@@ -68,7 +70,8 @@ impl ProcessExecFactory
                 inherit_stdin: WeakFd::null(),
                 inherit_stdout: WeakFd::null(),
                 inherit_stderr: WeakFd::null(),
-                inherit_log: WeakFd::null(),            
+                inherit_log: WeakFd::null(),
+                inherit_wasi_env: None,
             }
         }
     }
@@ -112,6 +115,7 @@ pub struct LaunchEnvironment {
     pub inherit_stdout: WeakFd,
     pub inherit_stderr: WeakFd,
     pub inherit_log: WeakFd,
+    pub inherit_wasi_env: Option<WasiEnv>,
 }
 
 #[derive(Debug)]
@@ -150,6 +154,10 @@ impl ProcessExecFactory {
         }
     }
 
+    pub fn control_plane(&self) -> &WasiControlPlane {
+        self.exec_factory.control_plane()
+    }
+
     pub async fn launch<T, F>(
         &self,
         request: api::PoolSpawnRequest,
@@ -175,7 +183,7 @@ impl ProcessExecFactory {
     pub fn launch_ext<T, F>(
         &self,
         request: api::PoolSpawnRequest,
-        env: &LaunchEnvironment,
+        launch_env: &LaunchEnvironment,
         on_stdout: Option<Arc<dyn BusStatefulFeeder + Send + Sync>>,
         on_stderr: Option<Arc<dyn BusStatefulFeeder + Send + Sync>>,
         on_exit: Option<Arc<dyn BusStatefulFeeder + Send + Sync>>,
@@ -204,10 +212,11 @@ impl ProcessExecFactory {
         let stdout_mode = create.request.spawn.stdout_mode;
         let stderr_mode = create.request.spawn.stderr_mode;
         
-        let inherit_stdin = env.inherit_stdin.upgrade();
-        let inherit_stdout = env.inherit_stdout.upgrade();
-        let inherit_stderr = env.inherit_stderr.upgrade();
-        let inherit_log = env.inherit_log.upgrade();
+        let inherit_stdin = launch_env.inherit_stdin.upgrade();
+        let inherit_stdout = launch_env.inherit_stdout.upgrade();
+        let inherit_stderr = launch_env.inherit_stderr.upgrade();
+        let inherit_log = launch_env.inherit_log.upgrade();
+        let wasi_env = launch_env.inherit_wasi_env.clone();
 
         // Perform hooks back to the main stdio
         let (stdin, mut stdin_tx) = match stdin_mode {
@@ -260,19 +269,20 @@ impl ProcessExecFactory {
 
         // Push all the cloned variables into a background thread so
         // that it does not hurt anything
+        let exec_factory = self.exec_factory.clone();
         let result = {
             let stdin = stdin.clone();
             let stdout = stdout.clone();
             let stderr = stderr.clone();
-            let abi = env.abi.clone();
+            let abi = launch_env.abi.clone();
             let ctx = self.ctx.clone();
             let reactor = self.reactor.clone();
             #[cfg(feature = "sys")]
             let engine = self.engine.clone();
             let compiler = self.compiler;
-            let exec_factory = self.exec_factory.clone();
             let checkpoint1 = checkpoint1.clone();
             let checkpoint2 = checkpoint2.clone();
+            let inherit_wasi_env = wasi_env.clone();
 
             self.system.spawn_dedicated_async(move || async move {
                 let path = create.request.spawn.path;
@@ -283,7 +293,7 @@ impl ProcessExecFactory {
                 let on_stdout = create.on_stdout;
                 let on_stderr = create.on_stderr;
                 let on_exit = create.on_exit;
-
+                
                 // Get the current job (if there is none then fail)
                 let job = {
                     let reactor = reactor.read().await;
@@ -335,6 +345,7 @@ impl ProcessExecFactory {
                         #[cfg(feature = "sys")]
                         engine,
                         compiler,
+                        inherit_wasi_env,
                     );
                     spawn.checkpoint1 = Some((checkpoint1_tx, checkpoint1));
                     spawn.checkpoint2 = Some((checkpoint2_tx, checkpoint2));

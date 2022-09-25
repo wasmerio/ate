@@ -12,6 +12,7 @@ mod umount;
 mod unset;
 mod wax;
 mod call;
+mod builtin;
 
 use about::*;
 use cd::*;
@@ -27,6 +28,7 @@ use umount::*;
 use unset::*;
 use wax::*;
 use call::*;
+use builtin::*;
 
 use std::collections::HashMap;
 use std::future::Future;
@@ -46,6 +48,7 @@ pub struct Builtins {
 impl Builtins {
     pub fn new() -> Builtins {
         let mut b: Builtins = Default::default();
+        b.insert("builtin", builtin);
         b.insert("cd", cd);
         b.insert("call", call);
         b.insert("export", export);
@@ -67,6 +70,7 @@ impl Builtins {
 
     fn insert(&mut self, key: &str, val: Command) {
         self.commands.insert(key.to_string(), val);
+        self.commands.insert(format!("/bin/{}", key), val);
     }
 
     pub fn get(&self, key: &String) -> Option<&Command> {

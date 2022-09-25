@@ -186,7 +186,7 @@ impl UnionFileSystem {
     pub fn sanitize(mut self) -> Self {
         self.solidify();
         self.mounts.retain(|mount| mount.should_sanitize == false);
-        self.set_ctx(&WasmCallerContext::default());
+        self.set_ctx(&WasmCallerContext::new());
         self
     }
 

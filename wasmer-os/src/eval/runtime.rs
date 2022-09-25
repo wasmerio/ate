@@ -18,10 +18,10 @@ use wasmer_wasi::{
     UnsupportedVirtualNetworking,
     WasiError,
     WasiThreadId,
-    WasiThreadError, WasiCallingId,
+    WasiThreadError, WasiCallingId, WasiEnv, WasiProcessId,
 };
 use wasmer_vnet::VirtualNetworking;
-use wasmer_vbus::{VirtualBus, VirtualBusError, SpawnOptions, VirtualBusListener, BusCallEvent, VirtualBusSpawner, SpawnOptionsConfig, BusSpawnedProcess, VirtualBusProcess, VirtualBusScope, VirtualBusInvokable, BusDataFormat, VirtualBusInvocation, FileDescriptor, BusInvocationEvent, VirtualBusInvoked};
+use wasmer_vbus::{VirtualBus, VirtualBusError, SpawnOptions, VirtualBusListener, BusCallEvent, VirtualBusSpawner, SpawnOptionsConfig, BusSpawnedProcess, VirtualBusProcess, VirtualBusScope, VirtualBusInvokable, BusDataFormat, VirtualBusInvocation, FileDescriptor, BusInvocationEvent, VirtualBusInvoked, NewSpawnBuilder};
 
 use crate::api::{System, AsyncResult};
 use crate::api::abi::{SystemAbiExt, SpawnType};
@@ -37,7 +37,6 @@ use super::{EvalContext, RuntimeBusListener, RuntimeBusFeeder, EvalResult, EvalS
 pub struct WasiRuntime
 {
     pluggable: Arc<PluggableRuntimeImplementation>,
-    forced_exit: Arc<AtomicU32>,
     process_factory: ProcessExecFactory,
     ctx: WasmCallerContext,
     feeder: RuntimeBusFeeder,
@@ -47,7 +46,6 @@ pub struct WasiRuntime
 impl WasiRuntime
 {
     pub fn new(
-        forced_exit: &Arc<AtomicU32>,
         process_factory: ProcessExecFactory,
         ctx: WasmCallerContext
     ) -> Self {
@@ -55,7 +53,6 @@ impl WasiRuntime
         let pluggable = PluggableRuntimeImplementation::default();
         Self {
             pluggable: Arc::new(pluggable),
-            forced_exit: forced_exit.clone(),
             process_factory,
             ctx,
             feeder: RuntimeBusFeeder {
@@ -91,16 +88,12 @@ impl WasiRuntime
 impl WasiRuntimeImplementation
 for WasiRuntime
 {
-    fn bus<'a>(&'a self) -> &'a (dyn VirtualBus) {
+    fn bus<'a>(&'a self) -> &'a (dyn VirtualBus<WasiEnv>) {
         self
     }
     
     fn networking<'a>(&'a self) -> &'a (dyn VirtualNetworking) {
         self.pluggable.networking.deref()
-    }
-    
-    fn thread_generate_id(&self) -> WasiThreadId {
-        self.pluggable.thread_id_seed.fetch_add(1, Ordering::Relaxed).into()
     }
 
     fn thread_spawn(&self, task: Box<dyn FnOnce(Store, Module, VMMemory) + Send + 'static>, store: Store, module: Module, memory: VMMemory) -> Result<(), WasiThreadError> {
@@ -129,23 +122,30 @@ for WasiRuntime
     }
     
     fn yield_now(&self, _id: WasiCallingId) -> Result<(), WasiError> {
-        let forced_exit = self.forced_exit.load(Ordering::Acquire);
-        if forced_exit != 0 {
-            return Err(WasiError::Exit(forced_exit));
-        }
         std::thread::yield_now();
         Ok(())
     }
 }
 
-impl VirtualBus
+impl VirtualBus<WasiEnv>
 for WasiRuntime
 {
-    fn new_spawn(&self) -> SpawnOptions {
+    fn spawn_new(&self) -> NewSpawnBuilder<WasiEnv> {
         let spawner = RuntimeProcessSpawner {
             process_factory: self.process_factory.clone(),
         };
-        SpawnOptions::new(Box::new(spawner))
+        NewSpawnBuilder::new(Box::new(spawner))
+    }
+    
+    fn spawn_existing(&self, env: WasiEnv) -> SpawnOptions<WasiEnv> {
+        let spawner = RuntimeProcessSpawner {
+            process_factory: self.process_factory.clone(),
+        };
+        SpawnOptions::new(Box::new(spawner),
+            wasmer_vbus::SpawnType::Existing {
+                env
+            }
+        )
     }
 
     fn listen<'a>(&'a self) -> Result<&'a dyn VirtualBusListener, VirtualBusError> {
@@ -155,7 +155,7 @@ for WasiRuntime
 
 pub(crate) struct RuntimeProcessSpawner
 {
-    pub(crate) process_factory: ProcessExecFactory,
+    pub process_factory: ProcessExecFactory,
 }
 
 struct RuntimeProcessSpawned
@@ -166,13 +166,13 @@ struct RuntimeProcessSpawned
 
 impl RuntimeProcessSpawner
 {
-    pub fn spawn(&mut self, name: &str, config: &SpawnOptionsConfig) -> Result<LaunchResult<EvalResult>, VirtualBusError>
+    pub fn spawn(&mut self, name: &str, config: &SpawnOptionsConfig<WasiEnv>) -> Result<LaunchResult<EvalResult>, VirtualBusError>
     {
         let spawned = self.spawn_internal(name, config)?;
         Ok(spawned.result)
     }
     
-    fn spawn_internal(&mut self, name: &str, config: &SpawnOptionsConfig) -> Result<RuntimeProcessSpawned, VirtualBusError>
+    fn spawn_internal(&mut self, name: &str, config: &SpawnOptionsConfig<WasiEnv>) -> Result<RuntimeProcessSpawned, VirtualBusError>
     {
         let conv_stdio_mode = |mode| {
             use wasmer_vfs::StdioMode as S1;
@@ -200,7 +200,9 @@ impl RuntimeProcessSpawner
 
         let (runtime_tx, runtime_rx) = mpsc::channel(1);
 
-        let env = self.process_factory.launch_env();
+        let mut env = self.process_factory.launch_env();
+        env.inherit_wasi_env = config.env().map(|a| a.clone());
+
         let result = self
             .process_factory
             .launch_ext(request, &env, None, None, None, true,
@@ -213,16 +215,17 @@ impl RuntimeProcessSpawner
                     let mut show_result = false;
                     let redirect = Vec::new();
 
-                    let (process, eval_rx, runtime, checkpoint2) = exec_process(
-                        ctx.eval,
-                        &ctx.path,
-                        &ctx.args,
-                        &env,
-                        &mut show_result,
-                        stdio,
-                        &redirect,
-                    )
-                    .await?;
+                    let (process, eval_rx, runtime, checkpoint2)
+                        = exec_process(
+                            ctx.eval,
+                            &ctx.path,
+                            &ctx.args,
+                            &env,
+                            &mut show_result,
+                            stdio,
+                            &redirect,
+                        )
+                        .await?;
 
                     let _ = runtime_tx.send(runtime).await;
 
@@ -250,10 +253,10 @@ impl RuntimeProcessSpawner
     }
 } 
 
-impl VirtualBusSpawner
+impl VirtualBusSpawner<WasiEnv>
 for RuntimeProcessSpawner
 {
-    fn spawn(&mut self, name: &str, config: &SpawnOptionsConfig) -> Result<BusSpawnedProcess, VirtualBusError>
+    fn spawn(&mut self, name: &str, config: &SpawnOptionsConfig<WasiEnv>) -> Result<BusSpawnedProcess<WasiEnv>, VirtualBusError>
     {
         if name == "os" {
             let env = self.process_factory.launch_env();

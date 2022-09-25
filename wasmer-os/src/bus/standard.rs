@@ -117,7 +117,7 @@ for StandardBus
             h if h == type_name_hash::<wasmer_bus_tty::api::TtyStdinRequest>() => {
                 let env = self.process_factory.launch_env();
                 let stdio = self.stdio(&env);
-                let tty = TtyFile::new(&stdio);
+                let tty = TtyFile::new(&stdio, true);
                 tty::stdin(tty)
             }
             h if h == type_name_hash::<wasmer_bus_tty::api::TtyStdoutRequest>() => {

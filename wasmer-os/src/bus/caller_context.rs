@@ -1,10 +1,8 @@
-use std::num::NonZeroU32;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::pin::Pin;
 use std::sync::Mutex;
 use std::sync::atomic::AtomicBool;
-use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::task::Context;
@@ -88,50 +86,68 @@ for WasmCheckpoint
     }
 }
 
+#[derive(Debug)]
+struct WasmCallerContextProcess
+{
+    // Will force the process to immediate terminate as soon
+    // as its started
+    early_terminate: Option<u32>,
+    // Reference to the process associated with this context
+    process: Option<wasmer_wasi::WasiProcess>,
+}
+
 #[derive(Debug, Clone)]
 pub struct WasmCallerContext {
-    forced_exit: Arc<AtomicU32>,
+    process: Arc<Mutex<WasmCallerContextProcess>>,
     // The second checkpoint is after the start method completes but before
     // all the background threads exit
     checkpoint2: Arc<WasmCheckpoint>,
 }
 
-impl WasmCallerContext
-{
-    pub fn new(checkpoint2: &Arc<WasmCheckpoint>) -> Self
+impl WasmCallerContext {
+    pub fn new() -> Self {
+        let (_, fake_checkpoint) = WasmCheckpoint::new();
+        WasmCallerContext::new_ext(&fake_checkpoint)
+    }
+
+    pub fn new_ext(checkpoint2: &Arc<WasmCheckpoint>) -> Self
     {
         WasmCallerContext {
-            forced_exit: Arc::new(AtomicU32::new(0)),
+            process: Arc::new(Mutex::new(WasmCallerContextProcess {
+                early_terminate: None,
+                process: None,
+            })),
             checkpoint2: checkpoint2.clone(),
         }
     }
-}
 
-impl Default
-for WasmCallerContext
-{
-    fn default() -> Self {
-        let (_, fake_checkpoint) = WasmCheckpoint::new();
-        WasmCallerContext::new(&fake_checkpoint)
-    }
-}
-
-impl WasmCallerContext {
-    pub fn terminate(&self, exit_code: NonZeroU32) {
-        self.forced_exit.store(exit_code.get(), Ordering::Release);
-    }
-
-    pub fn should_terminate(&self) -> Option<u32> {
-        let ret = self.forced_exit.load(Ordering::Acquire);
-        if ret != 0 {
-            Some(ret)
+    pub fn terminate(&self, exit_code: u32) {
+        let mut guard = self.process.lock().unwrap();
+        if let Some(process) = &guard.process {
+            process.terminate(exit_code);
         } else {
-            None
+            guard.early_terminate = Some(exit_code);
         }
     }
 
-    pub fn get_forced_exit(&self) -> Arc<AtomicU32> {
-        return self.forced_exit.clone();
+    pub fn register_process(&self, process: wasmer_wasi::WasiProcess) {
+        let mut guard = self.process.lock().unwrap();
+        if let Some(exit_code) = guard.early_terminate {
+            process.terminate(exit_code);
+        }
+        guard.process = Some(process);
+    }
+
+    pub fn should_terminate(&self) -> Option<u32> {
+        let guard = self.process.lock().unwrap();
+        if let Some(early_terminate) = guard.early_terminate {
+            return Some(early_terminate);
+        }
+        if let Some(process) = guard.process.as_ref() {
+            process.try_join()
+        } else {
+            None
+        }
     }
 
     pub fn poll_checkpoint2(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll::<()> {

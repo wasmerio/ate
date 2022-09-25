@@ -163,7 +163,7 @@ pub async fn exec_process(
     let (checkpoint2_tx, mut checkpoint2) = ctx.checkpoint2.take().unwrap_or_else(|| WasmCheckpoint::new());
 
     // We listen for any forced exits using this channel
-    let caller_ctx = WasmCallerContext::new(&checkpoint2);
+    let caller_ctx = WasmCallerContext::new_ext(&checkpoint2);
     fs_private.set_ctx(&caller_ctx);
 
     // Create the filesystem
@@ -314,7 +314,7 @@ pub async fn exec_process(
     } else {
         None
     };
-
+    
     // If no module is loaded then we need to compile it again
     let module = match cached_module {
         Some(a) => a,
@@ -386,7 +386,11 @@ pub async fn exec_process(
         inherit_stdout: stdio.stdout.downgrade(),
         inherit_stderr: stdio.stderr.downgrade(),
         inherit_log: stdio.log.downgrade(),
+        inherit_wasi_env: ctx.wasi_env.clone(),
     };
+    let control_plane = ctx.exec_factory.control_plane().clone();
+    let wasi_env = ctx.wasi_env.clone();
+        
     let sub_process_factory = ProcessExecFactory::new(
         ctx.reactor.clone(),
         #[cfg(feature = "sys")]
@@ -395,12 +399,9 @@ pub async fn exec_process(
         ctx.exec_factory.clone(),
         ctx,
     );
-    
-    let forced_exit = caller_ctx.get_forced_exit();
 
     // Create the runtime that will perform terminal specific actions
     let wasi_runtime = Arc::new(WasiRuntime::new(
-        &forced_exit,
         sub_process_factory,
         caller_ctx.clone()));
     let ctx_taker = wasi_runtime.prepare_take_context();
@@ -410,7 +411,7 @@ pub async fn exec_process(
     let args = args.clone();
     let process_result = {
         let wasi_runtime = wasi_runtime.clone();
-        let forced_exit = Arc::clone(&forced_exit);
+        let caller_ctx = caller_ctx.clone();
 
         sys.spawn_wasm(move |mut store, module, memory| async move
         {
@@ -418,84 +419,95 @@ pub async fn exec_process(
             let args = args.iter().skip(1).map(|a| a.as_str()).collect::<Vec<_>>();
             let envs = envs.iter().map(|(a, b)| (a.as_str(), b.as_str())).collect::<HashMap<_,_>>();
             
-            // Create the `WasiEnv`.
-            let mut wasi_env = WasiState::new(cmd.as_str());
-            let mut wasi_env = wasi_env
-                .args(&args)
-                .envs(&envs)
-                .stdin(Box::new(stdio.stdin.clone()))
-                .stdout(Box::new(stdio.stdout.clone()))
-                .stderr(Box::new(stdio.stderr.clone()))
-                .set_fs(Box::new(union))
-                .setup_fs(Box::new(move |_, fs| {
-                    fs.set_current_dir(pwd.as_str());
-                    Ok(())
-                }));
-
-            // We default and open the current directory
+            // If the `WasiEnv` is supplied then use it
             let mut is_chroot = false;
-            if let Some(chroot) = chroot {
-                is_chroot = true;
-                wasi_env
-                    .preopen_dir(Path::new(chroot.as_str()))
-                    .unwrap()
-                    .map_dir(".", Path::new(chroot.as_str()));
-            } else {
-                wasi_env
-                    .preopen_dir(Path::new("/"))
-                    .unwrap()
-                    .map_dir(".", "/");
-            }
+            let mut wasi_env = if let Some(mut wasi_env) = wasi_env
+            {
+                // Override the runtime with the new one (this is used
+                // so that the process can be terminated)
+                wasi_env.runtime = wasi_runtime.clone();
 
-            // Add the extra pre-opens
-            if preopen.len() > 0 {
-                for pre_open in preopen {
-                    let res = if let Some((alias, po_dir)) = pre_open.split_once(":") {
-                        if alias.starts_with("./") || is_chroot == true {
-                            wasi_env.map_dir(alias, po_dir).is_ok()
+                // Create the WasiFunctionEnv
+                wasmer_wasi::WasiFunctionEnv::new(&mut store, wasi_env)
+            } else {
+                // Otherwise, create the `WasiEnv`.
+                let mut wasi_env = WasiState::new(cmd.as_str());
+                let mut wasi_env = wasi_env
+                    .args(&args)
+                    .envs(&envs)
+                    .stdin(Box::new(stdio.stdin.clone()))
+                    .stdout(Box::new(stdio.stdout.clone()))
+                    .stderr(Box::new(stdio.stderr.clone()))
+                    .set_fs(Box::new(union))
+                    .setup_fs(Box::new(move |_, fs| {
+                        fs.set_current_dir(pwd.as_str());
+                        Ok(())
+                    }));
+            
+                // We default and open the current directory
+                if let Some(chroot) = chroot {
+                    is_chroot = true;
+                    wasi_env
+                        .preopen_dir(Path::new(chroot.as_str()))
+                        .unwrap()
+                        .map_dir(".", Path::new(chroot.as_str()));
+                } else {
+                    wasi_env
+                        .preopen_dir(Path::new("/"))
+                        .unwrap()
+                        .map_dir(".", "/");
+                }
+
+                // Add the extra pre-opens
+                if preopen.len() > 0 {
+                    for pre_open in preopen {
+                        let res = if let Some((alias, po_dir)) = pre_open.split_once(":") {
+                            if alias.starts_with("./") || is_chroot == true {
+                                wasi_env.map_dir(alias, po_dir).is_ok()
+                            } else {
+                                // in certain scenarios the map_dir doesnt appear to work properly thus we
+                                // avoid it and apply the mappings at the virtual file system
+                                continue;
+                            }
                         } else {
-                            // in certain scenarios the map_dir doesnt appear to work properly thus we
-                            // avoid it and apply the mappings at the virtual file system
-                            continue;
+                            wasi_env.preopen_dir(Path::new(pre_open.as_str())).is_ok()
+                        };
+                        if res == false {
+                            if stderr.is_tty() {
+                                stderr.write_clear_line().await;
+                            }
+                            let _ = stderr
+                                .write(format!("pre-open error (path={})\n", pre_open).as_bytes())
+                                .await;
+                            let ctx = ctx_taker.take_context().unwrap();
+                            return (ctx, ERR_ENOEXEC);
                         }
-                    } else {
-                        wasi_env.preopen_dir(Path::new(pre_open.as_str())).is_ok()
-                    };
-                    if res == false {
+                    }
+                }
+
+                // Create a new runtime
+                // (we do a deeper clone as its needed to implement the trait
+                //  however everyone else will just use arc reference counting
+                //  for better performance)
+                {
+                    let wasi_runtime = wasi_runtime.deref();
+                    wasi_env.runtime(wasi_runtime.clone());
+                }
+
+                // Build the environment
+                match wasi_env.finalize_with(&mut store, &control_plane) {
+                    Ok(a) => a,
+                    Err(err) => {
+                        drop(module);
                         if stderr.is_tty() {
                             stderr.write_clear_line().await;
                         }
                         let _ = stderr
-                            .write(format!("pre-open error (path={})\n", pre_open).as_bytes())
+                            .write(format!("exec error: {}\n", err.to_string()).as_bytes())
                             .await;
                         let ctx = ctx_taker.take_context().unwrap();
                         return (ctx, ERR_ENOEXEC);
                     }
-                }
-            }
-
-            // Create a new runtime
-            // (we do a deeper clone as its needed to implement the trait
-            //  however everyone else will just use arc reference counting
-            //  for better performance)
-            {
-                let wasi_runtime = wasi_runtime.deref();
-                wasi_env.runtime(wasi_runtime.clone());
-            }            
-
-            // Build the environment
-            let mut wasi_env = match wasi_env.finalize(&mut store) {
-                Ok(a) => a,
-                Err(err) => {
-                    drop(module);
-                    if stderr.is_tty() {
-                        stderr.write_clear_line().await;
-                    }
-                    let _ = stderr
-                        .write(format!("exec error: {}\n", err.to_string()).as_bytes())
-                        .await;
-                    let ctx = ctx_taker.take_context().unwrap();
-                    return (ctx, ERR_ENOEXEC);
                 }
             };
             
@@ -518,6 +530,13 @@ pub async fn exec_process(
                 let _ = stderr.write(format!("instantiate error ({})\n", err.to_string()).as_bytes()).await;
                 let ctx = ctx_taker.take_context().unwrap();
                 return (ctx, ERR_ENOEXEC);
+            }
+
+            // Get the process and register it (we might also need to early exit)
+            caller_ctx.register_process(wasi_env.data(&store).process.clone());
+            if let Some(exit_code) = caller_ctx.should_terminate() {
+                let ctx = ctx_taker.take_context().unwrap();
+                return (ctx, exit_code);
             }
 
             // If this module exports an _initialize function, run that first.
@@ -576,12 +595,17 @@ pub async fn exec_process(
             };
             debug!("main() has exited on {}", cmd);
 
+            // Cleanup
+            wasi_env.cleanup(&mut store);
+
             // The second checkpoint is after the start method completes but before
             // all the background threads have exited
             checkpoint2_tx.send(()).await;
 
             // Force everything to exit (if it has not already)
-            forced_exit.compare_exchange(0, err::ERR_EINTR, Ordering::AcqRel, Ordering::Relaxed);
+            if caller_ctx.should_terminate().is_none() {
+                caller_ctx.terminate(ret);
+            }
 
             // If the main thread exited normally and there are still active threads
             // running then we need to wait for them all to exit before we terminate
@@ -614,18 +638,11 @@ pub async fn exec_process(
     checkpoint1.wait().await;
 
     // Generate a PID for this process
-    let (pid, process) = {
+    let process = {
         let mut guard = reactor.write().await;
-        let pid = guard.generate_pid(caller_ctx)?;
-        let process = match guard.get_process(pid) {
-            Some(a) => a,
-            None => {
-                return Err(ERR_ESRCH);
-            }
-        };
-        (pid, process)
+        guard.register_process(caller_ctx)
     };
-    debug!("process created (pid={})", pid);
+    debug!("process created");
 
     Ok((process, process_result, wasi_runtime, checkpoint2))
 }

@@ -180,7 +180,8 @@ impl FileOpener for CoreFileOpener {
             "/stderr" | "stderr" => Ok(Box::new(self.stdio.stderr.clone())),
             "/log" | "log" => Ok(Box::new(self.stdio.log.clone())),
             "/null" | "null" => Ok(Box::new(NullFile::default())),
-            "/tty" | "tty" => Ok(Box::new(TtyFile::new(&self.stdio))),
+            "/tty" | "tty" => Ok(Box::new(TtyFile::new(&self.stdio, false))),
+            "/ttyb" | "ttyb" => Ok(Box::new(TtyFile::new(&self.stdio, true))),
             _ => Err(FsError::EntityNotFound),
         }
     }
@@ -191,20 +192,24 @@ pub struct TtyFile {
     fd_stdin: Fd,
     fd_stdout: Fd,
     tty: Tty,
+    supress_buffering: bool,
 }
 
 impl TtyFile {
-    pub fn new(stdio: &Stdio) -> TtyFile {
+    pub fn new(stdio: &Stdio, supress_buffering: bool) -> TtyFile {
         let mut fd_stdin = stdio.stdin.clone();
         let mut fd_stdout = stdio.stdout.clone();
         fd_stdin.set_flag(FdFlag::Stdin(true));
         fd_stdout.set_flag(FdFlag::Stdout(true));
 
-        stdio.tty.set_buffering(false);
+        if supress_buffering {
+            stdio.tty.set_buffering(false);
+        }
         TtyFile {
             fd_stdin,
             fd_stdout,
             tty: stdio.tty.clone(),
+            supress_buffering
         }
     }
 
@@ -220,7 +225,9 @@ impl TtyFile {
 
 impl Drop for TtyFile {
     fn drop(&mut self) {
-        self.tty.set_buffering(true);
+        if self.supress_buffering {
+            self.tty.set_buffering(true);
+        }
     }
 }
 

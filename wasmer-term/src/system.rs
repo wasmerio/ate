@@ -7,7 +7,7 @@ use wasmer_os::wasmer_wasi::WasiThreadError;
 use std::cell::RefCell;
 use std::convert::TryFrom;
 use std::future::Future;
-use std::io::{self, Read, Write};
+use std::io::{self, Read, Write, ErrorKind};
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::rc::Rc;
@@ -181,9 +181,19 @@ impl SystemAbi for SysSystem {
     #[allow(unused)]
     fn fetch_file(&self, path: &str) -> AsyncResult<Result<Vec<u8>, u32>> {
         let mut path = path.to_string();
+        while path.contains("//") {
+            path = path.replace("//", "/");
+        }
         if path.starts_with("/") {
             path = path[1..].to_string();
         };
+
+        let search_paths = vec![
+            format!("bin/{}.wasm", path),
+            format!("bin/{}", path),
+            format!("{}.wasm", path),
+            format!("{}", path),
+        ];
 
         let native_files_path = self.native_files_path.clone();
         let (tx_done, rx_done) = mpsc::channel(1);
@@ -202,29 +212,36 @@ impl SystemAbi for SysSystem {
                             warn!("relative paths are a security risk - {}", path);
                             ret = Err(err::ERR_EACCES);
                         } else {
-                            let mut path = path.as_str();
-                            while path.starts_with("/") {
-                                path = &path[1..];
-                            }
-                            let path = native_files.join(path);
-            
                             // Attempt to open the file
-                            ret = match std::fs::File::open(path.clone()) {
-                                Ok(mut file) => {
-                                    let mut data = Vec::new();
-                                    file
-                                        .read_to_end(&mut data)
-                                        .map_err(|err| {
-                                            debug!("failed to read local file ({}) - {}", path.to_string_lossy(), err);
-                                            err::ERR_EIO
-                                        })
-                                        .map(|_| data)
-                                },
-                                Err(err) => {
-                                    debug!("failed to open local file ({}) - {}", path.to_string_lossy(), err);
-                                    Err(err::ERR_EIO)
+                            for path in search_paths {
+                                let mut path = path.as_str();
+                                while path.starts_with("/") {
+                                    path = &path[1..];
                                 }
-                            };
+                                let path = native_files.join(path);
+            
+                                // Attempt to open the file
+                                ret = match std::fs::File::open(path.clone()) {
+                                    Ok(mut file) => {
+                                        let mut data = Vec::new();
+                                        file
+                                            .read_to_end(&mut data)
+                                            .map_err(|err| {
+                                                debug!("failed to read local file ({}) - {}", path.to_string_lossy(), err);
+                                                err::ERR_EIO
+                                            })
+                                            .map(|_| data)
+                                    },
+                                    Err(err) => {
+                                        if err.kind() == ErrorKind::NotFound {
+                                            continue;
+                                        }
+                                        debug!("failed to open local file ({}) - {}", path.to_string_lossy(), err);
+                                        Err(err::ERR_EIO)
+                                    }
+                                };
+                                break;
+                            }
                         }
                     }
                 }

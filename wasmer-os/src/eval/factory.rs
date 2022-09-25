@@ -1,4 +1,7 @@
 use tokio::sync::oneshot;
+use wasmer_wasi::WasiControlPlane;
+use wasmer_wasi::WasiEnv;
+use wasmer_wasi::WasiProcessId;
 
 use crate::api::*;
 use crate::bin_factory::*;
@@ -26,7 +29,8 @@ pub struct SpawnContext {
     pub engine: Option<Engine>,
     pub compiler: Compiler,
     pub extra_args: Vec<String>,
-    pub extra_redirects: Vec<Redirect>,    
+    pub extra_redirects: Vec<Redirect>,
+    pub wasi_env: Option<WasiEnv>,
     pub(crate) checkpoint1: Option<(mpsc::Sender<()>, Arc<WasmCheckpoint>)>,
     pub(crate) checkpoint2: Option<(mpsc::Sender<()>, Arc<WasmCheckpoint>)>,
 }
@@ -46,6 +50,7 @@ impl SpawnContext {
         #[cfg(feature = "sys")]
         engine: Option<Engine>,
         compiler: Compiler,
+        wasi_env: Option<WasiEnv>,
     ) -> SpawnContext {
         SpawnContext {
             abi,
@@ -65,6 +70,7 @@ impl SpawnContext {
             extra_redirects: Vec::new(),
             checkpoint1: None,
             checkpoint2: None,
+            wasi_env
         }
     }
 }
@@ -102,6 +108,10 @@ impl EvalFactory {
                 log,
             }),
         }
+    }
+    
+    pub fn control_plane(&self) -> &WasiControlPlane {
+        self.state.bins.control_plane()
     }
 
     pub fn tty(&self) -> Tty {
@@ -162,6 +172,7 @@ impl EvalFactory {
             extra_redirects: ctx.extra_redirects,            
             checkpoint1: ctx.checkpoint1,
             checkpoint2: ctx.checkpoint2,
+            wasi_env: ctx.wasi_env,
         };
 
         ctx

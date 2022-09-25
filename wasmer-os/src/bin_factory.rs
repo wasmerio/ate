@@ -8,6 +8,7 @@ use serde::*;
 use sha2::{Digest, Sha256};
 use wasmer::AsStoreRef;
 use wasmer_vfs::FileSystem;
+use wasmer_wasi::WasiControlPlane;
 use std::any::Any;
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -207,6 +208,7 @@ impl CachedCompiledModules
 
 #[derive(Debug, Clone)]
 pub struct BinFactory {
+    pub control_plane: WasiControlPlane,
     pub wax: Arc<Mutex<HashSet<String>>>,
     pub alias: Arc<RwLock<HashMap<String, Option<AliasConfig>>>>,
     pub cache: Arc<RwLock<HashMap<String, Option<BinaryPackage>>>>,
@@ -221,6 +223,7 @@ impl BinFactory {
     ) -> BinFactory {
         let cache_webc_dir = cache_webc_dir.map(|a| shellexpand::tilde(&a).to_string());
         BinFactory {
+            control_plane: WasiControlPlane::default(),
             wax: Arc::new(Mutex::new(HashSet::new())),
             alias: Arc::new(RwLock::new(HashMap::new())),
             cache: Arc::new(RwLock::new(HashMap::new())),
@@ -235,8 +238,21 @@ impl BinFactory {
         self.cache.write().await.clear();
     }
 
+    pub fn control_plane(&self) -> &WasiControlPlane {
+        &self.control_plane
+    }
+
     pub async fn get(&self, name: &str, mut stderr: Fd) -> Option<BinaryPackage> {
         let mut name = name.to_string();
+
+        // Check the short name for the binary
+        let mut short_name = name.clone();
+        if short_name.starts_with("/bin/") {
+            let n = "/bin/".len();
+            short_name = (&name[n..]).to_string();
+        }
+
+        trace!("bin_factory::get(name={}, short_name={})", name, short_name);
 
         // Fast path
         {
@@ -275,7 +291,8 @@ impl BinFactory {
         }
 
         // First just try to find it
-        if let Ok(data) = fetch_file(format!("/bin/{}.wasm", name).as_str())
+        
+        if let Ok(data) = fetch_file(short_name.as_str())
             .await
             .unwrap()
         {
@@ -291,7 +308,7 @@ impl BinFactory {
 
         // Now try for the WebC
         let cache_webc_dir = self.cache_webc_dir.as_ref().map(|a| a.as_str());
-        if let Some(data) = crate::wapm::fetch_webc(cache_webc_dir, name.as_str()).await {
+        if let Some(data) = crate::wapm::fetch_webc(cache_webc_dir, short_name.as_str()).await {
             cache.insert(name, Some(data.clone()));
             return Some(data);
         }
@@ -338,7 +355,7 @@ impl BinFactory {
         }
 
         // Try and find it via a fetch
-        let alias_path = format!("/bin/{}.alias", name);
+        let alias_path = format!("/bin/{}", name);
         if let Ok(data) = fetch_file(alias_path.as_str()).await.unwrap() {
             // Decode the file into a yaml configuration
             match serde_yaml::from_slice::<AliasConfig>(&data[..]) {

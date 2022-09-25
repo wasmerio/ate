@@ -29,6 +29,8 @@ pub use bus_listener::*;
 pub use bus_handle::*;
 #[cfg(feature = "sys")]
 use wasmer::Engine;
+use wasmer_wasi::WasiControlPlane;
+use wasmer_wasi::WasiProcessId;
 
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -267,7 +269,8 @@ pub struct EvalContext {
     pub engine: Option<Engine>,
     pub compiler: Compiler,
     pub extra_args: Vec<String>,
-    pub extra_redirects: Vec<Redirect>,    
+    pub extra_redirects: Vec<Redirect>,
+    pub wasi_env: Option<wasmer_wasi::WasiEnv>,
     #[derivative(Debug = "ignore")]
     pub checkpoint1: Option<(mpsc::Sender<()>, Arc<WasmCheckpoint>)>,
     #[derivative(Debug = "ignore")]
@@ -282,6 +285,7 @@ impl EvalContext {
             inherit_stdout: self.stdio.stdout.downgrade(),
             inherit_stdin: self.stdio.stdin.downgrade(),
             inherit_log: self.stdio.log.downgrade(),
+            inherit_wasi_env: None,
         }
     }
 }

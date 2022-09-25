@@ -11,6 +11,7 @@ use tokio::sync::RwLock;
 use tracing::{debug, error, info, trace, warn};
 #[cfg(feature = "sys")]
 use wasmer::Engine;
+use wasmer_wasi::WasiControlPlane;
 
 use crate::tty::TtyMode;
 
@@ -361,6 +362,7 @@ impl Console {
                 #[cfg(feature = "sys")]
                 self.engine.clone(),
                 self.compiler,
+                None
             )
         };
         ctx

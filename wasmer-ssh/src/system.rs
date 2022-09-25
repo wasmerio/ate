@@ -4,6 +4,7 @@ use wasmer_term::wasmer_os::wasmer::Store;
 use wasmer_term::wasmer_os::wasmer::vm::VMMemory;
 use wasmer_term::wasmer_os::wasmer_wasi::WasiThreadError;
 use std::future::Future;
+use std::io::ErrorKind;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::io::Read;
@@ -127,35 +128,58 @@ impl wasmer_os::api::SystemAbi for System {
 impl System
 {
     fn fetch_file_via_local_fs(&self, native_files: &PathBuf, path: &str) -> AsyncResult<Result<Vec<u8>, u32>> {
-        let path = path.to_string();
+        let mut path = path.to_string();
+        while path.contains("//") {
+            path = path.replace("//", "/");
+        }
+        if path.starts_with("/") {
+            path = path[1..].to_string();
+        };
+
+        let search_paths = vec![
+            format!("bin/{}.wasm", path),
+            format!("bin/{}", path),
+            format!("{}.wasm", path),
+            format!("{}", path),
+        ];
+
         let native_files = native_files.clone();
         let (tx_result, rx_result) = mpsc::channel(1);
         self.task_dedicated_async(Box::new(move || {
             let task = async move {
-                if path.contains("..") || path.contains("~") || path.contains("//") {
-                    warn!("relative paths are a security risk - {}", path);
-                    return Err(err::ERR_EACCES);
-                }
-                let mut path = path.as_str();
-                while path.starts_with("/") {
-                    path = &path[1..];
-                }
-                let path = native_files.join(path);
-
                 // Attempt to open the file
-                let mut file = std::fs::File::open(path.clone())
-                    .map_err(|err| {
-                        debug!("failed to open local file ({}) - {}", path.to_string_lossy(), err);
-                        err::ERR_EIO
-                    })?;
-                let mut data = Vec::new();
-                file
-                    .read_to_end(&mut data)
-                    .map_err(|err| {
-                        debug!("failed to read local file ({}) - {}", path.to_string_lossy(), err);
-                        err::ERR_EIO
-                    })?;
-                Ok(data)
+                for path in search_paths {
+                    if path.contains("..") || path.contains("~") || path.contains("//") {
+                        warn!("relative paths are a security risk - {}", path);
+                        return Err(err::ERR_EACCES);
+                    }
+                    let mut path = path.as_str();
+                    while path.starts_with("/") {
+                        path = &path[1..];
+                    }
+                    let path = native_files.join(path);
+
+                    let mut file = match std::fs::File::open(path.clone()) {
+                        Ok(a) => a,
+                        Err(err) => {
+                            if err.kind() == ErrorKind::NotFound {
+                                continue;
+                            }
+                            debug!("failed to open local file ({}) - {}", path.to_string_lossy(), err);
+                            return Err(err::ERR_EIO);
+                        }
+                    };
+                    let mut data = Vec::new();
+                    file
+                        .read_to_end(&mut data)
+                        .map_err(|err| {
+                            debug!("failed to read local file ({}) - {}", path.to_string_lossy(), err);
+                            err::ERR_EIO
+                        })?;
+                    return Ok(data);
+                }
+                debug!("failed to open local file ({}) - not found", path.to_string_lossy(), err);
+                return Err(err::ERR_EIO);
             };
             Box::pin(async move {
                 let ret = task.await;

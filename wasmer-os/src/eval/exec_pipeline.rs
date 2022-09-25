@@ -102,10 +102,10 @@ pub(super) async fn exec_pipeline<'a>(
 
     for (child, child_result, _) in child_list.iter() {
         debug!(
-            "process (pid={}) added to job (id={})",
-            child.pid, ctx.job.id
+            "process added to job (id={})",
+            ctx.job.id
         );
-        ctx.job.job_list_tx.send(child.pid).await;
+        ctx.job.job_list_tx.send(child.clone()).await;
     }
 
     if exec_sync {
@@ -115,8 +115,8 @@ pub(super) async fn exec_pipeline<'a>(
                 .map(|(c, r)| (Some(c), r))
                 .unwrap_or_else(|| (None, err::ERR_ECONNABORTED));
             debug!(
-                "process (pid={}) finished (exit_code={})",
-                child.pid, result
+                "process finished (exit_code={})",
+                result
             );
             final_return.get_or_insert(result);
             if let Some(c) = c {

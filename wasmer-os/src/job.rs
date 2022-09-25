@@ -9,6 +9,7 @@ use tokio::sync::mpsc;
 use tracing::{debug, error, info, trace, warn};
 
 use crate::common::*;
+use crate::eval::Process;
 
 use super::environment::*;
 use super::fd::*;
@@ -22,8 +23,8 @@ pub struct Job {
     pub id: u32,
     pub stdin: Fd,
     stdin_tx: Arc<Mutex<Option<mpsc::Sender<FdMsg>>>>,
-    pub job_list_tx: mpsc::Sender<Pid>,
-    pub job_list_rx: Arc<Mutex<mpsc::Receiver<Pid>>>,
+    pub job_list_tx: mpsc::Sender<Process>,
+    pub job_list_rx: Arc<Mutex<mpsc::Receiver<Process>>>,
 }
 
 impl Clone for Job {
@@ -51,11 +52,11 @@ impl Job {
         }
     }
 
-    pub fn terminate(&self, reactor: &mut Reactor, exit_code: NonZeroU32) {
+    pub fn terminate(&self, exit_code: NonZeroU32) {
         self.stdin.forced_exit(exit_code);
         let mut rx = self.job_list_rx.lock().unwrap();
-        while let Ok(pid) = rx.try_recv() {
-            Reactor::close_process(reactor, pid, exit_code.into());
+        while let Ok(process) = rx.try_recv() {
+            process.terminate(exit_code.get());
         }
         debug!("job terminated (id={})", self.id);
     }
