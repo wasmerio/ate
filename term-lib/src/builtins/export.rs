@@ -33,9 +33,9 @@ pub(super) fn export(
 
     for arg in &args[1..] {
         if arg.contains('=') {
-            let key = ctx.env.parse_key(arg);
+            let (key, value) = ctx.env.parse_key_value(arg);
             ctx.env.export(key.as_str());
-            ctx.env.set_vareq_with_key(key, arg.clone());
+            ctx.env.set_var(&key, value);
         } else {
             ctx.env.export(arg.as_str())
         }

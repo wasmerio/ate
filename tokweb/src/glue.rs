@@ -1,4 +1,5 @@
 use chrono::prelude::*;
+use std::collections::HashMap;
 use std::sync::Arc;
 use term_lib::api::*;
 use term_lib::common::MAX_MPSC;
@@ -42,7 +43,7 @@ pub fn main() {
 #[derive(Debug)]
 pub enum InputEvent {
     Key(KeyboardEvent),
-    Command(String, Option<js_sys::Function>),
+    Command(String, Option<js_sys::Function>, Option<js_sys::Object>),
     Data(String),
 }
 
@@ -55,9 +56,14 @@ pub struct ConsoleInput {
 #[wasm_bindgen]
 impl ConsoleInput {
     #[wasm_bindgen]
-    pub fn send_command(&self, data: String, func: Option<js_sys::Function>) {
+    pub fn send_command(
+        &self,
+        data: String,
+        func: Option<js_sys::Function>,
+        env: Option<js_sys::Object>,
+    ) {
         self.tx
-            .blocking_send(InputEvent::Command(data, func))
+            .blocking_send(InputEvent::Command(data, func, env))
             .unwrap();
     }
 
@@ -282,7 +288,25 @@ pub fn start(
                         )
                         .await;
                 }
-                InputEvent::Command(data, func) => {
+                InputEvent::Command(data, func, envs) => {
+                    console.stop_maybe_running_job().await;
+                    if let Some(envs) = envs {
+                        let hashmap_envs: HashMap<String, String> = js_sys::Object::entries(&envs)
+                            .to_vec()
+                            .into_iter()
+                            .map(|entry| {
+                                let entry_as_jsarray: js_sys::Array = entry.dyn_into().unwrap();
+                                let key = entry_as_jsarray.get(0).as_string().unwrap();
+                                (
+                                    key.clone(),
+                                    entry_as_jsarray.get(1).as_string().expect(
+                                        format!("They value for {} is not a string", &key).as_str(),
+                                    ),
+                                )
+                            })
+                            .collect();
+                        console.set_envs(&hashmap_envs);
+                    }
                     console.on_data(data).await;
                     console
                         .on_enter_with_callback(Some(Box::new(move |code: u32| {

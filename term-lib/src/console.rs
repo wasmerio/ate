@@ -374,6 +374,21 @@ impl Console {
 
         self.on_enter_internal(cmd, true, callback).await
     }
+
+    pub fn set_env(&mut self, key: &str, value: &str) {
+        let mut state = self.state.lock().unwrap();
+        state.env.set_var(key, value.to_string());
+        state.env.export(key);
+    }
+
+    pub fn set_envs(&mut self, envs: &HashMap<String, String>) {
+        let mut state = self.state.lock().unwrap();
+        envs.iter().for_each(|(k, v)| {
+            state.env.set_var(k, v.to_string());
+            state.env.export(k);
+        });
+    }
+
     pub async fn on_enter_internal(
         &mut self,
         mut cmd: String,
@@ -675,6 +690,24 @@ impl Console {
         _meta_key: bool,
     ) {
         // Do nothing for now
+    }
+
+    pub async fn stop_maybe_running_job(&mut self) {
+        let mode = self.tty.mode().await;
+        match mode {
+            TtyMode::StdIn(job) => {
+                // let mut reactor = self.reactor.write().await;
+                // job.terminate(
+                //     &mut reactor,
+                //     std::num::NonZeroU32::new(err::ERR_TERMINATED).unwrap(),
+                // );
+                self.on_ctrl_c(Some(job)).await;
+                // let forced_exit = caller_ctx.get_forced_exit();
+                // let forced_exit = forced_exit.load(Ordering::Acquire);
+                // self.reactor.write().await.clear();
+            }
+            _ => {}
+        }
     }
 
     pub async fn on_data(&mut self, mut data: String) {

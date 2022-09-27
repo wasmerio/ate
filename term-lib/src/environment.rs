@@ -19,12 +19,12 @@ pub struct Environment {
 
 impl Environment {
     pub fn set_var(&mut self, key: &str, val: String) {
-        self.set_vareq_with_key(key.to_string(), format!("{}={}", key, val));
+        self.set_vareq_with_key(key.to_string(), val);
     }
 
     pub fn set_vareq(&mut self, var_eq: String) {
-        let key: String = self.parse_key(&var_eq);
-        self.set_vareq_with_key(key, var_eq);
+        let (key, value) = self.parse_key_value(&var_eq);
+        self.set_vareq_with_key(key, value);
     }
 
     pub fn set_vareq_with_key(&mut self, key: String, var_eq: String) {
@@ -74,13 +74,7 @@ impl Environment {
         let entry = self.vars.get(key)?;
 
         return if let Some(var_eq) = &entry.var_eq {
-            let mut split = var_eq.as_bytes().split(|b| *b == b'=');
-            let _entry_key = split.next().unwrap();
-            if let Some(value) = split.next() {
-                Some(String::from_utf8_lossy(value).to_string())
-            } else {
-                Some(String::new())
-            }
+            return Some(var_eq.clone());
         } else {
             None
         };
@@ -98,9 +92,11 @@ impl Environment {
         self.vars.iter()
     }
 
-    pub fn parse_key(&self, var_eq: &String) -> String {
+    pub fn parse_key_value(&self, var_eq: &String) -> (String, String) {
         let mut split = var_eq.as_bytes().split(|b| *b == b'=');
-        String::from_utf8_lossy(split.next().unwrap()).to_string()
+        let key = String::from_utf8_lossy(split.next().unwrap()).to_string();
+        let value = String::from_utf8_lossy(split.next().unwrap()).to_string();
+        (key, value)
     }
 }
 
