@@ -11,6 +11,8 @@ use tokio::sync::oneshot;
 use tokio::sync::RwLock;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
+#[cfg(feature = "sys")]
+use wasmer::Engine;
 
 use crate::tty::TtyMode;
 
@@ -44,6 +46,8 @@ pub struct Console {
     stdout: Stdout,
     stderr: Fd,
     exec: EvalFactory,
+    #[cfg(feature = "sys")]
+    engine: Option<Engine>,
     compiler: Compiler,
     abi: Arc<dyn ConsoleAbi>,
     wizard: Option<WizardExecutor>,
@@ -79,17 +83,22 @@ impl Console {
         abi: Arc<dyn ConsoleAbi>,
         wizard: Option<Box<dyn WizardAbi + Send + Sync + 'static>>,
         fs: UnionFileSystem,
-        #[cfg(feature = "cached_compiling")] compiled_modules: Arc<CachedCompiledModules>,
+        compiled_modules: Arc<CachedCompiledModules>,
     ) -> Console {
         let bins = BinFactory::new(
-            #[cfg(feature = "cached_compiling")]
             compiled_modules,
         );
         let reactor = Arc::new(RwLock::new(Reactor::new()));
 
         Self::new_ext(
-            location, user_agent, compiler, abi, wizard, fs, bins, reactor,
-        )
+            location,
+            user_agent,
+            compiler,
+            abi,
+            wizard,
+            fs,
+            bins,
+            reactor)
     }
 
     pub fn new_ext(
@@ -131,6 +140,8 @@ impl Console {
         );
 
         let wizard = wizard.map(|a| WizardExecutor::new(a));
+        #[cfg(feature = "sys")]
+        let engine = compiler.new_engine();
 
         let mut ret = Console {
             location,
@@ -143,6 +154,8 @@ impl Console {
             tty,
             reactor,
             exec: exec_factory,
+            #[cfg(feature = "sys")]
+            engine,
             compiler,
             abi,
             wizard,
