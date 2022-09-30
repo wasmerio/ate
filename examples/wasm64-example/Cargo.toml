@@ -1,0 +1,13 @@
+[package]
+name = "wasm64-example"
+version = "0.0.1"
+authors = ["John Sharratt <john.sharratt@gmail.com>"]
+license = "MIT OR Apache-2.0"
+description = "An example TCP client."
+repository = "https://github.com/wasmerio/ate"
+readme = "README.md"
+keywords = [
+    "wasm",
+    "tcp",
+]
+edition = "2021"

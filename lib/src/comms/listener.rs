@@ -33,7 +33,6 @@ use super::rx_tx::*;
 use super::stream::*;
 use super::router::*;
 use super::PacketWithContext;
-use super::Stream;
 use super::StreamProtocol;
 use super::StreamRouter;
 use super::hello::HelloMetadata;
@@ -55,6 +54,7 @@ where
 {
     server_id: NodeId,
     wire_format: SerializationFormat,
+    min_encryption: Option<KeySize>,
     server_cert: Option<PrivateEncryptKey>,
     timeout: Duration,
     handler: Arc<dyn ServerProcessor<M, C>>,
@@ -119,6 +119,7 @@ where
             Arc::new(StdMutex::new(Listener {
                 server_id: server_id.clone(),
                 wire_format: conf.cfg_mesh.wire_format,
+                min_encryption: conf.listen_min_encryption.clone(),
                 server_cert: conf.listen_cert.clone(),
                 timeout: conf.cfg_mesh.accept_timeout,
                 handler: Arc::clone(&inbox),
@@ -216,12 +217,14 @@ where
                 // default route to the listener
                 let (
                     wire_format,
+                    min_encryption,
                     server_cert,
                     timeout,
                 ) = {
                     let listener = listener.lock().unwrap();
                     (
                         listener.wire_format.clone(),
+                        listener.min_encryption.clone(),
                         listener.server_cert.clone(),
                         listener.timeout.clone(),
                     )
@@ -230,9 +233,10 @@ where
                 let mut router = StreamRouter::new(
                     wire_format,
                     wire_protocol,
+                    min_encryption,
                     server_cert,
                     server_id,
-                    timeout
+                    timeout.clone()
                 );
                 let adapter = Arc::new(ListenerAdapter {
                     listener,
@@ -240,8 +244,18 @@ where
                 });
                 router.set_default_route(adapter);
 
-                let stream = Stream::Tcp(stream);
-                match router.accept_socket(stream, sock_addr, None, None)
+                // Upgrade and split the stream
+                let (rx, tx) = match wire_protocol
+                    .upgrade_server_and_split(stream, timeout)
+                    .await {
+                    Ok(a) => a,
+                    Err(err) => {
+                        warn!("connection-failed(accept): {}", err.to_string());
+                        continue;
+                    }
+                };
+
+                match router.accept_socket(rx, tx, sock_addr, None, None)
                     .instrument(tracing::info_span!(
                         "server-accept",
                         id = server_id.to_short_string().as_str()
@@ -273,6 +287,7 @@ where
     pub(crate) async fn accept_stream(
         listener: Arc<StdMutex<Listener<M, C>>>,
         rx: StreamRx,
+        rx_proto: StreamProtocol,
         tx: Upstream,
         hello: HelloMetadata,
         wire_encryption: Option<EncryptKey>,
@@ -333,6 +348,7 @@ where
         TaskEngine::spawn(async move {
             let result = process_inbox(
                 rx,
+                rx_proto,
                 tx,
                 metrics,
                 throttle,
@@ -409,6 +425,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
     async fn accepted_web_socket(
         &self,
         rx: StreamRx,
+        rx_proto: StreamProtocol,
         tx: Upstream,
         hello: HelloMetadata,
         sock_addr: SocketAddr,
@@ -418,6 +435,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         Listener::accept_stream(
             self.listener.clone(),
             rx,
+            rx_proto,
             tx,
             hello,
             wire_encryption,

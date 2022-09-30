@@ -159,7 +159,7 @@ impl Dio {
         F: std::future::Future,
     {
         let key_str = self.chain.key().to_string();
-        TaskEngine::run_until(future.instrument(span!(Level::DEBUG, "dio", key = key_str.as_str())))
+        future.instrument(span!(Level::DEBUG, "dio", key = key_str.as_str()))
             .await
     }
 
@@ -716,10 +716,6 @@ impl Chain {
     /// Opens a data access layer that allows read only access to data within the chain
     /// In order to make changes to data you must use '.dio_mut', '.dio_fire', '.dio_full' or '.dio_trans'
     pub async fn dio(self: &Arc<Chain>, session: &'_ dyn AteSession) -> Arc<Dio> {
-        TaskEngine::run_until(self.__dio(session)).await
-    }
-
-    pub(crate) async fn __dio(self: &Arc<Chain>, session: &'_ dyn AteSession) -> Arc<Dio> {
         let decache = self.decache.subscribe();
         let multi = self.multi().await;
         let ret = Dio {
@@ -744,10 +740,6 @@ impl Dio {
     }
 
     pub async fn trans(self: &Arc<Self>, scope: TransactionScope) -> Arc<DioMut> {
-        TaskEngine::run_until(self.__trans(scope)).await
-    }
-
-    pub(crate) async fn __trans(self: &Arc<Self>, scope: TransactionScope) -> Arc<DioMut> {
-        DioMut::__new(self, scope).await
+        DioMut::new(self, scope).await
     }
 }

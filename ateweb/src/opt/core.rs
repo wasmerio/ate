@@ -15,7 +15,7 @@ pub struct Opts {
     #[clap(short, long, parse(from_occurrences))]
     pub verbose: i32,
     /// URL where the user is authenticated
-    #[clap(short, long, default_value = "ws://tokera.sh/auth")]
+    #[clap(short, long, default_value = "ws://wasmer.sh/auth")]
     pub auth: Url,
     /// No NTP server will be used to synchronize the time thus the server time
     /// will be used instead
@@ -37,14 +37,14 @@ pub struct Opts {
     #[clap(long, default_value = "8.8.8.8")]
     pub dns_server: String,
     /// Token file to read that holds a previously created token to be used for this operation
-    #[clap(long, default_value = "~/ate/token")]
+    #[clap(long, default_value = "~/wasmer/token")]
     pub token_path: String,
 
     #[clap(subcommand)]
     pub subcmd: SubCommand,
 }
 
-/// Runs a web server that will serve content from a Tokera file system
+/// Runs a web server that will serve content from a Wasmer file system
 #[derive(Parser)]
 pub struct OptsWeb {
     /// IP address that the datachain server will isten on
@@ -57,22 +57,25 @@ pub struct OptsWeb {
     #[clap(long, default_value = "60")]
     pub ttl: u64,
     /// URL where the data is remotely stored on a distributed commit log.
-    #[clap(short, long, default_value = "ws://tokera.sh/db")]
+    #[clap(short, long, default_value = "ws://wasmer.sh/db")]
     pub remote: Url,
     /// URL where the authentication requests will be lodged.
-    #[clap(short, long, default_value = "ws://tokera.sh/auth")]
+    #[clap(short, long, default_value = "ws://wasmer.sh/auth")]
     pub auth_url: Url,
     /// Path to the secret key that grants access to the WebServer role within groups
-    #[clap(long, default_value = "~/ate/web.key")]
+    #[clap(long, default_value = "~/wasmer/web.key")]
     pub web_key_path: String,
     /// Location where all the websites will be cached
     #[clap(long, default_value = "/tmp/www")]
     pub log_path: String,
 }
 
-/// Runs a web server that will serve content from a Tokera file system
+/// Runs a web server that will serve content from a Wasmer file system
 #[derive(Parser)]
 pub struct OptsAll {
+    /// Optional list of the nodes that make up this cluster
+    #[clap(long)]
+    pub nodes_list: Option<String>,
     /// IP address that the datachain server will isten on
     #[clap(short, long, default_value = "::")]
     pub listen: IpAddr,
@@ -86,25 +89,29 @@ pub struct OptsAll {
     #[clap(long, default_value = "/tmp/www")]
     pub log_path: String,
     /// Path to the secret key that helps protect key operations like creating users and resetting passwords
-    #[clap(long, default_value = "~/ate/auth.key")]
+    #[clap(long, default_value = "~/wasmer/auth.key")]
     pub auth_key_path: String,
     /// Path to the secret key that grants access to the WebServer role within groups
-    #[clap(long, default_value = "~/ate/web.key")]
+    #[clap(long, default_value = "~/wasmer/web.key")]
     pub web_key_path: String,
     /// Path to the secret key that grants access to the EdgeCompute role within groups
-    #[clap(long, default_value = "~/ate/edge.key")]
+    #[clap(long, default_value = "~/wasmer/edge.key")]
     pub edge_key_path: String,
     /// Path to the secret key that grants access to the contracts
-    #[clap(long, default_value = "~/ate/contract.key")]
+    #[clap(long, default_value = "~/wasmer/contract.key")]
     pub contract_key_path: String,
+    /// Path to the certificate file that will be used by an listening servers
+    /// (there must be TXT records in the host domain servers for this cert)
+    #[clap(long, default_value = "~/wasmer/cert")]
+    pub cert_path: String,
     /// Path to the log files where all the authentication data is stored
-    #[clap(long, default_value = "~/ate/auth")]
+    #[clap(long, default_value = "~/wasmer/auth")]
     pub auth_logs_path: String,
     /// Path to the backup and restore location of log files
     #[clap(short, long)]
     pub backup_path: Option<String>,
     /// URL where the data is remotely stored on a distributed commit log.
-    #[clap(short, long, default_value = "ws://tokera.sh/db")]
+    #[clap(short, long, default_value = "ws://wasmer.sh/db")]
     pub remote: Url,
     /// Address that the authentication server(s) are listening and that
     /// this server can connect to if the chain is on another mesh node
@@ -120,11 +127,11 @@ pub enum SubCommand {
     /// Hosts the authentication service
     #[clap()]
     Auth(OptsAuth),
-    /// Starts a web server that will load Tokera file systems and serve
+    /// Starts a web server that will load Wasmer file systems and serve
     /// them directly as HTML content
     #[clap()]
     Web(OptsWeb),
-    /// Starts a web server that will load Tokera file systems and serve
+    /// Starts a web server that will load Wasmer file systems and serve
     /// them directly as HTML content along with a database engine and
     /// authentication server
     #[clap()]

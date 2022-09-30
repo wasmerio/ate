@@ -94,7 +94,8 @@ where
     } else {
         conf.certificate_validation = CertificateValidation::AllowAll;
     }
-    let conf = MeshConfig::new(conf).connect_to(node_addr);
+    let conf = MeshConfig::new(conf)
+        .connect_to(node_addr);
 
     // Attempt to connect to the other machine
     let mut relay_tx = crate::comms::connect(

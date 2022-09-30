@@ -1,0 +1,17 @@
+[package]
+name = "fuse"
+version = "0.0.1"
+authors = ["John Sharratt <john.sharratt@gmail.com>"]
+license = "MIT OR Apache-2.0"
+description = "An example TCP client."
+repository = "https://github.com/wasmerio/ate"
+readme = "README.md"
+keywords = [
+    "wasm",
+    "tcp",
+]
+edition = "2021"
+
+[dependencies]
+wasmer-bus-fuse = { version = "^1", path = "../../wasmer-bus/fuse" }
+tokio = { git = "https://github.com/john-sharratt/tokio.git", branch = "wasix", features = [ "rt", "rt-multi-thread", "sync", "macros" ], default_features = false }

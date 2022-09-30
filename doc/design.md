@@ -557,11 +557,11 @@ verified all the way to a refutable legitimate central body and then extend this
 relationship all the way down to the encrypted records without any breaks in the
 chain.
 
-See this example below for the [Tokera company](https://mxtoolbox.com/SuperTool.aspx?action=txt%3atokauth.tokera.com&run=toolpage)
+See this example below for the [Wasmer company](https://mxtoolbox.com/SuperTool.aspx?action=txt%3atokauth.wasmer.sh&run=toolpage)
 that publishes its root public key that allows the owner of the private key to
 write records to ATE trees that are associated with this company.
 
-Reference: https://mxtoolbox.com/SuperTool.aspx?action=txt%3atokauth.tokera.com&run=toolpage  
+Reference: https://mxtoolbox.com/SuperTool.aspx?action=txt%3atokauth.wasmer.sh&run=toolpage  
 Reference: https://letsencrypt.org/how-it-works/  
 Reference: https://en.wikipedia.org/wiki/NTRU  
 

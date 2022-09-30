@@ -77,7 +77,8 @@ async fn main() -> Result<(), AteError> {
         integrity: TrustMode::Distributed,
     };
     let header = ChainHeader::default();
-    let header_bytes = SerializationFormat::Json.serialize(&header)?;
+    let header_bytes = SerializationFormat::Json.serialize(&header)
+        .map_err(SerializationError::from)?;
     let mut cfg_ate = ConfAte::default();
     cfg_ate.log_path = Some(opts.path);
     let key = ChainKey::new(opts.name);

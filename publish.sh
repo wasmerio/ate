@@ -3,11 +3,11 @@ cd lib
 cargo publish
 cd ..
 sleep 20
-cd auth
+cd wasmer-auth
 cargo publish
 cd ..
 sleep 20
-cd tokera
+cd wasmer
 cargo publish
 cd ..
 sleep 20
@@ -19,7 +19,7 @@ cd ateweb
 cargo publish
 cd ..
 sleep 20
-cd atefs
+cd wasmer-dfs
 cargo publish
 cd ..
 sleep 20

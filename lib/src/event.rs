@@ -57,7 +57,8 @@ impl EventHeaderRaw {
     pub fn as_header(&self) -> Result<EventHeader, SerializationError> {
         Ok(EventHeader {
             raw: self.clone(),
-            meta: self.format.meta.deserialize(&self.meta_bytes)?,
+            meta: self.format.meta.deserialize_ref(&self.meta_bytes)
+                .map_err(SerializationError::from)?,
         })
     }
 }

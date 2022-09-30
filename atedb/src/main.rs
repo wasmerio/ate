@@ -1,4 +1,4 @@
-use ate::{compact::CompactMode, prelude::*};
+use ate::{compact::CompactMode, prelude::*, utils::load_node_list};
 use std::time::Duration;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
@@ -21,7 +21,7 @@ struct Opts {
     #[clap(short, long)]
     debug: bool,
     /// URL where the user is authenticated
-    #[clap(short, long, default_value = "ws://tokera.sh/auth")]
+    #[clap(short, long, default_value = "ws://wasmer.sh/auth")]
     auth: Url,
     /// Indicates no authentication server will be used meaning all new chains
     /// created by clients allow anyone to write new root nodes.
@@ -73,6 +73,10 @@ struct Solo {
     /// this server can connect to if the chain is on another mesh node
     #[clap(short, long, default_value = "ws://localhost:5000/db")]
     url: url::Url,
+    /// Optional list of the nodes that make up this cluster
+    /// (if the file does not exist then it will not load)
+    #[clap(long)]
+    nodes_list: Option<String>,
     /// IP address that the datachain server will isten on
     #[clap(short, long, default_value = "::")]
     listen: IpAddr,
@@ -158,6 +162,7 @@ async fn main_solo(
         .with_growth_factor(solo.compact_threshold_factor)
         .with_growth_size(solo.compact_threshold_size)
         .with_timer_value(Duration::from_secs(solo.compact_timer));
+    cfg_ate.nodes = load_node_list(solo.nodes_list);
 
     // Create the chain flow and generate configuration
     let flow = ChainFlow::new(&cfg_ate, auth, solo.url.clone(), trust).await;

@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 use error_chain::bail;
+use std::ops::Deref;
 use std::marker::PhantomData;
 use std::sync::{Arc, Weak};
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
@@ -167,6 +168,30 @@ impl<D> DaoVec<D> {
         D: Serialize + DeserializeOwned,
     {
         self.iter_ext(false, false).await
+    }
+
+    pub async fn clear(&mut self) -> Result<(), LoadError>
+    where
+        D: Serialize + DeserializeOwned,
+    {
+        for dao in self.iter_mut().await? {
+            dao.delete()?;
+        }
+        Ok(())
+    }
+
+    pub async fn retain<F>(&mut self, mut f: F) -> Result<(), LoadError>
+    where
+        D: Serialize + DeserializeOwned,
+        F: FnMut(&D) -> bool,
+    {
+        for dao in self.iter_mut().await? {
+            if f(dao.deref()) {
+                continue;
+            }
+            dao.delete()?;
+        }
+        Ok(())
     }
 
     pub async fn iter_ext(

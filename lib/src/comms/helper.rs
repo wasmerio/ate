@@ -52,6 +52,7 @@ pub(super) fn setup_tcp_stream(stream: &TcpStream) -> io::Result<()> {
 #[allow(unused_variables)]
 pub(super) async fn process_inbox<M, C>(
     mut rx: StreamRx,
+    rx_proto: StreamProtocol,
     mut inbox: Box<dyn InboxProcessor<M, C>>,
     metrics: Arc<StdMutex<Metrics>>,
     throttle: Arc<StdMutex<Throttle>>,
@@ -78,7 +79,6 @@ where
         // Main read loop
         loop {
             // Read the next request
-            let mut total_read = 0u64;
             let buf = async {
                 // If the throttle has triggered
                 let now = chrono::offset::Utc::now();
@@ -143,7 +143,7 @@ where
                     }
                 }
 
-                rx.read_buf_with_header(&wire_encryption, &mut total_read).await
+                rx.read().await
             };
             let buf = {
                 select! {
@@ -158,12 +158,13 @@ where
             // Update the metrics with all this received data
             {
                 let mut metrics = metrics.lock().unwrap();
-                metrics.received += total_read;
+                metrics.received += buf.len() as u64;
                 metrics.requests += 1u64;
             }
 
             // Deserialize it
-            let msg: M = wire_format.deserialize(&buf[..])?;
+            let msg: M = wire_format.deserialize_ref(&buf)
+                .map_err(SerializationError::from)?;
             let pck = Packet { msg };
 
             // Process it
@@ -194,7 +195,7 @@ where
                 Err(CommsError(CommsErrorKind::IO(err), _))
                     if err.kind() == std::io::ErrorKind::BrokenPipe =>
                 {
-                    if rx.protocol().is_web_socket() && hickup_count < 10 {
+                    if rx_proto.is_web_socket() && hickup_count < 10 {
                         hickup_count += 1;
                         continue;
                     }

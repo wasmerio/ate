@@ -48,17 +48,13 @@ pub struct Registry {
     cmd_key: StdMutex<FxHashMap<url::Url, String>>,
     #[derivative(Debug = "ignore")]
     #[cfg(feature = "enable_client")]
-    chains: Mutex<FxHashMap<url::Url, Arc<MeshClient>>>,
+    remotes: Mutex<FxHashMap<url::Url, Arc<MeshClient>>>,
     #[derivative(Debug = "ignore")]
     pub(crate) services: StdMutex<Vec<Arc<dyn Service>>>,
 }
 
 impl Registry {
     pub async fn new(cfg_ate: &ConfAte) -> Registry {
-        TaskEngine::run_until(Registry::__new(cfg_ate)).await
-    }
-
-    async fn __new(cfg_ate: &ConfAte) -> Registry {
         #[cfg(feature = "enable_dns")]
         let dns = {
             let dns = DnsClient::connect(cfg_ate).await;
@@ -79,7 +75,7 @@ impl Registry {
             ignore_certificates: false,
             cmd_key: StdMutex::new(FxHashMap::default()),
             #[cfg(feature = "enable_client")]
-            chains: Mutex::new(FxHashMap::default()),
+            remotes: Mutex::new(FxHashMap::default()),
             services: StdMutex::new(Vec::new()),
             keep_alive: None,
         }
@@ -109,55 +105,41 @@ impl Registry {
         Arc::new(self)
     }
 
-    pub async fn open(&self, url: &Url, key: &ChainKey) -> Result<ChainGuard, ChainCreationError> {
-        TaskEngine::run_until(self.__open(url, key)).await
-    }
-
     pub async fn open_cmd(&self, url: &Url) -> Result<ChainGuard, ChainCreationError> {
-        TaskEngine::run_until(async {
-            if let Some(a) = self.__try_open(url, &self.chain_key_cmd(url, true)).await? {
+        async {
+            if let Some(a) = self.try_reuse(url, &self.chain_key_cmd(url, true)).await.ok().flatten() {
                 Ok(a)
             } else {
-                Ok(self.__open(url, &self.chain_key_cmd(url, false)).await?)
+                Ok(self.open(url, &self.chain_key_cmd(url, false), true).await?)
             }
-        })
+        }
         .await
     }
 
-    async fn __open(&self, url: &Url, key: &ChainKey) -> Result<ChainGuard, ChainCreationError> {
+    pub async fn open(&self, url: &Url, key: &ChainKey, force_temporal: bool) -> Result<ChainGuard, ChainCreationError> {
         let loader_local = loader::DummyLoader::default();
         let loader_remote = loader::DummyLoader::default();
         Ok(self
-            .__open_ext(url, key, loader_local, loader_remote)
+            .open_ext(url, key, force_temporal, loader_local, loader_remote)
             .await?)
     }
 
-    pub async fn open_ext(
-        &self,
-        url: &Url,
-        key: &ChainKey,
-        loader_local: impl loader::Loader + 'static,
-        loader_remote: impl loader::Loader + 'static,
-    ) -> Result<ChainGuard, ChainCreationError> {
-        TaskEngine::run_until(self.__open_ext(url, key, loader_local, loader_remote)).await
-    }
-
-    async fn __try_open(
+    pub async fn try_reuse(
         &self,
         url: &Url,
         key: &ChainKey,
     ) -> Result<Option<ChainGuard>, ChainCreationError> {
-        Ok(self.__try_open_ext(url, key).await?)
+        Ok(self.try_reuse_ext(url, key).await?)
     }
 
     #[cfg(feature = "enable_client")]
-    async fn __try_open_ext(
+    pub async fn try_reuse_ext(
         &self,
         url: &Url,
         key: &ChainKey,
     ) -> Result<Option<ChainGuard>, ChainCreationError> {
         let client = {
-            let lock = self.chains.lock().await;
+            let lock = self.remotes.lock().await;
             match lock.get(&url) {
                 Some(a) => Arc::clone(a),
                 None => {
@@ -169,7 +151,7 @@ impl Registry {
 
         trace!("trying reuse chain ({}) on mesh client for {}", key, url);
 
-        let ret = client.__try_open_ext(&key).await?;
+        let ret = client.try_open_ext(&key).await?;
         let ret = match ret {
             Some(a) => a,
             None => {
@@ -185,7 +167,7 @@ impl Registry {
     }
 
     #[cfg(not(feature = "enable_client"))]
-    async fn __try_open_ext(
+    pub async fn try_open_ext(
         &self,
         _url: &Url,
         _key: &ChainKey,
@@ -197,25 +179,27 @@ impl Registry {
     }
 
     #[cfg(feature = "enable_client")]
-    async fn __open_ext(
+    pub async fn open_ext(
         &self,
         url: &Url,
         key: &ChainKey,
+        force_temporal: bool,
         loader_local: impl loader::Loader + 'static,
         loader_remote: impl loader::Loader + 'static,
     ) -> Result<ChainGuard, ChainCreationError> {
         let client = {
-            let mut lock = self.chains.lock().await;
+            let mut lock = self.remotes.lock().await;
             match lock.get(&url) {
                 Some(a) => Arc::clone(a),
                 None => {
+                    trace!("perf-checkpoint: creating mesh client");
                     trace!("building mesh client for {}", url);
                     let cfg_mesh = self.cfg_for_url(url).await?;
                     let mesh = MeshClient::new(
                         &self.cfg_ate,
                         &cfg_mesh,
                         self.node_id.clone(),
-                        self.temporal,
+                        force_temporal | self.temporal,
                     );
                     lock.insert(url.clone(), Arc::clone(&mesh));
                     Arc::clone(&mesh)
@@ -225,9 +209,10 @@ impl Registry {
 
         trace!("opening chain ({}) on mesh client for {}", key, url);
 
+        trace!("perf-checkpoint: open_ext (hello_path={})", url.path());
         let hello_path = url.path().to_string();
         let ret = client
-            .__open_ext(&key, hello_path, loader_local, loader_remote)
+            .open_ext(&key, hello_path, loader_local, loader_remote)
             .await?;
 
         Ok(ChainGuard {
@@ -237,7 +222,7 @@ impl Registry {
     }
 
     #[cfg(not(feature = "enable_client"))]
-    async fn __open_ext(
+    pub async fn open_ext(
         &self,
         _url: &Url,
         _key: &ChainKey,
@@ -280,7 +265,7 @@ impl Registry {
         // Add all the global certificates
         if let CertificateValidation::AllowedCertificates(allowed) = &mut ret.certificate_validation
         {
-            for cert in GLOBAL_CERTIFICATES.read().unwrap().iter() {
+            for cert in ate_comms::get_global_certificates() {
                 allowed.push(cert.clone());
             }
         }
@@ -302,6 +287,25 @@ impl Registry {
         port: u16,
     ) -> Result<Vec<MeshAddress>, ChainCreationError> {
         let mut roots = Vec::new();
+
+        if let Some(nodes) = &self.cfg_ate.nodes {
+            let mut r = Vec::new();
+            for node in nodes.iter() {
+                r.push(MeshAddress {
+                    port,
+                    #[cfg(feature = "enable_dns")]    
+                    host: IpAddr::from_str(node.as_str())
+                        .map_err(|err| {
+                            ChainCreationError::from(
+                                ChainCreationErrorKind::InternalError(err.to_string())
+                            )
+                        })?,
+                    #[cfg(not(feature = "enable_dns"))]
+                    host: node.clone(),
+                });
+            }
+            return Ok(r);
+        };
 
         // Search DNS for entries for this server (Ipv6 takes prioity over Ipv4)
         #[cfg(feature = "enable_dns")]
@@ -408,24 +412,27 @@ impl Registry {
             .query(
                 Name::from_str(name).unwrap(),
                 DNSClass::IN,
-                RecordType::AAAA,
+                RecordType::A,
             )
             .await
             .ok()
         {
             for answer in response.answers() {
-                if let RData::AAAA(ref address) = *answer.rdata() {
-                    addrs.push(IpAddr::V6(address.clone()));
+                if let RData::A(ref address) = *answer.rdata() {
+                    addrs.push(IpAddr::V4(address.clone()));
                 }
             }
         }
         if addrs.len() <= 0 {
             let response = client
-                .query(Name::from_str(name).unwrap(), DNSClass::IN, RecordType::A)
+                .query(
+                    Name::from_str(name).unwrap(),
+                    DNSClass::IN,
+                    RecordType::AAAA)
                 .await?;
             for answer in response.answers() {
-                if let RData::A(ref address) = *answer.rdata() {
-                    addrs.push(IpAddr::V4(address.clone()));
+                if let RData::AAAA(ref address) = *answer.rdata() {
+                    addrs.push(IpAddr::V6(address.clone()));
                 }
             }
         }

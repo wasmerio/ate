@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::sync::Weak;
 use std::time::Duration;
 use error_chain::bail;
 #[allow(unused_imports)]
 use tokio::sync::mpsc;
+use tokio::io::AsyncRead;
+use tokio::io::AsyncWrite;
 
 use async_trait::async_trait;
 use ate::comms::HelloMetadata;
@@ -13,33 +14,35 @@ use ate::comms::RawStreamRoute;
 use ate::comms::StreamRoute;
 use ate::comms::StreamRx;
 use ate::comms::Upstream;
-use ate::comms::StreamReader;
+use ate::comms::MessageProtocolVersion;
 use ate::prelude::*;
 use ate_files::repo::Repository;
 use ate_files::repo::RepositorySessionFactory;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 use url::Url;
-use tokera::model::MasterAuthority;
-use tokera::model::MASTER_AUTHORITY_ID;
+use wasmer_deploy_cli::model::MasterAuthority;
+use wasmer_deploy_cli::model::MASTER_AUTHORITY_ID;
 #[allow(unused_imports)]
-use tokera::model::InstanceCall;
-use tokera::model::SwitchHello;
-use ate_auth::cmd::impersonate_command;
-use ate_auth::helper::b64_to_session;
-use tokio::sync::RwLock;
+use wasmer_deploy_cli::model::InstanceCall;
+use wasmer_deploy_cli::model::SwitchHello;
+use wasmer_auth::cmd::impersonate_command;
+use wasmer_auth::helper::b64_to_session;
+use std::sync::RwLock;
 
-use super::switch::*;
+use super::factory::*;
 use super::session::*;
+use super::udp::*;
 
 pub struct Server
 {
     pub registry: Arc<Registry>,
     pub repo: Arc<Repository>,
+    pub udp: UdpPeerHandle,
     pub db_url: url::Url,
     pub auth_url: url::Url,
     pub instance_authority: String,
-    pub switches: RwLock<HashMap<ChainKey, Weak<Switch>>>,
+    pub factory: Arc<SwitchFactory>,
 }
 
 impl Server
@@ -51,10 +54,12 @@ impl Server
         token_path: String,
         registry: Arc<Registry>,
         ttl: Duration,
+        udp_listen: IpAddr,
+        udp_port: u16,
     ) -> Result<Self, Box<dyn std::error::Error>>
     {
         // Build a switch factory that will connect clients to the current switch
-        let switch_factory = SwitchFactory {
+        let session_factory = SessionFactory {
             db_url: db_url.clone(),
             auth_url: auth_url.clone(),
             registry: registry.clone(),
@@ -67,12 +72,17 @@ impl Server
             &registry,
             db_url.clone(),
             auth_url.clone(),
-            Box::new(switch_factory),
+            Box::new(session_factory),
             ttl,
         )
         .await?;
 
-        let switches = RwLock::new(HashMap::default());
+        let switches = Arc::new(RwLock::new(HashMap::default()));
+        let udp = UdpPeer::new(udp_listen, udp_port, switches.clone()).await;
+
+        let factory = Arc::new(
+            SwitchFactory::new(repo.clone(), udp.clone(), instance_authority.clone(), switches)
+        );
 
         Ok(Self {
             db_url,
@@ -80,49 +90,15 @@ impl Server
             registry,
             repo,
             instance_authority,
-            switches,
+            udp,
+            factory,
         })
-    }
-
-    pub async fn get_or_create_switch(&self, key: ChainKey) -> Result<(Arc<Switch>, bool), CommsError> {
-        // Check the cache
-        {
-            let guard = self.switches.read().await;
-            if let Some(ret) = guard.get(&key) {
-                if let Some(ret) = ret.upgrade() {
-                    return Ok((ret, false));
-                }
-            }
-        }
-
-        // Open the instance chain that backs this particular instance
-        // (this will reuse accessors across threads and calls)
-        let accessor = self.repo.get_accessor(&key, self.instance_authority.as_str()).await
-            .map_err(|err| CommsErrorKind::InternalError(err.to_string()))?;
-        trace!("loaded file accessor for {}", key);
-
-        // Enter a write lock and check again
-        let mut guard = self.switches.write().await;
-        if let Some(ret) = guard.get(&key) {
-            if let Some(ret) = ret.upgrade() {
-                return Ok((ret, false));
-            }
-        }
-        
-        // Build the basics
-        let switch = Arc::new(Switch {
-            accessor,
-            ports: Default::default(),
-        });
-
-        // Cache and and return it
-        guard.insert(key.clone(), Arc::downgrade(&switch));
-        Ok((switch, true))
     }
 
     async fn accept_internal(
         &self,
-        rx: Box<dyn StreamReader + Send + Sync + 'static>,
+        rx: StreamRx,
+        _rx_proto: StreamProtocol,
         tx: Upstream,
         hello: HelloMetadata,
         hello_switch: SwitchHello,
@@ -132,8 +108,23 @@ impl Server
     {
         // Get or create the switch
         let key = hello_switch.chain.clone();
-        let (switch, _) = self.get_or_create_switch(key).await?;
-        let port = switch.new_port();
+        debug!("accept_internal(chain={})", key);
+        let (switch, _) = self.factory.get_or_create_switch(key.clone()).await?;
+
+        // Check to make sure the caller has rights to this switch
+        if switch.has_access(hello_switch.access_token.as_str()) == false {
+            warn!("access denied (id={})", switch.id);
+            return Err(CommsErrorKind::Refused.into());
+        }
+
+        // Create the port into the switch
+        let port = switch.new_port()
+            .await
+            .map_err(|err| {
+                warn!("switch port creation failed - {}", err);
+                CommsErrorKind::InternalError(err.to_string())
+            })?;
+        let mac = port.mac;
 
         // Create the session that will process packets for this switch
         let session = Session {
@@ -145,12 +136,15 @@ impl Server
             wire_encryption,
             port,
         };
+
+        info!("switch port established (switch={}, mac={}, peer_addr={})", session.hello_switch.chain, mac, sock_addr);
         
         // Start the background thread that will process events on the session
         tokio::task::spawn(async move {
             if let Err(err) = session.run().await {
-                debug!("instance session failed: {}", err);
+                warn!("instance session failed: {}", err);
             }
+            info!("switch port closed (switch={}, mac={}, addr={})", key, mac, sock_addr);
         });
         Ok(())
     }
@@ -163,6 +157,7 @@ for Server
     async fn accepted_web_socket(
         &self,
         mut rx: StreamRx,
+        rx_proto: StreamProtocol,
         tx: Upstream,
         hello: HelloMetadata,
         sock_addr: SocketAddr,
@@ -170,17 +165,14 @@ for Server
     ) -> Result<(), CommsError>
     {
         // Read the instance hello message
-        let mut _total_read = 0u64;
-        let hello_buf = rx.read_buf_with_header(&wire_encryption, &mut _total_read).await?;
+        let hello_buf = rx.read().await?;
         let hello_switch: SwitchHello = serde_json::from_slice(&hello_buf[..])?;
         debug!("accept-web-socket: {}", hello_switch);
-
-        // Build the rx and tx
-        let rx = Box::new(rx);
 
         // Accept the web connection
         self.accept_internal(
             rx,
+            rx_proto,
             tx,
             hello,
             hello_switch,
@@ -196,14 +188,22 @@ for Server
 {
     async fn accepted_raw_web_socket(
         &self,
-        rx: StreamRx,
-        tx: Upstream,
+        rx: Box<dyn AsyncRead + Send + Sync + Unpin + 'static>,
+        tx: Box<dyn AsyncWrite + Send + Sync + Unpin + 'static>,
         uri: http::Uri,
         headers: http::HeaderMap,
         sock_addr: SocketAddr,
         server_id: NodeId,
     ) -> Result<(), CommsError>
     {
+        // Check if its https or not
+        let https = uri.scheme_str() == Some("https") || uri.scheme_str() == Some("wss");
+        let stream_proto = if https {
+            StreamProtocol::SecureWebSocket
+        } else {
+            StreamProtocol::WebSocket
+        };
+
         // Get the chain and the topic
         let path = std::path::PathBuf::from(uri.path().to_string());
         let chain = {
@@ -226,25 +226,34 @@ for Server
         debug!("accept-raw-web-socket: uri: {}", uri);
 
         // Make a fake hello from the HTTP metadata
+        let client_id = NodeId::generate_client_id();
         let hello = HelloMetadata {
-            client_id: NodeId::generate_client_id(),
+            client_id,
             server_id,
             path: path.to_string_lossy().to_string(),
             encryption: None,
-            wire_format: tx.wire_format,
+            wire_format: SerializationFormat::Bincode,
         };
         let hello_switch = SwitchHello {
-            access_token: auth.to_str().unwrap().to_string(),
             chain: chain.clone(),
-            version: tokera::model::PORT_COMMAND_VERSION,
+            access_token: auth.to_str().unwrap().to_string(),
+            version: wasmer_deploy_cli::model::PORT_COMMAND_VERSION,
         };
 
         // Build the rx and tx
-        let rx = Box::new(rx);
+        let (rx, tx) = MessageProtocolVersion::V3
+            .create(Some(rx), Some(tx))
+            .split(None);
+        let tx = Upstream {
+            id: client_id,
+            outbox: tx,
+            wire_format: SerializationFormat::Bincode
+        };
 
         // Accept the web connection
         self.accept_internal(
             rx,
+            stream_proto,
             tx,
             hello,
             hello_switch,
@@ -254,7 +263,7 @@ for Server
     }
 }
 
-struct SwitchFactory
+struct SessionFactory
 {
     db_url: url::Url,
     auth_url: url::Url,
@@ -266,7 +275,7 @@ struct SwitchFactory
 
 #[async_trait]
 impl RepositorySessionFactory
-for SwitchFactory
+for SessionFactory
 {
     async fn create(&self, sni: String, key: ChainKey) -> Result<AteSessionType, AteError>
     {
@@ -279,7 +288,8 @@ for SwitchFactory
                 let session = if let Ok(token) = std::fs::read_to_string(path) {
                     b64_to_session(token)
                 } else {
-                    let err: ate_auth::error::GatherError = ate_auth::error::GatherErrorKind::NoMasterKey.into();
+                    warn!("token is missing - {}", self.token_path);
+                    let err: wasmer_auth::error::GatherError = wasmer_auth::error::GatherErrorKind::NoMasterKey.into();
                     return Err(err.into());
                 };
 
@@ -296,7 +306,7 @@ for SwitchFactory
         };
 
         // Now we read the chain of trust and attempt to get the master authority object
-        let chain = self.registry.open(&self.db_url, &key).await?;
+        let chain = self.registry.open(&self.db_url, &key, true).await?;
         let dio = chain.dio(&edge_session).await;
         let master_authority = dio.load::<MasterAuthority>(&PrimaryKey::from(MASTER_AUTHORITY_ID)).await?;
 
@@ -315,7 +325,7 @@ for SwitchFactory
             key.clone()
         } else {
             error!("failed to get the broker key from the master edge session");
-            let err: ate_auth::error::GatherError = ate_auth::error::GatherErrorKind::NoMasterKey.into();
+            let err: wasmer_auth::error::GatherError = wasmer_auth::error::GatherErrorKind::NoMasterKey.into();
             return Err(err.into());
         };
         let master_authority = master_authority.inner_broker.unwrap(&access_key)?;

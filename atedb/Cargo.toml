@@ -2,7 +2,7 @@
 name = "atedb"
 version = "1.8.0"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
-edition = "2018"
+edition = "2021"
 description = "Distributed datachain (database) built on an immutable data store with strong encryption and authentication"
 license = "MIT OR Apache-2.0"
 keywords = ["immutable", "database", "server", "async" ]
@@ -12,17 +12,18 @@ readme = "README.md"
 
 [features]
 default = [ "client", "server" ]
-client_web = [ "ate/client_web", "ate-auth/client_web" ]
-client = [ "ate/client", "ate-auth/client", "libc" ]
-server = [ "ate/server", "ate-auth/server", "ate/enable_mt", "libc" ]
+client_web = [ "ate/client_web", "wasmer-auth/client_web" ]
+client = [ "ate/client", "wasmer-auth/client", "libc" ]
+server = [ "ate/server", "wasmer-auth/server", "ate/enable_mt", "libc" ]
 
 [dependencies]
-ate = { version = "^1.2", path = "../lib", default_features = false }
-ate-auth = { version = "^1.9", path = "../auth", default_features = false }
+ate = { version = "^1.3", path = "../lib", default_features = false }
+wasmer-auth = { version = "^1.9", path = "../wasmer-auth", default_features = false }
 error-chain = { version = "^0.12", default_features = false }
-tokio = { version = "^1", features = ["full", "signal", "process"] }
+tokio = { version = "1.20.1", features = ["full", "signal", "process"] }
 serde = { version = "^1", features = ["derive"] }
-tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
+#tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
+tracing = { version = "^0.1", features = [ "log" ] }
 tracing-futures = { version = "^0.2" }
 tracing-subscriber = { version = "^0.2" }
 futures = "^0.3"

@@ -7,9 +7,9 @@ error_chain! {
     }
     links {
         AteError(::ate::error::AteError, ::ate::error::AteErrorKind);
-        LoginError(::ate_auth::error::LoginError, ::ate_auth::error::LoginErrorKind);
-        CreateError(::ate_auth::error::CreateError, ::ate_auth::error::CreateErrorKind);
-        GatherError(::ate_auth::error::GatherError, ::ate_auth::error::GatherErrorKind);
+        LoginError(::wasmer_auth::error::LoginError, ::wasmer_auth::error::LoginErrorKind);
+        CreateError(::wasmer_auth::error::CreateError, ::wasmer_auth::error::CreateErrorKind);
+        GatherError(::wasmer_auth::error::GatherError, ::wasmer_auth::error::GatherErrorKind);
     }
     foreign_links {
         IO(tokio::io::Error);

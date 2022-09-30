@@ -38,13 +38,13 @@ where
     C: Send + Sync,
 {
     #[allow(dead_code)]
-    pub(crate) async fn reply(&self, tx: &mut StreamTxChannel, msg: M) -> Result<(), CommsError> {
+    pub(crate) async fn reply(&self, tx: &mut StreamTx, msg: M) -> Result<(), CommsError> {
         Ok(Self::reply_at(tx, self.data.wire_format, msg).await?)
     }
 
     #[allow(dead_code)]
     pub(crate) async fn reply_at(
-        tx: &mut StreamTxChannel,
+        tx: &mut StreamTx,
         format: SerializationFormat,
         msg: M,
     ) -> Result<(), CommsError> {
@@ -54,7 +54,7 @@ where
 
 impl PacketData {
     #[allow(dead_code)]
-    pub(crate) async fn reply<M>(&self, tx: &mut StreamTxChannel, msg: M) -> Result<(), CommsError>
+    pub(crate) async fn reply<M>(&self, tx: &mut StreamTx, msg: M) -> Result<(), CommsError>
     where
         M: Send + Sync + Serialize + DeserializeOwned + Clone,
     {
@@ -63,7 +63,7 @@ impl PacketData {
 
     #[allow(dead_code)]
     pub(crate) async fn reply_at<M>(
-        tx: &mut StreamTxChannel,
+        tx: &mut StreamTx,
         wire_format: SerializationFormat,
         msg: M,
     ) -> Result<(), CommsError>
@@ -71,11 +71,12 @@ impl PacketData {
         M: Send + Sync + Serialize + DeserializeOwned + Clone,
     {
         let pck = PacketData {
-            bytes: Bytes::from(wire_format.serialize(&msg)?),
+            bytes: Bytes::from(wire_format.serialize(msg)
+                .map_err(SerializationError::from)?),
             wire_format,
         };
 
-        tx.send(&pck.bytes[..]).await?;
+        tx.write(&pck.bytes[..]).await?;
         Ok(())
     }
 }
@@ -105,7 +106,8 @@ where
         self,
         wire_format: SerializationFormat,
     ) -> Result<PacketData, CommsError> {
-        let buf = wire_format.serialize(&self.msg)?;
+        let buf = wire_format.serialize(self.msg)
+            .map_err(SerializationError::from)?;
         Ok(PacketData {
             bytes: Bytes::from(buf),
             wire_format,

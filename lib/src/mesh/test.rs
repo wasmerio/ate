@@ -17,30 +17,78 @@ struct TestData {
 
 #[tokio::main(flavor = "current_thread")]
 #[test]
-async fn test_mesh_distributed_with_tcp() {
-    test_mesh_internal(false, StreamProtocol::Tcp).await
+async fn test_mesh_distributed_with_tcp_and_plain() {
+    test_mesh_internal(false, StreamProtocol::Tcp, None).await
 }
 
 #[tokio::main(flavor = "current_thread")]
 #[test]
-async fn test_mesh_centralized_with_tcp() {
-    test_mesh_internal(true, StreamProtocol::Tcp).await
+async fn test_mesh_centralized_with_tcp_and_plain() {
+    test_mesh_internal(true, StreamProtocol::Tcp, None).await
 }
 
 #[tokio::main(flavor = "current_thread")]
 #[test]
-async fn test_mesh_distributed_with_web_socket() {
-    test_mesh_internal(false, StreamProtocol::WebSocket).await
+async fn test_mesh_distributed_with_web_socket_and_plain() {
+    test_mesh_internal(false, StreamProtocol::WebSocket, None).await
 }
 
 #[tokio::main(flavor = "current_thread")]
 #[test]
-async fn test_mesh_centralized_with_web_socket() {
-    test_mesh_internal(true, StreamProtocol::WebSocket).await
+async fn test_mesh_centralized_with_web_socket_and_plain() {
+    test_mesh_internal(true, StreamProtocol::WebSocket, None).await
+}
+
+#[tokio::main(flavor = "current_thread")]
+#[test]
+async fn test_mesh_distributed_with_tcp_and_aes128() {
+    test_mesh_internal(false, StreamProtocol::Tcp, Some(KeySize::Bit128)).await
+}
+
+#[tokio::main(flavor = "current_thread")]
+#[test]
+async fn test_mesh_centralized_with_tcp_and_aes128() {
+    test_mesh_internal(true, StreamProtocol::Tcp, Some(KeySize::Bit128)).await
+}
+
+#[tokio::main(flavor = "current_thread")]
+#[test]
+async fn test_mesh_distributed_with_web_socket_and_aes128() {
+    test_mesh_internal(false, StreamProtocol::WebSocket, Some(KeySize::Bit128)).await
+}
+
+#[tokio::main(flavor = "current_thread")]
+#[test]
+async fn test_mesh_centralized_with_web_socket_and_aes128() {
+    test_mesh_internal(true, StreamProtocol::WebSocket, Some(KeySize::Bit128)).await
+}
+
+#[tokio::main(flavor = "current_thread")]
+#[test]
+async fn test_mesh_distributed_with_tcp_and_aes256() {
+    test_mesh_internal(false, StreamProtocol::Tcp, Some(KeySize::Bit256)).await
+}
+
+#[tokio::main(flavor = "current_thread")]
+#[test]
+async fn test_mesh_centralized_with_tcp_and_aes256() {
+    test_mesh_internal(true, StreamProtocol::Tcp, Some(KeySize::Bit256)).await
+}
+
+#[tokio::main(flavor = "current_thread")]
+#[test]
+async fn test_mesh_distributed_with_web_socket_and_aes256() {
+    test_mesh_internal(false, StreamProtocol::WebSocket, Some(KeySize::Bit256)).await
+}
+
+#[tokio::main(flavor = "current_thread")]
+#[test]
+async fn test_mesh_centralized_with_web_socket_and_aes256() {
+    test_mesh_internal(true, StreamProtocol::WebSocket, Some(KeySize::Bit256)).await
 }
 
 #[cfg(test)]
-async fn test_mesh_internal(centralized: bool, proto: StreamProtocol) {
+async fn test_mesh_internal(centralized: bool, proto: StreamProtocol, wire_encryption: Option<KeySize>) {
     crate::utils::bootstrap_test_env();
 
     let cfg_ate = crate::conf::tests::mock_test_config();
@@ -62,11 +110,12 @@ async fn test_mesh_internal(centralized: bool, proto: StreamProtocol) {
         let remote = url::Url::parse(format!("{}://localhost", proto.to_scheme()).as_str()).unwrap();
         let mut cfg_mesh = ConfMesh::new("localhost", remote, roots.iter());
         cfg_mesh.wire_protocol = proto;
+        cfg_mesh.wire_encryption = wire_encryption;
 
         let mut mesh_root_joins = Vec::new();
 
         // Create the first cluster of mesh root nodes
-        let certificate = PrivateEncryptKey::generate(KeySize::Bit192);
+        let certificate = PrivateEncryptKey::generate(wire_encryption.unwrap_or(KeySize::Bit192));
         #[allow(unused_variables)]
         let mut index: i32 = 0;
         for n in (5100 + port_offset)..(5105 + port_offset) {
@@ -206,14 +255,14 @@ async fn test_mesh_internal(centralized: bool, proto: StreamProtocol) {
             .recv()
             .await
             .expect("Should have received the result on the BUS");
-        assert_eq!(*task_ret, "test_string1".to_string());
+        assert_eq!(task_ret.data(), Some("test_string1".to_string()));
 
         info!("wait for an event on the BUS (other)");
         let task_ret = bus_b
             .recv()
             .await
             .expect("Should have received the result on the BUS");
-        assert_eq!(*task_ret, "test_string1".to_string());
+        assert_eq!(task_ret.data(), Some("test_string1".to_string()));
 
         {
             info!("new DIO session for client A");
@@ -270,4 +319,6 @@ async fn test_mesh_internal(centralized: bool, proto: StreamProtocol) {
 
     info!("shutting down");
     //std::process::exit(0);
+
+    use crate::dio::bus::BusEvent;
 }

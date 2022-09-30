@@ -2,8 +2,8 @@
 name = "ateweb"
 version = "1.2.0"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
-edition = "2018"
-description = "High performance web server built on top of atefs"
+edition = "2021"
+description = "High performance web server built on top of wasmer-dfs"
 license = "MIT OR Apache-2.0"
 keywords = [
     "static-web-server",
@@ -11,16 +11,18 @@ keywords = [
     "http-server",
 ]
 categories = ["network-programming", "web-programming::http-server"]
-repository = "https://github.com/john-sharratt/ate/tree/master/atefs"
+repository = "https://github.com/john-sharratt/ate/tree/master/wasmer-dfs"
 readme = "README.md"
 
 [features]
-default = []
+default = [ "sys" ]
+sys = [ "wasmer-bus-ws/sys" ]
 
 [dependencies]
-ate = { version = "^1.2", path = "../lib", features = [ "client", "server" ], default_features = false }
-ate-auth = { version = "^1.9", path = "../auth", features = [ "client", "server" ], default_features = false }
+ate = { version = "^1.3", path = "../lib", features = [ "client", "server" ], default_features = false }
+wasmer-auth = { version = "^1.9", path = "../wasmer-auth", features = [ "client", "server" ], default_features = false }
 ate-files = { version = "^1.2", path = "../files" }
+wasmer-bus-ws = { version = "^1", path = "../wasmer-bus/ws" }
 hyper = { version = "^0.14", features = ["full"] }
 hyper-tls = "^0.5"
 rustls = { version = "^0.19" }
@@ -29,13 +31,14 @@ tokio-rustls = { version = "^0.22" }
 http = { version = "0.2" }
 mime_guess = { version = "2.0"}
 error-chain = { version = "^0.12", default_features = false }
-tokio = { version = "^1", features = [ "full", "signal", "process"] }
-tungstenite = { version = "^0.15" } 
-hyper-tungstenite = { version = "^0.4" }
+tokio = { version = "1.20.1", features = [ "signal", "process"] }
+tokio-tungstenite = { version = "^0.16" }
+hyper-tungstenite = { version = "^0.6" }
 serde = { version = "^1", features = [ "derive"] }
 serde_yaml = { version = "^0.8" }
 serde_json = { version = "^1" }
-tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
+#tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
+tracing = { version = "^0.1", features = [ "log" ] }
 tracing-futures = { version = "^0.2" }
 tracing-subscriber = { version = "^0.2" }
 futures = "^0.3"

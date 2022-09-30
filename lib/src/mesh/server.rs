@@ -114,36 +114,36 @@ impl MeshRoot {
     pub(super) async fn new(
         cfg: &ConfMesh,
         listen_addrs: Vec<MeshAddress>,
+        all_addrs: Vec<MeshAddress>,
     ) -> Result<Arc<Self>, CommsError> {
         let lookup = MeshHashTable::new(&cfg);
         let node_id = match cfg.force_node_id {
             Some(a) => a,
             None => {
-                match listen_addrs
+                match all_addrs
                     .iter()
                     .filter_map(|a| lookup.derive_id(a))
                     .next()
                 {
                     Some(a) => a,
                     None => {
-                        bail!(CommsErrorKind::RequredExplicitNodeId);
+                        bail!(CommsErrorKind::RequiredExplicitNodeId);
                     }
                 }
             }
         };
         let server_id = format!("n{}", node_id);
 
-        TaskEngine::run_until(
-            Self::__new(cfg, lookup, node_id, listen_addrs).instrument(span!(
+        Self::new_ext(cfg, lookup, node_id, listen_addrs)
+            .instrument(span!(
                 Level::INFO,
                 "server",
                 id = server_id.as_str()
-            )),
-        )
-        .await
+            ))
+            .await
     }
 
-    async fn __new(
+    pub async fn new_ext(
         cfg: &ConfMesh,
         lookup: MeshHashTable,
         node_id: u32,
@@ -229,22 +229,6 @@ impl MeshRoot {
     where
         F: OpenFlow + 'static,
     {
-        TaskEngine::run_until(
-            self.__add_route(open_flow, cfg_ate)
-                .instrument(span!(Level::INFO, "add_route"))
-                .instrument(span!(Level::INFO, "server")),
-        )
-        .await
-    }
-
-    async fn __add_route<F>(
-        self: &Arc<Self>,
-        open_flow: Box<F>,
-        cfg_ate: &ConfAte,
-    ) -> Result<(), CommsError>
-    where
-        F: OpenFlow + 'static,
-    {
         let hello_path = open_flow.hello_path().to_string();
 
         let route = MeshRoute {
@@ -272,15 +256,6 @@ impl MeshRoot {
     }
 
     pub async fn clean(self: &Arc<Self>) {
-        TaskEngine::run_until(
-            self.__clean()
-                .instrument(span!(Level::INFO, "clean"))
-                .instrument(span!(Level::INFO, "server")),
-        )
-        .await
-    }
-
-    pub async fn __clean(self: &Arc<Self>) {
         let mut shutdown_me = Vec::new();
         {
             let mut guard = self.chains.lock().await;
@@ -305,15 +280,6 @@ impl MeshRoot {
     }
 
     pub async fn shutdown(self: &Arc<Self>) {
-        TaskEngine::run_until(
-            self.__shutdown()
-                .instrument(span!(Level::INFO, "shutdown"))
-                .instrument(span!(Level::INFO, "server")),
-        )
-        .await
-    }
-
-    pub async fn __shutdown(self: &Arc<Self>) {
         {
             let mut guard = self.listener.lock().unwrap();
             guard.take();
@@ -342,6 +308,7 @@ for MeshRoot
     async fn accepted_web_socket(
         &self,
         rx: StreamRx,
+        rx_proto: StreamProtocol,
         tx: Upstream,
         hello: HelloMetadata,
         sock_addr: SocketAddr,
@@ -356,7 +323,7 @@ for MeshRoot
                 bail!(CommsErrorKind::Refused);
             }
         };
-        Listener::accept_stream(listener, rx, tx, hello, wire_encryption, sock_addr, self.exit.subscribe()).await?;
+        Listener::accept_stream(listener, rx, rx_proto, tx, hello, wire_encryption, sock_addr, self.exit.subscribe()).await?;
         Ok(())
     }
 }
@@ -439,7 +406,7 @@ async fn open_internal<'b>(
     );
 
     // Perform a clean of any chains that are out of scope
-    root.__clean().await;
+    root.clean().await;
 
     // Determine the route (if any)
     let route = {
@@ -749,7 +716,7 @@ async fn inbox_subscribe<'b>(
     context: Arc<SessionContext>,
     tx: &'b mut Tx,
 ) -> Result<(), CommsError> {
-    trace!("subscribe: {}", chain_key.to_string());
+    trace!("subscribe: (key={}, omit_data={})", chain_key.to_string(), omit_data);
 
     // Randomize the conversation ID and clear its state
     context.conversation.clear();
@@ -761,13 +728,16 @@ async fn inbox_subscribe<'b>(
         false
     };
     if conv_updated {
+        trace!("sending Message::NewConversation(conv_id={})", conv_id);
         tx.send_reply_msg(Message::NewConversation {
             conversation_id: conv_id,
         })
         .await?;
     } else {
+        let err = "failed to generate a new conversation id".to_string();
+        trace!("sending Message::FatalTerminate(other={})", err);
         tx.send_reply_msg(Message::FatalTerminate(FatalTerminate::Other {
-            err: "failed to generate a new conversation id".to_string(),
+            err,
         }))
         .await?;
         return Ok(());
@@ -778,6 +748,7 @@ async fn inbox_subscribe<'b>(
     let (node_addr, node_id) = match root.lookup.lookup(&chain_key) {
         Some(a) => a,
         None => {
+            trace!("sending Message::FatalTerminate(not_this_root)");
             tx.send_reply_msg(Message::FatalTerminate(FatalTerminate::NotThisRoot))
                 .await?;
             return Ok(());
@@ -806,6 +777,7 @@ async fn inbox_subscribe<'b>(
             return Ok(());
         } else {
             // Fail to redirect
+            trace!("sending Message::FatalTerminate(redirect actual={} expected={})", node_id, root.node_id);
             tx.send_reply_msg(Message::FatalTerminate(FatalTerminate::RootRedirect {
                 actual: node_id,
                 expected: root.node_id,
@@ -824,11 +796,13 @@ async fn inbox_subscribe<'b>(
     // If we can't find a chain for this subscription then fail and tell the caller
     let opened_chain = match open_internal(Arc::clone(&root), route.clone(), tx).await {
         Err(ChainCreationError(ChainCreationErrorKind::NotThisRoot, _)) => {
+            trace!("sending Message::FatalTerminate(not_this_root)");
             tx.send_reply_msg(Message::FatalTerminate(FatalTerminate::NotThisRoot))
                 .await?;
             return Ok(());
         }
         Err(ChainCreationError(ChainCreationErrorKind::NoRootFoundInConfig, _)) => {
+            trace!("sending Message::FatalTerminate(not_this_root)");
             tx.send_reply_msg(Message::FatalTerminate(FatalTerminate::NotThisRoot))
                 .await?;
             return Ok(());
@@ -838,6 +812,7 @@ async fn inbox_subscribe<'b>(
                 Ok(a) => a,
                 Err(err) => {
                     let err = err.to_string();
+                    trace!("sending Message::FatalTerminate(other={})", err);
                     tx.send_reply_msg(Message::FatalTerminate(FatalTerminate::Other {
                         err: err.clone(),
                     }))
@@ -856,6 +831,7 @@ async fn inbox_subscribe<'b>(
 
     // If there is a message of the day then transmit it to the caller
     if let Some(message_of_the_day) = opened_chain.message_of_the_day {
+        trace!("sending Message::HumanMessage(msg={})", message_of_the_day);
         tx.send_reply_msg(Message::HumanMessage {
             message: message_of_the_day,
         })
@@ -883,7 +859,7 @@ async fn inbox_subscribe<'b>(
 async fn inbox_unsubscribe<'b>(
     _root: Arc<MeshRoot>,
     chain_key: ChainKey,
-    _tx: &'b mut StreamTxChannel,
+    _tx: &'b mut StreamTx,
     context: Arc<SessionContext>,
 ) -> Result<(), CommsError> {
     debug!(" unsubscribe: {}", chain_key.to_string());

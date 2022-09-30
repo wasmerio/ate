@@ -1,0 +1,30 @@
+[package]
+name = "wasmer-bus-types"
+version = "1.1.0"
+authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
+edition = "2021"
+description = "WebAssembly Bus Macros"
+license = "MIT OR Apache-2.0"
+keywords = [ "wasi", "wasm", "bus" ]
+repository = "https://github.com/john-sharratt/ate"
+readme = "README.md"
+
+[features]
+default = [ "enable_bincode", "enable_mpack", "enable_json", "enable_yaml", "enable_xml", "enable_num_enum" ]
+enable_bincode = [ "bincode" ]
+enable_mpack = [ "rmp-serde" ]
+enable_json = [ "serde_json" ]
+enable_yaml = [ "serde_yaml" ]
+enable_xml = [ "serde-xml-rs" ]
+enable_rkyv = [ "rkyv" ]
+enable_num_enum = [ "num_enum" ]
+
+[dependencies]
+num_enum = { version = "^0.5", optional = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", optional = true }
+bincode = { version = "1", optional = true }
+rmp-serde = { version = "0.15", optional = true }
+serde-xml-rs = { version = "0.5", optional = true }
+serde_yaml = { version = "0.8", optional = true }
+rkyv = { version = "0.7", optional = true }

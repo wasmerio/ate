@@ -13,8 +13,8 @@ use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, instrument, span, trace, warn, event, Level};
-use ate_auth::service::AuthService;
-use ate_auth::cmd::gather_command;
+use wasmer_auth::service::AuthService;
+use wasmer_auth::cmd::gather_command;
 
 use hyper;
 use hyper::header::HeaderValue;
@@ -96,9 +96,12 @@ async fn process(
     req: Request<Body>,
     sock_addr: SocketAddr,
 ) -> Result<Response<Body>, hyper::Error> {
+    trace!("perf-checkpoint: hyper process (addr={})", sock_addr);
+
     let path = req.uri().path().to_string();
     match server.process(req, sock_addr, listen.deref()).await {
         Ok(resp) => {
+            trace!("perf-checkpoint: hyper finished");
             trace!("res: status={}", resp.status().as_u16());
             Ok(resp)
         }
@@ -122,7 +125,13 @@ async fn process(
 }
 
 impl Server {
-    pub(crate) async fn new(builder: ServerBuilder) -> Result<Arc<Server>, AteError> {
+    pub(crate) async fn new(mut builder: ServerBuilder) -> Result<Arc<Server>, AteError>
+    {
+        // There are few more tweaks we need to make to the configuration
+        builder.conf.cfg_ate.recovery_mode = RecoveryMode::ReadOnlySync;
+        builder.conf.cfg_ate.backup_mode = BackupMode::None;
+        
+        // Now we are ready
         let registry = Arc::new(Registry::new(&builder.conf.cfg_ate).await);
 
         let session_factory = SessionFactory {
@@ -394,8 +403,10 @@ impl Server {
     ) -> Result<Option<Response<Body>>, WebServerError> {
         self.sanitize(path)?;
         let key = ChainKey::from(format!("{}/www", host));
+        trace!("perf-checkpoint: get_file (path={})", path);
         if let Some(data) = self.repo.get_file(&key, host, path).await? {
             let len_str = data.len().to_string();
+            trace!("perf-checkpoint: got_file (data_len={})", len_str);
 
             let mut resp = if is_head {
                 Response::new(Body::empty())
@@ -570,6 +581,7 @@ impl Server {
         };
 
         // Attempt to get the file
+        trace!("perf-checkpoint: process_get");
         match self.process_get(host, path.as_str(), is_head, conf).await? {
             Some(a) => {
                 return Ok(a);
@@ -590,6 +602,7 @@ impl Server {
             }
         }
 
+        trace!("perf-checkpoint: response from data");
         let data = format!("File Not Found - {}\n", path);
         let mut resp = Response::new(Body::from(data));
         *resp.status_mut() = StatusCode::NOT_FOUND;
@@ -605,6 +618,7 @@ impl Server {
         trace!("req: {:?}", req);
 
         if hyper_tungstenite::is_upgrade_request(&req) {
+            trace!("perf-checkpoint: hyper upgrade request");
             return self.process_upgrade(req, sock_addr).await;
         }
 
@@ -612,6 +626,8 @@ impl Server {
         let method = req.method().clone();
 
         if method == Method::POST || method == Method::PUT {
+            trace!("perf-checkpoint: put/post");
+
             if let Some(callback) = &self.callback {
                 let headers = req.headers().clone();
                 if let Some(body) = hyper::body::to_bytes(req.into_body()).await.ok() {
@@ -643,6 +659,8 @@ impl Server {
                     return Ok(resp);
                 }
             }
+
+            trace!("perf-checkpoint: finished put/post");
         }
 
         let is_head = method == Method::HEAD;
@@ -662,6 +680,7 @@ impl Server {
                     .get(&err.status_code().as_u16())
                     .map(|a| a.clone());
                 if let Some(page) = page {
+                    trace!("perf-checkpoint: load error page");
                     if let Some(ret) = self
                         .process_get(host.as_str(), page.as_str(), is_head, &conf)
                         .await?
@@ -687,7 +706,9 @@ impl Server {
             TaskEngine::spawn(async move {
                 match websocket.await {
                     Ok(websocket) => {
+                        trace!("perf-checkpoint: begin callback.web_socket");
                         let ret = callback.web_socket(websocket, sock_addr, Some(uri), Some(headers)).await;
+                        trace!("perf-checkpoint: finish callback.web_socket");
                         if let Err(err) = ret {
                             error!("web socket failed(1) - {}", err);
                         }
@@ -798,16 +819,19 @@ impl Server {
         conf: &WebConf,
     ) -> Result<Response<Body>, WebServerError> {
         if let Some(redirect) = conf.redirect.as_ref() {
+            trace!("perf-checkpoint: redirect host");
             return self.process_redirect_host(req, listen, &redirect).await;
         }
 
         if conf.force_https && listen.tls == false {
+            trace!("perf-checkpoint: force_https");
             return self.force_https(req).await;
         }
 
         let mut cors_proxy = req.uri().path().split("https://");
         cors_proxy.next();
         if let Some(next) = cors_proxy.next() {
+            trace!("perf-checkpoint: cors proxy");
             let next = next.to_string();
             return Ok(self.process_cors(req, listen, conf, next).await
                 .unwrap_or_else(|code| {
@@ -823,11 +847,13 @@ impl Server {
         let path = req.uri().path();
         match req.method() {
             &Method::OPTIONS | &Method::HEAD | &Method::GET => {
+                trace!("perf-checkpoint: options/head/get");
                 self.sanitize(path)?;
                 self.process_get_with_default(host.as_str(), path, is_head, conf)
                     .await
             }
             _ => {
+                trace!("perf-checkpoint: method_not_allowed");
                 let mut resp = Response::new(Body::from(StatusCode::METHOD_NOT_ALLOWED.as_str()));
                 *resp.status_mut() = StatusCode::METHOD_NOT_ALLOWED;
                 Ok(resp)

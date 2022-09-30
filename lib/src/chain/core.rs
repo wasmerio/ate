@@ -2,7 +2,6 @@ use std::sync::Mutex as StdMutex;
 use std::time::Duration;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
-use tracing_futures::Instrument;
 use derivative::*;
 
 use crate::error::*;
@@ -19,7 +18,6 @@ use tokio::sync::RwLock;
 
 use crate::conf::ConfAte;
 use crate::conf::MeshAddress;
-use crate::engine::*;
 use crate::mesh::BackupMode;
 use crate::meta::*;
 use crate::multi::*;
@@ -91,26 +89,14 @@ impl<'a> Chain {
     }
 
     pub async fn single(&'a self) -> ChainSingleUser<'a> {
-        TaskEngine::run_until(self.__single()).await
-    }
-
-    async fn __single(&'a self) -> ChainSingleUser<'a> {
         ChainSingleUser::new(self).await
     }
 
     pub async fn multi(&'a self) -> ChainMultiUser {
-        TaskEngine::run_until(self.__multi()).await
-    }
-
-    async fn __multi(&'a self) -> ChainMultiUser {
         ChainMultiUser::new(self).await
     }
 
     pub async fn name(&'a self) -> String {
-        TaskEngine::run_until(self.__name()).await
-    }
-
-    async fn __name(&'a self) -> String {
         self.single().await.name()
     }
 
@@ -119,40 +105,19 @@ impl<'a> Chain {
     }
 
     pub async fn count(&'a self) -> usize {
-        TaskEngine::run_until(self.__count()).await
-    }
-
-    async fn __count(&'a self) -> usize {
         self.inside_async.read().await.chain.redo.count()
     }
 
-    async fn run_async<F>(&'a self, future: F) -> F::Output
-    where
-        F: std::future::Future,
-    {
-        let key_str = self.key().to_string();
-        TaskEngine::run_until(future.instrument(span!(Level::DEBUG, "dio", key = key_str.as_str())))
-            .await
-    }
-
     pub async fn flush(&'a self) -> Result<(), tokio::io::Error> {
-        self.run_async(self.__flush()).await
-    }
-
-    async fn __flush(&'a self) -> Result<(), tokio::io::Error> {
         Ok(self.inside_async.write().await.chain.flush().await?)
     }
 
     pub async fn sync(&'a self) -> Result<(), CommitError> {
         let timeout = Duration::from_secs(30);
-        self.run_async(self.__sync(timeout)).await
+        self.sync_ext(timeout).await
     }
 
     pub async fn sync_ext(&'a self, timeout: Duration) -> Result<(), CommitError> {
-        self.run_async(self.__sync(timeout)).await
-    }
-
-    async fn __sync(&'a self, timeout: Duration) -> Result<(), CommitError> {
         // Create the transaction
         let trans = Transaction {
             scope: TransactionScope::Full,
@@ -175,10 +140,6 @@ impl<'a> Chain {
         guard.chain.timeline.pointers.get_pending_uploads()
     }
 
-    pub async fn shutdown(&self) -> Result<(), CompactError> {
-        self.run_async(self.__shutdown()).await
-    }
-
     pub fn metrics(&'a self) -> &'a Arc<StdMutex<Metrics>> {
         &self.metrics
     }
@@ -187,7 +148,7 @@ impl<'a> Chain {
         &self.throttle
     }
 
-    async fn __shutdown(&self) -> Result<(), CompactError> {
+    pub async fn shutdown(&self) -> Result<(), CompactError> {
         let include_active_files = match self.cfg_ate.backup_mode {
             BackupMode::None => {
                 return Ok(());
@@ -237,7 +198,8 @@ impl RedoLog {
     pub(crate) fn read_chain_header(&self) -> Result<ChainHeader, SerializationError> {
         let header_bytes = self.header(u32::MAX);
         Ok(if header_bytes.len() > 0 {
-            SerializationFormat::Json.deserialize(&header_bytes[..])?
+            SerializationFormat::Json.deserialize(header_bytes)
+                .map_err(SerializationError::from)?
         } else {
             ChainHeader::default()
         })

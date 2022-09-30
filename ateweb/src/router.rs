@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use ate::comms::{Stream, StreamProtocol};
 use std::net::SocketAddr;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
@@ -22,8 +21,12 @@ impl ServerCallback for StreamRouter {
         headers: Option<http::HeaderMap>
     ) -> Result<(), Box<dyn std::error::Error>>
     {
-        let stream = Stream::HyperWebSocket(ws, StreamProtocol::WebSocket);
-        self.accept_socket(stream, sock_addr, uri, headers).await?;
+        use futures_util::StreamExt;
+        let (sink, stream) = ws.split();
+
+        let rx = Box::new(super::stream::RecvHalf::new(stream));
+        let tx = Box::new(super::stream::SendHalf::new(sink));
+        self.accept_socket(rx, tx, sock_addr, uri, headers).await?;
         Ok(())
     }
 

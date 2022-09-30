@@ -10,7 +10,6 @@ use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use crate::chain::*;
 use crate::dio::*;
-use crate::engine::*;
 use crate::meta::*;
 use crate::session::*;
 use crate::transaction::TransactionScope;
@@ -43,20 +42,6 @@ impl Chain {
         RES: Serialize + DeserializeOwned + Sync + Send + ?Sized,
         ERR: Serialize + DeserializeOwned + Sync + Send + ?Sized,
     {
-        TaskEngine::run_until(self.__invoke_ext(session, request, timeout)).await
-    }
-
-    pub(crate) async fn __invoke_ext<REQ, RES, ERR>(
-        self: Arc<Self>,
-        session: Option<&'_ dyn AteSession>,
-        request: REQ,
-        timeout: Duration,
-    ) -> Result<Result<RES, ERR>, InvokeError>
-    where
-        REQ: Clone + Serialize + DeserializeOwned + Sync + Send + ?Sized,
-        RES: Serialize + DeserializeOwned + Sync + Send + ?Sized,
-        ERR: Serialize + DeserializeOwned + Sync + Send + ?Sized,
-    {
         // If no session was provided then use the empty one
         let session_store;
         let session = match session {
@@ -73,7 +58,7 @@ impl Chain {
         };
 
         // Build the command object
-        let dio = self.__dio_trans(session, TransactionScope::None).await;
+        let dio = self.dio_trans(session, TransactionScope::None).await;
         let (join_res, join_err) = {
             dio.auto_cancel();
 

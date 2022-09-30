@@ -1,0 +1,14 @@
+[package]
+name = "thread-local"
+version = "0.0.1"
+authors = ["John Sharratt <john.sharratt@gmail.com>"]
+license = "MIT OR Apache-2.0"
+description = "An example threading client with local variables."
+repository = "https://github.com/wasmerio/ate"
+readme = "README.md"
+keywords = [
+    "wasm",
+    "tcp",
+]
+categories = []
+edition = "2021"

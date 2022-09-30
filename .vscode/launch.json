@@ -286,15 +286,15 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'atefs'",
+            "name": "Debug executable 'wasmer-dfs'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=atefs",
-                    "--package=atefs"
+                    "--bin=wasmer-dfs",
+                    "--package=wasmer-dfs"
                 ],
                 "filter": {
-                    "name": "atefs",
+                    "name": "wasmer-dfs",
                     "kind": "bin"
                 }
             },
@@ -307,16 +307,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in executable 'atefs'",
+            "name": "Debug unit tests in executable 'wasmer-dfs'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
-                    "--bin=atefs",
-                    "--package=atefs",
+                    "--bin=wasmer-dfs",
+                    "--package=wasmer-dfs",
                 ],
                 "filter": {
-                    "name": "atefs",
+                    "name": "wasmer-dfs",
                     "kind": "bin"
                 }
             },

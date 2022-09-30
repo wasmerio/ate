@@ -78,7 +78,8 @@ where
 {
     async fn invoke(&self, req: Bytes) -> Result<Result<Bytes, Bytes>, SerializationError> {
         let format = self.data_format();
-        let req = format.deserialize::<REQ>(&req[..])?;
+        let req = format.deserialize_ref::<REQ>(&req[..])
+            .map_err(SerializationError::from)?;
 
         let ctx = Arc::clone(&self.context);
 
@@ -89,8 +90,10 @@ where
         let ret = ret.await;
 
         let ret = match ret {
-            Ok(res) => Ok(Bytes::from(format.serialize::<RES>(&res)?)),
-            Err(err) => Err(Bytes::from(format.serialize::<ERR>(&err)?)),
+            Ok(res) => Ok(Bytes::from(format.serialize_ref::<RES>(&res)
+                .map_err(SerializationError::from)?)),
+            Err(err) => Err(Bytes::from(format.serialize_ref::<ERR>(&err)
+                .map_err(SerializationError::from)?)),
         };
         Ok(ret)
     }

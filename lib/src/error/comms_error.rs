@@ -76,7 +76,7 @@ error_chain! {
             description("the supplied domain name is not valid")
             display("the supplied domain name is not valid")
         }
-        RequredExplicitNodeId {
+        RequiredExplicitNodeId {
             description("ate is unable to determine the node_id of this root and thus you must explicily specify it in cfg")
             display("ate is unable to determine the node_id of this root and thus you must explicily specify it in cfg")
         }
@@ -120,9 +120,9 @@ impl From<tokio::time::error::Elapsed> for CommsError {
     }
 }
 
-#[cfg(target_arch = "wasm32")]
-impl From<wasm_bus_time::prelude::Elapsed> for CommsError {
-    fn from(_err: wasm_bus_time::prelude::Elapsed) -> CommsError {
+#[cfg(target_family = "wasm")]
+impl From<wasmer_bus_time::prelude::Elapsed> for CommsError {
+    fn from(_err: wasmer_bus_time::prelude::Elapsed) -> CommsError {
         CommsErrorKind::IO(std::io::Error::new(
             std::io::ErrorKind::TimedOut,
             format!("Timeout while waiting for communication channel").to_string(),

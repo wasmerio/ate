@@ -231,7 +231,8 @@ impl LogFileLocalFs {
         };
 
         // Deserialize the meta bytes into a metadata object
-        let meta = evt.header.format.meta.deserialize(&evt.meta[..])?;
+        let meta = evt.header.format.meta.deserialize_ref(&evt.meta[..])
+            .map_err(SerializationError::from)?;
         let data_hash = evt.data.hash();
         let data_size = evt.data.size();
 
@@ -505,7 +506,8 @@ impl LogFile for LogFileLocalFs {
         let data_size = result.data.size();
 
         // Convert the result into a deserialized result
-        let meta = result.header.format.meta.deserialize(&result.meta[..])?;
+        let meta = result.header.format.meta.deserialize_ref(&result.meta[..])
+            .map_err(SerializationError::from)?;
         let ret = LoadData {
             header: EventHeaderRaw::new(
                 AteHash::from_bytes(&result.meta[..]),

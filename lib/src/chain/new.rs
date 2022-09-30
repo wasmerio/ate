@@ -91,7 +91,8 @@ impl<'a> Chain {
 
         // Build the header
         let header = ChainHeader::default();
-        let header_bytes = SerializationFormat::Json.serialize(&header)?;
+        let header_bytes = SerializationFormat::Json.serialize(&header)
+            .map_err(SerializationError::from)?;
 
         // Create the redo log itself which will open the files and stream in the events
         // in a background thread

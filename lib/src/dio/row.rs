@@ -1,7 +1,7 @@
 #![allow(unused_imports)]
 use error_chain::bail;
 use fxhash::FxHashSet;
-use tracing::{debug, warn};
+use tracing::{debug, warn, error};
 
 use bytes::Bytes;
 use serde::{de::DeserializeOwned, Serialize};
@@ -113,7 +113,12 @@ impl<D> Row<D> {
                     let _pop1 = DioScope::new(dio);
                     let _pop2 = PrimaryKeyScope::new(key);
 
-                    evt.format.data.deserialize(&data)?
+                    evt.format.data.deserialize_ref(&data)
+                        .map_err(SerializationError::from)
+                        .map_err(|err| {
+                            //trace!("{}", String::from_utf8_lossy(&data[..]));
+                            err
+                        })?
                 };
 
                 Ok((
@@ -150,7 +155,8 @@ impl<D> Row<D> {
             let _pop1 = DioScope::new(dio);
             let _pop2 = PrimaryKeyScope::new(row.key);
 
-            row.format.data.deserialize(&row.data)?
+            row.format.data.deserialize_ref(&row.data)
+                .map_err(SerializationError::from)?
         };
 
         Ok((

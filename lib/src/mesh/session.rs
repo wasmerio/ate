@@ -96,6 +96,7 @@ impl MeshSession {
             // Generate the chain object
             // While we load the data on disk we run in centralized mode
             // as otherwise there could be errors loading the redo log
+            trace!("perf-checkpoint: chain::new_ext");
             let mut chain = Chain::new_ext(
                 builder.clone(),
                 chain_key,
@@ -105,6 +106,8 @@ impl MeshSession {
                 TrustMode::Distributed,
             )
             .await?;
+            trace!("perf-checkpoint: finished chain::new_ext");
+
             chain.remote = Some(remote);
             chain.remote_addr = Some(addr.clone());
             chain
@@ -141,7 +144,9 @@ impl MeshSession {
 
         // Set a reference to the chain and trigger it to connect!
         chain_store.lock().unwrap().replace(Arc::downgrade(&chain));
+        trace!("perf-checkpoint: pipe.connect()");
         let on_disconnect = chain.pipe.connect().await?;
+        trace!("perf-checkpoint: pipe.connected");
 
         // Launch an automatic reconnect thread
         if temporal == false {

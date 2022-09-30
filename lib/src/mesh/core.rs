@@ -11,7 +11,6 @@ use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 use crate::chain::*;
 use crate::comms::{PacketData, NodeId};
 use crate::comms::StreamTx;
-use crate::comms::StreamTxChannel;
 use crate::comms::Tx;
 use crate::conf::*;
 use crate::crypto::*;
@@ -225,7 +224,7 @@ impl MeshHashTable {
                 {
                     Some(a) => a,
                     None => {
-                        bail!(CommsErrorKind::RequredExplicitNodeId);
+                        bail!(CommsErrorKind::RequiredExplicitNodeId);
                     }
                 }
             }
@@ -331,7 +330,7 @@ where
             let evt = MessageEvent {
                 meta,
                 data: match evt.data.data_bytes {
-                    Some(a) if a.len() >= strip_data => MessageData::Some(a.to_vec()),
+                    Some(a) if a.len() <= strip_data => MessageData::Some(a.to_vec()),
                     Some(a) => {
                         let data = a.to_vec();
                         MessageData::LazySome(LazyData {
@@ -356,7 +355,7 @@ where
 pub(super) async fn stream_empty_history(
     chain: Arc<Chain>,
     to: Option<ChainTimestamp>,
-    tx: &mut StreamTxChannel,
+    tx: &mut StreamTx,
     wire_format: SerializationFormat,
 ) -> Result<(), CommsError> {
     // Extract the root keys and integrity mode

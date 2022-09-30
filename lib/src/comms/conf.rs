@@ -1,20 +1,22 @@
-use crate::comms::NodeId;
-use crate::comms::StreamTxChannel;
-use crate::conf::ConfMesh;
-use crate::conf::MeshAddress;
-use crate::crypto::EncryptKey;
-use crate::crypto::PrivateEncryptKey;
-use crate::spec::*;
 use std::net::IpAddr;
 use std::net::SocketAddr;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
+use ate_comms::StreamTx;
+
+use crate::comms::NodeId;
+use crate::conf::ConfMesh;
+use crate::conf::MeshAddress;
+use crate::crypto::EncryptKey;
+use crate::crypto::KeySize;
+use crate::crypto::PrivateEncryptKey;
+use crate::spec::*;
 
 #[derive(Debug)]
 pub struct Upstream {
     #[allow(dead_code)]
     pub id: NodeId,
-    pub outbox: StreamTxChannel,
+    pub outbox: StreamTx,
     #[allow(dead_code)]
     pub wire_format: SerializationFormat,
 }
@@ -36,6 +38,8 @@ pub(crate) struct MeshConfig {
     #[cfg(feature = "enable_server")]
     pub listen_on: Vec<SocketAddr>,
     #[cfg(feature = "enable_server")]
+    pub listen_min_encryption: Option<KeySize>,
+    #[cfg(feature = "enable_server")]
     pub listen_cert: Option<PrivateEncryptKey>,
     #[allow(dead_code)]
     #[cfg(feature = "enable_dns")]
@@ -53,6 +57,8 @@ impl MeshConfig {
         MeshConfig {
             #[cfg(feature = "enable_server")]
             listen_on: Vec::new(),
+            #[cfg(feature = "enable_server")]
+            listen_min_encryption: cfg_mesh.listen_min_encryption.clone(),
             #[cfg(feature = "enable_server")]
             listen_cert: cfg_mesh.listen_certificate.clone(),
             #[cfg(feature = "enable_dns")]
@@ -98,7 +104,7 @@ impl MeshConfig {
 impl Upstream {
     #[allow(dead_code)]
     pub fn wire_encryption(&self) -> Option<EncryptKey> {
-        self.outbox.wire_encryption.clone()
+        self.outbox.wire_encryption()
     }
 
     pub async fn close(&mut self) -> Result<(), tokio::io::Error> {

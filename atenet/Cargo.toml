@@ -2,7 +2,7 @@
 name = "atenet"
 version = "1.0.0"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
-edition = "2018"
+edition = "2021"
 description = "High performance virtual networking stack built on top of ate"
 license = "MIT OR Apache-2.0"
 keywords = [
@@ -11,25 +11,28 @@ keywords = [
     "http-server",
 ]
 categories = ["network-programming", "web-programming::http-server"]
-repository = "https://github.com/john-sharratt/ate/tree/master/atefs"
+repository = "https://github.com/john-sharratt/ate/tree/master/wasmer-dfs"
 readme = "README.md"
 
 [features]
 default = []
+tcpdump = []
 
 [dependencies]
-ate = { version = "^1.2", path = "../lib", features = [ "client", "server" ], default_features = false }
-ate-auth = { version = "^1.9", path = "../auth", features = [ "client", "server" ], default_features = false }
+ate = { version = "^1.3", path = "../lib", features = [ "client", "server" ], default_features = false }
+wasmer-auth = { version = "^1.9", path = "../wasmer-auth", features = [ "client", "server" ], default_features = false }
 ate-files = { version = "^1.2", path = "../files" }
-wasm-bus-mio = { version = "^1", path = "../wasm-bus-mio",  default_features = false }
-tokera = { version = "^1.3", path = "../tokera" }
+ateweb = { version = "^1.2", path = "../ateweb" }
+wasmer-bus-mio = { version = "^1", path = "../wasmer-bus/mio", default_features = false }
+wasmer-deploy-cli = { version = "^1.3", path = "../wasmer-deploy-cli" }
 error-chain = { version = "^0.12", default_features = false }
-tokio = { version = "^1", features = [ "full", "signal", "process"] }
+tokio = { version = "1.20.1", features = [ "full", "signal", "process"] }
 serde = { version = "^1", features = [ "derive"] }
 serde_yaml = { version = "^0.8" }
 serde_json = { version = "^1" }
 bincode = "^1"
-tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
+#tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
+tracing = { version = "^0.1", features = [ "log" ] }
 tracing-futures = { version = "^0.2" }
 tracing-subscriber = { version = "^0.2" }
 futures = "^0.3"
@@ -48,8 +51,16 @@ url = "^2"
 ttl_cache = "^0.5"
 x509-parser = "^0.12"
 chrono = "^0.4"
-smoltcp = { version = "0.8.0", features = [ "async" ] }
+smoltcp = { version = "0.8.0", git = "https://github.com/john-sharratt/smoltcp.git", features = [ "async" ] }
 ctrlc = { version = "^3" }
 http = { version = "^0.2" }
 derivative = { version = "^2" }
 managed = "0.8.0"
+pnet = "^0.27"
+byteorder = "^1"
+async-recursion = "^1"
+crossbeam = "^0.8"
+hex = "^0.4"
+
+[dev-dependencies]
+serial_test = "0.6.0"

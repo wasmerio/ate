@@ -1,0 +1,17 @@
+[package]
+name = "crypto-bus"
+version = "0.0.1"
+authors = ["John Sharratt <john.sharratt@gmail.com>"]
+license = "MIT OR Apache-2.0"
+description = "An example BUS server that does quantum crypto."
+repository = "https://github.com/wasmerio/ate"
+readme = "README.md"
+keywords = [
+    "wasm",
+    "tcp",
+]
+categories = ["network-programming"]
+edition = "2021"
+
+[dependencies]
+ate-crypto = { version = "^1.1", path = "../../crypto", features = [ "quantum" ], default_features = false }

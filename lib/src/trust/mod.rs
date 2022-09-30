@@ -1,4 +1,3 @@
-pub mod chain_key;
 pub mod chain_of_trust;
 pub mod chain_ref;
 pub mod header;
@@ -13,7 +12,8 @@ pub(crate) use tests::*;
 pub(crate) use chain_of_trust::*;
 pub(crate) use timeline::*;
 
-pub use chain_key::*;
 pub use chain_ref::*;
 pub use header::*;
 pub use load_result::*;
+
+pub use ate_crypto::ChainKey;

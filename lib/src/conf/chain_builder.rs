@@ -10,7 +10,6 @@ use crate::comms::NodeId;
 use crate::comms::Throttle;
 use crate::compact::*;
 use crate::crypto::PublicSignKey;
-use crate::engine::*;
 use crate::error::*;
 use crate::index::*;
 use crate::lint::*;
@@ -345,10 +344,6 @@ impl ChainBuilder {
     }
 
     pub async fn open(self: &Arc<Self>, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError> {
-        TaskEngine::run_until(self.__open(key)).await
-    }
-
-    async fn __open(self: &Arc<Self>, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError> {
         let ret = Arc::new(
             Chain::new(
                 (**self).clone(),

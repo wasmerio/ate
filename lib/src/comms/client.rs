@@ -1,13 +1,13 @@
-#![allow(unused_imports)]
-use error_chain::bail;
-use fxhash::FxHashMap;
-use serde::{de::DeserializeOwned, Serialize};
+use std::ops::DerefMut;
 use std::net::SocketAddr;
 #[cfg(not(feature = "enable_dns"))]
 use std::net::ToSocketAddrs;
 use std::result::Result;
 use std::sync::Arc;
 use std::sync::Mutex as StdMutex;
+use error_chain::bail;
+use fxhash::FxHashMap;
+use serde::{de::DeserializeOwned, Serialize};
 #[cfg(feature = "enable_full")]
 use tokio::net::TcpStream;
 use tokio::sync::broadcast;
@@ -15,6 +15,7 @@ use tokio::sync::Mutex;
 use tokio::time::Duration;
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 use tracing_futures::{Instrument, WithSubscriber};
+use ate_comms::MessageProtocolApi;
 
 #[allow(unused_imports)]
 use crate::conf::*;
@@ -33,7 +34,7 @@ use super::CertificateValidation;
 use super::{conf::*, hello::HelloMetadata};
 #[allow(unused_imports)]
 use {
-    super::Stream, super::StreamProtocol, super::StreamRx, super::StreamTx, super::StreamTxChannel,
+    super::StreamProtocol, super::StreamRx, super::StreamTx,
 };
 
 pub(crate) async fn connect<M, C>(
@@ -115,7 +116,7 @@ where
         wire_encryption,
         fail_fast,
     );
-    let (mut worker_connect, mut stream_tx) =
+    let mut worker_connect =
         crate::engine::timeout(timeout, worker_connect).await??;
     let wire_format = worker_connect.hello_metadata.wire_format;
     let server_id = worker_connect.hello_metadata.server_id;
@@ -124,8 +125,7 @@ where
     let ek = match wire_encryption {
         Some(key_size) => Some(
             key_exchange::mesh_key_exchange_sender(
-                &mut worker_connect.stream_rx,
-                &mut stream_tx,
+                worker_connect.proto.deref_mut(),
                 key_size,
                 validation,
             )
@@ -134,11 +134,16 @@ where
         None => None,
     };
 
+    // Split the stream
+    let (rx, tx) = worker_connect.proto.split(ek);
+
     // background thread - connects and then runs inbox and outbox threads
     // if the upstream object signals a termination event it will exit
     trace!("spawning connect worker");
     TaskEngine::spawn(mesh_connect_worker::<M, C>(
-        worker_connect,
+        rx,
+        wire_protocol,
+        wire_format,
         addr,
         ek,
         node_id,
@@ -150,17 +155,17 @@ where
     ));
 
     trace!("building upstream with tx channel");
-    let stream_tx = StreamTxChannel::new(stream_tx, ek);
     Ok(Upstream {
         id: node_id,
-        outbox: stream_tx,
+        outbox: tx,
         wire_format,
     })
 }
 
 struct MeshConnectContext {
+    #[allow(dead_code)]
     addr: MeshConnectAddr,
-    stream_rx: StreamRx,
+    proto: Box<dyn MessageProtocolApi + Send + Sync + 'static>,
     hello_metadata: HelloMetadata,
 }
 
@@ -173,7 +178,7 @@ async fn mesh_connect_prepare(
     wire_protocol: StreamProtocol,
     wire_encryption: Option<KeySize>,
     #[allow(unused_variables)] fail_fast: bool,
-) -> Result<(MeshConnectContext, StreamTx), CommsError> {
+) -> Result<MeshConnectContext, CommsError> {
     async move {
         #[allow(unused_mut)]
         let mut exp_backoff = Duration::from_millis(100);
@@ -237,13 +242,9 @@ async fn mesh_connect_prepare(
                         a => a?,
                     };
 
-                    // Setup the TCP stream
-                    setup_tcp_stream(&stream)?;
-
-                    // Convert the TCP stream into the right protocol
-                    let stream = Stream::Tcp(stream);
-                    let stream = stream.upgrade_client(wire_protocol).await?;
-                    Some(stream)
+                    // Upgrade and split
+                    let (rx, tx) = wire_protocol.upgrade_client_and_split(stream).await?;
+                    Some((rx, tx))
                 };
 
                 #[cfg(all(feature = "enable_web_sys", not(feature = "enable_full")))]
@@ -263,12 +264,13 @@ async fn mesh_connect_prepare(
 
             // Build the stream
             trace!("splitting stream into rx/tx");
-            let (mut stream_rx, mut stream_tx) = stream.split();
+            let (stream_rx,
+                 stream_tx) = stream;
 
             // Say hello
-            let hello_metadata = hello::mesh_hello_exchange_sender(
-                &mut stream_rx,
-                &mut stream_tx,
+            let (proto, hello_metadata) = hello::mesh_hello_exchange_sender(
+                stream_rx,
+                stream_tx,
                 node_id,
                 hello_path.clone(),
                 domain.clone(),
@@ -277,14 +279,13 @@ async fn mesh_connect_prepare(
             .await?;
 
             // Return the result
-            return Ok((
+            return Ok(
                 MeshConnectContext {
                     addr,
-                    stream_rx,
+                    proto,
                     hello_metadata,
-                },
-                stream_tx,
-            ));
+                }
+            );
         }
     }
     .instrument(tracing::info_span!("connect"))
@@ -292,7 +293,9 @@ async fn mesh_connect_prepare(
 }
 
 async fn mesh_connect_worker<M, C>(
-    connect: MeshConnectContext,
+    rx: StreamRx,
+    rx_proto: StreamProtocol,
+    wire_format: SerializationFormat,
     sock_addr: MeshConnectAddr,
     wire_encryption: Option<EncryptKey>,
     node_id: NodeId,
@@ -311,17 +314,17 @@ async fn mesh_connect_worker<M, C>(
         id = node_id.to_short_string().as_str(),
         peer = peer_id.to_short_string().as_str()
     );
-    let wire_format = connect.hello_metadata.wire_format;
 
     let context = Arc::new(C::default());
     match process_inbox::<M, C>(
-        connect.stream_rx,
+        rx,
+        rx_proto,
         inbox,
         metrics,
         throttle,
         node_id,
         peer_id,
-        sock_addr,
+        sock_addr.clone(),
         context,
         wire_format,
         wire_encryption,
@@ -347,5 +350,5 @@ async fn mesh_connect_worker<M, C>(
     let _span = span.enter();
 
     //#[cfg(feature = "enable_verbose")]
-    debug!("disconnected-inbox: node-id={} addr={}", node_id.to_short_string().as_str(), connect.addr.to_string());
+    debug!("disconnected-inbox: node-id={} addr={}", node_id.to_short_string().as_str(), sock_addr.to_string());
 }

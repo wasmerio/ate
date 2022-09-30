@@ -45,6 +45,12 @@ pub struct ConfMesh {
     /// Forces ATE to listen on a specific port
     #[cfg(feature = "enable_server")]
     pub force_port: Option<u16>,
+    /// When listening for connections the minimum level of encryption to
+    /// force clients to upgrade to during handshaking.
+    /// Note: Settings this value may mean that some connections (e.g. browser)
+    /// and rely on TLS encryption may not be able to connect
+    #[cfg(feature = "enable_server")]
+    pub listen_min_encryption: Option<KeySize>,
     /// When listening for connections the server will use the certificate
     /// below when establishing secure connections.
     #[cfg(feature = "enable_server")]
@@ -123,7 +129,7 @@ impl ConfMesh {
         listen_port: Option<u16>,
         domain: String,
         connect_port: u16,
-        node_id: Option<u32>,
+        node_id: Option<u32>
     ) -> Result<ConfMesh, CommsError> {
         let registry = Registry::new(cfg_ate).await;
         let addr = MeshAddress::new(listen.clone(), connect_port);
@@ -216,6 +222,8 @@ impl ConfMesh {
             domain_name: domain_name.to_string(),
             remote,
             certificate_validation: CertificateValidation::AllowedCertificates(Vec::new()),
+            #[cfg(feature = "enable_server")]
+            listen_min_encryption: None,
             #[cfg(feature = "enable_server")]
             listen_certificate: None,
             #[cfg(feature = "enable_client")]
