@@ -73,6 +73,9 @@ The input you supplied was invalid"#;
 The username must be a valid email address
 (e.g. ssh joe@blogs.com@wasmer.sh)"#;
 
+    pub const SSH_LOGIN_DISABLE: &'static str = r#"
+wasmer.sh does not yet support authentication methods"#;
+
     pub const SSH_PASSWORD_MISMATCH: &'static str = r#"
 The two passwords you supplied did not match"#;
 

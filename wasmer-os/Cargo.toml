@@ -13,7 +13,7 @@ readme = "../README.md"
 default = [ ]
 js = [ "wasmer/js-default", "wasmer/js-serializable-module", "wasmer-wasi/js-default" ]
 #sys = [ "wasmer/sys-default", "wasmer-wasi/sys", "wasmer-wasi/logging", "tokio/rt-multi-thread", "wasmer-bus-tty/sys", "wasmer-bus-ws/sys" ]
-sys = [ "wasmer/sys-default", "wasmer-wasi/sys", "wasmer-wasi/logging", "tokio/rt-multi-thread" ]
+sys = [ "wasmer/sys-default", "wasmer-wasi/sys", "wasmer-wasi/logging", "tokio/rt-multi-thread", "webc/mmap" ]
 host-net = [ "wasmer-wasi-local-networking", "wasmer-wasi/host-vnet" ]
 mesh-net = [ ]
 llvm = [ "wasmer-compiler-llvm", "wasmer-compiler" ]
@@ -45,6 +45,8 @@ wasmer-compiler-llvm = { version = "3.0.0-beta.2", path = "../../../wasmer/lib/c
 wasmer-compiler-singlepass = { version = "3.0.0-beta.2", path = "../../../wasmer/lib/compiler-singlepass", optional = true }
 wasmer-compiler = { version = "3.0.0-beta.2", path = "../../../wasmer/lib/compiler", features = [ "translator" ], optional = true }
 wasmer-wasi-local-networking = { version = "3.0.0-beta.2", path = "../../../wasmer/lib/wasi-local-networking", optional = true }
+webc = { version = "0.1", path = "../../../pirita/crates/webc" }
+webc-vfs = { version = "0.1", path = "../../../pirita/crates/webc-vfs" }
 
 chrono = { version = "^0.4", git = "https://github.com/john-sharratt/chrono.git" }
 tracing = { version = "^0.1" }
@@ -81,6 +83,7 @@ serde_yaml = { version = "^0.8" }
 include_dir = "0.7.2"
 shellexpand = "^2"
 weezl = "^0.1"
+urlencoding = "^2"
 
 [build-dependencies]
 build-deps = "^0.1"

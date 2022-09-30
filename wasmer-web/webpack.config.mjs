@@ -13,6 +13,7 @@ export default {
       patterns: [
         { from: resolve(__dirname, "node_modules/xterm/css/xterm.css") },
         { from: resolve(__dirname, "node_modules/xterm/lib/xterm.js.map") },
+        { from: resolve(__dirname, "public") },
       ],
     }),
     new WasmPackPlugin({

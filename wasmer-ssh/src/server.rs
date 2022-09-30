@@ -1,18 +1,16 @@
-use ate::prelude::*;
 use std::net::IpAddr;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 use wasmer_os::api::ConsoleRect;
 use thrussh::server;
-use tokio::sync::watch;
 use wasmer_term::wasmer_os;
 use wasmer_os::bin_factory::CachedCompiledModules;
-use crate::native_files::NativeFileInterface;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
 
 use crate::key::SshServerKey;
+use crate::native_files::NativeFileType;
 use crate::opt::*;
 use crate::wizard::*;
 
@@ -22,19 +20,18 @@ pub struct Server {
     pub server_key: SshServerKey,
     pub connection_timeout: Duration,
     pub auth_rejection_time: Duration,
+    pub engine: Option<wasmer_os::wasmer::Engine>,
     pub compiler: wasmer_os::eval::Compiler,
-    pub registry: Arc<Registry>,
-    pub native_files: NativeFileInterface,
-    pub auth: url::Url,
+    pub native_files: NativeFileType,
     pub compiled_modules: Arc<CachedCompiledModules>,
-    pub exit_rx: watch::Receiver<bool>,
+    pub webc_dir: Option<String>,
     pub stdio_lock: Arc<Mutex<()>>,
 }
 
 impl Server {
-    pub async fn new(host: OptsHost, server_key: SshServerKey, registry: Arc<Registry>, compiled_modules: Arc<CachedCompiledModules>, native_files: NativeFileInterface, rx_exit: watch::Receiver<bool>) -> Self {
-        // Succes
-        let auth = wasmer_auth::prelude::origin_url(&host.auth_url, "auth");
+    pub async fn new(host: OptsHost, server_key: SshServerKey, compiled_modules: Arc<CachedCompiledModules>, webc_dir: Option<String>, native_files: NativeFileType) -> Self {
+        // Success
+        let engine = host.compiler.new_engine();
         Self {
             native_files,
             listen: host.listen,
@@ -43,10 +40,9 @@ impl Server {
             connection_timeout: Duration::from_secs(600),
             auth_rejection_time: Duration::from_secs(0),
             compiler: host.compiler,
-            registry,
-            auth,
+            engine,
             compiled_modules,
-            exit_rx: rx_exit,
+            webc_dir,
             stdio_lock: Arc::new(Mutex::new(())),
         }
     }
@@ -79,14 +75,11 @@ impl server::Server for Server {
         let mut wizard = SshWizard {
             step: SshWizardStep::Init,
             state: SshWizardState::default(),
-            registry: self.registry.clone(),
-            auth: self.auth.clone(),
         };
         wizard.state.welcome = Some(super::cconst::CConst::SSH_WELCOME.to_string());
         super::handler::Handler {
             rect: Arc::new(Mutex::new(ConsoleRect { cols: 80, rows: 25 })),
-            registry: self.registry.clone(),
-            native_files: self.native_files.clone(),
+            engine: self.engine.clone(),
             compiler: self.compiler,
             console: None,
             peer_addr,
@@ -95,6 +88,7 @@ impl server::Server for Server {
             client_pubkey: None,
             wizard: Some(wizard),
             compiled_modules: self.compiled_modules.clone(),
+            webc_dir: self.webc_dir.clone(),
             stdio_lock: self.stdio_lock.clone(),
         }
     }

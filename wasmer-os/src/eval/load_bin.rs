@@ -120,8 +120,7 @@ pub async fn load_bin(
             .await
         {
             if let Ok(d) = file.read_to_end().await {
-                let d = Bytes::from(d);
-                let mut ret = BinaryPackage::new(d);
+                let mut ret = BinaryPackage::new(d.into());
                 if chroot {
                     ret.chroot = true;
                 }

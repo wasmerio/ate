@@ -20,6 +20,7 @@ pub struct ConsoleRect {
     pub rows: u32,
 }
 
+#[derive(Debug, Default)]
 pub struct ReqwestOptions {
     pub gzip: bool,
     pub cors_proxy: Option<String>,
@@ -47,6 +48,9 @@ where
 
     /// Writes output to the console
     async fn stderr(&self, data: Vec<u8>);
+
+    /// Sets the last exit code
+    async fn exit_code(&self, code: u32);
 
     /// Flushes the output to the console
     async fn flush(&self);

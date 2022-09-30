@@ -13,6 +13,8 @@ use wasmer_vbus::VirtualBusInvocation;
 use wasmer_vbus::VirtualBusInvokable;
 use wasmer_vbus::VirtualBusInvoked;
 
+use super::System;
+
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct AsyncResult<T> {
@@ -26,6 +28,47 @@ impl<T> AsyncResult<T> {
         Self { rx, format }
     }
 
+    pub fn new_static(format: SerializationFormat, ret: T) -> Self
+    where T: Send + 'static
+    {
+        let (tx_result, rx_result) = mpsc::channel(1);
+        System::default().task_shared(Box::new(move || {
+            Box::pin(async move {
+                let _ = tx_result.send(ret).await;
+            })
+        }));
+        AsyncResult::new(format, rx_result)
+    }
+
+    pub fn new_callback<F>(format: SerializationFormat, task: F) -> Self
+    where F: Fn() -> T + Send + 'static,
+          T: Send + 'static
+    {
+        let (tx_result, rx_result) = mpsc::channel(1);
+        System::default().task_dedicated_async(Box::new(move || {
+            let ret = task();
+            Box::pin(async move {
+                let _ = tx_result.send(ret).await;
+            })
+        }));
+        AsyncResult::new(format, rx_result)
+    }
+
+    pub fn new_async_callback<F>(format: SerializationFormat, task: F) -> Self
+    where F: Future<Output = T>,
+          F: Send + 'static,
+          T: Send + 'static
+    {
+        let (tx_result, rx_result) = mpsc::channel(1);
+        System::default().task_shared(Box::new(move || {
+            Box::pin(async move {
+                let ret = task.await;
+                let _ = tx_result.send(ret).await;
+            })
+        }));
+        AsyncResult::new(format, rx_result)
+    }
+    
     pub fn block_on(mut self) -> Option<T> {
         self.rx.blocking_recv()
     }

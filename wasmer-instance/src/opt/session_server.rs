@@ -46,6 +46,9 @@ pub struct OptsSessionServer {
     /// Determines which compiler to use
     #[clap(short, long, default_value = "default")]
     pub compiler: wasmer_os::eval::Compiler,
+    /// Location where webc files will be stored
+    #[clap(long, default_value = "~/wasmer/webc")]
+    pub webc_dir: String,
     /// Time-to-live for sessions that are initiated
     #[clap(long, default_value = "300")]
     pub ttl: u64,

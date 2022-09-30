@@ -9,7 +9,9 @@ pub enum WizardAction {
         instructions: String,
         prompts: Vec<WizardPrompt>,
     },
-    Shell,
+    Shell {
+        with_message: Option<String>,
+    },
     Terminate {
         with_message: Option<String>,
     },

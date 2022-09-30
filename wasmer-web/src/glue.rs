@@ -178,6 +178,7 @@ pub fn start(
         None,
         fs,
         compiled_modules,
+        None,
     );
     let tty = console.tty().clone();
 
@@ -335,7 +336,7 @@ pub fn start(
                         last = Some((data.clone(), now))
                     }
 
-                    console.on_data(data).await;
+                    console.on_data(data.as_bytes()).await;
                 }
             }
         }

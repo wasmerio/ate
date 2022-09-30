@@ -34,6 +34,9 @@ struct Opts {
     /// Location where cached compiled modules are stored
     #[clap(long, default_value = "~/wasmer/compiled")]
     pub compiler_cache_path: String,
+    /// Location where webc files will be stored
+    #[clap(long, default_value = "~/wasmer/webc")]
+    pub webc_dir: String,
     /// Uses a local directory for native files rather than the published ate chain
     #[clap(long)]
     pub native_files_path: Option<String>,
@@ -82,7 +85,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let compiled_modules = Arc::new(CachedCompiledModules::new(Some(opts.compiler_cache_path)));
 
     // If a command is passed in then pass it into the console
+    let mut exit_on_return_to_shell = false;
     let location = if let Some(run) = opts.run {
+        exit_on_return_to_shell = true;
         format!("wss://localhost/?no_welcome&init={}", run)
     } else {
         format!("wss://localhost/")
@@ -92,6 +97,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let fs = wasmer_os::fs::create_root_fs(None);
     let con = con.clone();
     let compiler = opts.compiler;
+    let engine = compiler.new_engine();
     sys.block_on(async move {
         let user_agent = "noagent".to_string();
         let mut console = Console::new(
@@ -102,7 +108,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             None,
             fs,
             compiled_modules,
+            Some(opts.webc_dir),
         );
+        if let Some(engine) = engine {
+            console = console.with_engine(engine);
+        }
+        console.set_exit_on_return_to_shell(exit_on_return_to_shell);
         console.init().await;
 
         // Process data until the console closes
@@ -110,7 +121,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             select! {
                 data = rx_data.recv() => {
                     if let Some(data) = data {
-                        console.on_data(data).await;
+                        console.on_data(data.as_bytes()).await;
                     } else {
                         break;
                     }

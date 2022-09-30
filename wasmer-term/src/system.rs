@@ -68,6 +68,10 @@ impl SysSystem {
         }
     }
 
+    pub fn exit(&self) {
+        let _ = self.exit_tx.send(true);
+    }
+
     pub fn block_on<F: Future>(&self, future: F) -> F::Output {
         self.runtime.block_on(async move {
             future.await
@@ -346,6 +350,10 @@ impl ConsoleAbi for SysSystem {
         if let Ok(mut stderr) = io::stderr().guard_mode() {
             stderr.flush().unwrap();
         }
+    }
+
+    async fn exit_code(&self, _code: u32) {
+
     }
 
     /// Writes output to the log

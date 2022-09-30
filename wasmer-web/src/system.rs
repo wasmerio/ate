@@ -222,6 +222,9 @@ impl ConsoleAbi for WebConsole {
         }
     }
 
+    async fn exit_code(&self, _code: u32) {
+    }
+
     async fn flush(&self) {}
 
     async fn log(&self, text: String) {

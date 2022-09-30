@@ -20,15 +20,9 @@ pub struct OptsHost {
     /// Location where cached compiled modules are stored
     #[clap(long, default_value = "~/wasmer/compiled")]
     pub compiler_cache_path: String,
-    /// URL of the datachain servers (e.g. wss://wasmer.sh/db)
-    #[clap(long)]
-    pub db_url: Option<url::Url>,
-    /// URL of the authentication servers (e.g. wss://wasmer.sh/auth)
-    #[clap(long)]
-    pub auth_url: Option<url::Url>,
-    /// Location where the native binary files are stored
-    #[clap(long, default_value = "wasmer.sh/www")]
-    pub native_files: String,
+    /// Location where webc files will be stored
+    #[clap(long, default_value = "~/wasmer/webc")]
+    pub webc_dir: String,
     /// Uses a local directory for native files rather than the published ate chain
     #[clap(long)]
     pub native_files_path: Option<String>,

@@ -49,6 +49,9 @@ for ConsoleHandle
         let _ = handle.flush(channel).await;
     }
 
+    async fn exit_code(&self, _code: u32) {
+    }
+
     /// Writes output to the log
     async fn log(&self, text: String) {
         use raw_tty::GuardMode;
