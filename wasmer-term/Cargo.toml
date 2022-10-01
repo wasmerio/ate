@@ -6,7 +6,7 @@ edition = "2021"
 description = "Wasmer Terminal built on WASMER and ATE that runs locally"
 license = "MIT OR Apache-2.0"
 keywords = [ "wasm", "browser", "terminal" ]
-repository = "https://github.com/john-sharratt/ate"
+repository = "https://github.com/wasmerio/ate"
 readme = "../README.md"
 
 [features]

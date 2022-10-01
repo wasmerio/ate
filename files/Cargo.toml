@@ -7,7 +7,7 @@ description = "Model and helper functions for access files stored in ATEs"
 license = "MIT OR Apache-2.0"
 keywords = ["immutable", "filesystem", "fs" ]
 categories = ["filesystem", "database", "development-tools"]
-repository = "https://github.com/john-sharratt/ate/tree/master/wasmer-dfs"
+repository = "https://github.com/wasmerio/ate/tree/master/wasmer-dfs"
 readme = "README.md"
 
 [features]

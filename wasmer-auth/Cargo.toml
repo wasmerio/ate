@@ -7,7 +7,7 @@ description = "Represents a standardized data model and API for authenticating a
 license = "MIT OR Apache-2.0"
 keywords = [ "authentication", "cli", "authorization", "crypto" ]
 categories = [ "data-structures", "command-line-utilities", "authentication", "cryptography" ]
-repository = "https://github.com/john-sharratt/ate/auth"
+repository = "https://github.com/wasmerio/ate/auth"
 readme = "README.md"
 
 [[bin]]

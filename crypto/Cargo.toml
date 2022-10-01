@@ -7,7 +7,7 @@ description = "Provides all the cryptographic functions"
 license = "MIT OR Apache-2.0"
 keywords = [ "cryptography" ]
 categories = [ "cryptography" ]
-repository = "https://github.com/john-sharratt/ate"
+repository = "https://github.com/wasmerio/ate"
 readme = "README.md"
 
 [features]

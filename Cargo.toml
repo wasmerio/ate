@@ -44,6 +44,16 @@ members = [
 
 [patch.crates-io]
 tokio = { git = "https://github.com/john-sharratt/tokio.git", branch = "wasix" }
-wasmer-vfs = { path = "/prog/wasmer/lib/vfs" }
+
+wasmer = { path = "../../wasmer/lib/api" }
+wasmer-wasi = { path = "../../wasmer/lib/wasi" }
+wasmer-vfs = { path = "../../wasmer/lib/vfs" }
+wasmer-compiler-cranelift = { path = "../../wasmer/lib/compiler-cranelift" }
+wasmer-compiler-llvm = { path = "../../wasmer/lib/compiler-llvm" }
+wasmer-compiler-singlepass = { path = "../../wasmer/lib/compiler-singlepass" }
+wasmer-compiler = { path = "../../wasmer/lib/compiler" }
+wasmer-emscripten = { path = "../../wasmer/lib/emscripten" }
+wasmer-wasi-local-networking = { path = "../../wasmer/lib/wasi-local-networking" }
+
 #tokio = { path = "/prog/tokio/tokio" }
 

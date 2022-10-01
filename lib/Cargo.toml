@@ -7,7 +7,7 @@ description = "Distributed immutable data store with strong encryption and authe
 license = "MIT OR Apache-2.0"
 keywords = ["immutable", "database", "crypto", "nosql", "async"]
 categories = ["asynchronous", "caching", "cryptography", "database-implementations"]
-repository = "https://github.com/john-sharratt/ate"
+repository = "https://github.com/wasmerio/ate"
 readme = "../README.md"
 
 [features]
