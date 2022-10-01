@@ -1,6 +1,5 @@
 #![allow(unused_imports)]
 #![allow(dead_code)]
-use futures::FutureExt;
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::atomic::AtomicBool;
