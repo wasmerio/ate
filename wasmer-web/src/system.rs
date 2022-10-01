@@ -110,6 +110,14 @@ impl SystemAbi for WebSystem {
     }
 
     fn fetch_file(&self, path: &str) -> AsyncResult<Result<Vec<u8>, u32>> {
+        let mut path = path.to_string();
+        if path.starts_with("/bin/") == false {
+            path = format!("/bin/{}", path);
+        }
+        if path.ends_with(".wasm") == false {
+            path = format!("{}.wasm", path);
+        }
+
         let url = path.to_string();
         let headers = vec![("Accept".to_string(), "application/wasm".to_string())];
 

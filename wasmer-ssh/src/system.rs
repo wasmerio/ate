@@ -178,7 +178,7 @@ impl System
                         })?;
                     return Ok(data);
                 }
-                debug!("failed to open local file ({}) - not found", path.to_string_lossy(), err);
+                debug!("failed to open local file ({}) - not found", path);
                 return Err(err::ERR_EIO);
             };
             Box::pin(async move {
