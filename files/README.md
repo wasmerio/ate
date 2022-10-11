@@ -8,7 +8,7 @@ from the distributed redo log..
 
 ## What is ATE
 
-[See here](https://github.com/john-sharratt/ate/blob/master/README.md)
+[See here](https://github.com/wasmerio/ate/blob/master/README.md)
 
 ## Contribution
 

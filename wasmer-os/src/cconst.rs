@@ -55,6 +55,7 @@ impl Tty {
     pub const TERM_NO_WRAPAROUND: &'static str = "\x1b[?7l";
     pub const TERM_NO_REVERSE_WRAPAROUND: &'static str = "\x1b[?45l";
 
+    pub const COL_BOLD: &'static str = "\x1B[34;1m";
     pub const COL_RESET: &'static str = "\x1B[0m";
     pub const COL_BLACK: &'static str = "\x1B[0;30m";
     pub const COL_GRAY: &'static str = "\x1B[1;30m";

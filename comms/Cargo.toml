@@ -7,7 +7,7 @@ description = "Provides the communication library integrates with ate"
 license = "MIT OR Apache-2.0"
 keywords = [ "networking" ]
 categories = [ "networking" ]
-repository = "https://github.com/john-sharratt/ate"
+repository = "https://github.com/wasmerio/ate"
 readme = "README.md"
 
 [features]

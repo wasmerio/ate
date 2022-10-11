@@ -41,6 +41,11 @@ export function startWasm(module, memory, ctx, opts, helper, wasm_module, wasm_m
     });
 }
 
+
+export function sleep(ms) {
+return new Promise((resolve) => setTimeout(resolve, ms));
+}
+  
 export function isWorker() {
     return 'WorkerGlobalScope' in self && self instanceof WorkerGlobalScope;
 }

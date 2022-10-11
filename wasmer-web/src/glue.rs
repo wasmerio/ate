@@ -1,4 +1,5 @@
 use chrono::prelude::*;
+use std::collections::HashMap;
 use wasmer_os::bin_factory::CachedCompiledModules;
 use std::sync::Arc;
 use wasmer_os::api::*;
@@ -43,18 +44,54 @@ pub fn main() {
 #[derive(Debug)]
 pub enum InputEvent {
     Key(KeyboardEvent),
+    Command(String, Option<js_sys::Function>, Option<js_sys::Object>),
     Data(String),
 }
 
 #[wasm_bindgen]
-pub fn start() -> Result<(), JsValue> {
+pub struct ConsoleInput {
+    tx: mpsc::Sender<InputEvent>,
+    terminal: Terminal,
+}
+
+#[wasm_bindgen]
+impl ConsoleInput {
+    #[wasm_bindgen]
+    pub fn send_command(
+        &self,
+        data: String,
+        func: Option<js_sys::Function>,
+        env: Option<js_sys::Object>,
+    ) {
+        self.tx
+            .blocking_send(InputEvent::Command(data, func, env))
+            .unwrap();
+    }
+
+    #[wasm_bindgen]
+    pub fn send_data(&self, data: String) {
+        self.tx.blocking_send(InputEvent::Data(data)).unwrap();
+    }
+
+    #[wasm_bindgen(method, getter)]
+    pub fn terminal(&self) -> JsValue {
+        self.terminal.clone()
+    }
+}
+
+#[wasm_bindgen]
+pub fn start(
+    terminal_element: web_sys::Element,
+    front_buffer: HtmlCanvasElement,
+    init_command: Option<String>,
+    on_ready: Option<js_sys::Function>,
+) -> Result<ConsoleInput, JsValue> {
     #[wasm_bindgen]
     extern "C" {
         #[wasm_bindgen(js_namespace = navigator, js_name = userAgent)]
         static USER_AGENT: String;
     }
 
-    //ate::log_init(0i32, false);
     tracing_wasm::set_as_global_default_with_config(
         tracing_wasm::WASMLayerConfigBuilder::new()
             .set_report_logs_in_timings(false)
@@ -73,7 +110,17 @@ pub fn start() -> Result<(), JsValue> {
             .with_font_size(16u32)
             .with_draw_bold_text_in_bright_colors(true)
             .with_right_click_selects_word(true)
-            .with_theme(&Theme::new()),
+            .with_transparency(true)
+            .with_font_size(17)
+            .with_font_family("Zeitung Mono Pro")
+            .with_theme(
+                &Theme::new()
+                    .with_background("#23104400")
+                    .with_foreground("#ffffff")
+                    .with_black("#fdf6e3")
+                    .with_green("#02C39A")
+                    .with_cyan("#4AB3FF"),
+            ),
     );
 
     let window = web_sys::window().unwrap();
@@ -83,13 +130,7 @@ pub fn start() -> Result<(), JsValue> {
     let is_mobile = wasmer_os::common::is_mobile(&user_agent);
     debug!("user_agent: {}", user_agent);
 
-    let elem = window
-        .document()
-        .unwrap()
-        .get_element_by_id("terminal")
-        .unwrap();
-
-    terminal.open(elem.clone().dyn_into()?);
+    terminal.open(terminal_element.dyn_into()?);
 
     let (term_tx, mut term_rx) = mpsc::channel(MAX_MPSC);
     {
@@ -116,15 +157,6 @@ pub fn start() -> Result<(), JsValue> {
         });
     }
 
-    let front_buffer = window
-        .document()
-        .unwrap()
-        .get_element_by_id("frontBuffer")
-        .unwrap();
-    let front_buffer: HtmlCanvasElement = front_buffer
-        .dyn_into::<HtmlCanvasElement>()
-        .map_err(|_| ())
-        .unwrap();
     let webgl2 = front_buffer
         .get_context("webgl2")?
         .unwrap()
@@ -231,7 +263,18 @@ pub fn start() -> Result<(), JsValue> {
     terminal.focus();
 
     system.fork_local(async move {
-        console.init().await;
+        let x = on_ready.clone();
+        console
+            .init(
+                init_command,
+                Some(Box::new(move |code: u32| {
+                    if let Some(on_ready) = on_ready {
+                        let this = JsValue::null();
+                        on_ready.call1(&this, &code.into());
+                    }
+                })),
+            )
+            .await;
 
         crate::glue::show_terminal();
 
@@ -248,6 +291,35 @@ pub fn start() -> Result<(), JsValue> {
                             event.meta_key(),
                         )
                         .await;
+                }
+                InputEvent::Command(data, func, envs) => {
+                    console.stop_maybe_running_job().await;
+                    if let Some(envs) = envs {
+                        let hashmap_envs: HashMap<String, String> = js_sys::Object::entries(&envs)
+                            .to_vec()
+                            .into_iter()
+                            .map(|entry| {
+                                let entry_as_jsarray: js_sys::Array = entry.dyn_into().unwrap();
+                                let key = entry_as_jsarray.get(0).as_string().unwrap();
+                                (
+                                    key.clone(),
+                                    entry_as_jsarray.get(1).as_string().expect(
+                                        format!("They value for {} is not a string", &key).as_str(),
+                                    ),
+                                )
+                            })
+                            .collect();
+                        console.set_envs(&hashmap_envs);
+                    }
+                    console.on_data(data).await;
+                    console
+                        .on_enter_with_callback(Some(Box::new(move |code: u32| {
+                            let this = JsValue::null();
+                            if let Some(func) = func {
+                                func.call1(&this, &code.into());
+                            }
+                        })))
+                        .await
                 }
                 InputEvent::Data(data) => {
                     // Due to a nasty bug in xterm.js on Android mobile it sends the keys you press
@@ -270,7 +342,7 @@ pub fn start() -> Result<(), JsValue> {
         }
     });
 
-    Ok(())
+    Ok(ConsoleInput { tx: tx, terminal })
 }
 
 #[wasm_bindgen(module = "/js/fit.ts")]

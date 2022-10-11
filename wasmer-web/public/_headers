@@ -1,0 +1,3 @@
+/*
+  cross-origin-embedder-policy: require-corp
+  cross-origin-opener-policy: same-origin

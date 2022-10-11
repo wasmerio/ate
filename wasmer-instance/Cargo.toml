@@ -9,7 +9,7 @@ keywords = [
     "ssh-server",
     "wasm"
 ]
-repository = "https://github.com/john-sharratt/ate/tree/master/wasmer-instance"
+repository = "https://github.com/wasmerio/ate/tree/master/wasmer-instance"
 readme = "README.md"
 
 [features]

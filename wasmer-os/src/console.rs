@@ -2,10 +2,11 @@
 #![allow(dead_code)]
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::sync::atomic::AtomicBool;
 use tokio::sync::mpsc;
+use tokio::sync::oneshot;
 use tokio::sync::RwLock;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
@@ -56,9 +57,7 @@ pub struct Console {
     exit_on_return_to_shell: bool
 }
 
-impl Drop
-for Console
-{
+impl Drop for Console {
     fn drop(&mut self) {
         let state = self.state.clone();
         let reactor = self.reactor.clone();
@@ -93,7 +92,7 @@ impl Console {
             cache_webc_dir
         );
         let reactor = Arc::new(RwLock::new(Reactor::new()));
-        
+
         Self::new_ext(
             location,
             user_agent,
@@ -214,7 +213,11 @@ impl Console {
         Console::update_prompt(false, &self.state, &self.tty).await;
     }
 
-    pub async fn init(&mut self) {
+    pub async fn init(
+        &mut self,
+        run_command: Option<String>,
+        callback: Option<Box<dyn FnOnce(u32)>>,
+    ) {
         let mut location_file = self
             .state
             .lock()
@@ -229,13 +232,6 @@ impl Console {
         location_file
             .write_all(self.location.as_str().as_bytes())
             .unwrap();
-
-        let run_command = self
-            .location
-            .query_pairs()
-            .filter(|(key, _)| key == "run-command" || key == "init")
-            .next()
-            .map(|(_, val)| val.to_string());
 
         if let Some(run_command) = &run_command {
             let mut init_file = self
@@ -256,11 +252,11 @@ impl Console {
         if self.wizard.is_some() {
             self.on_wizard(None).await;
         } else {
-            self.start_shell().await;
+            self.start_shell(callback).await;
         }
     }
 
-    pub async fn start_shell(&mut self) {
+    pub async fn start_shell(&mut self, callback: Option<Box<dyn FnOnce(u32)>>) {
         if self.whitelabel == false && self.no_welcome == false {
             self.tty.draw_welcome().await;
         }
@@ -279,9 +275,9 @@ impl Console {
             } else {
                 format!("login --token {}", token)
             };
-            self.on_enter_internal(cmd, false).await;
+            self.on_enter_internal(cmd, false, callback).await;
         } else if has_init {
-            self.on_enter_internal("source /bin/init".to_string(), false)
+            self.on_enter_internal("source /bin/init".to_string(), false, callback)
                 .await;
         } else {
             self.tty.draw_prompt().await;
@@ -359,8 +355,6 @@ impl Console {
                 state.path.clone(),
                 Vec::new(),
                 state.rootfs.clone(),
-                #[cfg(feature = "sys")]
-                self.engine.clone(),
                 self.compiler,
                 None
             )
@@ -388,7 +382,7 @@ impl Console {
                         }
                     }
 
-                    self.start_shell().await;
+                    self.start_shell(None).await;
                     return;
                 }
             }
@@ -396,6 +390,10 @@ impl Console {
     }
 
     pub async fn on_enter(&mut self) {
+        self.on_enter_with_callback(None).await;
+    }
+
+    pub async fn on_enter_with_callback(&mut self, callback: Option<Box<dyn FnOnce(u32)>>) {
         self.tty.set_cursor_to_end().await;
         let cmd = self.tty.get_paragraph().await;
 
@@ -406,10 +404,29 @@ impl Console {
 
         self.tty.draw("\r\n").await;
 
-        self.on_enter_internal(cmd, true).await
+        self.on_enter_internal(cmd, true, callback).await
     }
 
-    pub async fn on_enter_internal(&mut self, mut cmd: String, record_history: bool) {
+    pub fn set_env(&mut self, key: &str, value: &str) {
+        let mut state = self.state.lock().unwrap();
+        state.env.set_var(key, value.to_string());
+        state.env.export(key);
+    }
+
+    pub fn set_envs(&mut self, envs: &HashMap<String, String>) {
+        let mut state = self.state.lock().unwrap();
+        envs.iter().for_each(|(k, v)| {
+            state.env.set_var(k, v.to_string());
+            state.env.export(k);
+        });
+    }
+
+    pub async fn on_enter_internal(
+        &mut self,
+        mut cmd: String,
+        record_history: bool,
+        callback: Option<Box<dyn FnOnce(u32)>>,
+    ) {
         let mode = self.tty.mode().await;
         if let TtyMode::StdIn(job) = mode {
             cmd += "\n";
@@ -454,6 +471,15 @@ impl Console {
         let state = self.state.clone();
         let mut stdout = ctx.stdout.clone();
         let mut stderr = ctx.stderr.clone();
+
+        let (code_sender, code_receiver) = oneshot::channel::<u32>();
+
+        if let Some(callback) = callback {
+            system.fork_local(code_receiver.map(|code| {
+                callback(code.unwrap());
+            }));
+        }
+
         let abi = ctx.abi.clone();
         let exit_on_return_to_shell = self.exit_on_return_to_shell;
         system.fork_dedicated_async(move || {
@@ -476,13 +502,15 @@ impl Console {
 
                 // Process the result
                 let mut multiline_input = false;
-                if let Some(rx) = rx {
-                    match rx.status {
+                let finished = if let Some(rx) = rx {
+                    let code = match rx.status {
                         EvalStatus::Executed { code, show_result } => {
                             debug!("eval executed (code={})", code);
                             let should_line_feed = {
                                 let state = state.lock().unwrap();
-                                state.unfinished_line.load(std::sync::atomic::Ordering::Acquire)
+                                state
+                                    .unfinished_line
+                                    .load(std::sync::atomic::Ordering::Acquire)
                             };
 
                             if record_history {
@@ -497,21 +525,25 @@ impl Console {
                             } else if should_line_feed {
                                 tty.draw("\r\n").await;
                             }
+                            Some(code)
                         }
                         EvalStatus::InternalError => {
                             debug!("eval internal error");
                             tty.draw("term: internal error\r\n").await;
+                            None
                         }
                         EvalStatus::MoreInput => {
                             debug!("eval more input");
                             multiline_input = true;
                             tty.add(cmd.as_str()).await;
+                            None
                         }
                         EvalStatus::Invalid => {
                             debug!("eval invalid");
                             tty.draw("term: invalid command\r\n").await;
+                            None
                         }
-                    }
+                    };
 
                     // Process any changes to the global state
                     {
@@ -524,11 +556,13 @@ impl Console {
                         state.path = ctx.working_dir;
                         state.last_return = ctx.last_return;
                     }
+                    code
                 } else {
                     debug!("eval recv erro");
                     abi.exit_code(1u32).await;
                     tty.draw(format!("term: command failed\r\n").as_str()).await;
-                }
+                    None
+                };
 
                 // If we are to exit then do so
                 if exit_on_return_to_shell {
@@ -538,6 +572,9 @@ impl Console {
                     tty.reset_line().await;
                     Console::update_prompt(multiline_input, &state, &tty).await;
                     tty.draw_prompt().await;
+                    if let Some(code) = finished {
+                        code_sender.send(code).unwrap();
+                    }
                 }
             }
         });
@@ -698,6 +735,24 @@ impl Console {
         // Do nothing for now
     }
 
+    pub async fn stop_maybe_running_job(&mut self) {
+        let mode = self.tty.mode().await;
+        match mode {
+            TtyMode::StdIn(job) => {
+                // let mut reactor = self.reactor.write().await;
+                // job.terminate(
+                //     &mut reactor,
+                //     std::num::NonZeroU32::new(err::ERR_TERMINATED).unwrap(),
+                // );
+                self.on_ctrl_c(Some(job)).await;
+                // let forced_exit = caller_ctx.get_forced_exit();
+                // let forced_exit = forced_exit.load(Ordering::Acquire);
+                // self.reactor.write().await.clear();
+            }
+            _ => {}
+        }
+    }
+
     /// Puts the console into RAW mode which will send the
     /// bytes to the subprocess without changing the,
     pub fn set_raw_mode(&self, val: bool) {
@@ -735,8 +790,7 @@ impl Console {
                     // Ctrl-C is not fed to the process and always actioned
                     if data == b"0x03" {
                         self.on_ctrl_c(Some(job)).await
-                    }
-                    else {
+                    } else {
                         self.on_parse(&data, Some(job)).await
                     }
 

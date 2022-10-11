@@ -6,7 +6,7 @@ edition = "2021"
 description = "WebAssembly MIO"
 license = "MIT OR Apache-2.0"
 keywords = [ "wasi", "wasm", "opengl", "webgl" ]
-repository = "https://github.com/john-sharratt/ate"
+repository = "https://github.com/wasmerio/ate"
 readme = "README.md"
 
 [features]

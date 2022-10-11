@@ -1,0 +1,30 @@
+name: CI
+on:
+  push:
+    branches: [ wapm ]
+  pull_request:
+    branches: [ wapm ]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_MIN_STACK: 20971520
+
+jobs:
+  tokterm:
+    name: Build Wapm Shell
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+    - name: Build
+      run: |
+        cd tokterm
+        npm install
+        npm run build
+        cp -r public/* dist/
+    - name: Publish documentation
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: tokterm/dist

@@ -6,7 +6,7 @@ edition = "2021"
 description = "Terminal Library built on WASMER and ATE"
 license = "MIT OR Apache-2.0"
 keywords = [ "wasm", "browser", "terminal" ]
-repository = "https://github.com/john-sharratt/ate"
+repository = "https://github.com/wasmerio/ate"
 readme = "../README.md"
 
 [features]
@@ -24,29 +24,30 @@ async_ws = [ ]
 [dependencies]
 wasmer-os-grammar = { version = "^0.1", path = "../wasmer-os-grammar", package = "wasmer-os-grammar" }
 
-#wasmer = { version = "3.0.0-beta", git = "https://github.com/john-sharratt/wasmer.git", branch = "wasmer3-wasix", default-features = false, features = [ "wat"] }
-#wasmer-wasi = { version = "3.0.0-beta", git = "https://github.com/john-sharratt/wasmer.git", branch = "wasmer3-wasix", default-features = false, features = [ "mem-fs" ] }
-#wasmer-vfs = { version = "3.0.0-beta", git = "https://github.com/john-sharratt/wasmer.git", branch = "wasmer3-wasix", default-features = false, features = ["mem-fs"] }
-#wasmer-vnet = { version = "3.0.0-beta", git = "https://github.com/john-sharratt/wasmer.git", branch = "wasmer3-wasix", default-features = false }
-#wasmer-vbus = { version = "3.0.0-beta", git = "https://github.com/john-sharratt/wasmer.git", branch = "wasmer3-wasix", default-features = false }
-#wasmer-compiler-cranelift = { version = "3.0.0-beta", git = "https://github.com/john-sharratt/wasmer.git", branch = "wasmer3-wasix", optional = true }
-#wasmer-compiler-llvm = { version = "3.0.0-beta", git = "https://github.com/john-sharratt/wasmer.git", branch = "wasmer3-wasix", optional = true }
-#wasmer-compiler-singlepass = { version = "3.0.0-beta", git = "https://github.com/john-sharratt/wasmer.git", branch = "wasmer3-wasix", optional = true }
-#wasmer-compiler = { version = "3.0.0-beta", git = "https://github.com/john-sharratt/wasmer.git", branch = "wasmer3-wasix", features = [ "translator" ], optional = true }
-#wasmer-wasi-local-networking = { version = "3.0.0-beta", git = "https://github.com/john-sharratt/wasmer.git", branch = "wasmer3-wasix", optional = true }
+wasmer = { version = "3.0.0-beta", git = "https://github.com/wasmerio/wasmer.git", branch = "wasix", default-features = false, features = [ "wat"] }
+wasmer-wasi = { version = "3.0.0-beta", git = "https://github.com/wasmerio/wasmer.git", branch = "wasix", default-features = false, features = [ "mem-fs" ] }
+wasmer-vfs = { version = "3.0.0-beta", git = "https://github.com/wasmerio/wasmer.git", branch = "wasix", default-features = false, features = ["mem-fs"] }
+wasmer-vnet = { version = "3.0.0-beta", git = "https://github.com/wasmerio/wasmer.git", branch = "wasix", default-features = false }
+wasmer-vbus = { version = "3.0.0-beta", git = "https://github.com/wasmerio/wasmer.git", branch = "wasix", default-features = false }
+wasmer-compiler-cranelift = { version = "3.0.0-beta", git = "https://github.com/wasmerio/wasmer.git", branch = "wasix", optional = true }
+wasmer-compiler-llvm = { version = "3.0.0-beta", git = "https://github.com/wasmerio/wasmer.git", branch = "wasix", optional = true }
+wasmer-compiler-singlepass = { version = "3.0.0-beta", git = "https://github.com/wasmerio/wasmer.git", branch = "wasix", optional = true }
+wasmer-compiler = { version = "3.0.0-beta", git = "https://github.com/wasmerio/wasmer.git", branch = "wasix", features = [ "translator" ], optional = true }
+wasmer-wasi-local-networking = { version = "3.0.0-beta", git = "https://github.com/wasmerio/wasmer.git", branch = "wasix", optional = true }
 
-wasmer = { version = "3.0.0-beta", path = "../../wasmer/lib/api", default-features = false, features = [ "wat", "tracing" ] }
-wasmer-wasi = { version = "3.0.0-beta", path = "../../wasmer/lib/wasi", default-features = false, features = [ "mem-fs" ] }
-wasmer-vfs = { version = "3.0.0-beta", path = "../../wasmer/lib/vfs", default-features = false, features = ["mem-fs"] }
-wasmer-vnet = { version = "3.0.0-beta", path = "../../wasmer/lib/vnet", default-features = false }
-wasmer-vbus = { version = "3.0.0-beta", path = "../../wasmer/lib/vbus", default-features = false }
-wasmer-compiler-cranelift = { version = "3.0.0-beta", path = "../../wasmer/lib/compiler-cranelift", optional = true }
-wasmer-compiler-llvm = { version = "3.0.0-beta", path = "../../wasmer/lib/compiler-llvm", optional = true }
-wasmer-compiler-singlepass = { version = "3.0.0-beta", path = "../../wasmer/lib/compiler-singlepass", optional = true }
-wasmer-compiler = { version = "3.0.0-beta", path = "../../wasmer/lib/compiler", features = [ "translator" ], optional = true }
-wasmer-wasi-local-networking = { version = "3.0.0-beta", path = "../../wasmer/lib/wasi-local-networking", optional = true }
-webc = { version = "0.1", path = "../../pirita/crates/webc" }
-webc-vfs = { version = "0.1", path = "../../pirita/crates/webc-vfs" }
+# wasmer = { version = "3.0.0-beta", path = "../../../wasmer/lib/api", default-features = false, features = [ "wat", "tracing" ] }
+# wasmer-wasi = { version = "3.0.0-beta", path = "../../../wasmer/lib/wasi", default-features = false, features = [ "mem-fs" ] }
+# wasmer-vfs = { version = "3.0.0-beta", path = "../../../wasmer/lib/vfs", default-features = false, features = ["mem-fs"] }
+# wasmer-vnet = { version = "3.0.0-beta", path = "../../../wasmer/lib/vnet", default-features = false }
+# wasmer-vbus = { version = "3.0.0-beta", path = "../../../wasmer/lib/vbus", default-features = false }
+# wasmer-compiler-cranelift = { version = "3.0.0-beta", path = "../../../wasmer/lib/compiler-cranelift", optional = true }
+# wasmer-compiler-llvm = { version = "3.0.0-beta", path = "../../../wasmer/lib/compiler-llvm", optional = true }
+# wasmer-compiler-singlepass = { version = "3.0.0-beta", path = "../../../wasmer/lib/compiler-singlepass", optional = true }
+# wasmer-compiler = { version = "3.0.0-beta", path = "../../../wasmer/lib/compiler", features = [ "translator" ], optional = true }
+# wasmer-wasi-local-networking = { version = "3.0.0-beta", path = "../../../wasmer/lib/wasi-local-networking", optional = true }
+
+webc = { version = "0.1", path = "../../../pirita/crates/webc" }
+webc-vfs = { version = "0.1", path = "../../../pirita/crates/webc-vfs" }
 
 chrono = { version = "^0.4", git = "https://github.com/john-sharratt/chrono.git" }
 tracing = { version = "^0.1" }

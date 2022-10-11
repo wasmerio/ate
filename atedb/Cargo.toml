@@ -7,7 +7,7 @@ description = "Distributed datachain (database) built on an immutable data store
 license = "MIT OR Apache-2.0"
 keywords = ["immutable", "database", "server", "async" ]
 categories = ["database", "cryptography", "database-implementations", "asynchronous"]
-repository = "https://github.com/john-sharratt/ate/atedb"
+repository = "https://github.com/wasmerio/ate/atedb"
 readme = "README.md"
 
 [features]
