@@ -16,10 +16,12 @@ readme = "README.md"
 default = []
 
 [dependencies]
+wasmer-bus-types = { version = "^1", path = "../wasmer-bus/types" }
+wasmer-wasi = { version = "3.0.0-beta", path = "../../wasmer/lib/wasi", default-features = false, features = [ "sys", "logging", "sys-thread", "host-threads", "host-reqwest", "compiler", "compiler-cranelift", "os" ] }
 clap = { version = "^3.0.0-rc.7", features = [ "derive" ] }
-tokio = { version = "1.20.1", features = [ "rt", "io-util", "macros", "sync", "time", "fs" ], default_features = false }
-#tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
-tracing = { version = "^0.1", features = [ "log" ] }
+tokio = { version = "1", features = [ "rt", "io-util", "macros", "sync", "time", "fs" ], default_features = false }
+tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
+#tracing = { version = "^0.1", features = [ "log" ] }
 tracing-futures = { version = "^0.2" }
 tracing-subscriber = { version = "^0.2" }
 thrussh = { version = "^0.33", git = "https://github.com/john-sharratt/thrussh.git" }
@@ -30,7 +32,6 @@ futures = "^0.3"
 shellexpand = "^2"
 serde = { version = "^1", features = ["derive"] }
 bincode = "^1"
-wasmer-term = { version = "^1.0", path = "../wasmer-term", default_features = false }
 async-trait = "^0.1"
 raw_tty = "0.1.0"
 regex = "^1"

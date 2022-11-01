@@ -31,7 +31,7 @@ base64 = "^0.13"
 shellexpand = "^2"
 chrono = { version = "^0.4", git = "https://github.com/john-sharratt/chrono.git", features = ["serde"] }
 derivative = { version = "^2" }
-tokio = { version = "1.20.1", features = [ "macros", "sync" ], default_features = false }
+tokio = { version = "1", features = [ "macros", "sync" ], default_features = false }
 
 [dev-dependencies]
 clap = { version = "^3.0.0-rc.7", features = [ "derive" ] }

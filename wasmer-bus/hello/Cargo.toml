@@ -16,5 +16,5 @@ default = []
 wasmer-bus = { version = "^1", path = "../lib", default_features = false, features = [ "macros" ] }
 tracing = { version = "^0.1", features = [ "log" ] }
 serde = { version = "^1", features = ["derive"] }
-tokio = { git = "https://github.com/john-sharratt/tokio.git", branch = "wasix", features = [ "rt", "rt-multi-thread", "sync", "macros" ], default_features = false }
+tokio = { version = "1", features = [ "rt", "rt-multi-thread", "sync", "macros" ], default_features = false }
 async-trait = "^0.1"

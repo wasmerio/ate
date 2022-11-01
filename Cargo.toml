@@ -21,10 +21,7 @@ members = [
     "wasmer-auth",
     "wasmer-dfs",
     "wasmer-ssh",
-    "wasmer-os",
-    "wasmer-os-grammar",
     "wasmer-deploy-cli",
-    "wasmer-term",
     "wasmer-web",
     "wasmer-gw",
     "wasmer-dnet",
@@ -43,7 +40,6 @@ members = [
 ]
 
 [patch.crates-io]
-tokio = { git = "https://github.com/john-sharratt/tokio.git", branch = "wasix" }
 wasmer-vfs = { path = "/prog/wasmer/lib/vfs" }
 #tokio = { path = "/prog/tokio/tokio" }
 

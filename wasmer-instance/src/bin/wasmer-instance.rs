@@ -11,9 +11,7 @@ use clap::Parser;
 use tokio::sync::watch::Receiver;
 use tokio::select;
 use tokio::runtime::Builder;
-use wasmer_ssh::wasmer_os;
-use wasmer_os::bin_factory::CachedCompiledModules;
-use wasmer_ssh::native_files::NativeFileType;
+use wasmer_wasi::bin_factory::CachedCompiledModules;
 
 use ate::comms::StreamRouter;
 
@@ -78,14 +76,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
                     NativeFileType::AteFileSystem(solo.native_files.clone())
                 };
         
-                // Set the system
-                let (tx_exit, _) = watch::channel(false);
-                let sys = Arc::new(wasmer_term::system::SysSystem::new_with_runtime(
-                    solo.native_files_path.clone(), tx_exit, runtime,
-                ));
-                let sys = wasmer_ssh::system::System::new(sys, native_files).await;
-                wasmer_ssh::wasmer_os::api::set_system_abi(sys);
-
                 let mut instance_authority = solo.inst_url.domain()
                     .map(|a| a.to_string())
                     .unwrap_or_else(|| "wasmer.sh".to_string());
@@ -93,16 +83,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
                     instance_authority = "wasmer.sh".to_string();
                 }
 
-                let compiled_modules = Arc::new(CachedCompiledModules::new(Some(solo.compiler_cache_path.clone())));
+                let compiled_modules = Arc::new(CachedCompiledModules::new(Some(solo.compiler_cache_path.clone()), Some(solo.webc_dir)));
                 let instance_server = Server::new(
                     solo.db_url.clone(),
                     solo.auth_url.clone(),
                     instance_authority.clone(),
                     solo.token_path.clone(),
                     registry.clone(),
-                    solo.compiler.clone(),
                     compiled_modules.clone(),
-                    Some(solo.webc_dir),
                     ttl,
                 ).await?;
 
@@ -137,14 +125,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
 }
 
 #[allow(dead_code)]
-async fn main_web(solo: &OptsSessionServer, cfg_ate: ConfAte, callback: Option<StreamRouter>) -> Result<(Arc<wasmer_gw::server::Server>, watch::Receiver<bool>), AteError>
+async fn main_web(solo: &OptsSessionServer, cfg_ate: ConfAte, callback: Option<StreamRouter>) -> Result<(Arc<wasmer_gw::server::Server>, watch::Receiver<bool>), Box<dyn Error>>
 {
     let (hard_exit_tx, hard_exit_rx) = tokio::sync::watch::channel(false);
     let server = main_web_ext(solo, cfg_ate, callback, hard_exit_tx).await?;
     Ok((server, hard_exit_rx))
 }
 
-async fn main_web_ext(solo: &OptsSessionServer, cfg_ate: ConfAte, callback: Option<StreamRouter>, hard_exit_tx: watch::Sender<bool>) -> Result<Arc<wasmer_gw::server::Server>, AteError>
+async fn main_web_ext(solo: &OptsSessionServer, cfg_ate: ConfAte, callback: Option<StreamRouter>, hard_exit_tx: watch::Sender<bool>) -> Result<Arc<wasmer_gw::server::Server>, Box<dyn Error>>
 {
     let mut builder = wasmer_gw::builder::ServerBuilder::new(
         solo.db_url.clone(),

@@ -20,7 +20,7 @@ url = "2"
 bytes = "^1"
 async-trait = "^0.1"
 derivative = { version = "^2" }
-tokio = { version = "1.20.1", features = [ "sync", "macros" ], default_features = false }
+tokio = { version = "1", features = [ "sync", "macros" ], default_features = false }
 wasmer-bus = { version = "^1", path = "../lib", default_features = false, features = [ "macros" ] }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]

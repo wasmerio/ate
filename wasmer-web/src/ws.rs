@@ -1,7 +1,8 @@
 use async_trait::async_trait;
+use wasmer_wasi::WasiRuntimeImplementation;
+use wasmer_wasi::WebSocketAbi;
 use std::ops::*;
 use std::sync::Arc;
-use wasmer_os::api::*;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bindgen::prelude::*;
@@ -42,7 +43,7 @@ impl WebSocketAbi for WebSocket {
         callback.forget();
     }
 
-    fn set_onmessage(&mut self, callback: Box<dyn Fn(Vec<u8>) + Send + 'static>) {
+    fn set_onmessage(&mut self, callback: Box<dyn Fn(Vec<u8>) + Send + 'static>, _runtime: &dyn WasiRuntimeImplementation) {
         let callback = Arc::new(callback);
 
         let fr = web_sys::FileReader::new().unwrap();

@@ -1,14 +1,17 @@
 pub mod cconst;
-pub mod console_handle;
+pub mod runtime;
 pub mod error;
 pub mod handler;
 pub mod key;
 pub mod opt;
 pub mod server;
-pub mod system;
 pub mod utils;
-pub mod wizard;
 pub mod native_files;
 
-pub use wasmer_term::wasmer_os;
-pub use wasmer_term;
+pub use wasmer_bus_types::SerializationFormat;
+
+pub use wasmer_wasi;
+pub use wasmer_wasi::wasmer;
+pub use wasmer_wasi::wasmer_vbus;
+pub use wasmer_wasi::wasmer_vfs;
+pub use wasmer_wasi::wasmer_vnet;

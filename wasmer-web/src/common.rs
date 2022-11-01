@@ -6,8 +6,7 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::*;
 use web_sys::*;
-
-use super::err;
+use wasmer_wasi::os::posix_err;
 
 #[wasm_bindgen]
 #[derive(Default)]
@@ -162,13 +161,13 @@ pub async fn fetch(
     }
 
     let request = {
-        let request = Request::new_with_str_and_init(&url, &opts).map_err(|_| err::ERR_EIO)?;
+        let request = Request::new_with_str_and_init(&url, &opts).map_err(|_| posix_err::ERR_EIO)?;
 
         let set_headers = request.headers();
         for (name, val) in headers.iter() {
             set_headers
                 .set(name.as_str(), val.as_str())
-                .map_err(|_| err::ERR_EIO)?;
+                .map_err(|_| posix_err::ERR_EIO)?;
         }
         request
     };
@@ -184,19 +183,19 @@ pub async fn fetch(
                 url_store = format!("https://{}/{}", cors_proxy, url);
                 url_store.as_str()
             } else {
-                return Err(err::ERR_EIO);
+                return Err(posix_err::ERR_EIO);
             };
             
-            let request = Request::new_with_str_and_init(url, &opts).map_err(|_| err::ERR_EIO)?;
+            let request = Request::new_with_str_and_init(url, &opts).map_err(|_| posix_err::ERR_EIO)?;
 
             let set_headers = request.headers();
             for (name, val) in headers.iter() {
                 set_headers
                     .set(name.as_str(), val.as_str())
-                    .map_err(|_| err::ERR_EIO)?;
+                    .map_err(|_| posix_err::ERR_EIO)?;
             }
         
-            fetch_internal(&request).await.map_err(|_| err::ERR_EIO)?
+            fetch_internal(&request).await.map_err(|_| posix_err::ERR_EIO)?
         }
     };
     assert!(resp_value.is_instance_of::<Response>());
@@ -205,14 +204,15 @@ pub async fn fetch(
     if resp.status() < 200 || resp.status() >= 400 {
         debug!("fetch-failed: {}", resp.status_text());
         return Err(match resp.status() {
-            404 => err::ERR_ENOENT,
-            _ => err::ERR_EIO,
+            404 => posix_err::ERR_ENOENT,
+            _ => posix_err::ERR_EIO,
         });
     }
 
     Ok(resp)
 }
 
+/*
 pub async fn fetch_data(
     url: &str,
     method: &str,
@@ -223,11 +223,12 @@ pub async fn fetch_data(
 ) -> Result<Vec<u8>, u32> {
     Ok(get_response_data(fetch(url, method, gzip, cors_proxy, headers, data).await?).await?)
 }
+*/
 
 pub async fn get_response_data(resp: Response) -> Result<Vec<u8>, u32> {
     let resp = { JsFuture::from(resp.array_buffer().unwrap()) };
 
-    let arrbuff_value = resp.await.map_err(|_| err::ERR_ENOEXEC)?;
+    let arrbuff_value = resp.await.map_err(|_| posix_err::ERR_ENOEXEC)?;
     assert!(arrbuff_value.is_instance_of::<js_sys::ArrayBuffer>());
     //let arrbuff: js_sys::ArrayBuffer = arrbuff_value.dyn_into().unwrap();
 

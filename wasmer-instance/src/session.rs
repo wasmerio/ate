@@ -11,29 +11,16 @@ use wasmer_deploy_cli::model::InstanceHello;
 use wasmer_deploy_cli::model::InstanceReply;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
-use wasmer_ssh::wasmer_os;
-use wasmer_os::console::Console;
+use wasmer_wasi::os::Console;
 use tokio::sync::mpsc;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
-use wasmer_os::api::ConsoleRect;
-use wasmer_os::bus;
-use wasmer_os::bus::*;
-use wasmer_os::bus::BusError;
-use wasmer_os::eval::EvalStatus;
-use wasmer_os::environment::Environment;
-use wasmer_os::api::System;
-use wasmer_os::api::SystemAbiExt;
-use wasmer_os::common::MAX_MPSC;
-use wasmer_os::fd::WeakFd;
-use wasmer_os::api::AsyncResult;
-use wasmer_os::fd::Fd;
-use wasmer_os::grammar::ast::Redirect;
+use wasmer_wasi::os::common::MAX_MPSC;
 
-use super::handler::SessionHandler;
-use super::handler::SessionTx;
+use super::runtime::SessionRuntime;
+use super::runtime::SessionTx;
 use super::server::SessionBasics;
 
 pub struct Session
@@ -45,9 +32,7 @@ pub struct Session
     pub sock_addr: SocketAddr,
     pub wire_encryption: Option<EncryptKey>,
     pub rect: Arc<Mutex<ConsoleRect>>,
-    pub engine: Option<wasmer_os::wasmer::Engine>,
-    pub compiler: wasmer_os::eval::Compiler,
-    pub handler: Arc<SessionHandler>,
+    pub handler: Arc<SessionRuntime>,
     pub console: Console,
     pub exit_rx: mpsc::Receiver<()>,
     pub factories: HashMap<String, BusFactory>,
@@ -65,15 +50,13 @@ impl Session
         sock_addr: SocketAddr,
         wire_encryption: Option<EncryptKey>,
         rect: Arc<Mutex<ConsoleRect>>,
-        engine: Option<wasmer_os::wasmer::Engine>,
-        compiler: wasmer_os::eval::Compiler,
         basics: SessionBasics,
         first_init: bool,
     ) -> Session
     {
         // Create the handler
         let (exit_tx, exit_rx) = mpsc::channel(1);
-        let handler = SessionHandler {
+        let handler = SessionRuntime {
             tx: AsyncMutex::new(SessionTx::None),
             rect: rect.clone(),
             exit: exit_tx,
@@ -114,8 +97,6 @@ impl Session
             sock_addr,
             wire_encryption,
             rect,
-            engine,
-            compiler,
             exit_rx,
             handler,
             console,
@@ -366,7 +347,7 @@ impl Session
         let sys = System::default();
         let (abort_tx, mut abort_rx) = mpsc::channel(1);
         let result = {
-            sys.spawn_shared(move || async move {
+            sys.task_shared(Box::new(move || Pin::new(Box::new(async move {
                 tokio::select! {
                     response = invoke.process() => {
                         response
@@ -375,7 +356,7 @@ impl Session
                         Err(BusError::Aborted)
                     }
                 }
-            })
+            }))))
         };
 
         // Add the invocation

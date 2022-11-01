@@ -2,7 +2,6 @@
 use tracing::{info, error, debug};
 use ate::{prelude::*};
 use clap::Parser;
-use wasmer_ssh::wasmer_os;
 
 /// Runs the session server
 #[derive(Parser)]
@@ -43,9 +42,6 @@ pub struct OptsSessionServer {
     /// Uses a local directory for native files rather than the published ate chain
     #[clap(long)]
     pub native_files_path: Option<String>,
-    /// Determines which compiler to use
-    #[clap(short, long, default_value = "default")]
-    pub compiler: wasmer_os::eval::Compiler,
     /// Location where webc files will be stored
     #[clap(long, default_value = "~/wasmer/webc")]
     pub webc_dir: String,

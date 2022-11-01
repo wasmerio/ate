@@ -6,13 +6,13 @@ use tracing::{debug, error, info, trace, warn};
 
 use derivative::*;
 use wasm_bindgen_futures::JsFuture;
-use wasmer_os::api::SpawnType;
-use wasmer_os::wasmer::MemoryType;
-use wasmer_os::wasmer::Module;
-use wasmer_os::wasmer::Store;
-use wasmer_os::wasmer::WASM_MAX_PAGES;
-use wasmer_os::wasmer::vm::VMMemory;
-use wasmer_os::wasmer_wasi::WasiThreadError;
+use wasmer_wasi::wasmer::MemoryType;
+use wasmer_wasi::wasmer::Module;
+use wasmer_wasi::wasmer::Store;
+use wasmer_wasi::wasmer::WASM_MAX_PAGES;
+use wasmer_wasi::wasmer::vm::VMMemory;
+use wasmer_wasi::WasiThreadError;
+use wasmer_wasi::runtime::SpawnType;
 use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -36,16 +36,13 @@ use once_cell::sync::Lazy;
 use js_sys::{JsString, Promise};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
-use wasmer_os::api::ThreadLocal;
-use wasmer_os::common::MAX_MPSC;
+use wasmer_wasi::os::common::MAX_MPSC;
 use wasm_bindgen::{prelude::*, JsCast};
 use web_sys::{DedicatedWorkerGlobalScope, WorkerOptions, WorkerType};
 use xterm_js_rs::Terminal;
 
 use super::common::*;
-use super::fd::*;
 use super::interval::*;
-use super::tty::Tty;
 
 pub type BoxRun<'a> =
     Box<dyn FnOnce() + Send + 'a>;
@@ -61,7 +58,7 @@ enum WasmRunType {
 }
 
 struct WasmRunCommand {
-    run: Box<dyn FnOnce(Store, Module, Option<VMMemory>) -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static>,
+    run: Box<dyn FnOnce(Store, Module, Option<VMMemory>) + Send + 'static>,
     ty: WasmRunType,
     store: Store,
     module_bytes: Bytes,
@@ -297,7 +294,7 @@ impl WebThreadPool {
     
     pub fn spawn_wasm(
         &self,
-        run: impl FnOnce(Store, Module, Option<VMMemory>) -> Pin<Box<dyn Future<Output = ()> + 'static>> + Send + 'static,
+        run: impl FnOnce(Store, Module, Option<VMMemory>) + Send + 'static,
         store: Store,
         mut module_bytes: Bytes,
         spawn_type: SpawnType,
@@ -322,15 +319,18 @@ impl WebThreadPool {
                 WasiThreadError::Unsupported
             })?;
             module_bytes = Bytes::from(parsed_bytes.to_vec());
-        }        
+        }
 
         let msg = WasmRunCommand {
-            run: Box::new(run),
+            run: Box::new(move |store, module, memory| {
+                run(store, module, memory);
+            }),
             ty: run_type,
             store,
             module_bytes,
             free_memory: self.free_memory.clone(),
         };
+        
         _spawn_send(&self.spawn_wasm, msg);
         Ok(())
     }
@@ -509,7 +509,9 @@ async fn _spawn_wasm(mut run: WasmRunCommand) -> Result<(),()> {
         }
     };
 
-    _process_worker_result(result, None).await;
+    wasm_bindgen_futures::spawn_local(async move {
+        _process_worker_result(result, None).await
+    });
     Ok(())
 }
 
@@ -626,7 +628,7 @@ async fn _process_worker_result(result: JsFuture, should_warn_on_error: Option<T
 
         if let Some(term) = should_warn_on_error {
             term.write(
-                Tty::BAD_WORKER
+                wasmer_wasi::os::cconst::ConsoleConst::BAD_WORKER
                     .replace("\n", "\r\n")
                     .replace("\\x1B", "\x1B")
                     .replace("{error}", err.as_str())
@@ -755,7 +757,9 @@ impl ThreadState {
 
                 // Do a blocking recv (if this fails the thread is closed)
                 work = match work_rx.recv().await {
-                    Some(a) => Some(a),
+                    Some(a) => {
+                        Some(a)
+                    },
                     None => {
                         info!(
                             "worker closed (index={}, type={:?})",
@@ -836,13 +840,8 @@ pub fn wasm_entry_point(ctx_ptr: u32, wasm_module: JsValue, wasm_memory: JsValue
     // Invoke the callback which will run the web assembly module
     let wasm_id = ctx.id;
     let free_memory = ctx.cmd.free_memory.clone();
-    let driver = async move {
-        THREAD_LOCAL_CURRENT_WASM.with(|c| c.borrow_mut().replace(wasm_id));
-        run_callback(wasm_store, wasm_module, wasm_memory).await;
-        THREAD_LOCAL_CURRENT_WASM.with(|c| c.borrow_mut().take());
-
-        // Reduce the reference count on the memory
-        _spawn_send(free_memory.deref(), wasm_id);
-    };
-    wasm_bindgen_futures::spawn_local(driver);
+    THREAD_LOCAL_CURRENT_WASM.with(|c| c.borrow_mut().replace(wasm_id));
+    run_callback(wasm_store, wasm_module, wasm_memory);
+    THREAD_LOCAL_CURRENT_WASM.with(|c| c.borrow_mut().take());
+    _spawn_send(free_memory.deref(), wasm_id);
 }

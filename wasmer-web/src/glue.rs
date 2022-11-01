@@ -1,16 +1,17 @@
-use chrono::prelude::*;
-use wasmer_os::bin_factory::CachedCompiledModules;
+use wasmer_wasi::WasiPipe;
+use wasmer_wasi::WasiRuntimeImplementation;
+use wasmer_wasi::bin_factory::CachedCompiledModules;
+use wasmer_wasi::runtime::RuntimeStdout;
+use std::collections::HashMap;
 use std::sync::Arc;
-use wasmer_os::api::*;
-use wasmer_os::common::MAX_MPSC;
-use wasmer_os::console::Console;
+use wasmer_wasi::os::common::MAX_MPSC;
+use wasmer_wasi::os::Console;
 use tokio::sync::mpsc;
 #[allow(unused_imports, dead_code)]
 use tracing::{debug, error, info, trace, warn};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlCanvasElement;
-use web_sys::KeyboardEvent;
 use web_sys::WebGl2RenderingContext;
 #[allow(unused_imports)]
 use xterm_js_rs::addons::fit::FitAddon;
@@ -21,9 +22,12 @@ use xterm_js_rs::addons::webgl::WebglAddon;
 use xterm_js_rs::Theme;
 use xterm_js_rs::{LogLevel, OnKeyEvent, Terminal, TerminalOptions};
 
-use crate::system::TerminalCommand;
-use crate::system::WebConsole;
-use crate::system::WebSystem;
+use crate::runtime::TerminalCommandRx;
+use crate::runtime::WebRuntime;
+
+use wasmer_wasi::os::Tty;
+use wasmer_wasi::os::TtyOptions;
+use wasmer_wasi::os::InputEvent;
 
 use super::common::*;
 use super::pool::*;
@@ -38,12 +42,6 @@ macro_rules! csi {
 pub fn main() {
     //let _ = console_log::init_with_level(log::Level::Debug);
     set_panic_hook();
-}
-
-#[derive(Debug)]
-pub enum InputEvent {
-    Key(KeyboardEvent),
-    Data(String),
 }
 
 #[wasm_bindgen]
@@ -80,7 +78,7 @@ pub fn start() -> Result<(), JsValue> {
     let location = window.location().href().unwrap();
 
     let user_agent = USER_AGENT.clone();
-    let is_mobile = wasmer_os::common::is_mobile(&user_agent);
+    let is_mobile = wasmer_wasi::os::common::is_mobile(&user_agent);
     debug!("user_agent: {}", user_agent);
 
     let elem = window
@@ -97,18 +95,10 @@ pub fn start() -> Result<(), JsValue> {
         wasm_bindgen_futures::spawn_local(async move {
             while let Some(cmd) = term_rx.recv().await {
                 match cmd {
-                    TerminalCommand::Print(text) => {
+                    TerminalCommandRx::Print(text) => {
                         terminal.write(text.as_str());
                     }
-                    TerminalCommand::ConsoleRect(tx) => {
-                        let _ = tx
-                            .send(ConsoleRect {
-                                cols: terminal.get_cols(),
-                                rows: terminal.get_rows(),
-                            })
-                            .await;
-                    }
-                    TerminalCommand::Cls => {
+                    TerminalCommandRx::Cls => {
                         terminal.clear();
                     }
                 }
@@ -130,33 +120,77 @@ pub fn start() -> Result<(), JsValue> {
         .unwrap()
         .dyn_into::<WebGl2RenderingContext>()?;
 
-    let pool = WebThreadPool::new_with_max_threads().unwrap();
-    let web_system = WebSystem::new(pool.clone(), webgl2);
-    let web_console = WebConsole::new(term_tx);
-    wasmer_os::api::set_system_abi(web_system);
-    let system = System::default();
-    let compiled_modules = Arc::new(CachedCompiledModules::new(None));
-
-    let fs = wasmer_os::fs::create_root_fs(None);
-    let mut console = Console::new(
-        location,
-        user_agent,
-        wasmer_os::eval::Compiler::Browser,
-        Arc::new(web_console),
-        None,
-        fs,
-        compiled_modules,
-        None,
+    let pool = WebThreadPool::new_with_max_threads().unwrap();    
+    let (stdin_tx, stdin_rx) = WasiPipe::new();
+    
+    let tty_options = TtyOptions::default();
+    let runtime =
+       Arc::new(WebRuntime::new(pool.clone(), tty_options.clone(), term_tx, webgl2));
+    let mut tty = Tty::new(
+        Box::new(stdin_tx),
+        Box::new(RuntimeStdout::new(runtime.clone())),
+        is_mobile,
+        tty_options
     );
-    let tty = console.tty().clone();
+
+    let compiled_modules = Arc::new(CachedCompiledModules::new(None, None));
+    let mut console = Console::new(
+        runtime.clone(),
+        compiled_modules,
+    );
+
+    let location = url::Url::parse(location.as_str()).unwrap();
+    let mut env = HashMap::new();
+    if let Some(origin) = location.domain().clone() {
+        env.insert("ORIGIN".to_string(), origin.to_string());
+    }
+    env.insert("LOCATION".to_string(), location.to_string());
+
+    if let Some(init) = location
+        .query_pairs()
+        .filter(|(key, _)| key == "init")
+        .next()
+        .map(|(_, val)| val.to_string())
+    {
+        console = console
+            .with_no_welcome(true)
+            .with_boot_cmd(init);
+    }
+
+    if let Some(prompt) = location
+        .query_pairs()
+        .filter(|(key, _)| key == "prompt")
+        .next()
+        .map(|(_, val)| val.to_string())
+    {
+        console = console.with_prompt(prompt);
+    }
+
+    if location.query_pairs().any(|(key, _)| key == "no_welcome" || key == "no-welcome") {
+        console = console.with_no_welcome(true);
+    }
+
+    if let Some(token) = location
+        .query_pairs()
+        .filter(|(key, _)| key == "token")
+        .next()
+        .map(|(_, val)| val.to_string())
+    {
+        console = console.with_token(token);
+    }
+    
+    console = console
+        .with_user_agent(user_agent.as_str())
+        .with_stdin(stdin_rx)
+        .with_env(env);
 
     let (tx, mut rx) = mpsc::channel(MAX_MPSC);
 
     let tx_key = tx.clone();
     let callback = {
-        Closure::wrap(Box::new(move |e: OnKeyEvent| {
-            let event = e.dom_event();
-            tx_key.blocking_send(InputEvent::Key(event)).unwrap();
+        Closure::wrap(Box::new(move |_e: OnKeyEvent| {
+            //let event = e.dom_event();
+            tx_key.blocking_send(InputEvent::Key).unwrap();
         }) as Box<dyn FnMut(_)>)
     };
     terminal.on_key(callback.as_ref().unchecked_ref());
@@ -201,6 +235,7 @@ pub fn start() -> Result<(), JsValue> {
     }
 
     {
+        let tty_options = tty.options();
         let front_buffer: HtmlCanvasElement = front_buffer.clone().dyn_into().unwrap();
         let terminal: Terminal = terminal.clone().dyn_into().unwrap();
         let closure = {
@@ -212,11 +247,12 @@ pub fn start() -> Result<(), JsValue> {
                     front_buffer.clone().dyn_into().unwrap(),
                 );
 
-                let tty = tty.clone();
-                system.fork_local(async move {
+                let tty_options = tty_options.clone();
+                wasm_bindgen_futures::spawn_local(async move {
                     let cols = terminal.get_cols();
                     let rows = terminal.get_rows();
-                    tty.set_bounds(cols, rows).await;
+                    tty_options.set_cols(cols);
+                    tty_options.set_rows(rows);
                 });
             }) as Box<dyn FnMut()>)
         };
@@ -230,44 +266,29 @@ pub fn start() -> Result<(), JsValue> {
 
     terminal.focus();
 
-    system.fork_local(async move {
-        console.init().await;
-
+    // hook the stdin to a TTY (which will have access to the terminal object)
+    wasm_bindgen_futures::spawn_local(async move {
         crate::glue::show_terminal();
 
-        let mut last = None;
-        while let Some(event) = rx.recv().await {
-            match event {
-                InputEvent::Key(event) => {
-                    console
-                        .on_key(
-                            event.key_code(),
-                            event.key(),
-                            event.alt_key(),
-                            event.ctrl_key(),
-                            event.meta_key(),
-                        )
-                        .await;
-                }
-                InputEvent::Data(data) => {
-                    // Due to a nasty bug in xterm.js on Android mobile it sends the keys you press
-                    // twice in a row with a short interval between - this hack will avoid that bug
-                    if is_mobile {
-                        let now: DateTime<Local> = Local::now();
-                        let now = now.timestamp_millis();
-                        if let Some((what, when)) = last {
-                            if what == data && now - when < 200 {
-                                last = None;
-                                continue;
-                            }
-                        }
-                        last = Some((data.clone(), now))
-                    }
+        let (run_tx, mut run_rx) = tokio::sync::mpsc::channel(1);
+        runtime.task_dedicated(Box::new(move ||
+            {
+                let mut process = console.run().unwrap();
 
-                    console.on_data(data.as_bytes()).await;
+                if let Some(signaler) = process.signaler.take() {
+                    tty.set_signaler(signaler)
                 }
+                let _ = run_tx.blocking_send((tty, console));
             }
+        )).unwrap();
+        let (mut tty, console) = run_rx.recv().await.unwrap();
+        
+        while let Some(event) = rx.recv().await {
+            tty.on_event(event);
         }
+
+        drop(tty);
+        drop(console);
     });
 
     Ok(())

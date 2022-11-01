@@ -1,106 +1,202 @@
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::sync::Mutex;
-use wasmer_os::api::ConsoleRect;
-use wasmer_os::api::System;
-use wasmer_os::console::Console;
+use thrussh::CryptoVec;
+use wasmer_wasi::os::Console;
 use thrussh::server;
 use thrussh::server::Auth;
 use thrussh::server::Session;
 use thrussh::ChannelId;
 use thrussh_keys::key::ed25519;
 use thrussh_keys::key::PublicKey;
-use wasmer_term::wasmer_os;
-use wasmer_term::wasmer_os::api as term_api;
-use wasmer_term::wasmer_os::api::SystemAbiExt;
-use wasmer_term::wasmer_os::bin_factory::CachedCompiledModules;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
+use wasmer_wasi::os::InputEvent;
+use wasmer_wasi::os::TtyOptions;
+use wasmer_wasi::os::Tty;
+use wasmer_wasi::wasmer_vbus::BusSpawnedProcessJoin;
+use wasmer_wasi::WasiPipe;
+use wasmer_wasi::WasiRuntimeImplementation;
+use tokio::sync::mpsc;
+use wasmer_wasi::bin_factory::CachedCompiledModules;
+use wasmer_wasi::runtime::RuntimeStdout;
 
-use crate::wizard::SshWizard;
-
-use super::console_handle::*;
+use super::runtime::*;
 use super::error::*;
 
 pub struct Handler {
+    pub tty: Option<Tty>,
     pub peer_addr: Option<std::net::SocketAddr>,
     pub peer_addr_str: String,
     pub user: Option<String>,
     pub client_pubkey: Option<thrussh_keys::key::PublicKey>,
     pub console: Option<Console>,
-    pub engine: Option<wasmer_os::wasmer::Engine>,
-    pub compiler: wasmer_os::eval::Compiler,
-    pub rect: Arc<Mutex<ConsoleRect>>,
-    pub wizard: Option<SshWizard>,
     pub compiled_modules: Arc<CachedCompiledModules>,
-    pub webc_dir: Option<String>,
-    pub stdio_lock: Arc<Mutex<()>>,
 }
 
 impl Handler
 {
     pub fn start_console(mut self, channel: ChannelId, session: Session, run: Option<String>) -> Pin<Box<dyn Future<Output = Result<(Self, Session), SshServerError>> + Send>>
     {
+        // Create the handle
+        let (tx_stdout, mut rx_stdout) = mpsc::channel(100);
+        let (tx_stderr, mut rx_stderr) = mpsc::channel(100);
+        let (tx_flush, mut rx_flush) = mpsc::channel(100);
+
+        let user_agent = format!("ssh");
+        let tty_options = TtyOptions::default();
+        if run.is_some() {
+            tty_options.set_echo(false);
+            tty_options.set_line_buffering(false);
+        }
+
+        let runtime = Arc::new(SshRuntime {
+            stdout: tx_stdout,
+            stderr: tx_stderr,
+            flush: tx_flush,
+            tty: tty_options.clone(),
+        });
+        
+        let (stdin_tx, stdin_rx) = WasiPipe::new();
+        let tty = Tty::new(
+            Box::new(stdin_tx),
+            Box::new(RuntimeStdout::new(runtime.clone())),
+            false,
+            tty_options
+        );
+        self.tty.replace(tty);
+
+        let mut console = Console::new(
+            runtime.clone(),
+            self.compiled_modules.clone(),
+        );
+        console = console
+            .with_user_agent(user_agent.as_str())
+            .with_stdin(stdin_rx);
+        if let Some(run) = run {
+            console = console.with_boot_cmd(run);
+        }
+
         Box::pin(async move {
-            // Create the handle
-            let handle = Arc::new(ConsoleHandle {
-                rect: self.rect.clone(),
-                channel: channel.clone(),
-                handle: session.handle(),
-                stdio_lock: self.stdio_lock.clone(),
-                enable_stderr: true,
+            // Add checkpoints
+            let (checkpoint_tx, mut checkpoint_rx) = mpsc::channel(1);
+            let (close_tx, close_rx) = tokio::sync::watch::channel(false);
+
+            // Run the console (under a blocking thread)
+            let (run_tx, mut run_rx) = tokio::sync::mpsc::channel(1);
+            tokio::task::spawn_blocking(move || {
+                let process = console.run();
+                run_tx.blocking_send((console, process)).unwrap();
             });
+            if let Some((console, process)) = run_rx.recv().await {
+                self.console.replace(console);
 
-            // Spawn a dedicated thread and wait for it to do its thing
-            let is_run = run.is_some();
-            let system = System::default();
-            system
-                .spawn_shared(move || async move {
-                    // Get the wizard
-                    let wizard = self.wizard.take().map(|a| {
-                        Box::new(a) as Box<dyn term_api::WizardAbi + Send + Sync + 'static>
-                    });
-
-                    // Create the console
-                    let fs = wasmer_os::fs::create_root_fs(None);
-                    
-                    // If a command is passed in then pass it into the console
-                    let mut exit_on_return_to_shell = false;
-                    let location = if let Some(run) = run.as_ref() {
-                        exit_on_return_to_shell = true;
-                        format!("ssh://wasmer.sh/?no_welcome&init={}", run)
-                    } else {
-                        format!("ssh://wasmer.sh/")
-                    };
-                    
-                    let user_agent = "ssh".to_string();
-                    let compiled_modules = self.compiled_modules.clone();
-                    let mut console = Console::new(
-                        location,
-                        user_agent,
-                        self.compiler,
-                        handle,
-                        wizard,
-                        fs,
-                        compiled_modules,
-                        self.webc_dir.clone(),
-                    );
-                    if let Some(engine) = self.engine.clone() {
-                        console = console.with_engine(engine.clone());
+                if let Ok(mut process) = process {
+                    if let Some(tty) = self.tty.as_mut() {
+                        if let Some(signaler) = process.signaler.take() {
+                            tty.set_signaler(signaler)
+                        }
                     }
-                    console.set_exit_on_return_to_shell(exit_on_return_to_shell);
-                    console.init().await;
-                    if is_run {
-                        console.set_raw_mode(true);
-                    }
-                    self.console.replace(console);
 
-                    // We are ready to receive data
-                    Ok((self, session))
-                })
-                .await
-                .unwrap()
+                    let channel = channel.clone();
+                    let mut handle = session.handle();
+                    runtime.task_shared(Box::new(move || Box::pin(async move {
+                        BusSpawnedProcessJoin::new(process).await;
+                        
+                        let _ = close_tx.send(true);
+                        drop(close_tx);
+
+                        while let Some(_) = checkpoint_rx.recv().await {
+                            let _ = handle.flush(channel).await;
+                        }
+                        let _ = handle.close(channel).await;
+                    }))).unwrap();
+                } else {
+                    let _ = close_tx.send(true);
+                    drop(close_tx);
+                }
+            }
+
+            // Create the handlers
+            {
+                let mut close_rx = close_rx.clone();
+                let checkpoint_tx = checkpoint_tx.clone();
+                let channel = channel.clone();
+                let mut handle = session.handle();
+                runtime.task_shared(Box::new(move || Box::pin(async move {
+                    loop {
+                        tokio::select! {
+                            data = rx_stdout.recv() => {
+                                if let Some(data) = data {
+                                    let data = CryptoVec::from(data);
+                                    let mut handle = handle.clone();
+                                    let _ = handle.data(channel, data).await;
+                                } else {
+                                    break;
+                                }
+                            }
+                            _ = close_rx.changed() => {
+                                if *close_rx.borrow() == true {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    while let Ok(data) = rx_stdout.try_recv() {
+                        let data = CryptoVec::from(data);
+                        let mut handle = handle.clone();
+                        let _ = handle.data(channel, data).await;
+                    }
+                    let _ = handle.flush(channel).await;
+                    let _ = checkpoint_tx.send(()).await;
+                }))).unwrap();
+            }
+            {
+                let mut close_rx = close_rx.clone();
+                let checkpoint_tx = checkpoint_tx.clone();
+                let channel = channel.clone();
+                let mut handle = session.handle();
+                runtime.task_shared(Box::new(move || Box::pin(async move {
+                    loop {
+                        tokio::select! {
+                            data = rx_stderr.recv() => {
+                                if let Some(data) = data {
+                                    let data = CryptoVec::from(data);
+                                    let mut handle = handle.clone();
+                                    let _ = handle.extended_data(channel, 1, data).await;
+                                } else {
+                                    break;
+                                }
+                            }
+                            _ = close_rx.changed() => {
+                                if *close_rx.borrow() == true {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    while let Ok(data) = rx_stderr.try_recv() {
+                        let data = CryptoVec::from(data);
+                        let mut handle = handle.clone();
+                        let _ = handle.extended_data(channel, 1, data).await;
+                    }
+                    let _ = handle.flush(channel).await;
+                    let _ = checkpoint_tx.send(()).await;
+                }))).unwrap();
+            }
+            {
+                let channel = channel.clone();
+                let handle = session.handle();
+                runtime.task_shared(Box::new(move || Box::pin(async move {
+                    while let Some(_) = rx_flush.recv().await {
+                        let mut handle = handle.clone();
+                        let _ = handle.flush(channel).await;
+                    }
+                }))).unwrap();
+            }
+
+            // We are ready to receive data
+            Ok((self, session))
         })
     }
 }
@@ -133,14 +229,6 @@ impl server::Handler for Handler {
         debug!("authenticate with keyboard interactive (user={})", user);
         self.user = Some(user.to_string());
 
-        // Get the current wizard or fail
-        let wizard = match self.wizard.as_mut() {
-            Some(a) => a,
-            None => {
-                return self.finished_auth(Auth::Reject);
-            }
-        };
-
         /*
         // Root is always rejected (as this is what bots attack on)
         if user == "root" {
@@ -148,11 +236,6 @@ impl server::Handler for Handler {
             wizard.fail("root not supported - instead use 'ssh joe@blogs.com@wasmer.sh'\r\n");
         }
         */
-
-        // Set the user if its not set
-        if wizard.state.email.is_none() {
-            wizard.state.email = Some(user.to_string());
-        }
 
         // Process it in the wizard
         let _response = match response {
@@ -167,10 +250,13 @@ impl server::Handler for Handler {
 
     fn data(mut self, channel: ChannelId, data: &[u8], session: Session) -> Self::FutureUnit {
         trace!("data on channel {:?}: len={:?}", channel, data.len());
+        
         let data = data.to_vec();
         Box::pin(async move {
-            if let Some(console) = self.console.as_mut() {
-                console.on_data(&data[..]).await;
+            if let Some(tty) = self.tty.as_mut() {
+                tty.on_event(InputEvent::Data(unsafe {
+                    String::from_utf8_unchecked(data)
+                }));
             }
             Ok((self, session))
         })
@@ -197,13 +283,11 @@ impl server::Handler for Handler {
     }
 
     #[allow(unused_variables)]
-    fn channel_eof(self, channel: ChannelId, session: Session) -> Self::FutureUnit {
+    fn channel_eof(mut self, channel: ChannelId, session: Session) -> Self::FutureUnit {
         debug!("channel_eof");
 
         Box::pin(async move {
-            if let Some(console) = self.console.as_ref() {
-                console.close_stdin().await;
-            }
+            self.tty.take();
             Ok((self, session))
         })
     }
@@ -222,10 +306,14 @@ impl server::Handler for Handler {
     ) -> Self::FutureUnit {
         debug!("pty_request");
 
-        {
-            let mut guard = self.rect.lock().unwrap();
-            guard.cols = col_width;
-            guard.rows = row_height;
+        if let Some(tty) = self.tty.as_ref() {
+            let tty = tty.options();
+            tty.set_cols(col_width);
+            tty.set_rows(row_height);
+            //self.rect.width = pix_width;
+            //self.rect.height = pix_height;
+            tty.set_echo(modes.iter().any(|(k, v)| *k == thrussh::Pty::ECHO && *v == 1));
+            tty.set_line_buffering(modes.iter().any(|(k, v)| *k == thrussh::Pty::ICANON && *v == 1));
         }
 
         self.finished(session)

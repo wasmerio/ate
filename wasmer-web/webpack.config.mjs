@@ -13,7 +13,9 @@ export default {
       patterns: [
         { from: resolve(__dirname, "node_modules/xterm/css/xterm.css") },
         { from: resolve(__dirname, "node_modules/xterm/lib/xterm.js.map") },
-        { from: resolve(__dirname, "public") },
+        { from: resolve(__dirname, "public/index.html") },
+        { from: resolve(__dirname, "public/wasmer.css") },
+        { from: resolve(__dirname, "public/worker.js") },
       ],
     }),
     new WasmPackPlugin({

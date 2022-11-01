@@ -3,8 +3,6 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 use ate::comms::RawWebRoute;
-use wasmer_ssh::wasmer_os::environment::Environment;
-use wasmer_ssh::wasmer_os::fd::FdMsg;
 use error_chain::bail;
 #[allow(unused_imports)]
 use tokio::sync::mpsc;
@@ -20,8 +18,6 @@ use ate::comms::Upstream;
 use ate::prelude::*;
 use ate_files::repo::Repository;
 use ate_files::repo::RepositorySessionFactory;
-use wasmer_ssh::wasmer_os::api::System;
-use wasmer_ssh::wasmer_os::api::SystemAbiExt;
 use wasmer_deploy_cli::model::InstanceHello;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, span, trace, warn, Level};
@@ -34,18 +30,6 @@ use wasmer_deploy_cli::model::INSTANCE_ROOT_ID;
 use wasmer_deploy_cli::model::MASTER_AUTHORITY_ID;
 #[allow(unused_imports)]
 use wasmer_deploy_cli::model::InstanceCall;
-use wasmer_ssh::wasmer_os;
-use wasmer_os::api::ConsoleRect;
-use wasmer_os::fs::UnionFileSystem;
-use wasmer_os::bin_factory::*;
-use wasmer_os::reactor::Reactor;
-use wasmer_os::bus::SubProcessMultiplexer;
-use wasmer_os::pipe::pipe_in;
-use wasmer_os::pipe::pipe_out;
-use wasmer_os::fd::FdFlag;
-use wasmer_os::pipe::ReceiverMode;
-use wasmer_os::grammar::ast::Redirect;
-use wasmer_os::grammar::ast::RedirectionType;
 use wasmer_auth::cmd::impersonate_command;
 use wasmer_auth::helper::b64_to_session;
 use ttl_cache::TtlCache;
@@ -74,10 +58,7 @@ pub struct Server
     pub repo: Arc<Repository>,
     pub db_url: url::Url,
     pub auth_url: url::Url,
-    pub engine: Option<wasmer_os::wasmer::Engine>,
-    pub compiler: wasmer_os::eval::Compiler,
     pub compiled_modules: Arc<CachedCompiledModules>,
-    pub cache_webc_dir: Option<String>,
     pub instance_authority: String,
     pub sessions: RwLock<TtlCache<ChainKey, SessionBasics>>,
     pub ttl: Duration,
@@ -91,9 +72,7 @@ impl Server
         instance_authority: String,
         token_path: String,
         registry: Arc<Registry>,
-        compiler: wasmer_os::eval::Compiler,
         compiled_modules: Arc<CachedCompiledModules>,
-        cache_webc_dir: Option<String>,
         ttl: Duration,
     ) -> Result<Self, Box<dyn std::error::Error>>
     {
@@ -117,18 +96,14 @@ impl Server
         .await?;
 
         let sessions = RwLock::new(TtlCache::new(usize::MAX));
-        let engine = compiler.new_engine();
-
+        
         Ok(Self {
             system: System::default(),
             db_url,
             auth_url,
             registry,
             repo,
-            engine,
-            compiler,
             compiled_modules,
-            cache_webc_dir,
             instance_authority,
             sessions,
             ttl,
@@ -148,7 +123,7 @@ impl Server
         // (this will reuse accessors across threads and calls)
         let accessor = self.repo.get_accessor(&key, self.instance_authority.as_str()).await
             .map_err(|err| CommsErrorKind::InternalError(err.to_string()))?;
-        let mut fs = wasmer_os::fs::create_root_fs(Some(Box::new(FileAccessorAdapter::new(&accessor))));
+        let mut fs = wasmer_wasi::fs::create_root_fs(Some(Box::new(FileAccessorAdapter::new(&accessor))));
         fs.solidify();
         trace!("loaded file file system for {}", key);
 
