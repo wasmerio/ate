@@ -17,7 +17,7 @@ client = [ "sys", "enable_full", "ate/client" ]
 server = [ "sys", "enable_full", "ctrlc-async", "ate/server", "ate/enable_mt" ]
 force_tty = [ "wasmer-auth/force_tty" ]
 bus = []
-sys = [ "wasmer-bus-ws/sys", "wasmer-bus-tty/sys", "wasmer-bus-mio/sys", "wasmer-bus/sys", "ate-comms/sys", "smoltcp" ]
+sys = [ "ate-comms/sys", "smoltcp" ]
 enable_full = [ "enable_tcp", "enable_bridge" ]
 enable_tcp = [ "enable_ntp", "enable_dns" ]
 enable_dns = [ "ate-comms/dns" ]
@@ -30,12 +30,6 @@ wasmer-auth = { version = "^1.9", path = "../wasmer-auth", default_features = fa
 ate-files = { version = "^1.2", path = "../files", default_features = false }
 ate-crypto = { version = "^1.1", path = "../crypto", features = [ "quantum" ], default_features = false }
 ate-comms = { version = "^1.1", path = "../comms", features = [ "quantum" ], default_features = false }
-wasmer-bus = { version = "^1", path = "../wasmer-bus/lib" }
-wasmer-bus-fuse = { version = "^1", path = "../wasmer-bus/fuse", default_features = false }
-wasmer-bus-ws = { version = "^1", path = "../wasmer-bus/ws", default_features = false }
-wasmer-bus-tty = { version = "^1", path = "../wasmer-bus/tty", default_features = false }
-wasmer-bus-deploy = { version = "^1", path = "../wasmer-bus/deploy", default_features = false }
-wasmer-bus-mio = { version = "^1", path = "../wasmer-bus/mio", default_features = false }
 error-chain = { version = "^0.12", default_features = false }
 serde = { version = "^1", features = ["derive"] }
 serde_json = "^1"
@@ -86,4 +80,3 @@ smoltcp = { version = "0.8.0", git = "https://github.com/john-sharratt/smoltcp.g
 backtrace = "^0.3"
 wasi = { package = "wasix", version = "0.11", path = "../../wasix" }
 wasm-timer = { version = "^0.2" }
-wasmer-bus-process = { version = "^1", path = "../wasmer-bus/process" }

@@ -30,7 +30,7 @@ enable_full = [ "tokio/net", "tokio-tungstenite", "enable_buffered", "enable_loc
 client_web = [ "enable_client", "enable_web_sys" ]
 client = [ "sys", "enable_full", "enable_client" ]
 server = [ "sys", "enable_full", "enable_server", "enable_client" ]
-sys = [ "wasmer-bus/sys", "wasmer-bus-ws/sys", "ate-comms/sys" ]
+sys = [ "ate-comms/sys" ]
 
 [dependencies]
 ate-crypto = { version = "^1.1", path = "../crypto", features = [ "quantum" ], default_features = false }
@@ -73,9 +73,6 @@ cooked-waker = "^5"
 http = { version = "^0.2" }
 tokio = { version = "1", features = [ "macros", "sync" ], default_features = false }
 derivative = { version = "^2" }
-wasmer-bus = { version = "^1", path = "../wasmer-bus/lib", default_features = false }
-wasmer-bus-ws = { version = "^1", path = "../wasmer-bus/ws", default_features = false }
-wasmer-bus-time = { version = "^1", path = "../wasmer-bus/time" }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 pnet = { version = "^0.27", optional = true }

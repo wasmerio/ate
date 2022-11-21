@@ -14,4 +14,4 @@ categories = ["network-programming"]
 edition = "2021"
 
 [dependencies]
-wasmer-bus-ws = { version = "^1", path = "../../wasmer-bus/ws" }
+#wasmer-bus-ws = { version = "^1", path = "../../wasmer-bus/ws" }
